@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   FlatList,
+  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
@@ -18,6 +20,41 @@ import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { useListResources } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { Resource } from '@workspace/api-client-react';
+
+function getYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
+    if (u.hostname.includes('youtube.com')) {
+      const v = u.searchParams.get('v');
+      if (v) return v;
+      const m = u.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);
+      if (m) return m[1];
+    }
+    return null;
+  } catch { return null; }
+}
+
+function isVimeoUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.includes('vimeo.com');
+  } catch { return false; }
+}
+
+function useVimeoThumbnail(url: string, enabled: boolean) {
+  return useQuery<string | null>({
+    queryKey: ['vimeo-thumbnail', url],
+    queryFn: async () => {
+      const res = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data.thumbnail_url as string) ?? null;
+    },
+    enabled,
+    staleTime: 1000 * 60 * 60, // 1 hour — thumbnail URLs don't change
+    retry: false,
+  });
+}
 
 const FORMAT_ICONS: Record<string, string> = {
   article: 'file-text',
@@ -49,6 +86,13 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
   const colors = useColors();
   const formatIcon = FORMAT_ICONS[item.format] ?? 'link';
 
+  const ytId = getYouTubeId(item.url);
+  const vimeo = isVimeoUrl(item.url);
+  const { data: vimeoThumb } = useVimeoThumbnail(item.url, vimeo && !ytId);
+  const thumb = ytId
+    ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+    : vimeoThumb ?? null;
+
   return (
     <Pressable
       onPress={onPress}
@@ -62,6 +106,15 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
         },
       ]}
     >
+      {thumb ? (
+        <View style={[styles.thumbnail, { borderRadius: colors.radius - 2 }]}>
+          <Image
+            source={{ uri: thumb }}
+            style={styles.thumbnailImage}
+            resizeMode="cover"
+          />
+        </View>
+      ) : null}
       <View style={styles.cardHeader}>
         <View
           style={[
@@ -284,6 +337,8 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
+  thumbnail: { width: '100%', height: 140, overflow: 'hidden', marginBottom: 4 },
+  thumbnailImage: { width: '100%', height: '100%' },
   cardHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   formatIcon: {
     width: 40,
