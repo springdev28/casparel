@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useLocation, Link } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
 import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2 } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
@@ -54,6 +55,27 @@ function getYouTubeId(url: string): string | null {
   } catch { return null; }
 }
 
+function isVimeoUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.includes('vimeo.com');
+  } catch { return false; }
+}
+
+function useVimeoThumbnail(url: string, enabled: boolean) {
+  return useQuery<string | null>({
+    queryKey: ['vimeo-thumbnail', url],
+    queryFn: async () => {
+      const res = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data.thumbnail_url as string) ?? null;
+    },
+    enabled,
+    staleTime: 1000 * 60 * 60, // 1 hour — thumbnail URLs don't change
+    retry: false,
+  });
+}
+
 function FormatBadge({ format }: { format: string }) {
   return (
     <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[format] ?? FORMAT_COLORS.other}`}>
@@ -68,11 +90,16 @@ function LibraryCard({ resource, onClick }: {
   onClick: () => void;
 }) {
   const ytId = getYouTubeId(resource.url);
+  const vimeo = isVimeoUrl(resource.url);
+  const { data: vimeoThumb } = useVimeoThumbnail(resource.url, vimeo && !ytId);
+  const thumb = ytId
+    ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+    : vimeoThumb ?? null;
   return (
     <Card className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden" onClick={onClick} data-testid="resource-card">
-      {ytId && (
+      {thumb && (
         <div className="w-full h-36 overflow-hidden bg-black">
-          <img src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`} alt={resource.title} className="w-full h-full object-cover" loading="lazy" />
+          <img src={thumb} alt={resource.title} className="w-full h-full object-cover" loading="lazy" />
         </div>
       )}
       <CardHeader className="pb-2">
