@@ -76,6 +76,27 @@ function useVimeoThumbnail(url: string, enabled: boolean) {
   });
 }
 
+function isLoomUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.includes('loom.com');
+  } catch { return false; }
+}
+
+function useLoomThumbnail(url: string, enabled: boolean) {
+  return useQuery<string | null>({
+    queryKey: ['loom-thumbnail', url],
+    queryFn: async () => {
+      const res = await fetch(`https://www.loom.com/v1/oembed?url=${encodeURIComponent(url)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data.thumbnail_url as string) ?? null;
+    },
+    enabled,
+    staleTime: 1000 * 60 * 60, // 1 hour — thumbnail URLs don't change
+    retry: false,
+  });
+}
+
 function FormatBadge({ format }: { format: string }) {
   return (
     <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[format] ?? FORMAT_COLORS.other}`}>
@@ -91,10 +112,12 @@ function LibraryCard({ resource, onClick }: {
 }) {
   const ytId = getYouTubeId(resource.url);
   const vimeo = isVimeoUrl(resource.url);
+  const loom = isLoomUrl(resource.url);
   const { data: vimeoThumb } = useVimeoThumbnail(resource.url, vimeo && !ytId);
+  const { data: loomThumb } = useLoomThumbnail(resource.url, loom && !ytId);
   const thumb = ytId
     ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-    : vimeoThumb ?? null;
+    : vimeoThumb ?? loomThumb ?? null;
   return (
     <Card className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden" onClick={onClick} data-testid="resource-card">
       {thumb && (
