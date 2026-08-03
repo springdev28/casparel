@@ -73,6 +73,21 @@ function getLoomId(url: string): string | null {
   }
 }
 
+function getGoogleDriveId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.includes('drive.google.com')) return null;
+    // https://drive.google.com/file/d/{fileId}/view  or  /preview  or  /edit
+    const m = u.pathname.match(/\/file\/d\/([^/]+)/);
+    if (m) return m[1];
+    // https://drive.google.com/open?id={fileId}
+    const id = u.searchParams.get('id');
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
 function isPdf(url: string): boolean {
   try {
     const pathname = new URL(url).pathname.toLowerCase();
@@ -120,6 +135,21 @@ function ResourceEmbed({ url }: { url: string }) {
         <iframe
           src={`https://www.loom.com/embed/${loomId}`}
           title="Loom video player"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full border-0"
+        />
+      </div>
+    );
+  }
+
+  const driveId = getGoogleDriveId(url);
+  if (driveId) {
+    return (
+      <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+        <iframe
+          src={`https://drive.google.com/file/d/${driveId}/preview`}
+          title="Google Drive video player"
+          allow="autoplay"
           allowFullScreen
           className="absolute inset-0 w-full h-full border-0"
         />
