@@ -141,6 +141,17 @@ router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
+  // Check existence before the ownership guard so that a second concurrent
+  // DELETE (racing after the first already removed the row) returns 204
+  // instead of 403 (isListOwner returns false for a non-existent list).
+  const [existing] = await db
+    .select({ id: resourceListsTable.id })
+    .from(resourceListsTable)
+    .where(eq(resourceListsTable.id, params.data.id));
+  if (!existing) {
+    res.sendStatus(204);
+    return;
+  }
   if (!(await isListOwner(params.data.id, userId))) {
     res.status(403).json({ error: "Only the list owner can delete this list" });
     return;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { Plus, List } from 'lucide-react';
+import { Plus, List, Trash2 } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -14,6 +14,7 @@ import { formatDistanceToNow } from 'date-fns';
 import {
   useListResourceLists,
   useCreateResourceList,
+  useDeleteResourceList,
   getListResourceListsQueryKey,
 } from '@workspace/api-client-react';
 
@@ -25,8 +26,12 @@ export default function ListsPage() {
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
 
+  // Delete confirmation state
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+
   const { data: lists, isLoading } = useListResourceLists();
   const createList = useCreateResourceList();
+  const deleteList = useDeleteResourceList();
 
   function resetForm() {
     setNewName('');
@@ -45,6 +50,27 @@ export default function ListsPage() {
       setDialogOpen(false);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to create list';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const { id, name } = deleteTarget;
+    setDeleteTarget(null);
+    try {
+      await deleteList.mutateAsync({ id });
+      queryClient.invalidateQueries({ queryKey: getListResourceListsQueryKey() });
+      toast({ title: 'List deleted', description: `"${name}" has been removed.` });
+    } catch (err: unknown) {
+      // A 404 means another session already deleted this list — treat as success.
+      const status = (err as { status?: number }).status;
+      if (status === 404) {
+        queryClient.invalidateQueries({ queryKey: getListResourceListsQueryKey() });
+        toast({ title: 'List deleted', description: `"${name}" has been removed.` });
+        return;
+      }
+      const message = err instanceof Error ? err.message : 'Failed to delete list';
       toast({ title: 'Error', description: message, variant: 'destructive' });
     }
   }
@@ -117,7 +143,21 @@ export default function ListsPage() {
               data-testid="list-card"
             >
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">{list.name}</CardTitle>
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base">{list.name}</CardTitle>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mt-1 -mr-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget({ id: list.id, name: list.name });
+                    }}
+                    data-testid="delete-list-button"
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
                 {list.description && (
                   <CardDescription className="line-clamp-2">{list.description}</CardDescription>
                 )}
@@ -132,6 +172,29 @@ export default function ListsPage() {
           ))}
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete list?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This will remove the list and all its items permanently.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteList.isPending}
+              data-testid="confirm-delete-list"
+            >
+              {deleteList.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
