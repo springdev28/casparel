@@ -62,21 +62,28 @@ router.get("/resources", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const { q, format, subject, gradeLevel, limit = 12, offset = 0 } = params.data;
+  const { q, format, subject, gradeLevel, sortBy, minRating, limit = 12, offset = 0 } = params.data;
   const conditions = [];
   if (q) conditions.push(ilike(resourcesTable.title, `%${q}%`));
   if (format) conditions.push(eq(resourcesTable.format, format as "article" | "video" | "pdf" | "podcast" | "interactive" | "other"));
-  if (subject) conditions.push(eq(resourcesTable.subject, subject));
+  if (subject) conditions.push(ilike(resourcesTable.subject, `%${subject}%`));
   if (gradeLevel) conditions.push(eq(resourcesTable.gradeLevel, gradeLevel));
 
-  const base = db.select().from(resourcesTable);
-  const rows = await (conditions.length > 0
-    ? base.where(and(...conditions))
-    : base
-  ).limit(limit).offset(offset);
+  const orderExpr =
+    sortBy === "most_reviewed"
+      ? sql`(select cast(count(*) as int) from reviews where resource_id = resources.id) desc`
+      : sortBy === "top_rated"
+        ? sql`coalesce((select avg(rating) from reviews where resource_id = resources.id), 0) desc`
+        : sql`${resourcesTable.createdAt} desc`; // newest (default)
 
-  const resources = await Promise.all(rows.map((r) => resourceWithRating(r.id)));
-  res.json(ListResourcesResponse.parse(resources.filter(Boolean)));
+  const base = db.select({ id: resourcesTable.id }).from(resourcesTable).orderBy(orderExpr);
+  const rows = await (conditions.length > 0 ? base.where(and(...conditions)) : base)
+    .limit(minRating ? 50 : limit) // fetch extra when filtering by rating so we can trim after
+    .offset(offset);
+
+  let resources = (await Promise.all(rows.map((r) => resourceWithRating(r.id)))).filter(Boolean) as NonNullable<Awaited<ReturnType<typeof resourceWithRating>>>[];
+  if (minRating) resources = resources.filter((r) => r.avgRating >= minRating).slice(0, limit);
+  res.json(ListResourcesResponse.parse(resources));
 });
 
 // ── GET /resources/featured — public ─────────────────────────────────────────

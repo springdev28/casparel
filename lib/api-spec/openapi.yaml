@@ -330,6 +330,19 @@ paths:
           in: query
           schema:
             type: string
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [newest, top_rated, most_reviewed]
+          description: Sort order for results
+        - name: minRating
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+          description: Only return resources with avgRating >= this value
         - name: limit
           in: query
           schema:

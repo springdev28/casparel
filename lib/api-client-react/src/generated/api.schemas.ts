@@ -515,6 +515,16 @@ format?: ListResourcesFormat;
 subject?: string;
 gradeLevel?: string;
 /**
+ * Sort order for results
+ */
+sortBy?: ListResourcesSortBy;
+/**
+ * Only return resources with avgRating >= this value
+ * @minimum 1
+ * @maximum 5
+ */
+minRating?: number;
+/**
  * Maximum number of results to return
  * @minimum 1
  * @maximum 50
@@ -526,6 +536,14 @@ limit?: number;
  */
 offset?: number;
 };
+
+export type ListResourcesSortBy = typeof ListResourcesSortBy[keyof typeof ListResourcesSortBy];
+
+export const ListResourcesSortBy = {
+  newest: 'newest',
+  top_rated: 'top_rated',
+  most_reviewed: 'most_reviewed',
+} as const;
 
 export type ListResourcesFormat = typeof ListResourcesFormat[keyof typeof ListResourcesFormat];
 

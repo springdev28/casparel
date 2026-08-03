@@ -324,6 +324,8 @@ export const ListResourcesQueryParams = zod.object({
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
+  "sortBy": zod.enum(['newest', 'top_rated', 'most_reviewed']).optional().describe('Sort order for results'),
+  "minRating": zod.coerce.number().int().min(1).max(5).optional().describe('Only return resources with avgRating >= this value'),
   "limit": zod.coerce.number().int().min(1).max(listResourcesQueryLimitMax).default(listResourcesQueryLimitDefault).describe('Maximum number of results to return'),
   "offset": zod.coerce.number().int().min(listResourcesQueryOffsetMin).default(listResourcesQueryOffsetDefault).describe('Number of results to skip')
 })

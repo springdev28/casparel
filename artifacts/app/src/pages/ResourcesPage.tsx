@@ -24,6 +24,7 @@ import {
   getGetMeQueryKey,
   getGetResourceRecommendationsQueryKey,
   ListResourcesFormat,
+  ListResourcesSortBy,
   ResourceInputFormat,
   DiscoverResourcesFormat,
   type DiscoveredResource,
@@ -212,6 +213,9 @@ export default function ResourcesPage() {
   const [activeQuery, setActiveQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('');
+  const [gradeLevelFilter, setGradeLevelFilter] = useState('');
+  const [sortByFilter, setSortByFilter] = useState<ListResourcesSortBy | ''>('');
+  const [minRatingFilter, setMinRatingFilter] = useState<number | ''>('');
   const [libraryLimit, setLibraryLimit] = useState(12);
 
   const isSearching = activeQuery.trim().length > 0;
@@ -230,6 +234,9 @@ export default function ResourcesPage() {
     ...(activeQuery ? { q: activeQuery } : {}),
     ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as ListResourcesFormat } : {}),
     ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
+    ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+    ...(sortByFilter ? { sortBy: sortByFilter } : {}),
+    ...(minRatingFilter ? { minRating: minRatingFilter as number } : {}),
     limit: libraryLimit,
     offset: 0,
   };
@@ -459,6 +466,32 @@ export default function ResourcesPage() {
             </SelectContent>
           </Select>
           <Input className="w-36 h-8 text-xs" placeholder="Subject…" value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)} data-testid="subject-filter" />
+          <Select value={gradeLevelFilter || 'all'} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-36 h-8 text-xs" data-testid="grade-filter"><SelectValue placeholder="All grades" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All grades</SelectItem>
+              {['K–5', '6–8', '9–12', 'College', 'Adult', 'All Ages'].map((g) => (
+                <SelectItem key={g} value={g}>{g}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={minRatingFilter === '' ? 'any' : String(minRatingFilter)} onValueChange={(v) => setMinRatingFilter(v === 'any' ? '' : Number(v))}>
+            <SelectTrigger className="w-36 h-8 text-xs" data-testid="rating-filter"><SelectValue placeholder="Any rating" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Any rating</SelectItem>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <SelectItem key={n} value={String(n)}>{'★'.repeat(n)} & up</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={sortByFilter || 'newest'} onValueChange={(v) => setSortByFilter(v === 'newest' ? '' : v as ListResourcesSortBy)}>
+            <SelectTrigger className="w-36 h-8 text-xs" data-testid="sort-filter"><SelectValue placeholder="Newest first" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest first</SelectItem>
+              <SelectItem value={ListResourcesSortBy.top_rated}>Top rated</SelectItem>
+              <SelectItem value={ListResourcesSortBy.most_reviewed}>Most reviewed</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </form>
 
