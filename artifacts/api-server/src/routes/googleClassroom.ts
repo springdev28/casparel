@@ -32,6 +32,8 @@ import {
   ShareToGCResponse,
   ImportGCCourseBody,
   ImportGCCourseResponse,
+  GetGCCourseStudentsParams,
+  GetGCCourseStudentsResponse,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
@@ -427,6 +429,90 @@ router.post(
       .onConflictDoNothing();
 
     res.status(201).json(ImportGCCourseResponse.parse({ ...cls, memberCount: 1 }));
+  },
+);
+
+// ── GET /google-classroom/courses/:courseId/students (teacher only) ───────────
+// Returns the enrolled students for a GC course, with EduHub link status.
+
+router.get(
+  "/google-classroom/courses/:courseId/students",
+  requireAuth,
+  requireTeacher,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+
+    const params = GetGCCourseStudentsParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+
+    const { courseId } = params.data;
+
+    const token = await getValidToken(userId);
+    if (!token) {
+      res.status(401).json({
+        error: "Google Classroom not connected or access was revoked. Please reconnect.",
+      });
+      return;
+    }
+
+    // Verify teacher membership before listing students.
+    const teacherVerified = await isTeacherOfCourse(courseId, token);
+    if (!teacherVerified) {
+      res.status(403).json({
+        error:
+          "You are not a teacher for the specified Google Classroom course, or it does not exist.",
+      });
+      return;
+    }
+
+    // Fetch students from Google Classroom (up to 200 per request; no pagination needed for typical classes).
+    const gcResp = await fetch(
+      `https://classroom.googleapis.com/v1/courses/${encodeURIComponent(courseId)}/students?pageSize=200`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (!gcResp.ok) {
+      const detail = await gcResp.text();
+      res.status(gcResp.status).json({ error: "Failed to fetch course students", detail });
+      return;
+    }
+
+    const gcData = (await gcResp.json()) as {
+      students?: Array<{
+        userId: string;
+        profile: { name: { fullName: string }; emailAddress: string };
+      }>;
+    };
+
+    const gcStudents = gcData.students ?? [];
+
+    // Collect emails to look up EduHub accounts in one query.
+    const emails = gcStudents.map((s) => s.profile.emailAddress).filter(Boolean);
+
+    let emailToUserId: Record<string, number> = {};
+    if (emails.length > 0) {
+      const { usersTable } = await import("@workspace/db");
+      const { inArray } = await import("drizzle-orm");
+      const rows = await db
+        .select({ id: usersTable.id, email: usersTable.email })
+        .from(usersTable)
+        .where(inArray(usersTable.email, emails));
+      for (const row of rows) {
+        emailToUserId[row.email] = row.id;
+      }
+    }
+
+    const students = gcStudents.map((s) => ({
+      gcUserId: s.userId,
+      name: s.profile.name.fullName,
+      email: s.profile.emailAddress,
+      linkedUserId: emailToUserId[s.profile.emailAddress] ?? null,
+    }));
+
+    res.json(GetGCCourseStudentsResponse.parse(students));
   },
 );
 

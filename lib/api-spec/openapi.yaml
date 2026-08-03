@@ -258,6 +258,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/ClassMember"
 
+  /classes/{id}/members/bulk-invite:
+    post:
+      operationId: bulkInviteClassMembers
+      tags: [classes]
+      summary: Bulk-add students to a class by email (teacher only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkInviteInput"
+      responses:
+        "200":
+          description: Bulk invite result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkInviteResult"
+        "403":
+          description: Not the class teacher
+
   /classes/{id}/members/{userId}:
     delete:
       operationId: removeClassMember
@@ -915,6 +942,31 @@ paths:
         "403":
           description: Not a teacher
 
+  /google-classroom/courses/{courseId}/students:
+    get:
+      operationId: getGCCourseStudents
+      tags: [google-classroom]
+      summary: List students enrolled in a Google Classroom course
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of enrolled students with EduHub link status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GCRosterStudent"
+        "401":
+          description: Not connected or token revoked
+        "403":
+          description: Not a teacher of this course
+
   # ── Dashboard / Activity ──────────────────────────────────────────────────
   /dashboard/summary:
     get:
@@ -1340,3 +1392,40 @@ components:
       required: [courseId]
       properties:
         courseId: { type: string }
+
+    GCRosterStudent:
+      type: object
+      required: [gcUserId, name, email]
+      properties:
+        gcUserId:      { type: string }
+        name:          { type: string }
+        email:         { type: string }
+        linkedUserId:  { type: ["integer", "null"] }
+
+    BulkInviteInput:
+      type: object
+      required: [emails]
+      properties:
+        emails:
+          type: array
+          items: { type: string }
+          minItems: 1
+
+    BulkInviteResultItem:
+      type: object
+      required: [email, status]
+      properties:
+        email:  { type: string }
+        status: { type: string, enum: [added, already_member, not_found] }
+
+    BulkInviteResult:
+      type: object
+      required: [added, alreadyMember, notFound, results]
+      properties:
+        added:         { type: integer }
+        alreadyMember: { type: integer }
+        notFound:      { type: integer }
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/BulkInviteResultItem"

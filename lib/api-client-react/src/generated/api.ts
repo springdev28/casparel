@@ -22,6 +22,8 @@ import type {
 import type {
   ActivityItem,
   AuthResponse,
+  BulkInviteInput,
+  BulkInviteResult,
   Class,
   ClassInput,
   ClassMember,
@@ -34,6 +36,7 @@ import type {
   GCAuthUrl,
   GCCourse,
   GCImportInput,
+  GCRosterStudent,
   GCShareInput,
   GCShareResult,
   GCStatus,
@@ -1044,6 +1047,78 @@ export const useAddClassMember = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAddClassMemberMutationOptions(options));
+    }
+
+export const getBulkInviteClassMembersUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/members/bulk-invite`
+}
+
+/**
+ * @summary Bulk-add students to a class by email (teacher only)
+ */
+export const bulkInviteClassMembers = async (id: number,
+    bulkInviteInput: BulkInviteInput, options?: Parameters<typeof customFetch>[1]): Promise<BulkInviteResult> => {
+
+  return customFetch<BulkInviteResult>(getBulkInviteClassMembersUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkInviteInput)
+  }
+);}
+
+
+
+
+
+export const getBulkInviteClassMembersMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkInviteClassMembers>>, TError,{id: number;data: BodyType<BulkInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkInviteClassMembers>>, TError,{id: number;data: BodyType<BulkInviteInput>}, TContext> => {
+
+const mutationKey = ['bulkInviteClassMembers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkInviteClassMembers>>, {id: number;data: BodyType<BulkInviteInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  bulkInviteClassMembers(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BulkInviteClassMembersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkInviteClassMembers>>>
+    export type BulkInviteClassMembersMutationBody = BodyType<BulkInviteInput>
+    export type BulkInviteClassMembersMutationError = ErrorType<void>
+
+    /**
+ * @summary Bulk-add students to a class by email (teacher only)
+ */
+export const useBulkInviteClassMembers = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkInviteClassMembers>>, TError,{id: number;data: BodyType<BulkInviteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof bulkInviteClassMembers>>,
+        TError,
+        {id: number;data: BodyType<BulkInviteInput>},
+        TContext
+      > => {
+      return useMutation(getBulkInviteClassMembersMutationOptions(options));
     }
 
 export const getRemoveClassMemberUrl = (id: number,
@@ -3428,6 +3503,83 @@ export const useImportGCCourse = <TError = ErrorType<void>,
       > => {
       return useMutation(getImportGCCourseMutationOptions(options));
     }
+
+export const getGetGCCourseStudentsUrl = (courseId: string,) => {
+
+
+
+
+  return `/api/google-classroom/courses/${courseId}/students`
+}
+
+/**
+ * @summary List students enrolled in a Google Classroom course
+ */
+export const getGCCourseStudents = async (courseId: string, options?: Parameters<typeof customFetch>[1]): Promise<GCRosterStudent[]> => {
+
+  return customFetch<GCRosterStudent[]>(getGetGCCourseStudentsUrl(courseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGCCourseStudentsQueryKey = (courseId: string,) => {
+    return [
+    `/api/google-classroom/courses/${courseId}/students`
+    ] as const;
+    }
+
+
+export const getGetGCCourseStudentsQueryOptions = <TData = Awaited<ReturnType<typeof getGCCourseStudents>>, TError = ErrorType<void>>(courseId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGCCourseStudents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGCCourseStudentsQueryKey(courseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGCCourseStudents>>> = ({ signal }) => getGCCourseStudents(courseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: courseId !== null && courseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGCCourseStudents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGCCourseStudentsQueryResult = NonNullable<Awaited<ReturnType<typeof getGCCourseStudents>>>
+export type GetGCCourseStudentsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List students enrolled in a Google Classroom course
+ */
+
+export function useGetGCCourseStudents<TData = Awaited<ReturnType<typeof getGCCourseStudents>>, TError = ErrorType<void>>(
+ courseId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGCCourseStudents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGCCourseStudentsQueryOptions(courseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetDashboardSummaryUrl = () => {
 

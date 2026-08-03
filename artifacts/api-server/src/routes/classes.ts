@@ -17,6 +17,9 @@ import {
   AddClassMemberBody,
   AddClassMemberResponse,
   RemoveClassMemberParams,
+  BulkInviteClassMembersParams,
+  BulkInviteClassMembersBody,
+  BulkInviteClassMembersResponse,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
@@ -221,6 +224,73 @@ router.post("/classes/:id/members", contentLimiter, requireAuth, async (req, res
       ),
     );
   res.status(201).json(AddClassMemberResponse.parse({ ...member, user }));
+});
+
+// POST /classes/:id/members/bulk-invite — class teacher only
+// Adds multiple students by email. Students with matching EduHub accounts are
+// auto-enrolled; emails with no account are reported as not_found.
+router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+
+  const params = BulkInviteClassMembersParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  if (!(await isClassTeacher(params.data.id, userId))) {
+    res.status(403).json({ error: "Only the class teacher can add members" });
+    return;
+  }
+
+  const parsed = BulkInviteClassMembersBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { emails } = parsed.data;
+
+  // Fetch all matching users in one query.
+  const { inArray } = await import("drizzle-orm");
+  const matchedUsers = await db
+    .select({ id: usersTable.id, email: usersTable.email, role: usersTable.role })
+    .from(usersTable)
+    .where(inArray(usersTable.email, emails));
+
+  const emailToUser = new Map(matchedUsers.map((u) => [u.email, u]));
+
+  // Fetch existing memberships for this class to detect duplicates.
+  const existingMembers = await db
+    .select({ userId: classMembersTable.userId })
+    .from(classMembersTable)
+    .where(eq(classMembersTable.classId, params.data.id));
+  const existingUserIds = new Set(existingMembers.map((m) => m.userId));
+
+  const results: Array<{ email: string; status: "added" | "already_member" | "not_found" }> = [];
+  const toInsert: Array<{ userId: number; classId: number; role: "student" | "teacher" }> = [];
+
+  for (const email of emails) {
+    const user = emailToUser.get(email);
+    if (!user) {
+      results.push({ email, status: "not_found" });
+    } else if (existingUserIds.has(user.id)) {
+      results.push({ email, status: "already_member" });
+    } else {
+      toInsert.push({ userId: user.id, classId: params.data.id, role: user.role as "student" | "teacher" });
+      results.push({ email, status: "added" });
+    }
+  }
+
+  if (toInsert.length > 0) {
+    await db.insert(classMembersTable).values(toInsert).onConflictDoNothing();
+  }
+
+  const added = results.filter((r) => r.status === "added").length;
+  const alreadyMember = results.filter((r) => r.status === "already_member").length;
+  const notFound = results.filter((r) => r.status === "not_found").length;
+
+  res.json(BulkInviteClassMembersResponse.parse({ added, alreadyMember, notFound, results }));
 });
 
 // DELETE /classes/:id/members/:userId — class teacher only

@@ -273,6 +273,31 @@ export const AddClassMemberResponse = zod.object({
 
 
 /**
+ * @summary Bulk-add students to a class by email (teacher only)
+ */
+export const BulkInviteClassMembersParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+
+
+export const BulkInviteClassMembersBody = zod.object({
+  "emails": zod.array(zod.string()).min(1)
+})
+
+export const BulkInviteClassMembersResponse = zod.object({
+  "added": zod.int(),
+  "alreadyMember": zod.int(),
+  "notFound": zod.int(),
+  "results": zod.array(zod.object({
+  "email": zod.string(),
+  "status": zod.enum(['added', 'already_member', 'not_found'])
+}))
+})
+
+
+/**
  * @summary Remove a member from a class
  */
 export const RemoveClassMemberParams = zod.object({
@@ -941,6 +966,22 @@ export const ImportGCCourseResponse = zod.object({
   "memberCount": zod.int().optional(),
   "createdAt": zod.string()
 })
+
+
+/**
+ * @summary List students enrolled in a Google Classroom course
+ */
+export const GetGCCourseStudentsParams = zod.object({
+  "courseId": zod.coerce.string()
+})
+
+export const GetGCCourseStudentsResponseItem = zod.object({
+  "gcUserId": zod.string(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "linkedUserId": zod.int().nullish()
+})
+export const GetGCCourseStudentsResponse = zod.array(GetGCCourseStudentsResponseItem)
 
 
 /**

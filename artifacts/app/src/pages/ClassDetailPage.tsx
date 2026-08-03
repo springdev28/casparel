@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -16,8 +16,13 @@ import { formatDistanceToNow } from 'date-fns';
 import {
   useGetClass,
   useAddClassMember,
+  useBulkInviteClassMembers,
+  useGetGCCourseStudents,
+  useGetGCStatus,
   getGetClassQueryKey,
+  getGetGCStatusQueryKey,
   ClassMemberInputRole,
+  type GCRosterStudent,
 } from '@workspace/api-client-react';
 
 export default function ClassDetailPage() {
@@ -30,10 +35,34 @@ export default function ClassDetailPage() {
   const [memberEmail, setMemberEmail] = useState('');
   const [memberRole, setMemberRole] = useState<ClassMemberInputRole>(ClassMemberInputRole.student);
 
+  // Sync roster state
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [rosterConfirmed, setRosterConfirmed] = useState(false);
+
   const { data: cls, isLoading } = useGetClass(classId, {
     query: { enabled: !!classId, queryKey: getGetClassQueryKey(classId) },
   });
+
+  // Determine if the current user is the class teacher
+  const { data: gcStatus } = useGetGCStatus({
+    query: { queryKey: getGetGCStatusQueryKey() },
+  });
+
   const addMember = useAddClassMember();
+  const bulkInvite = useBulkInviteClassMembers();
+
+  // Roster fetch — only fires once the teacher picks a course and opens the sync dialog
+  const rosterEnabled = syncDialogOpen && !!selectedCourseId && gcStatus?.connected === true;
+  const { data: roster, isLoading: rosterLoading } = useGetGCCourseStudents(
+    selectedCourseId ?? '',
+    {
+      query: {
+        enabled: rosterEnabled,
+        queryKey: ['getGCCourseStudents', selectedCourseId ?? ''],
+      },
+    },
+  );
 
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault();
@@ -50,6 +79,33 @@ export default function ClassDetailPage() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to add member';
       toast({ title: 'Error', description: message, variant: 'destructive' });
+    }
+  }
+
+  async function handleSyncRoster() {
+    if (!roster || roster.length === 0) return;
+    const emails = roster.map((s: GCRosterStudent) => s.email).filter(Boolean);
+    try {
+      const result = await bulkInvite.mutateAsync({ id: classId, data: { emails } });
+      queryClient.invalidateQueries({ queryKey: getGetClassQueryKey(classId) });
+      setSyncDialogOpen(false);
+      setSelectedCourseId(null);
+      setRosterConfirmed(false);
+      toast({
+        title: 'Roster synced!',
+        description: `Added ${result.added} student${result.added !== 1 ? 's' : ''}. ${result.alreadyMember} already enrolled. ${result.notFound} had no EduHub account.`,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to sync roster';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    }
+  }
+
+  function handleSyncDialogOpenChange(open: boolean) {
+    setSyncDialogOpen(open);
+    if (!open) {
+      setSelectedCourseId(null);
+      setRosterConfirmed(false);
     }
   }
 
@@ -87,6 +143,12 @@ export default function ClassDetailPage() {
     );
   }
 
+  const isTeacher = gcStatus !== undefined; // gcStatus only loads for teachers via requireTeacher on the API
+  const gcConnected = gcStatus?.connected === true;
+
+  const linked = roster?.filter((s: GCRosterStudent) => s.linkedUserId !== null && s.linkedUserId !== undefined) ?? [];
+  const unlinked = roster?.filter((s: GCRosterStudent) => !s.linkedUserId) ?? [];
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <Button variant="ghost" size="sm" onClick={() => setLocation('/classes')} data-testid="back-button">
@@ -101,8 +163,106 @@ export default function ClassDetailPage() {
               <CardTitle className="text-xl">{cls.name}</CardTitle>
               <CardDescription>{cls.subject} · {cls.gradeLevel}</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary">{cls.members.length} member{cls.members.length !== 1 ? 's' : ''}</Badge>
+
+              {/* Sync Roster — only visible when GC is connected */}
+              {gcConnected && (
+                <Dialog open={syncDialogOpen} onOpenChange={handleSyncDialogOpenChange}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" data-testid="sync-roster-button">
+                      <RefreshCw size={14} className="mr-1" /> Sync Roster
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>Sync Google Classroom Roster</DialogTitle>
+                      <DialogDescription>
+                        Enter the Google Classroom course ID to pull its student roster into this class.
+                      </DialogDescription>
+                    </DialogHeader>
+
+                    {/* Step 1: enter course ID */}
+                    {!selectedCourseId && (
+                      <SyncCourseIdStep onConfirm={(id) => setSelectedCourseId(id)} />
+                    )}
+
+                    {/* Step 2: show roster preview */}
+                    {selectedCourseId && !rosterConfirmed && (
+                      <div className="space-y-4">
+                        {rosterLoading ? (
+                          <div className="space-y-2">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                              <Skeleton key={i} className="h-9 w-full" />
+                            ))}
+                          </div>
+                        ) : !roster || roster.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-6">
+                            No students found in this course.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-sm text-muted-foreground">
+                              Found <strong>{roster.length}</strong> student{roster.length !== 1 ? 's' : ''}.{' '}
+                              <span className="text-green-600 dark:text-green-400">{linked.length} matched</span> to EduHub accounts.{' '}
+                              <span className="text-muted-foreground">{unlinked.length} have no account yet.</span>
+                            </p>
+                            <div className="max-h-56 overflow-y-auto divide-y divide-border rounded-md border">
+                              {roster.map((s: GCRosterStudent) => (
+                                <div key={s.gcUserId} className="flex items-center justify-between px-3 py-2 gap-2">
+                                  <div>
+                                    <p className="text-sm font-medium">{s.name}</p>
+                                    <p className="text-xs text-muted-foreground">{s.email}</p>
+                                  </div>
+                                  {s.linkedUserId ? (
+                                    <CheckCircle2 size={16} className="text-green-600 dark:text-green-400 shrink-0" aria-label="Matched to EduHub account" />
+                                  ) : (
+                                    <AlertCircle size={16} className="text-muted-foreground shrink-0" aria-label="No EduHub account" />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            {unlinked.length > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Students without an EduHub account will be skipped. They can join after creating an account.
+                              </p>
+                            )}
+                          </>
+                        )}
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setSelectedCourseId(null)}>Back</Button>
+                          <Button
+                            onClick={() => setRosterConfirmed(true)}
+                            disabled={!roster || roster.length === 0 || linked.length === 0}
+                          >
+                            Add {linked.length} Student{linked.length !== 1 ? 's' : ''}
+                          </Button>
+                        </DialogFooter>
+                      </div>
+                    )}
+
+                    {/* Step 3: confirm */}
+                    {selectedCourseId && rosterConfirmed && (
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          This will enroll <strong>{linked.length}</strong> student{linked.length !== 1 ? 's' : ''} who already have EduHub accounts into this class.
+                        </p>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setRosterConfirmed(false)}>Back</Button>
+                          <Button
+                            onClick={handleSyncRoster}
+                            disabled={bulkInvite.isPending}
+                            data-testid="sync-roster-confirm"
+                          >
+                            {bulkInvite.isPending ? 'Syncing…' : 'Confirm Sync'}
+                          </Button>
+                        </DialogFooter>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+              )}
+
               <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm" data-testid="add-member-button">
@@ -195,6 +355,33 @@ export default function ClassDetailPage() {
         )}
       </section>
       <Separator />
+    </div>
+  );
+}
+
+/** Step 1 of the sync flow: collect the GC course ID from the teacher. */
+function SyncCourseIdStep({ onConfirm }: { onConfirm: (courseId: string) => void }) {
+  const [courseId, setCourseId] = useState('');
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="gc-course-id">Google Classroom Course ID</Label>
+        <Input
+          id="gc-course-id"
+          value={courseId}
+          onChange={(e) => setCourseId(e.target.value.trim())}
+          placeholder="e.g. 123456789"
+          data-testid="gc-course-id-input"
+        />
+        <p className="text-xs text-muted-foreground">
+          Find the ID in your Google Classroom URL: classroom.google.com/c/<strong>COURSE_ID</strong>
+        </p>
+      </div>
+      <DialogFooter>
+        <Button onClick={() => onConfirm(courseId)} disabled={!courseId}>
+          Fetch Roster
+        </Button>
+      </DialogFooter>
     </div>
   );
 }

@@ -472,6 +472,40 @@ export interface GCImportInput {
   courseId: string;
 }
 
+export interface GCRosterStudent {
+  gcUserId: string;
+  name: string;
+  email: string;
+  /** @nullable */
+  linkedUserId?: number | null;
+}
+
+export interface BulkInviteInput {
+  /** @minItems 1 */
+  emails: string[];
+}
+
+export type BulkInviteResultItemStatus = typeof BulkInviteResultItemStatus[keyof typeof BulkInviteResultItemStatus];
+
+
+export const BulkInviteResultItemStatus = {
+  added: 'added',
+  already_member: 'already_member',
+  not_found: 'not_found',
+} as const;
+
+export interface BulkInviteResultItem {
+  email: string;
+  status: BulkInviteResultItemStatus;
+}
+
+export interface BulkInviteResult {
+  added: number;
+  alreadyMember: number;
+  notFound: number;
+  results: BulkInviteResultItem[];
+}
+
 export type ListResourcesParams = {
 /**
  * Free-text search
