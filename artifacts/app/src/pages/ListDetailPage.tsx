@@ -18,6 +18,7 @@ import {
   useListGCCourses,
   useShareToGC,
   getGetResourceListQueryKey,
+  getListResourceListsQueryKey,
   getGetGCStatusQueryKey,
   getListGCCoursesQueryKey,
   UserRole,
@@ -84,6 +85,7 @@ export default function ListDetailPage() {
     try {
       await removeItem.mutateAsync({ id: listId, itemId });
       queryClient.invalidateQueries({ queryKey: getGetResourceListQueryKey(listId) });
+      queryClient.invalidateQueries({ queryKey: getListResourceListsQueryKey() });
       toast({ title: 'Item removed' });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to remove item';
