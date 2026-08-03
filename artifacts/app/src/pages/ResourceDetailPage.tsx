@@ -186,22 +186,33 @@ const TRUST_META: Record<SourceReview['trustLevel'], { label: string; icon: type
 
 function SourceReviewPanel({ resourceId }: { resourceId: number }) {
   const [open, setOpen] = useState(false);
-  const [enabled, setEnabled] = useState(false);
+  const [mode, setMode] = useState<'quick' | 'deep' | null>(null);
 
-  const { data, isLoading, isError } = useGetResourceSourceReview(resourceId, {
-    query: {
-      enabled,
-      queryKey: getGetResourceSourceReviewQueryKey(resourceId),
-      staleTime: 1000 * 60 * 10, // cache 10 min — AI calls are expensive
-    },
-  });
+  const { data: quickData, isLoading: quickLoading, isError: quickError } = useGetResourceSourceReview(
+    resourceId,
+    'quick',
+    { query: { enabled: mode === 'quick', queryKey: getGetResourceSourceReviewQueryKey(resourceId, 'quick'), staleTime: 1000 * 60 * 10 } }
+  );
+  const { data: deepData, isLoading: deepLoading, isError: deepError } = useGetResourceSourceReview(
+    resourceId,
+    'deep',
+    { query: { enabled: mode === 'deep', queryKey: getGetResourceSourceReviewQueryKey(resourceId, 'deep'), staleTime: 1000 * 60 * 10 } }
+  );
+
+  const data = mode === 'quick' ? quickData : mode === 'deep' ? deepData : undefined;
+  const isLoading = mode === 'quick' ? quickLoading : mode === 'deep' ? deepLoading : false;
+  const isError = mode === 'quick' ? quickError : mode === 'deep' ? deepError : false;
 
   function handleOpen() {
-    setEnabled(true);
     setOpen(true);
   }
 
+  function handleModeSelect(selected: 'quick' | 'deep') {
+    setMode(selected);
+  }
+
   const trust = data ? TRUST_META[data.trustLevel] : null;
+  const loadingLabel = mode === 'deep' ? 'Searching the web…' : 'Looking up source…';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -218,13 +229,42 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
           </DialogDescription>
         </DialogHeader>
 
+        {/* Mode picker — shown when no mode has been chosen yet */}
+        {mode === null && (
+          <div className="space-y-3 py-1">
+            <p className="text-sm text-muted-foreground">Choose how thoroughly to research this source:</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleModeSelect('quick')}
+                data-testid="mode-quick"
+                className="flex flex-col gap-1.5 rounded-lg border p-4 text-left hover:border-primary hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="text-sm font-semibold">⚡ Quick Overlook</span>
+                <span className="text-xs text-muted-foreground leading-relaxed">
+                  Uses the AI's built-in knowledge. Fast results, no web search.
+                </span>
+              </button>
+              <button
+                onClick={() => handleModeSelect('deep')}
+                data-testid="mode-deep"
+                className="flex flex-col gap-1.5 rounded-lg border p-4 text-left hover:border-primary hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="text-sm font-semibold">🔍 Deep Research</span>
+                <span className="text-xs text-muted-foreground leading-relaxed">
+                  Searches the live web for up-to-date info. Slower but thorough.
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {isLoading && (
           <div className="space-y-3 py-2">
             <Skeleton className="h-5 w-2/3" />
             <Skeleton className="h-4 w-1/2" />
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-4 w-3/4" />
-            <div className="text-xs text-muted-foreground text-center pt-1">Searching the web…</div>
+            <div className="text-xs text-muted-foreground text-center pt-1">{loadingLabel}</div>
           </div>
         )}
 
@@ -240,7 +280,12 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
             <div>
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
-                  <p className="font-semibold text-foreground">{data.sourceName}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-foreground">{data.sourceName}</p>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {data.mode === 'deep' ? '🔍 Deep Research' : '⚡ Quick'}
+                    </Badge>
+                  </div>
                   <p className="text-xs text-muted-foreground capitalize">{data.sourceType.replace(/-/g, ' ')}</p>
                 </div>
                 <div className={`flex items-center gap-1.5 text-sm font-medium ${trust.color}`}>
@@ -290,8 +335,16 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
             )}
 
             <p className="text-xs text-muted-foreground pt-1">
-              This review is AI-generated from public web sources and may not be fully accurate.
+              This review is AI-generated {data.mode === 'deep' ? 'from live web sources' : 'from training knowledge'} and may not be fully accurate.
             </p>
+
+            {/* Switch mode */}
+            <button
+              onClick={() => setMode(null)}
+              className="text-xs text-primary hover:underline"
+            >
+              Switch mode
+            </button>
           </div>
         )}
 

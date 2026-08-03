@@ -545,6 +545,16 @@ paths:
           required: true
           schema:
             type: integer
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [quick, deep]
+            default: quick
+          description: >
+            quick — use model training knowledge only (fast, no web search);
+            deep — use live web search for up-to-date information (slower, thorough)
       responses:
         "200":
           description: Source review
@@ -1222,7 +1232,7 @@ components:
 
     SourceReview:
       type: object
-      required: [sourceName, sourceType, summary, trustLevel]
+      required: [sourceName, sourceType, summary, trustLevel, mode]
       properties:
         sourceName:   { type: string }
         sourceType:   { type: string }
@@ -1236,6 +1246,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SourceReviewLink"
+        mode:         { type: string, enum: [quick, deep] }
 
     # ── Reviews ─────────────────────────────────────────────────────────────
     Review:

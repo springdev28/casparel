@@ -276,6 +276,7 @@ export const SourceReviewTrustLevel = {
   unknown: 'unknown',
 } as const;
 
+export type SourceReviewMode = 'quick' | 'deep';
 export interface SourceReview {
   sourceName: string;
   sourceType: string;
@@ -290,6 +291,7 @@ export interface SourceReview {
   trustReason?: string | null;
   summary: string;
   links?: SourceReviewLink[];
+  mode: SourceReviewMode;
 }
 
 export interface Review {
@@ -591,4 +593,3 @@ export type ListScheduleBlocksParams = {
  */
 weekStart?: string;
 };
-

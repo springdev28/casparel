@@ -1879,20 +1879,17 @@ export const useDeleteResource = <TError = ErrorType<unknown>,
       return useMutation(getDeleteResourceMutationOptions(options));
     }
 
-export const getGetResourceSourceReviewUrl = (id: number,) => {
-
-
-
-
-  return `/api/resources/${id}/source-review`
+export const getGetResourceSourceReviewUrl = (id: number, mode?: 'quick' | 'deep') => {
+  const modeParam = mode && mode !== 'quick' ? `?mode=${mode}` : '';
+  return `/api/resources/${id}/source-review${modeParam}`
 }
 
 /**
  * @summary Research and summarise the resource's source/uploader
  */
-export const getResourceSourceReview = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SourceReview> => {
+export const getResourceSourceReview = async (id: number, mode?: 'quick' | 'deep', options?: Parameters<typeof customFetch>[1]): Promise<SourceReview> => {
 
-  return customFetch<SourceReview>(getGetResourceSourceReviewUrl(id),
+  return customFetch<SourceReview>(getGetResourceSourceReviewUrl(id, mode),
   {
     ...options,
     method: 'GET'
@@ -1905,23 +1902,23 @@ export const getResourceSourceReview = async (id: number, options?: Parameters<t
 
 
 
-export const getGetResourceSourceReviewQueryKey = (id: number,) => {
+export const getGetResourceSourceReviewQueryKey = (id: number, mode?: 'quick' | 'deep') => {
     return [
-    `/api/resources/${id}/source-review`
+    `/api/resources/${id}/source-review`, ...(mode ? [{ mode }] : [])
     ] as const;
     }
 
 
-export const getGetResourceSourceReviewQueryOptions = <TData = Awaited<ReturnType<typeof getResourceSourceReview>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetResourceSourceReviewQueryOptions = <TData = Awaited<ReturnType<typeof getResourceSourceReview>>, TError = ErrorType<void>>(id: number, mode?: 'quick' | 'deep', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetResourceSourceReviewQueryKey(id);
+  const queryKey =  queryOptions?.queryKey ?? getGetResourceSourceReviewQueryKey(id, mode);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResourceSourceReview>>> = ({ signal }) => getResourceSourceReview(id, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResourceSourceReview>>> = ({ signal }) => getResourceSourceReview(id, mode, { signal, ...requestOptions });
 
 
 
@@ -1939,11 +1936,11 @@ export type GetResourceSourceReviewQueryError = ErrorType<void>
  */
 
 export function useGetResourceSourceReview<TData = Awaited<ReturnType<typeof getResourceSourceReview>>, TError = ErrorType<void>>(
- id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ id: number, mode?: 'quick' | 'deep', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetResourceSourceReviewQueryOptions(id,options)
+  const queryOptions = getGetResourceSourceReviewQueryOptions(id, mode, options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db, resourcesTable } from "@workspace/db";
 import {
   GetResourceSourceReviewParams,
+  GetResourceSourceReviewQueryParams,
   GetResourceSourceReviewResponse,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
@@ -17,6 +18,13 @@ router.get("/resources/:id/source-review", async (req, res): Promise<void> => {
     return;
   }
 
+  const query = GetResourceSourceReviewQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: "Invalid mode — must be 'quick' or 'deep'" });
+    return;
+  }
+  const mode = query.data.mode;
+
   const [resource] = await db
     .select()
     .from(resourcesTable)
@@ -29,12 +37,12 @@ router.get("/resources/:id/source-review", async (req, res): Promise<void> => {
 
   const { title, url } = resource;
 
-  const prompt = `You are a research assistant helping students evaluate the credibility and background of an educational resource.
+  const basePrompt = `You are a research assistant helping students evaluate the credibility and background of an educational resource.
 
 Resource title: "${title}"
 Resource URL: ${url}
 
-Please research the publisher/uploader/creator behind this URL and provide a structured JSON response with the following fields:
+Please provide a structured JSON response with the following fields:
 - sourceName: The name of the organisation, channel, institution, or individual who created/hosts this resource
 - sourceType: One of: "university", "nonprofit", "government", "news-outlet", "youtube-channel", "individual", "publisher", "company", "open-courseware", "other"
 - description: A 1-2 sentence description of the source
@@ -47,11 +55,19 @@ Please research the publisher/uploader/creator behind this URL and provide a str
 
 Respond ONLY with valid JSON matching this structure, no markdown or extra text.`;
 
+  const quickPrompt = `${basePrompt}
+
+Use only your training knowledge — do not search the web. Provide your best assessment based on what you already know about this URL and domain.`;
+
+  const deepPrompt = `${basePrompt}
+
+Research the publisher/uploader/creator behind this URL thoroughly using web search. Find up-to-date information and include relevant links you discover.`;
+
   try {
     const response = await openai.responses.create({
       model: "gpt-4o",
-      tools: [{ type: "web_search_preview" }],
-      input: prompt,
+      ...(mode === "deep" ? { tools: [{ type: "web_search_preview" as const }] } : {}),
+      input: mode === "deep" ? deepPrompt : quickPrompt,
     });
 
     // Extract text output from the response
@@ -75,7 +91,7 @@ Respond ONLY with valid JSON matching this structure, no markdown or extra text.
       return;
     }
 
-    const validated = GetResourceSourceReviewResponse.safeParse(parsed);
+    const validated = GetResourceSourceReviewResponse.safeParse({ ...(parsed as object), mode });
     if (!validated.success) {
       // Return the raw parsed data with fallback defaults if validation fails
       res.json(
@@ -89,6 +105,7 @@ Respond ONLY with valid JSON matching this structure, no markdown or extra text.
           trustReason: null,
           summary: String((parsed as Record<string, unknown>).summary ?? "No summary available."),
           links: [],
+          mode,
         })
       );
       return;
