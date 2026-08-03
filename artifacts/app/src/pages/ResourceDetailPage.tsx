@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
-import { ArrowLeft, ExternalLink, Plus, BookOpen, LogIn } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Plus, BookOpen, LogIn, Search, ShieldCheck, ShieldAlert, Shield, ShieldX, ExternalLink as LinkIcon } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
@@ -20,13 +20,142 @@ import {
   useListResourceLists,
   useAddListItem,
   useGetMe,
+  useGetResourceSourceReview,
   getListResourceReviewsQueryKey,
   getGetResourceQueryKey,
   getListResourcesQueryKey,
   getGetMeQueryKey,
   getListResourceListsQueryKey,
+  getGetResourceSourceReviewQueryKey,
 } from '@workspace/api-client-react';
+import type { SourceReview } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
+
+const TRUST_META: Record<SourceReview['trustLevel'], { label: string; icon: typeof ShieldCheck; color: string }> = {
+  high:    { label: 'Highly Trusted',    icon: ShieldCheck,  color: 'text-green-600' },
+  medium:  { label: 'Generally Trusted', icon: Shield,       color: 'text-yellow-600' },
+  low:     { label: 'Use with Caution',  icon: ShieldAlert,  color: 'text-orange-500' },
+  unknown: { label: 'Trust Unknown',     icon: ShieldX,      color: 'text-muted-foreground' },
+};
+
+function SourceReviewPanel({ resourceId }: { resourceId: number }) {
+  const [open, setOpen] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+
+  const { data, isLoading, isError } = useGetResourceSourceReview(resourceId, {
+    query: {
+      enabled,
+      queryKey: getGetResourceSourceReviewQueryKey(resourceId),
+      staleTime: 1000 * 60 * 10, // cache 10 min — AI calls are expensive
+    },
+  });
+
+  function handleOpen() {
+    setEnabled(true);
+    setOpen(true);
+  }
+
+  const trust = data ? TRUST_META[data.trustLevel] : null;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" onClick={handleOpen} data-testid="review-source-button">
+          <Search size={14} className="mr-1.5" /> Review the Source
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Source Review</DialogTitle>
+          <DialogDescription>
+            AI-researched background on the publisher or uploader of this resource.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading && (
+          <div className="space-y-3 py-2">
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <div className="text-xs text-muted-foreground text-center pt-1">Searching the web…</div>
+          </div>
+        )}
+
+        {isError && (
+          <div className="py-4 text-center text-sm text-destructive">
+            Could not retrieve source information. Please try again later.
+          </div>
+        )}
+
+        {data && trust && (
+          <div className="space-y-4 py-1">
+            {/* Source identity */}
+            <div>
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <p className="font-semibold text-foreground">{data.sourceName}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{data.sourceType.replace(/-/g, ' ')}</p>
+                </div>
+                <div className={`flex items-center gap-1.5 text-sm font-medium ${trust.color}`}>
+                  <trust.icon size={16} />
+                  <span>{trust.label}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Meta row */}
+            {(data.founded || data.headquarters) && (
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                {data.founded && <span>Founded: {data.founded}</span>}
+                {data.headquarters && <span>Location: {data.headquarters}</span>}
+              </div>
+            )}
+
+            <Separator />
+
+            {/* Summary */}
+            <p className="text-sm text-foreground leading-relaxed">{data.summary}</p>
+
+            {/* Trust reason */}
+            {data.trustReason && (
+              <p className="text-xs text-muted-foreground italic border-l-2 pl-3">{data.trustReason}</p>
+            )}
+
+            {/* Links */}
+            {data.links && data.links.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Learn more</p>
+                <div className="flex flex-wrap gap-2">
+                  {data.links.map((link, i) => (
+                    <a
+                      key={i}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <LinkIcon size={11} />
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground pt-1">
+              This review is AI-generated from public web sources and may not be fully accurate.
+            </p>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function ResourceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -136,8 +265,11 @@ export default function ResourceDetailPage() {
               <CardTitle className="text-xl">{resource.title}</CardTitle>
               <CardDescription className="mt-1">{resource.subject} · {resource.gradeLevel}</CardDescription>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <Badge variant="secondary" className="capitalize">{resource.format}</Badge>
+
+              {/* Review the Source */}
+              <SourceReviewPanel resourceId={resourceId} />
 
               {/* Add to List — auth-gated */}
               {isLoggedIn ? (

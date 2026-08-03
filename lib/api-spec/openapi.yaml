@@ -400,6 +400,29 @@ paths:
         "204":
           description: Deleted
 
+  /resources/{id}/source-review:
+    get:
+      operationId: getResourceSourceReview
+      tags: [resources]
+      summary: Research and summarise the resource's source/uploader
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Source review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceReview"
+        "404":
+          description: Resource not found
+        "502":
+          description: AI search failed
+
   # ── Reviews ───────────────────────────────────────────────────────────────
   /resources/{id}/reviews:
     get:
@@ -882,6 +905,30 @@ components:
         subject:      { type: string }
         gradeLevel:   { type: string }
         thumbnailUrl: { type: string }
+
+    SourceReviewLink:
+      type: object
+      required: [label, url]
+      properties:
+        label: { type: string }
+        url:   { type: string }
+
+    SourceReview:
+      type: object
+      required: [sourceName, sourceType, summary, trustLevel]
+      properties:
+        sourceName:   { type: string }
+        sourceType:   { type: string }
+        description:  { type: ["string", "null"] }
+        founded:      { type: ["string", "null"] }
+        headquarters: { type: ["string", "null"] }
+        trustLevel:   { type: string, enum: [high, medium, low, unknown] }
+        trustReason:  { type: ["string", "null"] }
+        summary:      { type: string }
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceReviewLink"
 
     # ── Reviews ─────────────────────────────────────────────────────────────
     Review:

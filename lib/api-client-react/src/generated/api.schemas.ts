@@ -210,6 +210,37 @@ export interface ResourcePatch {
   thumbnailUrl?: string;
 }
 
+export interface SourceReviewLink {
+  label: string;
+  url: string;
+}
+
+export type SourceReviewTrustLevel = typeof SourceReviewTrustLevel[keyof typeof SourceReviewTrustLevel];
+
+
+export const SourceReviewTrustLevel = {
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  unknown: 'unknown',
+} as const;
+
+export interface SourceReview {
+  sourceName: string;
+  sourceType: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  founded?: string | null;
+  /** @nullable */
+  headquarters?: string | null;
+  trustLevel: SourceReviewTrustLevel;
+  /** @nullable */
+  trustReason?: string | null;
+  summary: string;
+  links?: SourceReviewLink[];
+}
+
 export interface Review {
   id: number;
   resourceId: number;

@@ -49,6 +49,7 @@ import type {
   ScheduleBlockInput,
   ScheduleBlockPatch,
   ShareListInput,
+  SourceReview,
   User,
   UserUpdate
 } from './api.schemas';
@@ -1559,6 +1560,83 @@ export const useDeleteResource = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteResourceMutationOptions(options));
     }
+
+export const getGetResourceSourceReviewUrl = (id: number,) => {
+
+
+
+
+  return `/api/resources/${id}/source-review`
+}
+
+/**
+ * @summary Research and summarise the resource's source/uploader
+ */
+export const getResourceSourceReview = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<SourceReview> => {
+
+  return customFetch<SourceReview>(getGetResourceSourceReviewUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetResourceSourceReviewQueryKey = (id: number,) => {
+    return [
+    `/api/resources/${id}/source-review`
+    ] as const;
+    }
+
+
+export const getGetResourceSourceReviewQueryOptions = <TData = Awaited<ReturnType<typeof getResourceSourceReview>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetResourceSourceReviewQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResourceSourceReview>>> = ({ signal }) => getResourceSourceReview(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetResourceSourceReviewQueryResult = NonNullable<Awaited<ReturnType<typeof getResourceSourceReview>>>
+export type GetResourceSourceReviewQueryError = ErrorType<void>
+
+
+/**
+ * @summary Research and summarise the resource's source/uploader
+ */
+
+export function useGetResourceSourceReview<TData = Awaited<ReturnType<typeof getResourceSourceReview>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetResourceSourceReviewQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListResourceReviewsUrl = (id: number,) => {
 

@@ -7,6 +7,7 @@ import reviewsRouter from "./reviews";
 import listsRouter from "./lists";
 import scheduleRouter from "./schedule";
 import dashboardRouter from "./dashboard";
+import sourceReviewRouter from "./sourceReview";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(reviewsRouter);
 router.use(listsRouter);
 router.use(scheduleRouter);
 router.use(dashboardRouter);
+router.use(sourceReviewRouter);
 
 export default router;

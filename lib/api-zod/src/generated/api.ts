@@ -434,6 +434,29 @@ export const DeleteResourceResponse = zod.void()
 
 
 /**
+ * @summary Research and summarise the resource's source/uploader
+ */
+export const GetResourceSourceReviewParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetResourceSourceReviewResponse = zod.object({
+  "sourceName": zod.string(),
+  "sourceType": zod.string(),
+  "description": zod.string().nullish(),
+  "founded": zod.string().nullish(),
+  "headquarters": zod.string().nullish(),
+  "trustLevel": zod.enum(['high', 'medium', 'low', 'unknown']),
+  "trustReason": zod.string().nullish(),
+  "summary": zod.string(),
+  "links": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional()
+})
+
+
+/**
  * @summary List reviews for a resource
  */
 export const ListResourceReviewsParams = zod.object({
