@@ -199,24 +199,10 @@ router.get("/resources/discover", async (req, res): Promise<void> => {
   const subjectHint = subject ? ` Subject area: ${subject}.` : "";
   const gradeHint = gradeLevel ? ` Target audience: ${gradeLevel} students.` : "";
 
-  const prompt = `You are an educational research assistant. Search the web and find 8–12 high-quality educational resources matching this query: "${q}"${subjectHint}${gradeHint}${formatHint}
+  const prompt = `Find 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}
 
-Return ONLY a JSON array. Each element must have these fields:
-- title: string — full title of the resource
-- url: string — direct URL to the resource
-- description: string — 1–2 sentence description of what the resource covers
-- format: one of "article" | "video" | "pdf" | "podcast" | "interactive" | "other"
-- source: string — name of the website/publisher/channel (e.g. "Khan Academy", "MIT OpenCourseWare", "YouTube")
-- thumbnailUrl: string or null — YouTube thumbnails follow https://img.youtube.com/vi/{videoId}/hqdefault.jpg
-- subject: string or null — academic subject
-- gradeLevel: string or null — target grade level if apparent
-
-Rules:
-- Only include real, publicly accessible URLs
-- Prefer reputable educational sources: Khan Academy, Coursera, MIT OCW, Wikipedia, TED-Ed, CrashCourse, universities, governments
-- Include a diverse mix of formats unless a specific format was requested
-- No paywalled content
-- Return ONLY the JSON array, no markdown fences, no extra text`;
+Return a JSON array only. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
+Rules: real public URLs only, prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse, no paywalls, JSON only no markdown.`;
 
   try {
     const ac = new AbortController();
@@ -224,7 +210,7 @@ Rules:
     let response: Awaited<ReturnType<typeof openai.responses.create>>;
     try {
       response = await openai.responses.create(
-        { model: "gpt-4o", tools: [{ type: "web_search_preview" }], input: prompt },
+        { model: "gpt-4o-mini", tools: [{ type: "web_search_preview" }], input: prompt },
         { signal: ac.signal },
       );
     } finally {
@@ -471,14 +457,14 @@ router.patch("/resources/:id", requireAuth, async (req, res): Promise<void> => {
 // ── DELETE /resources/:id ─────────────────────────────────────────────────────
 
 router.delete("/resources/:id", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const params = DeleteResourceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await isResourceOwner(params.data.id, userId))) {
-    res.status(403).json({ error: "Only the submitter can delete this resource" });
+  if (userRole !== "teacher" && !(await isResourceOwner(params.data.id, userId))) {
+    res.status(403).json({ error: "Only the submitter or a teacher can delete this resource" });
     return;
   }
   await db.delete(resourcesTable).where(eq(resourcesTable.id, params.data.id));
