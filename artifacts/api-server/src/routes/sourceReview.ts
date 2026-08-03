@@ -6,11 +6,12 @@ import {
   GetResourceSourceReviewResponse,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-// GET /resources/:id/source-review — public
-router.get("/resources/:id/source-review", async (req, res): Promise<void> => {
+// GET /resources/:id/source-review — authenticated
+router.get("/resources/:id/source-review", requireAuth, async (req, res): Promise<void> => {
   const params = GetResourceSourceReviewParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
