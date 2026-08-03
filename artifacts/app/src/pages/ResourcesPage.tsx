@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2 } from 'lucide-react';
+import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2 } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -15,6 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   useListResources,
   useCreateResource,
+  useDeleteResource,
   useGetMe,
   useDiscoverResources,
   useGetResourceRecommendations,
@@ -108,9 +109,10 @@ function FormatBadge({ format }: { format: string }) {
 }
 
 // ── Shared resource card (library) ────────────────────────────────────────────
-function LibraryCard({ resource, onClick }: {
+function LibraryCard({ resource, onClick, onRemove }: {
   resource: { id: number; title: string; url: string; format: string; subject: string; gradeLevel: string; description?: string | null; avgRating: number; reviewCount: number };
   onClick: () => void;
+  onRemove?: () => void;
 }) {
   const ytId = getYouTubeId(resource.url);
   const vimeo = isVimeoUrl(resource.url);
@@ -141,7 +143,19 @@ function LibraryCard({ resource, onClick }: {
       )}
       <CardFooter className="flex items-center justify-between pt-2">
         <StarRating value={resource.avgRating} size="sm" />
-        <span className="text-xs text-muted-foreground">{resource.reviewCount} review{resource.reviewCount !== 1 ? 's' : ''}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{resource.reviewCount} review{resource.reviewCount !== 1 ? 's' : ''}</span>
+          {onRemove && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              className="text-muted-foreground hover:text-destructive transition-colors"
+              title="Remove from library"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </CardFooter>
     </Card>
   );
@@ -257,7 +271,20 @@ export default function ResourcesPage() {
   );
 
   const createResource = useCreateResource();
+  const deleteResource = useDeleteResource();
   const prefetchMetadata = usePrefetchResourceMetadata();
+
+  async function handleRemoveCard(resourceId: number, title: string) {
+    try {
+      await deleteResource.mutateAsync({ id: resourceId });
+      queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      toast({ title: 'Removed', description: `"${title}" has been removed from the library.` });
+    } catch {
+      toast({ title: 'Error', description: 'Could not remove the resource.', variant: 'destructive' });
+    }
+  }
   const [addingUrl, setAddingUrl] = useState<string | null>(null);
 
   // Submit form
@@ -503,7 +530,7 @@ export default function ResourcesPage() {
         <section>
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
             <BookOpen size={14} />
-            {isLoggedIn ? 'Library — Recommended for you' : 'Library — Top rated'}
+            Library
           </h2>
           {recsLoading
             ? <CardSkeletons />
@@ -518,7 +545,12 @@ export default function ResourcesPage() {
               : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {recommendations.map((r) => (
-                    <LibraryCard key={r.id} resource={r} onClick={() => setLocation(`/resources/${r.id}`)} />
+                    <LibraryCard
+                      key={r.id}
+                      resource={r}
+                      onClick={() => setLocation(`/resources/${r.id}`)}
+                      onRemove={me?.id === r.submittedById ? () => handleRemoveCard(r.id, r.title) : undefined}
+                    />
                   ))}
                 </div>
               )
@@ -554,7 +586,12 @@ export default function ResourcesPage() {
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {libraryResults.map((r) => (
-                        <LibraryCard key={r.id} resource={r} onClick={() => setLocation(`/resources/${r.id}`)} />
+                        <LibraryCard
+                          key={r.id}
+                          resource={r}
+                          onClick={() => setLocation(`/resources/${r.id}`)}
+                          onRemove={me?.id === r.submittedById ? () => handleRemoveCard(r.id, r.title) : undefined}
+                        />
                       ))}
                     </div>
                     {libraryResults.length === libraryLimit && (

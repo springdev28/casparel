@@ -219,11 +219,17 @@ Rules:
 - Return ONLY the JSON array, no markdown fences, no extra text`;
 
   try {
-    const response = await openai.responses.create({
-      model: "gpt-4o",
-      tools: [{ type: "web_search_preview" }],
-      input: prompt,
-    });
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 22000);
+    let response: Awaited<ReturnType<typeof openai.responses.create>>;
+    try {
+      response = await openai.responses.create(
+        { model: "gpt-4o", tools: [{ type: "web_search_preview" }], input: prompt },
+        { signal: ac.signal },
+      );
+    } finally {
+      clearTimeout(timer);
+    }
 
     const textOutput = response.output
       .filter((b) => b.type === "message")
