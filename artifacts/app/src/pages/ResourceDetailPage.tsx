@@ -40,11 +40,34 @@ function getYouTubeId(url: string): string | null {
     if (u.hostname.includes('youtube.com')) {
       const v = u.searchParams.get('v');
       if (v) return v;
-      // handle /embed/ID and /shorts/ID
       const m = u.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);
       if (m) return m[1];
     }
     return null;
+  } catch {
+    return null;
+  }
+}
+
+function getVimeoId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.includes('vimeo.com')) return null;
+    // /123456789 or /video/123456789
+    const m = u.pathname.match(/\/(?:video\/)?(\d+)/);
+    return m ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+function getLoomId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!u.hostname.includes('loom.com')) return null;
+    // /share/abc123def or /embed/abc123def
+    const m = u.pathname.match(/\/(?:share|embed)\/([a-zA-Z0-9]+)/);
+    return m ? m[1] : null;
   } catch {
     return null;
   }
@@ -67,13 +90,43 @@ function ResourceEmbed({ url }: { url: string }) {
         <iframe
           src={`https://www.youtube.com/embed/${ytId}`}
           title="YouTube video player"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           className="absolute inset-0 w-full h-full border-0"
         />
       </div>
     );
   }
+
+  const vimeoId = getVimeoId(url);
+  if (vimeoId) {
+    return (
+      <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+        <iframe
+          src={`https://player.vimeo.com/video/${vimeoId}?badge=0&autopause=0`}
+          title="Vimeo video player"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full border-0"
+        />
+      </div>
+    );
+  }
+
+  const loomId = getLoomId(url);
+  if (loomId) {
+    return (
+      <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+        <iframe
+          src={`https://www.loom.com/embed/${loomId}`}
+          title="Loom video player"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full border-0"
+        />
+      </div>
+    );
+  }
+
   if (isPdf(url)) {
     return (
       <div className="w-full rounded-lg overflow-hidden border bg-muted" style={{ height: '520px' }}>
@@ -85,6 +138,7 @@ function ResourceEmbed({ url }: { url: string }) {
       </div>
     );
   }
+
   return null;
 }
 
