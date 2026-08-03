@@ -24,6 +24,8 @@ tags:
     description: Study schedule blocks
   - name: dashboard
     description: Dashboard summary and activity
+  - name: google-classroom
+    description: Google Classroom integration
 paths:
   /healthz:
     get:
@@ -776,6 +778,105 @@ paths:
         "204":
           description: Deleted
 
+  # ── Google Classroom ──────────────────────────────────────────────────────
+  /auth/google:
+    get:
+      operationId: getGCAuthUrl
+      tags: [google-classroom]
+      summary: Get the Google OAuth authorization URL to connect Google Classroom
+      responses:
+        "200":
+          description: Authorization URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GCAuthUrl"
+        "503":
+          description: Google OAuth not configured
+    delete:
+      operationId: disconnectGoogle
+      tags: [google-classroom]
+      summary: Disconnect Google Classroom and revoke tokens
+      responses:
+        "204":
+          description: Disconnected
+
+  /google-classroom/status:
+    get:
+      operationId: getGCStatus
+      tags: [google-classroom]
+      summary: Check if the current user has connected Google Classroom
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GCStatus"
+
+  /google-classroom/courses:
+    get:
+      operationId: listGCCourses
+      tags: [google-classroom]
+      summary: List the teacher's active Google Classroom courses
+      responses:
+        "200":
+          description: List of courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GCCourse"
+        "401":
+          description: Not connected or token revoked
+
+  /google-classroom/share:
+    post:
+      operationId: shareToGC
+      tags: [google-classroom]
+      summary: Post a resource list as an announcement to a Google Classroom course stream
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GCShareInput"
+      responses:
+        "200":
+          description: Announcement posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GCShareResult"
+        "401":
+          description: Not connected or token revoked
+        "403":
+          description: Not the list owner or not a teacher
+
+  /google-classroom/import-course:
+    post:
+      operationId: importGCCourse
+      tags: [google-classroom]
+      summary: Import a Google Classroom course as a new EduHub class
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GCImportInput"
+      responses:
+        "201":
+          description: EduHub class created from the Google Classroom course
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Class"
+        "401":
+          description: Not connected or token revoked
+        "403":
+          description: Not a teacher
+
   # ── Dashboard / Activity ──────────────────────────────────────────────────
   /dashboard/summary:
     get:
@@ -1144,3 +1245,45 @@ components:
         createdAt:  { type: string }
         userId:     { type: ["integer", "null"] }
         userName:   { type: ["string", "null"] }
+
+    # ── Google Classroom ─────────────────────────────────────────────────────
+    GCAuthUrl:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string }
+
+    GCStatus:
+      type: object
+      required: [connected, configured]
+      properties:
+        connected:  { type: boolean }
+        configured: { type: boolean }
+
+    GCCourse:
+      type: object
+      required: [id, name]
+      properties:
+        id:      { type: string }
+        name:    { type: string }
+        section: { type: ["string", "null"] }
+
+    GCShareInput:
+      type: object
+      required: [listId, courseId]
+      properties:
+        listId:   { type: integer }
+        courseId: { type: string }
+
+    GCShareResult:
+      type: object
+      required: [announcementId, url]
+      properties:
+        announcementId: { type: string }
+        url:            { type: string }
+
+    GCImportInput:
+      type: object
+      required: [courseId]
+      properties:
+        courseId: { type: string }

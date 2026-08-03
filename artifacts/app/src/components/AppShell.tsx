@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard,
@@ -10,15 +10,24 @@ import {
   GraduationCap,
   Link2,
   CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@workspace/edu-ds/lib/utils';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/edu-ds/components/ui/dialog';
-import { useGetMe } from '@workspace/api-client-react';
+import {
+  useGetMe,
+  useGetGCStatus,
+  useGetGCAuthUrl,
+  useDisconnectGoogle,
+  getGetGCStatusQueryKey,
+  getGetGCAuthUrlQueryKey,
+  UserRole,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from '@workspace/edu-ds/hooks/use-toast';
 
 const TOKEN_KEY = 'schooler_token';
-const GC_KEY = 'schooler_gc_connected';
 
 interface NavItem {
   label: string;
@@ -40,45 +49,87 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   const [location, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const { data: me, isLoading: meLoading } = useGetMe();
-  const [gcDialogOpen, setGcDialogOpen] = useState(false);
-  const [gcConnected, setGcConnected] = useState(() => !!localStorage.getItem(GC_KEY));
+  const isTeacher = me?.role === UserRole.teacher;
+
+  // Real Google Classroom status — only fetched for teachers
+  const { data: gcStatus, isLoading: gcStatusLoading } = useGetGCStatus({
+    query: { enabled: isTeacher, queryKey: getGetGCStatusQueryKey() },
+  });
+
+  // Lazy auth URL fetch — only triggered on demand
+  const { data: gcAuthUrlData, refetch: fetchAuthUrl, isFetching: authUrlFetching } =
+    useGetGCAuthUrl({ query: { enabled: false, queryKey: getGetGCAuthUrlQueryKey() } });
+
+  const disconnectGoogle = useDisconnectGoogle();
+
+  // When the auth URL arrives, redirect the browser to Google
+  useEffect(() => {
+    if (gcAuthUrlData?.url) {
+      window.location.href = gcAuthUrlData.url;
+    }
+  }, [gcAuthUrlData]);
 
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
     setLocation('/resources');
   }
 
-  function handleGcConnect() {
-    // Stores connection flag locally — full OAuth wired in upcoming Google Classroom integration.
-    localStorage.setItem(GC_KEY, '1');
-    setGcConnected(true);
-    setGcDialogOpen(false);
+  async function handleGcConnect() {
+    try {
+      await fetchAuthUrl();
+    } catch {
+      toast({
+        title: 'Could not start Google authorization',
+        description: 'Please try again or connect from the Classes page.',
+        variant: 'destructive',
+      });
+    }
   }
 
-  function handleGcDisconnect() {
-    localStorage.removeItem(GC_KEY);
-    setGcConnected(false);
+  async function handleGcDisconnect() {
+    try {
+      await disconnectGoogle.mutateAsync();
+      queryClient.invalidateQueries({ queryKey: getGetGCStatusQueryKey() });
+      toast({ title: 'Google Classroom disconnected' });
+    } catch {
+      toast({ title: 'Error', description: 'Could not disconnect Google Classroom', variant: 'destructive' });
+    }
   }
 
-  const gcButton = gcConnected ? (
-    <button
-      onClick={handleGcDisconnect}
-      className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-primary-foreground/70 hover:bg-primary-foreground/10 transition-colors"
-      title="Disconnect Google Classroom"
-    >
-      <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
-      <span className="truncate">Google Classroom linked</span>
-    </button>
-  ) : (
-    <button
-      onClick={() => setGcDialogOpen(true)}
-      className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-primary-foreground/70 hover:bg-primary-foreground/10 transition-colors"
-    >
-      <Link2 size={13} className="shrink-0" />
-      <span className="truncate">Connect Google Classroom</span>
-    </button>
-  );
+  // Build the sidebar GC widget (teachers only, when GC is configured)
+  const gcWidget =
+    isTeacher && gcStatus?.configured ? (
+      gcStatus.connected ? (
+        <button
+          onClick={handleGcDisconnect}
+          disabled={disconnectGoogle.isPending}
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-primary-foreground/70 hover:bg-primary-foreground/10 transition-colors"
+          title="Disconnect Google Classroom"
+          data-testid="sidebar-gc-disconnect"
+        >
+          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+          <span className="truncate">Google Classroom linked</span>
+        </button>
+      ) : (
+        <button
+          onClick={handleGcConnect}
+          disabled={authUrlFetching}
+          className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-primary-foreground/70 hover:bg-primary-foreground/10 transition-colors"
+          data-testid="sidebar-gc-connect"
+        >
+          {authUrlFetching ? (
+            <RefreshCw size={13} className="shrink-0 animate-spin" />
+          ) : (
+            <Link2 size={13} className="shrink-0" />
+          )}
+          <span className="truncate">Connect Google Classroom</span>
+        </button>
+      )
+    ) : isTeacher && gcStatusLoading ? (
+      <Skeleton className="h-6 w-40 bg-primary-foreground/20" />
+    ) : null;
 
   return (
     <>
@@ -128,8 +179,8 @@ export default function AppShell({ children }: AppShellProps) {
               </div>
             ) : null}
 
-            {/* Google Classroom connect */}
-            {gcButton}
+            {/* Google Classroom connect — real OAuth, teachers only */}
+            {gcWidget}
 
             <Button
               variant="ghost"
@@ -183,39 +234,6 @@ export default function AppShell({ children }: AppShellProps) {
           {children}
         </main>
       </div>
-
-      {/* Google Classroom dialog */}
-      <Dialog open={gcDialogOpen} onOpenChange={setGcDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <div className="flex items-center gap-3 mb-1">
-              {/* Google Classroom "G" mark colours */}
-              <div className="w-10 h-10 rounded-lg bg-[#1a73e8] flex items-center justify-center shrink-0">
-                <svg viewBox="0 0 24 24" className="w-6 h-6 fill-white" aria-hidden="true">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-                </svg>
-              </div>
-              <DialogTitle>Connect Google Classroom</DialogTitle>
-            </div>
-            <DialogDescription>
-              Link your Google account to automatically sync your classes and share resources directly to your Google Classroom streams.
-            </DialogDescription>
-          </DialogHeader>
-          <ul className="text-sm text-muted-foreground space-y-1.5 py-1">
-            <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Import your Google Classroom roster</li>
-            <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Share resource lists to your class stream</li>
-            <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-500 shrink-0" /> Keep assignments in sync</li>
-          </ul>
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setGcDialogOpen(false)} className="sm:order-first">
-              Cancel
-            </Button>
-            <Button onClick={handleGcConnect} className="bg-[#1a73e8] hover:bg-[#1557b0] text-white">
-              Connect with Google
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

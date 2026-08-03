@@ -417,6 +417,36 @@ export interface ActivityItem {
   userName?: string | null;
 }
 
+export interface GCAuthUrl {
+  url: string;
+}
+
+export interface GCStatus {
+  connected: boolean;
+  configured: boolean;
+}
+
+export interface GCCourse {
+  id: string;
+  name: string;
+  /** @nullable */
+  section?: string | null;
+}
+
+export interface GCShareInput {
+  listId: number;
+  courseId: string;
+}
+
+export interface GCShareResult {
+  announcementId: string;
+  url: string;
+}
+
+export interface GCImportInput {
+  courseId: string;
+}
+
 export type ListResourcesParams = {
 /**
  * Free-text search

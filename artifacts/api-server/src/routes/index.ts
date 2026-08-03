@@ -8,6 +8,8 @@ import listsRouter from "./lists";
 import scheduleRouter from "./schedule";
 import dashboardRouter from "./dashboard";
 import sourceReviewRouter from "./sourceReview";
+import discoverRouter from "./discover";
+import googleClassroomRouter from "./googleClassroom";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use(listsRouter);
 router.use(scheduleRouter);
 router.use(dashboardRouter);
 router.use(sourceReviewRouter);
+router.use(discoverRouter);
+router.use(googleClassroomRouter);
 
 export default router;
