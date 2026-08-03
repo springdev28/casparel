@@ -13,6 +13,7 @@ import {
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { contentLimiter } from "../lib/limiters";
 
 const router: IRouter = Router();
 
@@ -86,7 +87,7 @@ router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
 });
 
 // PATCH /users/me
-router.patch("/users/me", requireAuth, async (req, res): Promise<void> => {
+router.patch("/users/me", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const parsed = UpdateMeBody.safeParse(req.body);
   if (!parsed.success) {

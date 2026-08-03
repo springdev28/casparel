@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "EduHub Mobile",
-    "slug": "mobile",
+    "name": "Schooler",
+    "slug": "schooler",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "schooler",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,9 +14,12 @@
       "backgroundColor": "#f8f7f4"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.schooler.app"
     },
-    "android": {},
+    "android": {
+      "package": "com.schooler.app"
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },

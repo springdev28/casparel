@@ -12,6 +12,7 @@ import {
   DeleteScheduleBlockParams,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { contentLimiter } from "../lib/limiters";
 import { isScheduleBlockOwner } from "../lib/authz";
 
 const router: IRouter = Router();
@@ -67,7 +68,7 @@ router.get("/schedule", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /schedule — any authenticated user; owner always set to self
-router.post("/schedule", requireAuth, async (req, res): Promise<void> => {
+router.post("/schedule", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const parsed = CreateScheduleBlockBody.safeParse(req.body);
   if (!parsed.success) {

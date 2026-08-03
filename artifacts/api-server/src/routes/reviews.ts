@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { contentLimiter } from "../lib/limiters";
 import { eq, and } from "drizzle-orm";
 import { db, reviewsTable, usersTable } from "@workspace/db";
 import {
@@ -35,7 +36,7 @@ router.get("/resources/:id/reviews", async (req, res): Promise<void> => {
 });
 
 // POST /resources/:id/reviews — any authenticated user
-router.post("/resources/:id/reviews", requireAuth, async (req, res): Promise<void> => {
+router.post("/resources/:id/reviews", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = CreateResourceReviewParams.safeParse(req.params);
   if (!params.success) {

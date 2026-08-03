@@ -19,6 +19,7 @@ import {
   ShareListWithClassBody,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { contentLimiter } from "../lib/limiters";
 import { isListOwner, canReadList, isListItemOwner, isClassTeacher } from "../lib/authz";
 
 const router: IRouter = Router();
@@ -58,7 +59,7 @@ router.get("/lists", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /lists — any authenticated user
-router.post("/lists", requireAuth, async (req, res): Promise<void> => {
+router.post("/lists", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const parsed = CreateResourceListBody.safeParse(req.body);
   if (!parsed.success) {
@@ -150,7 +151,7 @@ router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /lists/:id/items — owner only
-router.post("/lists/:id/items", requireAuth, async (req, res): Promise<void> => {
+router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = AddListItemParams.safeParse(req.params);
   if (!params.success) {
@@ -193,7 +194,7 @@ router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise
 });
 
 // POST /lists/:id/share — list owner + class teacher
-router.post("/lists/:id/share", requireAuth, async (req, res): Promise<void> => {
+router.post("/lists/:id/share", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = ShareListWithClassParams.safeParse(req.params);
   if (!params.success) {

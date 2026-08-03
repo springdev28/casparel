@@ -19,6 +19,7 @@ import {
   RemoveClassMemberParams,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher, isClassMember } from "../lib/authz";
 
 const router: IRouter = Router();
@@ -53,7 +54,7 @@ router.get("/classes", requireAuth, async (req, res): Promise<void> => {
 });
 
 // POST /classes — teacher role required
-router.post("/classes", requireAuth, async (req, res): Promise<void> => {
+router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   if (userRole !== "teacher") {
     res.status(403).json({ error: "Only teachers can create classes" });
@@ -179,7 +180,7 @@ router.get("/classes/:id/members", requireAuth, async (req, res): Promise<void> 
 
 // POST /classes/:id/members — class teacher only
 // The membership role always mirrors the target user's account role to avoid contradictions.
-router.post("/classes/:id/members", requireAuth, async (req, res): Promise<void> => {
+router.post("/classes/:id/members", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = AddClassMemberParams.safeParse(req.params);
   if (!params.success) {

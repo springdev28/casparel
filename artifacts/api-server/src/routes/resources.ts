@@ -20,6 +20,7 @@ import {
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { isResourceOwner } from "../lib/authz";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { contentLimiter } from "../lib/limiters";
 
 const router: IRouter = Router();
 
@@ -264,7 +265,7 @@ Rules:
 
 // ── POST /resources ───────────────────────────────────────────────────────────
 
-router.post("/resources", requireAuth, async (req, res): Promise<void> => {
+router.post("/resources", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const parsed = CreateResourceBody.safeParse(req.body);
   if (!parsed.success) {

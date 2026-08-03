@@ -34,6 +34,7 @@ import {
   ImportGCCourseResponse,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { contentLimiter } from "../lib/limiters";
 
 const router: IRouter = Router();
 
@@ -354,6 +355,7 @@ router.get("/google-classroom/courses", requireAuth, requireTeacher, async (req,
 
 router.post(
   "/google-classroom/import-course",
+  contentLimiter,
   requireAuth,
   requireTeacher,
   async (req, res): Promise<void> => {
@@ -430,7 +432,7 @@ router.post(
 
 // ── POST /google-classroom/share (teacher only) ───────────────────────────────
 
-router.post("/google-classroom/share", requireAuth, requireTeacher, async (req, res): Promise<void> => {
+router.post("/google-classroom/share", contentLimiter, requireAuth, requireTeacher, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
 
   const parsed = ShareToGCBody.safeParse(req.body);

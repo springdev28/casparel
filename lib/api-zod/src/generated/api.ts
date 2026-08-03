@@ -22,6 +22,8 @@ export const HealthCheckResponse = zod.object({
 export const registerBodyPasswordMin = 6;
 
 
+
+
 export const RegisterBody = zod.object({
   "email": zod.string(),
   "password": zod.string().min(registerBodyPasswordMin),
@@ -87,6 +89,7 @@ export const GetMeResponse = zod.object({
  */
 
 
+
 export const UpdateMeBody = zod.object({
   "name": zod.string().min(1).optional(),
   "avatarUrl": zod.string().nullish()
@@ -121,6 +124,9 @@ export const ListClassesResponse = zod.array(ListClassesResponseItem)
 /**
  * @summary Create a new class (teacher only)
  */
+
+
+
 
 
 export const CreateClassBody = zod.object({
@@ -181,6 +187,8 @@ export const GetClassResponse = zod.object({
 export const UpdateClassParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateClassBody = zod.object({
@@ -307,6 +315,10 @@ export const ListResourcesResponse = zod.array(ListResourcesResponseItem)
  */
 
 
+
+
+
+
 export const CreateResourceBody = zod.object({
   "title": zod.string().min(1),
   "url": zod.string().min(1),
@@ -427,6 +439,8 @@ export const UpdateResourceParams = zod.object({
 })
 
 
+
+
 export const UpdateResourceBody = zod.object({
   "title": zod.string().min(1).optional(),
   "description": zod.string().optional(),
@@ -495,6 +509,7 @@ export const ListResourceReviewsParams = zod.object({
 export const listResourceReviewsResponseRatingMax = 5;
 
 
+
 export const ListResourceReviewsResponseItem = zod.object({
   "id": zod.int(),
   "resourceId": zod.int(),
@@ -524,12 +539,14 @@ export const CreateResourceReviewParams = zod.object({
 export const createResourceReviewBodyRatingMax = 5;
 
 
+
 export const CreateResourceReviewBody = zod.object({
   "rating": zod.int().min(1).max(createResourceReviewBodyRatingMax),
   "comment": zod.string().optional()
 })
 
 export const createResourceReviewResponseRatingMax = 5;
+
 
 
 export const CreateResourceReviewResponse = zod.object({
@@ -579,6 +596,7 @@ export const ListResourceListsResponse = zod.array(ListResourceListsResponseItem
 /**
  * @summary Create a new resource list
  */
+
 
 
 export const CreateResourceListBody = zod.object({
@@ -642,6 +660,8 @@ export const GetResourceListResponse = zod.object({
 export const UpdateResourceListParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateResourceListBody = zod.object({
@@ -758,6 +778,7 @@ export const ListScheduleBlocksResponse = zod.array(ListScheduleBlocksResponseIt
  */
 
 
+
 export const CreateScheduleBlockBody = zod.object({
   "title": zod.string().min(1),
   "date": zod.coerce.date(),
@@ -792,6 +813,8 @@ export const UpdateScheduleBlockParams = zod.object({
 })
 
 
+
+
 export const UpdateScheduleBlockBody = zod.object({
   "title": zod.string().min(1).optional(),
   "date": zod.coerce.date().optional(),
@@ -824,12 +847,74 @@ export const DeleteScheduleBlockParams = zod.object({
 
 export const DeleteScheduleBlockResponse = zod.void()
 
+
 /**
  * @summary Get the Google OAuth authorization URL to connect Google Classroom
  */
 export const GetGCAuthUrlResponse = zod.object({
   "url": zod.string()
 })
+
+
+/**
+ * @summary Disconnect Google Classroom and revoke tokens
+ */
+export const DisconnectGoogleResponse = zod.void()
+
+
+/**
+ * @summary Check if the current user has connected Google Classroom
+ */
+export const GetGCStatusResponse = zod.object({
+  "connected": zod.boolean(),
+  "configured": zod.boolean()
+})
+
+
+/**
+ * @summary List the teacher's active Google Classroom courses
+ */
+export const ListGCCoursesResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "section": zod.string().nullish()
+})
+export const ListGCCoursesResponse = zod.array(ListGCCoursesResponseItem)
+
+
+/**
+ * @summary Post a resource list as an announcement to a Google Classroom course stream
+ */
+export const ShareToGCBody = zod.object({
+  "listId": zod.int(),
+  "courseId": zod.string()
+})
+
+export const ShareToGCResponse = zod.object({
+  "announcementId": zod.string(),
+  "url": zod.string()
+})
+
+
+/**
+ * @summary Import a Google Classroom course as a new EduHub class
+ */
+export const ImportGCCourseBody = zod.object({
+  "courseId": zod.string()
+})
+
+export const ImportGCCourseResponse = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "description": zod.string().nullish(),
+  "teacherId": zod.int(),
+  "memberCount": zod.int().optional(),
+  "createdAt": zod.string()
+})
+
+
 /**
  * @summary Dashboard summary stats for the current user
  */
@@ -857,57 +942,3 @@ export const GetRecentActivityResponseItem = zod.object({
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
 
 
-/**
- * @summary List the teacher's active Google Classroom courses
- */
-export const ListGCCoursesResponseItem = zod.object({
-  "id": zod.string(),
-  "name": zod.string(),
-  "section": zod.string().nullish()
-})
-
-export const ListGCCoursesResponse = zod.array(ListGCCoursesResponseItem)
-
-/**
- * @summary Check if the current user has connected Google Classroom
- */
-export const GetGCStatusResponse = zod.object({
-  "connected": zod.boolean(),
-  "configured": zod.boolean()
-})
-
-/**
- * @summary Post a resource list as an announcement to a Google Classroom course stream
- */
-export const ShareToGCBody = zod.object({
-  "listId": zod.int(),
-  "courseId": zod.string()
-})
-
-/**
- * @summary Disconnect Google Classroom and revoke tokens
- */
-export const DisconnectGoogleResponse = zod.void()
-
-export const ShareToGCResponse = zod.object({
-  "announcementId": zod.string(),
-  "url": zod.string()
-})
-
-/**
- * @summary Import a Google Classroom course as a new EduHub class
- */
-export const ImportGCCourseBody = zod.object({
-  "courseId": zod.string()
-})
-
-export const ImportGCCourseResponse = zod.object({
-  "id": zod.int(),
-  "name": zod.string(),
-  "subject": zod.string(),
-  "gradeLevel": zod.string(),
-  "description": zod.string().nullish(),
-  "teacherId": zod.int(),
-  "memberCount": zod.int().optional(),
-  "createdAt": zod.string()
-})
