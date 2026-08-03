@@ -22,6 +22,7 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { isResourceOwner } from "../lib/authz";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { contentLimiter } from "../lib/limiters";
+import { filterReachableUrls } from "../lib/check-url-reachable";
 
 const router: IRouter = Router();
 
@@ -186,6 +187,62 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
 // ── GET /resources/discover — public, AI web search ──────────────────────────
 // NOTE: must stay above /resources/:id
 
+/** Extract and validate resource items from a raw AI text response. */
+function parseDiscoverOutput(textOutput: string): ReturnType<typeof DiscoverResourcesResponse.parse> {
+  const cleaned = textOutput
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return [];
+  }
+
+  const items = Array.isArray(parsed) ? parsed : [];
+  const validated = DiscoverResourcesResponse.safeParse(items);
+  if (validated.success) return validated.data;
+
+  // Salvage valid items individually
+  return items
+    .map((item: unknown) => {
+      const r = DiscoverResourcesResponse.element.safeParse(item);
+      return r.success ? r.data : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+}
+
+/** Call the AI and return validated resource items. */
+async function callDiscoverAI(
+  prompt: string,
+): Promise<ReturnType<typeof DiscoverResourcesResponse.parse>> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 22000);
+  try {
+    const response = await openai.responses.create(
+      { model: "gpt-4o-mini", tools: [{ type: "web_search_preview" }], input: prompt },
+      { signal: ac.signal },
+    );
+    const textOutput = response.output
+      .filter((b) => b.type === "message")
+      .flatMap((b) =>
+        (
+          b as { type: string; content: Array<{ type: string; text?: string }> }
+        ).content
+          .filter((c) => c.type === "output_text" && c.text)
+          .map((c) => c.text as string),
+      )
+      .join("");
+    return parseDiscoverOutput(textOutput);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const DISCOVER_MIN_RESULTS = 3;
+
 router.get("/resources/discover", async (req, res): Promise<void> => {
   const params = DiscoverResourcesQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -198,67 +255,67 @@ router.get("/resources/discover", async (req, res): Promise<void> => {
   const formatHint = format ? ` Focus on ${format} resources.` : "";
   const subjectHint = subject ? ` Subject area: ${subject}.` : "";
   const gradeHint = gradeLevel ? ` Target audience: ${gradeLevel} students.` : "";
-  const pageHint = page > 1 ? ` Find a DIFFERENT set of resources from what you would normally return first — skip the most obvious results and surface less commonly known but equally high-quality alternatives.` : "";
+  const pageHint =
+    page > 1
+      ? ` Find a DIFFERENT set of resources from what you would normally return first — skip the most obvious results and surface less commonly known but equally high-quality alternatives.`
+      : "";
 
-  const prompt = `Find 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}${pageHint}
+  const buildPrompt = (excludeUrls: string[] = []) => {
+    const exclusionNote =
+      excludeUrls.length > 0
+        ? `\nDo NOT include any of these URLs (they are unreachable):\n${excludeUrls.map((u) => `- ${u}`).join("\n")}`
+        : "";
+    return `Find 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}${pageHint}
 
 Return a JSON array only. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
-Rules: real public URLs only, prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse, no paywalls, JSON only no markdown.`;
+Rules: real public URLs only, prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse, no paywalls, JSON only no markdown.${exclusionNote}`;
+  };
 
   try {
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 22000);
-    let response: Awaited<ReturnType<typeof openai.responses.create>>;
-    try {
-      response = await openai.responses.create(
-        { model: "gpt-4o-mini", tools: [{ type: "web_search_preview" }], input: prompt },
-        { signal: ac.signal },
-      );
-    } finally {
-      clearTimeout(timer);
-    }
+    // ── First AI call ────────────────────────────────────────────────────────
+    const firstBatch = await callDiscoverAI(buildPrompt());
 
-    const textOutput = response.output
-      .filter((b) => b.type === "message")
-      .flatMap((b) =>
-        (b as { type: string; content: Array<{ type: string; text?: string }> }).content
-          .filter((c) => c.type === "output_text" && c.text)
-          .map((c) => c.text as string)
-      )
-      .join("");
-
-    const cleaned = textOutput
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      res.status(502).json({ error: "AI returned unparseable response" });
+    if (firstBatch.length === 0) {
+      res.status(502).json({ error: "AI returned invalid resource data" });
       return;
     }
 
-    const validated = DiscoverResourcesResponse.safeParse(parsed);
-    if (!validated.success) {
-      const items = Array.isArray(parsed) ? parsed : [];
-      const salvaged = items
-        .map((item) => {
-          const r = DiscoverResourcesResponse.element.safeParse(item);
-          return r.success ? r.data : null;
-        })
-        .filter(Boolean);
+    // ── Reachability filter (parallel, 3-second timeout per URL) ─────────────
+    const reachable = await filterReachableUrls(firstBatch);
 
-      if (salvaged.length === 0) {
-        res.status(502).json({ error: "AI returned invalid resource data" });
-        return;
+    if (reachable.length >= DISCOVER_MIN_RESULTS) {
+      res.json(reachable);
+      return;
+    }
+
+    // ── Too few live results — retry once, excluding known-dead URLs ──────────
+    const reachableSet = new Set(reachable.map((r) => r.url));
+    const deadUrls = firstBatch
+      .filter((item) => !reachableSet.has(item.url))
+      .map((item) => item.url);
+
+    console.warn(
+      `Discover: ${deadUrls.length} dead URL(s) on first pass; re-invoking AI.`,
+    );
+
+    const secondBatch = await callDiscoverAI(buildPrompt(deadUrls));
+    const reachableSecond = await filterReachableUrls(secondBatch);
+
+    // Merge survivors from both batches, deduplicated by URL
+    const merged = [...reachable];
+    for (const item of reachableSecond) {
+      if (!reachableSet.has(item.url)) {
+        merged.push(item);
+        reachableSet.add(item.url);
       }
-      res.json(salvaged);
+    }
+
+    if (merged.length === 0) {
+      res.status(502).json({ error: "No reachable results found. Please try again." });
       return;
     }
 
-    res.json(validated.data);
+    res.json(merged);
   } catch (err) {
     console.error("Discover AI error:", err);
     res.status(502).json({ error: "Search failed. Please try again." });

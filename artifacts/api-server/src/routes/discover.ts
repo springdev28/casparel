@@ -4,8 +4,71 @@ import {
   DiscoverResourcesResponse,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { filterReachableUrls } from "../lib/check-url-reachable";
 
 const router: IRouter = Router();
+
+type DiscoverList = ReturnType<(typeof DiscoverResourcesResponse)["parse"]>;
+type DiscoverItem = DiscoverList[number];
+
+const MIN_VALID_RESULTS = 3;
+
+/** Parse a raw AI text output into an array of unknown items. */
+function parseAIOutput(textOutput: string): unknown[] {
+  const cleaned = textOutput
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return [];
+  }
+
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+/** Validate raw items against the Zod schema, salvaging per-item successes. */
+function validateItems(items: unknown[]): DiscoverList {
+  const validated = DiscoverResourcesResponse.safeParse(items);
+  if (validated.success) return validated.data;
+
+  return items
+    .map((item: unknown) => {
+      const r = DiscoverResourcesResponse.element.safeParse(item);
+      return r.success ? r.data : null;
+    })
+    .filter((x): x is DiscoverItem => x !== null);
+}
+
+/** Call the AI and return validated resource items, or an empty array on failure. */
+async function fetchFromAI(prompt: string): Promise<DiscoverList> {
+  const response = await openai.responses.create({
+    model: "gpt-4o",
+    tools: [{ type: "web_search_preview" }],
+    input: prompt,
+  });
+
+  const textOutput = response.output
+    .filter((b) => b.type === "message")
+    .flatMap((b) =>
+      (
+        b as {
+          type: string;
+          content: Array<{ type: string; text?: string }>;
+        }
+      ).content
+        .filter((c) => c.type === "output_text" && c.text)
+        .map((c) => c.text as string)
+    )
+    .join("");
+
+  const rawItems = parseAIOutput(textOutput);
+  if (rawItems.length === 0) return [];
+  return validateItems(rawItems);
+}
 
 // GET /resources/discover — public, searches the internet via AI
 router.get("/resources/discover", async (req, res): Promise<void> => {
@@ -21,7 +84,13 @@ router.get("/resources/discover", async (req, res): Promise<void> => {
   const subjectHint = subject ? ` Subject area: ${subject}.` : "";
   const gradeHint = gradeLevel ? ` Target audience: ${gradeLevel} students.` : "";
 
-  const prompt = `You are an educational research assistant. Search the web and find 8–12 high-quality educational resources matching this query: "${q}"${subjectHint}${gradeHint}${formatHint}
+  const buildPrompt = (excludeUrls: string[] = []) => {
+    const exclusionNote =
+      excludeUrls.length > 0
+        ? `\n\nDo NOT include any of these URLs (they were unreachable):\n${excludeUrls.map((u) => `- ${u}`).join("\n")}`
+        : "";
+
+    return `You are an educational research assistant. Search the web and find 8–12 high-quality educational resources matching this query: "${q}"${subjectHint}${gradeHint}${formatHint}
 
 Return ONLY a JSON array. Each element must have these fields:
 - title: string — full title of the resource
@@ -38,57 +107,56 @@ Rules:
 - Prefer reputable educational sources: Khan Academy, Coursera, MIT OCW, Wikipedia, TED-Ed, CrashCourse, government/university sites, well-known publishers
 - Include a diverse mix of formats unless a specific format was requested
 - No paywalled content
-- Return ONLY the JSON array, no markdown, no extra text`;
+- Return ONLY the JSON array, no markdown, no extra text${exclusionNote}`;
+  };
 
   try {
-    const response = await openai.responses.create({
-      model: "gpt-4o",
-      tools: [{ type: "web_search_preview" }],
-      input: prompt,
-    });
+    // First AI call
+    const firstBatch = await fetchFromAI(buildPrompt());
 
-    const textOutput = response.output
-      .filter((b) => b.type === "message")
-      .flatMap((b) =>
-        (b as { type: string; content: Array<{ type: string; text?: string }> }).content
-          .filter((c) => c.type === "output_text" && c.text)
-          .map((c) => c.text as string)
-      )
-      .join("");
-
-    const cleaned = textOutput
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      res.status(502).json({ error: "AI returned unparseable response" });
+    if (firstBatch.length === 0) {
+      res.status(502).json({ error: "AI returned invalid resource data" });
       return;
     }
 
-    const validated = DiscoverResourcesResponse.safeParse(parsed);
-    if (!validated.success) {
-      // Try to salvage whatever parsed correctly by filtering per-item
-      const items = Array.isArray(parsed) ? parsed : [];
-      const salvaged = items
-        .map((item) => {
-          const r = DiscoverResourcesResponse.element.safeParse(item);
-          return r.success ? r.data : null;
-        })
-        .filter(Boolean);
+    // Reachability check — parallel with 3-second timeout per URL
+    const reachable = await filterReachableUrls(firstBatch);
 
-      if (salvaged.length === 0) {
-        res.status(502).json({ error: "AI returned invalid resource data" });
-        return;
+    if (reachable.length >= MIN_VALID_RESULTS) {
+      res.json(reachable);
+      return;
+    }
+
+    // Too many dead links — request a fresh batch excluding known-dead URLs
+    const reachableUrls = new Set(reachable.map((r) => r.url));
+    const deadUrls = firstBatch
+      .filter((item) => !reachableUrls.has(item.url))
+      .map((item) => item.url);
+
+    console.warn(
+      `Discover: ${deadUrls.length} dead URL(s) found, re-invoking AI to fill up.`
+    );
+
+    const secondBatch = await fetchFromAI(buildPrompt(deadUrls));
+    const reachableSecond = await filterReachableUrls(secondBatch);
+
+    // Merge: keep first-batch survivors + second-batch survivors (deduplicated by URL)
+    const merged: DiscoverList = [...reachable];
+    for (const item of reachableSecond) {
+      if (!reachableUrls.has(item.url)) {
+        merged.push(item);
+        reachableUrls.add(item.url);
       }
-      res.json(salvaged);
+    }
+
+    if (merged.length === 0) {
+      res
+        .status(502)
+        .json({ error: "No reachable results found. Please try again." });
       return;
     }
 
-    res.json(validated.data);
+    res.json(merged);
   } catch (err) {
     console.error("Discover AI error:", err);
     res.status(502).json({ error: "Search failed. Please try again." });
