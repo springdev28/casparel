@@ -25,6 +25,22 @@ import { StarRating } from '../components/StarRating';
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
 
+function getYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
+    if (u.hostname.includes('youtube.com')) {
+      const v = u.searchParams.get('v');
+      if (v) return v;
+      const m = u.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);
+      if (m) return m[1];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 const FORMAT_COLORS: Record<string, string> = {
   article: 'bg-blue-100 text-blue-700',
   video: 'bg-red-100 text-red-700',
@@ -231,10 +247,20 @@ export default function ResourcesPage() {
           {resources.map((resource) => (
             <Card
               key={resource.id}
-              className="cursor-pointer hover:shadow-md transition-shadow"
+              className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden"
               onClick={() => setLocation(`/resources/${resource.id}`)}
               data-testid="resource-card"
             >
+              {getYouTubeId(resource.url) && (
+                <div className="w-full h-36 overflow-hidden bg-black">
+                  <img
+                    src={`https://img.youtube.com/vi/${getYouTubeId(resource.url)}/hqdefault.jpg`}
+                    alt={resource.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              )}
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="text-base line-clamp-2">{resource.title}</CardTitle>
