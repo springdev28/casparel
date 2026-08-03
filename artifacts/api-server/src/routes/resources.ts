@@ -464,10 +464,7 @@ router.delete("/resources/:id", requireAuth, async (req, res): Promise<void> => 
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (userRole !== "teacher" && !(await isResourceOwner(params.data.id, userId))) {
-    res.status(403).json({ error: "Only the submitter or a teacher can delete this resource" });
-    return;
-  }
+  // Any authenticated user may remove a resource from the library
   await db.delete(resourcesTable).where(eq(resourcesTable.id, params.data.id));
   res.sendStatus(204);
 });

@@ -563,7 +563,7 @@ export default function ResourcesPage() {
                       key={r.id}
                       resource={r}
                       onClick={() => setLocation(`/resources/${r.id}`)}
-                      onRemove={(me?.id === r.submittedById || me?.role === 'teacher') ? () => handleRemoveCard(r.id, r.title) : undefined}
+                      onRemove={me ? () => handleRemoveCard(r.id, r.title) : undefined}
                     />
                   ))}
                 </div>
@@ -604,7 +604,7 @@ export default function ResourcesPage() {
                           key={r.id}
                           resource={r}
                           onClick={() => setLocation(`/resources/${r.id}`)}
-                          onRemove={(me?.id === r.submittedById || me?.role === 'teacher') ? () => handleRemoveCard(r.id, r.title) : undefined}
+                          onRemove={me ? () => handleRemoveCard(r.id, r.title) : undefined}
                         />
                       ))}
                     </div>
