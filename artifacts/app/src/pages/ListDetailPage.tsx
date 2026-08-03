@@ -88,6 +88,15 @@ export default function ListDetailPage() {
       queryClient.invalidateQueries({ queryKey: getListResourceListsQueryKey() });
       toast({ title: 'Item removed' });
     } catch (err: unknown) {
+      // A 404 means the item was already removed (e.g. by another device/session).
+      // Treat it as a successful removal so the UI stays consistent.
+      const status = (err as { status?: number }).status;
+      if (status === 404) {
+        queryClient.invalidateQueries({ queryKey: getGetResourceListQueryKey(listId) });
+        queryClient.invalidateQueries({ queryKey: getListResourceListsQueryKey() });
+        toast({ title: 'Item removed' });
+        return;
+      }
       const message = err instanceof Error ? err.message : 'Failed to remove item';
       toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {

@@ -183,10 +183,15 @@ router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await isListItemOwner(params.data.itemId, userId))) {
+  // Authorize against the parent list — this check is independent of whether
+  // the item still exists, so it is safe even when two sessions race to remove
+  // the same item concurrently.
+  if (!(await isListOwner(params.data.id, userId))) {
     res.status(403).json({ error: "Only the list owner can remove items" });
     return;
   }
+  // Delete unconditionally. If the item was already removed by another session
+  // the DELETE affects 0 rows, which is still a success (idempotent).
   await db
     .delete(listItemsTable)
     .where(and(eq(listItemsTable.id, params.data.itemId), eq(listItemsTable.listId, params.data.id)));
