@@ -369,6 +369,26 @@ export const DiscoverResourcesResponse = zod.array(DiscoverResourcesResponseItem
 
 
 /**
+ * @summary Get personalised resource recommendations (based on review history if authenticated, top-rated otherwise)
+ */
+export const GetResourceRecommendationsResponseItem = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "submittedById": zod.int(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string()
+})
+export const GetResourceRecommendationsResponse = zod.array(GetResourceRecommendationsResponseItem)
+
+
+/**
  * @summary Get featured and popular resources
  */
 export const ListFeaturedResourcesResponseItem = zod.object({

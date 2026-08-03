@@ -367,6 +367,21 @@ paths:
         "502":
           description: Search failed
 
+  /resources/recommendations:
+    get:
+      operationId: getResourceRecommendations
+      tags: [resources]
+      summary: Get personalised resource recommendations (based on review history if authenticated, top-rated otherwise)
+      responses:
+        "200":
+          description: Recommended resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Resource"
+
   /resources/featured:
     get:
       operationId: listFeaturedResources

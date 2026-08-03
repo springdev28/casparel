@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useLocation, Link } from 'wouter';
-import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles } from 'lucide-react';
+import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -16,9 +16,11 @@ import {
   useCreateResource,
   useGetMe,
   useDiscoverResources,
+  useGetResourceRecommendations,
   getDiscoverResourcesQueryKey,
   getListResourcesQueryKey,
   getGetMeQueryKey,
+  getGetResourceRecommendationsQueryKey,
   ListResourcesFormat,
   ResourceInputFormat,
   DiscoverResourcesFormat,
@@ -59,50 +61,143 @@ function FormatBadge({ format }: { format: string }) {
   );
 }
 
+// ── Shared resource card (library) ────────────────────────────────────────────
+function LibraryCard({ resource, onClick }: {
+  resource: { id: number; title: string; url: string; format: string; subject: string; gradeLevel: string; description?: string | null; avgRating: number; reviewCount: number };
+  onClick: () => void;
+}) {
+  const ytId = getYouTubeId(resource.url);
+  return (
+    <Card className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden" onClick={onClick} data-testid="resource-card">
+      {ytId && (
+        <div className="w-full h-36 overflow-hidden bg-black">
+          <img src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`} alt={resource.title} className="w-full h-full object-cover" loading="lazy" />
+        </div>
+      )}
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="text-base line-clamp-2">{resource.title}</CardTitle>
+          <FormatBadge format={resource.format} />
+        </div>
+        <CardDescription className="text-xs">{resource.subject} · {resource.gradeLevel}</CardDescription>
+      </CardHeader>
+      {resource.description && (
+        <CardContent className="pb-2">
+          <p className="text-sm text-muted-foreground line-clamp-2">{resource.description}</p>
+        </CardContent>
+      )}
+      <CardFooter className="flex items-center justify-between pt-2">
+        <StarRating value={resource.avgRating} size="sm" />
+        <span className="text-xs text-muted-foreground">{resource.reviewCount} review{resource.reviewCount !== 1 ? 's' : ''}</span>
+      </CardFooter>
+    </Card>
+  );
+}
+
+// ── Web result card ───────────────────────────────────────────────────────────
+function WebCard({ resource, onAdd, adding }: {
+  resource: DiscoveredResource;
+  onAdd: (r: DiscoveredResource) => void;
+  adding: boolean;
+}) {
+  const ytId = getYouTubeId(resource.url);
+  const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : resource.thumbnailUrl ?? null;
+  return (
+    <Card className="flex flex-col overflow-hidden">
+      {thumb && (
+        <div className="w-full h-36 overflow-hidden bg-black shrink-0">
+          <img src={thumb} alt={resource.title} className="w-full h-full object-cover" loading="lazy" />
+        </div>
+      )}
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <CardTitle className="text-base line-clamp-2 leading-snug">{resource.title}</CardTitle>
+          <FormatBadge format={resource.format} />
+        </div>
+        <CardDescription className="text-xs">
+          {resource.source}{resource.subject ? ` · ${resource.subject}` : ''}{resource.gradeLevel ? ` · ${resource.gradeLevel}` : ''}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="pb-2 flex-1">
+        <p className="text-sm text-muted-foreground line-clamp-3">{resource.description}</p>
+      </CardContent>
+      <CardFooter className="gap-2 pt-2 flex-wrap">
+        <Button size="sm" variant="outline" asChild className="flex-1">
+          <a href={resource.url} target="_blank" rel="noopener noreferrer">
+            <ExternalLink size={12} className="mr-1.5" /> Open
+          </a>
+        </Button>
+        <Button size="sm" className="flex-1" disabled={adding} onClick={() => onAdd(resource)}>
+          {adding ? <><Loader2 size={12} className="mr-1.5 animate-spin" /> Adding…</> : <><Plus size={12} className="mr-1.5" /> Save</>}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+// ── Skeleton grid ─────────────────────────────────────────────────────────────
+function CardSkeletons({ count = 6 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {Array.from({ length: count }).map((_, i) => (
+        <Card key={i}>
+          <CardHeader><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+          <CardContent><Skeleton className="h-14 w-full" /></CardContent>
+          <CardFooter><Skeleton className="h-4 w-24" /></CardFooter>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
 export default function ResourcesPage() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
-  const searchRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Unified search state
   const [inputValue, setInputValue] = useState('');
   const [activeQuery, setActiveQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('');
 
-  // Discover fires only when activeQuery is non-empty
-  const discoverEnabled = activeQuery.trim().length > 0;
-  const discoverParams = {
-    q: activeQuery,
-    ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as DiscoverResourcesFormat } : {}),
-    ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
-  };
+  const isSearching = activeQuery.trim().length > 0;
 
-  // Library always shows (filtered by search if typed)
+  // Auth
+  const { data: me } = useGetMe({ query: { retry: false, queryKey: getGetMeQueryKey() } });
+  const isLoggedIn = !!me;
+
+  // Recommendations (shown when NOT searching)
+  const { data: recommendations, isLoading: recsLoading } = useGetResourceRecommendations({
+    query: { queryKey: getGetResourceRecommendationsQueryKey(), staleTime: 1000 * 60 * 5 },
+  });
+
+  // Library search results (shown when searching)
   const libraryParams = {
     ...(activeQuery ? { q: activeQuery } : {}),
     ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as ListResourcesFormat } : {}),
     ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
   };
+  const { data: libraryResults, isLoading: libraryLoading } = useListResources(libraryParams, {
+    query: { enabled: isSearching, queryKey: getListResourcesQueryKey(libraryParams) },
+  });
 
-  const { data: resources, isLoading: libraryLoading } = useListResources(libraryParams);
-  const { data: me } = useGetMe({ query: { retry: false, queryKey: getGetMeQueryKey() } });
-  const isLoggedIn = !!me;
-
-  const { data: discovered, isFetching: discoverLoading, isError: discoverError } = useDiscoverResources(
+  // Web discover (shown when searching)
+  const discoverParams = {
+    q: activeQuery,
+    ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as DiscoverResourcesFormat } : {}),
+    ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
+  };
+  const { data: webResults, isFetching: webLoading, isError: webError } = useDiscoverResources(
     discoverParams,
-    {
-      query: {
-        enabled: discoverEnabled,
-        staleTime: 1000 * 60 * 5,
-        queryKey: getDiscoverResourcesQueryKey(discoverParams),
-      },
-    }
+    { query: { enabled: isSearching, staleTime: 1000 * 60 * 5, queryKey: getDiscoverResourcesQueryKey(discoverParams) } }
   );
 
   const createResource = useCreateResource();
+  const [addingUrl, setAddingUrl] = useState<string | null>(null);
 
-  // Submit form state
+  // Submit form
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newUrl, setNewUrl] = useState('');
@@ -110,25 +205,17 @@ export default function ResourcesPage() {
   const [newFormat, setNewFormat] = useState<ResourceInputFormat>(ResourceInputFormat.article);
   const [newSubject, setNewSubject] = useState('');
   const [newGrade, setNewGrade] = useState('');
-  const [addingUrl, setAddingUrl] = useState<string | null>(null);
 
-  // Debounce library search, fire discover on explicit submit
-  useEffect(() => {
-    const t = setTimeout(() => {
-      // library filters update live as you type (already handled by libraryParams)
-    }, 300);
-    return () => clearTimeout(t);
-  }, [inputValue]);
+  function clearSearch() {
+    setInputValue('');
+    setActiveQuery('');
+    inputRef.current?.focus();
+  }
 
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setActiveQuery(inputValue.trim());
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') {
-      setActiveQuery(inputValue.trim());
-    }
+    const q = inputValue.trim();
+    if (q) setActiveQuery(q);
   }
 
   function resetForm() {
@@ -140,53 +227,48 @@ export default function ResourcesPage() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await createResource.mutateAsync({
-        data: { title: newTitle, url: newUrl, description: newDesc || undefined, format: newFormat, subject: newSubject, gradeLevel: newGrade },
-      });
+      await createResource.mutateAsync({ data: { title: newTitle, url: newUrl, description: newDesc || undefined, format: newFormat, subject: newSubject, gradeLevel: newGrade } });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
       toast({ title: 'Resource submitted!', description: `"${newTitle}" has been added.` });
       resetForm();
       setDialogOpen(false);
-    } catch (err: unknown) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to submit', variant: 'destructive' });
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed', variant: 'destructive' });
     }
   }
 
-  async function handleAddDiscovered(resource: DiscoveredResource) {
+  async function handleAddWeb(resource: DiscoveredResource) {
     if (!isLoggedIn) { setLocation('/auth/login'); return; }
     setAddingUrl(resource.url);
     try {
       await createResource.mutateAsync({
-        data: {
-          title: resource.title,
-          url: resource.url,
-          description: resource.description,
-          format: resource.format as ResourceInputFormat,
-          subject: resource.subject ?? 'General',
-          gradeLevel: resource.gradeLevel ?? 'All grades',
-        },
+        data: { title: resource.title, url: resource.url, description: resource.description, format: resource.format as ResourceInputFormat, subject: resource.subject ?? 'General', gradeLevel: resource.gradeLevel ?? 'All grades' },
       });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
-      toast({ title: 'Added to library!', description: `"${resource.title}" is now in your library.` });
-    } catch (err: unknown) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to add', variant: 'destructive' });
+      queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
+      toast({ title: 'Saved to library!', description: `"${resource.title}" added.` });
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed', variant: 'destructive' });
     } finally {
       setAddingUrl(null);
     }
   }
 
-  const hasLibraryResults = !libraryLoading && resources && resources.length > 0;
-  const noLibraryResults = !libraryLoading && (!resources || resources.length === 0);
-  const showWebSection = discoverEnabled;
-
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 max-w-6xl mx-auto space-y-8">
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Resources</h1>
-          <p className="text-muted-foreground text-sm mt-1">Search your library and the entire web at once</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            {isSearching
+              ? `Showing library results and web results for "${activeQuery}"`
+              : isLoggedIn
+                ? 'Your personalised library — based on what you\'ve been learning'
+                : 'Top-rated resources to get you started'}
+          </p>
         </div>
         {isLoggedIn ? (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -216,11 +298,7 @@ export default function ResourcesPage() {
                     <Label>Format</Label>
                     <Select value={newFormat} onValueChange={(v) => setNewFormat(v as ResourceInputFormat)}>
                       <SelectTrigger data-testid="resource-format-select"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.values(ResourceInputFormat).map((f) => (
-                          <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>
-                        ))}
-                      </SelectContent>
+                      <SelectContent>{Object.values(ResourceInputFormat).map((f) => <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
@@ -243,25 +321,29 @@ export default function ResourcesPage() {
           </Dialog>
         ) : (
           <Button variant="outline" asChild data-testid="sign-in-to-submit">
-            <Link href="/auth/login"><LogIn size={15} className="mr-1.5" /> Sign in to submit</Link>
+            <Link href="/auth/login"><LogIn size={15} className="mr-1.5" /> Sign in</Link>
           </Button>
         )}
       </div>
 
-      {/* ── Search bar ─────────────────────────────────────────────────── */}
+      {/* Search bar */}
       <form onSubmit={handleSearchSubmit} className="space-y-2">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              ref={searchRef}
-              className="pl-9 h-11 text-base"
-              placeholder="Search anything — photosynthesis, calculus lectures, Python tutorials…"
+              ref={inputRef}
+              className="pl-9 pr-9 h-11 text-base"
+              placeholder={'Search anything — "photosynthesis", "MIT calculus", "Python for beginners"…'}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
               data-testid="search-input"
             />
+            {inputValue && (
+              <button type="button" onClick={() => { setInputValue(''); setActiveQuery(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X size={15} />
+              </button>
+            )}
           </div>
           <Button type="submit" size="lg" className="shrink-0" disabled={!inputValue.trim()}>
             <Search size={15} className="mr-1.5" /> Search
@@ -275,183 +357,116 @@ export default function ResourcesPage() {
               {FORMAT_OPTIONS.map((f) => <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Input
-            className="w-36 h-8 text-xs"
-            placeholder="Subject…"
-            value={subjectFilter}
-            onChange={(e) => setSubjectFilter(e.target.value)}
-            data-testid="subject-filter"
-          />
+          <Input className="w-36 h-8 text-xs" placeholder="Subject…" value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)} data-testid="subject-filter" />
         </div>
       </form>
 
-      {/* ── Library section ────────────────────────────────────────────── */}
-      <section>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
-          <BookOpen size={14} /> Library{activeQuery ? ` — matching "${activeQuery}"` : ''}
-        </h2>
-
-        {libraryLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i}>
-                <CardHeader><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
-                <CardContent><Skeleton className="h-16 w-full" /></CardContent>
-                <CardFooter><Skeleton className="h-4 w-24" /></CardFooter>
-              </Card>
-            ))}
-          </div>
-        ) : noLibraryResults ? (
-          <p className="text-sm text-muted-foreground py-4">
-            {activeQuery ? `No library resources match "${activeQuery}".` : 'No resources yet — be the first to submit one.'}
-            {showWebSection && ' Check the web results below.'}
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {resources!.map((resource) => (
-              <Card
-                key={resource.id}
-                className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden"
-                onClick={() => setLocation(`/resources/${resource.id}`)}
-                data-testid="resource-card"
-              >
-                {getYouTubeId(resource.url) && (
-                  <div className="w-full h-36 overflow-hidden bg-black">
-                    <img
-                      src={`https://img.youtube.com/vi/${getYouTubeId(resource.url)}/hqdefault.jpg`}
-                      alt={resource.title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                )}
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base line-clamp-2">{resource.title}</CardTitle>
-                    <FormatBadge format={resource.format} />
-                  </div>
-                  <CardDescription className="text-xs">{resource.subject} · {resource.gradeLevel}</CardDescription>
-                </CardHeader>
-                {resource.description && (
-                  <CardContent className="pb-2">
-                    <p className="text-sm text-muted-foreground line-clamp-2">{resource.description}</p>
-                  </CardContent>
-                )}
-                <CardFooter className="flex items-center justify-between pt-2">
-                  <StarRating value={resource.avgRating} size="sm" />
-                  <span className="text-xs text-muted-foreground">{resource.reviewCount} review{resource.reviewCount !== 1 ? 's' : ''}</span>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* ── Sign-up nudge (unauthenticated, non-empty library) ─────────── */}
-      {!isLoggedIn && hasLibraryResults && !activeQuery && (
-        <div className="rounded-lg border border-border bg-muted/40 px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            <p className="font-medium text-foreground text-sm">Want to save resources and track your classes?</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Create a free Schooler account.</p>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <Button variant="outline" size="sm" asChild><Link href="/auth/login">Sign in</Link></Button>
-            <Button size="sm" asChild><Link href="/auth/register">Get started</Link></Button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Web results section ────────────────────────────────────────── */}
-      {showWebSection && (
+      {/* ── RECOMMENDATIONS (default view, no active search) ─────────── */}
+      {!isSearching && (
         <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
-            <Sparkles size={14} /> From the Web — "{activeQuery}"
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
+            <BookOpen size={14} />
+            {isLoggedIn ? 'Library — Recommended for you' : 'Library — Top rated'}
           </h2>
-
-          {discoverLoading && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Loader2 size={12} className="animate-spin" /> Searching the web…
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Card key={i} className="overflow-hidden">
-                    <Skeleton className="h-36 w-full" />
-                    <CardHeader><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
-                    <CardContent><Skeleton className="h-12 w-full" /></CardContent>
-                  </Card>
-                ))}
+          {recsLoading
+            ? <CardSkeletons />
+            : !recommendations || recommendations.length === 0
+              ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  <BookOpen size={36} className="mx-auto mb-3 opacity-30" />
+                  <p className="font-medium text-foreground">No resources yet</p>
+                  <p className="text-sm mt-1">Be the first to submit one, or search to find resources across the web.</p>
+                </div>
+              )
+              : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {recommendations.map((r) => (
+                    <LibraryCard key={r.id} resource={r} onClick={() => setLocation(`/resources/${r.id}`)} />
+                  ))}
+                </div>
+              )
+          }
+          {!isLoggedIn && recommendations && recommendations.length > 0 && (
+            <div className="mt-6 rounded-lg border bg-muted/40 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div>
+                <p className="font-medium text-sm">Get personalised recommendations</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Sign in and Schooler learns what you like.</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button variant="outline" size="sm" asChild><Link href="/auth/login">Sign in</Link></Button>
+                <Button size="sm" asChild><Link href="/auth/register">Get started</Link></Button>
               </div>
             </div>
-          )}
-
-          {discoverError && !discoverLoading && (
-            <div className="py-6 text-center">
-              <p className="text-sm text-destructive">Web search failed — please try again.</p>
-              <Button variant="outline" size="sm" className="mt-3" onClick={() => setActiveQuery('')}>Clear</Button>
-            </div>
-          )}
-
-          {!discoverLoading && !discoverError && discovered && (
-            <>
-              {!isLoggedIn && (
-                <p className="text-xs text-muted-foreground mb-3">
-                  <Link href="/auth/login" className="text-primary underline">Sign in</Link> to add results to your library.
-                </p>
-              )}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {discovered.map((r, i) => {
-                  const ytId = getYouTubeId(r.url);
-                  const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : r.thumbnailUrl ?? null;
-                  return (
-                    <Card key={i} className="flex flex-col overflow-hidden">
-                      {thumb && (
-                        <div className="w-full h-36 overflow-hidden bg-black shrink-0">
-                          <img src={thumb} alt={r.title} className="w-full h-full object-cover" loading="lazy" />
-                        </div>
-                      )}
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-base line-clamp-2 leading-snug">{r.title}</CardTitle>
-                          <FormatBadge format={r.format} />
-                        </div>
-                        <CardDescription className="text-xs">
-                          {r.source}{r.subject ? ` · ${r.subject}` : ''}{r.gradeLevel ? ` · ${r.gradeLevel}` : ''}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent className="pb-2 flex-1">
-                        <p className="text-sm text-muted-foreground line-clamp-3">{r.description}</p>
-                      </CardContent>
-                      <CardFooter className="gap-2 pt-2 flex-wrap">
-                        <Button size="sm" variant="outline" asChild className="flex-1">
-                          <a href={r.url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink size={12} className="mr-1.5" /> Open
-                          </a>
-                        </Button>
-                        <Button size="sm" className="flex-1" disabled={addingUrl === r.url} onClick={() => handleAddDiscovered(r)}>
-                          {addingUrl === r.url
-                            ? <><Loader2 size={12} className="mr-1.5 animate-spin" /> Adding…</>
-                            : <><Plus size={12} className="mr-1.5" /> Add to Library</>}
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  );
-                })}
-              </div>
-            </>
           )}
         </section>
       )}
 
-      {/* ── Empty state (no search yet) ────────────────────────────────── */}
-      {!activeQuery && noLibraryResults && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Globe size={40} className="text-muted-foreground mb-4 opacity-50" />
-          <p className="font-semibold text-foreground">Search to find anything</p>
-          <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-            Type a topic above and hit Search — Schooler looks through the library and across the entire web simultaneously.
-          </p>
-        </div>
+      {/* ── SEARCH RESULTS ────────────────────────────────────────────── */}
+      {isSearching && (
+        <>
+          {/* Library search results */}
+          <section>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
+              <BookOpen size={14} /> Library — "{activeQuery}"
+            </h2>
+            {libraryLoading
+              ? <CardSkeletons count={3} />
+              : !libraryResults || libraryResults.length === 0
+                ? <p className="text-sm text-muted-foreground py-2">No library results for "{activeQuery}".</p>
+                : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {libraryResults.map((r) => (
+                      <LibraryCard key={r.id} resource={r} onClick={() => setLocation(`/resources/${r.id}`)} />
+                    ))}
+                  </div>
+                )
+            }
+          </section>
+
+          {/* Web results */}
+          <section>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
+              <Sparkles size={14} /> From the Web — "{activeQuery}"
+            </h2>
+
+            {webLoading && (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> Searching the entire web…
+                </p>
+                <CardSkeletons />
+              </div>
+            )}
+
+            {webError && !webLoading && (
+              <div className="py-6 text-center">
+                <p className="text-sm text-destructive font-medium">Web search failed — please try again.</p>
+                <Button variant="outline" size="sm" className="mt-3" onClick={() => setActiveQuery(activeQuery)}>Retry</Button>
+              </div>
+            )}
+
+            {!webLoading && !webError && webResults && (
+              <>
+                {!isLoggedIn && (
+                  <p className="text-xs text-muted-foreground mb-3">
+                    <Link href="/auth/login" className="text-primary underline">Sign in</Link> to save web results to your library.
+                  </p>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {webResults.map((r, i) => (
+                    <WebCard key={i} resource={r} onAdd={handleAddWeb} adding={addingUrl === r.url} />
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+
+          <div className="pt-2">
+            <Button variant="ghost" size="sm" onClick={clearSearch} className="text-muted-foreground">
+              <X size={13} className="mr-1.5" /> Clear search — back to library
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );

@@ -1350,6 +1350,83 @@ export function useDiscoverResources<TData = Awaited<ReturnType<typeof discoverR
 
 
 
+export const getGetResourceRecommendationsUrl = () => {
+
+
+
+
+  return `/api/resources/recommendations`
+}
+
+/**
+ * @summary Get personalised resource recommendations (based on review history if authenticated, top-rated otherwise)
+ */
+export const getResourceRecommendations = async ( options?: Parameters<typeof customFetch>[1]): Promise<Resource[]> => {
+
+  return customFetch<Resource[]>(getGetResourceRecommendationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetResourceRecommendationsQueryKey = () => {
+    return [
+    `/api/resources/recommendations`
+    ] as const;
+    }
+
+
+export const getGetResourceRecommendationsQueryOptions = <TData = Awaited<ReturnType<typeof getResourceRecommendations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceRecommendations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetResourceRecommendationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResourceRecommendations>>> = ({ signal }) => getResourceRecommendations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getResourceRecommendations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetResourceRecommendationsQueryResult = NonNullable<Awaited<ReturnType<typeof getResourceRecommendations>>>
+export type GetResourceRecommendationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get personalised resource recommendations (based on review history if authenticated, top-rated otherwise)
+ */
+
+export function useGetResourceRecommendations<TData = Awaited<ReturnType<typeof getResourceRecommendations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceRecommendations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetResourceRecommendationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListFeaturedResourcesUrl = () => {
 
 
