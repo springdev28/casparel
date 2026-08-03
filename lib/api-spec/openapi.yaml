@@ -3,7 +3,7 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: EduHub API — student/teacher productivity platform
+  description: Schooler API — student/teacher productivity platform
 servers:
   - url: /api
     description: Base API path
@@ -303,6 +303,21 @@ paths:
           in: query
           schema:
             type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 12
+            minimum: 1
+            maximum: 50
+          description: Maximum number of results to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Number of results to skip
       responses:
         "200":
           description: Resources
@@ -881,7 +896,7 @@ paths:
     post:
       operationId: importGCCourse
       tags: [google-classroom]
-      summary: Import a Google Classroom course as a new EduHub class
+      summary: Import a Google Classroom course as a new Schooler class
       requestBody:
         required: true
         content:
@@ -890,7 +905,7 @@ paths:
               $ref: "#/components/schemas/GCImportInput"
       responses:
         "201":
-          description: EduHub class created from the Google Classroom course
+          description: Schooler class created from the Google Classroom course
           content:
             application/json:
               schema:

@@ -189,6 +189,7 @@ export default function ResourcesPage() {
   const [activeQuery, setActiveQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('');
+  const [libraryLimit, setLibraryLimit] = useState(12);
 
   const isSearching = activeQuery.trim().length > 0;
 
@@ -206,6 +207,8 @@ export default function ResourcesPage() {
     ...(activeQuery ? { q: activeQuery } : {}),
     ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as ListResourcesFormat } : {}),
     ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
+    limit: libraryLimit,
+    offset: 0,
   };
   const { data: libraryResults, isLoading: libraryLoading } = useListResources(libraryParams, {
     query: { enabled: isSearching, queryKey: getListResourcesQueryKey(libraryParams) },
@@ -275,7 +278,10 @@ export default function ResourcesPage() {
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
     const q = inputValue.trim();
-    if (q) setActiveQuery(q);
+    if (q) {
+      setActiveQuery(q);
+      setLibraryLimit(12); // reset pagination on new search
+    }
   }
 
   function resetForm() {
@@ -486,11 +492,20 @@ export default function ResourcesPage() {
               : !libraryResults || libraryResults.length === 0
                 ? <p className="text-sm text-muted-foreground py-2">No library results for "{activeQuery}".</p>
                 : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {libraryResults.map((r) => (
-                      <LibraryCard key={r.id} resource={r} onClick={() => setLocation(`/resources/${r.id}`)} />
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {libraryResults.map((r) => (
+                        <LibraryCard key={r.id} resource={r} onClick={() => setLocation(`/resources/${r.id}`)} />
+                      ))}
+                    </div>
+                    {libraryResults.length === libraryLimit && (
+                      <div className="mt-4 text-center">
+                        <Button variant="outline" size="sm" onClick={() => setLibraryLimit((n) => n + 12)}>
+                          Show more results
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )
             }
           </section>

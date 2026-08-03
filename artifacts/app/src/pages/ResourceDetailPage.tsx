@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
-import { ArrowLeft, ExternalLink, Plus, BookOpen, LogIn, Search, ShieldCheck, ShieldAlert, Shield, ShieldX, ExternalLink as LinkIcon } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Plus, BookOpen, LogIn, Search, ShieldCheck, ShieldAlert, Shield, ShieldX, ExternalLink as LinkIcon, Trash2 } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
@@ -21,12 +21,14 @@ import {
   useAddListItem,
   useGetMe,
   useGetResourceSourceReview,
+  useDeleteResource,
   getListResourceReviewsQueryKey,
   getGetResourceQueryKey,
   getListResourcesQueryKey,
   getGetMeQueryKey,
   getListResourceListsQueryKey,
   getGetResourceSourceReviewQueryKey,
+  getGetResourceRecommendationsQueryKey,
 } from '@workspace/api-client-react';
 import type { SourceReview } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
@@ -311,6 +313,7 @@ export default function ResourceDetailPage() {
   const [addToListOpen, setAddToListOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState('');
   const [listNote, setListNote] = useState('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data: resource, isLoading: resourceLoading } = useGetResource(resourceId, {
     query: { enabled: !!resourceId, queryKey: getGetResourceQueryKey(resourceId) },
@@ -322,6 +325,7 @@ export default function ResourceDetailPage() {
   const { data: lists } = useListResourceLists({ query: { enabled: !!me, queryKey: getListResourceListsQueryKey() } });
   const createReview = useCreateResourceReview();
   const addListItem = useAddListItem();
+  const deleteResource = useDeleteResource();
 
   const isLoggedIn = !!me;
 
@@ -344,6 +348,19 @@ export default function ResourceDetailPage() {
       setReviewComment('');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to submit review';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    }
+  }
+
+  async function handleDelete() {
+    try {
+      await deleteResource.mutateAsync({ id: resourceId });
+      queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
+      toast({ title: 'Resource removed from library.' });
+      setLocation('/resources');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to remove resource';
       toast({ title: 'Error', description: message, variant: 'destructive' });
     }
   }
@@ -462,6 +479,31 @@ export default function ResourceDetailPage() {
                 <Button size="sm" variant="outline" asChild data-testid="sign-in-to-save">
                   <Link href="/auth/login"><Plus size={14} className="mr-1" /> Save to List</Link>
                 </Button>
+              )}
+
+              {/* Remove from library — only for submitter */}
+              {isLoggedIn && me?.id === resource.submittedById && (
+                <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" data-testid="remove-resource-button">
+                      <Trash2 size={14} className="mr-1" /> Remove
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Remove this resource?</DialogTitle>
+                      <DialogDescription>
+                        This will permanently delete "{resource.title}" and all its reviews. This cannot be undone.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+                      <Button variant="destructive" onClick={handleDelete} disabled={deleteResource.isPending} data-testid="confirm-remove-button">
+                        {deleteResource.isPending ? 'Removing…' : 'Remove'}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               )}
 
               <Button size="sm" asChild>

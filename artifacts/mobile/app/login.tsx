@@ -80,7 +80,7 @@ export default function LoginScreen() {
               },
             ]}
           >
-            EduHub
+            Schooler
           </Text>
         </View>
 

@@ -62,17 +62,18 @@ router.get("/resources", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const { q, format, subject, gradeLevel } = params.data;
+  const { q, format, subject, gradeLevel, limit = 12, offset = 0 } = params.data;
   const conditions = [];
   if (q) conditions.push(ilike(resourcesTable.title, `%${q}%`));
   if (format) conditions.push(eq(resourcesTable.format, format as "article" | "video" | "pdf" | "podcast" | "interactive" | "other"));
   if (subject) conditions.push(eq(resourcesTable.subject, subject));
   if (gradeLevel) conditions.push(eq(resourcesTable.gradeLevel, gradeLevel));
 
-  const rows =
-    conditions.length > 0
-      ? await db.select().from(resourcesTable).where(and(...conditions))
-      : await db.select().from(resourcesTable);
+  const base = db.select().from(resourcesTable);
+  const rows = await (conditions.length > 0
+    ? base.where(and(...conditions))
+    : base
+  ).limit(limit).offset(offset);
 
   const resources = await Promise.all(rows.map((r) => resourceWithRating(r.id)));
   res.json(ListResourcesResponse.parse(resources.filter(Boolean)));
