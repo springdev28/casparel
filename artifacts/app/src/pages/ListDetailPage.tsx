@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
@@ -11,8 +11,26 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   useGetResourceList,
   useRemoveListItem,
+  useReorderListItems,
   useGetMe,
   useGetGCStatus,
   useListGCCourses,
@@ -34,6 +52,25 @@ const FORMAT_COLORS: Record<string, string> = {
   other: 'bg-gray-100 text-gray-700',
 };
 
+interface ListItemData {
+  id: number;
+  listId: number;
+  resourceId: number;
+  note?: string | null;
+  addedAt: string;
+  position: number;
+  resource: {
+    id: number;
+    title: string;
+    url: string;
+    format: string;
+    subject: string;
+    gradeLevel: string;
+    description?: string | null;
+    avgRating: number;
+    reviewCount: number;
+  };
+}
 export default function ListDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
@@ -41,10 +78,12 @@ export default function ListDetailPage() {
   const listId = Number(id);
   const [removingId, setRemovingId] = useState<number | null>(null);
 
+  // Local ordered items for optimistic drag-reorder
+  const [orderedItems, setOrderedItems] = useState<ListItemData[] | null>(null);
+
   // Google Classroom share state
   const [gcDialogOpen, setGcDialogOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
-  // Set to true when a GC API call returns 401/403 (token expired/revoked)
   const [gcReconnectNeeded, setGcReconnectNeeded] = useState(false);
 
   const { data: list, isLoading } = useGetResourceList(listId, {
@@ -52,8 +91,15 @@ export default function ListDetailPage() {
   });
   const { data: me } = useGetMe();
   const removeItem = useRemoveListItem();
+  const reorderItems = useReorderListItems();
 
-  // GC integration — only fetch status when the user is a teacher
+  // Sync local order from server whenever the list data changes
+  useEffect(() => {
+    if (list?.items) {
+      setOrderedItems(list.items as ListItemData[]);
+    }
+  }, [list?.items]);
+
   const isTeacher = me?.role === UserRole.teacher;
   const isOwner = me?.id != null && list != null && list.ownerId === me.id;
   const canShareToGC = isTeacher && isOwner;
@@ -70,7 +116,6 @@ export default function ListDetailPage() {
   });
   const shareToGC = useShareToGC();
 
-  // Detect 401/403 from GC API calls → prompt re-authentication
   useEffect(() => {
     if (!gcCoursesError) return;
     const status = (gcCoursesError as { status?: number }).status;
@@ -79,6 +124,38 @@ export default function ListDetailPage() {
       setGcReconnectNeeded(true);
     }
   }, [gcCoursesError]);
+
+  // ── DnD sensors ────────────────────────────────────────────────────────────
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !orderedItems) return;
+
+    const oldIndex = orderedItems.findIndex((i) => i.id === active.id);
+    const newIndex = orderedItems.findIndex((i) => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    // Optimistic update
+    const reordered = arrayMove(orderedItems, oldIndex, newIndex);
+    setOrderedItems(reordered);
+
+    try {
+      await reorderItems.mutateAsync({
+        id: listId,
+        data: { itemIds: reordered.map((i) => i.id) },
+      });
+      // Invalidate so positions are fresh from server
+      queryClient.invalidateQueries({ queryKey: getGetResourceListQueryKey(listId) });
+    } catch {
+      // Roll back optimistic update on failure
+      setOrderedItems(orderedItems);
+      toast({ title: 'Error', description: 'Failed to save new order', variant: 'destructive' });
+    }
+  }
 
   async function handleRemove(itemId: number) {
     setRemovingId(itemId);
@@ -138,7 +215,6 @@ export default function ListDetailPage() {
     if (gcStatus?.connected) {
       setGcDialogOpen(true);
     } else {
-      // Redirect to classes page to connect
       setLocation('/classes?connect_gc=1');
       toast({
         title: 'Connect Google Classroom first',
@@ -181,6 +257,8 @@ export default function ListDetailPage() {
     );
   }
 
+  const displayItems = orderedItems ?? (list.items as ListItemData[]);
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
 
@@ -211,7 +289,6 @@ export default function ListDetailPage() {
           <ArrowLeft size={16} className="mr-1.5" /> Lists
         </Button>
 
-        {/* Share to Google Classroom button — list owner + teacher + GC configured */}
         {canShareToGC && gcStatus?.configured && (
           <Button
             variant="outline"
@@ -233,61 +310,35 @@ export default function ListDetailPage() {
       </div>
 
       {/* Items */}
-      {list.items.length === 0 ? (
+      {displayItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <List size={36} className="text-muted-foreground mb-3" />
           <p className="font-semibold text-foreground">No items yet</p>
           <p className="text-sm text-muted-foreground mt-1">Browse resources and add them to this list.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {list.items.map((item) => (
-            <Card key={item.id} data-testid="list-item-card">
-              <CardContent className="py-4">
-                <div className="flex items-start gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2 flex-wrap">
-                      <h3 className="text-sm font-medium text-foreground flex-1 min-w-0">
-                        {item.resource.title}
-                      </h3>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
-                        {item.resource.format}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
-                    {item.resource.description && (
-                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.resource.description}</p>
-                    )}
-                    {item.note && (
-                      <p className="text-xs text-muted-foreground italic mt-1">Note: {item.note}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-2">
-                      <StarRating value={item.resource.avgRating} size="sm" />
-                      <span className="text-xs text-muted-foreground">{item.resource.reviewCount} review{item.resource.reviewCount !== 1 ? 's' : ''}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={item.resource.url} target="_blank" rel="noopener noreferrer" data-testid="open-resource-link">
-                        <ExternalLink size={13} />
-                      </a>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleRemove(item.id)}
-                      disabled={removingId === item.id}
-                      data-testid="remove-item-button"
-                    >
-                      <Trash2 size={13} />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={displayItems.map((i) => i.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-3">
+              {displayItems.map((item) => (
+                <SortableItem
+                  key={item.id}
+                  item={item}
+                  isRemoving={removingId === item.id}
+                  isOwner={isOwner}
+                  onRemove={handleRemove}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
       <Separator />
 
@@ -368,4 +419,92 @@ export default function ListDetailPage() {
       </Dialog>
     </div>
   );
+}
+
+function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card data-testid="list-item-card">
+        <CardContent className="py-4">
+          <div className="flex items-start gap-4">
+            {/* Drag handle — only shown to list owner */}
+            {isOwner && (
+              <button
+                {...attributes}
+                {...listeners}
+                className="mt-0.5 shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground focus:outline-none"
+                aria-label="Drag to reorder"
+                data-testid="drag-handle"
+              >
+                <GripVertical size={16} />
+              </button>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start gap-2 flex-wrap">
+                <h3 className="text-sm font-medium text-foreground flex-1 min-w-0">
+                  {item.resource.title}
+                </h3>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
+                  {item.resource.format}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
+              {item.resource.description && (
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.resource.description}</p>
+              )}
+              {item.note && (
+                <p className="text-xs text-muted-foreground italic mt-1">Note: {item.note}</p>
+              )}
+              <div className="flex items-center gap-2 mt-2">
+                <StarRating value={item.resource.avgRating} size="sm" />
+                <span className="text-xs text-muted-foreground">{item.resource.reviewCount} review{item.resource.reviewCount !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button size="sm" variant="outline" asChild>
+                <a href={item.resource.url} target="_blank" rel="noopener noreferrer" data-testid="open-resource-link">
+                  <ExternalLink size={13} />
+                </a>
+              </Button>
+              {isOwner && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => onRemove(item.id)}
+                  disabled={isRemoving}
+                  data-testid="remove-item-button"
+                >
+                  <Trash2 size={13} />
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+interface SortableItemProps {
+  item: ListItemData;
+  isRemoving: boolean;
+  isOwner: boolean;
+  onRemove: (id: number) => void;
 }

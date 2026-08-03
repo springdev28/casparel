@@ -737,6 +737,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/ListItem"
 
+  /lists/{id}/items/reorder:
+    post:
+      operationId: reorderListItems
+      tags: [lists]
+      summary: Reorder items in a list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderListItemsInput"
+      responses:
+        "204":
+          description: Reordered
+
   /lists/{id}/items/{itemId}:
     delete:
       operationId: removeListItem
@@ -1280,13 +1301,14 @@ components:
 
     ListItem:
       type: object
-      required: [id, listId, resourceId, addedAt, resource]
+      required: [id, listId, resourceId, addedAt, position, resource]
       properties:
         id:         { type: integer }
         listId:     { type: integer }
         resourceId: { type: integer }
         note:       { type: ["string", "null"] }
         addedAt:    { type: string }
+        position:   { type: integer }
         resource:   { $ref: "#/components/schemas/Resource" }
 
     ListItemInput:
@@ -1295,6 +1317,15 @@ components:
       properties:
         resourceId: { type: integer }
         note:       { type: string }
+
+    ReorderListItemsInput:
+      type: object
+      required: [itemIds]
+      properties:
+        itemIds:
+          type: array
+          items: { type: integer }
+          description: Ordered array of list item IDs — first element gets position 0
 
     ShareListInput:
       type: object

@@ -45,6 +45,7 @@ export * from './prefetchResourceResponse';
 export * from './prefetchResourceResponseFormat';
 export * from './registerInput';
 export * from './registerInputRole';
+export * from './reorderListItemsInput';
 export * from './resource';
 export * from './resourceFormat';
 export * from './resourceInput';

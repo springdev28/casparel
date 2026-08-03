@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface BulkInviteInput {
-  /** @minItems 1 */
-  emails: string[];
+export interface ReorderListItemsInput {
+  /** Ordered array of list item IDs — first element gets position 0 */
+  itemIds: number[];
 }

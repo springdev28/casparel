@@ -691,6 +691,7 @@ export const GetResourceListResponse = zod.object({
   "resourceId": zod.int(),
   "note": zod.string().nullish(),
   "addedAt": zod.string(),
+  "position": zod.int(),
   "resource": zod.object({
   "id": zod.int(),
   "title": zod.string(),
@@ -763,6 +764,7 @@ export const AddListItemResponse = zod.object({
   "resourceId": zod.int(),
   "note": zod.string().nullish(),
   "addedAt": zod.string(),
+  "position": zod.int(),
   "resource": zod.object({
   "id": zod.int(),
   "title": zod.string(),
@@ -778,6 +780,20 @@ export const AddListItemResponse = zod.object({
   "createdAt": zod.string()
 })
 })
+
+
+/**
+ * @summary Reorder items in a list
+ */
+export const ReorderListItemsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReorderListItemsBody = zod.object({
+  "itemIds": zod.array(zod.int()).describe('Ordered array of list item IDs — first element gets position 0')
+})
+
+export const ReorderListItemsResponse = zod.void()
 
 
 /**

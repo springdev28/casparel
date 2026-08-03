@@ -19,6 +19,7 @@ export const listItemsTable = pgTable("list_items", {
   listId: integer("list_id").notNull().references(() => resourceListsTable.id),
   resourceId: integer("resource_id").notNull().references(() => resourcesTable.id),
   note: text("note"),
+  position: integer("position").notNull().default(0),
   addedAt: timestamp("added_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });
 

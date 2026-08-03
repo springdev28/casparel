@@ -49,6 +49,7 @@ import type {
   PrefetchResourceBody,
   PrefetchResourceResponse,
   RegisterInput,
+  ReorderListItemsInput,
   Resource,
   ResourceInput,
   ResourceList,
@@ -2615,6 +2616,78 @@ export const useAddListItem = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getAddListItemMutationOptions(options));
+    }
+
+export const getReorderListItemsUrl = (id: number,) => {
+
+
+
+
+  return `/api/lists/${id}/items/reorder`
+}
+
+/**
+ * @summary Reorder items in a list
+ */
+export const reorderListItems = async (id: number,
+    reorderListItemsInput: ReorderListItemsInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getReorderListItemsUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reorderListItemsInput)
+  }
+);}
+
+
+
+
+
+export const getReorderListItemsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderListItems>>, TError,{id: number;data: BodyType<ReorderListItemsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderListItems>>, TError,{id: number;data: BodyType<ReorderListItemsInput>}, TContext> => {
+
+const mutationKey = ['reorderListItems'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderListItems>>, {id: number;data: BodyType<ReorderListItemsInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reorderListItems(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderListItemsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderListItems>>>
+    export type ReorderListItemsMutationBody = BodyType<ReorderListItemsInput>
+    export type ReorderListItemsMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reorder items in a list
+ */
+export const useReorderListItems = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderListItems>>, TError,{id: number;data: BodyType<ReorderListItemsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reorderListItems>>,
+        TError,
+        {id: number;data: BodyType<ReorderListItemsInput>},
+        TContext
+      > => {
+      return useMutation(getReorderListItemsMutationOptions(options));
     }
 
 export const getRemoveListItemUrl = (id: number,

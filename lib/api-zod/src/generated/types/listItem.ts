@@ -14,5 +14,6 @@ export interface ListItem {
   /** @nullable */
   note?: string | null;
   addedAt: string;
+  position: number;
   resource: Resource;
 }

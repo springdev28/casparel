@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, max, asc } from "drizzle-orm";
 import { db, resourceListsTable, listItemsTable, resourcesTable, reviewsTable } from "@workspace/db";
 import {
   ListResourceListsResponse,
@@ -15,6 +15,8 @@ import {
   AddListItemBody,
   AddListItemResponse,
   RemoveListItemParams,
+  ReorderListItemsParams,
+  ReorderListItemsBody,
   ShareListWithClassParams,
   ShareListWithClassBody,
 } from "@workspace/api-zod";
@@ -93,7 +95,8 @@ router.get("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   const itemRows = await db
     .select()
     .from(listItemsTable)
-    .where(eq(listItemsTable.listId, params.data.id));
+    .where(eq(listItemsTable.listId, params.data.id))
+    .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
   const items = await Promise.all(
     itemRows.map(async (item) => {
       const resource = await resourceWithRating(item.resourceId);
@@ -178,12 +181,67 @@ router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): P
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const [maxResult] = await db
+    .select({ maxPos: max(listItemsTable.position) })
+    .from(listItemsTable)
+    .where(eq(listItemsTable.listId, params.data.id));
+  const nextPosition = (maxResult?.maxPos ?? -1) + 1;
   const [item] = await db
     .insert(listItemsTable)
-    .values({ listId: params.data.id, ...parsed.data })
+    .values({ listId: params.data.id, position: nextPosition, ...parsed.data })
     .returning();
   const resource = await resourceWithRating(item.resourceId);
   res.status(201).json(AddListItemResponse.parse({ ...item, resource }));
+});
+
+// POST /lists/:id/items/reorder — list owner only
+// Must be registered before DELETE /lists/:id/items/:itemId so Express doesn't
+// mistake "reorder" for an itemId.
+router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = ReorderListItemsParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  if (!(await isListOwner(params.data.id, userId))) {
+    res.status(403).json({ error: "Only the list owner can reorder items" });
+    return;
+  }
+  const parsed = ReorderListItemsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Validate: submitted IDs must exactly match the current items in this list
+  const existing = await db
+    .select({ id: listItemsTable.id })
+    .from(listItemsTable)
+    .where(eq(listItemsTable.listId, params.data.id));
+  const existingIds = new Set(existing.map((r) => r.id));
+  const submittedIds = parsed.data.itemIds;
+  const submittedSet = new Set(submittedIds);
+
+  if (
+    submittedIds.length !== existingIds.size ||
+    submittedIds.some((id) => !existingIds.has(id)) ||
+    submittedIds.length !== submittedSet.size // no duplicates
+  ) {
+    res.status(400).json({ error: "itemIds must be an exact, duplicate-free permutation of the list's current items" });
+    return;
+  }
+
+  // Persist positions
+  await Promise.all(
+    submittedIds.map((itemId: number, index: number) =>
+      db
+        .update(listItemsTable)
+        .set({ position: index })
+        .where(and(eq(listItemsTable.id, itemId), eq(listItemsTable.listId, params.data.id))),
+    ),
+  );
+  res.sendStatus(204);
 });
 
 // DELETE /lists/:id/items/:itemId — list owner only
@@ -194,15 +252,10 @@ router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise
     res.status(400).json({ error: params.error.message });
     return;
   }
-  // Authorize against the parent list — this check is independent of whether
-  // the item still exists, so it is safe even when two sessions race to remove
-  // the same item concurrently.
-  if (!(await isListOwner(params.data.id, userId))) {
+  if (!(await isListItemOwner(params.data.itemId, userId))) {
     res.status(403).json({ error: "Only the list owner can remove items" });
     return;
   }
-  // Delete unconditionally. If the item was already removed by another session
-  // the DELETE affects 0 rows, which is still a success (idempotent).
   await db
     .delete(listItemsTable)
     .where(and(eq(listItemsTable.id, params.data.itemId), eq(listItemsTable.listId, params.data.id)));

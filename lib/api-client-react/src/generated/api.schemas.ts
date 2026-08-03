@@ -335,6 +335,7 @@ export interface ListItem {
   /** @nullable */
   note?: string | null;
   addedAt: string;
+  position: number;
   resource: Resource;
 }
 
@@ -366,6 +367,11 @@ export interface ResourceListPatch {
 export interface ListItemInput {
   resourceId: number;
   note?: string;
+}
+
+export interface ReorderListItemsInput {
+  /** Ordered array of list item IDs — first element gets position 0 */
+  itemIds: number[];
 }
 
 export interface ShareListInput {
