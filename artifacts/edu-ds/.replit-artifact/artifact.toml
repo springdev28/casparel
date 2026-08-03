@@ -1,0 +1,19 @@
+kind = "design-system"
+previewPath = "/edu-ds/"
+title = "EduDS — Educational Design System"
+description = "A design system for a student/teacher productivity app. Establishes the visual language — trustworthy blues and greens, warm neutral backgrounds, clear typographic hierarchy — used across resource discovery, class management, and scheduling surfaces."
+version = "1.0.0"
+id = "artifacts/edu-ds"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/edu-ds/" ]
+localPort = 20495
+
+[services.development]
+run = "pnpm --filter @workspace/edu-ds run dev"
+
+[services.env]
+PORT = "20495"
+BASE_PATH = "/edu-ds/"
