@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
+import rateLimit from "express-rate-limit";
 import { db, usersTable } from "@workspace/db";
 import {
   RegisterBody,
@@ -15,8 +16,17 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 
 const router: IRouter = Router();
 
+// 5 attempts per IP per 15 minutes on auth endpoints
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again in 15 minutes." },
+});
+
 // POST /auth/register
-router.post("/auth/register", async (req, res): Promise<void> => {
+router.post("/auth/register", authRateLimiter, async (req, res): Promise<void> => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -38,7 +48,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
 });
 
 // POST /auth/login
-router.post("/auth/login", async (req, res): Promise<void> => {
+router.post("/auth/login", authRateLimiter, async (req, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
