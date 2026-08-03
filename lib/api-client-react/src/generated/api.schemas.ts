@@ -573,6 +573,8 @@ q: string;
 format?: DiscoverResourcesFormat;
 subject?: string;
 gradeLevel?: string;
+/** Page number for loading more results */
+page?: number;
 };
 
 export type DiscoverResourcesFormat = typeof DiscoverResourcesFormat[keyof typeof DiscoverResourcesFormat];

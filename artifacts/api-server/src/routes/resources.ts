@@ -193,13 +193,14 @@ router.get("/resources/discover", async (req, res): Promise<void> => {
     return;
   }
 
-  const { q, format, subject, gradeLevel } = params.data;
+  const { q, format, subject, gradeLevel, page = 1 } = params.data;
 
   const formatHint = format ? ` Focus on ${format} resources.` : "";
   const subjectHint = subject ? ` Subject area: ${subject}.` : "";
   const gradeHint = gradeLevel ? ` Target audience: ${gradeLevel} students.` : "";
+  const pageHint = page > 1 ? ` Find a DIFFERENT set of resources from what you would normally return first — skip the most obvious results and surface less commonly known but equally high-quality alternatives.` : "";
 
-  const prompt = `Find 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}
+  const prompt = `Find 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}${pageHint}
 
 Return a JSON array only. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
 Rules: real public URLs only, prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse, no paywalls, JSON only no markdown.`;

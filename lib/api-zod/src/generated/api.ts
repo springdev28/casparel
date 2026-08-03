@@ -391,7 +391,8 @@ export const DiscoverResourcesQueryParams = zod.object({
   "q": zod.coerce.string().describe('Search query'),
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
   "subject": zod.coerce.string().optional(),
-  "gradeLevel": zod.coerce.string().optional()
+  "gradeLevel": zod.coerce.string().optional(),
+  "page": zod.coerce.number().int().min(1).default(1).optional()
 })
 
 export const DiscoverResourcesResponseItem = zod.object({

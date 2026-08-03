@@ -537,7 +537,7 @@ export default function ResourceDetailPage() {
               )}
 
               {/* Remove from library — only for submitter */}
-              {isLoggedIn && me?.id === resource.submittedById && (
+              {isLoggedIn && (me?.id === resource.submittedById || me?.role === 'teacher') && (
                 <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" data-testid="remove-resource-button">

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2 } from 'lucide-react';
@@ -110,7 +110,7 @@ function FormatBadge({ format }: { format: string }) {
 
 // ── Shared resource card (library) ────────────────────────────────────────────
 function LibraryCard({ resource, onClick, onRemove }: {
-  resource: { id: number; title: string; url: string; format: string; subject: string; gradeLevel: string; description?: string | null; avgRating: number; reviewCount: number };
+  resource: { id: number; title: string; url: string; format: string; subject: string; gradeLevel: string; description?: string | null; avgRating: number; reviewCount: number; thumbnailUrl?: string | null };
   onClick: () => void;
   onRemove?: () => void;
 }) {
@@ -121,7 +121,7 @@ function LibraryCard({ resource, onClick, onRemove }: {
   const { data: loomThumb } = useLoomThumbnail(resource.url, loom && !ytId);
   const thumb = ytId
     ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-    : vimeoThumb ?? loomThumb ?? null;
+    : vimeoThumb ?? loomThumb ?? resource.thumbnailUrl ?? null;
   return (
     <Card className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden" onClick={onClick} data-testid="resource-card">
       {thumb && (
@@ -232,6 +232,8 @@ export default function ResourcesPage() {
   const [sortByFilter, setSortByFilter] = useState<ListResourcesSortBy | ''>('');
   const [minRatingFilter, setMinRatingFilter] = useState<number | ''>('');
   const [libraryLimit, setLibraryLimit] = useState(12);
+  const [webPage, setWebPage] = useState(1);
+  const [allWebResults, setAllWebResults] = useState<DiscoveredResource[]>([]);
 
   const isSearching = activeQuery.trim().length > 0;
 
@@ -259,16 +261,28 @@ export default function ResourcesPage() {
     query: { enabled: isSearching, queryKey: getListResourcesQueryKey(libraryParams) },
   });
 
-  // Web discover (shown when searching)
+  // Web discover (shown when searching) — accumulate across pages
   const discoverParams = {
     q: activeQuery,
     ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as DiscoverResourcesFormat } : {}),
     ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
+    page: webPage,
   };
   const { data: webResults, isFetching: webLoading, isError: webError } = useDiscoverResources(
     discoverParams,
     { query: { enabled: isSearching, staleTime: 1000 * 60 * 5, queryKey: getDiscoverResourcesQueryKey(discoverParams) } }
   );
+
+  // Reset accumulated results when query changes; append on page increment
+  useEffect(() => {
+    setWebPage(1);
+    setAllWebResults([]);
+  }, [activeQuery]);
+
+  useEffect(() => {
+    if (!webResults || webResults.length === 0) return;
+    setAllWebResults((prev) => webPage === 1 ? webResults : [...prev, ...webResults]);
+  }, [webResults, webPage]);
 
   const createResource = useCreateResource();
   const deleteResource = useDeleteResource();
@@ -594,7 +608,7 @@ export default function ResourcesPage() {
                         />
                       ))}
                     </div>
-                    {libraryResults.length === libraryLimit && (
+                    {libraryResults.length >= libraryLimit && (
                       <div className="mt-4 text-center">
                         <Button variant="outline" size="sm" onClick={() => setLibraryLimit((n) => n + 12)}>
                           Show more results
@@ -628,7 +642,7 @@ export default function ResourcesPage() {
               </div>
             )}
 
-            {!webLoading && !webError && webResults && (
+            {!webError && allWebResults.length > 0 && (
               <>
                 {!isLoggedIn && (
                   <p className="text-xs text-muted-foreground mb-3">
@@ -636,9 +650,19 @@ export default function ResourcesPage() {
                   </p>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {webResults.map((r, i) => (
+                  {allWebResults.map((r, i) => (
                     <WebCard key={i} resource={r} onAdd={handleAddWeb} adding={addingUrl === r.url} />
                   ))}
+                </div>
+                <div className="mt-4 text-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={webLoading}
+                    onClick={() => setWebPage((p) => p + 1)}
+                  >
+                    {webLoading ? <><Loader2 size={12} className="mr-1.5 animate-spin" /> Loading…</> : <><Sparkles size={12} className="mr-1.5" /> Load more web results</>}
+                  </Button>
                 </div>
               </>
             )}
