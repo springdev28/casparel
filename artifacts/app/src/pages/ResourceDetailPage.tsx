@@ -31,6 +31,65 @@ import {
 import type { SourceReview } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
 
+// ── Media helpers ────────────────────────────────────────────────────────────
+
+function getYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
+    if (u.hostname.includes('youtube.com')) {
+      const v = u.searchParams.get('v');
+      if (v) return v;
+      // handle /embed/ID and /shorts/ID
+      const m = u.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);
+      if (m) return m[1];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function isPdf(url: string): boolean {
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    return pathname.endsWith('.pdf');
+  } catch {
+    return url.toLowerCase().endsWith('.pdf');
+  }
+}
+
+function ResourceEmbed({ url }: { url: string }) {
+  const ytId = getYouTubeId(url);
+  if (ytId) {
+    return (
+      <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+        <iframe
+          src={`https://www.youtube.com/embed/${ytId}`}
+          title="YouTube video player"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full border-0"
+        />
+      </div>
+    );
+  }
+  if (isPdf(url)) {
+    return (
+      <div className="w-full rounded-lg overflow-hidden border bg-muted" style={{ height: '520px' }}>
+        <iframe
+          src={url}
+          title="PDF viewer"
+          className="w-full h-full border-0"
+        />
+      </div>
+    );
+  }
+  return null;
+}
+
+// ── Trust metadata ────────────────────────────────────────────────────────────
+
 const TRUST_META: Record<SourceReview['trustLevel'], { label: string; icon: typeof ShieldCheck; color: string }> = {
   high:    { label: 'Highly Trusted',    icon: ShieldCheck,  color: 'text-green-600' },
   medium:  { label: 'Generally Trusted', icon: Shield,       color: 'text-yellow-600' },
@@ -330,6 +389,9 @@ export default function ResourceDetailPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Inline embed for YouTube and PDF resources */}
+          <ResourceEmbed url={resource.url} />
+
           {resource.description && (
             <p className="text-sm text-muted-foreground">{resource.description}</p>
           )}
