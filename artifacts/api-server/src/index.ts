@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runMigrations } from "@workspace/db";
+import { initRateLimitStore } from "./lib/rateLimitStore";
 
 const rawPort = process.env["PORT"];
 
@@ -20,6 +21,12 @@ async function main() {
   logger.info("Running database migrations…");
   await runMigrations();
   logger.info("Migrations complete");
+
+  if (process.env.RATE_LIMIT_STORE !== "memory") {
+    logger.info("Initialising persistent rate-limit store…");
+    await initRateLimitStore();
+    logger.info("Rate-limit store ready");
+  }
 
   app.listen(port, (err) => {
     if (err) {

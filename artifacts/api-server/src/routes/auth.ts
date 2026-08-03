@@ -14,6 +14,7 @@ import {
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import { buildRateLimitStore } from "../lib/rateLimitStore";
 
 const router: IRouter = Router();
 
@@ -24,6 +25,7 @@ const authRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many attempts. Please try again in 15 minutes." },
+  store: buildRateLimitStore("auth"),
 });
 
 // POST /auth/register

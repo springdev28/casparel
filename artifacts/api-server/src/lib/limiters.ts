@@ -1,4 +1,5 @@
 import rateLimit from "express-rate-limit";
+import { buildRateLimitStore } from "./rateLimitStore";
 
 /**
  * Global API limiter — 100 requests per minute per IP.
@@ -9,6 +10,7 @@ export const globalLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  store: buildRateLimitStore("global"),
   handler(req, res, _next, options) {
     const reset = (req as unknown as { rateLimit?: { resetTime?: Date } }).rateLimit?.resetTime;
     const retryAfter = reset
@@ -28,6 +30,7 @@ export const contentLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  store: buildRateLimitStore("content"),
   handler(req, res, _next, options) {
     const reset = (req as unknown as { rateLimit?: { resetTime?: Date } }).rateLimit?.resetTime;
     const retryAfter = reset
