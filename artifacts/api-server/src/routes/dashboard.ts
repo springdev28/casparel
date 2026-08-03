@@ -29,8 +29,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
 
   const [{ resourceCount }] = await db
     .select({ resourceCount: sql<number>`cast(count(*) as int)` })
-    .from(resourcesTable)
-    .where(eq(resourcesTable.submittedById, userId));
+    .from(resourcesTable);
 
   const [{ listCount }] = await db
     .select({ listCount: sql<number>`cast(count(*) as int)` })
