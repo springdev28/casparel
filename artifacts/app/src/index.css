@@ -1,0 +1,3 @@
+/* Import EduDS design system — provides Tailwind, tokens, and component themes.
+   Do NOT add a separate @import "tailwindcss" — it is included via the package. */
+@import "@workspace/edu-ds/styles.css";

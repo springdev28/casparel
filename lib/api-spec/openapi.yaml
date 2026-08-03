@@ -3,20 +3,33 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: EduHub API — student/teacher productivity platform
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication and user management
+  - name: classes
+    description: Class management
+  - name: resources
+    description: Learning resource discovery
+  - name: reviews
+    description: Resource reviews and ratings
+  - name: lists
+    description: Resource lists
+  - name: schedule
+    description: Study schedule blocks
+  - name: dashboard
+    description: Dashboard summary and activity
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +37,996 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Auth ──────────────────────────────────────────────────────────────────
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterInput"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Log out the current user
+      responses:
+        "204":
+          description: Logged out
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get the authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+    patch:
+      operationId: updateMe
+      tags: [auth]
+      summary: Update the authenticated user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ── Classes ───────────────────────────────────────────────────────────────
+  /classes:
+    get:
+      operationId: listClasses
+      tags: [classes]
+      summary: List classes the current user belongs to
+      responses:
+        "200":
+          description: List of classes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Class"
+    post:
+      operationId: createClass
+      tags: [classes]
+      summary: Create a new class (teacher only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Class"
+
+  /classes/{id}:
+    get:
+      operationId: getClass
+      tags: [classes]
+      summary: Get a class by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Class
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassWithMembers"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateClass
+      tags: [classes]
+      summary: Update a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassPatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Class"
+    delete:
+      operationId: deleteClass
+      tags: [classes]
+      summary: Delete a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /classes/{id}/members:
+    get:
+      operationId: listClassMembers
+      tags: [classes]
+      summary: List members of a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ClassMember"
+    post:
+      operationId: addClassMember
+      tags: [classes]
+      summary: Add a member to a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassMemberInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClassMember"
+
+  /classes/{id}/members/{userId}:
+    delete:
+      operationId: removeClassMember
+      tags: [classes]
+      summary: Remove a member from a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  # ── Resources ─────────────────────────────────────────────────────────────
+  /resources:
+    get:
+      operationId: listResources
+      tags: [resources]
+      summary: List and search resources
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Free-text search
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [article, video, pdf, podcast, interactive, other]
+        - name: subject
+          in: query
+          schema:
+            type: string
+        - name: gradeLevel
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Resource"
+    post:
+      operationId: createResource
+      tags: [resources]
+      summary: Submit a new resource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+
+  /resources/featured:
+    get:
+      operationId: listFeaturedResources
+      tags: [resources]
+      summary: Get featured and popular resources
+      responses:
+        "200":
+          description: Featured resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Resource"
+
+  /resources/{id}:
+    get:
+      operationId: getResource
+      tags: [resources]
+      summary: Get a resource by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateResource
+      tags: [resources]
+      summary: Update a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourcePatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+    delete:
+      operationId: deleteResource
+      tags: [resources]
+      summary: Delete a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Reviews ───────────────────────────────────────────────────────────────
+  /resources/{id}/reviews:
+    get:
+      operationId: listResourceReviews
+      tags: [reviews]
+      summary: List reviews for a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reviews
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Review"
+    post:
+      operationId: createResourceReview
+      tags: [reviews]
+      summary: Submit a review for a resource
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Review"
+
+  /resources/{id}/reviews/{reviewId}:
+    delete:
+      operationId: deleteResourceReview
+      tags: [reviews]
+      summary: Delete a review
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Resource Lists ─────────────────────────────────────────────────────────
+  /lists:
+    get:
+      operationId: listResourceLists
+      tags: [lists]
+      summary: List resource lists for the current user
+      responses:
+        "200":
+          description: Lists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResourceList"
+    post:
+      operationId: createResourceList
+      tags: [lists]
+      summary: Create a new resource list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceListInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+
+  /lists/{id}:
+    get:
+      operationId: getResourceList
+      tags: [lists]
+      summary: Get a resource list with its items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resource list with items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceListWithItems"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateResourceList
+      tags: [lists]
+      summary: Update a resource list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceListPatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceList"
+    delete:
+      operationId: deleteResourceList
+      tags: [lists]
+      summary: Delete a resource list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /lists/{id}/items:
+    post:
+      operationId: addListItem
+      tags: [lists]
+      summary: Add a resource to a list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListItemInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListItem"
+
+  /lists/{id}/items/{itemId}:
+    delete:
+      operationId: removeListItem
+      tags: [lists]
+      summary: Remove a resource from a list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+
+  /lists/{id}/share:
+    post:
+      operationId: shareListWithClass
+      tags: [lists]
+      summary: Share a list with a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareListInput"
+      responses:
+        "204":
+          description: Shared
+
+  # ── Schedule ──────────────────────────────────────────────────────────────
+  /schedule:
+    get:
+      operationId: listScheduleBlocks
+      tags: [schedule]
+      summary: List schedule blocks for the current user
+      parameters:
+        - name: weekStart
+          in: query
+          schema:
+            type: string
+            format: date
+          description: ISO date of the Monday to load (YYYY-MM-DD)
+      responses:
+        "200":
+          description: Schedule blocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduleBlock"
+    post:
+      operationId: createScheduleBlock
+      tags: [schedule]
+      summary: Create a schedule block
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleBlockInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleBlock"
+
+  /schedule/{id}:
+    patch:
+      operationId: updateScheduleBlock
+      tags: [schedule]
+      summary: Update a schedule block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleBlockPatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleBlock"
+    delete:
+      operationId: deleteScheduleBlock
+      tags: [schedule]
+      summary: Delete a schedule block
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Dashboard / Activity ──────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Dashboard summary stats for the current user
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /activity/recent:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Recent activity feed for the current user
+      responses:
+        "200":
+          description: Activity items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ── Auth ────────────────────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, email, name, role, createdAt]
+      properties:
+        id:         { type: integer }
+        email:      { type: string }
+        name:       { type: string }
+        role:       { type: string, enum: [student, teacher] }
+        avatarUrl:  { type: ["string", "null"] }
+        createdAt:  { type: string }
+
+    RegisterInput:
+      type: object
+      required: [email, password, name, role]
+      properties:
+        email:    { type: string }
+        password: { type: string, minLength: 6 }
+        name:     { type: string, minLength: 1 }
+        role:     { type: string, enum: [student, teacher] }
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:    { type: string }
+        password: { type: string }
+
+    AuthResponse:
+      type: object
+      required: [user, token]
+      properties:
+        user:  { $ref: "#/components/schemas/User" }
+        token: { type: string }
+
+    UserUpdate:
+      type: object
+      properties:
+        name:      { type: string, minLength: 1 }
+        avatarUrl: { type: ["string", "null"] }
+
+    # ── Classes ─────────────────────────────────────────────────────────────
+    Class:
+      type: object
+      required: [id, name, subject, gradeLevel, teacherId, createdAt]
+      properties:
+        id:          { type: integer }
+        name:        { type: string }
+        subject:     { type: string }
+        gradeLevel:  { type: string }
+        description: { type: ["string", "null"] }
+        teacherId:   { type: integer }
+        memberCount: { type: integer }
+        createdAt:   { type: string }
+
+    ClassWithMembers:
+      type: object
+      required: [id, name, subject, gradeLevel, teacherId, createdAt, members]
+      properties:
+        id:          { type: integer }
+        name:        { type: string }
+        subject:     { type: string }
+        gradeLevel:  { type: string }
+        description: { type: ["string", "null"] }
+        teacherId:   { type: integer }
+        memberCount: { type: integer }
+        createdAt:   { type: string }
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassMember"
+
+    ClassInput:
+      type: object
+      required: [name, subject, gradeLevel]
+      properties:
+        name:        { type: string, minLength: 1 }
+        subject:     { type: string, minLength: 1 }
+        gradeLevel:  { type: string, minLength: 1 }
+        description: { type: string }
+
+    ClassPatch:
+      type: object
+      properties:
+        name:        { type: string, minLength: 1 }
+        subject:     { type: string }
+        gradeLevel:  { type: string }
+        description: { type: string }
+
+    ClassMember:
+      type: object
+      required: [userId, classId, role, joinedAt, user]
+      properties:
+        userId:   { type: integer }
+        classId:  { type: integer }
+        role:     { type: string, enum: [student, teacher] }
+        joinedAt: { type: string }
+        user:     { $ref: "#/components/schemas/User" }
+
+    ClassMemberInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string }
+        role:  { type: string, enum: [student, teacher] }
+
+    # ── Resources ───────────────────────────────────────────────────────────
+    Resource:
+      type: object
+      required: [id, title, url, format, subject, gradeLevel, submittedById, avgRating, reviewCount, createdAt]
+      properties:
+        id:             { type: integer }
+        title:          { type: string }
+        url:            { type: string }
+        description:    { type: ["string", "null"] }
+        format:         { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        subject:        { type: string }
+        gradeLevel:     { type: string }
+        thumbnailUrl:   { type: ["string", "null"] }
+        submittedById:  { type: integer }
+        avgRating:      { type: number }
+        reviewCount:    { type: integer }
+        createdAt:      { type: string }
+
+    ResourceInput:
+      type: object
+      required: [title, url, format, subject, gradeLevel]
+      properties:
+        title:        { type: string, minLength: 1 }
+        url:          { type: string, minLength: 1 }
+        description:  { type: string }
+        format:       { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        subject:      { type: string, minLength: 1 }
+        gradeLevel:   { type: string, minLength: 1 }
+        thumbnailUrl: { type: string }
+
+    ResourcePatch:
+      type: object
+      properties:
+        title:        { type: string, minLength: 1 }
+        description:  { type: string }
+        format:       { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        subject:      { type: string }
+        gradeLevel:   { type: string }
+        thumbnailUrl: { type: string }
+
+    # ── Reviews ─────────────────────────────────────────────────────────────
+    Review:
+      type: object
+      required: [id, resourceId, userId, rating, createdAt, user]
+      properties:
+        id:         { type: integer }
+        resourceId: { type: integer }
+        userId:     { type: integer }
+        rating:     { type: integer, minimum: 1, maximum: 5 }
+        comment:    { type: ["string", "null"] }
+        createdAt:  { type: string }
+        user:       { $ref: "#/components/schemas/User" }
+
+    ReviewInput:
+      type: object
+      required: [rating]
+      properties:
+        rating:  { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string }
+
+    # ── Resource Lists ───────────────────────────────────────────────────────
+    ResourceList:
+      type: object
+      required: [id, name, ownerId, itemCount, createdAt]
+      properties:
+        id:        { type: integer }
+        name:      { type: string }
+        description: { type: ["string", "null"] }
+        ownerId:   { type: integer }
+        classId:   { type: ["integer", "null"] }
+        itemCount: { type: integer }
+        createdAt: { type: string }
+
+    ResourceListWithItems:
+      type: object
+      required: [id, name, ownerId, itemCount, createdAt, items]
+      properties:
+        id:          { type: integer }
+        name:        { type: string }
+        description: { type: ["string", "null"] }
+        ownerId:     { type: integer }
+        classId:     { type: ["integer", "null"] }
+        itemCount:   { type: integer }
+        createdAt:   { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ListItem"
+
+    ResourceListInput:
+      type: object
+      required: [name]
+      properties:
+        name:        { type: string, minLength: 1 }
+        description: { type: string }
+
+    ResourceListPatch:
+      type: object
+      properties:
+        name:        { type: string, minLength: 1 }
+        description: { type: string }
+
+    ListItem:
+      type: object
+      required: [id, listId, resourceId, addedAt, resource]
+      properties:
+        id:         { type: integer }
+        listId:     { type: integer }
+        resourceId: { type: integer }
+        note:       { type: ["string", "null"] }
+        addedAt:    { type: string }
+        resource:   { $ref: "#/components/schemas/Resource" }
+
+    ListItemInput:
+      type: object
+      required: [resourceId]
+      properties:
+        resourceId: { type: integer }
+        note:       { type: string }
+
+    ShareListInput:
+      type: object
+      required: [classId]
+      properties:
+        classId: { type: integer }
+
+    # ── Schedule ────────────────────────────────────────────────────────────
+    ScheduleBlock:
+      type: object
+      required: [id, userId, title, date, startTime, endTime, createdAt]
+      properties:
+        id:         { type: integer }
+        userId:     { type: integer }
+        title:      { type: string }
+        date:       { type: string, format: date }
+        startTime:  { type: string }
+        endTime:    { type: string }
+        resourceId: { type: ["integer", "null"] }
+        listId:     { type: ["integer", "null"] }
+        classId:    { type: ["integer", "null"] }
+        notes:      { type: ["string", "null"] }
+        createdAt:  { type: string }
+
+    ScheduleBlockInput:
+      type: object
+      required: [title, date, startTime, endTime]
+      properties:
+        title:      { type: string, minLength: 1 }
+        date:       { type: string, format: date }
+        startTime:  { type: string }
+        endTime:    { type: string }
+        resourceId: { type: integer }
+        listId:     { type: integer }
+        classId:    { type: integer }
+        notes:      { type: string }
+
+    ScheduleBlockPatch:
+      type: object
+      properties:
+        title:     { type: string, minLength: 1 }
+        date:      { type: string, format: date }
+        startTime: { type: string }
+        endTime:   { type: string }
+        notes:     { type: string }
+
+    # ── Dashboard ───────────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      required: [classCount, resourceCount, listCount, reviewCount, studentCount, scheduleBlockCount]
+      properties:
+        classCount:          { type: integer }
+        resourceCount:       { type: integer }
+        listCount:           { type: integer }
+        reviewCount:         { type: integer }
+        studentCount:        { type: integer }
+        scheduleBlockCount:  { type: integer }
+
+    ActivityItem:
+      type: object
+      required: [id, type, message, createdAt]
+      properties:
+        id:         { type: integer }
+        type:       { type: string, enum: [review, resource, list, schedule, class] }
+        message:    { type: string }
+        createdAt:  { type: string }
+        userId:     { type: ["integer", "null"] }
+        userName:   { type: ["string", "null"] }

@@ -57,6 +57,7 @@ export default defineConfig({
       prettier: true,
       override: {
         zod: {
+          importZodFrom: 'zod/v4',
           coerce: {
             query: ['boolean', 'number', 'string'],
             param: ['boolean', 'number', 'string'],

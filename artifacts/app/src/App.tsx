@@ -1,0 +1,136 @@
+import { useEffect } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from '@workspace/edu-ds/components/ui/toaster';
+import { TooltipProvider } from '@workspace/edu-ds/components/ui/tooltip';
+import { Route, Switch, Router as WouterRouter, Redirect } from 'wouter';
+import { setAuthTokenGetter } from '@workspace/api-client-react';
+
+import LoginPage from './pages/auth/LoginPage';
+import RegisterPage from './pages/auth/RegisterPage';
+import DashboardPage from './pages/DashboardPage';
+import ResourcesPage from './pages/ResourcesPage';
+import ResourceDetailPage from './pages/ResourceDetailPage';
+import ClassesPage from './pages/ClassesPage';
+import ClassDetailPage from './pages/ClassDetailPage';
+import ListsPage from './pages/ListsPage';
+import ListDetailPage from './pages/ListDetailPage';
+import SchedulePage from './pages/SchedulePage';
+import AppShell from './components/AppShell';
+import PublicShell from './components/PublicShell';
+
+const TOKEN_KEY = 'schooler_token';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+    },
+  },
+});
+
+// Migrate any existing token from the old key name
+const _oldToken = localStorage.getItem('eduhub_token');
+if (_oldToken && !localStorage.getItem(TOKEN_KEY)) {
+  localStorage.setItem(TOKEN_KEY, _oldToken);
+  localStorage.removeItem('eduhub_token');
+}
+
+// Set up auth token getter once at module level
+setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
+
+/** Fully private page — redirects to login if unauthenticated. */
+function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return <Redirect to="/auth/login" />;
+  return (
+    <AppShell>
+      <Component />
+    </AppShell>
+  );
+}
+
+/**
+ * Publicly browsable page.
+ * Authenticated users get the full AppShell sidebar.
+ * Unauthenticated users get a slim header with Sign In / Create Account.
+ */
+function PublicRoute({ component: Component }: { component: React.ComponentType }) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) {
+    return (
+      <AppShell>
+        <Component />
+      </AppShell>
+    );
+  }
+  return (
+    <PublicShell>
+      <Component />
+    </PublicShell>
+  );
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/auth/login" component={LoginPage} />
+      <Route path="/auth/register" component={RegisterPage} />
+
+      {/* Publicly browsable */}
+      <Route path="/resources/:id">
+        {() => <PublicRoute component={ResourceDetailPage} />}
+      </Route>
+      <Route path="/resources">
+        {() => <PublicRoute component={ResourcesPage} />}
+      </Route>
+
+      {/* Requires account */}
+      <Route path="/dashboard">
+        {() => <PrivateRoute component={DashboardPage} />}
+      </Route>
+      <Route path="/classes/:id">
+        {() => <PrivateRoute component={ClassDetailPage} />}
+      </Route>
+      <Route path="/classes">
+        {() => <PrivateRoute component={ClassesPage} />}
+      </Route>
+      <Route path="/lists/:id">
+        {() => <PrivateRoute component={ListDetailPage} />}
+      </Route>
+      <Route path="/lists">
+        {() => <PrivateRoute component={ListsPage} />}
+      </Route>
+      <Route path="/schedule">
+        {() => <PrivateRoute component={SchedulePage} />}
+      </Route>
+
+      {/* Root lands on public resource browse */}
+      <Route path="/">
+        <Redirect to="/resources" />
+      </Route>
+      <Route>
+        <Redirect to="/resources" />
+      </Route>
+    </Switch>
+  );
+}
+
+function App() {
+  useEffect(() => {
+    setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+          <Router />
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;
