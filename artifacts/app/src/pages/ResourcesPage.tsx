@@ -23,6 +23,7 @@ import {
   getListResourcesQueryKey,
   getGetMeQueryKey,
   getGetResourceRecommendationsQueryKey,
+  getGetDashboardSummaryQueryKey,
   ListResourcesFormat,
   ListResourcesSortBy,
   ResourceInputFormat,
@@ -326,6 +327,7 @@ export default function ResourcesPage() {
       await createResource.mutateAsync({ data: { title: newTitle, url: newUrl, description: newDesc || undefined, format: newFormat, subject: newSubject, gradeLevel: newGrade } });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
       toast({ title: 'Resource submitted!', description: `"${newTitle}" has been added.` });
       resetForm();
       setDialogOpen(false);
@@ -343,6 +345,7 @@ export default function ResourcesPage() {
       });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
       toast({ title: 'Saved to library!', description: `"${resource.title}" added.` });
     } catch (err) {
       toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed', variant: 'destructive' });
