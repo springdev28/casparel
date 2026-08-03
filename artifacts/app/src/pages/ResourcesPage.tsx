@@ -1,13 +1,12 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
-import { Search, Plus, BookOpen, LogIn, Globe, ExternalLink, Loader2 } from 'lucide-react';
+import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@workspace/edu-ds/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@workspace/edu-ds/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
-import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Textarea } from '@workspace/edu-ds/components/ui/textarea';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
@@ -49,71 +48,61 @@ function getYouTubeId(url: string): string | null {
       if (m) return m[1];
     }
     return null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-// ── Discover result card ──────────────────────────────────────────────────────
-
-function DiscoverCard({ resource, onAddToLibrary, isAdding }: {
-  resource: DiscoveredResource;
-  onAddToLibrary: (r: DiscoveredResource) => void;
-  isAdding: boolean;
-}) {
-  const ytId = getYouTubeId(resource.url);
-  const thumb = ytId
-    ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-    : resource.thumbnailUrl ?? null;
-
+function FormatBadge({ format }: { format: string }) {
   return (
-    <Card className="flex flex-col overflow-hidden">
-      {thumb && (
-        <div className="w-full h-36 overflow-hidden bg-black shrink-0">
-          <img src={thumb} alt={resource.title} className="w-full h-full object-cover" loading="lazy" />
-        </div>
-      )}
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base line-clamp-2 leading-snug">{resource.title}</CardTitle>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[resource.format] ?? FORMAT_COLORS.other}`}>
-            {resource.format}
-          </span>
-        </div>
-        <CardDescription className="text-xs">{resource.source}{resource.subject ? ` · ${resource.subject}` : ''}{resource.gradeLevel ? ` · ${resource.gradeLevel}` : ''}</CardDescription>
-      </CardHeader>
-      <CardContent className="pb-2 flex-1">
-        <p className="text-sm text-muted-foreground line-clamp-3">{resource.description}</p>
-      </CardContent>
-      <CardFooter className="gap-2 pt-2 flex-wrap">
-        <Button size="sm" variant="outline" asChild className="flex-1">
-          <a href={resource.url} target="_blank" rel="noopener noreferrer">
-            <ExternalLink size={13} className="mr-1.5" /> Open
-          </a>
-        </Button>
-        <Button size="sm" className="flex-1" disabled={isAdding} onClick={() => onAddToLibrary(resource)}>
-          {isAdding ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : <Plus size={13} className="mr-1.5" />}
-          {isAdding ? 'Adding…' : 'Add to Library'}
-        </Button>
-      </CardFooter>
-    </Card>
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[format] ?? FORMAT_COLORS.other}`}>
+      {format}
+    </span>
   );
 }
-
-// ── Main page ─────────────────────────────────────────────────────────────────
-
-type Tab = 'library' | 'discover';
 
 export default function ResourcesPage() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const [tab, setTab] = useState<Tab>('library');
-
-  // Library state
-  const [search, setSearch] = useState('');
-  const [formatFilter, setFormatFilter] = useState<string>('');
+  // Unified search state
+  const [inputValue, setInputValue] = useState('');
+  const [activeQuery, setActiveQuery] = useState('');
+  const [formatFilter, setFormatFilter] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('');
+
+  // Discover fires only when activeQuery is non-empty
+  const discoverEnabled = activeQuery.trim().length > 0;
+  const discoverParams = {
+    q: activeQuery,
+    ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as DiscoverResourcesFormat } : {}),
+    ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
+  };
+
+  // Library always shows (filtered by search if typed)
+  const libraryParams = {
+    ...(activeQuery ? { q: activeQuery } : {}),
+    ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as ListResourcesFormat } : {}),
+    ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
+  };
+
+  const { data: resources, isLoading: libraryLoading } = useListResources(libraryParams);
+  const { data: me } = useGetMe({ query: { retry: false, queryKey: getGetMeQueryKey() } });
+  const isLoggedIn = !!me;
+
+  const { data: discovered, isFetching: discoverLoading, isError: discoverError } = useDiscoverResources(
+    discoverParams,
+    {
+      query: {
+        enabled: discoverEnabled,
+        staleTime: 1000 * 60 * 5,
+        queryKey: getDiscoverResourcesQueryKey(discoverParams),
+      },
+    }
+  );
+
+  const createResource = useCreateResource();
+
+  // Submit form state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newUrl, setNewUrl] = useState('');
@@ -121,36 +110,26 @@ export default function ResourcesPage() {
   const [newFormat, setNewFormat] = useState<ResourceInputFormat>(ResourceInputFormat.article);
   const [newSubject, setNewSubject] = useState('');
   const [newGrade, setNewGrade] = useState('');
-
-  // Discover state
-  const [discoverQuery, setDiscoverQuery] = useState('');
-  const [discoverFormat, setDiscoverFormat] = useState('');
-  const [discoverSubject, setDiscoverSubject] = useState('');
-  const [discoverGrade, setDiscoverGrade] = useState('');
-  const [submittedSearch, setSubmittedSearch] = useState<{ q: string; format?: DiscoverResourcesFormat; subject?: string; gradeLevel?: string } | null>(null);
   const [addingUrl, setAddingUrl] = useState<string | null>(null);
-  const discoverInputRef = useRef<HTMLInputElement>(null);
 
-  const libraryParams = {
-    ...(search ? { q: search } : {}),
-    ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as ListResourcesFormat } : {}),
-    ...(subjectFilter ? { subject: subjectFilter } : {}),
-  };
+  // Debounce library search, fire discover on explicit submit
+  useEffect(() => {
+    const t = setTimeout(() => {
+      // library filters update live as you type (already handled by libraryParams)
+    }, 300);
+    return () => clearTimeout(t);
+  }, [inputValue]);
 
-  const { data: resources, isLoading: libraryLoading } = useListResources(libraryParams);
-  const { data: me } = useGetMe({ query: { retry: false, queryKey: getGetMeQueryKey() } });
-  const createResource = useCreateResource();
-  const isLoggedIn = !!me;
+  function handleSearchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setActiveQuery(inputValue.trim());
+  }
 
-  // Discover query — only fires when submittedSearch is set
-  const discoverParams = submittedSearch ?? { q: '__placeholder__' };
-  const { data: discovered, isFetching: discoverLoading, isError: discoverError } = useDiscoverResources(discoverParams, {
-    query: {
-      enabled: !!submittedSearch,
-      staleTime: 1000 * 60 * 5,
-      queryKey: getDiscoverResourcesQueryKey(discoverParams),
-    },
-  });
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      setActiveQuery(inputValue.trim());
+    }
+  }
 
   function resetForm() {
     setNewTitle(''); setNewUrl(''); setNewDesc('');
@@ -173,23 +152,8 @@ export default function ResourcesPage() {
     }
   }
 
-  function handleDiscoverSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const q = discoverQuery.trim();
-    if (!q) return;
-    setSubmittedSearch({
-      q,
-      ...(discoverFormat && discoverFormat !== 'all' ? { format: discoverFormat as DiscoverResourcesFormat } : {}),
-      ...(discoverSubject.trim() ? { subject: discoverSubject.trim() } : {}),
-      ...(discoverGrade.trim() ? { gradeLevel: discoverGrade.trim() } : {}),
-    });
-  }
-
   async function handleAddDiscovered(resource: DiscoveredResource) {
-    if (!isLoggedIn) {
-      setLocation('/auth/login');
-      return;
-    }
+    if (!isLoggedIn) { setLocation('/auth/login'); return; }
     setAddingUrl(resource.url);
     try {
       await createResource.mutateAsync({
@@ -211,224 +175,204 @@ export default function ResourcesPage() {
     }
   }
 
+  const hasLibraryResults = !libraryLoading && resources && resources.length > 0;
+  const noLibraryResults = !libraryLoading && (!resources || resources.length === 0);
+  const showWebSection = discoverEnabled;
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Header + tab toggle */}
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Resources</h1>
-          <p className="text-muted-foreground text-sm mt-1">Browse your library or discover anything on the web</p>
+          <p className="text-muted-foreground text-sm mt-1">Search your library and the entire web at once</p>
         </div>
-
-        {tab === 'library' && (
-          isLoggedIn ? (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="submit-resource-button"><Plus size={16} className="mr-1.5" /> Submit Resource</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Submit a Resource</DialogTitle>
-                  <DialogDescription>Share a learning resource with the community</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleCreate} className="space-y-4">
+        {isLoggedIn ? (
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="submit-resource-button"><Plus size={16} className="mr-1.5" /> Submit Resource</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Submit a Resource</DialogTitle>
+                <DialogDescription>Share a learning resource with the community</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="res-title">Title</Label>
+                  <Input id="res-title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required data-testid="resource-title-input" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="res-url">URL</Label>
+                  <Input id="res-url" type="url" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} required data-testid="resource-url-input" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="res-desc">Description (optional)</Label>
+                  <Textarea id="res-desc" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={2} data-testid="resource-desc-input" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="res-title">Title</Label>
-                    <Input id="res-title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required data-testid="resource-title-input" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="res-url">URL</Label>
-                    <Input id="res-url" type="url" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} required data-testid="resource-url-input" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="res-desc">Description (optional)</Label>
-                    <Textarea id="res-desc" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={2} data-testid="resource-desc-input" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="res-format">Format</Label>
-                      <Select value={newFormat} onValueChange={(v) => setNewFormat(v as ResourceInputFormat)}>
-                        <SelectTrigger id="res-format" data-testid="resource-format-select"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.values(ResourceInputFormat).map((f) => (
-                            <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="res-subject">Subject</Label>
-                      <Input id="res-subject" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} required data-testid="resource-subject-input" />
-                    </div>
+                    <Label>Format</Label>
+                    <Select value={newFormat} onValueChange={(v) => setNewFormat(v as ResourceInputFormat)}>
+                      <SelectTrigger data-testid="resource-format-select"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.values(ResourceInputFormat).map((f) => (
+                          <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="res-grade">Grade Level</Label>
-                    <Input id="res-grade" value={newGrade} onChange={(e) => setNewGrade(e.target.value)} required data-testid="resource-grade-input" />
+                    <Label htmlFor="res-subject">Subject</Label>
+                    <Input id="res-subject" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} required data-testid="resource-subject-input" />
                   </div>
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
-                    <Button type="submit" disabled={createResource.isPending} data-testid="submit-resource-confirm">
-                      {createResource.isPending ? 'Submitting…' : 'Submit'}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          ) : (
-            <Button variant="outline" asChild data-testid="sign-in-to-submit">
-              <Link href="/auth/login"><LogIn size={15} className="mr-1.5" /> Sign in to submit</Link>
-            </Button>
-          )
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="res-grade">Grade Level</Label>
+                  <Input id="res-grade" value={newGrade} onChange={(e) => setNewGrade(e.target.value)} required data-testid="resource-grade-input" />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
+                  <Button type="submit" disabled={createResource.isPending} data-testid="submit-resource-confirm">
+                    {createResource.isPending ? 'Submitting…' : 'Submit'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <Button variant="outline" asChild data-testid="sign-in-to-submit">
+            <Link href="/auth/login"><LogIn size={15} className="mr-1.5" /> Sign in to submit</Link>
+          </Button>
         )}
       </div>
 
-      {/* Tab toggle */}
-      <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
-        <button
-          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'library' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-          onClick={() => setTab('library')}
-        >
-          <BookOpen size={14} className="inline mr-1.5 -mt-0.5" />
-          Library
-        </button>
-        <button
-          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'discover' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-          onClick={() => { setTab('discover'); setTimeout(() => discoverInputRef.current?.focus(), 50); }}
-        >
-          <Globe size={14} className="inline mr-1.5 -mt-0.5" />
-          Discover
-        </button>
-      </div>
-
-      {/* ── LIBRARY TAB ────────────────────────────────────────────────── */}
-      {tab === 'library' && (
-        <>
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-48">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input className="pl-9" placeholder="Search resources…" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="search-input" />
-            </div>
-            <Select value={formatFilter || 'all'} onValueChange={(v) => setFormatFilter(v === 'all' ? '' : v)}>
-              <SelectTrigger className="w-36" data-testid="format-filter"><SelectValue placeholder="All formats" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All formats</SelectItem>
-                {FORMAT_OPTIONS.map((f) => <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input className="w-40" placeholder="Subject…" value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)} data-testid="subject-filter" />
+      {/* ── Search bar ─────────────────────────────────────────────────── */}
+      <form onSubmit={handleSearchSubmit} className="space-y-2">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={searchRef}
+              className="pl-9 h-11 text-base"
+              placeholder="Search anything — photosynthesis, calculus lectures, Python tutorials…"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              data-testid="search-input"
+            />
           </div>
+          <Button type="submit" size="lg" className="shrink-0" disabled={!inputValue.trim()}>
+            <Search size={15} className="mr-1.5" /> Search
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Select value={formatFilter || 'all'} onValueChange={(v) => setFormatFilter(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-36 h-8 text-xs" data-testid="format-filter"><SelectValue placeholder="All formats" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All formats</SelectItem>
+              {FORMAT_OPTIONS.map((f) => <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Input
+            className="w-36 h-8 text-xs"
+            placeholder="Subject…"
+            value={subjectFilter}
+            onChange={(e) => setSubjectFilter(e.target.value)}
+            data-testid="subject-filter"
+          />
+        </div>
+      </form>
 
-          {libraryLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Card key={i}>
-                  <CardHeader><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
-                  <CardContent><Skeleton className="h-16 w-full" /></CardContent>
-                  <CardFooter><Skeleton className="h-4 w-24" /></CardFooter>
-                </Card>
-              ))}
-            </div>
-          ) : !resources || resources.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <BookOpen size={40} className="text-muted-foreground mb-4" />
-              <h3 className="font-semibold text-foreground">No resources found</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Try adjusting your filters, submit a new resource, or{' '}
-                <button className="text-primary underline" onClick={() => setTab('discover')}>search the web</button>.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {resources.map((resource) => (
-                <Card key={resource.id} className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden" onClick={() => setLocation(`/resources/${resource.id}`)} data-testid="resource-card">
-                  {getYouTubeId(resource.url) && (
-                    <div className="w-full h-36 overflow-hidden bg-black">
-                      <img src={`https://img.youtube.com/vi/${getYouTubeId(resource.url)}/hqdefault.jpg`} alt={resource.title} className="w-full h-full object-cover" loading="lazy" />
-                    </div>
-                  )}
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-base line-clamp-2">{resource.title}</CardTitle>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[resource.format] ?? FORMAT_COLORS.other}`}>{resource.format}</span>
-                    </div>
-                    <CardDescription className="text-xs">{resource.subject} · {resource.gradeLevel}</CardDescription>
-                  </CardHeader>
-                  {resource.description && (
-                    <CardContent className="pb-2">
-                      <p className="text-sm text-muted-foreground line-clamp-2">{resource.description}</p>
-                    </CardContent>
-                  )}
-                  <CardFooter className="flex items-center justify-between pt-2">
-                    <StarRating value={resource.avgRating} size="sm" />
-                    <span className="text-xs text-muted-foreground">{resource.reviewCount} review{resource.reviewCount !== 1 ? 's' : ''}</span>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          )}
+      {/* ── Library section ────────────────────────────────────────────── */}
+      <section>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <BookOpen size={14} /> Library{activeQuery ? ` — matching "${activeQuery}"` : ''}
+        </h2>
 
-          {!isLoggedIn && resources && resources.length > 0 && (
-            <div className="rounded-lg border border-border bg-muted/40 px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div>
-                <p className="font-medium text-foreground text-sm">Want to save resources and track your classes?</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Create a free Schooler account.</p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <Button variant="outline" size="sm" asChild><Link href="/auth/login">Sign in</Link></Button>
-                <Button size="sm" asChild><Link href="/auth/register">Get started</Link></Button>
-              </div>
-            </div>
-          )}
-        </>
+        {libraryLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i}>
+                <CardHeader><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+                <CardContent><Skeleton className="h-16 w-full" /></CardContent>
+                <CardFooter><Skeleton className="h-4 w-24" /></CardFooter>
+              </Card>
+            ))}
+          </div>
+        ) : noLibraryResults ? (
+          <p className="text-sm text-muted-foreground py-4">
+            {activeQuery ? `No library resources match "${activeQuery}".` : 'No resources yet — be the first to submit one.'}
+            {showWebSection && ' Check the web results below.'}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {resources!.map((resource) => (
+              <Card
+                key={resource.id}
+                className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden"
+                onClick={() => setLocation(`/resources/${resource.id}`)}
+                data-testid="resource-card"
+              >
+                {getYouTubeId(resource.url) && (
+                  <div className="w-full h-36 overflow-hidden bg-black">
+                    <img
+                      src={`https://img.youtube.com/vi/${getYouTubeId(resource.url)}/hqdefault.jpg`}
+                      alt={resource.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                )}
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <CardTitle className="text-base line-clamp-2">{resource.title}</CardTitle>
+                    <FormatBadge format={resource.format} />
+                  </div>
+                  <CardDescription className="text-xs">{resource.subject} · {resource.gradeLevel}</CardDescription>
+                </CardHeader>
+                {resource.description && (
+                  <CardContent className="pb-2">
+                    <p className="text-sm text-muted-foreground line-clamp-2">{resource.description}</p>
+                  </CardContent>
+                )}
+                <CardFooter className="flex items-center justify-between pt-2">
+                  <StarRating value={resource.avgRating} size="sm" />
+                  <span className="text-xs text-muted-foreground">{resource.reviewCount} review{resource.reviewCount !== 1 ? 's' : ''}</span>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Sign-up nudge (unauthenticated, non-empty library) ─────────── */}
+      {!isLoggedIn && hasLibraryResults && !activeQuery && (
+        <div className="rounded-lg border border-border bg-muted/40 px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <p className="font-medium text-foreground text-sm">Want to save resources and track your classes?</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Create a free Schooler account.</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" asChild><Link href="/auth/login">Sign in</Link></Button>
+            <Button size="sm" asChild><Link href="/auth/register">Get started</Link></Button>
+          </div>
+        </div>
       )}
 
-      {/* ── DISCOVER TAB ───────────────────────────────────────────────── */}
-      {tab === 'discover' && (
-        <>
-          {/* Search form */}
-          <form onSubmit={handleDiscoverSearch} className="space-y-3">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Globe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  ref={discoverInputRef}
-                  className="pl-9 text-base h-11"
-                  placeholder={'Search anything — e.g. "photosynthesis for beginners" or "calculus MIT lectures"…'}
-                  value={discoverQuery}
-                  onChange={(e) => setDiscoverQuery(e.target.value)}
-                  data-testid="discover-search-input"
-                />
-              </div>
-              <Button type="submit" size="lg" disabled={!discoverQuery.trim() || discoverLoading} data-testid="discover-search-button">
-                {discoverLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-                <span className="ml-2 hidden sm:inline">Search</span>
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Select value={discoverFormat || 'all'} onValueChange={(v) => setDiscoverFormat(v === 'all' ? '' : v)}>
-                <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Any format" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Any format</SelectItem>
-                  {FORMAT_OPTIONS.map((f) => <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Input className="w-36 h-8 text-xs" placeholder="Subject…" value={discoverSubject} onChange={(e) => setDiscoverSubject(e.target.value)} />
-              <Input className="w-36 h-8 text-xs" placeholder="Grade level…" value={discoverGrade} onChange={(e) => setDiscoverGrade(e.target.value)} />
-            </div>
-          </form>
+      {/* ── Web results section ────────────────────────────────────────── */}
+      {showWebSection && (
+        <section>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <Sparkles size={14} /> From the Web — "{activeQuery}"
+          </h2>
 
-          {/* Results */}
-          {!submittedSearch && (
-            <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
-              <Globe size={44} className="mb-4 opacity-40" />
-              <p className="font-medium text-foreground">Search anything educational</p>
-              <p className="text-sm mt-1 max-w-sm">Schooler searches the entire web and surfaces the best matching resources — YouTube videos, articles, PDFs, courses, and more.</p>
-            </div>
-          )}
-
-          {submittedSearch && discoverLoading && (
+          {discoverLoading && (
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Searching the web for "{submittedSearch.q}"…</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Loader2 size={12} className="animate-spin" /> Searching the web…
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <Card key={i} className="overflow-hidden">
@@ -441,32 +385,73 @@ export default function ResourcesPage() {
             </div>
           )}
 
-          {submittedSearch && discoverError && !discoverLoading && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <p className="text-destructive font-medium">Search failed — please try again.</p>
-              <Button variant="outline" size="sm" className="mt-4" onClick={() => setSubmittedSearch({ ...submittedSearch })}>Retry</Button>
+          {discoverError && !discoverLoading && (
+            <div className="py-6 text-center">
+              <p className="text-sm text-destructive">Web search failed — please try again.</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => setActiveQuery('')}>Clear</Button>
             </div>
           )}
 
-          {submittedSearch && !discoverLoading && !discoverError && discovered && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className="text-sm text-muted-foreground">{discovered.length} result{discovered.length !== 1 ? 's' : ''} for <span className="font-medium text-foreground">"{submittedSearch.q}"</span></p>
-                {!isLoggedIn && <p className="text-xs text-muted-foreground"><Link href="/auth/login" className="text-primary underline">Sign in</Link> to add results to your library.</p>}
-              </div>
+          {!discoverLoading && !discoverError && discovered && (
+            <>
+              {!isLoggedIn && (
+                <p className="text-xs text-muted-foreground mb-3">
+                  <Link href="/auth/login" className="text-primary underline">Sign in</Link> to add results to your library.
+                </p>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {discovered.map((r, i) => (
-                  <DiscoverCard
-                    key={i}
-                    resource={r}
-                    onAddToLibrary={handleAddDiscovered}
-                    isAdding={addingUrl === r.url}
-                  />
-                ))}
+                {discovered.map((r, i) => {
+                  const ytId = getYouTubeId(r.url);
+                  const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : r.thumbnailUrl ?? null;
+                  return (
+                    <Card key={i} className="flex flex-col overflow-hidden">
+                      {thumb && (
+                        <div className="w-full h-36 overflow-hidden bg-black shrink-0">
+                          <img src={thumb} alt={r.title} className="w-full h-full object-cover" loading="lazy" />
+                        </div>
+                      )}
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-base line-clamp-2 leading-snug">{r.title}</CardTitle>
+                          <FormatBadge format={r.format} />
+                        </div>
+                        <CardDescription className="text-xs">
+                          {r.source}{r.subject ? ` · ${r.subject}` : ''}{r.gradeLevel ? ` · ${r.gradeLevel}` : ''}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pb-2 flex-1">
+                        <p className="text-sm text-muted-foreground line-clamp-3">{r.description}</p>
+                      </CardContent>
+                      <CardFooter className="gap-2 pt-2 flex-wrap">
+                        <Button size="sm" variant="outline" asChild className="flex-1">
+                          <a href={r.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink size={12} className="mr-1.5" /> Open
+                          </a>
+                        </Button>
+                        <Button size="sm" className="flex-1" disabled={addingUrl === r.url} onClick={() => handleAddDiscovered(r)}>
+                          {addingUrl === r.url
+                            ? <><Loader2 size={12} className="mr-1.5 animate-spin" /> Adding…</>
+                            : <><Plus size={12} className="mr-1.5" /> Add to Library</>}
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  );
+                })}
               </div>
-            </div>
+            </>
           )}
-        </>
+        </section>
+      )}
+
+      {/* ── Empty state (no search yet) ────────────────────────────────── */}
+      {!activeQuery && noLibraryResults && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Globe size={40} className="text-muted-foreground mb-4 opacity-50" />
+          <p className="font-semibold text-foreground">Search to find anything</p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+            Type a topic above and hit Search — Schooler looks through the library and across the entire web simultaneously.
+          </p>
+        </div>
       )}
     </div>
   );

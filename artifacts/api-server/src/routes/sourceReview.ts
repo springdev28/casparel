@@ -50,7 +50,7 @@ Respond ONLY with valid JSON matching this structure, no markdown or extra text.
 
   try {
     const response = await openai.responses.create({
-      model: "gpt-5.6-terra",
+      model: "gpt-4o",
       tools: [{ type: "web_search_preview" }],
       input: prompt,
     });
