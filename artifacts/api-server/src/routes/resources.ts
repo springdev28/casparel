@@ -16,6 +16,7 @@ import {
   DeleteResourceParams,
   DiscoverResourcesQueryParams,
   DiscoverResourcesResponse,
+  PrefetchResourceMetadataBody,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { isResourceOwner } from "../lib/authz";
@@ -260,6 +261,131 @@ Rules:
   } catch (err) {
     console.error("Discover AI error:", err);
     res.status(502).json({ error: "Search failed. Please try again." });
+  }
+});
+
+// ── POST /resources/prefetch — public ────────────────────────────────────────
+// Must stay above /resources/:id
+
+router.post("/resources/prefetch", requireAuth, async (req, res): Promise<void> => {
+  const parsed = PrefetchResourceMetadataBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Missing or invalid 'url' field" });
+    return;
+  }
+
+  const { url } = parsed.data;
+
+  // Validate that it's a valid absolute http(s) URL
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      res.status(400).json({ error: "URL must use http or https protocol" });
+      return;
+    }
+  } catch {
+    res.status(400).json({ error: "Invalid URL — must be an absolute http/https URL" });
+    return;
+  }
+
+  // ── 1. Detect format heuristically from the URL ──────────────────────────
+  function detectFormat(u: string): "video" | "pdf" | "podcast" | "article" | "interactive" | "other" {
+    try {
+      const parsed = new URL(u);
+      const hostname = parsed.hostname.replace(/^www\./, "");
+      if (["youtube.com", "youtu.be", "vimeo.com", "loom.com", "wistia.com"].includes(hostname)) return "video";
+      if (parsed.pathname.toLowerCase().endsWith(".pdf")) return "pdf";
+      if (["podcasts.apple.com", "open.spotify.com", "soundcloud.com", "anchor.fm", "buzzsprout.com"].includes(hostname)) return "podcast";
+      if (["kahoot.com", "quizlet.com", "desmos.com", "phet.colorado.edu", "scratch.mit.edu"].includes(hostname)) return "interactive";
+    } catch { /* ignore */ }
+    return "article";
+  }
+
+  // ── 2. Extract YouTube video ID for thumbnail ────────────────────────────
+  function getYouTubeId(u: string): string | null {
+    try {
+      const p = new URL(u);
+      if (p.hostname === "youtu.be") return p.pathname.slice(1).split("?")[0];
+      if (p.hostname.includes("youtube.com")) {
+        const v = p.searchParams.get("v");
+        if (v) return v;
+        const m = p.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);
+        if (m) return m[1];
+      }
+    } catch { /* ignore */ }
+    return null;
+  }
+
+  const heuristicFormat = detectFormat(url);
+  const ytId = getYouTubeId(url);
+  const ytThumbnail = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
+
+  // ── 3. Use AI with web-fetch to extract page metadata ────────────────────
+  const prompt = `Fetch and analyse this URL: ${url}
+
+Return ONLY a JSON object with these fields (no markdown fences, no extra text):
+{
+  "title": "<concise page/video/document title, max 100 chars>",
+  "description": "<1–2 sentence description of what this resource covers, max 200 chars>",
+  "format": "<one of: article | video | pdf | podcast | interactive | other>",
+  "thumbnailUrl": "<direct image URL for a thumbnail, or null>"
+}
+
+Rules:
+- For YouTube/Vimeo URLs, format must be "video"
+- For .pdf URLs, format must be "pdf"
+- thumbnailUrl: for YouTube use https://img.youtube.com/vi/{videoId}/hqdefault.jpg; for others use the page's og:image or null
+- Keep title and description concise and factual`;
+
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-4o",
+      tools: [{ type: "web_search_preview" }],
+      input: prompt,
+    });
+
+    const textOutput = response.output
+      .filter((b) => b.type === "message")
+      .flatMap((b) =>
+        (b as { type: string; content: Array<{ type: string; text?: string }> }).content
+          .filter((c) => c.type === "output_text" && c.text)
+          .map((c) => c.text as string)
+      )
+      .join("");
+
+    const cleaned = textOutput
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Fall back to heuristic-only result
+      res.json({ title: "", description: "", format: heuristicFormat, thumbnailUrl: ytThumbnail });
+      return;
+    }
+
+    if (typeof parsed === "object" && parsed !== null) {
+      const p = parsed as Record<string, unknown>;
+      const title = typeof p.title === "string" ? p.title : "";
+      const description = typeof p.description === "string" ? p.description : "";
+      const rawFormat = typeof p.format === "string" ? p.format : heuristicFormat;
+      const validFormats = ["article", "video", "pdf", "podcast", "interactive", "other"] as const;
+      const format = validFormats.includes(rawFormat as (typeof validFormats)[number])
+        ? (rawFormat as (typeof validFormats)[number])
+        : heuristicFormat;
+      const thumbnailUrl = typeof p.thumbnailUrl === "string" ? p.thumbnailUrl : ytThumbnail;
+      res.json({ title, description, format, thumbnailUrl });
+      return;
+    }
+
+    res.json({ title: "", description: "", format: heuristicFormat, thumbnailUrl: ytThumbnail });
+  } catch (err) {
+    console.error("Prefetch AI error:", err);
+    // Graceful degradation — return heuristic-only result so the form still partially fills
+    res.json({ title: "", description: "", format: heuristicFormat, thumbnailUrl: ytThumbnail });
   }
 });
 

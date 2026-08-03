@@ -43,6 +43,8 @@ import type {
   ListResourcesParams,
   ListScheduleBlocksParams,
   LoginInput,
+  PrefetchResourceBody,
+  PrefetchResourceResponse,
   RegisterInput,
   Resource,
   ResourceInput,
@@ -1270,6 +1272,77 @@ export const useCreateResource = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateResourceMutationOptions(options));
+    }
+
+export const getPrefetchResourceMetadataUrl = () => {
+
+
+
+
+  return `/api/resources/prefetch`
+}
+
+/**
+ * @summary Fetch metadata (title, description, format, thumbnail) for a given URL
+ */
+export const prefetchResourceMetadata = async (prefetchResourceBody: PrefetchResourceBody, options?: Parameters<typeof customFetch>[1]): Promise<PrefetchResourceResponse> => {
+
+  return customFetch<PrefetchResourceResponse>(getPrefetchResourceMetadataUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(prefetchResourceBody)
+  }
+);}
+
+
+
+
+
+export const getPrefetchResourceMetadataMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof prefetchResourceMetadata>>, TError,{data: BodyType<PrefetchResourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof prefetchResourceMetadata>>, TError,{data: BodyType<PrefetchResourceBody>}, TContext> => {
+
+const mutationKey = ['prefetchResourceMetadata'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof prefetchResourceMetadata>>, {data: BodyType<PrefetchResourceBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  prefetchResourceMetadata(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PrefetchResourceMetadataMutationResult = NonNullable<Awaited<ReturnType<typeof prefetchResourceMetadata>>>
+    export type PrefetchResourceMetadataMutationBody = BodyType<PrefetchResourceBody>
+    export type PrefetchResourceMetadataMutationError = ErrorType<void>
+
+    /**
+ * @summary Fetch metadata (title, description, format, thumbnail) for a given URL
+ */
+export const usePrefetchResourceMetadata = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof prefetchResourceMetadata>>, TError,{data: BodyType<PrefetchResourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof prefetchResourceMetadata>>,
+        TError,
+        {data: BodyType<PrefetchResourceBody>},
+        TContext
+      > => {
+      return useMutation(getPrefetchResourceMetadataMutationOptions(options));
     }
 
 export const getDiscoverResourcesUrl = (params: DiscoverResourcesParams,) => {

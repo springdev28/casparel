@@ -133,6 +133,31 @@ export interface ClassMemberInput {
   role?: ClassMemberInputRole;
 }
 
+export interface PrefetchResourceBody {
+  /** @minLength 1 */
+  url: string;
+}
+
+export type PrefetchResourceResponseFormat = typeof PrefetchResourceResponseFormat[keyof typeof PrefetchResourceResponseFormat];
+
+
+export const PrefetchResourceResponseFormat = {
+  article: 'article',
+  video: 'video',
+  pdf: 'pdf',
+  podcast: 'podcast',
+  interactive: 'interactive',
+  other: 'other',
+} as const;
+
+export interface PrefetchResourceResponse {
+  title: string;
+  description: string;
+  format: PrefetchResourceResponseFormat;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+}
+
 export type ResourceFormat = typeof ResourceFormat[keyof typeof ResourceFormat];
 
 

@@ -330,6 +330,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/Resource"
 
+  /resources/prefetch:
+    post:
+      operationId: prefetchResourceMetadata
+      tags: [resources]
+      summary: Fetch metadata (title, description, format, thumbnail) for a given URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrefetchResourceBody"
+      responses:
+        "200":
+          description: Extracted metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrefetchResourceResponse"
+        "400":
+          description: Missing or invalid URL
+        "502":
+          description: Failed to fetch metadata
+
   /resources/discover:
     get:
       operationId: discoverResources
@@ -1022,6 +1045,21 @@ components:
         role:  { type: string, enum: [student, teacher] }
 
     # ── Resources ───────────────────────────────────────────────────────────
+    PrefetchResourceBody:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, minLength: 1 }
+
+    PrefetchResourceResponse:
+      type: object
+      required: [title, description, format]
+      properties:
+        title:        { type: string }
+        description:  { type: string }
+        format:       { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        thumbnailUrl: { type: ["string", "null"] }
+
     Resource:
       type: object
       required: [id, title, url, format, subject, gradeLevel, submittedById, avgRating, reviewCount, createdAt]

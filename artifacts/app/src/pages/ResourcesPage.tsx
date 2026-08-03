@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useLocation, Link } from 'wouter';
-import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X } from 'lucide-react';
+import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2 } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -17,6 +17,7 @@ import {
   useGetMe,
   useDiscoverResources,
   useGetResourceRecommendations,
+  usePrefetchResourceMetadata,
   getDiscoverResourcesQueryKey,
   getListResourcesQueryKey,
   getGetMeQueryKey,
@@ -195,6 +196,7 @@ export default function ResourcesPage() {
   );
 
   const createResource = useCreateResource();
+  const prefetchMetadata = usePrefetchResourceMetadata();
   const [addingUrl, setAddingUrl] = useState<string | null>(null);
 
   // Submit form
@@ -205,6 +207,37 @@ export default function ResourcesPage() {
   const [newFormat, setNewFormat] = useState<ResourceInputFormat>(ResourceInputFormat.article);
   const [newSubject, setNewSubject] = useState('');
   const [newGrade, setNewGrade] = useState('');
+  const [prefetching, setPrefetching] = useState(false);
+  // Track which URL is currently being fetched so stale responses don't clobber newer edits
+  const prefetchingUrlRef = useRef<string>('');
+
+  async function handleUrlBlur() {
+    const url = newUrl.trim();
+    if (!url) return;
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+    } catch { return; } // not a valid URL yet — skip
+    // Don't prefetch if title is already filled (user typed it themselves)
+    if (newTitle.trim()) return;
+
+    prefetchingUrlRef.current = url;
+    setPrefetching(true);
+    try {
+      const meta = await prefetchMetadata.mutateAsync({ data: { url } });
+      // Only apply if the URL hasn't changed since we fired this request
+      if (prefetchingUrlRef.current !== url) return;
+      // Use functional updaters so we read the *current* state, not the closure-captured one.
+      // This prevents a stale response from overwriting text the user typed while waiting.
+      if (meta.title) setNewTitle((cur) => cur.trim() ? cur : meta.title);
+      if (meta.description) setNewDesc((cur) => cur.trim() ? cur : meta.description);
+      if (meta.format) setNewFormat((cur) => cur !== ResourceInputFormat.article ? cur : meta.format as ResourceInputFormat);
+    } catch {
+      // silently ignore — user can fill in manually
+    } finally {
+      if (prefetchingUrlRef.current === url) setPrefetching(false);
+    }
+  }
 
   function clearSearch() {
     setInputValue('');
@@ -286,8 +319,20 @@ export default function ResourcesPage() {
                   <Input id="res-title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required data-testid="resource-title-input" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="res-url">URL</Label>
-                  <Input id="res-url" type="url" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} required data-testid="resource-url-input" />
+                  <Label htmlFor="res-url" className="flex items-center gap-1.5">
+                    URL
+                    {prefetching && <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> auto-filling…</span>}
+                    {!prefetching && newTitle && newUrl && <span className="text-xs text-muted-foreground flex items-center gap-1"><Wand2 size={10} /> auto-filled</span>}
+                  </Label>
+                  <Input
+                    id="res-url"
+                    type="url"
+                    value={newUrl}
+                    onChange={(e) => setNewUrl(e.target.value)}
+                    onBlur={handleUrlBlur}
+                    required
+                    data-testid="resource-url-input"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-desc">Description (optional)</Label>

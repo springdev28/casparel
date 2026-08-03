@@ -346,6 +346,24 @@ export const CreateResourceResponse = zod.object({
 
 
 /**
+ * @summary Fetch metadata (title, description, format, thumbnail) for a given URL
+ */
+
+
+
+export const PrefetchResourceMetadataBody = zod.object({
+  "url": zod.string().min(1)
+})
+
+export const PrefetchResourceMetadataResponse = zod.object({
+  "title": zod.string(),
+  "description": zod.string(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "thumbnailUrl": zod.string().nullish()
+})
+
+
+/**
  * @summary Search the internet for educational resources matching a query
  */
 export const DiscoverResourcesQueryParams = zod.object({
