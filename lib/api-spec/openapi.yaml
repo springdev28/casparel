@@ -1340,6 +1340,8 @@ components:
         startTime: { type: string }
         endTime:   { type: string }
         notes:     { type: string }
+        resourceId: { type: ["integer", "null"] }
+        listId:     { type: ["integer", "null"] }
 
     # ── Dashboard ───────────────────────────────────────────────────────────
     DashboardSummary:

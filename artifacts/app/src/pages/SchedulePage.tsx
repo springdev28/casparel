@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Calendar, Trash2, Clock } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Calendar, Trash2, Clock, X, BookOpen } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -15,8 +15,12 @@ import {
   useListScheduleBlocks,
   useCreateScheduleBlock,
   useDeleteScheduleBlock,
+  useGetResource,
+  useListResources,
+  getListResourcesQueryKey,
   getListScheduleBlocksQueryKey,
 } from '@workspace/api-client-react';
+import { Link } from 'wouter';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const BLOCK_COLORS = [
@@ -31,6 +35,127 @@ function getColor(id: number) {
   return BLOCK_COLORS[id % BLOCK_COLORS.length];
 }
 
+/** Small badge shown on a block card when a resource is attached */
+function ResourceBadge({ resourceId }: { resourceId: number }) {
+  const { data: resource } = useGetResource(resourceId);
+  if (!resource) return null;
+  return (
+    <Link
+      to={`/resources/${resourceId}`}
+      onClick={(e) => e.stopPropagation()}
+      className="mt-1 flex items-center gap-1 text-[10px] underline underline-offset-2 opacity-80 hover:opacity-100 truncate"
+      data-testid="block-resource-link"
+    >
+      {resource.thumbnailUrl ? (
+        <img src={resource.thumbnailUrl} alt="" className="w-3 h-3 rounded-sm object-cover shrink-0" />
+      ) : (
+        <BookOpen size={10} className="shrink-0" />
+      )}
+      <span className="truncate">{resource.title}</span>
+    </Link>
+  );
+}
+
+/** Resource search + picker used inside the Add Block dialog */
+function ResourcePicker({
+  selected,
+  onSelect,
+}: {
+  selected: { id: number; title: string } | null;
+  onSelect: (r: { id: number; title: string } | null) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Debounce search input by 300 ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const resourceSearchParams = { q: debouncedQuery || undefined, limit: 6 };
+  const { data: results } = useListResources(
+    resourceSearchParams,
+    { query: { enabled: debouncedQuery.length >= 1 && open, queryKey: getListResourcesQueryKey(resourceSearchParams) } }
+  );
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleMouseDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, []);
+
+  if (selected) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border px-3 py-2 bg-muted text-sm">
+        <BookOpen size={14} className="text-muted-foreground shrink-0" />
+        <span className="flex-1 truncate">{selected.title}</span>
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          className="text-muted-foreground hover:text-foreground"
+          aria-label="Remove resource"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Input
+        placeholder="Search resources…"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        data-testid="resource-search-input"
+      />
+      {open && results && results.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+          {results.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent text-left"
+              onMouseDown={(e) => {
+                e.preventDefault(); // prevent blur before click
+                onSelect({ id: r.id, title: r.title });
+                setQuery('');
+                setOpen(false);
+              }}
+              data-testid="resource-search-result"
+            >
+              {r.thumbnailUrl ? (
+                <img src={r.thumbnailUrl} alt="" className="w-6 h-6 rounded-sm object-cover shrink-0" />
+              ) : (
+                <BookOpen size={14} className="text-muted-foreground shrink-0" />
+              )}
+              <span className="truncate flex-1">{r.title}</span>
+              <Badge variant="outline" className="text-[10px] shrink-0">{r.format}</Badge>
+            </button>
+          ))}
+        </div>
+      )}
+      {open && debouncedQuery && (!results || results.length === 0) && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md px-3 py-2 text-sm text-muted-foreground">
+          No resources found
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SchedulePage() {
   const queryClient = useQueryClient();
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
@@ -42,6 +167,7 @@ export default function SchedulePage() {
   const [newStart, setNewStart] = useState('09:00');
   const [newEnd, setNewEnd] = useState('10:00');
   const [newNotes, setNewNotes] = useState('');
+  const [selectedResource, setSelectedResource] = useState<{ id: number; title: string } | null>(null);
 
   const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
 
@@ -68,6 +194,7 @@ export default function SchedulePage() {
     setNewStart('09:00');
     setNewEnd('10:00');
     setNewNotes('');
+    setSelectedResource(null);
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -80,6 +207,7 @@ export default function SchedulePage() {
           startTime: newStart,
           endTime: newEnd,
           notes: newNotes || undefined,
+          resourceId: selectedResource?.id ?? undefined,
         },
       });
       queryClient.invalidateQueries({ queryKey: getListScheduleBlocksQueryKey({ weekStart: weekStartStr }) });
@@ -122,7 +250,7 @@ export default function SchedulePage() {
           <h1 className="text-2xl font-bold text-foreground">Schedule</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage your weekly study plan</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button data-testid="add-block-button">
               <Plus size={16} className="mr-1.5" /> Add Block
@@ -155,6 +283,10 @@ export default function SchedulePage() {
               <div className="space-y-1.5">
                 <Label htmlFor="block-notes">Notes (optional)</Label>
                 <Textarea id="block-notes" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} rows={2} data-testid="block-notes-input" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Resource (optional)</Label>
+                <ResourcePicker selected={selectedResource} onSelect={setSelectedResource} />
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
@@ -234,6 +366,9 @@ export default function SchedulePage() {
                         {block.notes && (
                           <p className="mt-0.5 opacity-75 truncate">{block.notes}</p>
                         )}
+                        {block.resourceId != null && (
+                          <ResourceBadge resourceId={block.resourceId} />
+                        )}
                         <button
                           onClick={() => handleDelete(block.id)}
                           className="mt-1 opacity-60 hover:opacity-100 transition-opacity"
@@ -264,6 +399,9 @@ export default function SchedulePage() {
                   <p className="text-xs text-muted-foreground">
                     {block.date} · {block.startTime.slice(0, 5)}–{block.endTime.slice(0, 5)}
                   </p>
+                  {block.resourceId != null && (
+                    <ResourceBadge resourceId={block.resourceId} />
+                  )}
                 </div>
                 <Badge variant="outline" className="text-xs shrink-0">{format(parseISO(block.date), 'EEE')}</Badge>
                 <Button

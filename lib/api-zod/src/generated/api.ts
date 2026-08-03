@@ -875,7 +875,9 @@ export const UpdateScheduleBlockBody = zod.object({
   "date": zod.coerce.date().optional(),
   "startTime": zod.string().optional(),
   "endTime": zod.string().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "resourceId": zod.int().nullable().optional(),
+  "listId": zod.int().nullable().optional()
 })
 
 export const UpdateScheduleBlockResponse = zod.object({

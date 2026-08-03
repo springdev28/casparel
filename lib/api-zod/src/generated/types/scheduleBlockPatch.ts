@@ -13,4 +13,8 @@ export interface ScheduleBlockPatch {
   startTime?: string;
   endTime?: string;
   notes?: string;
+  /** @nullable */
+  resourceId?: number | null;
+  /** @nullable */
+  listId?: number | null;
 }

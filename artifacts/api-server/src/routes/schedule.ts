@@ -101,19 +101,23 @@ router.patch("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { date: rawDate, title, startTime, endTime, notes } = parsed.data;
+  const { date: rawDate, title, startTime, endTime, notes, resourceId, listId } = parsed.data;
   const patchData: {
     title?: string;
     date?: string;
     startTime?: string;
     endTime?: string;
     notes?: string;
+    resourceId?: number | null;
+    listId?: number | null;
   } = {};
   if (title !== undefined) patchData.title = title;
   if (rawDate !== undefined) patchData.date = dateToString(rawDate)!;
   if (startTime !== undefined) patchData.startTime = startTime;
   if (endTime !== undefined) patchData.endTime = endTime;
   if (notes !== undefined) patchData.notes = notes;
+  if (resourceId !== undefined) patchData.resourceId = resourceId;
+  if (listId !== undefined) patchData.listId = listId;
 
   const [block] = await db
     .update(scheduleBlocksTable)
