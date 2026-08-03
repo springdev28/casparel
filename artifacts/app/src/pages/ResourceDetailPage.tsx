@@ -29,6 +29,7 @@ import {
   getListResourceListsQueryKey,
   getGetResourceSourceReviewQueryKey,
   getGetResourceRecommendationsQueryKey,
+  getGetDashboardSummaryQueryKey,
 } from '@workspace/api-client-react';
 import type { SourceReview } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
@@ -357,6 +358,7 @@ export default function ResourceDetailPage() {
       await deleteResource.mutateAsync({ id: resourceId });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
       toast({ title: 'Resource removed from library.' });
       setLocation('/resources');
     } catch (err: unknown) {
