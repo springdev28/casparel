@@ -29,6 +29,8 @@ import type {
   ClassPatch,
   ClassWithMembers,
   DashboardSummary,
+  DiscoverResourcesParams,
+  DiscoveredResource,
   HealthStatus,
   ListItem,
   ListItemInput,
@@ -1263,6 +1265,90 @@ export const useCreateResource = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateResourceMutationOptions(options));
     }
+
+export const getDiscoverResourcesUrl = (params: DiscoverResourcesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/resources/discover?${stringifiedParams}` : `/api/resources/discover`
+}
+
+/**
+ * @summary Search the internet for educational resources matching a query
+ */
+export const discoverResources = async (params: DiscoverResourcesParams, options?: Parameters<typeof customFetch>[1]): Promise<DiscoveredResource[]> => {
+
+  return customFetch<DiscoveredResource[]>(getDiscoverResourcesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDiscoverResourcesQueryKey = (params?: DiscoverResourcesParams,) => {
+    return [
+    `/api/resources/discover`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDiscoverResourcesQueryOptions = <TData = Awaited<ReturnType<typeof discoverResources>>, TError = ErrorType<void>>(params: DiscoverResourcesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof discoverResources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDiscoverResourcesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof discoverResources>>> = ({ signal }) => discoverResources(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof discoverResources>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DiscoverResourcesQueryResult = NonNullable<Awaited<ReturnType<typeof discoverResources>>>
+export type DiscoverResourcesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Search the internet for educational resources matching a query
+ */
+
+export function useDiscoverResources<TData = Awaited<ReturnType<typeof discoverResources>>, TError = ErrorType<void>>(
+ params: DiscoverResourcesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof discoverResources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDiscoverResourcesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListFeaturedResourcesUrl = () => {
 

@@ -346,6 +346,29 @@ export const CreateResourceResponse = zod.object({
 
 
 /**
+ * @summary Search the internet for educational resources matching a query
+ */
+export const DiscoverResourcesQueryParams = zod.object({
+  "q": zod.coerce.string().describe('Search query'),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
+  "subject": zod.coerce.string().optional(),
+  "gradeLevel": zod.coerce.string().optional()
+})
+
+export const DiscoverResourcesResponseItem = zod.object({
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "source": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "subject": zod.string().nullish(),
+  "gradeLevel": zod.string().nullish()
+})
+export const DiscoverResourcesResponse = zod.array(DiscoverResourcesResponseItem)
+
+
+/**
  * @summary Get featured and popular resources
  */
 export const ListFeaturedResourcesResponseItem = zod.object({

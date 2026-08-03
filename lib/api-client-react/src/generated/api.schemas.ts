@@ -210,6 +210,32 @@ export interface ResourcePatch {
   thumbnailUrl?: string;
 }
 
+export type DiscoveredResourceFormat = typeof DiscoveredResourceFormat[keyof typeof DiscoveredResourceFormat];
+
+
+export const DiscoveredResourceFormat = {
+  article: 'article',
+  video: 'video',
+  pdf: 'pdf',
+  podcast: 'podcast',
+  interactive: 'interactive',
+  other: 'other',
+} as const;
+
+export interface DiscoveredResource {
+  title: string;
+  url: string;
+  description: string;
+  format: DiscoveredResourceFormat;
+  source: string;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  /** @nullable */
+  subject?: string | null;
+  /** @nullable */
+  gradeLevel?: string | null;
+}
+
 export interface SourceReviewLink {
   label: string;
   url: string;
@@ -405,6 +431,28 @@ export type ListResourcesFormat = typeof ListResourcesFormat[keyof typeof ListRe
 
 
 export const ListResourcesFormat = {
+  article: 'article',
+  video: 'video',
+  pdf: 'pdf',
+  podcast: 'podcast',
+  interactive: 'interactive',
+  other: 'other',
+} as const;
+
+export type DiscoverResourcesParams = {
+/**
+ * Search query
+ */
+q: string;
+format?: DiscoverResourcesFormat;
+subject?: string;
+gradeLevel?: string;
+};
+
+export type DiscoverResourcesFormat = typeof DiscoverResourcesFormat[keyof typeof DiscoverResourcesFormat];
+
+
+export const DiscoverResourcesFormat = {
   article: 'article',
   video: 'video',
   pdf: 'pdf',

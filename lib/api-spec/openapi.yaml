@@ -328,6 +328,45 @@ paths:
               schema:
                 $ref: "#/components/schemas/Resource"
 
+  /resources/discover:
+    get:
+      operationId: discoverResources
+      tags: [resources]
+      summary: Search the internet for educational resources matching a query
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [article, video, pdf, podcast, interactive, other]
+        - name: subject
+          in: query
+          schema:
+            type: string
+        - name: gradeLevel
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Discovered resources from the web
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DiscoveredResource"
+        "400":
+          description: Missing query
+        "502":
+          description: Search failed
+
   /resources/featured:
     get:
       operationId: listFeaturedResources
@@ -905,6 +944,19 @@ components:
         subject:      { type: string }
         gradeLevel:   { type: string }
         thumbnailUrl: { type: string }
+
+    DiscoveredResource:
+      type: object
+      required: [title, url, description, format, source]
+      properties:
+        title:        { type: string }
+        url:          { type: string }
+        description:  { type: string }
+        format:       { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        source:       { type: string }
+        thumbnailUrl: { type: ["string", "null"] }
+        subject:      { type: ["string", "null"] }
+        gradeLevel:   { type: ["string", "null"] }
 
     SourceReviewLink:
       type: object
