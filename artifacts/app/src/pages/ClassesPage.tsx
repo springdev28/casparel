@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { Plus, Users, BookOpen, RefreshCw, LogOut, ExternalLink, Download } from 'lucide-react';
+import { Plus, Users, BookOpen, RefreshCw, LogOut, ExternalLink, Download, AlertCircle } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
 import { Textarea } from '@workspace/edu-ds/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@workspace/edu-ds/components/ui/dialog';
+import { Alert, AlertDescription } from '@workspace/edu-ds/components/ui/alert';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
@@ -44,6 +45,8 @@ export default function ClassesPage() {
   const [importingCourseId, setImportingCourseId] = useState<string | null>(null);
   // Set to true when arriving via ?connect_gc=1 — triggers OAuth once gcStatus loads
   const [pendingAutoConnect, setPendingAutoConnect] = useState(false);
+  // Set to true when a GC API call returns 401/403 (token expired/revoked)
+  const [gcReconnectNeeded, setGcReconnectNeeded] = useState(false);
 
   const { data: classes, isLoading } = useListClasses();
   const { data: me } = useGetMe();
@@ -57,14 +60,27 @@ export default function ClassesPage() {
   const { data: gcAuthUrlData, refetch: fetchAuthUrl, isFetching: authUrlFetching } = useGetGCAuthUrl({
     query: { enabled: false, queryKey: getGetGCAuthUrlQueryKey() },
   });
-  const { data: gcCourses, isLoading: gcCoursesLoading, refetch: refetchCourses } = useListGCCourses({
+  // Background health check: fetch courses whenever teacher is connected so we catch
+  // revoked/expired tokens before the user opens the import dialog.
+  const { data: gcCourses, isLoading: gcCoursesLoading, refetch: refetchCourses, error: gcCoursesError } = useListGCCourses({
     query: {
-      enabled: gcDialogOpen && gcStatus?.connected === true,
+      enabled: isTeacher && gcStatus?.connected === true,
       queryKey: getListGCCoursesQueryKey(),
+      retry: false,
+      staleTime: 5 * 60 * 1000,
     },
   });
   const disconnectGoogle = useDisconnectGoogle();
   const importGCCourse = useImportGCCourse();
+
+  // Detect 401/403 from GC API calls → prompt re-authentication
+  useEffect(() => {
+    if (!gcCoursesError) return;
+    const status = (gcCoursesError as { status?: number }).status;
+    if (status === 401 || status === 403) {
+      setGcReconnectNeeded(true);
+    }
+  }, [gcCoursesError]);
 
   // ── Handle OAuth redirect params ──────────────────────────────────────────
   useEffect(() => {
@@ -177,8 +193,14 @@ export default function ClassesPage() {
         description: `"${cls.name}" was created from your Google Classroom course.`,
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to import course';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
+      const status = (err as { status?: number }).status;
+      if (status === 401 || status === 403) {
+        setGcDialogOpen(false);
+        setGcReconnectNeeded(true);
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to import course';
+        toast({ title: 'Error', description: message, variant: 'destructive' });
+      }
     } finally {
       setImportingCourseId(null);
     }
@@ -186,6 +208,30 @@ export default function ClassesPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
+
+      {/* Google Classroom reconnect banner */}
+      {gcReconnectNeeded && gcStatus?.connected && (
+        <Alert variant="destructive" className="flex items-start gap-3" data-testid="gc-reconnect-banner">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <AlertDescription className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2">
+            <span className="flex-1">
+              Your Google Classroom connection has expired or been revoked. Reconnect to continue importing courses.
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              onClick={() => { setGcReconnectNeeded(false); handleConnectGoogle(); }}
+              disabled={authUrlFetching}
+              data-testid="gc-reconnect-button"
+            >
+              {authUrlFetching ? <RefreshCw size={13} className="mr-1.5 animate-spin" /> : <BookOpen size={13} className="mr-1.5 text-[#4285F4]" />}
+              Reconnect Google Classroom
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Classes</h1>

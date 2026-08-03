@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check } from 'lucide-react';
+import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Separator } from '@workspace/edu-ds/components/ui/separator';
+import { Alert, AlertDescription } from '@workspace/edu-ds/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/edu-ds/components/ui/dialog';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -42,6 +43,8 @@ export default function ListDetailPage() {
   // Google Classroom share state
   const [gcDialogOpen, setGcDialogOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  // Set to true when a GC API call returns 401/403 (token expired/revoked)
+  const [gcReconnectNeeded, setGcReconnectNeeded] = useState(false);
 
   const { data: list, isLoading } = useGetResourceList(listId, {
     query: { enabled: !!listId, queryKey: getGetResourceListQueryKey(listId) },
@@ -57,10 +60,24 @@ export default function ListDetailPage() {
   const { data: gcStatus } = useGetGCStatus({
     query: { enabled: canShareToGC, queryKey: getGetGCStatusQueryKey() },
   });
-  const { data: gcCourses, isLoading: gcCoursesLoading } = useListGCCourses({
-    query: { enabled: gcDialogOpen && gcStatus?.connected === true, queryKey: getListGCCoursesQueryKey() },
+  const { data: gcCourses, isLoading: gcCoursesLoading, error: gcCoursesError } = useListGCCourses({
+    query: {
+      enabled: gcDialogOpen && gcStatus?.connected === true,
+      queryKey: getListGCCoursesQueryKey(),
+      retry: false,
+    },
   });
   const shareToGC = useShareToGC();
+
+  // Detect 401/403 from GC API calls → prompt re-authentication
+  useEffect(() => {
+    if (!gcCoursesError) return;
+    const status = (gcCoursesError as { status?: number }).status;
+    if (status === 401 || status === 403) {
+      setGcDialogOpen(false);
+      setGcReconnectNeeded(true);
+    }
+  }, [gcCoursesError]);
 
   async function handleRemove(itemId: number) {
     setRemovingId(itemId);
@@ -94,8 +111,15 @@ export default function ListDetailPage() {
       setGcDialogOpen(false);
       setSelectedCourseId(null);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to share to Google Classroom';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
+      const status = (err as { status?: number }).status;
+      if (status === 401 || status === 403) {
+        setGcDialogOpen(false);
+        setSelectedCourseId(null);
+        setGcReconnectNeeded(true);
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to share to Google Classroom';
+        toast({ title: 'Error', description: message, variant: 'destructive' });
+      }
     }
   }
 
@@ -148,6 +172,29 @@ export default function ListDetailPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
+
+      {/* Google Classroom reconnect banner */}
+      {gcReconnectNeeded && gcStatus?.connected && (
+        <Alert variant="destructive" className="flex items-start gap-3" data-testid="gc-reconnect-banner">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <AlertDescription className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2">
+            <span className="flex-1">
+              Your Google Classroom connection has expired or been revoked. Reconnect to share resource lists.
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              onClick={() => setLocation('/classes?connect_gc=1')}
+              data-testid="gc-reconnect-button"
+            >
+              <BookOpen size={13} className="mr-1.5 text-[#4285F4]" />
+              Reconnect Google Classroom
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <Button variant="ghost" size="sm" onClick={() => setLocation('/lists')} data-testid="back-button">
           <ArrowLeft size={16} className="mr-1.5" /> Lists
