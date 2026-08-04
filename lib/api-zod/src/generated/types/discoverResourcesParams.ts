@@ -22,7 +22,7 @@ gradeLevel?: string;
  */
 page?: number;
 /**
- * Return specific learning content, direct publisher websites and channels, or public social profiles for people discovery
+ * Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
  */
 resultType?: DiscoverResourcesResultType;
 };

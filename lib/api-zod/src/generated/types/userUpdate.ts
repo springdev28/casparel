@@ -5,10 +5,16 @@
  * Schoolar API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { UserUpdateProfileVisibility } from './userUpdateProfileVisibility';
 
 export interface UserUpdate {
   /** @minLength 1 */
   name?: string;
+  profileVisibility?: UserUpdateProfileVisibility;
+  showBio?: boolean;
+  showSubjects?: boolean;
+  showGradeOrDept?: boolean;
+  showWebsite?: boolean;
   /**
      * @maxLength 300
      * @nullable

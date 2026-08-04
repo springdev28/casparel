@@ -21,6 +21,8 @@ import {
   Unlink,
   ExternalLink,
   RefreshCw,
+  ShieldCheck,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
@@ -31,6 +33,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@workspace/edu-ds/comp
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { Progress } from '@workspace/edu-ds/components/ui/progress';
+import { Switch } from '@workspace/edu-ds/components/ui/switch';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import {
   useGetMe,
@@ -43,6 +46,7 @@ import {
   getGetCalendarStatusQueryKey,
   getCalendarGoogleConnectUrl,
   getGetMeQueryKey,
+  UserUpdateProfileVisibility,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@workspace/edu-ds/lib/utils';
@@ -118,6 +122,11 @@ export default function ProfilePage() {
   const [form, setForm] = useState({
     name: '',
     bio: '',
+    profileVisibility: UserUpdateProfileVisibility.classmates as UserUpdateProfileVisibility,
+    showBio: true,
+    showSubjects: true,
+    showGradeOrDept: true,
+    showWebsite: true,
     gradeOrDept: '',
     timezone: '',
     websiteUrl: '',
@@ -131,6 +140,11 @@ export default function ProfilePage() {
     setForm({
       name: me.name ?? '',
       bio: me.bio ?? '',
+      profileVisibility: me.profileVisibility as UserUpdateProfileVisibility,
+      showBio: me.showBio,
+      showSubjects: me.showSubjects,
+      showGradeOrDept: me.showGradeOrDept,
+      showWebsite: me.showWebsite,
       gradeOrDept: me.gradeOrDept ?? '',
       timezone: me.timezone ?? '',
       websiteUrl: me.websiteUrl ?? '',
@@ -150,6 +164,11 @@ export default function ProfilePage() {
         data: {
           name: form.name || undefined,
           bio: form.bio || null,
+          profileVisibility: form.profileVisibility,
+          showBio: form.showBio,
+          showSubjects: form.showSubjects,
+          showGradeOrDept: form.showGradeOrDept,
+          showWebsite: form.showWebsite,
           gradeOrDept: form.gradeOrDept || null,
           timezone: form.timezone || null,
           websiteUrl: form.websiteUrl || null,
@@ -406,6 +425,41 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck size={16} className="text-primary" />Privacy & discovery</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {editing ? (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="profileVisibility">Who can find and open your Schoolar profile?</Label>
+                <select id="profileVisibility" value={form.profileVisibility} onChange={(event) => setForm((current) => ({ ...current, profileVisibility: event.target.value as UserUpdateProfileVisibility }))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value={UserUpdateProfileVisibility.everyone}>Everyone — shown in global people search</option>
+                  <option value={UserUpdateProfileVisibility.classmates}>Classmates only — shared classes required</option>
+                  <option value={UserUpdateProfileVisibility.private}>Private — hidden from search and other users</option>
+                </select>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  ["showBio", "Bio"], ["showSubjects", "Subjects & interests"], ["showGradeOrDept", me.role === "teacher" ? "Department" : "Grade level"], ["showWebsite", "Website / social link"],
+                ].map(([field, label]) => (
+                  <label key={field} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+                    <span>{label}</span><Switch checked={form[field as keyof typeof form] as boolean} onCheckedChange={(checked) => setForm((current) => ({ ...current, [field]: checked }))} />
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Hidden fields are removed from profile results and cannot be used to find you.</p>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2"><Eye size={15} className="text-muted-foreground" /><span className="text-sm">Audience</span><Badge variant="secondary" className="capitalize">{me.profileVisibility}</Badge></div>
+              <p className="text-xs text-muted-foreground">Visible fields: {[me.showBio && "Bio", me.showSubjects && "Subjects", me.showGradeOrDept && (me.role === "teacher" ? "Department" : "Grade"), me.showWebsite && "Website"].filter(Boolean).join(", ") || "Identity only"}</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
       {/* Avatar + name */}
       <Card>
@@ -463,6 +517,28 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm"><Palette className="size-4" />Choose your avatar</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setAvatarPickerOpen((open) => !open)}>
+              <Palette className="mr-2 size-4" />{avatarPickerOpen ? "Hide presets" : "Show expressive avatars"}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploadAvatar.isPending}>
+              <Camera className="mr-2 size-4" />{uploadAvatar.isPending ? "Uploading…" : "Upload your own"}
+            </Button>
+          </div>
+          {avatarPickerOpen && <div className="rounded-xl border bg-muted/30 p-3 sm:p-4" aria-label="Avatar choices">
+            <p className="mb-3 text-xs text-muted-foreground">Choose a preset, or upload a PNG, JPEG, or WebP image up to 2 MB.</p>
+            <div className="grid grid-cols-4 gap-3 sm:grid-cols-6">
+              {AVATAR_PRESETS.map(([avatarId, emoji, background]) => <button key={avatarId} type="button" onClick={() => choosePresetAvatar(avatarId)} disabled={setPresetAvatar.isPending} className={cn("aspect-square rounded-full border-2 border-background text-2xl shadow-sm transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-3xl", background)} aria-label={"Use " + avatarId.replaceAll("-", " ") + " avatar"}>{emoji}</button>)}
+            </div>
+          </div>}
         </CardContent>
       </Card>
 

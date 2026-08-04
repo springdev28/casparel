@@ -7,6 +7,7 @@ import {
   usersTable,
   classMembersTable,
   resourcesTable,
+  userBlocksTable,
 } from "@workspace/db";
 
 /** Reject any meeting URL that isn't http or https — blocks javascript: etc. */
@@ -146,6 +147,15 @@ router.post(
     // Validate that every requested invitee shares at least one class with the organiser
     const uniqueInvitees = [...new Set((inviteeIds ?? []).filter((id) => id !== userId))];
     if (uniqueInvitees.length > 0) {
+      const blockedRelationships = await db.select({ id: userBlocksTable.id }).from(userBlocksTable).where(or(
+        and(eq(userBlocksTable.blockerId, userId), inArray(userBlocksTable.blockedId, uniqueInvitees)),
+        and(inArray(userBlocksTable.blockerId, uniqueInvitees), eq(userBlocksTable.blockedId, userId)),
+      ));
+      if (blockedRelationships.length > 0) {
+        res.status(403).json({ error: "One or more invitees cannot be invited due to a safety preference" });
+        return;
+      }
+
       // Classes the organiser belongs to
       const myClasses = await db
         .select({ classId: classMembersTable.classId })

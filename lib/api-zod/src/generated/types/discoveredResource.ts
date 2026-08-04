@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DiscoveredResourceFormat } from './discoveredResourceFormat';
+import type { DiscoveredResourceProvenanceLevel } from './discoveredResourceProvenanceLevel';
 
 export interface DiscoveredResource {
   title: string;
@@ -19,4 +20,8 @@ export interface DiscoveredResource {
   subject?: string | null;
   /** @nullable */
   gradeLevel?: string | null;
+  provenanceLevel?: DiscoveredResourceProvenanceLevel;
+  provenanceSignals?: string[];
+  linkChecked?: boolean;
+  checkedAt?: string;
 }

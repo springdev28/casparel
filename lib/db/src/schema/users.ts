@@ -1,9 +1,10 @@
-import { pgTable, serial, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
 export const userRoleEnum = pgEnum("user_role", ["student", "teacher"]);
 
+export const profileVisibilityEnum = pgEnum("profile_visibility", ["everyone", "classmates", "private"]);
 export const usersTable = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -15,6 +16,11 @@ export const usersTable = pgTable("users", {
   subjects: text("subjects").array(),
   gradeOrDept: text("grade_or_dept"),
   timezone: text("timezone"),
+  profileVisibility: profileVisibilityEnum("profile_visibility").notNull().default("classmates"),
+  showBio: boolean("show_bio").notNull().default(true),
+  showSubjects: boolean("show_subjects").notNull().default(true),
+  showGradeOrDept: boolean("show_grade_or_dept").notNull().default(true),
+  showWebsite: boolean("show_website").notNull().default(true),
   websiteUrl: text("website_url"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });

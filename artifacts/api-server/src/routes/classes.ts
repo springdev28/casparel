@@ -31,6 +31,9 @@ import {
   UpdateSeatingChartResponse,
   UpdateStudentNoteParams,
   UpdateStudentNoteBody,
+  SuggestSeatingPlanParams,
+  SuggestSeatingPlanBody,
+  SuggestSeatingPlanResponse,
   UpdateStudentNoteResponse,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
@@ -372,15 +375,16 @@ router.delete("/classes/:id/members/:userId", requireAuth, async (req, res): Pro
 });
 
 async function seatingChart(classId: number) {
-  const [cls] = await db.select({ rows: classesTable.seatingRows, columns: classesTable.seatingColumns }).from(classesTable).where(eq(classesTable.id, classId));
+  const [cls] = await db.select({ rows: classesTable.seatingRows, columns: classesTable.seatingColumns, desks: classesTable.seatingLayout }).from(classesTable).where(eq(classesTable.id, classId));
   if (!cls) return null;
   const students = await db.select({
     userId: classMembersTable.userId, name: usersTable.name, avatarUrl: usersTable.avatarUrl,
     gradeOrDept: usersTable.gradeOrDept, teacherNote: classMembersTable.teacherNote,
     seatRow: classMembersTable.seatRow, seatColumn: classMembersTable.seatColumn,
+    seatDeskId: classMembersTable.seatDeskId, seatPosition: classMembersTable.seatPosition,
   }).from(classMembersTable).innerJoin(usersTable, eq(usersTable.id, classMembersTable.userId))
     .where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.role, "student"))).orderBy(asc(usersTable.name));
-  return { classId, rows: cls.rows, columns: cls.columns, students };
+  return { classId, rows: cls.rows, columns: cls.columns, layoutMode: cls.desks?.length ? "custom" as const : "grid" as const, desks: cls.desks ?? [], students };
 }
 
 router.get("/classes/:id/seating-chart", requireAuth, async (req, res): Promise<void> => {
@@ -400,26 +404,118 @@ router.put("/classes/:id/seating-chart", contentLimiter, requireAuth, async (req
   if (!params.success || !body.success) { res.status(400).json({ error: "Invalid seating chart" }); return; }
   if (!(await isClassTeacher(params.data.id, userId))) { res.status(403).json({ error: "Only the class teacher can edit seating" }); return; }
   const occupied = new Set<string>();
+  const deskById = new Map(body.data.desks.map((desk) => [desk.id, desk]));
+  if (body.data.layoutMode === "custom" && body.data.desks.length === 0) { res.status(400).json({ error: "Custom classrooms need at least one desk" }); return; }
+  if (new Set(body.data.desks.map((desk) => desk.id)).size !== body.data.desks.length) { res.status(400).json({ error: "Desk IDs must be unique" }); return; }
   const memberRows = await db.select({ userId: classMembersTable.userId }).from(classMembersTable)
     .where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.role, "student")));
   const studentIds = new Set(memberRows.map((member) => member.userId));
   for (const assignment of body.data.assignments) {
     if (!studentIds.has(assignment.userId)) { res.status(400).json({ error: "Every assignment must reference a student in this class" }); return; }
+    if (body.data.layoutMode === "custom") {
+      if (assignment.deskId == null || assignment.deskSeat == null) continue;
+      const desk = deskById.get(assignment.deskId);
+      if (!desk || assignment.deskSeat >= desk.capacity) { res.status(400).json({ error: "Seat is outside its desk capacity" }); return; }
+      const deskKey = `desk::`;
+      if (occupied.has(deskKey)) { res.status(400).json({ error: "Two students cannot share one desk position" }); return; }
+      occupied.add(deskKey);
+      continue;
+    }
     if (assignment.row == null || assignment.column == null) continue;
     if (assignment.row >= body.data.rows || assignment.column >= body.data.columns) { res.status(400).json({ error: "Seat is outside the classroom grid" }); return; }
-    const key = `:`;
+    const key = `${assignment.row}:${assignment.column}`;
     if (occupied.has(key)) { res.status(400).json({ error: "Two students cannot share one seat" }); return; }
     occupied.add(key);
   }
   await db.transaction(async (tx) => {
-    await tx.update(classesTable).set({ seatingRows: body.data.rows, seatingColumns: body.data.columns }).where(eq(classesTable.id, params.data.id));
-    await tx.update(classMembersTable).set({ seatRow: null, seatColumn: null }).where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.role, "student")));
+    await tx.update(classesTable).set({ seatingRows: body.data.rows, seatingColumns: body.data.columns, seatingLayout: body.data.layoutMode === "custom" ? body.data.desks : null }).where(eq(classesTable.id, params.data.id));
+    await tx.update(classMembersTable).set({ seatRow: null, seatColumn: null, seatDeskId: null, seatPosition: null }).where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.role, "student")));
     for (const assignment of body.data.assignments) {
-      await tx.update(classMembersTable).set({ seatRow: assignment.row, seatColumn: assignment.column })
+      await tx.update(classMembersTable).set({ seatRow: assignment.row, seatColumn: assignment.column, seatDeskId: assignment.deskId, seatPosition: assignment.deskSeat })
         .where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.userId, assignment.userId), eq(classMembersTable.role, "student")));
     }
   });
   res.json(UpdateSeatingChartResponse.parse(await seatingChart(params.data.id)));
+});
+
+router.post("/classes/:id/seating-plan/suggest", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = SuggestSeatingPlanParams.safeParse(req.params);
+  const body = SuggestSeatingPlanBody.safeParse(req.body ?? {});
+  if (!params.success || !body.success) { res.status(400).json({ error: "Invalid seating-plan request" }); return; }
+  if (!(await isClassTeacher(params.data.id, userId))) { res.status(403).json({ error: "Only the class teacher can request a seating plan" }); return; }
+  const chart = await seatingChart(params.data.id);
+  if (!chart) { res.status(404).json({ error: "Class not found" }); return; }
+
+  const custom = chart.layoutMode === "custom" && chart.desks.length > 0;
+  const availableSeats = custom
+    ? [...chart.desks].sort((a, b) => a.y - b.y || a.x - b.x).flatMap((desk) => Array.from({ length: desk.capacity }, (_, deskSeat) => ({ row: null, column: null, deskId: desk.id, deskSeat, front: desk.y, label: desk.label || "Desk" })))
+    : Array.from({ length: chart.rows * chart.columns }, (_, index) => { const row = Math.floor(index / chart.columns), column = index % chart.columns; return { row, column, deskId: null, deskSeat: null, front: chart.rows <= 1 ? 0 : row / (chart.rows - 1) * 100, label: `Row ${row + 1}` }; });
+  if (chart.students.length > availableSeats.length) { res.status(400).json({ error: "The classroom needs more seats before a plan can be suggested" }); return; }
+
+  const frontPattern = /front|board|vision|hearing|attention|focus|near (the )?teacher/i;
+  const backPattern = /back|independent|self-directed|quiet work/i;
+  const separatePattern = /talks? (a lot|too much)|distract|separate|apart|away from|conflict|avoid|not (sit|seat)/i;
+  const togetherPattern = /works? well|support|partner|collaborat|help|sit with|seat with/i;
+  const normalized = (value: string) => value.toLocaleLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  const studentById = new Map(chart.students.map((student) => [student.userId, student]));
+  const avoid = new Map<number, Set<number>>(), prefer = new Map<number, Set<number>>();
+  for (const student of chart.students) {
+    const note = normalized(student.teacherNote ?? "");
+    for (const other of chart.students) {
+      if (student.userId === other.userId) continue;
+      const fullName = normalized(other.name), firstName = fullName.split(/\s+/)[0];
+      if (!note.includes(fullName) && (firstName.length < 3 || !note.includes(firstName))) continue;
+      const target = separatePattern.test(note) ? avoid : togetherPattern.test(note) ? prefer : null;
+      if (target) {
+        if (!target.has(student.userId)) target.set(student.userId, new Set());
+        target.get(student.userId)!.add(other.userId);
+        if (target === avoid) { if (!avoid.has(other.userId)) avoid.set(other.userId, new Set()); avoid.get(other.userId)!.add(student.userId); }
+      }
+    }
+  }
+
+  const ranked = [...chart.students].sort((a, b) => {
+    const score = (note: string | null | undefined) => frontPattern.test(note ?? "") ? 0 : backPattern.test(note ?? "") ? 2 : 1;
+    return score(a.teacherNote) - score(b.teacherNote) || a.name.localeCompare(b.name);
+  });
+  const remaining = [...availableSeats];
+  const placed: Array<{ userId: number; row: number | null; column: number | null; deskId: string | null; deskSeat: number | null; front: number; label: string }> = [];
+  for (const student of ranked) {
+    const note = student.teacherNote ?? "";
+    let bestIndex = 0, bestScore = Number.POSITIVE_INFINITY;
+    remaining.forEach((seat, index) => {
+      const deskMates = seat.deskId == null ? [] : placed.filter((item) => item.deskId === seat.deskId).map((item) => item.userId);
+      let score = frontPattern.test(note) ? seat.front * 4 : backPattern.test(note) ? (100 - seat.front) * 3 : Math.abs(seat.front - 48);
+      if (deskMates.some((id) => avoid.get(student.userId)?.has(id))) score += 10000;
+      if (deskMates.some((id) => prefer.get(student.userId)?.has(id))) score -= 500;
+      if (separatePattern.test(note) && deskMates.length) score += 250;
+      score += deskMates.length * 4;
+      if (score < bestScore) { bestScore = score; bestIndex = index; }
+    });
+    const [seat] = remaining.splice(bestIndex, 1);
+    placed.push({ userId: student.userId, ...seat });
+  }
+
+  const assignments = placed.map((placement) => {
+    const student = studentById.get(placement.userId)!;
+    const mates = placement.deskId == null ? [] : placed.filter((item) => item.deskId === placement.deskId && item.userId !== placement.userId).map((item) => studentById.get(item.userId)?.name).filter(Boolean);
+    const oldDesk = student.seatDeskId ? chart.desks.find((desk) => desk.id === student.seatDeskId) : null;
+    const position = placement.front <= 30 ? "near the front" : placement.front >= 70 ? "toward the back" : "in the middle area";
+    const reasons = [`Placed ${position}${custom ? ` at ${placement.label}` : ""}.`];
+    if (frontPattern.test(student.teacherNote ?? "")) reasons.push("The private note indicates closer teacher or board access may help.");
+    if (backPattern.test(student.teacherNote ?? "")) reasons.push("The private note indicates independent or quiet work may suit this student.");
+    const avoidedNames = [...(avoid.get(student.userId) ?? [])].map((id) => studentById.get(id)?.name).filter(Boolean);
+    if (avoidedNames.length) reasons.push(`Kept apart from ${avoidedNames.join(", ")} because the current private note indicates a distraction or separation concern.`);
+    if (mates.length) reasons.push(`Desk-mates: ${mates.join(", ")}.`); else if (custom) reasons.push("No desk-mate is assigned at this desk.");
+    if (oldDesk) reasons.push(`Previous position was ${oldDesk.label || "a desk"} at ${Math.round(oldDesk.y)}% from the front.`);
+    return { userId: placement.userId, row: placement.row, column: placement.column, deskId: placement.deskId, deskSeat: placement.deskSeat, reason: reasons.join(" ") };
+  });
+  const noted = chart.students.filter((student) => student.teacherNote?.trim()).length;
+  const relationships = [...avoid.values()].reduce((sum, ids) => sum + ids.size, 0) / 2;
+  const considerations = [`Used private notes for ${noted} of ${chart.students.length} students.`, `Evaluated ${Math.ceil(relationships)} named separation relationship(s), desk-mates, and distance from the front.`, "The plan is a suggestion only and has not changed the saved classroom."];
+  if (body.data.priorities?.trim()) considerations.unshift(`Teacher priority: ${body.data.priorities.trim()}`);
+  res.json(SuggestSeatingPlanResponse.parse({ rows: chart.rows, columns: chart.columns, layoutMode: chart.layoutMode, desks: chart.desks, summary: `Suggested a reviewable ${custom ? "custom classroom" : `${chart.rows} by ${chart.columns} grid`} plan for ${chart.students.length} students.`, considerations, assignments }));
 });
 
 router.put("/classes/:id/students/:userId/note", contentLimiter, requireAuth, async (req, res): Promise<void> => {

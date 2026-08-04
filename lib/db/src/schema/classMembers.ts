@@ -13,6 +13,8 @@ export const classMembersTable = pgTable(
     teacherNote: text("teacher_note"),
     seatRow: integer("seat_row"),
     seatColumn: integer("seat_column"),
+    seatDeskId: text("seat_desk_id"),
+    seatPosition: integer("seat_position"),
     joinedAt: timestamp("joined_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.classId] })],

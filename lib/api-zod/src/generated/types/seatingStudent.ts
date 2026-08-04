@@ -19,4 +19,8 @@ export interface SeatingStudent {
   seatRow?: number | null;
   /** @nullable */
   seatColumn?: number | null;
+  /** @nullable */
+  seatDeskId?: string | null;
+  /** @nullable */
+  seatPosition?: number | null;
 }

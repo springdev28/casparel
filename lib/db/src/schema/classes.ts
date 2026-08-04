@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -11,6 +11,7 @@ export const classesTable = pgTable("classes", {
   description: text("description"),
   seatingRows: integer("seating_rows").notNull().default(4),
   seatingColumns: integer("seating_columns").notNull().default(5),
+  seatingLayout: jsonb("seating_layout").$type<Array<{ id: string; shape: "rectangle" | "round" | "oval" | "trapezoid"; x: number; y: number; width: number; height: number; rotation: number; capacity: number; label: string }>>(),
   teacherId: integer("teacher_id").notNull().references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });

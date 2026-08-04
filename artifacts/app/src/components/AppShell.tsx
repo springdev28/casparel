@@ -8,7 +8,6 @@ import {
   List,
   Calendar,
   LogOut,
-  GraduationCap,
   Link2,
   CheckCircle2,
   RefreshCw,
@@ -40,6 +39,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import ThemeCustomizer from './ThemeCustomizer';
+import BrandIcon from './BrandIcon';
 
 const TOKEN_KEY = 'schooler_token';
 
@@ -207,7 +207,7 @@ export default function AppShell({ children }: AppShellProps) {
         <aside className="hidden md:flex flex-col w-56 shrink-0 bg-primary text-primary-foreground">
           {/* Logo */}
           <div className="flex items-center gap-2 px-5 py-5 border-b border-primary-foreground/20">
-            <GraduationCap size={24} className="text-primary-foreground" />
+            <BrandIcon className="h-14 w-28 text-primary-foreground" label="Schoolar" />
             <span className="font-bold text-lg tracking-tight">Schoolar</span>
           </div>
 
@@ -219,6 +219,8 @@ export default function AppShell({ children }: AppShellProps) {
                 <Link
                   key={href}
                   href={href}
+                  aria-label={label}
+                  title={label}
                   data-testid={`nav-${label.toLowerCase()}`}
                   className={cn(
                     'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
@@ -286,18 +288,20 @@ export default function AppShell({ children }: AppShellProps) {
         {/* Mobile top bar */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-primary text-primary-foreground flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-2">
-            <GraduationCap size={20} />
-            <span className="font-bold">Schoolar</span>
+            <BrandIcon className="h-10 w-20" label="Schoolar" />
+            <span className="hidden min-[400px]:inline font-bold">Schoolar</span>
           </div>
-          <div className="flex items-center gap-1">
-            {NAV_ITEMS.map(({ href, icon: Icon }) => {
+          <nav className="ml-2 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Mobile navigation">
+            {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
               const isActive = location === href || location.startsWith(href + '/');
               return (
                 <Link
                   key={href}
                   href={href}
+                  aria-label={label}
+                  title={label}
                   className={cn(
-                    'p-2 rounded-md transition-colors',
+                    'shrink-0 p-2 rounded-md transition-colors',
                     isActive
                       ? 'bg-accent text-accent-foreground'
                       : 'text-primary-foreground/70 hover:bg-primary-foreground/10',
@@ -335,7 +339,7 @@ export default function AppShell({ children }: AppShellProps) {
             >
               <LogOut size={18} />
             </button>
-          </div>
+          </nav>
         </div>
 
         {/* Main content */}

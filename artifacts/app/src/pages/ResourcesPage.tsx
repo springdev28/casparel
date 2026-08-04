@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useSearch as useRouteSearch, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2, GraduationCap, FileText, Video, FileType2, Headphones, MousePointerClick, ImageIcon } from 'lucide-react';
+import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2, GraduationCap, FileText, Video, FileType2, Headphones, MousePointerClick, ImageIcon, ShieldCheck, CircleHelp } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -45,10 +45,19 @@ const FORMAT_COLORS: Record<string, string> = {
   article:     'bg-blue-100 text-blue-700',
   video:       'bg-red-100 text-red-700',
   pdf:         'bg-orange-100 text-orange-700',
+
   podcast:     'bg-purple-100 text-purple-700',
   interactive: 'bg-emerald-100 text-emerald-700',
   other:       'bg-gray-100 text-gray-700',
 };
+function ProvenanceBadge({ resource }: { resource: DiscoveredResource }) {
+  if (!resource.provenanceLevel) return null;
+  const labels = { institutional: "Institutional source", established: "Established platform", independent: "Independent source", unknown: "Unknown source" } as const;
+  const colors = { institutional: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700", established: "border-blue-500/30 bg-blue-500/10 text-blue-700", independent: "border-amber-500/30 bg-amber-500/10 text-amber-700", unknown: "border-muted bg-muted text-muted-foreground" } as const;
+  const level = resource.provenanceLevel;
+  return <details className="group mt-2 text-xs"><summary className={`inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full border px-2 py-1 font-medium ${colors[level]}`}><ShieldCheck className="size-3.5" />{labels[level]}{resource.linkChecked && <span aria-label="Link checked">· link checked</span>}<CircleHelp className="size-3 opacity-60" /></summary><div className="mt-2 rounded-lg border bg-muted/40 p-2.5 text-muted-foreground"><p className="mb-1 font-medium text-foreground">Why this label?</p><ul className="space-y-1">{resource.provenanceSignals?.map((signal) => <li key={signal}>• {signal}</li>)}</ul><p className="mt-2 text-[11px]">Publisher provenance and link availability do not verify every claim in the content.</p></div></details>;
+}
+
 
 function getYouTubeId(url: string): string | null {
   try {
@@ -232,6 +241,7 @@ function WebCard({ resource, onAdd, adding }: {
         </div>
         <CardDescription className="text-xs">
           {resource.source}{resource.subject ? ` · ${resource.subject}` : ''}{resource.gradeLevel ? ` · ${resource.gradeLevel}` : ''}
+        <ProvenanceBadge resource={resource} />
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-2 flex-1">
@@ -263,6 +273,7 @@ function SourceCard({ resource }: { resource: DiscoveredResource }) {
         </div>
         <CardTitle className="text-lg leading-snug">{resource.title}</CardTitle>
         <CardDescription className="truncate">{hostname}</CardDescription>
+        <ProvenanceBadge resource={resource} />
       </CardHeader>
       <CardContent className="flex-1">
         <p className="line-clamp-3 text-sm text-muted-foreground">{resource.description}</p>

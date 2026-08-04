@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, or, ilike, inArray, ne, sql } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
-import { db, usersTable, classMembersTable } from "@workspace/db";
+import { db, usersTable, classMembersTable, userBlocksTable, userReportsTable } from "@workspace/db";
 import {
   RegisterBody,
   LoginBody,
@@ -19,6 +19,7 @@ import {
   SetPresetAvatarBody,
   SetPresetAvatarResponse,
   SearchUsersQueryParams,
+  GetUserSafetyStatusParams, GetUserSafetyStatusResponse, BlockUserParams, BlockUserResponse, UnblockUserParams, ReportUserParams, ReportUserBody, ReportUserResponse,
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
@@ -241,6 +242,26 @@ router.put("/users/me/avatar/preset", requireAuth, async (req, res): Promise<voi
   res.json(SetPresetAvatarResponse.parse(user));
 });
 
+type PrivacyUser = Pick<typeof usersTable.$inferSelect, "id" | "name" | "role" | "avatarUrl" | "bio" | "subjects" | "gradeOrDept" | "websiteUrl" | "profileVisibility" | "showBio" | "showSubjects" | "showGradeOrDept" | "showWebsite">;
+
+const privacyUserSelection = { id: usersTable.id, name: usersTable.name, role: usersTable.role, avatarUrl: usersTable.avatarUrl, bio: usersTable.bio, subjects: usersTable.subjects, gradeOrDept: usersTable.gradeOrDept, websiteUrl: usersTable.websiteUrl, profileVisibility: usersTable.profileVisibility, showBio: usersTable.showBio, showSubjects: usersTable.showSubjects, showGradeOrDept: usersTable.showGradeOrDept, showWebsite: usersTable.showWebsite };
+
+function maskPublicUser(user: PrivacyUser) {
+  return { id: user.id, name: user.name, role: user.role, avatarUrl: user.avatarUrl, bio: user.showBio ? user.bio : null, subjects: user.showSubjects ? user.subjects : null, gradeOrDept: user.showGradeOrDept ? user.gradeOrDept : null, websiteUrl: user.showWebsite ? user.websiteUrl : null };
+}
+
+async function sharesClass(firstUserId: number, secondUserId: number): Promise<boolean> {
+  const firstClasses = await db.select({ classId: classMembersTable.classId }).from(classMembersTable).where(eq(classMembersTable.userId, firstUserId));
+  if (!firstClasses.length) return false;
+  const [shared] = await db.select({ userId: classMembersTable.userId }).from(classMembersTable).where(and(eq(classMembersTable.userId, secondUserId), inArray(classMembersTable.classId, firstClasses.map((item) => item.classId)))).limit(1);
+  return !!shared;
+}
+
+async function blockedIdsFor(userId: number): Promise<Set<number>> {
+  const rows = await db.select({ blockerId: userBlocksTable.blockerId, blockedId: userBlocksTable.blockedId }).from(userBlocksTable).where(or(eq(userBlocksTable.blockerId, userId), eq(userBlocksTable.blockedId, userId)));
+  return new Set(rows.map((row) => row.blockerId === userId ? row.blockedId : row.blockerId));
+}
+
 // GET /users/search — shared classmates by default; opt-in profile discovery with scope=all
 router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
@@ -250,42 +271,35 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const { q = "", classId, scope = "shared", role, subject = "", limit = 24, offset = 0 } = parsed.data;
+  const blockedIds = await blockedIdsFor(userId);
   const searchTerm = q.trim().replace(/\s+/g, " ");
   const subjectTerm = subject.trim();
 
   if (scope === "all") {
-    const conditions = [ne(usersTable.id, userId)];
+    const conditions = [ne(usersTable.id, userId), eq(usersTable.profileVisibility, "everyone" as const)];
     if (role) conditions.push(eq(usersTable.role, role));
     if (searchTerm) {
       const pattern = `%${searchTerm}%`;
       conditions.push(or(
         ilike(usersTable.name, pattern),
-        ilike(usersTable.bio, pattern),
-        ilike(usersTable.gradeOrDept, pattern),
-        sql`array_to_string(${usersTable.subjects}, ' ') ilike ${pattern}`,
+        and(eq(usersTable.showBio, true), ilike(usersTable.bio, pattern)),
+        and(eq(usersTable.showGradeOrDept, true), ilike(usersTable.gradeOrDept, pattern)),
+        and(eq(usersTable.showSubjects, true), sql`array_to_string(${usersTable.subjects}, ' ') ilike ${pattern}`),
       )!);
     }
     if (subjectTerm) {
       const pattern = `%${subjectTerm}%`;
       conditions.push(or(
-        sql`array_to_string(${usersTable.subjects}, ' ') ilike ${pattern}`,
-        ilike(usersTable.bio, pattern),
-        ilike(usersTable.gradeOrDept, pattern),
+        and(eq(usersTable.showSubjects, true), sql`array_to_string(${usersTable.subjects}, ' ') ilike ${pattern}`),
+        and(eq(usersTable.showBio, true), ilike(usersTable.bio, pattern)),
+        and(eq(usersTable.showGradeOrDept, true), ilike(usersTable.gradeOrDept, pattern)),
       )!);
     }
     const relevance = searchTerm
-      ? sql`case when lower(${usersTable.name}) = lower(${searchTerm}) then 0 when lower(${usersTable.name}) like lower(${searchTerm}) || chr(37) then 1 when array_to_string(${usersTable.subjects}, ' ') ilike ${`%${searchTerm}%`} then 2 when ${usersTable.gradeOrDept} ilike ${`%${searchTerm}%`} then 3 else 4 end`
+      ? sql`case when lower(${usersTable.name}) = lower(${searchTerm}) then 0 when lower(${usersTable.name}) like lower(${searchTerm}) || chr(37) then 1 else 2 end`
       : usersTable.name;
-    const users = await db.select({
-      id: usersTable.id,
-      name: usersTable.name,
-      role: usersTable.role,
-      avatarUrl: usersTable.avatarUrl,
-      bio: usersTable.bio,
-      subjects: usersTable.subjects,
-      gradeOrDept: usersTable.gradeOrDept,
-    }).from(usersTable).where(and(...conditions)).orderBy(relevance, usersTable.name).limit(limit).offset(offset);
-    res.json(users);
+    const users = await db.select(privacyUserSelection).from(usersTable).where(and(...conditions)).orderBy(relevance, usersTable.name).limit(limit).offset(offset);
+    res.json(users.filter((user) => !blockedIds.has(user.id)).map(maskPublicUser));
     return;
   }
 
@@ -300,48 +314,73 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
     .from(classMembersTable)
     .where(and(inArray(classMembersTable.classId, classIds), ne(classMembersTable.userId, userId)));
   if (sharedMemberRows.length === 0) { res.json([]); return; }
-  let users = await db.select({
-    id: usersTable.id,
-    name: usersTable.name,
-    role: usersTable.role,
-    avatarUrl: usersTable.avatarUrl,
-    bio: usersTable.bio,
-    subjects: usersTable.subjects,
-    gradeOrDept: usersTable.gradeOrDept,
-  }).from(usersTable).where(inArray(usersTable.id, sharedMemberRows.map((item) => item.userId)));
+  let users = await db.select(privacyUserSelection)
+    .from(usersTable)
+    .where(and(inArray(usersTable.id, sharedMemberRows.map((item) => item.userId)), ne(usersTable.profileVisibility, "private")));
   if (searchTerm) {
     const lower = searchTerm.toLowerCase();
     users = users.filter((user) => user.name.toLowerCase().includes(lower));
   }
-  res.json(users.slice(offset, offset + limit));
+  res.json(users.filter((user) => !blockedIds.has(user.id)).slice(offset, offset + limit).map(maskPublicUser));
 });
 
-// GET /users/:id — public profile (requires auth, returns safe subset)
+async function usersHaveBlock(firstId: number, secondId: number): Promise<boolean> {
+  const [blocked] = await db.select({ id: userBlocksTable.id }).from(userBlocksTable).where(or(
+    and(eq(userBlocksTable.blockerId, firstId), eq(userBlocksTable.blockedId, secondId)),
+    and(eq(userBlocksTable.blockerId, secondId), eq(userBlocksTable.blockedId, firstId)),
+  )).limit(1);
+  return !!blocked;
+}
+
+router.get("/users/:id/safety", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = GetUserSafetyStatusParams.safeParse({ id: Number(req.params.id) });
+  if (!params.success || params.data.id === userId) { res.status(400).json({ error: "Invalid user ID" }); return; }
+  const [row] = await db.select({ id: userBlocksTable.id }).from(userBlocksTable).where(and(eq(userBlocksTable.blockerId, userId), eq(userBlocksTable.blockedId, params.data.id))).limit(1);
+  res.json(GetUserSafetyStatusResponse.parse({ blocked: !!row }));
+});
+
+router.put("/users/:id/safety", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = BlockUserParams.safeParse({ id: Number(req.params.id) });
+  if (!params.success || params.data.id === userId) { res.status(400).json({ error: "You cannot block this user" }); return; }
+  const [target] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, params.data.id));
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+  await db.insert(userBlocksTable).values({ blockerId: userId, blockedId: target.id }).onConflictDoNothing();
+  res.json(BlockUserResponse.parse({ blocked: true }));
+});
+
+router.delete("/users/:id/safety", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = UnblockUserParams.safeParse({ id: Number(req.params.id) });
+  if (!params.success) { res.status(400).json({ error: "Invalid user ID" }); return; }
+  await db.delete(userBlocksTable).where(and(eq(userBlocksTable.blockerId, userId), eq(userBlocksTable.blockedId, params.data.id)));
+  res.sendStatus(204);
+});
+
+router.post("/users/:id/report", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = ReportUserParams.safeParse({ id: Number(req.params.id) });
+  const body = ReportUserBody.safeParse(req.body);
+  if (!params.success || !body.success || params.data.id === userId) { res.status(400).json({ error: "Invalid report" }); return; }
+  const [target] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, params.data.id));
+  if (!target) { res.status(404).json({ error: "User not found" }); return; }
+  await db.insert(userReportsTable).values({ reporterId: userId, reportedId: target.id, reason: body.data.reason, details: body.data.details?.trim() || null });
+  res.status(201).json(ReportUserResponse.parse({ received: true }));
+});
+
+// GET /users/:id — audience-checked profile with field-level masking
 router.get("/users/:id", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
   const parsed = GetPublicProfileParams.safeParse({ id: Number(req.params.id) });
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid user ID" });
-    return;
+  if (!parsed.success) { res.status(400).json({ error: "Invalid user ID" }); return; }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.id));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (user.id !== userId) {
+    if (user.profileVisibility === "private") { res.status(403).json({ error: "This profile is private" }); return; }
+    if (user.profileVisibility === "classmates" && !(await sharesClass(userId, user.id))) { res.status(403).json({ error: "This profile is visible to classmates only" }); return; }
   }
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.id, parsed.data.id));
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  res.json(
-    GetPublicProfileResponse.parse({
-      id: user.id,
-      name: user.name,
-      role: user.role,
-      avatarUrl: user.avatarUrl,
-      bio: user.bio,
-      subjects: user.subjects,
-      gradeOrDept: user.gradeOrDept,
-    }),
-  );
+  res.json(GetPublicProfileResponse.parse(maskPublicUser(user)));
 });
 
 export default router;

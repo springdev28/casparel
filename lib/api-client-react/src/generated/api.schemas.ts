@@ -17,6 +17,15 @@ export const UserRole = {
   teacher: 'teacher',
 } as const;
 
+export type UserProfileVisibility = typeof UserProfileVisibility[keyof typeof UserProfileVisibility];
+
+
+export const UserProfileVisibility = {
+  everyone: 'everyone',
+  classmates: 'classmates',
+  private: 'private',
+} as const;
+
 export interface User {
   id: number;
   email: string;
@@ -33,6 +42,11 @@ export interface User {
   timezone?: string | null;
   /** @nullable */
   websiteUrl?: string | null;
+  profileVisibility: UserProfileVisibility;
+  showBio: boolean;
+  showSubjects: boolean;
+  showGradeOrDept: boolean;
+  showWebsite: boolean;
   createdAt: string;
 }
 
@@ -48,6 +62,8 @@ export interface PublicUser {
   id: number;
   name: string;
   role: PublicUserRole;
+  /** @nullable */
+  websiteUrl?: string | null;
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
@@ -75,9 +91,23 @@ export interface AuthResponse {
   token: string;
 }
 
+export type UserUpdateProfileVisibility = typeof UserUpdateProfileVisibility[keyof typeof UserUpdateProfileVisibility];
+
+
+export const UserUpdateProfileVisibility = {
+  everyone: 'everyone',
+  classmates: 'classmates',
+  private: 'private',
+} as const;
+
 export interface UserUpdate {
   /** @minLength 1 */
   name?: string;
+  profileVisibility?: UserUpdateProfileVisibility;
+  showBio?: boolean;
+  showSubjects?: boolean;
+  showGradeOrDept?: boolean;
+  showWebsite?: boolean;
   /**
      * @maxLength 300
      * @nullable
@@ -90,6 +120,34 @@ export interface UserUpdate {
   timezone?: string | null;
   /** @nullable */
   websiteUrl?: string | null;
+}
+
+export interface UserSafetyStatus {
+  blocked: boolean;
+}
+
+export type ReportUserInputReason = typeof ReportUserInputReason[keyof typeof ReportUserInputReason];
+
+
+export const ReportUserInputReason = {
+  spam: 'spam',
+  harassment: 'harassment',
+  impersonation: 'impersonation',
+  unsafe_content: 'unsafe_content',
+  other: 'other',
+} as const;
+
+export interface ReportUserInput {
+  reason: ReportUserInputReason;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  details?: string | null;
+}
+
+export interface ReportUserResponse {
+  received: boolean;
 }
 
 export type PresetAvatarInputAvatarId = typeof PresetAvatarInputAvatarId[keyof typeof PresetAvatarInputAvatarId];
@@ -337,6 +395,57 @@ export interface ClassPatch {
   description?: string;
 }
 
+export type ClassroomDeskShape = typeof ClassroomDeskShape[keyof typeof ClassroomDeskShape];
+
+
+export const ClassroomDeskShape = {
+  rectangle: 'rectangle',
+  round: 'round',
+  oval: 'oval',
+  trapezoid: 'trapezoid',
+} as const;
+
+export interface ClassroomDesk {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  id: string;
+  shape: ClassroomDeskShape;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  x: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  y: number;
+  /**
+     * @minimum 8
+     * @maximum 60
+     */
+  width: number;
+  /**
+     * @minimum 8
+     * @maximum 60
+     */
+  height: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  rotation: number;
+  /**
+     * @minimum 1
+     * @maximum 8
+     */
+  capacity: number;
+  /** @maxLength 80 */
+  label: string;
+}
+
 export interface SeatingStudent {
   userId: number;
   name: string;
@@ -350,13 +459,66 @@ export interface SeatingStudent {
   seatRow?: number | null;
   /** @nullable */
   seatColumn?: number | null;
+  /** @nullable */
+  seatDeskId?: string | null;
+  /** @nullable */
+  seatPosition?: number | null;
 }
+
+export type SeatingChartLayoutMode = typeof SeatingChartLayoutMode[keyof typeof SeatingChartLayoutMode];
+
+
+export const SeatingChartLayoutMode = {
+  grid: 'grid',
+  custom: 'custom',
+} as const;
 
 export interface SeatingChart {
   classId: number;
   rows: number;
   columns: number;
+  layoutMode: SeatingChartLayoutMode;
+  desks: ClassroomDesk[];
   students: SeatingStudent[];
+}
+
+export interface SeatingPlanSuggestionInput {
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  priorities?: string | null;
+}
+
+export interface ExplainedSeatingAssignment {
+  userId: number;
+  /** @nullable */
+  row: number | null;
+  /** @nullable */
+  column: number | null;
+  /** @nullable */
+  deskId: string | null;
+  /** @nullable */
+  deskSeat: number | null;
+  reason: string;
+}
+
+export type SeatingPlanSuggestionLayoutMode = typeof SeatingPlanSuggestionLayoutMode[keyof typeof SeatingPlanSuggestionLayoutMode];
+
+
+export const SeatingPlanSuggestionLayoutMode = {
+  grid: 'grid',
+  custom: 'custom',
+} as const;
+
+export interface SeatingPlanSuggestion {
+  rows: number;
+  columns: number;
+  layoutMode: SeatingPlanSuggestionLayoutMode;
+  desks: ClassroomDesk[];
+  summary: string;
+  considerations: string[];
+  assignments: ExplainedSeatingAssignment[];
 }
 
 export interface SeatingAssignment {
@@ -365,7 +527,19 @@ export interface SeatingAssignment {
   row?: number | null;
   /** @nullable */
   column?: number | null;
+  /** @nullable */
+  deskId?: string | null;
+  /** @nullable */
+  deskSeat?: number | null;
 }
+
+export type SeatingChartInputLayoutMode = typeof SeatingChartInputLayoutMode[keyof typeof SeatingChartInputLayoutMode];
+
+
+export const SeatingChartInputLayoutMode = {
+  grid: 'grid',
+  custom: 'custom',
+} as const;
 
 export interface SeatingChartInput {
   /**
@@ -378,6 +552,9 @@ export interface SeatingChartInput {
      * @maximum 10
      */
   columns: number;
+  layoutMode: SeatingChartInputLayoutMode;
+  /** @maxItems 50 */
+  desks: ClassroomDesk[];
   /** @maxItems 100 */
   assignments: SeatingAssignment[];
 }
@@ -517,6 +694,16 @@ export const DiscoveredResourceFormat = {
   other: 'other',
 } as const;
 
+export type DiscoveredResourceProvenanceLevel = typeof DiscoveredResourceProvenanceLevel[keyof typeof DiscoveredResourceProvenanceLevel];
+
+
+export const DiscoveredResourceProvenanceLevel = {
+  institutional: 'institutional',
+  established: 'established',
+  independent: 'independent',
+  unknown: 'unknown',
+} as const;
+
 export interface DiscoveredResource {
   title: string;
   url: string;
@@ -529,6 +716,10 @@ export interface DiscoveredResource {
   subject?: string | null;
   /** @nullable */
   gradeLevel?: string | null;
+  provenanceLevel?: DiscoveredResourceProvenanceLevel;
+  provenanceSignals?: string[];
+  linkChecked?: boolean;
+  checkedAt?: string;
 }
 
 export interface SourceReviewLink {
@@ -973,7 +1164,7 @@ gradeLevel?: string;
  */
 page?: number;
 /**
- * Return specific learning content, direct publisher websites and channels, or public social profiles for people discovery
+ * Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
  */
 resultType?: DiscoverResourcesResultType;
 };

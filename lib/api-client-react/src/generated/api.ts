@@ -61,6 +61,8 @@ import type {
   PublicUser,
   RegisterInput,
   ReorderListItemsInput,
+  ReportUserInput,
+  ReportUserResponse,
   Resource,
   ResourceInput,
   ResourceList,
@@ -77,6 +79,8 @@ import type {
   SearchUsersParams,
   SeatingChart,
   SeatingChartInput,
+  SeatingPlanSuggestion,
+  SeatingPlanSuggestionInput,
   SeatingStudent,
   ShareListInput,
   SourceReview,
@@ -87,6 +91,7 @@ import type {
   StudySessionWithParticipants,
   UploadAvatarBody,
   User,
+  UserSafetyStatus,
   UserUpdate
 } from './api.schemas';
 
@@ -775,6 +780,297 @@ export function useGetPublicProfile<TData = Awaited<ReturnType<typeof getPublicP
 
 
 
+
+export const getGetUserSafetyStatusUrl = (id: number,) => {
+
+
+
+
+  return `/api/users/${id}/safety`
+}
+
+/**
+ * @summary Check whether the current user has blocked another user
+ */
+export const getUserSafetyStatus = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<UserSafetyStatus> => {
+
+  return customFetch<UserSafetyStatus>(getGetUserSafetyStatusUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUserSafetyStatusQueryKey = (id: number,) => {
+    return [
+    `/api/users/${id}/safety`
+    ] as const;
+    }
+
+
+export const getGetUserSafetyStatusQueryOptions = <TData = Awaited<ReturnType<typeof getUserSafetyStatus>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserSafetyStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserSafetyStatusQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserSafetyStatus>>> = ({ signal }) => getUserSafetyStatus(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserSafetyStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUserSafetyStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getUserSafetyStatus>>>
+export type GetUserSafetyStatusQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Check whether the current user has blocked another user
+ */
+
+export function useGetUserSafetyStatus<TData = Awaited<ReturnType<typeof getUserSafetyStatus>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserSafetyStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUserSafetyStatusQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getBlockUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/users/${id}/safety`
+}
+
+/**
+ * @summary Block a user from profile access and collaboration
+ */
+export const blockUser = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<UserSafetyStatus> => {
+
+  return customFetch<UserSafetyStatus>(getBlockUserUrl(id),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getBlockUserMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof blockUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof blockUser>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['blockUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof blockUser>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  blockUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BlockUserMutationResult = NonNullable<Awaited<ReturnType<typeof blockUser>>>
+
+    export type BlockUserMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Block a user from profile access and collaboration
+ */
+export const useBlockUser = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof blockUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof blockUser>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getBlockUserMutationOptions(options));
+    }
+
+export const getUnblockUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/users/${id}/safety`
+}
+
+/**
+ * @summary Unblock a user
+ */
+export const unblockUser = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getUnblockUserUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnblockUserMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unblockUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unblockUser>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['unblockUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unblockUser>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  unblockUser(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnblockUserMutationResult = NonNullable<Awaited<ReturnType<typeof unblockUser>>>
+
+    export type UnblockUserMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Unblock a user
+ */
+export const useUnblockUser = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unblockUser>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unblockUser>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getUnblockUserMutationOptions(options));
+    }
+
+export const getReportUserUrl = (id: number,) => {
+
+
+
+
+  return `/api/users/${id}/report`
+}
+
+/**
+ * @summary Privately report a user for moderation review
+ */
+export const reportUser = async (id: number,
+    reportUserInput: ReportUserInput, options?: Parameters<typeof customFetch>[1]): Promise<ReportUserResponse> => {
+
+  return customFetch<ReportUserResponse>(getReportUserUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reportUserInput)
+  }
+);}
+
+
+
+
+
+export const getReportUserMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportUser>>, TError,{id: number;data: BodyType<ReportUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportUser>>, TError,{id: number;data: BodyType<ReportUserInput>}, TContext> => {
+
+const mutationKey = ['reportUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportUser>>, {id: number;data: BodyType<ReportUserInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reportUser(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportUserMutationResult = NonNullable<Awaited<ReturnType<typeof reportUser>>>
+    export type ReportUserMutationBody = BodyType<ReportUserInput>
+    export type ReportUserMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Privately report a user for moderation review
+ */
+export const useReportUser = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reportUser>>, TError,{id: number;data: BodyType<ReportUserInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reportUser>>,
+        TError,
+        {id: number;data: BodyType<ReportUserInput>},
+        TContext
+      > => {
+      return useMutation(getReportUserMutationOptions(options));
+    }
 
 export const getSwitchRoleUrl = () => {
 
@@ -2021,6 +2317,78 @@ export const useUpdateStudentNote = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateStudentNoteMutationOptions(options));
+    }
+
+export const getSuggestSeatingPlanUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/seating-plan/suggest`
+}
+
+/**
+ * @summary Suggest an explainable seating plan from private teacher notes without applying it
+ */
+export const suggestSeatingPlan = async (id: number,
+    seatingPlanSuggestionInput: SeatingPlanSuggestionInput, options?: Parameters<typeof customFetch>[1]): Promise<SeatingPlanSuggestion> => {
+
+  return customFetch<SeatingPlanSuggestion>(getSuggestSeatingPlanUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(seatingPlanSuggestionInput)
+  }
+);}
+
+
+
+
+
+export const getSuggestSeatingPlanMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suggestSeatingPlan>>, TError,{id: number;data: BodyType<SeatingPlanSuggestionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof suggestSeatingPlan>>, TError,{id: number;data: BodyType<SeatingPlanSuggestionInput>}, TContext> => {
+
+const mutationKey = ['suggestSeatingPlan'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof suggestSeatingPlan>>, {id: number;data: BodyType<SeatingPlanSuggestionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  suggestSeatingPlan(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SuggestSeatingPlanMutationResult = NonNullable<Awaited<ReturnType<typeof suggestSeatingPlan>>>
+    export type SuggestSeatingPlanMutationBody = BodyType<SeatingPlanSuggestionInput>
+    export type SuggestSeatingPlanMutationError = ErrorType<void>
+
+    /**
+ * @summary Suggest an explainable seating plan from private teacher notes without applying it
+ */
+export const useSuggestSeatingPlan = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof suggestSeatingPlan>>, TError,{id: number;data: BodyType<SeatingPlanSuggestionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof suggestSeatingPlan>>,
+        TError,
+        {id: number;data: BodyType<SeatingPlanSuggestionInput>},
+        TContext
+      > => {
+      return useMutation(getSuggestSeatingPlanMutationOptions(options));
     }
 
 export const getGetClassResourcesListUrl = (id: number,) => {

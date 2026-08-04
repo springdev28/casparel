@@ -12,6 +12,8 @@ export interface PublicUser {
   name: string;
   role: PublicUserRole;
   /** @nullable */
+  websiteUrl?: string | null;
+  /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
   bio?: string | null;

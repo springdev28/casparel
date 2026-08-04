@@ -6,14 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SeatingAssignment {
+export interface ExplainedSeatingAssignment {
   userId: number;
   /** @nullable */
-  row?: number | null;
+  row: number | null;
   /** @nullable */
-  column?: number | null;
+  column: number | null;
   /** @nullable */
-  deskId?: string | null;
+  deskId: string | null;
   /** @nullable */
-  deskSeat?: number | null;
+  deskSeat: number | null;
+  reason: string;
 }

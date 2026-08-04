@@ -5,7 +5,9 @@
  * Schoolar API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { ClassroomDesk } from './classroomDesk';
 import type { SeatingAssignment } from './seatingAssignment';
+import type { SeatingChartInputLayoutMode } from './seatingChartInputLayoutMode';
 
 export interface SeatingChartInput {
   /**
@@ -18,6 +20,9 @@ export interface SeatingChartInput {
      * @maximum 10
      */
   columns: number;
+  layoutMode: SeatingChartInputLayoutMode;
+  /** @maxItems 50 */
+  desks: ClassroomDesk[];
   /** @maxItems 100 */
   assignments: SeatingAssignment[];
 }

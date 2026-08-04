@@ -1,17 +1,67 @@
-import { useParams } from 'wouter';
-import { User, Globe, Tag, GraduationCap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useParams, useLocation } from 'wouter';
+import { User, Globe, Tag, GraduationCap, ExternalLink, ShieldBan, Flag, Loader2, ClipboardPen } from 'lucide-react';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
+import { Button } from '@workspace/edu-ds/components/ui/button';
+import { Textarea } from '@workspace/edu-ds/components/ui/textarea';
+import { toast } from '@workspace/edu-ds/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Separator } from '@workspace/edu-ds/components/ui/separator';
-import { useGetPublicProfile, getGetPublicProfileQueryKey } from '@workspace/api-client-react';
+import { useGetPublicProfile, getGetPublicProfileQueryKey, useGetUserSafetyStatus, getGetUserSafetyStatusQueryKey, useBlockUser, useUnblockUser, useReportUser, ReportUserInputReason, useGetSeatingChart, getGetSeatingChartQueryKey, useUpdateStudentNote } from '@workspace/api-client-react';
 
 export default function UserProfilePage() {
   const { userId } = useParams<{ userId: string }>();
   const id = Number(userId);
+  const classId = Number(new URLSearchParams(window.location.search).get("classId"));
+  const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<ReportUserInputReason>(ReportUserInputReason.other);
+  const [reportDetails, setReportDetails] = useState("");
+  const safety = useGetUserSafetyStatus(id, { query: { enabled: !isNaN(id), queryKey: getGetUserSafetyStatusQueryKey(id) } });
+  const blockUser = useBlockUser(), unblockUser = useUnblockUser(), reportUser = useReportUser();
+  const classChart = useGetSeatingChart(classId, { query: { enabled: Number.isInteger(classId) && classId > 0, queryKey: getGetSeatingChartQueryKey(classId), retry: false } });
+  const updateStudentNote = useUpdateStudentNote();
+  const classStudent = classChart.data?.students.find((student) => student.userId === id);
+  const [teacherNote, setTeacherNote] = useState("");
+  useEffect(() => setTeacherNote(classStudent?.teacherNote ?? ""), [classStudent?.teacherNote]);
   const { data: profile, isLoading, isError } = useGetPublicProfile(id, {
     query: { enabled: !isNaN(id), queryKey: getGetPublicProfileQueryKey(id) },
   });
+
+  async function saveTeacherNote() {
+    if (!classStudent) return;
+    try {
+      await updateStudentNote.mutateAsync({ id: classId, userId: id, data: { note: teacherNote.trim() || null } });
+      await queryClient.invalidateQueries({ queryKey: getGetSeatingChartQueryKey(classId) });
+      toast({ title: "Private student note saved", description: "Future seating suggestions will use the updated note." });
+    } catch { toast({ title: "Could not save private note", variant: "destructive" }); }
+  }
+
+  async function toggleBlock() {
+    try {
+      if (safety.data?.blocked) {
+        await unblockUser.mutateAsync({ id });
+        await queryClient.invalidateQueries({ queryKey: getGetUserSafetyStatusQueryKey(id) });
+        toast({ title: "User unblocked" });
+      } else {
+        if (!window.confirm("Block this user? You will no longer be able to view each other or collaborate in study sessions.")) return;
+        await blockUser.mutateAsync({ id });
+        toast({ title: "User blocked", description: "They can no longer view your profile or collaborate with you." });
+        setLocation("/people");
+      }
+    } catch { toast({ title: "Could not update block", variant: "destructive" }); }
+  }
+
+  async function submitReport() {
+    try {
+      await reportUser.mutateAsync({ id, data: { reason: reportReason, details: reportDetails.trim() || null } });
+      setReportOpen(false); setReportDetails("");
+      toast({ title: "Report received", description: "Thanks. This was submitted privately for moderation review." });
+    } catch { toast({ title: "Could not submit report", variant: "destructive" }); }
+  }
 
   if (isLoading) {
     return (
@@ -62,6 +112,32 @@ export default function UserProfilePage() {
         </CardContent>
       </Card>
 
+      {classStudent && <Card className="border-primary/20">
+        <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><ClipboardPen className="size-4 text-primary" />Private teacher note · class seating</CardTitle></CardHeader>
+        <CardContent className="space-y-3"><p className="text-xs text-muted-foreground">Only teachers of this class can see this note. The seating assistant uses its latest saved wording, including named relationships.</p><Textarea value={teacherNote} onChange={(event) => setTeacherNote(event.target.value)} maxLength={2000} rows={5} placeholder={`Example:  talks a lot with Jane. Keep them at different desks.`} /><Button onClick={saveTeacherNote} disabled={updateStudentNote.isPending}>{updateStudentNote.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}Save private note</Button></CardContent>
+      </Card>}
+
+      <Card className="border-border/80">
+        <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><ShieldBan className="size-4" />Safety controls</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">Blocking is private. Blocked users cannot view your profile or join collaborative study sessions with you.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={toggleBlock} disabled={blockUser.isPending || unblockUser.isPending || safety.isLoading}>
+              {(blockUser.isPending || unblockUser.isPending) ? <Loader2 className="mr-2 size-4 animate-spin" /> : <ShieldBan className="mr-2 size-4" />}
+              {safety.data?.blocked ? "Unblock user" : "Block user"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setReportOpen((open) => !open)}><Flag className="mr-2 size-4" />Report privately</Button>
+          </div>
+          {reportOpen && <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+            <label className="block text-xs font-medium">Reason<select className="mt-1 h-10 w-full rounded-md border bg-background px-3 text-sm" value={reportReason} onChange={(event) => setReportReason(event.target.value as ReportUserInputReason)}>
+              <option value={ReportUserInputReason.spam}>Spam</option><option value={ReportUserInputReason.harassment}>Harassment</option><option value={ReportUserInputReason.impersonation}>Impersonation</option><option value={ReportUserInputReason.unsafe_content}>Unsafe content</option><option value={ReportUserInputReason.other}>Other</option>
+            </select></label>
+            <Textarea value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} maxLength={1000} rows={3} placeholder="Optional context for the moderation team…" />
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="ghost" size="sm" onClick={() => setReportOpen(false)}>Cancel</Button><Button size="sm" onClick={submitReport} disabled={reportUser.isPending}>{reportUser.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}Submit report</Button></div>
+          </div>}
+        </CardContent>
+      </Card>
+
       {/* Bio */}
       {profile.bio && (
         <Card>
@@ -91,22 +167,13 @@ export default function UserProfilePage() {
       )}
 
       {/* Details */}
-      {(profile.gradeOrDept) && (
+      {(profile.gradeOrDept || profile.websiteUrl) && (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <GraduationCap size={15} className="text-muted-foreground" />
-              Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <GraduationCap size={15} className="text-muted-foreground shrink-0" />
-              <span className="text-sm text-muted-foreground w-28 shrink-0">
-                {profile.role === 'teacher' ? 'Department' : 'Grade'}
-              </span>
-              <span className="text-sm text-foreground">{profile.gradeOrDept}</span>
-            </div>
+          <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><GraduationCap size={15} className="text-muted-foreground" />Details</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {profile.gradeOrDept && <div className="flex items-center gap-2"><GraduationCap size={15} className="shrink-0 text-muted-foreground" /><span className="w-28 shrink-0 text-sm text-muted-foreground">{profile.role === "teacher" ? "Department" : "Grade"}</span><span className="text-sm text-foreground">{profile.gradeOrDept}</span></div>}
+            {profile.gradeOrDept && profile.websiteUrl && <Separator />}
+            {profile.websiteUrl && <a href={profile.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline"><Globe size={15} className="shrink-0" /><span className="min-w-0 flex-1 truncate">{profile.websiteUrl}</span><ExternalLink size={14} className="shrink-0" /></a>}
           </CardContent>
         </Card>
       )}

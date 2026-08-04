@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, Link } from 'wouter';
-import { GraduationCap } from 'lucide-react';
+import BrandIcon from '../../components/BrandIcon';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -38,7 +38,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-2">
-            <GraduationCap size={32} className="text-primary" />
+            <BrandIcon className="h-20 w-36 text-foreground" label="Schoolar" />
             <span className="text-2xl font-bold text-primary">Schoolar</span>
           </div>
           <p className="text-sm text-muted-foreground">{copy.tagline}</p>

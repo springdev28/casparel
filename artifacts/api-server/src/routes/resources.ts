@@ -338,19 +338,51 @@ function isDirectSourceUrl(rawUrl: string): boolean {
   } catch { return false; }
 }
 
-function isDirectSocialProfileUrl(rawUrl: string): boolean {
+export function isDirectPeopleProfileUrl(rawUrl: string): boolean {
   if (/\s|%20/i.test(rawUrl)) return false;
   try {
     const url = new URL(rawUrl);
+    if (!["http:", "https:"].includes(url.protocol)) return false;
     const host = url.hostname.replace(/^www\./, "").toLowerCase();
     const parts = url.pathname.split("/").filter(Boolean);
-    if (host === "linkedin.com") return parts[0] === "in" && parts.length === 2;
-    if (host === "youtube.com") return parts.length >= 1 && (parts[0].startsWith("@") || ["channel", "c", "user"].includes(parts[0]));
+    const first = parts[0]?.toLowerCase() ?? "";
+    if (["search", "arama", "ara", "explore", "topics", "publications", "news"].includes(first)) return false;
+    if (/\.(pdf|docx?|pptx?|xlsx?)$/i.test(url.pathname)) return false;
+
+    if (host === "linkedin.com") return first === "in" && parts.length === 2;
+    if (host === "youtube.com") return parts.length >= 1 && (parts[0].startsWith("@") || ["channel", "c", "user"].includes(first));
     if (["x.com", "twitter.com", "instagram.com", "tiktok.com", "github.com"].includes(host)) {
-      return parts.length === 1 && !["search", "explore", "topics"].includes(parts[0]?.toLowerCase() ?? "");
+      return parts.length === 1 && !["search", "explore", "topics"].includes(first);
     }
-    return false;
+    if (host === "scholar.google.com" || host.startsWith("scholar.google.")) {
+      return url.pathname === "/citations" && !!url.searchParams.get("user");
+    }
+    if (host === "orcid.org") return parts.length === 1 && /^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/i.test(parts[0]);
+    if (host === "researchgate.net") return first === "profile" && parts.length >= 2;
+    if (host === "semanticscholar.org") return first === "author" && parts.length >= 2;
+
+    const academicHost = host.endsWith(".edu") || host.includes(".edu.") || host.endsWith(".ac.uk") || host.includes(".ac.");
+    if (!academicHost || parts.length === 0) return false;
+    const pathSegments = parts.map((part) => part.toLowerCase());
+    if (pathSegments.some((part) => /^(search|arama|haber|news|duyuru|announcement|publication|yayin|article|makale|award|press|event)/i.test(part))) return false;
+    if (pathSegments.some((part) => /(^|[-_])(awards?|press|events?)([-_]|$)/i.test(part))) return false;
+    return true;
   } catch { return false; }
+}
+
+function addProvenance<T extends { url: string }>(item: T, linkChecked: boolean) {
+  try {
+    const url = new URL(item.url);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    const institutional = host.endsWith(".edu") || host.includes(".edu.") || host.includes(".ac.") || host.endsWith(".gov") || host.includes(".gov.");
+    const establishedHosts = ["khanacademy.org", "wikipedia.org", "youtube.com", "ted.com", "coursera.org", "edx.org", "openstax.org", "orcid.org", "researchgate.net", "semanticscholar.org"];
+    const established = establishedHosts.some((known) => host === known || host.endsWith(`.${known}`));
+    const provenanceLevel = institutional ? "institutional" as const : established ? "established" as const : "independent" as const;
+    const provenanceSignals = [institutional ? "Academic or government domain" : established ? "Established publishing platform" : "Independent website", url.protocol === "https:" ? "Encrypted HTTPS link" : "Unencrypted HTTP link", linkChecked ? "Link responded during this search" : "Link was not availability-checked"];
+    return { ...item, provenanceLevel, provenanceSignals, linkChecked, checkedAt: new Date().toISOString() };
+  } catch {
+    return { ...item, provenanceLevel: "unknown" as const, provenanceSignals: ["Domain could not be classified"], linkChecked: false, checkedAt: new Date().toISOString() };
+  }
 }
 
 router.get("/resources/discover", discoverLimiter, async (req, res): Promise<void> => {
@@ -361,6 +393,8 @@ router.get("/resources/discover", discoverLimiter, async (req, res): Promise<voi
   }
 
   const { q, format, subject, gradeLevel, page = 1, resultType = "content" } = params.data;
+  const exactPersonSearch = resultType === "people" && q.trim().toLowerCase().startsWith("exact-person:");
+  const effectiveQuery = exactPersonSearch ? q.trim().slice("exact-person:".length).trim() : q;
   const cacheKey = JSON.stringify({ q: q.trim().toLowerCase(), format, subject: subject?.trim().toLowerCase(), gradeLevel, page, resultType });
   if (process.env.NODE_ENV !== "test") {
     const cached = discoverCache.get(cacheKey);
@@ -380,26 +414,29 @@ router.get("/resources/discover", discoverLimiter, async (req, res): Promise<voi
       ? ` Find a DIFFERENT set of resources from what you would normally return first — skip the most obvious results and surface less commonly known but equally high-quality alternatives.`
       : "";
 
-  const buildPrompt = (excludeUrls: string[] = []) => {
+  const buildPrompt = (excludeUrls: string[] = [], platformPass = false) => {
     const exclusionNote =
       excludeUrls.length > 0
         ? `\nDo NOT include any of these URLs (they are unreachable):\n${excludeUrls.map((u) => `- ${u}`).join("\n")}`
         : "";
+    const platformSearchRules = exactPersonSearch && platformPass
+      ? `This is the platform-coverage pass. Run targeted searches for the exact name and affiliation using site:linkedin.com/in, site:scholar.google.com/citations, site:orcid.org, site:researchgate.net/profile, site:github.com, and the official institution domain. Prioritize a direct LinkedIn profile when one is publicly indexed. Return only links confidently belonging to the same person.`
+      : "";
     const sourceRules = resultType === "source"
       ? "Return ONLY official publisher or institution landing pages and direct creator channel pages. Never return an individual article, lesson, course, video, episode, PDF, Wikipedia article, search page, category page, or playlist. For YouTube use a handle URL or /channel/... URL, never /watch or /playlist."
       : resultType === "people"
-        ? "Return ONLY direct public profiles of real students, researchers, educators, or subject professionals on LinkedIn, YouTube, X, Instagram, TikTok, or GitHub. Each URL must open that person profile, not a post, video, search page, company, school, topic, or hashtag. Do not guess handles or invent profiles."
+        ? "Return ONLY direct public profiles of real students, researchers, educators, or subject professionals. Include official university faculty pages, Google Scholar, ORCID, ResearchGate, Semantic Scholar, LinkedIn, YouTube, X, Instagram, TikTok, or GitHub. Each URL must open that person profile, not a post, video, search page, company, school, topic, or hashtag. Do not guess handles or invent profiles."
         : "Recommend specific lessons, articles, videos, documents, episodes, or interactive activities rather than generic homepages.";
-    const kind = resultType === "source" ? "sources and channels" : resultType === "people" ? "people and public profiles" : "resources";
+    const kind = resultType === "source" ? "sources and channels" : resultType === "people" ? "people and verified public profiles" : "resources";
     const preferenceRules = resultType === "people"
-      ? "Search specifically for indexed profile URLs on the allowed social platforms. Prefer established public-facing educators, researchers, science communicators, and subject professionals when private student profiles cannot be verified."
+      ? (exactPersonSearch ? "Return profiles belonging ONLY to this exact person and affiliation. Never broaden to related people or namesakes. " : "For broad subject, interest, department, or profession searches, return one best identity URL per distinct person and maximize distinct relevant people; do not spend the first response listing many links for one person. Search specifically for the exact person name first. When a university or country is present, prioritize the official university faculty profile, then Google Scholar or ORCID, then established social profiles. Preserve Turkish characters and also try their ASCII equivalents only as a fallback. Prefer established public-facing educators, researchers, science communicators, and subject professionals when private student profiles cannot be verified.")
       : resultType === "source"
         ? "Prefer official organisations, universities, nonprofits, and established educator channels."
         : "Prefer Khan Academy, MIT OpenCourseWare, Wikipedia, TED-Ed, and CrashCourse when relevant.";
-    return `Suggest up to 8 high-quality educational ${kind} for: "${q}"${subjectHint}${gradeHint}${resultType === "content" ? formatHint : ""}${pageHint}
+    return `Suggest up to 8 high-quality educational ${kind} for: "${effectiveQuery}"${subjectHint}${gradeHint}${resultType === "content" ? formatHint : ""}${pageHint}
 
 Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
-Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
+Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} ${platformSearchRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
   };
 
   try {
@@ -408,7 +445,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
     const firstBatch = resultType === "source"
       ? rawFirstBatch.filter((item) => isDirectSourceUrl(item.url))
       : resultType === "people"
-        ? rawFirstBatch.filter((item) => isDirectSocialProfileUrl(item.url))
+        ? rawFirstBatch.filter((item) => isDirectPeopleProfileUrl(item.url))
         : rawFirstBatch;
 
     if (firstBatch.length === 0 && resultType === "content") {
@@ -420,10 +457,10 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
     // are left to the browser so they cannot hold up otherwise useful results.
     const reachable = resultType === "people" ? firstBatch : await filterReachableUrls(firstBatch, 2000);
 
-    if (reachable.length >= DISCOVER_MIN_RESULTS) {
-      if (process.env.NODE_ENV !== "test") discoverCache.set(cacheKey, { expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS, items: reachable });
+    if (!exactPersonSearch && reachable.length >= DISCOVER_MIN_RESULTS) {
+      if (process.env.NODE_ENV !== "test") discoverCache.set(cacheKey, { expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS, items: reachable.map((item) => addProvenance(item, resultType !== "people")) });
       res.setHeader("X-Search-Cache", "MISS");
-      res.json(reachable);
+      res.json(reachable.map((item) => addProvenance(item, resultType !== "people")));
       return;
     }
 
@@ -437,11 +474,11 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       `Discover: ${deadUrls.length} dead URL(s) on first pass; re-invoking AI.`,
     );
 
-    const rawSecondBatch = await callDiscoverAI(buildPrompt(deadUrls));
+    const rawSecondBatch = await callDiscoverAI(buildPrompt(deadUrls, exactPersonSearch));
     const secondBatch = resultType === "source"
       ? rawSecondBatch.filter((item) => isDirectSourceUrl(item.url))
       : resultType === "people"
-        ? rawSecondBatch.filter((item) => isDirectSocialProfileUrl(item.url))
+        ? rawSecondBatch.filter((item) => isDirectPeopleProfileUrl(item.url))
         : rawSecondBatch;
     const reachableSecond = resultType === "people" ? secondBatch : await filterReachableUrls(secondBatch, 2000);
 
@@ -459,9 +496,9 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       return;
     }
 
-    if (process.env.NODE_ENV !== "test") discoverCache.set(cacheKey, { expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS, items: merged });
+    if (process.env.NODE_ENV !== "test") discoverCache.set(cacheKey, { expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS, items: merged.map((item) => addProvenance(item, resultType !== "people")) });
     res.setHeader("X-Search-Cache", "MISS");
-    res.json(merged);
+    res.json(merged.map((item) => addProvenance(item, resultType !== "people")));
   } catch (err) {
     console.error("Discover AI error:", err);
     res.status(502).json({ error: "Search failed. Please try again." });

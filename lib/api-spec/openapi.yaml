@@ -202,6 +202,60 @@ paths:
         "404":
           description: User not found
 
+
+  /users/{id}/safety:
+    get:
+      operationId: getUserSafetyStatus
+      tags: [auth]
+      summary: Check whether the current user has blocked another user
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Safety relationship
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserSafetyStatus" }
+    put:
+      operationId: blockUser
+      tags: [auth]
+      summary: Block a user from profile access and collaboration
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: User blocked
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserSafetyStatus" }
+    delete:
+      operationId: unblockUser
+      tags: [auth]
+      summary: Unblock a user
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: User unblocked }
+
+  /users/{id}/report:
+    post:
+      operationId: reportUser
+      tags: [auth]
+      summary: Privately report a user for moderation review
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReportUserInput" }
+      responses:
+        "201":
+          description: Report received
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportUserResponse" }
+
   /users/me/role:
     patch:
       operationId: switchRole
@@ -543,6 +597,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/SeatingStudent"
 
+  /classes/{id}/seating-plan/suggest:
+    post:
+      operationId: suggestSeatingPlan
+      tags: [classes]
+      summary: Suggest an explainable seating plan from private teacher notes without applying it
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeatingPlanSuggestionInput"
+      responses:
+        "200":
+          description: Reviewable seating suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeatingPlanSuggestion"
+        "403": { description: Not the class teacher }
+
   /classes/{id}/resources-list:
     get:
       operationId: getClassResourcesList
@@ -756,7 +835,7 @@ paths:
             type: string
             enum: [content, source, people]
             default: content
-          description: Return specific learning content, direct publisher websites and channels, or public social profiles for people discovery
+          description: Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
       responses:
         "200":
           description: Discovered resources from the web
@@ -1696,7 +1775,7 @@ components:
     # ── Auth ────────────────────────────────────────────────────────────────
     User:
       type: object
-      required: [id, email, name, role, createdAt]
+      required: [id, email, name, role, profileVisibility, showBio, showSubjects, showGradeOrDept, showWebsite, createdAt]
       properties:
         id:          { type: integer }
         email:       { type: string }
@@ -1708,6 +1787,11 @@ components:
         gradeOrDept: { type: ["string", "null"] }
         timezone:    { type: ["string", "null"] }
         websiteUrl:  { type: ["string", "null"] }
+        profileVisibility: { type: string, enum: [everyone, classmates, private] }
+        showBio:          { type: boolean }
+        showSubjects:     { type: boolean }
+        showGradeOrDept:  { type: boolean }
+        showWebsite:      { type: boolean }
         createdAt:   { type: string }
 
     PublicUser:
@@ -1717,6 +1801,7 @@ components:
         id:          { type: integer }
         name:        { type: string }
         role:        { type: string, enum: [student, teacher] }
+        websiteUrl:  { type: ["string", "null"] }
         avatarUrl:   { type: ["string", "null"] }
         bio:         { type: ["string", "null"] }
         subjects:    { type: array, items: { type: string }, nullable: true }
@@ -1748,11 +1833,35 @@ components:
       type: object
       properties:
         name:        { type: string, minLength: 1 }
+        profileVisibility: { type: string, enum: [everyone, classmates, private] }
+        showBio:          { type: boolean }
+        showSubjects:     { type: boolean }
+        showGradeOrDept:  { type: boolean }
+        showWebsite:      { type: boolean }
         bio:         { type: ["string", "null"], maxLength: 300 }
         subjects:    { type: array, items: { type: string }, nullable: true }
         gradeOrDept: { type: ["string", "null"] }
         timezone:    { type: ["string", "null"] }
         websiteUrl:  { type: ["string", "null"] }
+
+    UserSafetyStatus:
+      type: object
+      required: [blocked]
+      properties:
+        blocked: { type: boolean }
+
+    ReportUserInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, enum: [spam, harassment, impersonation, unsafe_content, other] }
+        details: { type: ["string", "null"], maxLength: 1000 }
+
+    ReportUserResponse:
+      type: object
+      required: [received]
+      properties:
+        received: { type: boolean }
 
     PresetAvatarInput:
       type: object
@@ -1876,6 +1985,20 @@ components:
         joinedAt: { type: string }
         user:     { $ref: "#/components/schemas/PublicUser" }
 
+    ClassroomDesk:
+      type: object
+      required: [id, shape, x, y, width, height, rotation, capacity, label]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 80 }
+        shape: { type: string, enum: [rectangle, round, oval, trapezoid] }
+        x: { type: number, minimum: 0, maximum: 100 }
+        y: { type: number, minimum: 0, maximum: 100 }
+        width: { type: number, minimum: 8, maximum: 60 }
+        height: { type: number, minimum: 8, maximum: 60 }
+        rotation: { type: number, minimum: -180, maximum: 180 }
+        capacity: { type: integer, minimum: 1, maximum: 8 }
+        label: { type: string, maxLength: 80 }
+
     SeatingStudent:
       type: object
       required: [userId, name]
@@ -1887,18 +2010,57 @@ components:
         teacherNote: { type: ["string", "null"] }
         seatRow: { type: ["integer", "null"] }
         seatColumn: { type: ["integer", "null"] }
+        seatDeskId: { type: ["string", "null"] }
+        seatPosition: { type: ["integer", "null"] }
 
     SeatingChart:
       type: object
-      required: [classId, rows, columns, students]
+      required: [classId, rows, columns, layoutMode, desks, students]
       properties:
         classId: { type: integer }
         rows: { type: integer }
         columns: { type: integer }
+        layoutMode: { type: string, enum: [grid, custom] }
+        desks:
+          type: array
+          items: { $ref: "#/components/schemas/ClassroomDesk" }
         students:
           type: array
-          items:
-            $ref: "#/components/schemas/SeatingStudent"
+          items: { $ref: "#/components/schemas/SeatingStudent" }
+
+    SeatingPlanSuggestionInput:
+      type: object
+      properties:
+        priorities: { type: ["string", "null"], maxLength: 1000 }
+
+    ExplainedSeatingAssignment:
+      type: object
+      required: [userId, row, column, deskId, deskSeat, reason]
+      properties:
+        userId: { type: integer }
+        row: { type: ["integer", "null"] }
+        column: { type: ["integer", "null"] }
+        deskId: { type: ["string", "null"] }
+        deskSeat: { type: ["integer", "null"] }
+        reason: { type: string }
+
+    SeatingPlanSuggestion:
+      type: object
+      required: [rows, columns, layoutMode, desks, summary, considerations, assignments]
+      properties:
+        rows: { type: integer }
+        columns: { type: integer }
+        layoutMode: { type: string, enum: [grid, custom] }
+        desks:
+          type: array
+          items: { $ref: "#/components/schemas/ClassroomDesk" }
+        summary: { type: string }
+        considerations:
+          type: array
+          items: { type: string }
+        assignments:
+          type: array
+          items: { $ref: "#/components/schemas/ExplainedSeatingAssignment" }
 
     SeatingAssignment:
       type: object
@@ -1907,18 +2069,24 @@ components:
         userId: { type: integer }
         row: { type: ["integer", "null"] }
         column: { type: ["integer", "null"] }
+        deskId: { type: ["string", "null"] }
+        deskSeat: { type: ["integer", "null"] }
 
     SeatingChartInput:
       type: object
-      required: [rows, columns, assignments]
+      required: [rows, columns, layoutMode, desks, assignments]
       properties:
         rows: { type: integer, minimum: 1, maximum: 10 }
         columns: { type: integer, minimum: 1, maximum: 10 }
+        layoutMode: { type: string, enum: [grid, custom] }
+        desks:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/ClassroomDesk" }
         assignments:
           type: array
           maxItems: 100
-          items:
-            $ref: "#/components/schemas/SeatingAssignment"
+          items: { $ref: "#/components/schemas/SeatingAssignment" }
 
     StudentNoteInput:
       type: object
@@ -2001,6 +2169,12 @@ components:
         subject:      { type: ["string", "null"] }
         gradeLevel:   { type: ["string", "null"] }
 
+        provenanceLevel: { type: string, enum: [institutional, established, independent, unknown] }
+        provenanceSignals:
+          type: array
+          items: { type: string }
+        linkChecked: { type: boolean }
+        checkedAt: { type: string }
     SourceReviewLink:
       type: object
       required: [label, url]

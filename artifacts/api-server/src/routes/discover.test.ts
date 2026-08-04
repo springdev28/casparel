@@ -68,9 +68,25 @@ vi.mock("../lib/check-url-reachable", () => ({
 
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { filterReachableUrls } from "../lib/check-url-reachable";
-import resourcesRouter from "./resources.js";
+import resourcesRouter, { isDirectPeopleProfileUrl } from "./resources.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+describe("people profile URL validation", () => {
+  it("accepts direct Turkish university and scholarly profiles", () => {
+    expect(isDirectPeopleProfileUrl("https://example.edu.tr/akademik/ayse-yilmaz")).toBe(true);
+    expect(isDirectPeopleProfileUrl("https://scholar.google.com/citations?user=abc123")).toBe(true);
+    expect(isDirectPeopleProfileUrl("https://orcid.org/0000-0002-1825-0097")).toBe(true);
+  });
+
+  it("rejects university search, news, and document pages", () => {
+    expect(isDirectPeopleProfileUrl("https://example.edu.tr/search/professor")).toBe(false);
+    expect(isDirectPeopleProfileUrl("https://example.edu.tr/news/professor-award")).toBe(false);
+    expect(isDirectPeopleProfileUrl("https://haber.example.edu.tr/en/newsdetail/professor-award")).toBe(false);
+    expect(isDirectPeopleProfileUrl("https://example.edu.tr/professor-receives-awards/")).toBe(false);
+    expect(isDirectPeopleProfileUrl("https://example.edu.tr/cv/professor.pdf")).toBe(false);
+  });
+});
+
 
 function buildApp() {
   const app = express();
@@ -111,6 +127,28 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe("exact-person platform coverage", () => {
+  it("runs a LinkedIn-targeted second pass even after three first-pass profiles", async () => {
+    const first = [
+      makeItem({ url: "https://example.edu.tr/faculty/ada-lovelace", title: "Ada Lovelace" }),
+      makeItem({ url: "https://scholar.google.com/citations?user=ada123", title: "Ada Lovelace" }),
+      makeItem({ url: "https://orcid.org/0000-0002-1825-0097", title: "Ada Lovelace" }),
+    ];
+    const linkedIn = makeItem({ url: "https://www.linkedin.com/in/ada-lovelace", title: "Ada Lovelace" });
+    vi.mocked(openai.responses.create)
+      .mockResolvedValueOnce(fakeAIResponse(first))
+      .mockResolvedValueOnce(fakeAIResponse([linkedIn]));
+
+    const res = await request(buildApp()).get("/api/resources/discover")
+      .query({ q: "exact-person: Ada Lovelace; affiliation: Example University", resultType: "people" });
+
+    expect(res.status).toBe(200);
+    expect(openai.responses.create).toHaveBeenCalledTimes(2);
+    expect((vi.mocked(openai.responses.create).mock.calls[1][0] as { input: string }).input).toContain("site:linkedin.com/in");
+    expect(res.body.some((item: { url: string }) => item.url.includes("linkedin.com/in/"))).toBe(true);
+  });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Happy path
 // ══════════════════════════════════════════════════════════════════════════════
@@ -134,6 +172,9 @@ describe("GET /api/resources/discover — filtering", () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(3);
     expect(res.body[0].url).toBe("https://khanacademy.org/a");
+    expect(res.body[0].provenanceLevel).toBe("established");
+    expect(res.body[0].linkChecked).toBe(true);
+    expect(res.body[0].provenanceSignals).toContain("Established publishing platform");
     // AI was called exactly once
     expect(openai.responses.create).toHaveBeenCalledTimes(1);
     // Reachability was checked exactly once

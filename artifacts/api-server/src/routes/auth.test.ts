@@ -48,6 +48,10 @@ import authRouter from "./auth.js";
 import { issueToken, decodeToken } from "../lib/auth.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+function withPrivacyDefaults(row: Record<string, unknown> | null) {
+  return row ? { profileVisibility: "classmates", showBio: true, showSubjects: true, showGradeOrDept: true, showWebsite: true, ...row } : null;
+}
+
 
 function buildApp() {
   const app = express();
@@ -79,9 +83,9 @@ beforeEach(() => {
         // For PATCH /users/me/role no selects happen at all (requireAuth
         // decodes the JWT only), so callIndex is always ≥ 1 for those paths.
         if (callIndex === 0) {
-          return Promise.resolve(mockExistingUser ? [mockExistingUser] : []);
+          const row = withPrivacyDefaults(mockExistingUser); return Promise.resolve(row ? [row] : []);
         }
-        return Promise.resolve(mockUserRow ? [mockUserRow] : []);
+        const row = withPrivacyDefaults(mockUserRow); return Promise.resolve(row ? [row] : []);
       }),
     };
     return chain as unknown as ReturnType<typeof db.select>;
@@ -95,7 +99,7 @@ beforeEach(() => {
         return chain;
       }),
       returning: vi.fn().mockImplementation(() =>
-        Promise.resolve(mockUserRow ? [mockUserRow] : []),
+        Promise.resolve(withPrivacyDefaults(mockUserRow) ? [withPrivacyDefaults(mockUserRow)!] : []),
       ),
     };
     return chain as unknown as ReturnType<typeof db.insert>;
@@ -110,7 +114,7 @@ beforeEach(() => {
       }),
       where: vi.fn().mockReturnThis(),
       returning: vi.fn().mockImplementation(() =>
-        Promise.resolve(mockUserRow ? [mockUserRow] : []),
+        Promise.resolve(withPrivacyDefaults(mockUserRow) ? [withPrivacyDefaults(mockUserRow)!] : []),
       ),
     };
     return chain as unknown as ReturnType<typeof db.update>;
@@ -446,6 +450,8 @@ describe("GET /api/users/:id — public profile", () => {
       id: TARGET_ID,
       email: "target@example.com",
       passwordHash: "SECRET_HASH",
+      profileVisibility: "everyone",
+      showBio: true, showSubjects: true, showGradeOrDept: true, showWebsite: true,
       name: "Target User",
       role: "teacher",
       avatarUrl: "https://example.com/avatar.jpg",
@@ -470,11 +476,24 @@ describe("GET /api/users/:id — public profile", () => {
     expect(res.body.bio).toBe("Teacher bio");
     expect(res.body.subjects).toEqual(["Science"]);
     expect(res.body.gradeOrDept).toBe("Science Dept");
-    // Private fields must NOT appear
+    // Private fields must not appear; website is field-level controlled.
     expect(res.body.email).toBeUndefined();
     expect(res.body.passwordHash).toBeUndefined();
-    // timezone/websiteUrl not in public schema
     expect(res.body.timezone).toBeUndefined();
+    expect(res.body.websiteUrl).toBeNull();
+  });
+
+  it("masks fields disabled by the profile owner", async () => {
+    mockExistingUser = { id: TARGET_ID, name: "Private Fields", role: "teacher", profileVisibility: "everyone", showBio: false, showSubjects: false, showGradeOrDept: false, showWebsite: false, bio: "hidden", subjects: ["Physics"], gradeOrDept: "Hidden Dept", websiteUrl: "https://example.com" };
+    const res = await request(buildApp()).get(`/api/users/${TARGET_ID}`).set("Authorization", `Bearer ${issueToken(VIEWER_ID, "student")}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ bio: null, subjects: null, gradeOrDept: null, websiteUrl: null });
+  });
+
+  it("blocks another user from opening a private profile", async () => {
+    mockExistingUser = { id: TARGET_ID, name: "Private User", role: "student", profileVisibility: "private", showBio: true, showSubjects: true, showGradeOrDept: true, showWebsite: true };
+    const res = await request(buildApp()).get(`/api/users/${TARGET_ID}`).set("Authorization", `Bearer ${issueToken(VIEWER_ID, "student")}`);
+    expect(res.status).toBe(403);
   });
 
   it("returns 404 when the target user does not exist", async () => {

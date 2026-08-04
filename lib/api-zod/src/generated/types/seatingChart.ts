@@ -5,11 +5,15 @@
  * Schoolar API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { ClassroomDesk } from './classroomDesk';
+import type { SeatingChartLayoutMode } from './seatingChartLayoutMode';
 import type { SeatingStudent } from './seatingStudent';
 
 export interface SeatingChart {
   classId: number;
   rows: number;
   columns: number;
+  layoutMode: SeatingChartLayoutMode;
+  desks: ClassroomDesk[];
   students: SeatingStudent[];
 }

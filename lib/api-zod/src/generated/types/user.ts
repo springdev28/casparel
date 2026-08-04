@@ -5,6 +5,7 @@
  * Schoolar API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { UserProfileVisibility } from './userProfileVisibility';
 import type { UserRole } from './userRole';
 
 export interface User {
@@ -23,5 +24,10 @@ export interface User {
   timezone?: string | null;
   /** @nullable */
   websiteUrl?: string | null;
+  profileVisibility: UserProfileVisibility;
+  showBio: boolean;
+  showSubjects: boolean;
+  showGradeOrDept: boolean;
+  showWebsite: boolean;
   createdAt: string;
 }

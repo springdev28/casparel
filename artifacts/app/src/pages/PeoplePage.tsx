@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearch as useRouteSearch } from 'wouter';
-import { BriefcaseBusiness, ExternalLink, Globe2, GraduationCap, Search, Users } from 'lucide-react';
+import { BriefcaseBusiness, ChevronDown, ExternalLink, Github, Globe2, GraduationCap, Instagram, Linkedin, Loader2, Search, Twitter, Users, Youtube } from 'lucide-react';
 import {
   DiscoverResourcesResultType,
   SearchUsersRole,
@@ -18,13 +18,84 @@ import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 
+type PublicPersonGroup = { name: string; description: string; source: string; subject?: string | null; gradeLevel?: string | null; links: DiscoveredResource[] };
+
+function personName(title: string): string {
+  return title.split(/\s+[–—|]\s+|\s+-\s+/)[0]?.trim() || title;
+}
+
+function groupPublicPeople(items: DiscoveredResource[]): PublicPersonGroup[] {
+  const groups = new Map<string, PublicPersonGroup>();
+  for (const item of items) {
+    const name = personName(item.title);
+    const key = name.toLocaleLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, " ").trim();
+    const existing = groups.get(key);
+    if (existing) {
+      if (!existing.links.some((link) => link.url === item.url)) existing.links.push(item);
+    } else {
+      groups.set(key, { name, description: item.description, source: item.source, subject: item.subject, gradeLevel: item.gradeLevel, links: [item] });
+    }
+  }
+  return [...groups.values()];
+}
+
+function profilePlatform(url: string) {
+  const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  if (host.includes("linkedin.com")) return { label: "LinkedIn", Icon: Linkedin };
+  if (host.includes("instagram.com")) return { label: "Instagram", Icon: Instagram };
+  if (host.includes("youtube.com")) return { label: "YouTube", Icon: Youtube };
+  if (host.includes("github.com")) return { label: "GitHub", Icon: Github };
+  if (host === "x.com" || host.includes("twitter.com")) return { label: "X / Twitter", Icon: Twitter };
+  if (host.startsWith("scholar.google.")) return { label: "Google Scholar", Icon: GraduationCap };
+  if (host.includes("orcid.org")) return { label: "ORCID", Icon: GraduationCap };
+  if (host.includes("researchgate.net")) return { label: "ResearchGate", Icon: GraduationCap };
+  if (host.includes("semanticscholar.org")) return { label: "Semantic Scholar", Icon: GraduationCap };
+  if (host.includes(".edu.") || host.endsWith(".edu") || host.includes(".ac.")) return { label: "University profile", Icon: GraduationCap };
+  return { label: host, Icon: Globe2 };
+}
+
+function PublicProfileCard({ person }: { person: PublicPersonGroup }) {
+  const [expanded, setExpanded] = useState(false);
+  const deepQuery = `exact-person: ${person.name}; affiliation: ${person.source}`;
+  const deepParams = { q: deepQuery, resultType: DiscoverResourcesResultType.people, page: 1 };
+  const { data, isFetching, isError } = useDiscoverResources(deepParams, {
+    query: { enabled: expanded, queryKey: getDiscoverResourcesQueryKey(deepParams), staleTime: 600_000, retry: false },
+  });
+  const links = [...person.links];
+  for (const link of data ?? []) if (!links.some((current) => current.url === link.url)) links.push(link);
+
+  const hasLinkedIn = links.some((link) => { try { return new URL(link.url).hostname.includes("linkedin.com"); } catch { return false; } });
+  const linkedInSearchUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`${person.name} ${person.source}`)}`;
+  return (
+    <Card className="flex h-full flex-col border-primary/15 bg-gradient-to-br from-card to-primary/5">
+      <CardHeader><div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><GraduationCap className="size-5" /></div><CardTitle className="text-base">{person.name}</CardTitle><p className="text-xs text-muted-foreground">{person.source}</p></CardHeader>
+      <CardContent className="flex flex-1 flex-col gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          {person.subject && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">{person.subject}</span>}
+          {person.gradeLevel && <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{person.gradeLevel}</span>}
+          <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">{links.length} public {links.length === 1 ? "link" : "links"}</span>
+        </div>
+        {expanded && !isFetching && !hasLinkedIn && <a href={linkedInSearchUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border border-dashed border-[#0A66C2]/40 bg-[#0A66C2]/5 px-3 py-2 text-sm font-medium text-[#0A66C2] hover:bg-[#0A66C2]/10"><Linkedin className="size-4 shrink-0" /><span className="min-w-0 flex-1">Search LinkedIn for this person</span><ExternalLink className="size-3.5 shrink-0" /></a>}
+        <p className="line-clamp-3 text-sm text-muted-foreground">{person.description}</p>
+        <div className="space-y-2">{links.map((link) => { const { label, Icon } = profilePlatform(link.url); return <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg border bg-background/70 px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40 hover:bg-accent"><Icon className="size-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 truncate">{label}</span><ExternalLink className="size-3.5 shrink-0 text-muted-foreground" /></a>; })}</div>
+        {expanded && isFetching && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3.5 animate-spin" />Searching public profiles…</div>}
+        {expanded && isError && <p className="text-xs text-destructive">Additional profiles could not be loaded.</p>}
+        <Button variant="outline" className="mt-auto w-full" onClick={() => setExpanded(true)} disabled={expanded && isFetching}>
+          {expanded && isFetching ? <Loader2 className="mr-2 size-4 animate-spin" /> : <ChevronDown className="mr-2 size-4" />}
+          {expanded ? "Profiles searched" : "Find more profiles"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PeoplePage() {
   const routeSearch = useRouteSearch();
   const [inputValue, setInputValue] = useState('');
   const [query, setQuery] = useState('');
   const [subject, setSubject] = useState('');
   const [role, setRole] = useState<'all' | SearchUsersRole>('all');
-  const [profileSource, setProfileSource] = useState<'schoolar' | 'social'>('schoolar');
+  const [profileSource, setProfileSource] = useState<'schoolar' | 'social'>('social');
   const [accountLimit, setAccountLimit] = useState(24);
   const [socialPage, setSocialPage] = useState(1);
   const [allSocialPeople, setAllSocialPeople] = useState<DiscoveredResource[]>([]);
@@ -95,7 +166,7 @@ export default function PeoplePage() {
             <SelectTrigger className="h-9 w-48" data-testid="people-source-filter"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="schoolar">Schoolar accounts</SelectItem>
-              <SelectItem value="social">Social media profiles</SelectItem>
+              <SelectItem value="social">Public web & scholar profiles</SelectItem>
             </SelectContent>
           </Select>
           <Input
@@ -118,24 +189,21 @@ export default function PeoplePage() {
 
       {profileSource === 'social' ? (
         !query && !subject.trim() ? (
-          <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground"><Globe2 className="mx-auto mb-3 size-9 opacity-40" /><p className="font-medium text-foreground">Search for a subject or person</p><p className="mt-1 text-sm">Social search returns direct public profile pages only.</p></div>
+          <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground"><Globe2 className="mx-auto mb-3 size-9 opacity-40" /><p className="font-medium text-foreground">Search for a subject or person</p><p className="mt-1 text-sm">Search returns direct social, scholar, and university profile pages only.</p></div>
         ) : socialLoading && allSocialPeople.length === 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-52 rounded-xl" />)}</div>
         ) : socialError ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">Social profile search could not be loaded. Try a more specific name or subject.</div>
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">Public profile search could not be loaded. Try a more specific name or subject.</div>
         ) : !allSocialPeople.length ? (
           <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground"><Globe2 className="mx-auto mb-3 size-9 opacity-40" /><p className="font-medium text-foreground">No verified public profiles found</p><p className="mt-1 text-sm">Try a name together with a subject or profession.</p></div>
         ) : (
           <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {allSocialPeople.map((person, index) => (
-              <Card key={index} className="flex h-full flex-col border-primary/15 bg-gradient-to-br from-card to-primary/5">
-                <CardHeader><div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><Globe2 className="size-5" /></div><CardTitle className="text-base">{person.title}</CardTitle><p className="text-xs text-muted-foreground">{person.source}</p></CardHeader>
-                <CardContent className="flex flex-1 flex-col gap-3"><p className="line-clamp-3 text-sm text-muted-foreground">{person.description}</p><Button asChild className="mt-auto w-full"><a href={person.url} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 size-4" /> Open public profile</a></Button></CardContent>
-              </Card>
+            {groupPublicPeople(allSocialPeople).map((person) => (
+              <PublicProfileCard key={person.name} person={person} />
             ))}
           </div>
-          <div className="mt-5 text-center"><Button variant="outline" onClick={() => setSocialPage((page) => page + 1)} disabled={socialLoading}>{socialLoading ? "Searching…" : "Search more profiles"}</Button></div>
+          <div className="mt-5 text-center"><Button variant="outline" onClick={() => setSocialPage((page) => page + 1)} disabled={socialLoading}>{socialLoading ? "Searching…" : "Search more people"}</Button></div>
         </>
         )
       ) : isLoading ? (

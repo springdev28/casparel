@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link } from 'wouter';
-import { GraduationCap } from 'lucide-react';
+import BrandIcon from './BrandIcon';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import ThemeCustomizer from './ThemeCustomizer';
 
@@ -16,7 +16,7 @@ export default function PublicShell({ children }: PublicShellProps) {
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
           {/* Logo */}
           <Link href="/resources" className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity">
-            <GraduationCap size={22} />
+            <BrandIcon className="h-14 w-28" label="Schoolar" />
             <span className="font-bold text-lg tracking-tight">Schoolar</span>
           </Link>
 

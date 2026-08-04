@@ -42,6 +42,11 @@ export const RegisterResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -68,6 +73,11 @@ export const LoginResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -94,6 +104,11 @@ export const GetMeResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
   "createdAt": zod.string()
 })
 
@@ -108,6 +123,11 @@ export const updateMeBodyBioMax = 300;
 
 export const UpdateMeBody = zod.object({
   "name": zod.string().min(1).optional(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
+  "showBio": zod.boolean().optional(),
+  "showSubjects": zod.boolean().optional(),
+  "showGradeOrDept": zod.boolean().optional(),
+  "showWebsite": zod.boolean().optional(),
   "bio": zod.string().max(updateMeBodyBioMax).nullish(),
   "subjects": zod.array(zod.string()).nullish(),
   "gradeOrDept": zod.string().nullish(),
@@ -126,6 +146,11 @@ export const UpdateMeResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
   "createdAt": zod.string()
 })
 
@@ -148,6 +173,11 @@ export const UploadAvatarResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
   "createdAt": zod.string()
 })
 
@@ -170,6 +200,11 @@ export const SetPresetAvatarResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
   "createdAt": zod.string()
 })
 
@@ -185,10 +220,66 @@ export const GetPublicProfileResponse = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
+  "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
   "gradeOrDept": zod.string().nullish()
+})
+
+
+/**
+ * @summary Check whether the current user has blocked another user
+ */
+export const GetUserSafetyStatusParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetUserSafetyStatusResponse = zod.object({
+  "blocked": zod.boolean()
+})
+
+
+/**
+ * @summary Block a user from profile access and collaboration
+ */
+export const BlockUserParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const BlockUserResponse = zod.object({
+  "blocked": zod.boolean()
+})
+
+
+/**
+ * @summary Unblock a user
+ */
+export const UnblockUserParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UnblockUserResponse = zod.void()
+
+
+/**
+ * @summary Privately report a user for moderation review
+ */
+export const ReportUserParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const reportUserBodyDetailsMax = 1000;
+
+
+
+export const ReportUserBody = zod.object({
+  "reason": zod.enum(['spam', 'harassment', 'impersonation', 'unsafe_content', 'other']),
+  "details": zod.string().max(reportUserBodyDetailsMax).nullish()
+})
+
+export const ReportUserResponse = zod.object({
+  "received": zod.boolean()
 })
 
 
@@ -211,6 +302,11 @@ export const SwitchRoleResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -401,6 +497,7 @@ export const GetClassResponse = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
+  "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -467,6 +564,7 @@ export const ListClassMembersResponseItem = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
+  "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -497,6 +595,7 @@ export const AddClassMemberResponse = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
+  "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -548,10 +647,45 @@ export const GetSeatingChartParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const getSeatingChartResponseDesksItemIdMax = 80;
+
+export const getSeatingChartResponseDesksItemXMin = 0;
+export const getSeatingChartResponseDesksItemXMax = 100;
+
+export const getSeatingChartResponseDesksItemYMin = 0;
+export const getSeatingChartResponseDesksItemYMax = 100;
+
+export const getSeatingChartResponseDesksItemWidthMin = 8;
+export const getSeatingChartResponseDesksItemWidthMax = 60;
+
+export const getSeatingChartResponseDesksItemHeightMin = 8;
+export const getSeatingChartResponseDesksItemHeightMax = 60;
+
+export const getSeatingChartResponseDesksItemRotationMin = -180;
+export const getSeatingChartResponseDesksItemRotationMax = 180;
+
+export const getSeatingChartResponseDesksItemCapacityMax = 8;
+
+export const getSeatingChartResponseDesksItemLabelMax = 80;
+
+
+
 export const GetSeatingChartResponse = zod.object({
   "classId": zod.int(),
   "rows": zod.int(),
   "columns": zod.int(),
+  "layoutMode": zod.enum(['grid', 'custom']),
+  "desks": zod.array(zod.object({
+  "id": zod.string().min(1).max(getSeatingChartResponseDesksItemIdMax),
+  "shape": zod.enum(['rectangle', 'round', 'oval', 'trapezoid']),
+  "x": zod.number().min(getSeatingChartResponseDesksItemXMin).max(getSeatingChartResponseDesksItemXMax),
+  "y": zod.number().min(getSeatingChartResponseDesksItemYMin).max(getSeatingChartResponseDesksItemYMax),
+  "width": zod.number().min(getSeatingChartResponseDesksItemWidthMin).max(getSeatingChartResponseDesksItemWidthMax),
+  "height": zod.number().min(getSeatingChartResponseDesksItemHeightMin).max(getSeatingChartResponseDesksItemHeightMax),
+  "rotation": zod.number().min(getSeatingChartResponseDesksItemRotationMin).max(getSeatingChartResponseDesksItemRotationMax),
+  "capacity": zod.int().min(1).max(getSeatingChartResponseDesksItemCapacityMax),
+  "label": zod.string().max(getSeatingChartResponseDesksItemLabelMax)
+})),
   "students": zod.array(zod.object({
   "userId": zod.int(),
   "name": zod.string(),
@@ -559,7 +693,9 @@ export const GetSeatingChartResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "teacherNote": zod.string().nullish(),
   "seatRow": zod.int().nullish(),
-  "seatColumn": zod.int().nullish()
+  "seatColumn": zod.int().nullish(),
+  "seatDeskId": zod.string().nullish(),
+  "seatPosition": zod.int().nullish()
 }))
 })
 
@@ -575,6 +711,29 @@ export const updateSeatingChartBodyRowsMax = 10;
 
 export const updateSeatingChartBodyColumnsMax = 10;
 
+export const updateSeatingChartBodyDesksItemIdMax = 80;
+
+export const updateSeatingChartBodyDesksItemXMin = 0;
+export const updateSeatingChartBodyDesksItemXMax = 100;
+
+export const updateSeatingChartBodyDesksItemYMin = 0;
+export const updateSeatingChartBodyDesksItemYMax = 100;
+
+export const updateSeatingChartBodyDesksItemWidthMin = 8;
+export const updateSeatingChartBodyDesksItemWidthMax = 60;
+
+export const updateSeatingChartBodyDesksItemHeightMin = 8;
+export const updateSeatingChartBodyDesksItemHeightMax = 60;
+
+export const updateSeatingChartBodyDesksItemRotationMin = -180;
+export const updateSeatingChartBodyDesksItemRotationMax = 180;
+
+export const updateSeatingChartBodyDesksItemCapacityMax = 8;
+
+export const updateSeatingChartBodyDesksItemLabelMax = 80;
+
+export const updateSeatingChartBodyDesksMax = 50;
+
 export const updateSeatingChartBodyAssignmentsMax = 100;
 
 
@@ -582,17 +741,66 @@ export const updateSeatingChartBodyAssignmentsMax = 100;
 export const UpdateSeatingChartBody = zod.object({
   "rows": zod.int().min(1).max(updateSeatingChartBodyRowsMax),
   "columns": zod.int().min(1).max(updateSeatingChartBodyColumnsMax),
+  "layoutMode": zod.enum(['grid', 'custom']),
+  "desks": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateSeatingChartBodyDesksItemIdMax),
+  "shape": zod.enum(['rectangle', 'round', 'oval', 'trapezoid']),
+  "x": zod.number().min(updateSeatingChartBodyDesksItemXMin).max(updateSeatingChartBodyDesksItemXMax),
+  "y": zod.number().min(updateSeatingChartBodyDesksItemYMin).max(updateSeatingChartBodyDesksItemYMax),
+  "width": zod.number().min(updateSeatingChartBodyDesksItemWidthMin).max(updateSeatingChartBodyDesksItemWidthMax),
+  "height": zod.number().min(updateSeatingChartBodyDesksItemHeightMin).max(updateSeatingChartBodyDesksItemHeightMax),
+  "rotation": zod.number().min(updateSeatingChartBodyDesksItemRotationMin).max(updateSeatingChartBodyDesksItemRotationMax),
+  "capacity": zod.int().min(1).max(updateSeatingChartBodyDesksItemCapacityMax),
+  "label": zod.string().max(updateSeatingChartBodyDesksItemLabelMax)
+})).max(updateSeatingChartBodyDesksMax),
   "assignments": zod.array(zod.object({
   "userId": zod.int(),
   "row": zod.int().nullish(),
-  "column": zod.int().nullish()
+  "column": zod.int().nullish(),
+  "deskId": zod.string().nullish(),
+  "deskSeat": zod.int().nullish()
 })).max(updateSeatingChartBodyAssignmentsMax)
 })
+
+export const updateSeatingChartResponseDesksItemIdMax = 80;
+
+export const updateSeatingChartResponseDesksItemXMin = 0;
+export const updateSeatingChartResponseDesksItemXMax = 100;
+
+export const updateSeatingChartResponseDesksItemYMin = 0;
+export const updateSeatingChartResponseDesksItemYMax = 100;
+
+export const updateSeatingChartResponseDesksItemWidthMin = 8;
+export const updateSeatingChartResponseDesksItemWidthMax = 60;
+
+export const updateSeatingChartResponseDesksItemHeightMin = 8;
+export const updateSeatingChartResponseDesksItemHeightMax = 60;
+
+export const updateSeatingChartResponseDesksItemRotationMin = -180;
+export const updateSeatingChartResponseDesksItemRotationMax = 180;
+
+export const updateSeatingChartResponseDesksItemCapacityMax = 8;
+
+export const updateSeatingChartResponseDesksItemLabelMax = 80;
+
+
 
 export const UpdateSeatingChartResponse = zod.object({
   "classId": zod.int(),
   "rows": zod.int(),
   "columns": zod.int(),
+  "layoutMode": zod.enum(['grid', 'custom']),
+  "desks": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateSeatingChartResponseDesksItemIdMax),
+  "shape": zod.enum(['rectangle', 'round', 'oval', 'trapezoid']),
+  "x": zod.number().min(updateSeatingChartResponseDesksItemXMin).max(updateSeatingChartResponseDesksItemXMax),
+  "y": zod.number().min(updateSeatingChartResponseDesksItemYMin).max(updateSeatingChartResponseDesksItemYMax),
+  "width": zod.number().min(updateSeatingChartResponseDesksItemWidthMin).max(updateSeatingChartResponseDesksItemWidthMax),
+  "height": zod.number().min(updateSeatingChartResponseDesksItemHeightMin).max(updateSeatingChartResponseDesksItemHeightMax),
+  "rotation": zod.number().min(updateSeatingChartResponseDesksItemRotationMin).max(updateSeatingChartResponseDesksItemRotationMax),
+  "capacity": zod.int().min(1).max(updateSeatingChartResponseDesksItemCapacityMax),
+  "label": zod.string().max(updateSeatingChartResponseDesksItemLabelMax)
+})),
   "students": zod.array(zod.object({
   "userId": zod.int(),
   "name": zod.string(),
@@ -600,7 +808,9 @@ export const UpdateSeatingChartResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "teacherNote": zod.string().nullish(),
   "seatRow": zod.int().nullish(),
-  "seatColumn": zod.int().nullish()
+  "seatColumn": zod.int().nullish(),
+  "seatDeskId": zod.string().nullish(),
+  "seatPosition": zod.int().nullish()
 }))
 })
 
@@ -628,7 +838,75 @@ export const UpdateStudentNoteResponse = zod.object({
   "gradeOrDept": zod.string().nullish(),
   "teacherNote": zod.string().nullish(),
   "seatRow": zod.int().nullish(),
-  "seatColumn": zod.int().nullish()
+  "seatColumn": zod.int().nullish(),
+  "seatDeskId": zod.string().nullish(),
+  "seatPosition": zod.int().nullish()
+})
+
+
+/**
+ * @summary Suggest an explainable seating plan from private teacher notes without applying it
+ */
+export const SuggestSeatingPlanParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const suggestSeatingPlanBodyPrioritiesMax = 1000;
+
+
+
+export const SuggestSeatingPlanBody = zod.object({
+  "priorities": zod.string().max(suggestSeatingPlanBodyPrioritiesMax).nullish()
+})
+
+export const suggestSeatingPlanResponseDesksItemIdMax = 80;
+
+export const suggestSeatingPlanResponseDesksItemXMin = 0;
+export const suggestSeatingPlanResponseDesksItemXMax = 100;
+
+export const suggestSeatingPlanResponseDesksItemYMin = 0;
+export const suggestSeatingPlanResponseDesksItemYMax = 100;
+
+export const suggestSeatingPlanResponseDesksItemWidthMin = 8;
+export const suggestSeatingPlanResponseDesksItemWidthMax = 60;
+
+export const suggestSeatingPlanResponseDesksItemHeightMin = 8;
+export const suggestSeatingPlanResponseDesksItemHeightMax = 60;
+
+export const suggestSeatingPlanResponseDesksItemRotationMin = -180;
+export const suggestSeatingPlanResponseDesksItemRotationMax = 180;
+
+export const suggestSeatingPlanResponseDesksItemCapacityMax = 8;
+
+export const suggestSeatingPlanResponseDesksItemLabelMax = 80;
+
+
+
+export const SuggestSeatingPlanResponse = zod.object({
+  "rows": zod.int(),
+  "columns": zod.int(),
+  "layoutMode": zod.enum(['grid', 'custom']),
+  "desks": zod.array(zod.object({
+  "id": zod.string().min(1).max(suggestSeatingPlanResponseDesksItemIdMax),
+  "shape": zod.enum(['rectangle', 'round', 'oval', 'trapezoid']),
+  "x": zod.number().min(suggestSeatingPlanResponseDesksItemXMin).max(suggestSeatingPlanResponseDesksItemXMax),
+  "y": zod.number().min(suggestSeatingPlanResponseDesksItemYMin).max(suggestSeatingPlanResponseDesksItemYMax),
+  "width": zod.number().min(suggestSeatingPlanResponseDesksItemWidthMin).max(suggestSeatingPlanResponseDesksItemWidthMax),
+  "height": zod.number().min(suggestSeatingPlanResponseDesksItemHeightMin).max(suggestSeatingPlanResponseDesksItemHeightMax),
+  "rotation": zod.number().min(suggestSeatingPlanResponseDesksItemRotationMin).max(suggestSeatingPlanResponseDesksItemRotationMax),
+  "capacity": zod.int().min(1).max(suggestSeatingPlanResponseDesksItemCapacityMax),
+  "label": zod.string().max(suggestSeatingPlanResponseDesksItemLabelMax)
+})),
+  "summary": zod.string(),
+  "considerations": zod.array(zod.string()),
+  "assignments": zod.array(zod.object({
+  "userId": zod.int(),
+  "row": zod.int().nullable(),
+  "column": zod.int().nullable(),
+  "deskId": zod.string().nullable(),
+  "deskSeat": zod.int().nullable(),
+  "reason": zod.string()
+}))
 })
 
 
@@ -806,7 +1084,7 @@ export const DiscoverResourcesQueryParams = zod.object({
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
   "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number for paginated results'),
-  "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social profiles for people discovery')
+  "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery')
 })
 
 export const DiscoverResourcesResponseItem = zod.object({
@@ -817,7 +1095,11 @@ export const DiscoverResourcesResponseItem = zod.object({
   "source": zod.string(),
   "thumbnailUrl": zod.string().nullish(),
   "subject": zod.string().nullish(),
-  "gradeLevel": zod.string().nullish()
+  "gradeLevel": zod.string().nullish(),
+  "provenanceLevel": zod.enum(['institutional', 'established', 'independent', 'unknown']).optional(),
+  "provenanceSignals": zod.array(zod.string()).optional(),
+  "linkChecked": zod.boolean().optional(),
+  "checkedAt": zod.string().optional()
 })
 export const DiscoverResourcesResponse = zod.array(DiscoverResourcesResponseItem)
 
@@ -982,6 +1264,7 @@ export const ListResourceReviewsResponseItem = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
+  "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -1022,6 +1305,7 @@ export const CreateResourceReviewResponse = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
+  "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -1557,6 +1841,7 @@ export const SearchUsersResponseItem = zod.object({
   "id": zod.int(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
+  "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),

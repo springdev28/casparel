@@ -322,7 +322,7 @@ export default function ClassDetailPage() {
                       <span className="text-xs font-semibold text-muted-foreground uppercase">{member.user.name.charAt(0)}</span>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{member.user.name}</p>
+                      <button className="text-left text-sm font-medium text-foreground hover:text-primary hover:underline" onClick={() => setLocation(`/profile/${member.userId}${isTeacher ? `?classId=${classId}` : ""}`)}>{member.user.name}</button>
                       {member.user.gradeOrDept && (
                         <p className="text-xs text-muted-foreground">{member.user.gradeOrDept}</p>
                       )}
