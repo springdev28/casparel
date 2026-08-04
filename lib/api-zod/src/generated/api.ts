@@ -22,6 +22,8 @@ export const HealthCheckResponse = zod.object({
 export const registerBodyPasswordMin = 6;
 
 
+
+
 export const RegisterBody = zod.object({
   "email": zod.string(),
   "password": zod.string().min(registerBodyPasswordMin),
@@ -103,6 +105,7 @@ export const GetMeResponse = zod.object({
 export const updateMeBodyBioMax = 300;
 
 
+
 export const UpdateMeBody = zod.object({
   "name": zod.string().min(1).optional(),
   "bio": zod.string().max(updateMeBodyBioMax).nullish(),
@@ -126,12 +129,47 @@ export const UpdateMeResponse = zod.object({
   "createdAt": zod.string()
 })
 
+
 /**
  * @summary Upload an avatar image for the current user
  */
 export const UploadAvatarBody = zod.object({
-  "file": zod.any()
+  "file": zod.instanceof(File)
 })
+
+export const UploadAvatarResponse = zod.object({
+  "id": zod.int(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher']),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get a public profile for any signed-in user
+ */
+export const GetPublicProfileParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetPublicProfileResponse = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher']),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish()
+})
+
+
 /**
  * @summary Switch the active role for the current user (student ↔ teacher)
  */
@@ -176,6 +214,9 @@ export const ListClassesResponse = zod.array(ListClassesResponseItem)
 /**
  * @summary Create a new class (teacher only)
  */
+
+
+
 
 
 export const CreateClassBody = zod.object({
@@ -237,6 +278,8 @@ export const GetClassResponse = zod.object({
 export const UpdateClassParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateClassBody = zod.object({
@@ -328,6 +371,8 @@ export const AddClassMemberResponse = zod.object({
 export const BulkInviteClassMembersParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const BulkInviteClassMembersBody = zod.object({
@@ -435,6 +480,7 @@ export const listResourcesQueryOffsetDefault = 0;
 export const listResourcesQueryOffsetMin = 0;
 
 
+
 export const ListResourcesQueryParams = zod.object({
   "q": zod.coerce.string().optional().describe('Free-text search'),
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
@@ -468,6 +514,10 @@ export const ListResourcesResponse = zod.array(ListResourcesResponseItem)
  */
 
 
+
+
+
+
 export const CreateResourceBody = zod.object({
   "title": zod.string().min(1),
   "url": zod.string().min(1),
@@ -499,6 +549,7 @@ export const CreateResourceResponse = zod.object({
  */
 
 
+
 export const PrefetchResourceMetadataBody = zod.object({
   "url": zod.string().min(1)
 })
@@ -515,6 +566,7 @@ export const PrefetchResourceMetadataResponse = zod.object({
  * @summary Search the internet for educational resources matching a query
  */
 export const discoverResourcesQueryPageDefault = 1;
+
 
 
 export const DiscoverResourcesQueryParams = zod.object({
@@ -609,6 +661,8 @@ export const UpdateResourceParams = zod.object({
 })
 
 
+
+
 export const UpdateResourceBody = zod.object({
   "title": zod.string().min(1).optional(),
   "description": zod.string().optional(),
@@ -684,6 +738,7 @@ export const ListResourceReviewsParams = zod.object({
 export const listResourceReviewsResponseRatingMax = 5;
 
 
+
 export const ListResourceReviewsResponseItem = zod.object({
   "id": zod.int(),
   "resourceId": zod.int(),
@@ -714,12 +769,14 @@ export const CreateResourceReviewParams = zod.object({
 export const createResourceReviewBodyRatingMax = 5;
 
 
+
 export const CreateResourceReviewBody = zod.object({
   "rating": zod.int().min(1).max(createResourceReviewBodyRatingMax),
   "comment": zod.string().optional()
 })
 
 export const createResourceReviewResponseRatingMax = 5;
+
 
 
 export const CreateResourceReviewResponse = zod.object({
@@ -770,6 +827,7 @@ export const ListResourceListsResponse = zod.array(ListResourceListsResponseItem
 /**
  * @summary Create a new resource list
  */
+
 
 
 export const CreateResourceListBody = zod.object({
@@ -834,6 +892,8 @@ export const GetResourceListResponse = zod.object({
 export const UpdateResourceListParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateResourceListBody = zod.object({
@@ -980,6 +1040,7 @@ export const ListScheduleBlocksResponse = zod.array(ListScheduleBlocksResponseIt
  */
 
 
+
 export const CreateScheduleBlockBody = zod.object({
   "title": zod.string().min(1),
   "date": zod.coerce.date(),
@@ -1012,6 +1073,8 @@ export const CreateScheduleBlockResponse = zod.object({
 export const UpdateScheduleBlockParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateScheduleBlockBody = zod.object({
@@ -1047,6 +1110,213 @@ export const DeleteScheduleBlockParams = zod.object({
 })
 
 export const DeleteScheduleBlockResponse = zod.void()
+
+
+/**
+ * @summary List study sessions for the current user (organised + invited)
+ */
+export const ListStudySessionsResponseItem = zod.object({
+  "id": zod.int(),
+  "organizerId": zod.int(),
+  "title": zod.string(),
+  "startsAt": zod.string(),
+  "durationMinutes": zod.int(),
+  "topic": zod.string().nullish(),
+  "resourceId": zod.int().nullish(),
+  "meetingUrl": zod.string(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "participants": zod.array(zod.object({
+  "userId": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "respondedAt": zod.string().nullish()
+})),
+  "myStatus": zod.string().nullable()
+}))
+export const ListStudySessionsResponse = zod.array(ListStudySessionsResponseItem)
+
+
+/**
+ * @summary Create a study session and invite participants
+ */
+
+export const createStudySessionBodyDurationMinutesMin = 5;
+
+
+
+export const createStudySessionBodyMeetingUrlRegExp = new RegExp('^https?:/');
+
+
+export const CreateStudySessionBody = zod.object({
+  "title": zod.string().min(1),
+  "startsAt": zod.string(),
+  "durationMinutes": zod.int().min(createStudySessionBodyDurationMinutesMin),
+  "topic": zod.string().optional(),
+  "resourceId": zod.int().optional(),
+  "meetingUrl": zod.string().min(1).regex(createStudySessionBodyMeetingUrlRegExp),
+  "inviteeIds": zod.array(zod.int()).optional()
+})
+
+export const CreateStudySessionResponse = zod.object({
+  "id": zod.int(),
+  "organizerId": zod.int(),
+  "title": zod.string(),
+  "startsAt": zod.string(),
+  "durationMinutes": zod.int(),
+  "topic": zod.string().nullish(),
+  "resourceId": zod.int().nullish(),
+  "meetingUrl": zod.string(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "participants": zod.array(zod.object({
+  "userId": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "respondedAt": zod.string().nullish()
+})),
+  "myStatus": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Get a study session by ID
+ */
+export const GetStudySessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetStudySessionResponse = zod.object({
+  "id": zod.int(),
+  "organizerId": zod.int(),
+  "title": zod.string(),
+  "startsAt": zod.string(),
+  "durationMinutes": zod.int(),
+  "topic": zod.string().nullish(),
+  "resourceId": zod.int().nullish(),
+  "meetingUrl": zod.string(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "participants": zod.array(zod.object({
+  "userId": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "respondedAt": zod.string().nullish()
+})),
+  "myStatus": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Update a study session (organiser only)
+ */
+export const UpdateStudySessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+
+export const updateStudySessionBodyDurationMinutesMin = 5;
+
+
+
+export const updateStudySessionBodyMeetingUrlRegExp = new RegExp('^https?:/');
+
+
+export const UpdateStudySessionBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "startsAt": zod.string().optional(),
+  "durationMinutes": zod.int().min(updateStudySessionBodyDurationMinutesMin).optional(),
+  "topic": zod.string().nullish(),
+  "resourceId": zod.int().nullish(),
+  "meetingUrl": zod.string().min(1).regex(updateStudySessionBodyMeetingUrlRegExp).optional()
+})
+
+export const UpdateStudySessionResponse = zod.object({
+  "id": zod.int(),
+  "organizerId": zod.int(),
+  "title": zod.string(),
+  "startsAt": zod.string(),
+  "durationMinutes": zod.int(),
+  "topic": zod.string().nullish(),
+  "resourceId": zod.int().nullish(),
+  "meetingUrl": zod.string(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "participants": zod.array(zod.object({
+  "userId": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "respondedAt": zod.string().nullish()
+})),
+  "myStatus": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Cancel a study session (organiser only)
+ */
+export const DeleteStudySessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteStudySessionResponse = zod.void()
+
+
+/**
+ * @summary Accept or decline an invitation to a study session
+ */
+export const RsvpStudySessionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RsvpStudySessionBody = zod.object({
+  "status": zod.enum(['accepted', 'declined'])
+})
+
+export const RsvpStudySessionResponse = zod.object({
+  "id": zod.int(),
+  "organizerId": zod.int(),
+  "title": zod.string(),
+  "startsAt": zod.string(),
+  "durationMinutes": zod.int(),
+  "topic": zod.string().nullish(),
+  "resourceId": zod.int().nullish(),
+  "meetingUrl": zod.string(),
+  "createdAt": zod.string()
+}).and(zod.object({
+  "participants": zod.array(zod.object({
+  "userId": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "name": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "respondedAt": zod.string().nullish()
+})),
+  "myStatus": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Search users who share a class with the requester
+ */
+export const SearchUsersQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Name search query'),
+  "classId": zod.coerce.number().int().optional().describe('Restrict to a specific class')
+})
+
+export const SearchUsersResponseItem = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher']),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish()
+})
+export const SearchUsersResponse = zod.array(SearchUsersResponseItem)
 
 
 /**
@@ -1159,33 +1429,3 @@ export const GetRecentActivityResponseItem = zod.object({
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
 
 
-/**
- * @summary Get a public profile for any signed-in user
- */
-export const GetPublicProfileParams = zod.object({
-  "id": zod.coerce.number().int()
-})
-
-export const UploadAvatarResponse = zod.object({
-  "id": zod.int(),
-  "email": zod.string(),
-  "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
-  "avatarUrl": zod.string().nullish(),
-  "bio": zod.string().nullish(),
-  "subjects": zod.array(zod.string()).nullish(),
-  "gradeOrDept": zod.string().nullish(),
-  "timezone": zod.string().nullish(),
-  "websiteUrl": zod.string().nullish(),
-  "createdAt": zod.string()
-})
-
-export const GetPublicProfileResponse = zod.object({
-  "id": zod.int(),
-  "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
-  "avatarUrl": zod.string().nullish(),
-  "bio": zod.string().nullish(),
-  "subjects": zod.array(zod.string()).nullish(),
-  "gradeOrDept": zod.string().nullish()
-})

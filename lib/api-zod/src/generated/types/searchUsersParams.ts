@@ -6,6 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type UploadAvatarBody = {
-  file: Blob;
+export type SearchUsersParams = {
+/**
+ * Name search query
+ */
+q?: string;
+/**
+ * Restrict to a specific class
+ */
+classId?: number;
 };

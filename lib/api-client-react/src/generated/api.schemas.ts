@@ -37,6 +37,26 @@ export interface User {
 }
 
 export type PublicUserRole = typeof PublicUserRole[keyof typeof PublicUserRole];
+
+
+export const PublicUserRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;
+
+export interface PublicUser {
+  id: number;
+  name: string;
+  role: PublicUserRole;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** @nullable */
+  bio?: string | null;
+  subjects?: string[] | null;
+  /** @nullable */
+  gradeOrDept?: string | null;
+}
+
 export interface RegisterInput {
   email: string;
   /** @minLength 6 */
@@ -418,6 +438,91 @@ export interface ShareListInput {
   classId: number;
 }
 
+export type StudySessionParticipantStatus = typeof StudySessionParticipantStatus[keyof typeof StudySessionParticipantStatus];
+
+
+export const StudySessionParticipantStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export interface StudySessionParticipant {
+  userId: number;
+  status: StudySessionParticipantStatus;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** @nullable */
+  respondedAt?: string | null;
+}
+
+export interface StudySession {
+  id: number;
+  organizerId: number;
+  title: string;
+  startsAt: string;
+  durationMinutes: number;
+  /** @nullable */
+  topic?: string | null;
+  /** @nullable */
+  resourceId?: number | null;
+  meetingUrl: string;
+  createdAt: string;
+}
+
+export type StudySessionWithParticipants = StudySession & ({
+  participants: StudySessionParticipant[];
+  /** @nullable */
+  myStatus: string | null;
+});
+
+export interface StudySessionInput {
+  /** @minLength 1 */
+  title: string;
+  startsAt: string;
+  /** @minimum 5 */
+  durationMinutes: number;
+  topic?: string;
+  resourceId?: number;
+  /**
+     * @minLength 1
+     * @pattern ^https?://
+     */
+  meetingUrl: string;
+  inviteeIds?: number[];
+}
+
+export interface StudySessionPatch {
+  /** @minLength 1 */
+  title?: string;
+  startsAt?: string;
+  /** @minimum 5 */
+  durationMinutes?: number;
+  /** @nullable */
+  topic?: string | null;
+  /** @nullable */
+  resourceId?: number | null;
+  /**
+     * @minLength 1
+     * @pattern ^https?://
+     */
+  meetingUrl?: string;
+}
+
+export type StudySessionRsvpStatus = typeof StudySessionRsvpStatus[keyof typeof StudySessionRsvpStatus];
+
+
+export const StudySessionRsvpStatus = {
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export interface StudySessionRsvp {
+  status: StudySessionRsvpStatus;
+}
+
 export interface ScheduleBlock {
   id: number;
   userId: number;
@@ -559,6 +664,7 @@ export interface BulkInviteResult {
 export type UploadAvatarBody = {
   file: Blob;
 };
+
 export type ListResourcesParams = {
 /**
  * Free-text search
@@ -660,21 +766,14 @@ export type ListScheduleBlocksParams = {
 weekStart?: string;
 };
 
+export type SearchUsersParams = {
+/**
+ * Name search query
+ */
+q?: string;
+/**
+ * Restrict to a specific class
+ */
+classId?: number;
+};
 
-export const PublicUserRole = {
-  student: 'student',
-  teacher: 'teacher',
-} as const;
-
-export interface PublicUser {
-  id: number;
-  name: string;
-  role: PublicUserRole;
-  /** @nullable */
-  avatarUrl?: string | null;
-  /** @nullable */
-  bio?: string | null;
-  subjects?: string[] | null;
-  /** @nullable */
-  gradeOrDept?: string | null;
-}

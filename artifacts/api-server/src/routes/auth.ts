@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, classMembersTable } from "@workspace/db";
 import {
   RegisterBody,
   LoginBody,
@@ -204,6 +204,71 @@ router.post(
     res.json(UploadAvatarResponse.parse(user));
   },
 );
+
+// GET /users/search?q=&classId= — users who share a class with the requester
+router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const classId = req.query.classId ? Number(req.query.classId) : undefined;
+
+  // Find classes the requester belongs to
+  const myClasses = await db
+    .select({ classId: classMembersTable.classId })
+    .from(classMembersTable)
+    .where(eq(classMembersTable.userId, userId));
+
+  if (myClasses.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const classIds = classId
+    ? myClasses.map((c) => c.classId).filter((id) => id === classId)
+    : myClasses.map((c) => c.classId);
+
+  if (classIds.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  // Find users who share any of those classes (excluding self)
+  const sharedMemberRows = await db
+    .selectDistinct({ userId: classMembersTable.userId })
+    .from(classMembersTable)
+    .where(
+      and(
+        inArray(classMembersTable.classId, classIds),
+        sql`${classMembersTable.userId} != ${userId}`,
+      ),
+    );
+
+  if (sharedMemberRows.length === 0) {
+    res.json([]);
+    return;
+  }
+
+  const sharedUserIds = sharedMemberRows.map((r) => r.userId);
+
+  let users = await db
+    .select({
+      id: usersTable.id,
+      name: usersTable.name,
+      role: usersTable.role,
+      avatarUrl: usersTable.avatarUrl,
+      bio: usersTable.bio,
+      subjects: usersTable.subjects,
+      gradeOrDept: usersTable.gradeOrDept,
+    })
+    .from(usersTable)
+    .where(inArray(usersTable.id, sharedUserIds));
+
+  if (q) {
+    const lower = q.toLowerCase();
+    users = users.filter((u) => u.name?.toLowerCase().includes(lower));
+  }
+
+  res.json(users.slice(0, 20));
+});
 
 // GET /users/:id — public profile (requires auth, returns safe subset)
 router.get("/users/:id", requireAuth, async (req, res): Promise<void> => {

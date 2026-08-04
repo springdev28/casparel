@@ -5,7 +5,8 @@
  * Schooler API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { StudySessionRsvpStatus } from './studySessionRsvpStatus';
 
-export type UploadAvatarBody = {
-  file: Blob;
-};
+export interface StudySessionRsvp {
+  status: StudySessionRsvpStatus;
+}

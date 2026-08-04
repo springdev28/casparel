@@ -22,6 +22,8 @@ tags:
     description: Resource lists
   - name: schedule
     description: Study schedule blocks
+  - name: study-sessions
+    description: Collaborative study sessions
   - name: dashboard
     description: Dashboard summary and activity
   - name: google-classroom
@@ -1055,6 +1057,175 @@ paths:
         "204":
           description: Deleted
 
+  # ── Study Sessions ────────────────────────────────────────────────────────
+  /study-sessions:
+    get:
+      operationId: listStudySessions
+      tags: [study-sessions]
+      summary: List study sessions for the current user (organised + invited)
+      responses:
+        "200":
+          description: Study sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudySessionWithParticipants"
+        "401":
+          description: Not authenticated
+    post:
+      operationId: createStudySession
+      tags: [study-sessions]
+      summary: Create a study session and invite participants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudySessionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudySessionWithParticipants"
+        "401":
+          description: Not authenticated
+
+  /study-sessions/{id}:
+    get:
+      operationId: getStudySession
+      tags: [study-sessions]
+      summary: Get a study session by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Study session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudySessionWithParticipants"
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not a participant or organiser
+        "404":
+          description: Not found
+    patch:
+      operationId: updateStudySession
+      tags: [study-sessions]
+      summary: Update a study session (organiser only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudySessionPatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudySessionWithParticipants"
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not the organiser
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteStudySession
+      tags: [study-sessions]
+      summary: Cancel a study session (organiser only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Cancelled
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not the organiser
+        "404":
+          description: Not found
+
+  /study-sessions/{id}/rsvp:
+    patch:
+      operationId: rsvpStudySession
+      tags: [study-sessions]
+      summary: Accept or decline an invitation to a study session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudySessionRsvp"
+      responses:
+        "200":
+          description: RSVP recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudySessionWithParticipants"
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not an invitee
+        "404":
+          description: Not found
+
+  /users/search:
+    get:
+      operationId: searchUsers
+      tags: [auth]
+      summary: Search users who share a class with the requester
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Name search query
+        - name: classId
+          in: query
+          schema:
+            type: integer
+          description: Restrict to a specific class
+      responses:
+        "200":
+          description: Matching users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicUser"
+        "401":
+          description: Not authenticated
+
   # ── Google Classroom ──────────────────────────────────────────────────────
   /auth/google:
     get:
@@ -1549,6 +1720,73 @@ components:
       required: [classId]
       properties:
         classId: { type: integer }
+
+    # ── Study Sessions ───────────────────────────────────────────────────────
+    StudySessionParticipant:
+      type: object
+      required: [userId, status]
+      properties:
+        userId:      { type: integer }
+        status:      { type: string, enum: [pending, accepted, declined] }
+        name:        { type: ["string", "null"] }
+        avatarUrl:   { type: ["string", "null"] }
+        respondedAt: { type: ["string", "null"] }
+
+    StudySession:
+      type: object
+      required: [id, organizerId, title, startsAt, durationMinutes, meetingUrl, createdAt]
+      properties:
+        id:              { type: integer }
+        organizerId:     { type: integer }
+        title:           { type: string }
+        startsAt:        { type: string }
+        durationMinutes: { type: integer }
+        topic:           { type: ["string", "null"] }
+        resourceId:      { type: ["integer", "null"] }
+        meetingUrl:      { type: string }
+        createdAt:       { type: string }
+
+    StudySessionWithParticipants:
+      allOf:
+        - $ref: "#/components/schemas/StudySession"
+        - type: object
+          required: [participants, myStatus]
+          properties:
+            participants:
+              type: array
+              items:
+                $ref: "#/components/schemas/StudySessionParticipant"
+            myStatus: { type: ["string", "null"] }
+
+    StudySessionInput:
+      type: object
+      required: [title, startsAt, durationMinutes, meetingUrl]
+      properties:
+        title:           { type: string, minLength: 1 }
+        startsAt:        { type: string }
+        durationMinutes: { type: integer, minimum: 5 }
+        topic:           { type: string }
+        resourceId:      { type: integer }
+        meetingUrl:      { type: string, minLength: 1, pattern: "^https?://" }
+        inviteeIds:
+          type: array
+          items: { type: integer }
+
+    StudySessionPatch:
+      type: object
+      properties:
+        title:           { type: string, minLength: 1 }
+        startsAt:        { type: string }
+        durationMinutes: { type: integer, minimum: 5 }
+        topic:           { type: ["string", "null"] }
+        resourceId:      { type: ["integer", "null"] }
+        meetingUrl:      { type: string, minLength: 1, pattern: "^https?://" }
+
+    StudySessionRsvp:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [accepted, declined] }
 
     # ── Schedule ────────────────────────────────────────────────────────────
     ScheduleBlock:
