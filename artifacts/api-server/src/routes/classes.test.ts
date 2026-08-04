@@ -30,6 +30,7 @@ vi.mock("@workspace/db", () => {
     update: vi.fn(),
     delete: vi.fn(),
     insert: vi.fn(),
+    transaction: vi.fn(),
   };
   return {
     db,
@@ -154,6 +155,7 @@ beforeEach(() => {
   mockActorRole = "teacher";
 
   vi.mocked(db.select).mockImplementation(makeSelectChain as unknown as () => ReturnType<typeof db.select>);
+  vi.mocked(db.transaction).mockImplementation(async (callback) => callback(db));
 
   // update chain: .set().where().returning() → returns updated class row
   vi.mocked(db.update).mockImplementation(() => {

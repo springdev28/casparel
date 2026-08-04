@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { storage } from '@/utils/secure-storage';
-import type { User } from '@workspace/api-client-react';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { storage } from "@/utils/secure-storage";
+import type { User } from "@workspace/api-client-react";
 
-const TOKEN_KEY = 'schooler_token';
-const USER_KEY = 'schooler_user';
+const TOKEN_KEY = "schoolar_token";
+const USER_KEY = "schooler_user";
 
 interface AuthContextValue {
   token: string | null;
@@ -65,7 +65,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ token, user, isAuthenticated: !!token, isLoading, login, logout, updateToken }}
+      value={{
+        token,
+        user,
+        isAuthenticated: !!token,
+        isLoading,
+        login,
+        logout,
+        updateToken,
+      }}
     >
       {children}
     </AuthContext.Provider>
@@ -74,6 +82,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }

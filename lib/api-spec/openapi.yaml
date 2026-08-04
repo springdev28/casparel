@@ -202,7 +202,6 @@ paths:
         "404":
           description: User not found
 
-
   /users/{id}/safety:
     get:
       operationId: getUserSafetyStatus
@@ -1763,6 +1762,48 @@ paths:
         "404":
           description: Session not found
 
+  /learning-evidence:
+    get:
+      operationId: listLearningEvidence
+      tags: [learning-goals]
+      summary: List comprehension and reflection evidence for the current learner
+      responses:
+        "200":
+          description: Learning evidence, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LearningEvidence" }
+    post:
+      operationId: createLearningEvidence
+      tags: [learning-goals]
+      summary: Record a post-resource comprehension checkpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LearningEvidenceInput" }
+      responses:
+        "201":
+          description: Recorded learning evidence
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningEvidence" }
+
+  /learning-signals:
+    get:
+      operationId: getLearningSignals
+      tags: [learning-goals]
+      summary: Get teacher-facing class learning signals from checkpoint evidence
+      responses:
+        "200":
+          description: Aggregated learning signals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningSignals" }
+        "403": { description: Teacher role required }
+
 components:
   schemas:
     HealthStatus:
@@ -1775,74 +1816,88 @@ components:
     # ── Auth ────────────────────────────────────────────────────────────────
     User:
       type: object
-      required: [id, email, name, role, profileVisibility, showBio, showSubjects, showGradeOrDept, showWebsite, createdAt]
+      required:
+        [
+          id,
+          email,
+          name,
+          role,
+          profileVisibility,
+          showBio,
+          showSubjects,
+          showGradeOrDept,
+          showWebsite,
+          createdAt,
+        ]
       properties:
-        id:          { type: integer }
-        email:       { type: string }
-        name:        { type: string }
-        role:        { type: string, enum: [student, teacher] }
-        avatarUrl:   { type: ["string", "null"] }
-        bio:         { type: ["string", "null"] }
-        subjects:    { type: array, items: { type: string }, nullable: true }
+        id: { type: integer }
+        email: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [student, teacher] }
+        avatarUrl: { type: ["string", "null"] }
+        bio: { type: ["string", "null"] }
+        subjects: { type: array, items: { type: string }, nullable: true }
         gradeOrDept: { type: ["string", "null"] }
-        timezone:    { type: ["string", "null"] }
-        websiteUrl:  { type: ["string", "null"] }
-        profileVisibility: { type: string, enum: [everyone, classmates, private] }
-        showBio:          { type: boolean }
-        showSubjects:     { type: boolean }
-        showGradeOrDept:  { type: boolean }
-        showWebsite:      { type: boolean }
-        createdAt:   { type: string }
+        timezone: { type: ["string", "null"] }
+        websiteUrl: { type: ["string", "null"] }
+        profileVisibility:
+          { type: string, enum: [everyone, classmates, private] }
+        showBio: { type: boolean }
+        showSubjects: { type: boolean }
+        showGradeOrDept: { type: boolean }
+        showWebsite: { type: boolean }
+        createdAt: { type: string }
 
     PublicUser:
       type: object
       required: [id, name, role]
       properties:
-        id:          { type: integer }
-        name:        { type: string }
-        role:        { type: string, enum: [student, teacher] }
-        websiteUrl:  { type: ["string", "null"] }
-        avatarUrl:   { type: ["string", "null"] }
-        bio:         { type: ["string", "null"] }
-        subjects:    { type: array, items: { type: string }, nullable: true }
+        id: { type: integer }
+        name: { type: string }
+        role: { type: string, enum: [student, teacher] }
+        websiteUrl: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
+        bio: { type: ["string", "null"] }
+        subjects: { type: array, items: { type: string }, nullable: true }
         gradeOrDept: { type: ["string", "null"] }
 
     RegisterInput:
       type: object
       required: [email, password, name]
       properties:
-        email:    { type: string }
+        email: { type: string }
         password: { type: string, minLength: 6 }
-        name:     { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
 
     LoginInput:
       type: object
       required: [email, password]
       properties:
-        email:    { type: string }
+        email: { type: string }
         password: { type: string }
 
     AuthResponse:
       type: object
       required: [user, token]
       properties:
-        user:  { $ref: "#/components/schemas/User" }
+        user: { $ref: "#/components/schemas/User" }
         token: { type: string }
 
     UserUpdate:
       type: object
       properties:
-        name:        { type: string, minLength: 1 }
-        profileVisibility: { type: string, enum: [everyone, classmates, private] }
-        showBio:          { type: boolean }
-        showSubjects:     { type: boolean }
-        showGradeOrDept:  { type: boolean }
-        showWebsite:      { type: boolean }
-        bio:         { type: ["string", "null"], maxLength: 300 }
-        subjects:    { type: array, items: { type: string }, nullable: true }
+        name: { type: string, minLength: 1 }
+        profileVisibility:
+          { type: string, enum: [everyone, classmates, private] }
+        showBio: { type: boolean }
+        showSubjects: { type: boolean }
+        showGradeOrDept: { type: boolean }
+        showWebsite: { type: boolean }
+        bio: { type: ["string", "null"], maxLength: 300 }
+        subjects: { type: array, items: { type: string }, nullable: true }
         gradeOrDept: { type: ["string", "null"] }
-        timezone:    { type: ["string", "null"] }
-        websiteUrl:  { type: ["string", "null"] }
+        timezone: { type: ["string", "null"] }
+        websiteUrl: { type: ["string", "null"] }
 
     UserSafetyStatus:
       type: object
@@ -1854,7 +1909,11 @@ components:
       type: object
       required: [reason]
       properties:
-        reason: { type: string, enum: [spam, harassment, impersonation, unsafe_content, other] }
+        reason:
+          {
+            type: string,
+            enum: [spam, harassment, impersonation, unsafe_content, other],
+          }
         details: { type: ["string", "null"], maxLength: 1000 }
 
     ReportUserResponse:
@@ -1869,7 +1928,21 @@ components:
       properties:
         avatarId:
           type: string
-          enum: [cosmic-cat, sunny-fox, clever-owl, ocean-otter, mint-panda, brave-lion, star-bunny, purple-koala, red-panda, sky-penguin, green-frog, moon-wolf]
+          enum:
+            [
+              cosmic-cat,
+              sunny-fox,
+              clever-owl,
+              ocean-otter,
+              mint-panda,
+              brave-lion,
+              star-bunny,
+              purple-koala,
+              red-panda,
+              sky-penguin,
+              green-frog,
+              moon-wolf,
+            ]
 
     RoleSwitchInput:
       type: object
@@ -1879,7 +1952,8 @@ components:
 
     LearningGoal:
       type: object
-      required: [id, userId, title, subject, level, status, createdAt, updatedAt]
+      required:
+        [id, userId, title, subject, level, status, createdAt, updatedAt]
       properties:
         id: { type: integer }
         userId: { type: integer }
@@ -1889,7 +1963,11 @@ components:
         level: { type: string, enum: [beginner, intermediate, advanced] }
         preferredFormats:
           type: ["array", "null"]
-          items: { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+          items:
+            {
+              type: string,
+              enum: [article, video, pdf, podcast, interactive, other],
+            }
         targetDate: { type: ["string", "null"], format: date }
         status: { type: string, enum: [active, paused, completed] }
         createdAt: { type: string }
@@ -1906,7 +1984,11 @@ components:
         preferredFormats:
           type: array
           maxItems: 6
-          items: { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+          items:
+            {
+              type: string,
+              enum: [article, video, pdf, podcast, interactive, other],
+            }
         targetDate: { type: ["string", "null"], format: date }
 
     LearningGoalPatch:
@@ -1919,7 +2001,11 @@ components:
         preferredFormats:
           type: ["array", "null"]
           maxItems: 6
-          items: { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+          items:
+            {
+              type: string,
+              enum: [article, video, pdf, podcast, interactive, other],
+            }
         targetDate: { type: ["string", "null"], format: date }
         status: { type: string, enum: [active, paused, completed] }
 
@@ -1928,31 +2014,31 @@ components:
       type: object
       required: [id, name, subject, gradeLevel, teacherId, createdAt]
       properties:
-        id:          { type: integer }
-        name:        { type: string }
-        subject:     { type: string }
-        gradeLevel:  { type: string }
+        id: { type: integer }
+        name: { type: string }
+        subject: { type: string }
+        gradeLevel: { type: string }
         description: { type: ["string", "null"] }
         seatingRows: { type: integer }
         seatingColumns: { type: integer }
-        teacherId:   { type: integer }
+        teacherId: { type: integer }
         memberCount: { type: integer }
-        createdAt:   { type: string }
+        createdAt: { type: string }
 
     ClassWithMembers:
       type: object
       required: [id, name, subject, gradeLevel, teacherId, createdAt, members]
       properties:
-        id:          { type: integer }
-        name:        { type: string }
-        subject:     { type: string }
-        gradeLevel:  { type: string }
+        id: { type: integer }
+        name: { type: string }
+        subject: { type: string }
+        gradeLevel: { type: string }
         description: { type: ["string", "null"] }
         seatingRows: { type: integer }
         seatingColumns: { type: integer }
-        teacherId:   { type: integer }
+        teacherId: { type: integer }
         memberCount: { type: integer }
-        createdAt:   { type: string }
+        createdAt: { type: string }
         members:
           type: array
           items:
@@ -1962,28 +2048,28 @@ components:
       type: object
       required: [name, subject, gradeLevel]
       properties:
-        name:        { type: string, minLength: 1 }
-        subject:     { type: string, minLength: 1 }
-        gradeLevel:  { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        subject: { type: string, minLength: 1 }
+        gradeLevel: { type: string, minLength: 1 }
         description: { type: string }
 
     ClassPatch:
       type: object
       properties:
-        name:        { type: string, minLength: 1 }
-        subject:     { type: string }
-        gradeLevel:  { type: string }
+        name: { type: string, minLength: 1 }
+        subject: { type: string }
+        gradeLevel: { type: string }
         description: { type: string }
 
     ClassMember:
       type: object
       required: [userId, classId, role, joinedAt, user]
       properties:
-        userId:   { type: integer }
-        classId:  { type: integer }
-        role:     { type: string, enum: [student, teacher] }
+        userId: { type: integer }
+        classId: { type: integer }
+        role: { type: string, enum: [student, teacher] }
         joinedAt: { type: string }
-        user:     { $ref: "#/components/schemas/PublicUser" }
+        user: { $ref: "#/components/schemas/PublicUser" }
 
     ClassroomDesk:
       type: object
@@ -2046,7 +2132,8 @@ components:
 
     SeatingPlanSuggestion:
       type: object
-      required: [rows, columns, layoutMode, desks, summary, considerations, assignments]
+      required:
+        [rows, columns, layoutMode, desks, summary, considerations, assignments]
       properties:
         rows: { type: integer }
         columns: { type: integer }
@@ -2099,7 +2186,7 @@ components:
       required: [email]
       properties:
         email: { type: string }
-        role:  { type: string, enum: [student, teacher] }
+        role: { type: string, enum: [student, teacher] }
 
     # ── Resources ───────────────────────────────────────────────────────────
     PrefetchResourceBody:
@@ -2112,64 +2199,100 @@ components:
       type: object
       required: [title, description, format]
       properties:
-        title:        { type: string }
-        description:  { type: string }
-        format:       { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        title: { type: string }
+        description: { type: string }
+        format:
+          {
+            type: string,
+            enum: [article, video, pdf, podcast, interactive, other],
+          }
         thumbnailUrl: { type: ["string", "null"] }
 
     Resource:
       type: object
-      required: [id, title, url, format, subject, gradeLevel, submittedById, avgRating, reviewCount, createdAt]
+      required:
+        [
+          id,
+          title,
+          url,
+          format,
+          subject,
+          gradeLevel,
+          submittedById,
+          avgRating,
+          reviewCount,
+          createdAt,
+        ]
       properties:
-        id:             { type: integer }
-        title:          { type: string }
-        url:            { type: string }
-        description:    { type: ["string", "null"] }
-        format:         { type: string, enum: [article, video, pdf, podcast, interactive, other] }
-        subject:        { type: string }
-        gradeLevel:     { type: string }
-        thumbnailUrl:   { type: ["string", "null"] }
-        submittedById:  { type: integer }
-        avgRating:      { type: number }
-        reviewCount:    { type: integer }
-        createdAt:      { type: string }
+        id: { type: integer }
+        title: { type: string }
+        url: { type: string }
+        description: { type: ["string", "null"] }
+        format:
+          {
+            type: string,
+            enum: [article, video, pdf, podcast, interactive, other],
+          }
+        subject: { type: string }
+        gradeLevel: { type: string }
+        thumbnailUrl: { type: ["string", "null"] }
+        submittedById: { type: integer }
+        avgRating: { type: number }
+        reviewCount: { type: integer }
+        createdAt: { type: string }
 
     ResourceInput:
       type: object
       required: [title, url, format, subject, gradeLevel]
       properties:
-        title:        { type: string, minLength: 1 }
-        url:          { type: string, minLength: 1 }
-        description:  { type: string }
-        format:       { type: string, enum: [article, video, pdf, podcast, interactive, other] }
-        subject:      { type: string, minLength: 1 }
-        gradeLevel:   { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        url: { type: string, minLength: 1 }
+        description: { type: string }
+        format:
+          {
+            type: string,
+            enum: [article, video, pdf, podcast, interactive, other],
+          }
+        subject: { type: string, minLength: 1 }
+        gradeLevel: { type: string, minLength: 1 }
         thumbnailUrl: { type: string }
 
     ResourcePatch:
       type: object
       properties:
-        title:        { type: string, minLength: 1 }
-        description:  { type: string }
-        format:       { type: string, enum: [article, video, pdf, podcast, interactive, other] }
-        subject:      { type: string }
-        gradeLevel:   { type: string }
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        format:
+          {
+            type: string,
+            enum: [article, video, pdf, podcast, interactive, other],
+          }
+        subject: { type: string }
+        gradeLevel: { type: string }
         thumbnailUrl: { type: string }
 
     DiscoveredResource:
       type: object
       required: [title, url, description, format, source]
       properties:
-        title:        { type: string }
-        url:          { type: string }
-        description:  { type: string }
-        format:       { type: string, enum: [article, video, pdf, podcast, interactive, other] }
-        source:       { type: string }
+        title: { type: string }
+        url: { type: string }
+        description: { type: string }
+        format:
+          {
+            type: string,
+            enum: [article, video, pdf, podcast, interactive, other],
+          }
+        source: { type: string }
         thumbnailUrl: { type: ["string", "null"] }
-        subject:      { type: ["string", "null"] }
-        gradeLevel:   { type: ["string", "null"] }
+        subject: { type: ["string", "null"] }
+        gradeLevel: { type: ["string", "null"] }
 
-        provenanceLevel: { type: string, enum: [institutional, established, independent, unknown] }
+        provenanceLevel:
+          {
+            type: string,
+            enum: [institutional, established, independent, unknown],
+          }
         provenanceSignals:
           type: array
           items: { type: string }
@@ -2180,44 +2303,44 @@ components:
       required: [label, url]
       properties:
         label: { type: string }
-        url:   { type: string }
+        url: { type: string }
 
     SourceReview:
       type: object
       required: [sourceName, sourceType, summary, trustLevel, mode]
       properties:
-        sourceName:   { type: string }
-        sourceType:   { type: string }
-        description:  { type: ["string", "null"] }
-        founded:      { type: ["string", "null"] }
+        sourceName: { type: string }
+        sourceType: { type: string }
+        description: { type: ["string", "null"] }
+        founded: { type: ["string", "null"] }
         headquarters: { type: ["string", "null"] }
-        trustLevel:   { type: string, enum: [high, medium, low, unknown] }
-        trustReason:  { type: ["string", "null"] }
-        summary:      { type: string }
+        trustLevel: { type: string, enum: [high, medium, low, unknown] }
+        trustReason: { type: ["string", "null"] }
+        summary: { type: string }
         links:
           type: array
           items:
             $ref: "#/components/schemas/SourceReviewLink"
-        mode:         { type: string, enum: [quick, deep] }
+        mode: { type: string, enum: [quick, deep] }
 
     # ── Reviews ─────────────────────────────────────────────────────────────
     Review:
       type: object
       required: [id, resourceId, userId, rating, createdAt, user]
       properties:
-        id:         { type: integer }
+        id: { type: integer }
         resourceId: { type: integer }
-        userId:     { type: integer }
-        rating:     { type: integer, minimum: 1, maximum: 5 }
-        comment:    { type: ["string", "null"] }
-        createdAt:  { type: string }
-        user:       { $ref: "#/components/schemas/PublicUser" }
+        userId: { type: integer }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: ["string", "null"] }
+        createdAt: { type: string }
+        user: { $ref: "#/components/schemas/PublicUser" }
 
     ReviewInput:
       type: object
       required: [rating]
       properties:
-        rating:  { type: integer, minimum: 1, maximum: 5 }
+        rating: { type: integer, minimum: 1, maximum: 5 }
         comment: { type: string }
 
     AssignResourceBody:
@@ -2237,11 +2360,11 @@ components:
       type: object
       required: [id, name, ownerId, itemCount, createdAt]
       properties:
-        id:        { type: integer }
-        name:      { type: string }
+        id: { type: integer }
+        name: { type: string }
         description: { type: ["string", "null"] }
-        ownerId:   { type: integer }
-        classId:   { type: ["integer", "null"] }
+        ownerId: { type: integer }
+        classId: { type: ["integer", "null"] }
         itemCount: { type: integer }
         createdAt: { type: string }
 
@@ -2249,13 +2372,13 @@ components:
       type: object
       required: [id, name, ownerId, itemCount, createdAt, items]
       properties:
-        id:          { type: integer }
-        name:        { type: string }
+        id: { type: integer }
+        name: { type: string }
         description: { type: ["string", "null"] }
-        ownerId:     { type: integer }
-        classId:     { type: ["integer", "null"] }
-        itemCount:   { type: integer }
-        createdAt:   { type: string }
+        ownerId: { type: integer }
+        classId: { type: ["integer", "null"] }
+        itemCount: { type: integer }
+        createdAt: { type: string }
         items:
           type: array
           items:
@@ -2265,33 +2388,33 @@ components:
       type: object
       required: [name]
       properties:
-        name:        { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
         description: { type: string }
 
     ResourceListPatch:
       type: object
       properties:
-        name:        { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
         description: { type: string }
 
     ListItem:
       type: object
       required: [id, listId, resourceId, addedAt, position, resource]
       properties:
-        id:         { type: integer }
-        listId:     { type: integer }
+        id: { type: integer }
+        listId: { type: integer }
         resourceId: { type: integer }
-        note:       { type: ["string", "null"] }
-        addedAt:    { type: string }
-        position:   { type: integer }
-        resource:   { $ref: "#/components/schemas/Resource" }
+        note: { type: ["string", "null"] }
+        addedAt: { type: string }
+        position: { type: integer }
+        resource: { $ref: "#/components/schemas/Resource" }
 
     ListItemInput:
       type: object
       required: [resourceId]
       properties:
         resourceId: { type: integer }
-        note:       { type: string }
+        note: { type: string }
 
     ReorderListItemsInput:
       type: object
@@ -2313,25 +2436,34 @@ components:
       type: object
       required: [userId, status]
       properties:
-        userId:      { type: integer }
-        status:      { type: string, enum: [pending, accepted, declined] }
-        name:        { type: ["string", "null"] }
-        avatarUrl:   { type: ["string", "null"] }
+        userId: { type: integer }
+        status: { type: string, enum: [pending, accepted, declined] }
+        name: { type: ["string", "null"] }
+        avatarUrl: { type: ["string", "null"] }
         respondedAt: { type: ["string", "null"] }
 
     StudySession:
       type: object
-      required: [id, organizerId, title, startsAt, durationMinutes, meetingUrl, createdAt]
+      required:
+        [
+          id,
+          organizerId,
+          title,
+          startsAt,
+          durationMinutes,
+          meetingUrl,
+          createdAt,
+        ]
       properties:
-        id:              { type: integer }
-        organizerId:     { type: integer }
-        title:           { type: string }
-        startsAt:        { type: string }
+        id: { type: integer }
+        organizerId: { type: integer }
+        title: { type: string }
+        startsAt: { type: string }
         durationMinutes: { type: integer }
-        topic:           { type: ["string", "null"] }
-        resourceId:      { type: ["integer", "null"] }
-        meetingUrl:      { type: string }
-        createdAt:       { type: string }
+        topic: { type: ["string", "null"] }
+        resourceId: { type: ["integer", "null"] }
+        meetingUrl: { type: string }
+        createdAt: { type: string }
 
     StudySessionWithParticipants:
       allOf:
@@ -2349,12 +2481,12 @@ components:
       type: object
       required: [title, startsAt, durationMinutes, meetingUrl]
       properties:
-        title:           { type: string, minLength: 1 }
-        startsAt:        { type: string }
+        title: { type: string, minLength: 1 }
+        startsAt: { type: string }
         durationMinutes: { type: integer, minimum: 5 }
-        topic:           { type: string }
-        resourceId:      { type: integer }
-        meetingUrl:      { type: string, minLength: 1, pattern: "^https?://" }
+        topic: { type: string }
+        resourceId: { type: integer }
+        meetingUrl: { type: string, minLength: 1, pattern: "^https?://" }
         inviteeIds:
           type: array
           items: { type: integer }
@@ -2362,12 +2494,12 @@ components:
     StudySessionPatch:
       type: object
       properties:
-        title:           { type: string, minLength: 1 }
-        startsAt:        { type: string }
+        title: { type: string, minLength: 1 }
+        startsAt: { type: string }
         durationMinutes: { type: integer, minimum: 5 }
-        topic:           { type: ["string", "null"] }
-        resourceId:      { type: ["integer", "null"] }
-        meetingUrl:      { type: string, minLength: 1, pattern: "^https?://" }
+        topic: { type: ["string", "null"] }
+        resourceId: { type: ["integer", "null"] }
+        meetingUrl: { type: string, minLength: 1, pattern: "^https?://" }
 
     StudySessionRsvp:
       type: object
@@ -2380,64 +2512,72 @@ components:
       type: object
       required: [id, userId, title, date, startTime, endTime, createdAt]
       properties:
-        id:         { type: integer }
-        userId:     { type: integer }
-        title:      { type: string }
-        date:       { type: string, format: date }
-        startTime:  { type: string }
-        endTime:    { type: string }
+        id: { type: integer }
+        userId: { type: integer }
+        title: { type: string }
+        date: { type: string, format: date }
+        startTime: { type: string }
+        endTime: { type: string }
         resourceId: { type: ["integer", "null"] }
-        listId:     { type: ["integer", "null"] }
-        classId:    { type: ["integer", "null"] }
-        notes:      { type: ["string", "null"] }
-        createdAt:  { type: string }
+        listId: { type: ["integer", "null"] }
+        classId: { type: ["integer", "null"] }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
 
     ScheduleBlockInput:
       type: object
       required: [title, date, startTime, endTime]
       properties:
-        title:      { type: string, minLength: 1 }
-        date:       { type: string, format: date }
-        startTime:  { type: string }
-        endTime:    { type: string }
+        title: { type: string, minLength: 1 }
+        date: { type: string, format: date }
+        startTime: { type: string }
+        endTime: { type: string }
         resourceId: { type: integer }
-        listId:     { type: integer }
-        classId:    { type: integer }
-        notes:      { type: string }
+        listId: { type: integer }
+        classId: { type: integer }
+        notes: { type: string }
 
     ScheduleBlockPatch:
       type: object
       properties:
-        title:     { type: string, minLength: 1 }
-        date:      { type: string, format: date }
+        title: { type: string, minLength: 1 }
+        date: { type: string, format: date }
         startTime: { type: string }
-        endTime:   { type: string }
-        notes:     { type: string }
+        endTime: { type: string }
+        notes: { type: string }
         resourceId: { type: ["integer", "null"] }
-        listId:     { type: ["integer", "null"] }
+        listId: { type: ["integer", "null"] }
 
     # ── Dashboard ───────────────────────────────────────────────────────────
     DashboardSummary:
       type: object
-      required: [classCount, resourceCount, listCount, reviewCount, studentCount, scheduleBlockCount]
+      required:
+        [
+          classCount,
+          resourceCount,
+          listCount,
+          reviewCount,
+          studentCount,
+          scheduleBlockCount,
+        ]
       properties:
-        classCount:          { type: integer }
-        resourceCount:       { type: integer }
-        listCount:           { type: integer }
-        reviewCount:         { type: integer }
-        studentCount:        { type: integer }
-        scheduleBlockCount:  { type: integer }
+        classCount: { type: integer }
+        resourceCount: { type: integer }
+        listCount: { type: integer }
+        reviewCount: { type: integer }
+        studentCount: { type: integer }
+        scheduleBlockCount: { type: integer }
 
     ActivityItem:
       type: object
       required: [id, type, message, createdAt]
       properties:
-        id:         { type: integer }
-        type:       { type: string, enum: [review, resource, list, schedule, class] }
-        message:    { type: string }
-        createdAt:  { type: string }
-        userId:     { type: ["integer", "null"] }
-        userName:   { type: ["string", "null"] }
+        id: { type: integer }
+        type: { type: string, enum: [review, resource, list, schedule, class] }
+        message: { type: string }
+        createdAt: { type: string }
+        userId: { type: ["integer", "null"] }
+        userName: { type: ["string", "null"] }
 
     # ── Google Classroom ─────────────────────────────────────────────────────
     GCAuthUrl:
@@ -2450,22 +2590,22 @@ components:
       type: object
       required: [connected, configured]
       properties:
-        connected:  { type: boolean }
+        connected: { type: boolean }
         configured: { type: boolean }
 
     GCCourse:
       type: object
       required: [id, name]
       properties:
-        id:      { type: string }
-        name:    { type: string }
+        id: { type: string }
+        name: { type: string }
         section: { type: ["string", "null"] }
 
     GCShareInput:
       type: object
       required: [listId, courseId]
       properties:
-        listId:   { type: integer }
+        listId: { type: integer }
         courseId: { type: string }
 
     GCShareResult:
@@ -2473,7 +2613,7 @@ components:
       required: [announcementId, url]
       properties:
         announcementId: { type: string }
-        url:            { type: string }
+        url: { type: string }
 
     GCImportInput:
       type: object
@@ -2485,10 +2625,10 @@ components:
       type: object
       required: [gcUserId, name, email]
       properties:
-        gcUserId:      { type: string }
-        name:          { type: string }
-        email:         { type: string }
-        linkedUserId:  { type: ["integer", "null"] }
+        gcUserId: { type: string }
+        name: { type: string }
+        email: { type: string }
+        linkedUserId: { type: ["integer", "null"] }
 
     BulkInviteInput:
       type: object
@@ -2503,16 +2643,16 @@ components:
       type: object
       required: [email, status]
       properties:
-        email:  { type: string }
+        email: { type: string }
         status: { type: string, enum: [added, already_member, not_found] }
 
     BulkInviteResult:
       type: object
       required: [added, alreadyMember, notFound, results]
       properties:
-        added:         { type: integer }
+        added: { type: integer }
         alreadyMember: { type: integer }
-        notFound:      { type: integer }
+        notFound: { type: integer }
         results:
           type: array
           items:
@@ -2523,9 +2663,9 @@ components:
       type: object
       required: [googleConnected, googleConfigured, icalSecret]
       properties:
-        googleConnected:  { type: boolean }
+        googleConnected: { type: boolean }
         googleConfigured: { type: boolean }
-        icalSecret:       { type: string }
+        icalSecret: { type: string }
 
     CalendarConnectUrl:
       type: object
@@ -2537,5 +2677,52 @@ components:
       type: object
       required: [url, icalSecret]
       properties:
-        url:        { type: string }
+        url: { type: string }
         icalSecret: { type: string }
+    LearningEvidence:
+      type: object
+      required: [id, userId, concept, confidence, understanding, createdAt]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        resourceId: { type: ["integer", "null"] }
+        learningGoalId: { type: ["integer", "null"] }
+        concept: { type: string }
+        confidence: { type: integer, minimum: 1, maximum: 3 }
+        understanding: { type: integer, minimum: 0, maximum: 4 }
+        reflection: { type: ["string", "null"] }
+        misconception: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    LearningEvidenceInput:
+      type: object
+      required: [concept, confidence, understanding]
+      properties:
+        resourceId: { type: ["integer", "null"] }
+        learningGoalId: { type: ["integer", "null"] }
+        concept: { type: string, minLength: 2, maxLength: 160 }
+        confidence: { type: integer, minimum: 1, maximum: 3 }
+        understanding: { type: integer, minimum: 0, maximum: 4 }
+        reflection: { type: ["string", "null"], maxLength: 2000 }
+        misconception: { type: ["string", "null"], maxLength: 500 }
+
+    LearningSignalItem:
+      type: object
+      required: [concept, learnerCount, averageUnderstanding, stalledCount]
+      properties:
+        concept: { type: string }
+        learnerCount: { type: integer }
+        averageUnderstanding: { type: number }
+        stalledCount: { type: integer }
+        commonMisconception: { type: ["string", "null"] }
+
+    LearningSignals:
+      type: object
+      required: [evidenceCount, learnerCount, averageUnderstanding, signals]
+      properties:
+        evidenceCount: { type: integer }
+        learnerCount: { type: integer }
+        averageUnderstanding: { type: number }
+        signals:
+          type: array
+          items: { $ref: "#/components/schemas/LearningSignalItem" }

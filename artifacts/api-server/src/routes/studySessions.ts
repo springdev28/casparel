@@ -8,6 +8,7 @@ import {
   classMembersTable,
   resourcesTable,
   userBlocksTable,
+  activityLogTable,
 } from "@workspace/db";
 
 /** Reject any meeting URL that isn't http or https — blocks javascript: etc. */
@@ -156,6 +157,12 @@ router.post(
         return;
       }
 
+      const discoverableRows = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(and(inArray(usersTable.id, uniqueInvitees), eq(usersTable.profileVisibility, "everyone")));
+      const discoverableIds = new Set(discoverableRows.map((row) => row.id));
+
       // Classes the organiser belongs to
       const myClasses = await db
         .select({ classId: classMembersTable.classId })
@@ -175,19 +182,19 @@ router.post(
             ),
           );
         const allowedIds = new Set(sharedRows.map((r) => r.userId));
-        const forbidden = uniqueInvitees.filter((id) => !allowedIds.has(id));
+        const forbidden = uniqueInvitees.filter((id) => !allowedIds.has(id) && !discoverableIds.has(id));
         if (forbidden.length > 0) {
           res.status(403).json({
-            error: "One or more invitees do not share a class with you",
+            error: "One or more invitees are not available to invite",
           });
           return;
         }
       } else {
-        // Organiser has no classes — cannot invite anyone
-        res.status(403).json({
-          error: "You must share a class with each invitee",
-        });
-        return;
+        const forbidden = uniqueInvitees.filter((id) => !discoverableIds.has(id));
+        if (forbidden.length > 0) {
+          res.status(403).json({ error: "One or more invitees are not available to invite" });
+          return;
+        }
       }
     }
 
@@ -202,6 +209,13 @@ router.post(
           sessionId: session.id,
           userId: inviteeId,
           status: "pending" as const,
+        })),
+      );
+      await db.insert(activityLogTable).values(
+        uniqueInvitees.map((inviteeId) => ({
+          userId: inviteeId,
+          type: "schedule" as const,
+          message: `You were invited to “${session.title}” on ${new Date(session.startsAt).toLocaleString()}`,
         })),
       );
     }

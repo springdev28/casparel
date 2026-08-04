@@ -1094,6 +1094,79 @@ export interface CalendarIcalUrl {
   icalSecret: string;
 }
 
+export interface LearningEvidence {
+  id: number;
+  userId: number;
+  /** @nullable */
+  resourceId?: number | null;
+  /** @nullable */
+  learningGoalId?: number | null;
+  concept: string;
+  /**
+     * @minimum 1
+     * @maximum 3
+     */
+  confidence: number;
+  /**
+     * @minimum 0
+     * @maximum 4
+     */
+  understanding: number;
+  /** @nullable */
+  reflection?: string | null;
+  /** @nullable */
+  misconception?: string | null;
+  createdAt: string;
+}
+
+export interface LearningEvidenceInput {
+  /** @nullable */
+  resourceId?: number | null;
+  /** @nullable */
+  learningGoalId?: number | null;
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  concept: string;
+  /**
+     * @minimum 1
+     * @maximum 3
+     */
+  confidence: number;
+  /**
+     * @minimum 0
+     * @maximum 4
+     */
+  understanding: number;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  reflection?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  misconception?: string | null;
+}
+
+export interface LearningSignalItem {
+  concept: string;
+  learnerCount: number;
+  averageUnderstanding: number;
+  stalledCount: number;
+  /** @nullable */
+  commonMisconception?: string | null;
+}
+
+export interface LearningSignals {
+  evidenceCount: number;
+  learnerCount: number;
+  averageUnderstanding: number;
+  signals: LearningSignalItem[];
+}
+
 export type UploadAvatarBody = {
   file: Blob;
 };
@@ -1261,3 +1334,4 @@ export const SearchUsersRole = {
   student: 'student',
   teacher: 'teacher',
 } as const;
+

@@ -1,22 +1,28 @@
-import { useState } from 'react';
-import { useLocation, Link } from 'wouter';
-import { ArrowRight } from 'lucide-react';
-import BrandIcon from '../../components/BrandIcon';
-import { Button } from '@workspace/edu-ds/components/ui/button';
-import { Input } from '@workspace/edu-ds/components/ui/input';
-import { Label } from '@workspace/edu-ds/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
-import { toast } from '@workspace/edu-ds/hooks/use-toast';
-import { useLogin } from '@workspace/api-client-react';
-import { AuthLanguageSelect } from '../../components/AuthLanguageSelect';
-import { useAuthLanguage } from '../../lib/auth-locale';
+import { useState } from "react";
+import { useLocation, Link } from "wouter";
+import { ArrowRight } from "lucide-react";
+import BrandIcon from "../../components/BrandIcon";
+import { Button } from "@workspace/edu-ds/components/ui/button";
+import { Input } from "@workspace/edu-ds/components/ui/input";
+import { Label } from "@workspace/edu-ds/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@workspace/edu-ds/components/ui/card";
+import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import { useLogin } from "@workspace/api-client-react";
+import { AuthLanguageSelect } from "../../components/AuthLanguageSelect";
+import { useAuthLanguage } from "../../lib/auth-locale";
 
-const TOKEN_KEY = 'schooler_token';
+const TOKEN_KEY = "schoolar_token";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const { language, setLanguage, copy } = useAuthLanguage();
 
   const loginMutation = useLogin();
@@ -24,12 +30,18 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const result = await loginMutation.mutateAsync({ data: { email, password } });
+      const result = await loginMutation.mutateAsync({
+        data: { email, password },
+      });
       localStorage.setItem(TOKEN_KEY, result.token);
-      setLocation('/dashboard');
+      setLocation("/dashboard");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : copy.loginFailed;
-      toast({ title: copy.loginFailed, description: message, variant: 'destructive' });
+      toast({
+        title: copy.loginFailed,
+        description: message,
+        variant: "destructive",
+      });
     }
   }
 
@@ -43,7 +55,11 @@ export default function LoginPage() {
           </div>
           <p className="text-sm text-muted-foreground">{copy.tagline}</p>
           <div className="mt-4">
-            <AuthLanguageSelect language={language} label={copy.language} onChange={setLanguage} />
+            <AuthLanguageSelect
+              language={language}
+              label={copy.language}
+              onChange={setLanguage}
+            />
           </div>
         </div>
 
@@ -91,8 +107,12 @@ export default function LoginPage() {
             </form>
 
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              {copy.noAccount}{' '}
-              <Link href="/auth/register" className="text-primary font-medium hover:underline" data-testid="register-link">
+              {copy.noAccount}{" "}
+              <Link
+                href="/auth/register"
+                className="text-primary font-medium hover:underline"
+                data-testid="register-link"
+              >
                 {copy.createOne}
               </Link>
             </p>

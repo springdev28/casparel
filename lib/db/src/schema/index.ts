@@ -11,3 +11,4 @@ export * from "./studySessions";
 export * from "./calendarTokens";
 export * from "./learningGoals";
 export * from "./userSafety";
+export * from "./learningEvidence";

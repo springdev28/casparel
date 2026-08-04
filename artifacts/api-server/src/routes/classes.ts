@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and, max, asc } from "drizzle-orm";
-import { db, classesTable, classMembersTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable } from "@workspace/db";
+import { db, classesTable, classMembersTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable } from "@workspace/db";
 import {
   ListClassesResponse,
   CreateClassBody,
@@ -199,8 +199,14 @@ router.delete("/classes/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Only the class teacher can delete this class" });
     return;
   }
-  await db.delete(classMembersTable).where(eq(classMembersTable.classId, params.data.id));
-  await db.delete(classesTable).where(eq(classesTable.id, params.data.id));
+  await db.transaction(async (tx) => {
+    await tx.update(scheduleBlocksTable).set({ classId: null }).where(eq(scheduleBlocksTable.classId, params.data.id));
+    const classLists = await tx.select({ id: resourceListsTable.id }).from(resourceListsTable).where(eq(resourceListsTable.classId, params.data.id));
+    for (const list of classLists) await tx.delete(listItemsTable).where(eq(listItemsTable.listId, list.id));
+    await tx.delete(resourceListsTable).where(eq(resourceListsTable.classId, params.data.id));
+    await tx.delete(classMembersTable).where(eq(classMembersTable.classId, params.data.id));
+    await tx.delete(classesTable).where(eq(classesTable.id, params.data.id));
+  });
   res.sendStatus(204);
 });
 

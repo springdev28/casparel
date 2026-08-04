@@ -1,5 +1,5 @@
-import { ReactNode, useEffect } from 'react';
-import { Link, useLocation } from 'wouter';
+import { ReactNode, useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
   Target,
@@ -13,17 +13,18 @@ import {
   RefreshCw,
   UserCog,
   User,
-} from 'lucide-react';
-import { cn } from '@workspace/edu-ds/lib/utils';
-import { Button } from '@workspace/edu-ds/components/ui/button';
-import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
+  Bell,
+} from "lucide-react";
+import { cn } from "@workspace/edu-ds/lib/utils";
+import { Button } from "@workspace/edu-ds/components/ui/button";
+import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@workspace/edu-ds/components/ui/select';
+} from "@workspace/edu-ds/components/ui/select";
 import {
   useGetMe,
   useGetGCStatus,
@@ -35,13 +36,17 @@ import {
   getGetGCAuthUrlQueryKey,
   UserRole,
   RoleSwitchInputRole,
-} from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from '@workspace/edu-ds/hooks/use-toast';
-import ThemeCustomizer from './ThemeCustomizer';
-import BrandIcon from './BrandIcon';
+  useGetRecentActivity,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import ThemeCustomizer from "./ThemeCustomizer";
+import { AuthLanguageSelect } from "./AuthLanguageSelect";
+import { useAuthLanguage } from "../lib/auth-locale";
+import { Popover, PopoverContent, PopoverTrigger } from "@workspace/edu-ds/components/ui/popover";
+import BrandIcon from "./BrandIcon";
 
-const TOKEN_KEY = 'schooler_token';
+const TOKEN_KEY = "schoolar_token";
 
 interface NavItem {
   label: string;
@@ -50,13 +55,13 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Goals', href: '/goals', icon: Target },
-  { label: 'Resources', href: '/resources', icon: BookOpen },
-  { label: 'People', href: '/people', icon: Users },
-  { label: 'Classes', href: '/classes', icon: Users },
-  { label: 'Lists', href: '/lists', icon: List },
-  { label: 'Schedule', href: '/schedule', icon: Calendar },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Goals", href: "/goals", icon: Target },
+  { label: "Resources", href: "/resources", icon: BookOpen },
+  { label: "People", href: "/people", icon: Users },
+  { label: "Classes", href: "/classes", icon: Users },
+  { label: "Lists", href: "/lists", icon: List },
+  { label: "Schedule", href: "/schedule", icon: Calendar },
 ];
 
 interface AppShellProps {
@@ -67,6 +72,8 @@ export default function AppShell({ children }: AppShellProps) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { data: me, isLoading: meLoading } = useGetMe();
+  const { language, setLanguage, copy } = useAuthLanguage();
+  const { data: notifications } = useGetRecentActivity();
   const isTeacher = me?.role === UserRole.teacher;
 
   // Real Google Classroom status — only fetched for teachers
@@ -75,8 +82,13 @@ export default function AppShell({ children }: AppShellProps) {
   });
 
   // Lazy auth URL fetch — only triggered on demand
-  const { data: gcAuthUrlData, refetch: fetchAuthUrl, isFetching: authUrlFetching } =
-    useGetGCAuthUrl({ query: { enabled: false, queryKey: getGetGCAuthUrlQueryKey() } });
+  const {
+    data: gcAuthUrlData,
+    refetch: fetchAuthUrl,
+    isFetching: authUrlFetching,
+  } = useGetGCAuthUrl({
+    query: { enabled: false, queryKey: getGetGCAuthUrlQueryKey() },
+  });
 
   const disconnectGoogle = useDisconnectGoogle();
   const switchRoleMutation = useSwitchRole();
@@ -90,7 +102,7 @@ export default function AppShell({ children }: AppShellProps) {
 
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
-    setLocation('/resources');
+    setLocation("/resources");
   }
 
   async function handleGcConnect() {
@@ -98,9 +110,9 @@ export default function AppShell({ children }: AppShellProps) {
       await fetchAuthUrl();
     } catch {
       toast({
-        title: 'Could not start Google authorization',
-        description: 'Please try again or connect from the Classes page.',
-        variant: 'destructive',
+        title: "Could not start Google authorization",
+        description: "Please try again or connect from the Classes page.",
+        variant: "destructive",
       });
     }
   }
@@ -109,9 +121,13 @@ export default function AppShell({ children }: AppShellProps) {
     try {
       await disconnectGoogle.mutateAsync();
       queryClient.invalidateQueries({ queryKey: getGetGCStatusQueryKey() });
-      toast({ title: 'Google Classroom disconnected' });
+      toast({ title: "Google Classroom disconnected" });
     } catch {
-      toast({ title: 'Error', description: 'Could not disconnect Google Classroom', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: "Could not disconnect Google Classroom",
+        variant: "destructive",
+      });
     }
   }
 
@@ -126,10 +142,17 @@ export default function AppShell({ children }: AppShellProps) {
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       toast({
         title: `Switched to ${newRole} mode`,
-        description: newRole === 'teacher' ? 'Teacher tools are now active.' : 'Student view is now active.',
+        description:
+          newRole === "teacher"
+            ? "Teacher tools are now active."
+            : "Student view is now active.",
       });
     } catch {
-      toast({ title: 'Error', description: 'Could not switch role. Please try again.', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: "Could not switch role. Please try again.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -207,30 +230,39 @@ export default function AppShell({ children }: AppShellProps) {
         <aside className="hidden md:flex flex-col w-56 shrink-0 bg-primary text-primary-foreground">
           {/* Logo */}
           <div className="flex items-center gap-2 px-5 py-5 border-b border-primary-foreground/20">
-            <BrandIcon className="h-14 w-28 text-primary-foreground" label="Schoolar" />
+            <BrandIcon
+              className="h-14 w-28 text-primary-foreground"
+              label="Schoolar"
+            />
             <span className="font-bold text-lg tracking-tight">Schoolar</span>
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 py-4 px-3 space-y-1" aria-label="Main navigation">
+          <nav
+            className="flex-1 py-4 px-3 space-y-1"
+            aria-label="Main navigation"
+          >
             {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
-              const isActive = location === href || location.startsWith(href + '/');
+              const isActive =
+                location === href || location.startsWith(href + "/");
+              const displayLabel =
+                language === "tr" ? (NAV_LABELS_TR[label] ?? label) : label;
               return (
                 <Link
                   key={href}
                   href={href}
-                  aria-label={label}
-                  title={label}
+                  aria-label={displayLabel}
+                  title={displayLabel}
                   data-testid={`nav-${label.toLowerCase()}`}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                     isActive
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground',
+                      ? "bg-accent text-accent-foreground"
+                      : "text-primary-foreground/80 hover:bg-primary-foreground/10 hover:text-primary-foreground",
                   )}
                 >
                   <Icon size={17} />
-                  {label}
+                  {displayLabel}
                 </Link>
               );
             })}
@@ -247,16 +279,25 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               </div>
             ) : me ? (
-              <Link href="/profile" className="flex items-center gap-2.5 mb-2 group">
+              <Link
+                href="/profile"
+                className="flex items-center gap-2.5 mb-2 group"
+              >
                 <div className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center overflow-hidden shrink-0 group-hover:ring-2 group-hover:ring-primary-foreground/40 transition-all">
                   {me.avatarUrl ? (
-                    <img src={me.avatarUrl} alt={me.name} className="w-full h-full object-cover" />
+                    <img
+                      src={me.avatarUrl}
+                      alt={me.name}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
                     <User size={16} className="text-primary-foreground/60" />
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-primary-foreground truncate group-hover:underline">{me.name}</p>
+                  <p className="text-sm font-semibold text-primary-foreground truncate group-hover:underline">
+                    {me.name}
+                  </p>
                 </div>
               </Link>
             ) : null}
@@ -267,6 +308,19 @@ export default function AppShell({ children }: AppShellProps) {
             {/* Google Classroom connect — real OAuth, teachers only */}
             {gcWidget}
 
+            <div
+              className="px-2 py-1 [&_select]:border-primary-foreground/30 [&_select]:bg-transparent [&_select]:text-primary-foreground"
+              data-testid="sidebar-language"
+            >
+              <AuthLanguageSelect
+                language={language}
+                label={copy.language}
+                onChange={(next) => {
+                  setLanguage(next);
+                  window.location.reload();
+                }}
+              />
+            </div>
             <ThemeCustomizer
               showLabel
               className="w-full justify-start text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 px-2"
@@ -289,22 +343,30 @@ export default function AppShell({ children }: AppShellProps) {
         <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-primary text-primary-foreground flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-2">
             <BrandIcon className="h-10 w-20" label="Schoolar" />
-            <span className="hidden min-[400px]:inline font-bold">Schoolar</span>
+            <span className="hidden min-[400px]:inline font-bold">
+              Schoolar
+            </span>
           </div>
-          <nav className="ml-2 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Mobile navigation">
+          <nav
+            className="ml-2 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
+            aria-label="Mobile navigation"
+          >
             {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
-              const isActive = location === href || location.startsWith(href + '/');
+              const isActive =
+                location === href || location.startsWith(href + "/");
+              const displayLabel =
+                language === "tr" ? (NAV_LABELS_TR[label] ?? label) : label;
               return (
                 <Link
                   key={href}
                   href={href}
-                  aria-label={label}
-                  title={label}
+                  aria-label={displayLabel}
+                  title={displayLabel}
                   className={cn(
-                    'shrink-0 p-2 rounded-md transition-colors',
+                    "shrink-0 p-2 rounded-md transition-colors",
                     isActive
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-primary-foreground/70 hover:bg-primary-foreground/10',
+                      ? "bg-accent text-accent-foreground"
+                      : "text-primary-foreground/70 hover:bg-primary-foreground/10",
                   )}
                 >
                   <Icon size={18} />
@@ -326,8 +388,12 @@ export default function AppShell({ children }: AppShellProps) {
                   <UserCog size={18} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={RoleSwitchInputRole.student}>Student</SelectItem>
-                  <SelectItem value={RoleSwitchInputRole.teacher}>Teacher</SelectItem>
+                  <SelectItem value={RoleSwitchInputRole.student}>
+                    Student
+                  </SelectItem>
+                  <SelectItem value={RoleSwitchInputRole.teacher}>
+                    Teacher
+                  </SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -344,9 +410,39 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Main content */}
         <main className="flex-1 min-w-0 bg-background overflow-auto md:pt-0 pt-14">
+          <div className="sticky top-0 z-40 flex h-12 items-center justify-end border-b bg-background/95 px-4 backdrop-blur" data-testid="notification-bar">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="relative" aria-label="Notifications" data-testid="notifications-button">
+                  <Bell size={18} />
+                  {notifications?.some((item) => item.type === "schedule") && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-0">
+                <div className="border-b p-3"><b className="text-sm">{language === "tr" ? "Bildirimler" : "Notifications"}</b><p className="text-xs text-muted-foreground">{language === "tr" ? "Davetler ve program güncellemeleri" : "Invitations and schedule updates"}</p></div>
+                <div className="max-h-80 overflow-y-auto p-2">
+                  {!notifications?.length ? <p className="p-4 text-center text-sm text-muted-foreground">{language === "tr" ? "Yeni bildirim yok" : "No updates yet"}</p> : notifications.map((item) => (
+                    <Link key={item.id} href={item.type === "schedule" ? "/schedule" : "/dashboard"} className="block rounded-lg p-3 hover:bg-muted">
+                      <p className="text-sm">{item.message}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString(language === "tr" ? "tr-TR" : undefined)}</p>
+                    </Link>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
           {children}
         </main>
       </div>
     </>
   );
 }
+const NAV_LABELS_TR: Record<string, string> = {
+  Dashboard: "Ana Sayfa",
+  Goals: "Hedefler",
+  Resources: "Kaynaklar",
+  People: "Kişiler",
+  Classes: "Sınıflar",
+  Lists: "Listeler",
+  Schedule: "Takvim",
+};

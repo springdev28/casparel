@@ -22,7 +22,10 @@ import {
   useGetGCStatus,
   useGetMe,
   useGetClassResourcesList,
+  useDeleteClass,
+  useRemoveClassMember,
   useRemoveClassResource,
+  getListClassesQueryKey,
   getGetClassQueryKey,
   getGetGCStatusQueryKey,
   getGetClassResourcesListQueryKey,
@@ -52,6 +55,8 @@ export default function ClassDetailPage() {
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [rosterConfirmed, setRosterConfirmed] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<{ userId: number; name: string } | null>(null);
 
   const { data: cls, isLoading } = useGetClass(classId, {
     query: { enabled: !!classId, queryKey: getGetClassQueryKey(classId) },
@@ -66,6 +71,8 @@ export default function ClassDetailPage() {
     query: { enabled: !!classId, queryKey: getGetClassResourcesListQueryKey(classId) },
   });
   const removeClassResource = useRemoveClassResource();
+  const deleteClass = useDeleteClass();
+  const removeClassMember = useRemoveClassMember();
 
   const addMember = useAddClassMember();
   const bulkInvite = useBulkInviteClassMembers();
@@ -120,6 +127,29 @@ export default function ClassDetailPage() {
       toast({ title: 'Resource removed from class.' });
     } catch {
       toast({ title: 'Error', description: 'Could not remove the resource.', variant: 'destructive' });
+    }
+  }
+
+  async function handleDeleteClass() {
+    try {
+      await deleteClass.mutateAsync({ id: classId });
+      await queryClient.invalidateQueries({ queryKey: getListClassesQueryKey() });
+      toast({ title: "Class deleted", description: "The class and its class list were removed." });
+      setLocation("/classes");
+    } catch (err: unknown) {
+      toast({ title: "Could not delete class", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+    }
+  }
+
+  async function handleRemoveMember() {
+    if (!memberToRemove) return;
+    try {
+      await removeClassMember.mutateAsync({ id: classId, userId: memberToRemove.userId });
+      await queryClient.invalidateQueries({ queryKey: getGetClassQueryKey(classId) });
+      toast({ title: "Member removed", description: memberToRemove.name + " is no longer in this class." });
+      setMemberToRemove(null);
+    } catch (err: unknown) {
+      toast({ title: "Could not remove member", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
     }
   }
 
@@ -298,6 +328,12 @@ export default function ClassDetailPage() {
                   </DialogContent>
                 </Dialog>
               )}
+              {isTeacher && (
+                <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                  <DialogTrigger asChild><Button size="sm" variant="destructive" data-testid="delete-class-button"><Trash2 size={14} className="mr-1" /> Delete Class</Button></DialogTrigger>
+                  <DialogContent><DialogHeader><DialogTitle>Delete {cls.name}?</DialogTitle><DialogDescription>This permanently deletes the class, its memberships, and its class resource list. Original resources remain available.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button><Button variant="destructive" onClick={handleDeleteClass} disabled={deleteClass.isPending} data-testid="delete-class-confirm">{deleteClass.isPending ? "Deleting…" : "Delete Class"}</Button></DialogFooter></DialogContent>
+                </Dialog>
+              )}
             </div>
           </div>
           {cls.description && <p className="text-sm text-muted-foreground mt-2">{cls.description}</p>}
@@ -318,8 +354,8 @@ export default function ClassDetailPage() {
               {cls.members.map((member) => (
                 <div key={member.userId} className="flex items-center justify-between py-3 gap-3" data-testid="member-item">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase">{member.user.name.charAt(0)}</span>
+                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                      {member.user.avatarUrl ? <img src={member.user.avatarUrl} alt={member.user.name + " profile"} className="h-full w-full object-cover" /> : <span className="text-xs font-semibold text-muted-foreground uppercase">{member.user.name.charAt(0)}</span>}
                     </div>
                     <div>
                       <button className="text-left text-sm font-medium text-foreground hover:text-primary hover:underline" onClick={() => setLocation(`/profile/${member.userId}${isTeacher ? `?classId=${classId}` : ""}`)}>{member.user.name}</button>
@@ -333,6 +369,7 @@ export default function ClassDetailPage() {
                     <span className="text-xs text-muted-foreground hidden sm:inline">
                       Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true })}
                     </span>
+                    {isTeacher && member.userId !== cls.teacherId && <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setMemberToRemove({ userId: member.userId, name: member.user.name })} aria-label={"Remove " + member.user.name} data-testid="remove-class-member"><Trash2 size={14} /></Button>}
                   </div>
                 </div>
               ))}
@@ -340,6 +377,10 @@ export default function ClassDetailPage() {
           </Card>
         )}
       </section>
+
+      <Dialog open={memberToRemove !== null} onOpenChange={(open) => { if (!open) setMemberToRemove(null); }}>
+        <DialogContent><DialogHeader><DialogTitle>Remove {memberToRemove?.name}?</DialogTitle><DialogDescription>They will lose access to this class and its shared resources. You can add them again later.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setMemberToRemove(null)}>Cancel</Button><Button variant="destructive" onClick={handleRemoveMember} disabled={removeClassMember.isPending} data-testid="remove-class-member-confirm">{removeClassMember.isPending ? "Removing…" : "Remove Member"}</Button></DialogFooter></DialogContent>
+      </Dialog>
 
       {isTeacher && <><Separator /><SeatingChartEditor classId={classId} /></>}
 

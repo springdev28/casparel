@@ -1,22 +1,22 @@
-import React, { useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { Redirect, Stack, useRouter, useSegments } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { storage } from '@/utils/secure-storage';
-import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
-import { useDesignSystemFonts } from '@workspace/edu-ds/hooks/use-fonts';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import React, { useEffect } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Redirect, Stack, useRouter, useSegments } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { storage } from "@/utils/secure-storage";
+import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
+import { useDesignSystemFonts } from "@workspace/edu-ds/hooks/use-fonts";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 // Module-level setup — runs before any component renders
 const domain = process.env.EXPO_PUBLIC_DOMAIN;
 if (domain) {
   setBaseUrl(`https://${domain}`);
 }
-setAuthTokenGetter(() => storage.getItemAsync('schooler_token'));
+setAuthTokenGetter(() => storage.getItemAsync("schoolar_token"));
 
 SplashScreen.preventAutoHideAsync();
 
@@ -36,13 +36,13 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (isLoading) return;
-    const inTabsGroup = segments[0] === '(tabs)';
-    const inLogin = segments[0] === 'login';
+    const inTabsGroup = segments[0] === "(tabs)";
+    const inLogin = segments[0] === "login";
 
     if (!isAuthenticated && !inLogin) {
-      router.replace('/login');
+      router.replace("/login");
     } else if (isAuthenticated && inLogin) {
-      router.replace('/(tabs)');
+      router.replace("/(tabs)");
     }
   }, [isAuthenticated, isLoading, segments, router]);
 
@@ -54,11 +54,11 @@ function RootLayoutNav() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen
         name="resource/[id]"
-        options={{ title: 'Resource', headerBackTitle: 'Back' }}
+        options={{ title: "Resource", headerBackTitle: "Back" }}
       />
       <Stack.Screen
         name="class/[id]"
-        options={{ title: 'Class', headerBackTitle: 'Back' }}
+        options={{ title: "Class", headerBackTitle: "Back" }}
       />
     </Stack>
   );

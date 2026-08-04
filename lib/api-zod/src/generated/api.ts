@@ -2013,3 +2013,95 @@ export const ExportStudySessionIcsParams = zod.object({
 })
 
 export const ExportStudySessionIcsResponse = zod.unknown()
+
+
+/**
+ * @summary List comprehension and reflection evidence for the current learner
+ */
+export const listLearningEvidenceResponseConfidenceMax = 3;
+
+export const listLearningEvidenceResponseUnderstandingMin = 0;
+export const listLearningEvidenceResponseUnderstandingMax = 4;
+
+
+
+export const ListLearningEvidenceResponseItem = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "resourceId": zod.int().nullish(),
+  "learningGoalId": zod.int().nullish(),
+  "concept": zod.string(),
+  "confidence": zod.int().min(1).max(listLearningEvidenceResponseConfidenceMax),
+  "understanding": zod.int().min(listLearningEvidenceResponseUnderstandingMin).max(listLearningEvidenceResponseUnderstandingMax),
+  "reflection": zod.string().nullish(),
+  "misconception": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListLearningEvidenceResponse = zod.array(ListLearningEvidenceResponseItem)
+
+
+/**
+ * @summary Record a post-resource comprehension checkpoint
+ */
+export const createLearningEvidenceBodyConceptMin = 2;
+export const createLearningEvidenceBodyConceptMax = 160;
+
+export const createLearningEvidenceBodyConfidenceMax = 3;
+
+export const createLearningEvidenceBodyUnderstandingMin = 0;
+export const createLearningEvidenceBodyUnderstandingMax = 4;
+
+export const createLearningEvidenceBodyReflectionMax = 2000;
+
+export const createLearningEvidenceBodyMisconceptionMax = 500;
+
+
+
+export const CreateLearningEvidenceBody = zod.object({
+  "resourceId": zod.int().nullish(),
+  "learningGoalId": zod.int().nullish(),
+  "concept": zod.string().min(createLearningEvidenceBodyConceptMin).max(createLearningEvidenceBodyConceptMax),
+  "confidence": zod.int().min(1).max(createLearningEvidenceBodyConfidenceMax),
+  "understanding": zod.int().min(createLearningEvidenceBodyUnderstandingMin).max(createLearningEvidenceBodyUnderstandingMax),
+  "reflection": zod.string().max(createLearningEvidenceBodyReflectionMax).nullish(),
+  "misconception": zod.string().max(createLearningEvidenceBodyMisconceptionMax).nullish()
+})
+
+export const createLearningEvidenceResponseConfidenceMax = 3;
+
+export const createLearningEvidenceResponseUnderstandingMin = 0;
+export const createLearningEvidenceResponseUnderstandingMax = 4;
+
+
+
+export const CreateLearningEvidenceResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "resourceId": zod.int().nullish(),
+  "learningGoalId": zod.int().nullish(),
+  "concept": zod.string(),
+  "confidence": zod.int().min(1).max(createLearningEvidenceResponseConfidenceMax),
+  "understanding": zod.int().min(createLearningEvidenceResponseUnderstandingMin).max(createLearningEvidenceResponseUnderstandingMax),
+  "reflection": zod.string().nullish(),
+  "misconception": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get teacher-facing class learning signals from checkpoint evidence
+ */
+export const GetLearningSignalsResponse = zod.object({
+  "evidenceCount": zod.int(),
+  "learnerCount": zod.int(),
+  "averageUnderstanding": zod.number(),
+  "signals": zod.array(zod.object({
+  "concept": zod.string(),
+  "learnerCount": zod.int(),
+  "averageUnderstanding": zod.number(),
+  "stalledCount": zod.int(),
+  "commonMisconception": zod.string().nullish()
+}))
+})
+
+

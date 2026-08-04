@@ -68,15 +68,22 @@
     {
       "idx": 9,
       "version": "7",
-      "when": 1785860697341,
+      "when": 1786561140675,
       "tag": "0009_melted_baron_strucker",
       "breakpoints": true
     },
     {
       "idx": 10,
       "version": "7",
-      "when": 1785861175720,
+      "when": 1786647540675,
       "tag": "0010_mute_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786733940675,
+      "tag": "0011_illegal_steel_serpent",
       "breakpoints": true
     }
   ]

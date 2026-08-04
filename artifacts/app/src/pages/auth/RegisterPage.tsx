@@ -1,22 +1,28 @@
-import { useState } from 'react';
-import { useLocation, Link } from 'wouter';
-import BrandIcon from '../../components/BrandIcon';
-import { Button } from '@workspace/edu-ds/components/ui/button';
-import { Input } from '@workspace/edu-ds/components/ui/input';
-import { Label } from '@workspace/edu-ds/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
-import { toast } from '@workspace/edu-ds/hooks/use-toast';
-import { useRegister } from '@workspace/api-client-react';
-import { AuthLanguageSelect } from '../../components/AuthLanguageSelect';
-import { useAuthLanguage } from '../../lib/auth-locale';
+import { useState } from "react";
+import { useLocation, Link } from "wouter";
+import BrandIcon from "../../components/BrandIcon";
+import { Button } from "@workspace/edu-ds/components/ui/button";
+import { Input } from "@workspace/edu-ds/components/ui/input";
+import { Label } from "@workspace/edu-ds/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@workspace/edu-ds/components/ui/card";
+import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import { useRegister } from "@workspace/api-client-react";
+import { AuthLanguageSelect } from "../../components/AuthLanguageSelect";
+import { useAuthLanguage } from "../../lib/auth-locale";
 
-const TOKEN_KEY = 'schooler_token';
+const TOKEN_KEY = "schoolar_token";
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const { language, setLanguage, copy } = useAuthLanguage();
 
   const registerMutation = useRegister();
@@ -24,12 +30,19 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const result = await registerMutation.mutateAsync({ data: { name, email, password } });
+      const result = await registerMutation.mutateAsync({
+        data: { name, email, password },
+      });
       localStorage.setItem(TOKEN_KEY, result.token);
-      setLocation('/dashboard');
+      setLocation("/dashboard");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : copy.registrationFailed;
-      toast({ title: copy.registrationFailed, description: message, variant: 'destructive' });
+      const message =
+        err instanceof Error ? err.message : copy.registrationFailed;
+      toast({
+        title: copy.registrationFailed,
+        description: message,
+        variant: "destructive",
+      });
     }
   }
 
@@ -43,7 +56,11 @@ export default function RegisterPage() {
           </div>
           <p className="text-sm text-muted-foreground">{copy.tagline}</p>
           <div className="mt-4">
-            <AuthLanguageSelect language={language} label={copy.language} onChange={setLanguage} />
+            <AuthLanguageSelect
+              language={language}
+              label={copy.language}
+              onChange={setLanguage}
+            />
           </div>
         </div>
 
@@ -100,13 +117,19 @@ export default function RegisterPage() {
                 disabled={registerMutation.isPending}
                 data-testid="register-button"
               >
-                {registerMutation.isPending ? copy.creatingAccount : copy.createAccount}
+                {registerMutation.isPending
+                  ? copy.creatingAccount
+                  : copy.createAccount}
               </Button>
             </form>
 
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              {copy.hasAccount}{' '}
-              <Link href="/auth/login" className="text-primary font-medium hover:underline" data-testid="login-link">
+              {copy.hasAccount}{" "}
+              <Link
+                href="/auth/login"
+                className="text-primary font-medium hover:underline"
+                data-testid="login-link"
+              >
                 {copy.signIn}
               </Link>
             </p>

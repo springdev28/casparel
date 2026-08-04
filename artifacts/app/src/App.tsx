@@ -1,28 +1,28 @@
-import { useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '@workspace/edu-ds/components/ui/toaster';
-import { TooltipProvider } from '@workspace/edu-ds/components/ui/tooltip';
-import { Route, Switch, Router as WouterRouter, Redirect } from 'wouter';
-import { setAuthTokenGetter } from '@workspace/api-client-react';
+import { useEffect } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@workspace/edu-ds/components/ui/toaster";
+import { TooltipProvider } from "@workspace/edu-ds/components/ui/tooltip";
+import { Route, Switch, Router as WouterRouter, Redirect } from "wouter";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
-import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
-import DashboardPage from './pages/DashboardPage';
-import ResourcesPage from './pages/ResourcesPage';
-import ResourceDetailPage from './pages/ResourceDetailPage';
-import ClassesPage from './pages/ClassesPage';
-import ClassDetailPage from './pages/ClassDetailPage';
-import ListsPage from './pages/ListsPage';
-import ListDetailPage from './pages/ListDetailPage';
-import SchedulePage from './pages/SchedulePage';
-import ProfilePage from './pages/ProfilePage';
-import UserProfilePage from './pages/UserProfilePage';
-import PeoplePage from './pages/PeoplePage';
-import GoalsPage from './pages/GoalsPage';
-import AppShell from './components/AppShell';
-import PublicShell from './components/PublicShell';
+import LoginPage from "./pages/auth/LoginPage";
+import RegisterPage from "./pages/auth/RegisterPage";
+import DashboardPage from "./pages/AdaptiveDashboardPage";
+import ResourcesPage from "./pages/ResourcesPage";
+import ResourceDetailPage from "./pages/ResourceDetailPage";
+import ClassesPage from "./pages/ClassesPage";
+import ClassDetailPage from "./pages/ClassDetailPage";
+import ListsPage from "./pages/ListsPage";
+import ListDetailPage from "./pages/ListDetailPage";
+import SchedulePage from "./pages/SchedulePage";
+import ProfilePage from "./pages/ProfilePage";
+import UserProfilePage from "./pages/UserProfilePage";
+import PeoplePage from "./pages/PeoplePage";
+import GoalsPage from "./pages/GoalsPage";
+import AppShell from "./components/AppShell";
+import PublicShell from "./components/PublicShell";
 
-const TOKEN_KEY = 'schooler_token';
+const TOKEN_KEY = "schoolar_token";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,17 +34,21 @@ const queryClient = new QueryClient({
 });
 
 // Migrate any existing token from the old key name
-const _oldToken = localStorage.getItem('eduhub_token');
+const _oldToken = localStorage.getItem("eduhub_token");
 if (_oldToken && !localStorage.getItem(TOKEN_KEY)) {
   localStorage.setItem(TOKEN_KEY, _oldToken);
-  localStorage.removeItem('eduhub_token');
+  localStorage.removeItem("eduhub_token");
 }
 
 // Set up auth token getter once at module level
 setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
 
 /** Fully private page — redirects to login if unauthenticated. */
-function PrivateRoute({ component: Component }: { component: React.ComponentType }) {
+function PrivateRoute({
+  component: Component,
+}: {
+  component: React.ComponentType;
+}) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) return <Redirect to="/auth/login" />;
   return (
@@ -59,7 +63,11 @@ function PrivateRoute({ component: Component }: { component: React.ComponentType
  * Authenticated users get the full AppShell sidebar.
  * Unauthenticated users get a slim header with Sign In / Create Account.
  */
-function PublicRoute({ component: Component }: { component: React.ComponentType }) {
+function PublicRoute({
+  component: Component,
+}: {
+  component: React.ComponentType;
+}) {
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) {
     return (
@@ -142,7 +150,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
         </WouterRouter>
         <Toaster />

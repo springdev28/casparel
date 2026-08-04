@@ -47,9 +47,12 @@ import type {
   GCStatus,
   GetResourceSourceReviewParams,
   HealthStatus,
+  LearningEvidence,
+  LearningEvidenceInput,
   LearningGoal,
   LearningGoalInput,
   LearningGoalPatch,
+  LearningSignals,
   ListItem,
   ListItemInput,
   ListResourcesParams,
@@ -6288,3 +6291,235 @@ export function useExportStudySessionIcs<TData = Awaited<ReturnType<typeof expor
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
+export const getListLearningEvidenceUrl = () => {
+
+
+
+
+  return `/api/learning-evidence`
+}
+
+/**
+ * @summary List comprehension and reflection evidence for the current learner
+ */
+export const listLearningEvidence = async ( options?: Parameters<typeof customFetch>[1]): Promise<LearningEvidence[]> => {
+
+  return customFetch<LearningEvidence[]>(getListLearningEvidenceUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListLearningEvidenceQueryKey = () => {
+    return [
+    `/api/learning-evidence`
+    ] as const;
+    }
+
+
+export const getListLearningEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof listLearningEvidence>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListLearningEvidenceQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLearningEvidence>>> = ({ signal }) => listLearningEvidence({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listLearningEvidence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListLearningEvidenceQueryResult = NonNullable<Awaited<ReturnType<typeof listLearningEvidence>>>
+export type ListLearningEvidenceQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List comprehension and reflection evidence for the current learner
+ */
+
+export function useListLearningEvidence<TData = Awaited<ReturnType<typeof listLearningEvidence>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListLearningEvidenceQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateLearningEvidenceUrl = () => {
+
+
+
+
+  return `/api/learning-evidence`
+}
+
+/**
+ * @summary Record a post-resource comprehension checkpoint
+ */
+export const createLearningEvidence = async (learningEvidenceInput: LearningEvidenceInput, options?: Parameters<typeof customFetch>[1]): Promise<LearningEvidence> => {
+
+  return customFetch<LearningEvidence>(getCreateLearningEvidenceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(learningEvidenceInput)
+  }
+);}
+
+
+
+
+
+export const getCreateLearningEvidenceMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLearningEvidence>>, TError,{data: BodyType<LearningEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createLearningEvidence>>, TError,{data: BodyType<LearningEvidenceInput>}, TContext> => {
+
+const mutationKey = ['createLearningEvidence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createLearningEvidence>>, {data: BodyType<LearningEvidenceInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createLearningEvidence(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateLearningEvidenceMutationResult = NonNullable<Awaited<ReturnType<typeof createLearningEvidence>>>
+    export type CreateLearningEvidenceMutationBody = BodyType<LearningEvidenceInput>
+    export type CreateLearningEvidenceMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record a post-resource comprehension checkpoint
+ */
+export const useCreateLearningEvidence = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLearningEvidence>>, TError,{data: BodyType<LearningEvidenceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createLearningEvidence>>,
+        TError,
+        {data: BodyType<LearningEvidenceInput>},
+        TContext
+      > => {
+      return useMutation(getCreateLearningEvidenceMutationOptions(options));
+    }
+
+export const getGetLearningSignalsUrl = () => {
+
+
+
+
+  return `/api/learning-signals`
+}
+
+/**
+ * @summary Get teacher-facing class learning signals from checkpoint evidence
+ */
+export const getLearningSignals = async ( options?: Parameters<typeof customFetch>[1]): Promise<LearningSignals> => {
+
+  return customFetch<LearningSignals>(getGetLearningSignalsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLearningSignalsQueryKey = () => {
+    return [
+    `/api/learning-signals`
+    ] as const;
+    }
+
+
+export const getGetLearningSignalsQueryOptions = <TData = Awaited<ReturnType<typeof getLearningSignals>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningSignals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLearningSignalsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLearningSignals>>> = ({ signal }) => getLearningSignals({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLearningSignals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLearningSignalsQueryResult = NonNullable<Awaited<ReturnType<typeof getLearningSignals>>>
+export type GetLearningSignalsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get teacher-facing class learning signals from checkpoint evidence
+ */
+
+export function useGetLearningSignals<TData = Awaited<ReturnType<typeof getLearningSignals>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLearningSignals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLearningSignalsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+

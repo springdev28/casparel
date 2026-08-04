@@ -30,3 +30,5 @@ router.use(calendarRouter);
 router.use(learningGoalsRouter);
 
 export default router;
+import learningEvidenceRouter from "./learningEvidence";
+router.use(learningEvidenceRouter);

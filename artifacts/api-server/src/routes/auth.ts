@@ -188,7 +188,7 @@ router.patch("/users/me/role", contentLimiter, requireAuth, async (req, res): Pr
   }
   const [user] = await db
     .update(usersTable)
-    .set({ role: parsed.data.role })
+    .set({ role: parsed.data.role, gradeOrDept: null })
     .where(eq(usersTable.id, userId))
     .returning();
   const token = issueToken(user.id, user.role);
