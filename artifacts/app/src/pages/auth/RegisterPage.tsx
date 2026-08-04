@@ -7,6 +7,8 @@ import { Label } from '@workspace/edu-ds/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useRegister } from '@workspace/api-client-react';
+import { AuthLanguageSelect } from '../../components/AuthLanguageSelect';
+import { useAuthLanguage } from '../../lib/auth-locale';
 
 const TOKEN_KEY = 'schooler_token';
 
@@ -15,6 +17,7 @@ export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const { language, setLanguage, copy } = useAuthLanguage();
 
   const registerMutation = useRegister();
 
@@ -25,8 +28,8 @@ export default function RegisterPage() {
       localStorage.setItem(TOKEN_KEY, result.token);
       setLocation('/dashboard');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Registration failed';
-      toast({ title: 'Registration failed', description: message, variant: 'destructive' });
+      const message = err instanceof Error ? err.message : copy.registrationFailed;
+      toast({ title: copy.registrationFailed, description: message, variant: 'destructive' });
     }
   }
 
@@ -38,22 +41,25 @@ export default function RegisterPage() {
             <GraduationCap size={32} className="text-primary" />
             <span className="text-2xl font-bold text-primary">Schoolar</span>
           </div>
-          <p className="text-sm text-muted-foreground">Your student &amp; teacher productivity platform</p>
+          <p className="text-sm text-muted-foreground">{copy.tagline}</p>
+          <div className="mt-4">
+            <AuthLanguageSelect language={language} label={copy.language} onChange={setLanguage} />
+          </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Create an account</CardTitle>
-            <CardDescription>Join Schoolar to start learning and teaching</CardDescription>
+            <CardTitle>{copy.registerTitle}</CardTitle>
+            <CardDescription>{copy.registerDescription}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="name">Full name</Label>
+                <Label htmlFor="name">{copy.fullName}</Label>
                 <Input
                   id="name"
                   type="text"
-                  placeholder="Jane Smith"
+                  placeholder={copy.namePlaceholder}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -62,11 +68,11 @@ export default function RegisterPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{copy.email}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={copy.emailPlaceholder}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -75,11 +81,11 @@ export default function RegisterPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{copy.password}</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Min. 6 characters"
+                  placeholder={copy.newPasswordPlaceholder}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -94,14 +100,14 @@ export default function RegisterPage() {
                 disabled={registerMutation.isPending}
                 data-testid="register-button"
               >
-                {registerMutation.isPending ? 'Creating account…' : 'Create account'}
+                {registerMutation.isPending ? copy.creatingAccount : copy.createAccount}
               </Button>
             </form>
 
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              Already have an account?{' '}
+              {copy.hasAccount}{' '}
               <Link href="/auth/login" className="text-primary font-medium hover:underline" data-testid="login-link">
-                Sign in
+                {copy.signIn}
               </Link>
             </p>
           </CardContent>

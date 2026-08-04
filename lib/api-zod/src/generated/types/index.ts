@@ -39,7 +39,7 @@ export * from './gCShareInput';
 export * from './gCShareResult';
 export * from './gCStatus';
 export * from './getResourceSourceReviewMode';
-// getResourceSourceReviewParams is already exported as a Zod schema from ../api.ts — omit here to avoid duplicate-export TS error
+export * from './getResourceSourceReviewParams';
 export * from './healthStatus';
 export * from './listItem';
 export * from './listItemInput';
@@ -86,7 +86,7 @@ export * from './studySessionPatch';
 export * from './studySessionRsvp';
 export * from './studySessionRsvpStatus';
 export * from './studySessionWithParticipants';
-// uploadAvatarBody is already exported as a Zod schema from ../api.ts — omit here to avoid duplicate-export TS error
+export * from './uploadAvatarBody';
 export * from './user';
 export * from './userRole';
 export * from './userUpdate';

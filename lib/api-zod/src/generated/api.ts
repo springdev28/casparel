@@ -22,6 +22,8 @@ export const HealthCheckResponse = zod.object({
 export const registerBodyPasswordMin = 6;
 
 
+
+
 export const RegisterBody = zod.object({
   "email": zod.string(),
   "password": zod.string().min(registerBodyPasswordMin),
@@ -101,6 +103,7 @@ export const GetMeResponse = zod.object({
  */
 
 export const updateMeBodyBioMax = 300;
+
 
 
 export const UpdateMeBody = zod.object({
@@ -213,6 +216,9 @@ export const ListClassesResponse = zod.array(ListClassesResponseItem)
  */
 
 
+
+
+
 export const CreateClassBody = zod.object({
   "name": zod.string().min(1),
   "subject": zod.string().min(1),
@@ -272,6 +278,8 @@ export const GetClassResponse = zod.object({
 export const UpdateClassParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateClassBody = zod.object({
@@ -363,6 +371,8 @@ export const AddClassMemberResponse = zod.object({
 export const BulkInviteClassMembersParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const BulkInviteClassMembersBody = zod.object({
@@ -470,6 +480,7 @@ export const listResourcesQueryOffsetDefault = 0;
 export const listResourcesQueryOffsetMin = 0;
 
 
+
 export const ListResourcesQueryParams = zod.object({
   "q": zod.coerce.string().optional().describe('Free-text search'),
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
@@ -503,6 +514,10 @@ export const ListResourcesResponse = zod.array(ListResourcesResponseItem)
  */
 
 
+
+
+
+
 export const CreateResourceBody = zod.object({
   "title": zod.string().min(1),
   "url": zod.string().min(1),
@@ -534,6 +549,7 @@ export const CreateResourceResponse = zod.object({
  */
 
 
+
 export const PrefetchResourceMetadataBody = zod.object({
   "url": zod.string().min(1)
 })
@@ -550,6 +566,7 @@ export const PrefetchResourceMetadataResponse = zod.object({
  * @summary Search the internet for educational resources matching a query
  */
 export const discoverResourcesQueryPageDefault = 1;
+
 
 
 export const DiscoverResourcesQueryParams = zod.object({
@@ -644,6 +661,8 @@ export const UpdateResourceParams = zod.object({
 })
 
 
+
+
 export const UpdateResourceBody = zod.object({
   "title": zod.string().min(1).optional(),
   "description": zod.string().optional(),
@@ -719,6 +738,7 @@ export const ListResourceReviewsParams = zod.object({
 export const listResourceReviewsResponseRatingMax = 5;
 
 
+
 export const ListResourceReviewsResponseItem = zod.object({
   "id": zod.int(),
   "resourceId": zod.int(),
@@ -749,12 +769,14 @@ export const CreateResourceReviewParams = zod.object({
 export const createResourceReviewBodyRatingMax = 5;
 
 
+
 export const CreateResourceReviewBody = zod.object({
   "rating": zod.int().min(1).max(createResourceReviewBodyRatingMax),
   "comment": zod.string().optional()
 })
 
 export const createResourceReviewResponseRatingMax = 5;
+
 
 
 export const CreateResourceReviewResponse = zod.object({
@@ -805,6 +827,7 @@ export const ListResourceListsResponse = zod.array(ListResourceListsResponseItem
 /**
  * @summary Create a new resource list
  */
+
 
 
 export const CreateResourceListBody = zod.object({
@@ -869,6 +892,8 @@ export const GetResourceListResponse = zod.object({
 export const UpdateResourceListParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateResourceListBody = zod.object({
@@ -1015,6 +1040,7 @@ export const ListScheduleBlocksResponse = zod.array(ListScheduleBlocksResponseIt
  */
 
 
+
 export const CreateScheduleBlockBody = zod.object({
   "title": zod.string().min(1),
   "date": zod.coerce.date(),
@@ -1047,6 +1073,8 @@ export const CreateScheduleBlockResponse = zod.object({
 export const UpdateScheduleBlockParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateScheduleBlockBody = zod.object({
@@ -1115,6 +1143,7 @@ export const ListStudySessionsResponse = zod.array(ListStudySessionsResponseItem
  */
 
 export const createStudySessionBodyDurationMinutesMin = 5;
+
 
 
 export const createStudySessionBodyMeetingUrlRegExp = new RegExp('^https?:/');
@@ -1190,6 +1219,7 @@ export const UpdateStudySessionParams = zod.object({
 
 
 export const updateStudySessionBodyDurationMinutesMin = 5;
+
 
 
 export const updateStudySessionBodyMeetingUrlRegExp = new RegExp('^https?:/');
@@ -1398,6 +1428,7 @@ export const GetRecentActivityResponseItem = zod.object({
 })
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
 
+
 /**
  * @summary Get Google Calendar connection status and iCal secret
  */
@@ -1408,20 +1439,6 @@ export const GetCalendarStatusResponse = zod.object({
 })
 
 
-export const ExportScheduleBlockIcsResponse = zod.unknown()
-
-/**
- * @summary Disconnect Google Calendar and remove stored tokens
- */
-export const DisconnectCalendarGoogleResponse = zod.void()
-
-/**
- * @summary Download a single schedule block as an .ics file
- */
-export const ExportScheduleBlockIcsParams = zod.object({
-  "id": zod.coerce.number().int()
-})
-
 /**
  * @summary Get the personal iCal subscription URL
  */
@@ -1430,7 +1447,6 @@ export const GetCalendarIcalUrlResponse = zod.object({
   "icalSecret": zod.string()
 })
 
-export const ExportStudySessionIcsResponse = zod.unknown()
 
 /**
  * @summary Get the Google OAuth URL to connect Google Calendar
@@ -1439,9 +1455,28 @@ export const GetCalendarGoogleConnectUrlResponse = zod.object({
   "url": zod.string()
 })
 
+
+/**
+ * @summary Disconnect Google Calendar and remove stored tokens
+ */
+export const DisconnectCalendarGoogleResponse = zod.void()
+
+
+/**
+ * @summary Download a single schedule block as an .ics file
+ */
+export const ExportScheduleBlockIcsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ExportScheduleBlockIcsResponse = zod.unknown()
+
+
 /**
  * @summary Download a single study session as an .ics file
  */
 export const ExportStudySessionIcsParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+export const ExportStudySessionIcsResponse = zod.unknown()

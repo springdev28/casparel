@@ -666,6 +666,16 @@ export interface CalendarStatus {
   googleConfigured: boolean;
   icalSecret: string;
 }
+
+export interface CalendarConnectUrl {
+  url: string;
+}
+
+export interface CalendarIcalUrl {
+  url: string;
+  icalSecret: string;
+}
+
 export type UploadAvatarBody = {
   file: Blob;
 };
@@ -781,13 +791,3 @@ q?: string;
  */
 classId?: number;
 };
-
-
-export interface CalendarIcalUrl {
-  url: string;
-  icalSecret: string;
-}
-
-export interface CalendarConnectUrl {
-  url: string;
-}

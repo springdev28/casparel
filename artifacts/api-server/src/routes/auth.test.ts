@@ -180,6 +180,28 @@ describe("POST /api/auth/register", () => {
   });
 });
 
+describe("POST /api/auth/login", () => {
+  it("returns a token and persisted user for valid credentials", async () => {
+    const password = "Password1!";
+    mockExistingUser = {
+      id: 3,
+      email: "login@example.com",
+      passwordHash: await import("../lib/auth.js").then(({ hashPassword }) => hashPassword(password)),
+      name: "Login User",
+      role: "student",
+      createdAt: new Date().toISOString(),
+    };
+
+    const res = await request(buildApp())
+      .post("/api/auth/login")
+      .send({ email: "login@example.com", password });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.email).toBe("login@example.com");
+    expect(decodeToken(res.body.token)?.userId).toBe(3);
+  });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // PATCH /api/users/me/role
 // ══════════════════════════════════════════════════════════════════════════════

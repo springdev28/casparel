@@ -7,6 +7,8 @@ import { Label } from '@workspace/edu-ds/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useLogin } from '@workspace/api-client-react';
+import { AuthLanguageSelect } from '../../components/AuthLanguageSelect';
+import { useAuthLanguage } from '../../lib/auth-locale';
 
 const TOKEN_KEY = 'schooler_token';
 
@@ -14,6 +16,7 @@ export default function LoginPage() {
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const { language, setLanguage, copy } = useAuthLanguage();
 
   const loginMutation = useLogin();
 
@@ -24,8 +27,8 @@ export default function LoginPage() {
       localStorage.setItem(TOKEN_KEY, result.token);
       setLocation('/dashboard');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed';
-      toast({ title: 'Login failed', description: message, variant: 'destructive' });
+      const message = err instanceof Error ? err.message : copy.loginFailed;
+      toast({ title: copy.loginFailed, description: message, variant: 'destructive' });
     }
   }
 
@@ -37,22 +40,25 @@ export default function LoginPage() {
             <GraduationCap size={32} className="text-primary" />
             <span className="text-2xl font-bold text-primary">Schoolar</span>
           </div>
-          <p className="text-sm text-muted-foreground">Your student &amp; teacher productivity platform</p>
+          <p className="text-sm text-muted-foreground">{copy.tagline}</p>
+          <div className="mt-4">
+            <AuthLanguageSelect language={language} label={copy.language} onChange={setLanguage} />
+          </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Sign in</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
+            <CardTitle>{copy.loginTitle}</CardTitle>
+            <CardDescription>{copy.loginDescription}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{copy.email}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={copy.emailPlaceholder}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -61,11 +67,11 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">{copy.password}</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder={copy.passwordPlaceholder}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -79,14 +85,14 @@ export default function LoginPage() {
                 disabled={loginMutation.isPending}
                 data-testid="login-button"
               >
-                {loginMutation.isPending ? 'Signing in…' : 'Sign in'}
+                {loginMutation.isPending ? copy.signingIn : copy.signIn}
               </Button>
             </form>
 
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{' '}
+              {copy.noAccount}{' '}
               <Link href="/auth/register" className="text-primary font-medium hover:underline" data-testid="register-link">
-                Create one
+                {copy.createOne}
               </Link>
             </p>
 
@@ -97,7 +103,7 @@ export default function LoginPage() {
                 className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 data-testid="browse-link"
               >
-                Browse resources without an account
+                {copy.browse}
                 <ArrowRight size={14} />
               </Link>
             </div>
