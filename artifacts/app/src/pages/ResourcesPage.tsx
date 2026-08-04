@@ -22,6 +22,7 @@ import {
   ImageIcon,
   ShieldCheck,
   CircleHelp,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
@@ -81,10 +82,7 @@ import {
   type DiscoveredResource,
 } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
-import {
-  AUTH_LANGUAGES,
-  useAuthLanguage,
-} from "../lib/auth-locale";
+import { AUTH_LANGUAGES, useAuthLanguage } from "../lib/auth-locale";
 import {
   addSearchHistory,
   deleteSearchHistory,
@@ -466,7 +464,15 @@ function WebCard({
   );
 }
 
-function SourceCard({ resource }: { resource: DiscoveredResource }) {
+function SourceCard({
+  resource,
+  onSave,
+  saving,
+}: {
+  resource: DiscoveredResource;
+  onSave: (resource: DiscoveredResource) => void;
+  saving: boolean;
+}) {
   let hostname = resource.source;
   try {
     hostname = new URL(resource.url).hostname.replace(/^www\./, "");
@@ -501,12 +507,25 @@ function SourceCard({ resource }: { resource: DiscoveredResource }) {
           )}
         </div>
       </CardContent>
-      <CardFooter>
-        <Button asChild className="w-full">
+      <CardFooter className="gap-2">
+        <Button asChild variant="outline" className="flex-1">
           <a href={resource.url} target="_blank" rel="noopener noreferrer">
             <ExternalLink size={14} className="mr-2" /> Visit{" "}
             {isChannel ? "channel" : "website"}
           </a>
+        </Button>
+        <Button
+          className="flex-1"
+          disabled={saving}
+          onClick={() => onSave(resource)}
+          data-testid="save-recommended-source"
+        >
+          {saving ? (
+            <Loader2 size={14} className="mr-2 animate-spin" />
+          ) : (
+            <Plus size={14} className="mr-2" />
+          )}
+          {saving ? "Saving…" : "Save source"}
         </Button>
       </CardFooter>
     </Card>
@@ -560,6 +579,8 @@ export default function ResourcesPage() {
   const [libraryLimit, setLibraryLimit] = useState(12);
   const [webPage, setWebPage] = useState(1);
   const [allWebResults, setAllWebResults] = useState<DiscoveredResource[]>([]);
+  const [hiddenSourceUrls, setHiddenSourceUrls] = useState<string[]>([]);
+  const [sourceRefreshes, setSourceRefreshes] = useState(0);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
 
   useEffect(() => {
@@ -663,6 +684,8 @@ export default function ResourcesPage() {
   useEffect(() => {
     setWebPage(1);
     setAllWebResults([]);
+    setHiddenSourceUrls([]);
+    setSourceRefreshes(0);
   }, [activeQuery]);
 
   // Reset accumulated results when any filter changes
@@ -868,10 +891,10 @@ export default function ResourcesPage() {
     }
   }
 
-  async function handleAddWeb(resource: DiscoveredResource) {
+  async function handleAddWeb(resource: DiscoveredResource): Promise<boolean> {
     if (!isLoggedIn) {
       setLocation("/auth/login");
-      return;
+      return false;
     }
     setAddingUrl(resource.url);
     try {
@@ -897,15 +920,32 @@ export default function ResourcesPage() {
         title: "Saved to library!",
         description: `"${resource.title}" added.`,
       });
+      return true;
     } catch (err) {
       toast({
         title: "Error",
         description: err instanceof Error ? err.message : "Failed",
         variant: "destructive",
       });
+      return false;
     } finally {
       setAddingUrl(null);
     }
+  }
+
+  async function handleSaveSource(resource: DiscoveredResource) {
+    const saved = await handleAddWeb(resource);
+    if (saved) setHiddenSourceUrls((urls) => [...urls, resource.url]);
+  }
+
+  function recommendAnotherSource() {
+    if (sourceRefreshes >= 3) return;
+    const visibleSource = allWebResults.find(
+      (resource) => !hiddenSourceUrls.includes(resource.url),
+    );
+    if (visibleSource)
+      setHiddenSourceUrls((urls) => [...urls, visibleSource.url]);
+    setSourceRefreshes((count) => count + 1);
   }
 
   return (
@@ -1122,7 +1162,9 @@ export default function ResourcesPage() {
           </Select>
           <Select
             value={searchLanguage}
-            onValueChange={(value) => setSearchLanguage(value as SearchLanguage)}
+            onValueChange={(value) =>
+              setSearchLanguage(value as SearchLanguage)
+            }
           >
             <SelectTrigger
               className="w-36 h-8 text-xs"
@@ -1446,9 +1488,22 @@ export default function ResourcesPage() {
                   </p>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {allWebResults.map((r, i) =>
+                  {(isSourceMode
+                    ? allWebResults
+                        .filter(
+                          (resource) =>
+                            !hiddenSourceUrls.includes(resource.url),
+                        )
+                        .slice(0, 1)
+                    : allWebResults
+                  ).map((r, i) =>
                     isSourceMode ? (
-                      <SourceCard key={i} resource={r} />
+                      <SourceCard
+                        key={r.url}
+                        resource={r}
+                        onSave={handleSaveSource}
+                        saving={addingUrl === r.url}
+                      />
                     ) : (
                       <WebCard
                         key={i}
@@ -1460,24 +1515,43 @@ export default function ResourcesPage() {
                   )}
                 </div>
                 <div className="mt-4 text-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={webLoading}
-                    onClick={() => setWebPage((p) => p + 1)}
-                  >
-                    {webLoading ? (
-                      <>
-                        <Loader2 size={12} className="mr-1.5 animate-spin" />{" "}
-                        Loading…
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={12} className="mr-1.5" /> Search more
-                        resources
-                      </>
-                    )}
-                  </Button>
+                  {isSourceMode ? (
+                    <div className="space-y-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={sourceRefreshes >= 3 || webLoading}
+                        onClick={recommendAnotherSource}
+                        data-testid="recommend-another-source"
+                      >
+                        <RefreshCw size={12} className="mr-1.5" /> Recommend
+                        another source
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        {3 - sourceRefreshes} of 3 additional recommendations
+                        remaining for this search
+                      </p>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={webLoading}
+                      onClick={() => setWebPage((p) => p + 1)}
+                    >
+                      {webLoading ? (
+                        <>
+                          <Loader2 size={12} className="mr-1.5 animate-spin" />{" "}
+                          Loading…
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={12} className="mr-1.5" /> Search more
+                          resources
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </>
             )}

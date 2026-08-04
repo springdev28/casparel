@@ -1,6 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, ilike, and, or, notInArray } from "drizzle-orm";
-import { db, resourcesTable, reviewsTable, usersTable, learningGoalsTable } from "@workspace/db";
+import {
+  db,
+  resourcesTable,
+  reviewsTable,
+  usersTable,
+  learningGoalsTable,
+} from "@workspace/db";
 import {
   ListResourcesResponse,
   ListResourcesQueryParams,
@@ -368,6 +374,7 @@ function parseDiscoverOutput(
 /** Call the AI and return validated resource items. */
 async function callDiscoverAI(
   prompt: string,
+  maxItems = 8,
 ): Promise<ReturnType<typeof DiscoverResourcesResponse.parse>> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 22000);
@@ -375,7 +382,7 @@ async function callDiscoverAI(
     const response = await openai.responses.create(
       {
         model: "gpt-4o-mini",
-        max_output_tokens: 1200,
+        max_output_tokens: maxItems > 8 ? 1800 : 1200,
         tools: [{ type: "web_search_preview", search_context_size: "low" }],
         text: {
           format: {
@@ -390,7 +397,7 @@ async function callDiscoverAI(
                 resources: {
                   type: "array",
                   minItems: 1,
-                  maxItems: 8,
+                  maxItems,
                   items: {
                     type: "object",
                     additionalProperties: false,
@@ -718,7 +725,9 @@ router.get(
           : resultType === "source"
             ? "Prefer official organisations, universities, nonprofits, and established educator channels."
             : "Prefer Khan Academy, MIT OpenCourseWare, Wikipedia, TED-Ed, and CrashCourse when relevant.";
-      return `Suggest up to 8 high-quality educational ${kind} for: "${effectiveQuery}"${subjectHint}${gradeHint}${languageHint}${resultType === "content" ? formatHint : ""}${pageHint}
+      const requestedCount =
+        resultType === "people" && !exactPersonSearch ? 12 : 8;
+      return `Suggest up to ${requestedCount} high-quality educational ${kind} for: "${effectiveQuery}"${subjectHint}${gradeHint}${languageHint}${resultType === "content" ? formatHint : ""}${pageHint}
 
 Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
 Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} ${platformSearchRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
@@ -726,7 +735,12 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
 
     try {
       // ── First AI call ────────────────────────────────────────────────────────
-      const rawFirstBatch = await callDiscoverAI(buildPrompt());
+      const peopleBatchSize =
+        resultType === "people" && !exactPersonSearch ? 12 : 8;
+      const rawFirstBatch = await callDiscoverAI(
+        buildPrompt(),
+        peopleBatchSize,
+      );
       const firstBatch =
         resultType === "source"
           ? rawFirstBatch.filter((item) => isDirectSourceUrl(item.url))
@@ -746,7 +760,8 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
           ? firstBatch
           : await filterReachableUrls(firstBatch, 2000);
 
-      if (!exactPersonSearch && reachable.length >= DISCOVER_MIN_RESULTS) {
+      const minimumResults = resultType === "people" ? 9 : DISCOVER_MIN_RESULTS;
+      if (!exactPersonSearch && reachable.length >= minimumResults) {
         if (process.env.NODE_ENV !== "test")
           discoverCache.set(cacheKey, {
             expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS,
@@ -791,6 +806,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
 
       const rawSecondBatch = await callDiscoverAI(
         buildPrompt(deadUrls, exactPersonSearch),
+        peopleBatchSize,
       );
       const secondBatch =
         resultType === "source"
@@ -839,20 +855,46 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       console.error("Discover AI error:", err);
       if (resultType === "people") {
         const pattern = "%" + effectiveQuery.trim() + "%";
-        const visibility = isAdminRequest(req) ? undefined : eq(usersTable.profileVisibility, "everyone");
+        const visibility = isAdminRequest(req)
+          ? undefined
+          : eq(usersTable.profileVisibility, "everyone");
         const matches = await db
-          .select({ id: usersTable.id, name: usersTable.name, bio: usersTable.bio, avatarUrl: usersTable.avatarUrl, goalSubject: learningGoalsTable.subject })
+          .select({
+            id: usersTable.id,
+            name: usersTable.name,
+            bio: usersTable.bio,
+            avatarUrl: usersTable.avatarUrl,
+            goalSubject: learningGoalsTable.subject,
+          })
           .from(learningGoalsTable)
           .innerJoin(usersTable, eq(usersTable.id, learningGoalsTable.userId))
-          .where(and(visibility, or(ilike(learningGoalsTable.title, pattern), ilike(learningGoalsTable.subject, pattern), ilike(learningGoalsTable.description, pattern), ilike(usersTable.name, pattern))))
+          .where(
+            and(
+              visibility,
+              or(
+                ilike(learningGoalsTable.title, pattern),
+                ilike(learningGoalsTable.subject, pattern),
+                ilike(learningGoalsTable.description, pattern),
+                ilike(usersTable.name, pattern),
+              ),
+            ),
+          )
           .limit(16);
         const unique = new Map<number, (typeof matches)[number]>();
-        matches.forEach((match) => { if (!unique.has(match.id)) unique.set(match.id, match); });
+        matches.forEach((match) => {
+          if (!unique.has(match.id)) unique.set(match.id, match);
+        });
         const fallback = [...unique.values()].slice(0, 8).map((match) => ({
-          title: match.name, url: "/profile/" + match.id,
-          description: match.bio || "Schoolar member learning about " + match.goalSubject + ".",
-          format: "other" as const, source: "Schoolar profile", thumbnailUrl: match.avatarUrl,
-          subject: match.goalSubject, gradeLevel: null,
+          title: match.name,
+          url: "/profile/" + match.id,
+          description:
+            match.bio ||
+            "Schoolar member learning about " + match.goalSubject + ".",
+          format: "other" as const,
+          source: "Schoolar profile",
+          thumbnailUrl: match.avatarUrl,
+          subject: match.goalSubject,
+          gradeLevel: null,
         }));
         res.setHeader("X-Search-Fallback", "local-people");
         res.json(DiscoverResourcesResponse.parse(fallback));
@@ -1067,17 +1109,19 @@ router.post(
     }
     const [resource] = await db
       .insert(resourcesTable)
-      .values({ ...parsed.data, submittedById: userId, workspaceRole: userRole as "student" | "teacher" })
+      .values({
+        ...parsed.data,
+        submittedById: userId,
+        workspaceRole: userRole as "student" | "teacher",
+      })
       .returning();
-    res
-      .status(201)
-      .json(
-        CreateResourceResponse.parse({
-          ...resource,
-          avgRating: 0,
-          reviewCount: 0,
-        }),
-      );
+    res.status(201).json(
+      CreateResourceResponse.parse({
+        ...resource,
+        avgRating: 0,
+        reviewCount: 0,
+      }),
+    );
   },
 );
 
