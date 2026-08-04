@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, ilike, and, inArray, notInArray } from "drizzle-orm";
+import { eq, sql, ilike, and, or, inArray, notInArray } from "drizzle-orm";
 import { db, resourcesTable, reviewsTable } from "@workspace/db";
 import {
   ListResourcesResponse,
@@ -22,7 +22,7 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { isResourceOwner } from "../lib/authz";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { contentLimiter, discoverLimiter } from "../lib/limiters";
-import { filterReachableUrls, checkUrlReachable } from "../lib/check-url-reachable";
+import { filterReachableUrls } from "../lib/check-url-reachable";
 
 const router: IRouter = Router();
 
@@ -64,29 +64,70 @@ router.get("/resources", async (req, res): Promise<void> => {
     return;
   }
   const { q, format, subject, gradeLevel, sortBy, minRating, limit = 12, offset = 0 } = params.data;
+  const searchTerm = q?.trim();
   const conditions = [];
-  if (q) conditions.push(ilike(resourcesTable.title, `%${q}%`));
+  if (searchTerm) {
+    const pattern = `%${searchTerm}%`;
+    conditions.push(or(
+      ilike(resourcesTable.title, pattern),
+      ilike(resourcesTable.description, pattern),
+      ilike(resourcesTable.subject, pattern),
+      ilike(resourcesTable.gradeLevel, pattern),
+    ));
+  }
   if (format) conditions.push(eq(resourcesTable.format, format as "article" | "video" | "pdf" | "podcast" | "interactive" | "other"));
   if (subject) conditions.push(ilike(resourcesTable.subject, `%${subject}%`));
   if (gradeLevel) conditions.push(eq(resourcesTable.gradeLevel, gradeLevel));
 
+  const avgRating = sql<number>`round(coalesce(avg(${reviewsTable.rating}), 0)::numeric, 1)::float`;
+  const reviewCount = sql<number>`cast(count(${reviewsTable.id}) as int)`;
+  const relevance = searchTerm
+    ? sql`case
+        when lower(${resourcesTable.title}) = lower(${searchTerm}) then 0
+        when lower(${resourcesTable.title}) like lower(${searchTerm}) || chr(37) then 1
+        when ${resourcesTable.title} ilike ${`%${searchTerm}%`} then 2
+        when ${resourcesTable.subject} ilike ${`%${searchTerm}%`} then 3
+        when ${resourcesTable.description} ilike ${`%${searchTerm}%`} then 4
+        else 5
+      end`
+    : sql`0`;
   const orderExpr =
     sortBy === "most_reviewed"
-      ? sql`(select cast(count(*) as int) from reviews where resource_id = resources.id) desc`
+      ? sql`${reviewCount} desc`
       : sortBy === "top_rated"
-        ? sql`coalesce((select avg(rating) from reviews where resource_id = resources.id), 0) desc`
-        : sql`${resourcesTable.createdAt} desc`; // newest (default)
+        ? sql`${avgRating} desc`
+        : searchTerm
+          ? sql`${relevance}, ${avgRating} desc, ${reviewCount} desc, ${resourcesTable.createdAt} desc`
+          : sql`${resourcesTable.createdAt} desc`;
 
-  const base = db.select({ id: resourcesTable.id }).from(resourcesTable).orderBy(orderExpr);
-  const rows = await (conditions.length > 0 ? base.where(and(...conditions)) : base)
-    .limit(minRating ? 50 : limit) // fetch extra when filtering by rating so we can trim after
+  // Return resources and review aggregates in one query. This avoids the old
+  // two-query-per-result pattern and keeps response time flat as pages grow.
+  const rows = await db
+    .select({
+      id: resourcesTable.id,
+      title: resourcesTable.title,
+      url: resourcesTable.url,
+      description: resourcesTable.description,
+      format: resourcesTable.format,
+      subject: resourcesTable.subject,
+      gradeLevel: resourcesTable.gradeLevel,
+      thumbnailUrl: resourcesTable.thumbnailUrl,
+      submittedById: resourcesTable.submittedById,
+      createdAt: resourcesTable.createdAt,
+      avgRating,
+      reviewCount,
+    })
+    .from(resourcesTable)
+    .leftJoin(reviewsTable, eq(reviewsTable.resourceId, resourcesTable.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .groupBy(resourcesTable.id)
+    .having(minRating ? sql`${avgRating} >= ${minRating}` : undefined)
+    .orderBy(orderExpr)
+    .limit(limit)
     .offset(offset);
 
-  let resources = (await Promise.all(rows.map((r) => resourceWithRating(r.id)))).filter(Boolean) as NonNullable<Awaited<ReturnType<typeof resourceWithRating>>>[];
-  if (minRating) resources = resources.filter((r) => r.avgRating >= minRating).slice(0, limit);
-  res.json(ListResourcesResponse.parse(resources));
+  res.json(ListResourcesResponse.parse(rows));
 });
-
 // ── GET /resources/featured — public ─────────────────────────────────────────
 // NOTE: must stay above /resources/:id
 
@@ -242,23 +283,6 @@ async function callDiscoverAI(
 
 const DISCOVER_MIN_RESULTS = 3;
 
-/**
- * For each discover item, HEAD-check its thumbnailUrl (if set).
- * Sets thumbnailUrl to null when the URL is unreachable so the frontend
- * never renders a broken image.
- */
-async function validateDiscoverThumbnails<
-  T extends { thumbnailUrl?: string | null },
->(items: T[]): Promise<T[]> {
-  return Promise.all(
-    items.map(async (item) => {
-      if (!item.thumbnailUrl) return item;
-      const ok = await checkUrlReachable(item.thumbnailUrl, 3000);
-      return ok ? item : { ...item, thumbnailUrl: null };
-    }),
-  );
-}
-
 router.get("/resources/discover", discoverLimiter, async (req, res): Promise<void> => {
   const params = DiscoverResourcesQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -296,11 +320,12 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       return;
     }
 
-    // ── Reachability filter (parallel, 3-second timeout per URL) ─────────────
-    const reachable = await filterReachableUrls(firstBatch);
+    // Validate all result URLs in parallel with a short timeout. Thumbnail URLs
+    // are left to the browser so they cannot hold up otherwise useful results.
+    const reachable = await filterReachableUrls(firstBatch, 2000);
 
     if (reachable.length >= DISCOVER_MIN_RESULTS) {
-      res.json(await validateDiscoverThumbnails(reachable));
+      res.json(reachable);
       return;
     }
 
@@ -315,7 +340,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
     );
 
     const secondBatch = await callDiscoverAI(buildPrompt(deadUrls));
-    const reachableSecond = await filterReachableUrls(secondBatch);
+    const reachableSecond = await filterReachableUrls(secondBatch, 2000);
 
     // Merge survivors from both batches, deduplicated by URL
     const merged = [...reachable];
@@ -331,7 +356,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       return;
     }
 
-    res.json(await validateDiscoverThumbnails(merged));
+    res.json(merged);
   } catch (err) {
     console.error("Discover AI error:", err);
     res.status(502).json({ error: "Search failed. Please try again." });
