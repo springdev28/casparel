@@ -190,13 +190,13 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
 
   const { data: quickData, isLoading: quickLoading, isError: quickError } = useGetResourceSourceReview(
     resourceId,
-    'quick',
-    { query: { enabled: mode === 'quick', queryKey: getGetResourceSourceReviewQueryKey(resourceId, 'quick'), staleTime: 1000 * 60 * 10 } }
+    { mode: 'quick' },
+    { query: { enabled: mode === 'quick', queryKey: getGetResourceSourceReviewQueryKey(resourceId, { mode: 'quick' }), staleTime: 1000 * 60 * 10 } }
   );
   const { data: deepData, isLoading: deepLoading, isError: deepError } = useGetResourceSourceReview(
     resourceId,
-    'deep',
-    { query: { enabled: mode === 'deep', queryKey: getGetResourceSourceReviewQueryKey(resourceId, 'deep'), staleTime: 1000 * 60 * 10 } }
+    { mode: 'deep' },
+    { query: { enabled: mode === 'deep', queryKey: getGetResourceSourceReviewQueryKey(resourceId, { mode: 'deep' }), staleTime: 1000 * 60 * 10 } }
   );
 
   const data = mode === 'quick' ? quickData : mode === 'deep' ? deepData : undefined;

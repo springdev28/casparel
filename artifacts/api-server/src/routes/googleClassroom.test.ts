@@ -25,6 +25,8 @@ let mockListItems: Array<{ resource: { title: string; url: string } }> = [];
 // Track last db.update call args for assertion
 let lastUpdateSet: Record<string, unknown> | null = null;
 let tokenDeleted = false;
+// Role returned by the users table mock — default "teacher" so all GC routes pass requireTeacher
+let mockUserRole: "student" | "teacher" = "teacher";
 
 // Minimal chainable Drizzle mock.
 // Chain methods return `this`; terminal `.where()` resolves with the
@@ -57,6 +59,7 @@ vi.mock("@workspace/db", () => {
     resourcesTable: stub("resources"),
     classesTable: stub("classes"),
     classMembersTable: stub("class_members"),
+    usersTable: stub("users"),
   };
 });
 
@@ -99,6 +102,7 @@ beforeEach(() => {
   mockListItems = [];
   lastUpdateSet = null;
   tokenDeleted = false;
+  mockUserRole = "teacher";
 
   // Default select: return empty arrays
   vi.mocked(db.select).mockImplementation(() => {
@@ -120,6 +124,10 @@ beforeEach(() => {
         }
         if (tableName === "list_items") {
           return Promise.resolve(mockListItems);
+        }
+        if (tableName === "users") {
+          // requireTeacher checks the live DB role; use mockUserRole to control per-test
+          return Promise.resolve([{ role: mockUserRole }]);
         }
         return Promise.resolve([]);
       }),
@@ -324,6 +332,7 @@ describe("GET /api/google-classroom/courses", () => {
   });
 
   it("returns 403 when the caller is not a teacher", async () => {
+    mockUserRole = "student";
     const studentToken = `Bearer ${issueToken(7, "student")}`;
     const res = await request(buildApp())
       .get("/api/google-classroom/courses")

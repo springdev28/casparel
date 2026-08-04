@@ -40,6 +40,7 @@ import type {
   GCShareInput,
   GCShareResult,
   GCStatus,
+  GetResourceSourceReviewParams,
   HealthStatus,
   ListItem,
   ListItemInput,
@@ -59,6 +60,7 @@ import type {
   ResourcePatch,
   Review,
   ReviewInput,
+  RoleSwitchInput,
   ScheduleBlock,
   ScheduleBlockInput,
   ScheduleBlockPatch,
@@ -531,6 +533,77 @@ export const useUpdateMe = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateMeMutationOptions(options));
+    }
+
+export const getSwitchRoleUrl = () => {
+
+
+
+
+  return `/api/users/me/role`
+}
+
+/**
+ * @summary Switch the active role for the current user (student ↔ teacher)
+ */
+export const switchRole = async (roleSwitchInput: RoleSwitchInput, options?: Parameters<typeof customFetch>[1]): Promise<AuthResponse> => {
+
+  return customFetch<AuthResponse>(getSwitchRoleUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(roleSwitchInput)
+  }
+);}
+
+
+
+
+
+export const getSwitchRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof switchRole>>, TError,{data: BodyType<RoleSwitchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof switchRole>>, TError,{data: BodyType<RoleSwitchInput>}, TContext> => {
+
+const mutationKey = ['switchRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof switchRole>>, {data: BodyType<RoleSwitchInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  switchRole(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SwitchRoleMutationResult = NonNullable<Awaited<ReturnType<typeof switchRole>>>
+    export type SwitchRoleMutationBody = BodyType<RoleSwitchInput>
+    export type SwitchRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Switch the active role for the current user (student ↔ teacher)
+ */
+export const useSwitchRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof switchRole>>, TError,{data: BodyType<RoleSwitchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof switchRole>>,
+        TError,
+        {data: BodyType<RoleSwitchInput>},
+        TContext
+      > => {
+      return useMutation(getSwitchRoleMutationOptions(options));
     }
 
 export const getListClassesUrl = () => {
@@ -1879,17 +1952,29 @@ export const useDeleteResource = <TError = ErrorType<unknown>,
       return useMutation(getDeleteResourceMutationOptions(options));
     }
 
-export const getGetResourceSourceReviewUrl = (id: number, mode?: 'quick' | 'deep') => {
-  const modeParam = mode && mode !== 'quick' ? `?mode=${mode}` : '';
-  return `/api/resources/${id}/source-review${modeParam}`
+export const getGetResourceSourceReviewUrl = (id: number,
+    params?: GetResourceSourceReviewParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/resources/${id}/source-review?${stringifiedParams}` : `/api/resources/${id}/source-review`
 }
 
 /**
  * @summary Research and summarise the resource's source/uploader
  */
-export const getResourceSourceReview = async (id: number, mode?: 'quick' | 'deep', options?: Parameters<typeof customFetch>[1]): Promise<SourceReview> => {
+export const getResourceSourceReview = async (id: number,
+    params?: GetResourceSourceReviewParams, options?: Parameters<typeof customFetch>[1]): Promise<SourceReview> => {
 
-  return customFetch<SourceReview>(getGetResourceSourceReviewUrl(id, mode),
+  return customFetch<SourceReview>(getGetResourceSourceReviewUrl(id,params),
   {
     ...options,
     method: 'GET'
@@ -1902,23 +1987,25 @@ export const getResourceSourceReview = async (id: number, mode?: 'quick' | 'deep
 
 
 
-export const getGetResourceSourceReviewQueryKey = (id: number, mode?: 'quick' | 'deep') => {
+export const getGetResourceSourceReviewQueryKey = (id: number,
+    params?: GetResourceSourceReviewParams,) => {
     return [
-    `/api/resources/${id}/source-review`, ...(mode ? [{ mode }] : [])
+    `/api/resources/${id}/source-review`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetResourceSourceReviewQueryOptions = <TData = Awaited<ReturnType<typeof getResourceSourceReview>>, TError = ErrorType<void>>(id: number, mode?: 'quick' | 'deep', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetResourceSourceReviewQueryOptions = <TData = Awaited<ReturnType<typeof getResourceSourceReview>>, TError = ErrorType<void>>(id: number,
+    params?: GetResourceSourceReviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetResourceSourceReviewQueryKey(id, mode);
+  const queryKey =  queryOptions?.queryKey ?? getGetResourceSourceReviewQueryKey(id,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResourceSourceReview>>> = ({ signal }) => getResourceSourceReview(id, mode, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResourceSourceReview>>> = ({ signal }) => getResourceSourceReview(id,params, { signal, ...requestOptions });
 
 
 
@@ -1936,11 +2023,12 @@ export type GetResourceSourceReviewQueryError = ErrorType<void>
  */
 
 export function useGetResourceSourceReview<TData = Awaited<ReturnType<typeof getResourceSourceReview>>, TError = ErrorType<void>>(
- id: number, mode?: 'quick' | 'deep', options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ id: number,
+    params?: GetResourceSourceReviewParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceSourceReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetResourceSourceReviewQueryOptions(id, mode, options)
+  const queryOptions = getGetResourceSourceReviewQueryOptions(id,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

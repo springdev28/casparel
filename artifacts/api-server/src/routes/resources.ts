@@ -593,13 +593,21 @@ router.patch("/resources/:id", requireAuth, async (req, res): Promise<void> => {
 // ── DELETE /resources/:id ─────────────────────────────────────────────────────
 
 router.delete("/resources/:id", requireAuth, async (req, res): Promise<void> => {
-  const { userId, userRole } = req as AuthenticatedRequest;
+  const { userId } = req as AuthenticatedRequest;
   const params = DeleteResourceParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  // Any authenticated user may remove a resource from the library
+  // Owner-only deletion. Teacher bypass is intentionally removed: because any
+  // account can now switch to the teacher role via PATCH /users/me/role, a
+  // teacher-may-delete-any-resource rule would let any user delete others'
+  // resources after a trivial role switch. A separate, explicitly reviewed
+  // moderation feature should be added if admins need that capability.
+  if (!(await isResourceOwner(params.data.id, userId))) {
+    res.status(403).json({ error: "Only the submitter can delete this resource" });
+    return;
+  }
   await db.delete(resourcesTable).where(eq(resourcesTable.id, params.data.id));
   res.sendStatus(204);
 });

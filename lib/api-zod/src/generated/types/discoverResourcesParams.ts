@@ -15,4 +15,9 @@ q: string;
 format?: DiscoverResourcesFormat;
 subject?: string;
 gradeLevel?: string;
+/**
+ * Page number for paginated results
+ * @minimum 1
+ */
+page?: number;
 };

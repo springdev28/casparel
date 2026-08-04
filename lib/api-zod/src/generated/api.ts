@@ -22,11 +22,12 @@ export const HealthCheckResponse = zod.object({
 export const registerBodyPasswordMin = 6;
 
 
+
+
 export const RegisterBody = zod.object({
   "email": zod.string(),
   "password": zod.string().min(registerBodyPasswordMin),
-  "name": zod.string().min(1),
-  "role": zod.enum(['student', 'teacher'])
+  "name": zod.string().min(1)
 })
 
 export const RegisterResponse = zod.object({
@@ -87,6 +88,7 @@ export const GetMeResponse = zod.object({
  */
 
 
+
 export const UpdateMeBody = zod.object({
   "name": zod.string().min(1).optional(),
   "avatarUrl": zod.string().nullish()
@@ -99,6 +101,26 @@ export const UpdateMeResponse = zod.object({
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Switch the active role for the current user (student ↔ teacher)
+ */
+export const SwitchRoleBody = zod.object({
+  "role": zod.enum(['student', 'teacher'])
+})
+
+export const SwitchRoleResponse = zod.object({
+  "user": zod.object({
+  "id": zod.int(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher']),
+  "avatarUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+}),
+  "token": zod.string()
 })
 
 
@@ -121,6 +143,9 @@ export const ListClassesResponse = zod.array(ListClassesResponseItem)
 /**
  * @summary Create a new class (teacher only)
  */
+
+
+
 
 
 export const CreateClassBody = zod.object({
@@ -181,6 +206,8 @@ export const GetClassResponse = zod.object({
 export const UpdateClassParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateClassBody = zod.object({
@@ -272,6 +299,8 @@ export const BulkInviteClassMembersParams = zod.object({
 })
 
 
+
+
 export const BulkInviteClassMembersBody = zod.object({
   "emails": zod.array(zod.string()).min(1)
 })
@@ -301,11 +330,14 @@ export const RemoveClassMemberResponse = zod.void()
 /**
  * @summary List and search resources
  */
+export const listResourcesQueryMinRatingMax = 5;
+
 export const listResourcesQueryLimitDefault = 12;
 export const listResourcesQueryLimitMax = 50;
 
 export const listResourcesQueryOffsetDefault = 0;
 export const listResourcesQueryOffsetMin = 0;
+
 
 
 export const ListResourcesQueryParams = zod.object({
@@ -314,7 +346,7 @@ export const ListResourcesQueryParams = zod.object({
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
   "sortBy": zod.enum(['newest', 'top_rated', 'most_reviewed']).optional().describe('Sort order for results'),
-  "minRating": zod.coerce.number().int().min(1).max(5).optional().describe('Only return resources with avgRating >= this value'),
+  "minRating": zod.coerce.number().int().min(1).max(listResourcesQueryMinRatingMax).optional().describe('Only return resources with avgRating >= this value'),
   "limit": zod.coerce.number().int().min(1).max(listResourcesQueryLimitMax).default(listResourcesQueryLimitDefault).describe('Maximum number of results to return'),
   "offset": zod.coerce.number().int().min(listResourcesQueryOffsetMin).default(listResourcesQueryOffsetDefault).describe('Number of results to skip')
 })
@@ -339,6 +371,10 @@ export const ListResourcesResponse = zod.array(ListResourcesResponseItem)
 /**
  * @summary Submit a new resource
  */
+
+
+
+
 
 
 export const CreateResourceBody = zod.object({
@@ -372,6 +408,7 @@ export const CreateResourceResponse = zod.object({
  */
 
 
+
 export const PrefetchResourceMetadataBody = zod.object({
   "url": zod.string().min(1)
 })
@@ -387,12 +424,16 @@ export const PrefetchResourceMetadataResponse = zod.object({
 /**
  * @summary Search the internet for educational resources matching a query
  */
+export const discoverResourcesQueryPageDefault = 1;
+
+
+
 export const DiscoverResourcesQueryParams = zod.object({
   "q": zod.coerce.string().describe('Search query'),
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
-  "page": zod.coerce.number().int().min(1).default(1).optional()
+  "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number for paginated results')
 })
 
 export const DiscoverResourcesResponseItem = zod.object({
@@ -479,6 +520,8 @@ export const UpdateResourceParams = zod.object({
 })
 
 
+
+
 export const UpdateResourceBody = zod.object({
   "title": zod.string().min(1).optional(),
   "description": zod.string().optional(),
@@ -521,9 +564,12 @@ export const GetResourceSourceReviewParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const getResourceSourceReviewQueryModeDefault = `quick`;
+
 export const GetResourceSourceReviewQueryParams = zod.object({
-  "mode": zod.enum(['quick', 'deep']).default('quick')
+  "mode": zod.enum(['quick', 'deep']).default(getResourceSourceReviewQueryModeDefault).describe('quick — use model training knowledge only (fast, no web search); deep — use live web search for up-to-date information (slower, thorough)\n')
 })
+
 export const GetResourceSourceReviewResponse = zod.object({
   "sourceName": zod.string(),
   "sourceType": zod.string(),
@@ -549,6 +595,7 @@ export const ListResourceReviewsParams = zod.object({
 })
 
 export const listResourceReviewsResponseRatingMax = 5;
+
 
 
 export const ListResourceReviewsResponseItem = zod.object({
@@ -580,12 +627,14 @@ export const CreateResourceReviewParams = zod.object({
 export const createResourceReviewBodyRatingMax = 5;
 
 
+
 export const CreateResourceReviewBody = zod.object({
   "rating": zod.int().min(1).max(createResourceReviewBodyRatingMax),
   "comment": zod.string().optional()
 })
 
 export const createResourceReviewResponseRatingMax = 5;
+
 
 
 export const CreateResourceReviewResponse = zod.object({
@@ -635,6 +684,7 @@ export const ListResourceListsResponse = zod.array(ListResourceListsResponseItem
 /**
  * @summary Create a new resource list
  */
+
 
 
 export const CreateResourceListBody = zod.object({
@@ -699,6 +749,8 @@ export const GetResourceListResponse = zod.object({
 export const UpdateResourceListParams = zod.object({
   "id": zod.coerce.number().int()
 })
+
+
 
 
 export const UpdateResourceListBody = zod.object({
@@ -830,6 +882,7 @@ export const ListScheduleBlocksResponse = zod.array(ListScheduleBlocksResponseIt
  */
 
 
+
 export const CreateScheduleBlockBody = zod.object({
   "title": zod.string().min(1),
   "date": zod.coerce.date(),
@@ -864,14 +917,16 @@ export const UpdateScheduleBlockParams = zod.object({
 })
 
 
+
+
 export const UpdateScheduleBlockBody = zod.object({
   "title": zod.string().min(1).optional(),
   "date": zod.coerce.date().optional(),
   "startTime": zod.string().optional(),
   "endTime": zod.string().optional(),
   "notes": zod.string().optional(),
-  "resourceId": zod.int().nullable().optional(),
-  "listId": zod.int().nullable().optional()
+  "resourceId": zod.int().nullish(),
+  "listId": zod.int().nullish()
 })
 
 export const UpdateScheduleBlockResponse = zod.object({
@@ -1007,3 +1062,5 @@ export const GetRecentActivityResponseItem = zod.object({
   "userName": zod.string().nullish()
 })
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
+
+

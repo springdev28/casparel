@@ -5,9 +5,8 @@ import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
-import { useRegister, RegisterInputRole } from '@workspace/api-client-react';
+import { useRegister } from '@workspace/api-client-react';
 
 const TOKEN_KEY = 'schooler_token';
 
@@ -16,14 +15,13 @@ export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<RegisterInputRole>(RegisterInputRole.student);
 
   const registerMutation = useRegister();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const result = await registerMutation.mutateAsync({ data: { name, email, password, role } });
+      const result = await registerMutation.mutateAsync({ data: { name, email, password } });
       localStorage.setItem(TOKEN_KEY, result.token);
       setLocation('/dashboard');
     } catch (err: unknown) {
@@ -89,21 +87,6 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   data-testid="password-input"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="role">I am a…</Label>
-                <Select
-                  value={role}
-                  onValueChange={(v) => setRole(v as RegisterInputRole)}
-                >
-                  <SelectTrigger id="role" data-testid="role-select">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={RegisterInputRole.student}>Student</SelectItem>
-                    <SelectItem value={RegisterInputRole.teacher}>Teacher</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <Button
                 type="submit"

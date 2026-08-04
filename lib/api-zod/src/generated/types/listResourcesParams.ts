@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ListResourcesFormat } from './listResourcesFormat';
+import type { ListResourcesSortBy } from './listResourcesSortBy';
 
 export type ListResourcesParams = {
 /**
@@ -15,6 +16,16 @@ q?: string;
 format?: ListResourcesFormat;
 subject?: string;
 gradeLevel?: string;
+/**
+ * Sort order for results
+ */
+sortBy?: ListResourcesSortBy;
+/**
+ * Only return resources with avgRating >= this value
+ * @minimum 1
+ * @maximum 5
+ */
+minRating?: number;
 /**
  * Maximum number of results to return
  * @minimum 1

@@ -80,6 +80,11 @@ beforeEach(() => {
       }),
       innerJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockImplementation(() => {
+        if (tableName === "list_items") {
+          // isListItemOwner queries list_items first to get the parent listId
+          // Always return a row (ownership is determined by the resource_lists check below)
+          return Promise.resolve([{ id: 7, listId: 1 }]);
+        }
         if (tableName === "resource_lists") {
           return Promise.resolve(mockListOwnerRow ? [mockListOwnerRow] : []);
         }

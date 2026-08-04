@@ -7,35 +7,43 @@ import { lookup } from "node:dns/promises";
 /**
  * Returns true when `ip` belongs to a private, loopback, link-local,
  * or otherwise non-routable address range.
+ *
+ * Handles plain IPv4, plain IPv6, and IPv4-mapped IPv6 (::ffff:x.x.x.x).
  */
 function isPrivateIP(ip: string): boolean {
-  // IPv6: loopback, link-local (fe80::/10), ULA (fc00::/7)
+  // IPv4-mapped IPv6 (e.g. "::ffff:127.0.0.1", "::ffff:169.254.169.254").
+  // Extract the IPv4 portion and recurse rather than treating it as IPv6.
+  const mappedMatch = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (mappedMatch) return isPrivateIP(mappedMatch[1]);
+
   if (ip.includes(":")) {
-    const lower = ip.toLowerCase();
+    const lower = ip.toLowerCase().replace(/^\[|\]$/g, ""); // strip brackets
     return (
-      lower === "::1" ||
-      lower.startsWith("fe80") ||
-      lower.startsWith("fc") ||
-      lower.startsWith("fd")
+      lower === "::" ||            // unspecified
+      lower === "::1" ||           // loopback
+      lower.startsWith("fe80") ||  // link-local fe80::/10
+      lower.startsWith("fc") ||    // ULA fc00::/7
+      lower.startsWith("fd") ||    // ULA fc00::/7
+      lower.startsWith("::ffff:")  // any remaining IPv4-mapped forms
     );
   }
 
   // IPv4 non-public ranges
   const privateRanges: RegExp[] = [
-    /^0\./,                                      // 0.0.0.0/8
-    /^127\./,                                    // Loopback 127.0.0.0/8
-    /^10\./,                                     // RFC-1918 10.0.0.0/8
-    /^172\.(1[6-9]|2\d|3[01])\./,               // RFC-1918 172.16.0.0/12
-    /^192\.168\./,                               // RFC-1918 192.168.0.0/16
-    /^169\.254\./,                               // Link-local / cloud metadata
+    /^0\./,                                       // 0.0.0.0/8
+    /^127\./,                                     // Loopback 127.0.0.0/8
+    /^10\./,                                      // RFC-1918 10.0.0.0/8
+    /^172\.(1[6-9]|2\d|3[01])\./,                // RFC-1918 172.16.0.0/12
+    /^192\.168\./,                                // RFC-1918 192.168.0.0/16
+    /^169\.254\./,                                // Link-local / cloud metadata
     /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, // CGNAT 100.64.0.0/10
-    /^192\.0\.[02]\./,                           // IETF protocol assignments
-    /^198\.(1[89])\./,                           // Benchmark testing
-    /^198\.51\.100\./,                           // TEST-NET-2
-    /^203\.0\.113\./,                            // TEST-NET-3
-    /^2(2[4-9]|3\d)\./,                         // Multicast 224.0.0.0/4
-    /^24\d\./,                                   // Reserved 240.0.0.0/4
-    /^255\./,                                    // Broadcast
+    /^192\.0\.[02]\./,                            // IETF protocol assignments
+    /^198\.(1[89])\./,                            // Benchmark testing
+    /^198\.51\.100\./,                            // TEST-NET-2
+    /^203\.0\.113\./,                             // TEST-NET-3
+    /^2(2[4-9]|3\d)\./,                          // Multicast 224.0.0.0/4
+    /^24\d\./,                                    // Reserved 240.0.0.0/4
+    /^255\./,                                     // Broadcast
   ];
 
   return privateRanges.some((re) => re.test(ip));

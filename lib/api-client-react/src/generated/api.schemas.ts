@@ -27,21 +27,12 @@ export interface User {
   createdAt: string;
 }
 
-export type RegisterInputRole = typeof RegisterInputRole[keyof typeof RegisterInputRole];
-
-
-export const RegisterInputRole = {
-  student: 'student',
-  teacher: 'teacher',
-} as const;
-
 export interface RegisterInput {
   email: string;
   /** @minLength 6 */
   password: string;
   /** @minLength 1 */
   name: string;
-  role: RegisterInputRole;
 }
 
 export interface LoginInput {
@@ -59,6 +50,18 @@ export interface UserUpdate {
   name?: string;
   /** @nullable */
   avatarUrl?: string | null;
+}
+
+export type RoleSwitchInputRole = typeof RoleSwitchInputRole[keyof typeof RoleSwitchInputRole];
+
+
+export const RoleSwitchInputRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;
+
+export interface RoleSwitchInput {
+  role: RoleSwitchInputRole;
 }
 
 export interface Class {
@@ -276,7 +279,14 @@ export const SourceReviewTrustLevel = {
   unknown: 'unknown',
 } as const;
 
-export type SourceReviewMode = 'quick' | 'deep';
+export type SourceReviewMode = typeof SourceReviewMode[keyof typeof SourceReviewMode];
+
+
+export const SourceReviewMode = {
+  quick: 'quick',
+  deep: 'deep',
+} as const;
+
 export interface SourceReview {
   sourceName: string;
   sourceType: string;
@@ -417,6 +427,10 @@ export interface ScheduleBlockPatch {
   startTime?: string;
   endTime?: string;
   notes?: string;
+  /** @nullable */
+  resourceId?: number | null;
+  /** @nullable */
+  listId?: number | null;
 }
 
 export interface DashboardSummary {
@@ -545,14 +559,6 @@ limit?: number;
 offset?: number;
 };
 
-export type ListResourcesSortBy = typeof ListResourcesSortBy[keyof typeof ListResourcesSortBy];
-
-export const ListResourcesSortBy = {
-  newest: 'newest',
-  top_rated: 'top_rated',
-  most_reviewed: 'most_reviewed',
-} as const;
-
 export type ListResourcesFormat = typeof ListResourcesFormat[keyof typeof ListResourcesFormat];
 
 
@@ -565,6 +571,15 @@ export const ListResourcesFormat = {
   other: 'other',
 } as const;
 
+export type ListResourcesSortBy = typeof ListResourcesSortBy[keyof typeof ListResourcesSortBy];
+
+
+export const ListResourcesSortBy = {
+  newest: 'newest',
+  top_rated: 'top_rated',
+  most_reviewed: 'most_reviewed',
+} as const;
+
 export type DiscoverResourcesParams = {
 /**
  * Search query
@@ -573,7 +588,10 @@ q: string;
 format?: DiscoverResourcesFormat;
 subject?: string;
 gradeLevel?: string;
-/** Page number for loading more results */
+/**
+ * Page number for paginated results
+ * @minimum 1
+ */
 page?: number;
 };
 
@@ -589,9 +607,25 @@ export const DiscoverResourcesFormat = {
   other: 'other',
 } as const;
 
+export type GetResourceSourceReviewParams = {
+/**
+ * quick — use model training knowledge only (fast, no web search); deep — use live web search for up-to-date information (slower, thorough)
+ */
+mode?: GetResourceSourceReviewMode;
+};
+
+export type GetResourceSourceReviewMode = typeof GetResourceSourceReviewMode[keyof typeof GetResourceSourceReviewMode];
+
+
+export const GetResourceSourceReviewMode = {
+  quick: 'quick',
+  deep: 'deep',
+} as const;
+
 export type ListScheduleBlocksParams = {
 /**
  * ISO date of the Monday to load (YYYY-MM-DD)
  */
 weekStart?: string;
 };
+

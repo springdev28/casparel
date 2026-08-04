@@ -56,10 +56,14 @@ router.get("/classes", requireAuth, async (req, res): Promise<void> => {
   res.json(ListClassesResponse.parse(classes.filter(Boolean)));
 });
 
-// POST /classes — teacher role required
+// POST /classes — teacher role required (verified against live DB, not token claim)
 router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<void> => {
-  const { userId, userRole } = req as AuthenticatedRequest;
-  if (userRole !== "teacher") {
+  const { userId } = req as AuthenticatedRequest;
+  const [currentUser] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  if (!currentUser || currentUser.role !== "teacher") {
     res.status(403).json({ error: "Only teachers can create classes" });
     return;
   }

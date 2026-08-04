@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type RegisterInputRole = typeof RegisterInputRole[keyof typeof RegisterInputRole];
+export type RoleSwitchInputRole = typeof RoleSwitchInputRole[keyof typeof RoleSwitchInputRole];
 
 
-export const RegisterInputRole = {
+export const RoleSwitchInputRole = {
   student: 'student',
   teacher: 'teacher',
 } as const;

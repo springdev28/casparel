@@ -5,11 +5,8 @@
  * Schooler API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { RoleSwitchInputRole } from './roleSwitchInputRole';
 
-export interface RegisterInput {
-  email: string;
-  /** @minLength 6 */
-  password: string;
-  /** @minLength 1 */
-  name: string;
+export interface RoleSwitchInput {
+  role: RoleSwitchInputRole;
 }

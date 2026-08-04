@@ -13,10 +13,22 @@ import {
   resourceListsTable,
   listItemsTable,
   scheduleBlocksTable,
+  usersTable,
 } from "@workspace/db";
 
-/** User is the teacher who created this class */
+/**
+ * User is the teacher who created this class AND their current DB role is "teacher".
+ * Checks the live account role first — a user who has switched to student cannot
+ * perform teacher actions on their existing classes, even with an old teacher JWT.
+ */
 export async function isClassTeacher(classId: number, userId: number): Promise<boolean> {
+  // Verify live DB role so downgraded accounts cannot retain teacher privileges.
+  const [user] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  if (!user || user.role !== "teacher") return false;
+
   const [cls] = await db
     .select()
     .from(classesTable)

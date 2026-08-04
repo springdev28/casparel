@@ -124,6 +124,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  /users/me/role:
+    patch:
+      operationId: switchRole
+      tags: [auth]
+      summary: Switch the active role for the current user (student ↔ teacher)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleSwitchInput"
+      responses:
+        "200":
+          description: Role updated — returns a fresh auth token and the updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Invalid role value
+        "401":
+          description: Not authenticated
+
   # ── Classes ───────────────────────────────────────────────────────────────
   /classes:
     get:
@@ -433,6 +456,13 @@ paths:
           in: query
           schema:
             type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number for paginated results
       responses:
         "200":
           description: Discovered resources from the web
@@ -1063,12 +1093,11 @@ components:
 
     RegisterInput:
       type: object
-      required: [email, password, name, role]
+      required: [email, password, name]
       properties:
         email:    { type: string }
         password: { type: string, minLength: 6 }
         name:     { type: string, minLength: 1 }
-        role:     { type: string, enum: [student, teacher] }
 
     LoginInput:
       type: object
@@ -1089,6 +1118,12 @@ components:
       properties:
         name:      { type: string, minLength: 1 }
         avatarUrl: { type: ["string", "null"] }
+
+    RoleSwitchInput:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string, enum: [student, teacher] }
 
     # ── Classes ─────────────────────────────────────────────────────────────
     Class:

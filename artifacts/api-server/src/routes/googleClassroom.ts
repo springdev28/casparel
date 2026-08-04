@@ -23,6 +23,7 @@ import {
   resourcesTable,
   classesTable,
   classMembersTable,
+  usersTable,
 } from "@workspace/db";
 import {
   GetGCAuthUrlResponse,
@@ -62,15 +63,16 @@ const SCOPES = [
   "https://www.googleapis.com/auth/classroom.announcements",
 ].join(" ");
 
-// ── Middleware: teacher only ──────────────────────────────────────────────────
+// ── Middleware: teacher only (verifies live DB role, ignores token role claim) ─
 
-function requireTeacher(
+async function requireTeacher(
   req: Parameters<typeof requireAuth>[0],
   res: Parameters<typeof requireAuth>[1],
   next: Parameters<typeof requireAuth>[2],
-): void {
-  const { userRole } = req as AuthenticatedRequest;
-  if (userRole !== "teacher") {
+): Promise<void> {
+  const { userId } = req as AuthenticatedRequest;
+  const [user] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!user || user.role !== "teacher") {
     res.status(403).json({ error: "Only teachers can use Google Classroom integration" });
     return;
   }

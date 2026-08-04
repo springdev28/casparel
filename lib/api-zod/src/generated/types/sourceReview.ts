@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SourceReviewLink } from './sourceReviewLink';
+import type { SourceReviewMode } from './sourceReviewMode';
 import type { SourceReviewTrustLevel } from './sourceReviewTrustLevel';
 
 export interface SourceReview {
@@ -22,4 +23,5 @@ export interface SourceReview {
   trustReason?: string | null;
   summary: string;
   links?: SourceReviewLink[];
+  mode: SourceReviewMode;
 }

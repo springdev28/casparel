@@ -10,6 +10,8 @@ import {
   GetMeResponse,
   UpdateMeBody,
   UpdateMeResponse,
+  SwitchRoleBody,
+  SwitchRoleResponse,
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
@@ -35,7 +37,9 @@ router.post("/auth/register", authRateLimiter, async (req, res): Promise<void> =
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { email, password, name, role } = parsed.data;
+  // role is always "student" for new accounts — not client-controlled
+  const { email, password, name } = parsed.data;
+  const role = "student";
   const existing = await db.select().from(usersTable).where(eq(usersTable.email, email));
   if (existing.length > 0) {
     res.status(400).json({ error: "Email already in use" });
@@ -102,6 +106,23 @@ router.patch("/users/me", contentLimiter, requireAuth, async (req, res): Promise
     .where(eq(usersTable.id, userId))
     .returning();
   res.json(UpdateMeResponse.parse(user));
+});
+
+// PATCH /users/me/role
+router.patch("/users/me/role", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const parsed = SwitchRoleBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const [user] = await db
+    .update(usersTable)
+    .set({ role: parsed.data.role })
+    .where(eq(usersTable.id, userId))
+    .returning();
+  const token = issueToken(user.id, user.role);
+  res.json(SwitchRoleResponse.parse({ user, token }));
 });
 
 export default router;

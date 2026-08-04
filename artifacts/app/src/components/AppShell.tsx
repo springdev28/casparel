@@ -11,18 +11,29 @@ import {
   Link2,
   CheckCircle2,
   RefreshCw,
+  UserCog,
 } from 'lucide-react';
 import { cn } from '@workspace/edu-ds/lib/utils';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@workspace/edu-ds/components/ui/select';
+import {
   useGetMe,
   useGetGCStatus,
   useGetGCAuthUrl,
   useDisconnectGoogle,
+  useSwitchRole,
+  getGetMeQueryKey,
   getGetGCStatusQueryKey,
   getGetGCAuthUrlQueryKey,
   UserRole,
+  RoleSwitchInputRole,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
@@ -63,6 +74,7 @@ export default function AppShell({ children }: AppShellProps) {
     useGetGCAuthUrl({ query: { enabled: false, queryKey: getGetGCAuthUrlQueryKey() } });
 
   const disconnectGoogle = useDisconnectGoogle();
+  const switchRoleMutation = useSwitchRole();
 
   // When the auth URL arrives, redirect the browser to Google
   useEffect(() => {
@@ -98,6 +110,24 @@ export default function AppShell({ children }: AppShellProps) {
     }
   }
 
+  async function handleRoleSwitch(newRole: string) {
+    try {
+      const result = await switchRoleMutation.mutateAsync({
+        data: { role: newRole as RoleSwitchInputRole },
+      });
+      // Store the fresh token so subsequent requests carry the new role
+      localStorage.setItem(TOKEN_KEY, result.token);
+      // Invalidate the me query so all role-conditional UI re-renders
+      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      toast({
+        title: `Switched to ${newRole} mode`,
+        description: newRole === 'teacher' ? 'Teacher tools are now active.' : 'Student view is now active.',
+      });
+    } catch {
+      toast({ title: 'Error', description: 'Could not switch role. Please try again.', variant: 'destructive' });
+    }
+  }
+
   // Build the sidebar GC widget (teachers only, when GC is configured)
   const gcWidget =
     isTeacher && gcStatus?.configured ? (
@@ -130,6 +160,29 @@ export default function AppShell({ children }: AppShellProps) {
     ) : isTeacher && gcStatusLoading ? (
       <Skeleton className="h-6 w-40 bg-primary-foreground/20" />
     ) : null;
+
+  // Role switcher — shown when user data is loaded
+  const roleSwitcher = me ? (
+    <div className="flex items-center gap-2 w-full" data-testid="role-switcher">
+      <UserCog size={13} className="text-primary-foreground/60 shrink-0" />
+      <Select
+        value={me.role}
+        onValueChange={handleRoleSwitch}
+        disabled={switchRoleMutation.isPending}
+      >
+        <SelectTrigger
+          className="h-7 text-xs bg-transparent border-primary-foreground/30 text-primary-foreground/80 hover:bg-primary-foreground/10 focus:ring-0 focus:ring-offset-0 px-2"
+          data-testid="role-select"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={RoleSwitchInputRole.student}>Student</SelectItem>
+          <SelectItem value={RoleSwitchInputRole.teacher}>Teacher</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  ) : null;
 
   return (
     <>
@@ -175,9 +228,11 @@ export default function AppShell({ children }: AppShellProps) {
             ) : me ? (
               <div className="mb-2">
                 <p className="text-sm font-semibold text-primary-foreground truncate">{me.name}</p>
-                <p className="text-xs text-primary-foreground/60 capitalize">{me.role}</p>
               </div>
             ) : null}
+
+            {/* Role switcher */}
+            {roleSwitcher}
 
             {/* Google Classroom connect — real OAuth, teachers only */}
             {gcWidget}
@@ -219,6 +274,26 @@ export default function AppShell({ children }: AppShellProps) {
                 </Link>
               );
             })}
+            {/* Mobile role switcher — compact icon+select */}
+            {me && (
+              <Select
+                value={me.role}
+                onValueChange={handleRoleSwitch}
+                disabled={switchRoleMutation.isPending}
+              >
+                <SelectTrigger
+                  className="h-8 w-8 p-0 bg-transparent border-none text-primary-foreground/70 hover:bg-primary-foreground/10 focus:ring-0 focus:ring-offset-0 [&>svg]:hidden"
+                  data-testid="mobile-role-select"
+                  title={`Current role: ${me.role}`}
+                >
+                  <UserCog size={18} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={RoleSwitchInputRole.student}>Student</SelectItem>
+                  <SelectItem value={RoleSwitchInputRole.teacher}>Teacher</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <button
               onClick={handleLogout}
               className="p-2 rounded-md text-primary-foreground/70 hover:bg-primary-foreground/10"
