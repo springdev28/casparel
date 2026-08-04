@@ -8,6 +8,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -281,12 +282,33 @@ function StudySessionDetailSheet({
 
         {/* Action buttons */}
         <View style={[styles.sheetActions, { borderTopColor: colors.border, paddingTop: 12, paddingHorizontal: 20, gap: 10 }]}>
-          <Pressable
-            onPress={handleJoin}
-            style={[styles.joinButton, { borderRadius: colors.radius }]}
-          >
-            <Text style={[styles.joinButtonText, { fontFamily: colors.fontFamily.sansSemiBold }]}>🎥 Join Meeting</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              onPress={handleJoin}
+              style={[styles.joinButton, { borderRadius: colors.radius, flex: 1 }]}
+            >
+              <Text style={[styles.joinButtonText, { fontFamily: colors.fontFamily.sansSemiBold }]}>🎥 Join</Text>
+            </Pressable>
+            <Pressable
+              onPress={async () => {
+                const start = new Date(session.startsAt);
+                const end = new Date(start.getTime() + session.durationMinutes * 60 * 1000);
+                const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace('.000', '');
+                const params = new URLSearchParams({
+                  action: 'TEMPLATE',
+                  text: session.title,
+                  dates: `${fmt(start)}/${fmt(end)}`,
+                  location: session.meetingUrl,
+                  details: session.topic ?? '',
+                });
+                const url = `https://calendar.google.com/calendar/render?${params.toString()}`;
+                await Share.share({ message: url, title: 'Add to Calendar' });
+              }}
+              style={[{ borderRadius: colors.radius, borderWidth: 1, borderColor: '#7c3aed', paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }]}
+            >
+              <Text style={{ color: '#7c3aed', fontSize: 13, fontFamily: colors.fontFamily.sansSemiBold }}>📅 Export</Text>
+            </Pressable>
+          </View>
 
           {session.myStatus === 'pending' && (
             <View style={{ flexDirection: 'row', gap: 8 }}>

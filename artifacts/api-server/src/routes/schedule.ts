@@ -14,6 +14,7 @@ import {
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { isScheduleBlockOwner } from "../lib/authz";
+import { syncBlockToGCal, deleteBlockFromGCal } from "./calendar";
 
 const router: IRouter = Router();
 
@@ -82,6 +83,8 @@ router.post("/schedule", contentLimiter, requireAuth, async (req, res): Promise<
     .values({ ...rest, date: dateStr, userId })
     .returning();
   res.status(201).json(CreateScheduleBlockResponse.parse(block));
+  // Fire-and-forget Google Calendar sync (non-blocking)
+  syncBlockToGCal(userId, block.id, block).catch(() => {});
 });
 
 // PATCH /schedule/:id — owner only
@@ -129,6 +132,8 @@ router.patch("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   res.json(UpdateScheduleBlockResponse.parse(block));
+  // Fire-and-forget Google Calendar sync (non-blocking)
+  syncBlockToGCal(userId, block.id, block).catch(() => {});
 });
 
 // DELETE /schedule/:id — owner only
@@ -143,8 +148,16 @@ router.delete("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Only the owner can delete this schedule block" });
     return;
   }
+  // Read the Google Calendar event ID before deleting the row to avoid a
+  // read-after-delete race in the GCal helper.
+  const [blockToDelete] = await db
+    .select({ gcId: scheduleBlocksTable.googleCalendarEventId })
+    .from(scheduleBlocksTable)
+    .where(eq(scheduleBlocksTable.id, params.data.id));
   await db.delete(scheduleBlocksTable).where(eq(scheduleBlocksTable.id, params.data.id));
   res.sendStatus(204);
+  // Fire-and-forget with the pre-fetched GCal event ID (non-blocking)
+  deleteBlockFromGCal(userId, params.data.id, blockToDelete?.gcId).catch(() => {});
 });
 
 export default router;

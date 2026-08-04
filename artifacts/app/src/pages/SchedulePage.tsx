@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, Calendar, Trash2, Clock, X, BookOpen, List,
-  Users, ExternalLink, Video, Check, XCircle, ChevronDown,
+  Users, ExternalLink, Video, Check, XCircle, ChevronDown, Download,
 } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
@@ -30,7 +30,55 @@ import {
   getListResourcesQueryKey,
   getListScheduleBlocksQueryKey,
   getListStudySessionsQueryKey,
+  getGetCalendarStatusQueryKey,
 } from '@workspace/api-client-react';
+
+/** Download a .ics file for a schedule block using the authenticated API */
+async function downloadBlockIcs(blockId: number): Promise<void> {
+  const token = localStorage.getItem('schooler_token');
+  const resp = await fetch(`/api/schedule/${blockId}/export.ics`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) return;
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `block-${blockId}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Download a .ics file for a study session using the authenticated API */
+async function downloadSessionIcs(sessionId: number): Promise<void> {
+  const token = localStorage.getItem('schooler_token');
+  const resp = await fetch(`/api/study-sessions/${sessionId}/export.ics`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) return;
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `session-${sessionId}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Build a Google Calendar quick-add URL for a study session */
+function buildGoogleCalUrl(session: { title: string; startsAt: string; durationMinutes: number; meetingUrl: string; topic?: string | null }): string {
+  const start = new Date(session.startsAt);
+  const end = new Date(start.getTime() + session.durationMinutes * 60 * 1000);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace('.000', '');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: session.title,
+    dates: `${fmt(start)}/${fmt(end)}`,
+    location: session.meetingUrl,
+    details: session.topic ?? '',
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
 import type { StudySessionWithParticipants } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 
@@ -471,6 +519,30 @@ function StudySessionDetail({
             <XCircle size={14} /> Decline
           </Button>
         )}
+
+        {/* Export to Calendar */}
+        <div className="relative group">
+          <Button size="sm" variant="outline" className="gap-1.5">
+            <Calendar size={14} /> Export <ChevronDown size={12} />
+          </Button>
+          <div className="hidden group-hover:flex absolute right-0 top-full mt-1 z-50 min-w-max flex-col rounded-md border bg-popover shadow-md text-sm overflow-hidden">
+            <a
+              href={buildGoogleCalUrl(session)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-2 hover:bg-accent"
+            >
+              <ExternalLink size={13} /> Add to Google Calendar
+            </a>
+            <button
+              type="button"
+              onClick={() => downloadSessionIcs(session.id)}
+              className="flex items-center gap-2 px-3 py-2 hover:bg-accent text-left"
+            >
+              <Download size={13} /> Download .ics
+            </button>
+          </div>
+        </div>
 
         {isOrganiser && (
           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5 ml-auto" onClick={handleCancel} disabled={deleteSession.isPending}>
@@ -938,14 +1010,24 @@ export default function SchedulePage() {
                           {block.notes && <p className="mt-0.5 opacity-75 truncate">{block.notes}</p>}
                           {block.resourceId != null && <ResourceBadge resourceId={block.resourceId} />}
                           {block.listId != null && <ListBadge listId={block.listId} />}
-                          <button
-                            onClick={() => handleDelete(block.id)}
-                            className="mt-1 opacity-60 hover:opacity-100 transition-opacity"
-                            data-testid="delete-block-button"
-                            aria-label="Delete block"
-                          >
-                            <Trash2 size={11} />
-                          </button>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <button
+                              onClick={() => handleDelete(block.id)}
+                              className="opacity-60 hover:opacity-100 transition-opacity"
+                              data-testid="delete-block-button"
+                              aria-label="Delete block"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                            <button
+                              onClick={() => downloadBlockIcs(block.id)}
+                              className="opacity-60 hover:opacity-100 transition-opacity"
+                              aria-label="Download .ics"
+                              title="Export to Calendar"
+                            >
+                              <Download size={11} />
+                            </button>
+                          </div>
                         </div>
                       ))}
                       {daySessions.map((session) => (
@@ -998,13 +1080,23 @@ export default function SchedulePage() {
                   {block.listId != null && <ListBadge listId={block.listId} />}
                 </div>
                 <Badge variant="outline" className="text-xs shrink-0">{format(parseISO(block.date), 'EEE')}</Badge>
-                <Button
-                  size="sm" variant="ghost"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-                  onClick={() => handleDelete(block.id)}
-                >
-                  <Trash2 size={14} />
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    size="sm" variant="ghost"
+                    className="text-muted-foreground hover:text-primary h-8 w-8 p-0"
+                    onClick={() => downloadBlockIcs(block.id)}
+                    title="Export to Calendar"
+                  >
+                    <Download size={14} />
+                  </Button>
+                  <Button
+                    size="sm" variant="ghost"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                    onClick={() => handleDelete(block.id)}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

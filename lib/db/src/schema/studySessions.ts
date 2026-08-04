@@ -21,6 +21,7 @@ export const studySessionsTable = pgTable("study_sessions", {
   topic: text("topic"),
   resourceId: integer("resource_id").references(() => resourcesTable.id),
   meetingUrl: text("meeting_url").notNull(),
+  googleCalendarEventId: text("google_calendar_event_id"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
     .notNull()
     .defaultNow(),

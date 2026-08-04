@@ -43,6 +43,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import { syncSessionToGCal, deleteSessionFromGCal } from "./calendar";
 
 const router: IRouter = Router();
 
@@ -197,6 +198,8 @@ router.post(
 
     const result = await getSessionWithParticipants(session.id, userId);
     res.status(201).json(CreateStudySessionResponse.parse(result));
+    // Fire-and-forget GCal sync (non-blocking)
+    syncSessionToGCal(userId, session.id, session).catch(() => {});
   },
 );
 
@@ -277,6 +280,8 @@ router.patch("/study-sessions/:id", requireAuth, async (req, res): Promise<void>
 
   const result = await getSessionWithParticipants(params.data.id, userId);
   res.json(UpdateStudySessionResponse.parse(result));
+  // Fire-and-forget GCal sync (non-blocking)
+  if (result) syncSessionToGCal(userId, params.data.id, result).catch(() => {});
 });
 
 // DELETE /study-sessions/:id — organiser cancels
@@ -301,11 +306,15 @@ router.delete("/study-sessions/:id", requireAuth, async (req, res): Promise<void
     return;
   }
 
+  // `session` (fetched above) already has the Google Calendar event ID —
+  // pass it to the helper before deleting the row to avoid a read-after-delete race.
   await db
     .delete(studySessionsTable)
     .where(eq(studySessionsTable.id, parsed.data.id));
 
   res.status(204).end();
+  // Fire-and-forget GCal deletion with the pre-fetched event ID (non-blocking)
+  deleteSessionFromGCal(userId, parsed.data.id, session.googleCalendarEventId).catch(() => {});
 });
 
 // PATCH /study-sessions/:id/rsvp — participant accepts/declines

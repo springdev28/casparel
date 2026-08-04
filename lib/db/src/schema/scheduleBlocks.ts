@@ -17,6 +17,7 @@ export const scheduleBlocksTable = pgTable("schedule_blocks", {
   listId: integer("list_id").references(() => resourceListsTable.id),
   classId: integer("class_id").references(() => classesTable.id),
   notes: text("notes"),
+  googleCalendarEventId: text("google_calendar_event_id"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });
 

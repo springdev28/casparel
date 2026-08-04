@@ -15,6 +15,9 @@ export * from './bulkInviteInput';
 export * from './bulkInviteResult';
 export * from './bulkInviteResultItem';
 export * from './bulkInviteResultItemStatus';
+export * from './calendarConnectUrl';
+export * from './calendarIcalUrl';
+export * from './calendarStatus';
 export * from './class';
 export * from './classInput';
 export * from './classMember';
@@ -36,7 +39,7 @@ export * from './gCShareInput';
 export * from './gCShareResult';
 export * from './gCStatus';
 export * from './getResourceSourceReviewMode';
-export * from './getResourceSourceReviewParams';
+// getResourceSourceReviewParams is already exported as a Zod schema from ../api.ts — omit here to avoid duplicate-export TS error
 export * from './healthStatus';
 export * from './listItem';
 export * from './listItemInput';
@@ -83,7 +86,7 @@ export * from './studySessionPatch';
 export * from './studySessionRsvp';
 export * from './studySessionRsvpStatus';
 export * from './studySessionWithParticipants';
-export * from './uploadAvatarBody';
+// uploadAvatarBody is already exported as a Zod schema from ../api.ts — omit here to avoid duplicate-export TS error
 export * from './user';
 export * from './userRole';
 export * from './userUpdate';

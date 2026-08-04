@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Clipboard,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -23,6 +25,10 @@ import {
   useUploadAvatar,
   useSwitchRole,
   RoleSwitchInputRole,
+  useGetCalendarStatus,
+  useGetCalendarIcalUrl,
+  useDisconnectCalendarGoogle,
+  getGetCalendarStatusQueryKey,
   getGetMeQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -54,6 +60,136 @@ function completeness(user: {
     !!user.websiteUrl,
   ];
   return Math.round((fields.filter(Boolean).length / fields.length) * 100);
+}
+
+/** Calendar integration section for mobile profile */
+function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const { data: calStatus, isLoading } = useGetCalendarStatus();
+  const { data: icalData } = useGetCalendarIcalUrl();
+  const disconnectGoogle = useDisconnectCalendarGoogle();
+  const queryClient = useQueryClient();
+
+  const icalUrl = icalData?.url ?? null;
+
+  async function handleShareIcalUrl() {
+    if (!icalUrl) return;
+    try {
+      await Share.share({ message: icalUrl, title: 'Schooler Calendar Feed' });
+    } catch {
+      // User cancelled or error
+    }
+  }
+
+  async function handleCopyIcalUrl() {
+    if (!icalUrl) return;
+    Clipboard.setString(icalUrl);
+    Alert.alert('Copied!', 'Calendar feed URL copied to clipboard.');
+  }
+
+  async function handleDisconnect() {
+    Alert.alert(
+      'Disconnect Google Calendar',
+      'Future syncs will stop. Existing Google Calendar events are kept.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await disconnectGoogle.mutateAsync();
+              queryClient.invalidateQueries({ queryKey: getGetCalendarStatusQueryKey() });
+            } catch {
+              Alert.alert('Error', 'Could not disconnect Google Calendar.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <View style={[{ backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius, borderWidth: 1, padding: 16, gap: 8 }]}>
+        <View style={{ height: 16, width: 120, backgroundColor: colors.border, borderRadius: 4 }} />
+        <View style={{ height: 40, backgroundColor: colors.border, borderRadius: 4 }} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[{ backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius, borderWidth: 1, padding: 16, gap: 12 }]}>
+      {/* Google Calendar status */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Feather name="calendar" size={16} color={colors.primary} />
+          <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }}>
+            Google Calendar
+          </Text>
+        </View>
+        {calStatus?.googleConnected ? (
+          <TouchableOpacity
+            onPress={handleDisconnect}
+            style={{ backgroundColor: colors.destructive + '15', borderRadius: colors.radius, paddingHorizontal: 10, paddingVertical: 4 }}
+            disabled={disconnectGoogle.isPending}
+          >
+            <Text style={{ fontSize: 12, color: colors.destructive, fontFamily: colors.fontFamily.sans }}>
+              Disconnect
+            </Text>
+          </TouchableOpacity>
+        ) : calStatus?.googleConfigured ? (
+          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
+            Connect via web app
+          </Text>
+        ) : (
+          <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
+            Not configured
+          </Text>
+        )}
+      </View>
+
+      {calStatus?.googleConnected && (
+        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
+          ✓ Your schedule syncs automatically to Google Calendar.
+        </Text>
+      )}
+
+      {!calStatus?.googleConnected && calStatus?.googleConfigured && (
+        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
+          To connect Google Calendar, visit the Profile page in the web app.
+        </Text>
+      )}
+
+      {/* Separator */}
+      <View style={{ height: 1, backgroundColor: colors.border }} />
+
+      {/* iCal subscription */}
+      <View style={{ gap: 6 }}>
+        <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }}>
+          Calendar Subscription (iCal)
+        </Text>
+        <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
+          Subscribe to your schedule in Apple Calendar, Outlook, or any calendar app.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            onPress={handleCopyIcalUrl}
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, paddingVertical: 8 }}
+          >
+            <Feather name="copy" size={14} color={colors.primary} />
+            <Text style={{ fontSize: 13, color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}>Copy URL</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleShareIcalUrl}
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 8 }}
+          >
+            <Feather name="share-2" size={14} color="#fff" />
+            <Text style={{ fontSize: 13, color: '#fff', fontFamily: colors.fontFamily.sansMedium }}>Share URL</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
 }
 
 export default function ProfileScreen() {
@@ -534,6 +670,12 @@ export default function ProfileScreen() {
           </>
         )}
       </View>
+
+      {/* Calendar Integration */}
+      <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+        CALENDAR
+      </Text>
+      <CalendarSection colors={colors} />
 
       {/* Sign out */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>

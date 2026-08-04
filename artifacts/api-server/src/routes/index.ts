@@ -10,6 +10,7 @@ import studySessionsRouter from "./studySessions";
 import dashboardRouter from "./dashboard";
 import sourceReviewRouter from "./sourceReview";
 import googleClassroomRouter from "./googleClassroom";
+import calendarRouter from "./calendar";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(studySessionsRouter);
 router.use(dashboardRouter);
 router.use(sourceReviewRouter);
 router.use(googleClassroomRouter);
+router.use(calendarRouter);
 
 export default router;

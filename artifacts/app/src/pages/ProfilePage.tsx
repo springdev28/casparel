@@ -13,6 +13,13 @@ import {
   Pencil,
   X,
   Save,
+  Calendar,
+  Link2,
+  Copy,
+  Check as CheckIcon,
+  Unlink,
+  ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
@@ -28,6 +35,10 @@ import {
   useGetMe,
   useUpdateMe,
   useUploadAvatar,
+  useGetCalendarStatus,
+  useDisconnectCalendarGoogle,
+  getGetCalendarStatusQueryKey,
+  getCalendarGoogleConnectUrl,
   getGetMeQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -181,6 +192,148 @@ export default function ProfilePage() {
   }
 
   const completeness = profileCompleteness(me);
+
+  /** Calendar section component */
+  function CalendarSection() {
+    const { data: calStatus, isLoading: calLoading } = useGetCalendarStatus();
+    const disconnectGoogle = useDisconnectCalendarGoogle();
+    const [copied, setCopied] = useState(false);
+    const [connecting, setConnecting] = useState(false);
+
+    async function handleConnect() {
+      try {
+        setConnecting(true);
+        const data = await getCalendarGoogleConnectUrl();
+        window.location.href = data.url;
+      } catch {
+        toast({ title: 'Error', description: 'Could not start Google Calendar connection', variant: 'destructive' });
+        setConnecting(false);
+      }
+    }
+
+    async function handleDisconnect() {
+      if (!confirm('Disconnect Google Calendar? Future syncs will stop. Existing Google Calendar events are kept.')) return;
+      try {
+        await disconnectGoogle.mutateAsync();
+        queryClient.invalidateQueries({ queryKey: getGetCalendarStatusQueryKey() });
+        toast({ title: 'Google Calendar disconnected' });
+      } catch {
+        toast({ title: 'Error', description: 'Could not disconnect', variant: 'destructive' });
+      }
+    }
+
+    function buildIcalUrl(secret: string): string {
+      return `${window.location.origin}/api/calendar/${secret}/feed.ics`;
+    }
+
+    async function handleCopyIcal() {
+      if (!calStatus?.icalSecret) return;
+      await navigator.clipboard.writeText(buildIcalUrl(calStatus.icalSecret));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+
+    if (calLoading) {
+      return (
+        <Card>
+          <CardContent className="pt-4 pb-3 space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-9 w-full" />
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Calendar size={15} className="text-muted-foreground" />
+            Calendar Integration
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Google Calendar */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-foreground">Google Calendar</span>
+                {calStatus?.googleConnected ? (
+                  <Badge variant="outline" className="text-[11px] border-green-500 text-green-700 gap-1">
+                    <CheckIcon size={10} /> Connected
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[11px] text-muted-foreground">Not connected</Badge>
+                )}
+              </div>
+              {calStatus?.googleConnected ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDisconnect}
+                  disabled={disconnectGoogle.isPending}
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 text-xs"
+                >
+                  <Unlink size={13} /> Disconnect
+                </Button>
+              ) : calStatus?.googleConfigured ? (
+                <Button size="sm" onClick={handleConnect} disabled={connecting} className="gap-1 text-xs">
+                  {connecting ? <RefreshCw size={12} className="animate-spin" /> : <Link2 size={12} />}
+                  Connect
+                </Button>
+              ) : (
+                <span className="text-xs text-muted-foreground italic">Not available on this server</span>
+              )}
+            </div>
+            {calStatus?.googleConnected && (
+              <p className="text-xs text-muted-foreground">
+                New schedule blocks and study sessions will automatically sync to your primary Google Calendar.
+              </p>
+            )}
+            {!calStatus?.googleConnected && calStatus?.googleConfigured && (
+              <p className="text-xs text-muted-foreground">
+                Connect to automatically sync your schedule blocks and study sessions to Google Calendar.
+              </p>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* iCal feed */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-foreground">Calendar Subscription (iCal)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Subscribe to your schedule in Apple Calendar, Outlook, or any calendar app. The feed updates automatically.
+            </p>
+            {calStatus?.icalSecret && (
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={buildIcalUrl(calStatus.icalSecret)}
+                  className="text-xs font-mono flex-1 truncate"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyIcal}
+                  className="shrink-0 gap-1.5"
+                >
+                  {copied ? <CheckIcon size={13} className="text-green-600" /> : <Copy size={13} />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              In Google Calendar: &quot;Other calendars → From URL&quot;. In Apple Calendar: &quot;File → New Calendar Subscription&quot;.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
@@ -383,6 +536,9 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Calendar */}
+      <CalendarSection />
 
       {/* Grade / Department + Timezone + Website */}
       <Card>

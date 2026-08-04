@@ -1,8 +1,5 @@
 export * from "./generated/api";
-// types re-exports (exclude names already exported from generated/api to avoid ambiguity)
-export type { PublicUser } from './generated/types/publicUser';
-export type { PublicUserRole } from './generated/types/publicUserRole';
-export type { UploadAvatarBody } from './generated/types/uploadAvatarBody';
-export type { User } from './generated/types/user';
-export type { UserRole } from './generated/types/userRole';
-export type { UserUpdate } from './generated/types/userUpdate';
+// Re-export all TypeScript types from the generated types directory.
+// Using `export type *` ensures these are type-only re-exports which never
+// conflict with the Zod schema value exports from generated/api above.
+export type * from './generated/types';

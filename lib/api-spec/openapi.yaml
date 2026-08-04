@@ -28,6 +28,8 @@ tags:
     description: Dashboard summary and activity
   - name: google-classroom
     description: Google Classroom integration
+  - name: calendar
+    description: Google Calendar sync and iCal feed
 paths:
   /healthz:
     get:
@@ -1379,6 +1381,109 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityItem"
 
+  # ── Calendar ──────────────────────────────────────────────────────────────
+  /calendar/status:
+    get:
+      operationId: getCalendarStatus
+      tags: [calendar]
+      summary: Get Google Calendar connection status and iCal secret
+      responses:
+        "200":
+          description: Calendar status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarStatus"
+        "401":
+          description: Not authenticated
+
+  /calendar/ical-url:
+    get:
+      operationId: getCalendarIcalUrl
+      tags: [calendar]
+      summary: Get the personal iCal subscription URL
+      responses:
+        "200":
+          description: iCal feed URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarIcalUrl"
+        "401":
+          description: Not authenticated
+
+  /calendar/google/connect:
+    get:
+      operationId: getCalendarGoogleConnectUrl
+      tags: [calendar]
+      summary: Get the Google OAuth URL to connect Google Calendar
+      responses:
+        "200":
+          description: OAuth authorization URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarConnectUrl"
+        "503":
+          description: Google OAuth not configured
+
+  /calendar/google/disconnect:
+    delete:
+      operationId: disconnectCalendarGoogle
+      tags: [calendar]
+      summary: Disconnect Google Calendar and remove stored tokens
+      responses:
+        "204":
+          description: Disconnected
+        "401":
+          description: Not authenticated
+
+  /schedule/{id}/export.ics:
+    get:
+      operationId: exportScheduleBlockIcs
+      tags: [calendar]
+      summary: Download a single schedule block as an .ics file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: iCal file
+          content:
+            text/calendar:
+              schema:
+                type: string
+        "401":
+          description: Not authenticated
+        "404":
+          description: Block not found
+
+  /study-sessions/{id}/export.ics:
+    get:
+      operationId: exportStudySessionIcs
+      tags: [calendar]
+      summary: Download a single study session as an .ics file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: iCal file
+          content:
+            text/calendar:
+              schema:
+                type: string
+        "401":
+          description: Not authenticated
+        "404":
+          description: Session not found
+
 components:
   schemas:
     HealthStatus:
@@ -1930,3 +2035,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/BulkInviteResultItem"
+
+    # ── Calendar ─────────────────────────────────────────────────────────────
+    CalendarStatus:
+      type: object
+      required: [googleConnected, googleConfigured, icalSecret]
+      properties:
+        googleConnected:  { type: boolean }
+        googleConfigured: { type: boolean }
+        icalSecret:       { type: string }
+
+    CalendarConnectUrl:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string }
+
+    CalendarIcalUrl:
+      type: object
+      required: [url, icalSecret]
+      properties:
+        url:        { type: string }
+        icalSecret: { type: string }
