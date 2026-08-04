@@ -16,7 +16,7 @@ export default function PublicShell({ children }: PublicShellProps) {
           {/* Logo */}
           <Link href="/resources" className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity">
             <GraduationCap size={22} />
-            <span className="font-bold text-lg tracking-tight">Schooler</span>
+            <span className="font-bold text-lg tracking-tight">Schoolar</span>
           </Link>
 
           {/* Auth actions */}

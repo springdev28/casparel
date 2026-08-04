@@ -630,7 +630,7 @@ export default function ResourcesPage() {
             <div className="mt-6 rounded-lg border bg-muted/40 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
               <div>
                 <p className="font-medium text-sm">Get personalised recommendations</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Sign in and Schooler learns what you like.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Sign in and Schoolar learns what you like.</p>
               </div>
               <div className="flex gap-2 shrink-0">
                 <Button variant="outline" size="sm" asChild><Link href="/auth/login">Sign in</Link></Button>

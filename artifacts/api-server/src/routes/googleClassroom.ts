@@ -355,7 +355,7 @@ router.get("/google-classroom/courses", requireAuth, requireTeacher, async (req,
 });
 
 // ── POST /google-classroom/import-course (teacher only) ───────────────────────
-// Creates a new Schooler class from a Google Classroom course.
+// Creates a new Schoolar class from a Google Classroom course.
 
 router.post(
   "/google-classroom/import-course",
@@ -412,7 +412,7 @@ router.post(
       description?: string;
     };
 
-    // Create Schooler class using course data
+    // Create Schoolar class using course data
     const [cls] = await db
       .insert(classesTable)
       .values({

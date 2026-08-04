@@ -36,7 +36,7 @@ export default function RegisterPage() {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-2">
             <GraduationCap size={32} className="text-primary" />
-            <span className="text-2xl font-bold text-primary">Schooler</span>
+            <span className="text-2xl font-bold text-primary">Schoolar</span>
           </div>
           <p className="text-sm text-muted-foreground">Your student &amp; teacher productivity platform</p>
         </div>
@@ -44,7 +44,7 @@ export default function RegisterPage() {
         <Card>
           <CardHeader>
             <CardTitle>Create an account</CardTitle>
-            <CardDescription>Join Schooler to start learning and teaching</CardDescription>
+            <CardDescription>Join Schoolar to start learning and teaching</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">

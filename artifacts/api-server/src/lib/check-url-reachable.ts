@@ -121,7 +121,7 @@ export async function checkUrlReachable(
       method: "HEAD",
       signal: controller.signal,
       redirect: "manual",
-      headers: { "User-Agent": "Schooler-LinkCheck/1.0" },
+      headers: { "User-Agent": "Schoolar-LinkCheck/1.0" },
     });
 
     if (headRes.ok || (headRes.status >= 300 && headRes.status < 400)) {
@@ -134,7 +134,7 @@ export async function checkUrlReachable(
       signal: controller.signal,
       redirect: "manual",
       headers: {
-        "User-Agent": "Schooler-LinkCheck/1.0",
+        "User-Agent": "Schoolar-LinkCheck/1.0",
         Range: "bytes=0-0",
       },
     });

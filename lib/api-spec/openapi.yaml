@@ -3,7 +3,7 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: Schooler API — student/teacher productivity platform
+  description: Schoolar API — student/teacher productivity platform
 servers:
   - url: /api
     description: Base API path
@@ -1306,7 +1306,7 @@ paths:
     post:
       operationId: importGCCourse
       tags: [google-classroom]
-      summary: Import a Google Classroom course as a new Schooler class
+      summary: Import a Google Classroom course as a new Schoolar class
       requestBody:
         required: true
         content:
@@ -1315,7 +1315,7 @@ paths:
               $ref: "#/components/schemas/GCImportInput"
       responses:
         "201":
-          description: Schooler class created from the Google Classroom course
+          description: Schoolar class created from the Google Classroom course
           content:
             application/json:
               schema:

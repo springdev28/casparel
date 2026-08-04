@@ -35,7 +35,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-2">
             <GraduationCap size={32} className="text-primary" />
-            <span className="text-2xl font-bold text-primary">Schooler</span>
+            <span className="text-2xl font-bold text-primary">Schoolar</span>
           </div>
           <p className="text-sm text-muted-foreground">Your student &amp; teacher productivity platform</p>
         </div>

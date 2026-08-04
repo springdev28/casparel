@@ -204,7 +204,7 @@ export default function AppShell({ children }: AppShellProps) {
           {/* Logo */}
           <div className="flex items-center gap-2 px-5 py-5 border-b border-primary-foreground/20">
             <GraduationCap size={24} className="text-primary-foreground" />
-            <span className="font-bold text-lg tracking-tight">Schooler</span>
+            <span className="font-bold text-lg tracking-tight">Schoolar</span>
           </div>
 
           {/* Nav */}
@@ -278,7 +278,7 @@ export default function AppShell({ children }: AppShellProps) {
         <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-primary text-primary-foreground flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-2">
             <GraduationCap size={20} />
-            <span className="font-bold">Schooler</span>
+            <span className="font-bold">Schoolar</span>
           </div>
           <div className="flex items-center gap-1">
             {NAV_ITEMS.map(({ href, icon: Icon }) => {

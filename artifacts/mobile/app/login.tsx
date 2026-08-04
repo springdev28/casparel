@@ -80,7 +80,7 @@ export default function LoginScreen() {
               },
             ]}
           >
-            Schooler
+            Schoolar
           </Text>
         </View>
 
