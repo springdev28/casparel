@@ -322,7 +322,9 @@ export default function ClassDetailPage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">{member.user.name}</p>
-                      <p className="text-xs text-muted-foreground">{member.user.email}</p>
+                      {member.user.gradeOrDept && (
+                        <p className="text-xs text-muted-foreground">{member.user.gradeOrDept}</p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

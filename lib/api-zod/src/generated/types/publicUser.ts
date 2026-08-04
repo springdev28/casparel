@@ -5,13 +5,12 @@
  * Schooler API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
-import type { UserRole } from './userRole';
+import type { PublicUserRole } from './publicUserRole';
 
-export interface User {
+export interface PublicUser {
   id: number;
-  email: string;
   name: string;
-  role: UserRole;
+  role: PublicUserRole;
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
@@ -19,9 +18,4 @@ export interface User {
   subjects?: string[] | null;
   /** @nullable */
   gradeOrDept?: string | null;
-  /** @nullable */
-  timezone?: string | null;
-  /** @nullable */
-  websiteUrl?: string | null;
-  createdAt: string;
 }

@@ -24,9 +24,19 @@ export interface User {
   role: UserRole;
   /** @nullable */
   avatarUrl?: string | null;
+  /** @nullable */
+  bio?: string | null;
+  subjects?: string[] | null;
+  /** @nullable */
+  gradeOrDept?: string | null;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
   createdAt: string;
 }
 
+export type PublicUserRole = typeof PublicUserRole[keyof typeof PublicUserRole];
 export interface RegisterInput {
   email: string;
   /** @minLength 6 */
@@ -48,8 +58,18 @@ export interface AuthResponse {
 export interface UserUpdate {
   /** @minLength 1 */
   name?: string;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  bio?: string | null;
+  subjects?: string[] | null;
   /** @nullable */
-  avatarUrl?: string | null;
+  gradeOrDept?: string | null;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
 }
 
 export type RoleSwitchInputRole = typeof RoleSwitchInputRole[keyof typeof RoleSwitchInputRole];
@@ -89,7 +109,7 @@ export interface ClassMember {
   classId: number;
   role: ClassMemberRole;
   joinedAt: string;
-  user: User;
+  user: PublicUser;
 }
 
 export interface ClassWithMembers {
@@ -316,7 +336,7 @@ export interface Review {
   /** @nullable */
   comment?: string | null;
   createdAt: string;
-  user: User;
+  user: PublicUser;
 }
 
 export interface ReviewInput {
@@ -536,6 +556,9 @@ export interface BulkInviteResult {
   results: BulkInviteResultItem[];
 }
 
+export type UploadAvatarBody = {
+  file: Blob;
+};
 export type ListResourcesParams = {
 /**
  * Free-text search
@@ -637,3 +660,21 @@ export type ListScheduleBlocksParams = {
 weekStart?: string;
 };
 
+
+export const PublicUserRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;
+
+export interface PublicUser {
+  id: number;
+  name: string;
+  role: PublicUserRole;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** @nullable */
+  bio?: string | null;
+  subjects?: string[] | null;
+  /** @nullable */
+  gradeOrDept?: string | null;
+}

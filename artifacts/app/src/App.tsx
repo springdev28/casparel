@@ -15,6 +15,8 @@ import ClassDetailPage from './pages/ClassDetailPage';
 import ListsPage from './pages/ListsPage';
 import ListDetailPage from './pages/ListDetailPage';
 import SchedulePage from './pages/SchedulePage';
+import ProfilePage from './pages/ProfilePage';
+import UserProfilePage from './pages/UserProfilePage';
 import AppShell from './components/AppShell';
 import PublicShell from './components/PublicShell';
 
@@ -83,6 +85,14 @@ function Router() {
       </Route>
       <Route path="/resources">
         {() => <PublicRoute component={ResourcesPage} />}
+      </Route>
+
+      {/* Profile pages */}
+      <Route path="/profile/:userId">
+        {() => <PrivateRoute component={UserProfilePage} />}
+      </Route>
+      <Route path="/profile">
+        {() => <PrivateRoute component={ProfilePage} />}
       </Route>
 
       {/* Requires account */}

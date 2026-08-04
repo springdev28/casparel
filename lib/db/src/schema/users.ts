@@ -11,6 +11,11 @@ export const usersTable = pgTable("users", {
   name: text("name").notNull(),
   role: userRoleEnum("role").notNull().default("student"),
   avatarUrl: text("avatar_url"),
+  bio: text("bio"),
+  subjects: text("subjects").array(),
+  gradeOrDept: text("grade_or_dept"),
+  timezone: text("timezone"),
+  websiteUrl: text("website_url"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });
 

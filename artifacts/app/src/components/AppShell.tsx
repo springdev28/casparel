@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   RefreshCw,
   UserCog,
+  User,
 } from 'lucide-react';
 import { cn } from '@workspace/edu-ds/lib/utils';
 import { Button } from '@workspace/edu-ds/components/ui/button';
@@ -232,14 +233,26 @@ export default function AppShell({ children }: AppShellProps) {
           {/* Footer */}
           <div className="px-4 py-4 border-t border-primary-foreground/20 space-y-2">
             {meLoading ? (
-              <div className="space-y-1.5 mb-2">
-                <Skeleton className="h-4 w-28 bg-primary-foreground/20" />
-                <Skeleton className="h-3 w-16 bg-primary-foreground/20" />
+              <div className="flex items-center gap-2.5 mb-2">
+                <Skeleton className="w-8 h-8 rounded-full bg-primary-foreground/20" />
+                <div className="space-y-1 flex-1">
+                  <Skeleton className="h-3.5 w-24 bg-primary-foreground/20" />
+                  <Skeleton className="h-3 w-16 bg-primary-foreground/20" />
+                </div>
               </div>
             ) : me ? (
-              <div className="mb-2">
-                <p className="text-sm font-semibold text-primary-foreground truncate">{me.name}</p>
-              </div>
+              <Link href="/profile" className="flex items-center gap-2.5 mb-2 group">
+                <div className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center overflow-hidden shrink-0 group-hover:ring-2 group-hover:ring-primary-foreground/40 transition-all">
+                  {me.avatarUrl ? (
+                    <img src={me.avatarUrl} alt={me.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={16} className="text-primary-foreground/60" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-primary-foreground truncate group-hover:underline">{me.name}</p>
+                </div>
+              </Link>
             ) : null}
 
             {/* Role switcher */}

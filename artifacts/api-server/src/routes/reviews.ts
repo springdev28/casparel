@@ -28,7 +28,10 @@ router.get("/resources/:id/reviews", async (req, res): Promise<void> => {
     .where(eq(reviewsTable.resourceId, params.data.id));
   const reviews = await Promise.all(
     rows.map(async (r) => {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, r.userId));
+      const [user] = await db
+        .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role, avatarUrl: usersTable.avatarUrl, bio: usersTable.bio, subjects: usersTable.subjects, gradeOrDept: usersTable.gradeOrDept })
+        .from(usersTable)
+        .where(eq(usersTable.id, r.userId));
       return { ...r, user };
     }),
   );
@@ -52,7 +55,10 @@ router.post("/resources/:id/reviews", contentLimiter, requireAuth, async (req, r
     .insert(reviewsTable)
     .values({ ...parsed.data, resourceId: params.data.id, userId })
     .returning();
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const [user] = await db
+    .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role, avatarUrl: usersTable.avatarUrl, bio: usersTable.bio, subjects: usersTable.subjects, gradeOrDept: usersTable.gradeOrDept })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
   res.status(201).json(CreateResourceReviewResponse.parse({ ...review, user }));
 });
 

@@ -57,15 +57,17 @@ function MemberRow({ member }: { member: ClassMember }) {
         >
           {member.user.name}
         </Text>
-        <Text
-          style={[
-            styles.memberEmail,
-            { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
-          ]}
-          numberOfLines={1}
-        >
-          {member.user.email}
-        </Text>
+        {member.user.gradeOrDept ? (
+          <Text
+            style={[
+              styles.memberEmail,
+              { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
+            ]}
+            numberOfLines={1}
+          >
+            {member.user.gradeOrDept}
+          </Text>
+        ) : null}
       </View>
       {isTeacher && (
         <Badge variant="default">Teacher</Badge>

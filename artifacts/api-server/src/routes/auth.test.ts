@@ -284,3 +284,322 @@ describe("PATCH /api/users/me/role", () => {
     expect(res.body.token).not.toBe(staleTeacherToken);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PATCH /api/users/me  — extended profile fields
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("PATCH /api/users/me — profile fields", () => {
+  const USER_ID = 20;
+
+  it("saves new profile fields and returns them in the response", async () => {
+    const updated = {
+      id: USER_ID,
+      email: "alice@example.com",
+      name: "Alice",
+      role: "student",
+      avatarUrl: null,
+      bio: "I love maths.",
+      subjects: ["Mathematics", "Physics"],
+      gradeOrDept: "Grade 11",
+      timezone: "America/New_York",
+      websiteUrl: "https://alice.example.com",
+      createdAt: new Date().toISOString(),
+    };
+    mockUserRow = updated;
+
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .patch("/api/users/me")
+      .set("Authorization", token)
+      .send({
+        bio: "I love maths.",
+        subjects: ["Mathematics", "Physics"],
+        gradeOrDept: "Grade 11",
+        timezone: "America/New_York",
+        websiteUrl: "https://alice.example.com",
+      });
+
+    expect(res.status).toBe(200);
+    expect(lastUpdated).toMatchObject({
+      bio: "I love maths.",
+      subjects: ["Mathematics", "Physics"],
+      gradeOrDept: "Grade 11",
+      timezone: "America/New_York",
+      websiteUrl: "https://alice.example.com",
+    });
+    expect(res.body.bio).toBe("I love maths.");
+    expect(res.body.subjects).toEqual(["Mathematics", "Physics"]);
+    expect(res.body.gradeOrDept).toBe("Grade 11");
+    expect(res.body.timezone).toBe("America/New_York");
+    expect(res.body.websiteUrl).toBe("https://alice.example.com");
+  });
+
+  it("accepts null to clear optional profile fields", async () => {
+    mockUserRow = {
+      id: USER_ID,
+      email: "alice@example.com",
+      name: "Alice",
+      role: "student",
+      avatarUrl: null,
+      bio: null,
+      subjects: null,
+      gradeOrDept: null,
+      timezone: null,
+      websiteUrl: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .patch("/api/users/me")
+      .set("Authorization", token)
+      .send({ bio: null, subjects: null, gradeOrDept: null });
+
+    expect(res.status).toBe(200);
+    expect(lastUpdated).toMatchObject({ bio: null, subjects: null, gradeOrDept: null });
+  });
+
+  it("ignores avatarUrl in the request body — avatar must be set via the upload endpoint", async () => {
+    mockUserRow = {
+      id: USER_ID,
+      email: "alice@example.com",
+      name: "Alice",
+      role: "student",
+      avatarUrl: null, // DB row has no avatarUrl (server stripped it)
+      bio: null,
+      subjects: null,
+      gradeOrDept: null,
+      timezone: null,
+      websiteUrl: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .patch("/api/users/me")
+      .set("Authorization", token)
+      .send({
+        name: "Alice",
+        avatarUrl: "data:image/svg+xml;base64,PHN2ZyB4bWxuczp4bGluaz0iaHR0cHM6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiPjxzY3JpcHQ+YWxlcnQoMSk8L3NjcmlwdD48L3N2Zz4=",
+      });
+
+    expect(res.status).toBe(200);
+    // The update call must NOT have received avatarUrl
+    expect(lastUpdated).not.toHaveProperty("avatarUrl");
+  });
+
+  it("rejects bio longer than 300 characters", async () => {
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .patch("/api/users/me")
+      .set("Authorization", token)
+      .send({ bio: "x".repeat(301) });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 401 without a token", async () => {
+    const res = await request(buildApp())
+      .patch("/api/users/me")
+      .send({ bio: "hello" });
+
+    expect(res.status).toBe(401);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/users/:id  — public profile
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("GET /api/users/:id — public profile", () => {
+  const VIEWER_ID = 30;
+  const TARGET_ID = 31;
+
+  it("returns the public-safe profile subset and omits email/passwordHash", async () => {
+    // requireAuth only decodes the JWT — no DB select.
+    // The route's own user lookup is the FIRST db.select() call (callIndex 0),
+    // which returns mockExistingUser. Set it to the target user row.
+    mockExistingUser = {
+      id: TARGET_ID,
+      email: "target@example.com",
+      passwordHash: "SECRET_HASH",
+      name: "Target User",
+      role: "teacher",
+      avatarUrl: "https://example.com/avatar.jpg",
+      bio: "Teacher bio",
+      subjects: ["Science"],
+      gradeOrDept: "Science Dept",
+      timezone: "Europe/London",
+      websiteUrl: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const token = `Bearer ${issueToken(VIEWER_ID, "student")}`;
+    const res = await request(buildApp())
+      .get(`/api/users/${TARGET_ID}`)
+      .set("Authorization", token);
+
+    expect(res.status).toBe(200);
+    // Required public fields
+    expect(res.body.id).toBe(TARGET_ID);
+    expect(res.body.name).toBe("Target User");
+    expect(res.body.role).toBe("teacher");
+    expect(res.body.bio).toBe("Teacher bio");
+    expect(res.body.subjects).toEqual(["Science"]);
+    expect(res.body.gradeOrDept).toBe("Science Dept");
+    // Private fields must NOT appear
+    expect(res.body.email).toBeUndefined();
+    expect(res.body.passwordHash).toBeUndefined();
+    // timezone/websiteUrl not in public schema
+    expect(res.body.timezone).toBeUndefined();
+  });
+
+  it("returns 404 when the target user does not exist", async () => {
+    // mockUserRow = null → user lookup returns []
+    mockUserRow = null;
+
+    const token = `Bearer ${issueToken(VIEWER_ID, "student")}`;
+    const res = await request(buildApp())
+      .get("/api/users/99999")
+      .set("Authorization", token);
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 401 without a token", async () => {
+    const res = await request(buildApp()).get(`/api/users/${TARGET_ID}`);
+    expect(res.status).toBe(401);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/users/me/avatar  — avatar upload
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("POST /api/users/me/avatar", () => {
+  const USER_ID = 40;
+
+  // Real magic-byte prefixes for each allowed raster format
+  const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d]);
+  const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]);
+  // WebP: RIFF + 4-byte size + WEBP
+  const WEBP_MAGIC = Buffer.concat([
+    Buffer.from("RIFF"),
+    Buffer.from([0x20, 0x00, 0x00, 0x00]),
+    Buffer.from("WEBP"),
+  ]);
+
+  function mockSuccessRow() {
+    mockUserRow = {
+      id: USER_ID,
+      email: "uploader@example.com",
+      name: "Uploader",
+      role: "student",
+      avatarUrl: "data:image/png;base64,abc123",
+      bio: null,
+      subjects: null,
+      gradeOrDept: null,
+      timezone: null,
+      websiteUrl: null,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  it("accepts a valid PNG (magic bytes) and stores a data-URL", async () => {
+    mockSuccessRow();
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .post("/api/users/me/avatar")
+      .set("Authorization", token)
+      .attach("file", PNG_MAGIC, { filename: "avatar.png", contentType: "image/png" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.avatarUrl).toBeDefined();
+    expect(lastUpdated?.avatarUrl).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it("accepts a valid JPEG (magic bytes) and stores a data-URL", async () => {
+    mockSuccessRow();
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .post("/api/users/me/avatar")
+      .set("Authorization", token)
+      .attach("file", JPEG_MAGIC, { filename: "avatar.jpg", contentType: "image/jpeg" });
+
+    expect(res.status).toBe(200);
+    expect(lastUpdated?.avatarUrl).toMatch(/^data:image\/jpeg;base64,/);
+  });
+
+  it("accepts a valid WebP (magic bytes) and stores a data-URL", async () => {
+    mockSuccessRow();
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .post("/api/users/me/avatar")
+      .set("Authorization", token)
+      .attach("file", WEBP_MAGIC, { filename: "avatar.webp", contentType: "image/webp" });
+
+    expect(res.status).toBe(200);
+    expect(lastUpdated?.avatarUrl).toMatch(/^data:image\/webp;base64,/);
+  });
+
+  it("rejects an attacker who sends non-image bytes while claiming image/png (spoofed MIME)", async () => {
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .post("/api/users/me/avatar")
+      .set("Authorization", token)
+      // Random non-image bytes but client claims image/png
+      .attach("file", Buffer.from("MZ\x90\x00this is an exe"), {
+        filename: "malicious.png",
+        contentType: "image/png",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/png|jpeg|webp/i);
+  });
+
+  it("rejects an SVG file even when claimed as image/svg+xml (XSS vector)", async () => {
+    const svgContent = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .post("/api/users/me/avatar")
+      .set("Authorization", token)
+      .attach("file", Buffer.from(svgContent), {
+        filename: "xss.svg",
+        contentType: "image/svg+xml",
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects random bytes with an image/* MIME type", async () => {
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .post("/api/users/me/avatar")
+      .set("Authorization", token)
+      .attach("file", Buffer.from("not-an-image-at-all"), {
+        filename: "garbage.gif",
+        contentType: "image/gif",
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when no file is attached", async () => {
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .post("/api/users/me/avatar")
+      .set("Authorization", token)
+      .set("Content-Type", "multipart/form-data");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 401 without a token", async () => {
+    const res = await request(buildApp())
+      .post("/api/users/me/avatar")
+      .attach("file", PNG_MAGIC, { filename: "avatar.png", contentType: "image/png" });
+
+    expect(res.status).toBe(401);
+  });
+});

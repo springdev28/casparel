@@ -22,8 +22,6 @@ export const HealthCheckResponse = zod.object({
 export const registerBodyPasswordMin = 6;
 
 
-
-
 export const RegisterBody = zod.object({
   "email": zod.string(),
   "password": zod.string().min(registerBodyPasswordMin),
@@ -37,6 +35,11 @@ export const RegisterResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -58,6 +61,11 @@ export const LoginResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -79,6 +87,11 @@ export const GetMeResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -87,11 +100,16 @@ export const GetMeResponse = zod.object({
  * @summary Update the authenticated user profile
  */
 
+export const updateMeBodyBioMax = 300;
 
 
 export const UpdateMeBody = zod.object({
   "name": zod.string().min(1).optional(),
-  "avatarUrl": zod.string().nullish()
+  "bio": zod.string().max(updateMeBodyBioMax).nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish()
 })
 
 export const UpdateMeResponse = zod.object({
@@ -100,10 +118,20 @@ export const UpdateMeResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
-
+/**
+ * @summary Upload an avatar image for the current user
+ */
+export const UploadAvatarBody = zod.object({
+  "file": zod.any()
+})
 /**
  * @summary Switch the active role for the current user (student ↔ teacher)
  */
@@ -118,6 +146,11 @@ export const SwitchRoleResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
   "createdAt": zod.string()
 }),
   "token": zod.string()
@@ -143,9 +176,6 @@ export const ListClassesResponse = zod.array(ListClassesResponseItem)
 /**
  * @summary Create a new class (teacher only)
  */
-
-
-
 
 
 export const CreateClassBody = zod.object({
@@ -190,11 +220,12 @@ export const GetClassResponse = zod.object({
   "joinedAt": zod.string(),
   "user": zod.object({
   "id": zod.int(),
-  "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
-  "createdAt": zod.string()
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish()
 })
 }))
 })
@@ -206,8 +237,6 @@ export const GetClassResponse = zod.object({
 export const UpdateClassParams = zod.object({
   "id": zod.coerce.number().int()
 })
-
-
 
 
 export const UpdateClassBody = zod.object({
@@ -253,11 +282,12 @@ export const ListClassMembersResponseItem = zod.object({
   "joinedAt": zod.string(),
   "user": zod.object({
   "id": zod.int(),
-  "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
-  "createdAt": zod.string()
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish()
 })
 })
 export const ListClassMembersResponse = zod.array(ListClassMembersResponseItem)
@@ -282,11 +312,12 @@ export const AddClassMemberResponse = zod.object({
   "joinedAt": zod.string(),
   "user": zod.object({
   "id": zod.int(),
-  "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
-  "createdAt": zod.string()
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish()
 })
 })
 
@@ -297,8 +328,6 @@ export const AddClassMemberResponse = zod.object({
 export const BulkInviteClassMembersParams = zod.object({
   "id": zod.coerce.number().int()
 })
-
-
 
 
 export const BulkInviteClassMembersBody = zod.object({
@@ -406,7 +435,6 @@ export const listResourcesQueryOffsetDefault = 0;
 export const listResourcesQueryOffsetMin = 0;
 
 
-
 export const ListResourcesQueryParams = zod.object({
   "q": zod.coerce.string().optional().describe('Free-text search'),
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
@@ -440,10 +468,6 @@ export const ListResourcesResponse = zod.array(ListResourcesResponseItem)
  */
 
 
-
-
-
-
 export const CreateResourceBody = zod.object({
   "title": zod.string().min(1),
   "url": zod.string().min(1),
@@ -475,7 +499,6 @@ export const CreateResourceResponse = zod.object({
  */
 
 
-
 export const PrefetchResourceMetadataBody = zod.object({
   "url": zod.string().min(1)
 })
@@ -492,7 +515,6 @@ export const PrefetchResourceMetadataResponse = zod.object({
  * @summary Search the internet for educational resources matching a query
  */
 export const discoverResourcesQueryPageDefault = 1;
-
 
 
 export const DiscoverResourcesQueryParams = zod.object({
@@ -587,8 +609,6 @@ export const UpdateResourceParams = zod.object({
 })
 
 
-
-
 export const UpdateResourceBody = zod.object({
   "title": zod.string().min(1).optional(),
   "description": zod.string().optional(),
@@ -664,7 +684,6 @@ export const ListResourceReviewsParams = zod.object({
 export const listResourceReviewsResponseRatingMax = 5;
 
 
-
 export const ListResourceReviewsResponseItem = zod.object({
   "id": zod.int(),
   "resourceId": zod.int(),
@@ -674,11 +693,12 @@ export const ListResourceReviewsResponseItem = zod.object({
   "createdAt": zod.string(),
   "user": zod.object({
   "id": zod.int(),
-  "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
-  "createdAt": zod.string()
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish()
 })
 })
 export const ListResourceReviewsResponse = zod.array(ListResourceReviewsResponseItem)
@@ -694,14 +714,12 @@ export const CreateResourceReviewParams = zod.object({
 export const createResourceReviewBodyRatingMax = 5;
 
 
-
 export const CreateResourceReviewBody = zod.object({
   "rating": zod.int().min(1).max(createResourceReviewBodyRatingMax),
   "comment": zod.string().optional()
 })
 
 export const createResourceReviewResponseRatingMax = 5;
-
 
 
 export const CreateResourceReviewResponse = zod.object({
@@ -713,11 +731,12 @@ export const CreateResourceReviewResponse = zod.object({
   "createdAt": zod.string(),
   "user": zod.object({
   "id": zod.int(),
-  "email": zod.string(),
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher']),
   "avatarUrl": zod.string().nullish(),
-  "createdAt": zod.string()
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish()
 })
 })
 
@@ -751,7 +770,6 @@ export const ListResourceListsResponse = zod.array(ListResourceListsResponseItem
 /**
  * @summary Create a new resource list
  */
-
 
 
 export const CreateResourceListBody = zod.object({
@@ -816,8 +834,6 @@ export const GetResourceListResponse = zod.object({
 export const UpdateResourceListParams = zod.object({
   "id": zod.coerce.number().int()
 })
-
-
 
 
 export const UpdateResourceListBody = zod.object({
@@ -964,7 +980,6 @@ export const ListScheduleBlocksResponse = zod.array(ListScheduleBlocksResponseIt
  */
 
 
-
 export const CreateScheduleBlockBody = zod.object({
   "title": zod.string().min(1),
   "date": zod.coerce.date(),
@@ -997,8 +1012,6 @@ export const CreateScheduleBlockResponse = zod.object({
 export const UpdateScheduleBlockParams = zod.object({
   "id": zod.coerce.number().int()
 })
-
-
 
 
 export const UpdateScheduleBlockBody = zod.object({
@@ -1146,3 +1159,33 @@ export const GetRecentActivityResponseItem = zod.object({
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
 
 
+/**
+ * @summary Get a public profile for any signed-in user
+ */
+export const GetPublicProfileParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UploadAvatarResponse = zod.object({
+  "id": zod.int(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher']),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+export const GetPublicProfileResponse = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher']),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish()
+})

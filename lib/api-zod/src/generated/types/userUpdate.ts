@@ -9,6 +9,16 @@
 export interface UserUpdate {
   /** @minLength 1 */
   name?: string;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  bio?: string | null;
+  subjects?: string[] | null;
   /** @nullable */
-  avatarUrl?: string | null;
+  gradeOrDept?: string | null;
+  /** @nullable */
+  timezone?: string | null;
+  /** @nullable */
+  websiteUrl?: string | null;
 }

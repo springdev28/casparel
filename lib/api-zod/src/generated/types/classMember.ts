@@ -6,12 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ClassMemberRole } from './classMemberRole';
-import type { User } from './user';
+import type { PublicUser } from './publicUser';
 
 export interface ClassMember {
   userId: number;
   classId: number;
   role: ClassMemberRole;
   joinedAt: string;
-  user: User;
+  user: PublicUser;
 }

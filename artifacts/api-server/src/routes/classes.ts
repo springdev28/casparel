@@ -136,7 +136,10 @@ router.get("/classes/:id", requireAuth, async (req, res): Promise<void> => {
     .where(eq(classMembersTable.classId, params.data.id));
   const members = await Promise.all(
     membersRaw.map(async (m) => {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, m.userId));
+      const [user] = await db
+        .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role, avatarUrl: usersTable.avatarUrl, bio: usersTable.bio, subjects: usersTable.subjects, gradeOrDept: usersTable.gradeOrDept })
+        .from(usersTable)
+        .where(eq(usersTable.id, m.userId));
       return { ...m, user };
     }),
   );
@@ -208,7 +211,10 @@ router.get("/classes/:id/members", requireAuth, async (req, res): Promise<void> 
     .where(eq(classMembersTable.classId, params.data.id));
   const members = await Promise.all(
     membersRaw.map(async (m) => {
-      const [user] = await db.select().from(usersTable).where(eq(usersTable.id, m.userId));
+      const [user] = await db
+        .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role, avatarUrl: usersTable.avatarUrl, bio: usersTable.bio, subjects: usersTable.subjects, gradeOrDept: usersTable.gradeOrDept })
+        .from(usersTable)
+        .where(eq(usersTable.id, m.userId));
       return { ...m, user };
     }),
   );
