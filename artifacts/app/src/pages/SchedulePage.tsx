@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Calendar, Trash2, Clock, X, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar, Trash2, Clock, X, BookOpen, List } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -17,6 +17,7 @@ import {
   useDeleteScheduleBlock,
   useGetResource,
   useListResources,
+  useListResourceLists,
   getListResourcesQueryKey,
   getListScheduleBlocksQueryKey,
 } from '@workspace/api-client-react';
@@ -53,6 +54,115 @@ function ResourceBadge({ resourceId }: { resourceId: number }) {
       )}
       <span className="truncate">{resource.title}</span>
     </Link>
+  );
+}
+
+/** Small badge shown on a block card when a reading list is attached */
+function ListBadge({ listId }: { listId: number }) {
+  const { data: lists } = useListResourceLists();
+  const list = lists?.find((l) => l.id === listId);
+  if (!list) return null;
+  return (
+    <Link
+      to={`/lists/${listId}`}
+      onClick={(e) => e.stopPropagation()}
+      className="mt-1 flex items-center gap-1 text-[10px] underline underline-offset-2 opacity-80 hover:opacity-100 truncate"
+      data-testid="block-list-link"
+    >
+      <List size={10} className="shrink-0" />
+      <span className="truncate">{list.name}</span>
+    </Link>
+  );
+}
+
+/** Reading list picker used inside the Add Block dialog */
+function ListPicker({
+  selected,
+  onSelect,
+}: {
+  selected: { id: number; name: string } | null;
+  onSelect: (l: { id: number; name: string } | null) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { data: lists } = useListResourceLists();
+
+  const filtered = lists?.filter((l) =>
+    query.length === 0 || l.name.toLowerCase().includes(query.toLowerCase())
+  ) ?? [];
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleMouseDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, []);
+
+  if (selected) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border px-3 py-2 bg-muted text-sm">
+        <List size={14} className="text-muted-foreground shrink-0" />
+        <span className="flex-1 truncate">{selected.name}</span>
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          className="text-muted-foreground hover:text-foreground"
+          aria-label="Remove reading list"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Input
+        placeholder="Search reading lists…"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        data-testid="list-search-input"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-48 overflow-y-auto">
+          {filtered.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent text-left"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelect({ id: l.id, name: l.name });
+                setQuery('');
+                setOpen(false);
+              }}
+              data-testid="list-search-result"
+            >
+              <List size={14} className="text-muted-foreground shrink-0" />
+              <span className="truncate flex-1">{l.name}</span>
+              {l.itemCount != null && (
+                <Badge variant="outline" className="text-[10px] shrink-0">{l.itemCount} items</Badge>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && query && filtered.length === 0 && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md px-3 py-2 text-sm text-muted-foreground">
+          No reading lists found
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -168,6 +278,7 @@ export default function SchedulePage() {
   const [newEnd, setNewEnd] = useState('10:00');
   const [newNotes, setNewNotes] = useState('');
   const [selectedResource, setSelectedResource] = useState<{ id: number; title: string } | null>(null);
+  const [selectedList, setSelectedList] = useState<{ id: number; name: string } | null>(null);
 
   const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
 
@@ -195,6 +306,7 @@ export default function SchedulePage() {
     setNewEnd('10:00');
     setNewNotes('');
     setSelectedResource(null);
+    setSelectedList(null);
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -208,6 +320,7 @@ export default function SchedulePage() {
           endTime: newEnd,
           notes: newNotes || undefined,
           resourceId: selectedResource?.id ?? undefined,
+          listId: selectedList?.id ?? undefined,
         },
       });
       queryClient.invalidateQueries({ queryKey: getListScheduleBlocksQueryKey({ weekStart: weekStartStr }) });
@@ -287,6 +400,10 @@ export default function SchedulePage() {
               <div className="space-y-1.5">
                 <Label>Resource (optional)</Label>
                 <ResourcePicker selected={selectedResource} onSelect={setSelectedResource} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Reading list (optional)</Label>
+                <ListPicker selected={selectedList} onSelect={setSelectedList} />
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
@@ -369,6 +486,9 @@ export default function SchedulePage() {
                         {block.resourceId != null && (
                           <ResourceBadge resourceId={block.resourceId} />
                         )}
+                        {block.listId != null && (
+                          <ListBadge listId={block.listId} />
+                        )}
                         <button
                           onClick={() => handleDelete(block.id)}
                           className="mt-1 opacity-60 hover:opacity-100 transition-opacity"
@@ -401,6 +521,9 @@ export default function SchedulePage() {
                   </p>
                   {block.resourceId != null && (
                     <ResourceBadge resourceId={block.resourceId} />
+                  )}
+                  {block.listId != null && (
+                    <ListBadge listId={block.listId} />
                   )}
                 </div>
                 <Badge variant="outline" className="text-xs shrink-0">{format(parseISO(block.date), 'EEE')}</Badge>
