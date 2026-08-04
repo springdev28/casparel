@@ -284,6 +284,7 @@ export default function ResourcesPage() {
     q: activeQuery,
     ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as DiscoverResourcesFormat } : {}),
     ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
+    ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
     page: webPage,
   };
   const { data: webResults, isFetching: webLoading, isError: webError, error: webErrorObj } = useDiscoverResources(
@@ -303,6 +304,12 @@ export default function ResourcesPage() {
     setWebPage(1);
     setAllWebResults([]);
   }, [activeQuery]);
+
+  // Reset accumulated results when any filter changes
+  useEffect(() => {
+    setWebPage(1);
+    setAllWebResults([]);
+  }, [formatFilter, subjectFilter, gradeLevelFilter, sortByFilter, minRatingFilter]);
 
   useEffect(() => {
     if (!webResults || webResults.length === 0) return;
@@ -356,6 +363,7 @@ export default function ResourcesPage() {
   const [newSubject, setNewSubject] = useState('');
   const [newGrade, setNewGrade] = useState('');
   const [prefetching, setPrefetching] = useState(false);
+  const [prefetchedThumbnailUrl, setPrefetchedThumbnailUrl] = useState<string | null>(null);
   // Track which URL is currently being fetched so stale responses don't clobber newer edits
   const prefetchingUrlRef = useRef<string>('');
 
@@ -380,6 +388,7 @@ export default function ResourcesPage() {
       if (meta.title) setNewTitle((cur) => cur.trim() ? cur : meta.title);
       if (meta.description) setNewDesc((cur) => cur.trim() ? cur : meta.description);
       if (meta.format) setNewFormat((cur) => cur !== ResourceInputFormat.article ? cur : meta.format as ResourceInputFormat);
+      setPrefetchedThumbnailUrl(meta.thumbnailUrl ?? null);
     } catch {
       // silently ignore — user can fill in manually
     } finally {
@@ -406,12 +415,13 @@ export default function ResourcesPage() {
     setNewTitle(''); setNewUrl(''); setNewDesc('');
     setNewFormat(ResourceInputFormat.article);
     setNewSubject(''); setNewGrade('');
+    setPrefetchedThumbnailUrl(null);
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await createResource.mutateAsync({ data: { title: newTitle, url: newUrl, description: newDesc || undefined, format: newFormat, subject: newSubject, gradeLevel: newGrade } });
+      await createResource.mutateAsync({ data: { title: newTitle, url: newUrl, description: newDesc || undefined, format: newFormat, subject: newSubject, gradeLevel: newGrade, thumbnailUrl: prefetchedThumbnailUrl ?? undefined } });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
@@ -428,7 +438,7 @@ export default function ResourcesPage() {
     setAddingUrl(resource.url);
     try {
       await createResource.mutateAsync({
-        data: { title: resource.title, url: resource.url, description: resource.description, format: resource.format as ResourceInputFormat, subject: resource.subject ?? 'General', gradeLevel: resource.gradeLevel ?? 'All grades' },
+        data: { title: resource.title, url: resource.url, description: resource.description, format: resource.format as ResourceInputFormat, subject: resource.subject ?? 'General', gradeLevel: resource.gradeLevel ?? 'All grades', thumbnailUrl: resource.thumbnailUrl ?? undefined },
       });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
