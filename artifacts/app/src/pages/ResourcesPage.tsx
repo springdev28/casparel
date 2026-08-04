@@ -64,35 +64,21 @@ function isVimeoUrl(url: string): boolean {
   } catch { return false; }
 }
 
-function useVimeoThumbnail(url: string, enabled: boolean) {
-  return useQuery<string | null>({
-    queryKey: ['vimeo-thumbnail', url],
-    queryFn: async () => {
-      const res = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`);
-      if (!res.ok) return null;
-      const data = await res.json();
-      return (data.thumbnail_url as string) ?? null;
-    },
-    enabled,
-    staleTime: 1000 * 60 * 60, // 1 hour — thumbnail URLs don't change
-    retry: false,
-  });
-}
-
 function isLoomUrl(url: string): boolean {
   try {
     return new URL(url).hostname.includes('loom.com');
   } catch { return false; }
 }
 
-function useLoomThumbnail(url: string, enabled: boolean) {
+/** Server-side OEmbed proxy — avoids CORS and third-party rate-limit failures. */
+function useOembedThumbnail(url: string, enabled: boolean) {
   return useQuery<string | null>({
-    queryKey: ['loom-thumbnail', url],
+    queryKey: ['oembed-thumbnail', url],
     queryFn: async () => {
-      const res = await fetch(`https://www.loom.com/v1/oembed?url=${encodeURIComponent(url)}`);
+      const res = await fetch(`/api/resources/oembed?url=${encodeURIComponent(url)}`);
       if (!res.ok) return null;
-      const data = await res.json();
-      return (data.thumbnail_url as string) ?? null;
+      const data = await res.json() as { thumbnailUrl: string | null };
+      return data.thumbnailUrl ?? null;
     },
     enabled,
     staleTime: 1000 * 60 * 60, // 1 hour — thumbnail URLs don't change
@@ -114,19 +100,24 @@ function LibraryCard({ resource, onClick, onRemove }: {
   onClick: () => void;
   onRemove?: () => void;
 }) {
+  const [failedThumb, setFailedThumb] = useState<string | null>(null);
   const ytId = getYouTubeId(resource.url);
-  const vimeo = isVimeoUrl(resource.url);
-  const loom = isLoomUrl(resource.url);
-  const { data: vimeoThumb } = useVimeoThumbnail(resource.url, vimeo && !ytId);
-  const { data: loomThumb } = useLoomThumbnail(resource.url, loom && !ytId);
+  const needsOembed = !ytId && (isVimeoUrl(resource.url) || isLoomUrl(resource.url));
+  const { data: oembedThumb } = useOembedThumbnail(resource.url, needsOembed);
   const thumb = ytId
     ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-    : vimeoThumb ?? loomThumb ?? resource.thumbnailUrl ?? null;
+    : oembedThumb ?? resource.thumbnailUrl ?? null;
+  const showImg = !!thumb && thumb !== failedThumb;
   return (
     <Card className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden" onClick={onClick} data-testid="resource-card">
-      {thumb && (
+      {showImg && (
         <div className="w-full h-36 overflow-hidden bg-black">
-          <img src={thumb} alt={resource.title} className="w-full h-full object-cover" loading="lazy" />
+          <img src={thumb} alt={resource.title} className="w-full h-full object-cover" loading="lazy" onError={() => setFailedThumb(thumb)} />
+        </div>
+      )}
+      {!showImg && (
+        <div className="w-full h-36 flex items-center justify-center bg-muted/40">
+          <FormatBadge format={resource.format} />
         </div>
       )}
       <CardHeader className="pb-2">
@@ -167,13 +158,24 @@ function WebCard({ resource, onAdd, adding }: {
   onAdd: (r: DiscoveredResource) => void;
   adding: boolean;
 }) {
+  const [failedThumb, setFailedThumb] = useState<string | null>(null);
   const ytId = getYouTubeId(resource.url);
-  const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : resource.thumbnailUrl ?? null;
+  const needsOembed = !ytId && (isVimeoUrl(resource.url) || isLoomUrl(resource.url));
+  const { data: oembedThumb } = useOembedThumbnail(resource.url, needsOembed);
+  const thumb = ytId
+    ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+    : oembedThumb ?? resource.thumbnailUrl ?? null;
+  const showImg = !!thumb && thumb !== failedThumb;
   return (
     <Card className="flex flex-col overflow-hidden">
-      {thumb && (
+      {showImg && (
         <div className="w-full h-36 overflow-hidden bg-black shrink-0">
-          <img src={thumb} alt={resource.title} className="w-full h-full object-cover" loading="lazy" />
+          <img src={thumb} alt={resource.title} className="w-full h-full object-cover" loading="lazy" onError={() => setFailedThumb(thumb)} />
+        </div>
+      )}
+      {!showImg && (
+        <div className="w-full h-36 flex items-center justify-center bg-muted/40 shrink-0">
+          <FormatBadge format={resource.format} />
         </div>
       )}
       <CardHeader className="pb-2">

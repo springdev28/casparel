@@ -22,7 +22,7 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { isResourceOwner } from "../lib/authz";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { contentLimiter } from "../lib/limiters";
-import { filterReachableUrls } from "../lib/check-url-reachable";
+import { filterReachableUrls, checkUrlReachable } from "../lib/check-url-reachable";
 
 const router: IRouter = Router();
 
@@ -243,6 +243,23 @@ async function callDiscoverAI(
 
 const DISCOVER_MIN_RESULTS = 3;
 
+/**
+ * For each discover item, HEAD-check its thumbnailUrl (if set).
+ * Sets thumbnailUrl to null when the URL is unreachable so the frontend
+ * never renders a broken image.
+ */
+async function validateDiscoverThumbnails<
+  T extends { thumbnailUrl?: string | null },
+>(items: T[]): Promise<T[]> {
+  return Promise.all(
+    items.map(async (item) => {
+      if (!item.thumbnailUrl) return item;
+      const ok = await checkUrlReachable(item.thumbnailUrl, 3000);
+      return ok ? item : { ...item, thumbnailUrl: null };
+    }),
+  );
+}
+
 router.get("/resources/discover", async (req, res): Promise<void> => {
   const params = DiscoverResourcesQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -284,7 +301,7 @@ Rules: real public URLs only, prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/Crash
     const reachable = await filterReachableUrls(firstBatch);
 
     if (reachable.length >= DISCOVER_MIN_RESULTS) {
-      res.json(reachable);
+      res.json(await validateDiscoverThumbnails(reachable));
       return;
     }
 
@@ -315,7 +332,7 @@ Rules: real public URLs only, prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/Crash
       return;
     }
 
-    res.json(merged);
+    res.json(await validateDiscoverThumbnails(merged));
   } catch (err) {
     console.error("Discover AI error:", err);
     res.status(502).json({ error: "Search failed. Please try again." });
@@ -463,6 +480,67 @@ router.post("/resources", contentLimiter, requireAuth, async (req, res): Promise
   res.status(201).json(
     CreateResourceResponse.parse({ ...resource, avgRating: 0, reviewCount: 0 }),
   );
+});
+
+// ── GET /resources/oembed — server-side OEmbed proxy (must stay above /:id) ──
+// Avoids browser CORS failures when resolving Vimeo / Loom thumbnail URLs.
+
+const OEMBED_TIMEOUT_MS = 4000;
+const OEMBED_ALLOWED_HOSTS: Record<string, string> = {
+  "vimeo.com": "https://vimeo.com/api/oembed.json?url=",
+  "www.vimeo.com": "https://vimeo.com/api/oembed.json?url=",
+  "loom.com": "https://www.loom.com/v1/oembed?url=",
+  "www.loom.com": "https://www.loom.com/v1/oembed?url=",
+  "share.loom.com": "https://www.loom.com/v1/oembed?url=",
+};
+
+async function fetchOembedThumbnail(oembedUrl: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OEMBED_TIMEOUT_MS);
+  try {
+    const res = await fetch(oembedUrl, {
+      signal: controller.signal,
+      headers: { "User-Agent": "Schooler-OEmbed/1.0" },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { thumbnail_url?: string };
+    return data.thumbnail_url ?? null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+router.get("/resources/oembed", async (req, res): Promise<void> => {
+  const rawUrl = req.query.url as string | undefined;
+  if (!rawUrl) {
+    res.status(400).json({ error: "Missing url query parameter" });
+    return;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    res.status(400).json({ error: "Invalid url" });
+    return;
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    res.status(400).json({ error: "Only http/https URLs are supported" });
+    return;
+  }
+
+  // Strict allowlist — only known OEmbed providers, exact hostname match
+  const oembedBase = OEMBED_ALLOWED_HOSTS[parsed.hostname];
+  if (!oembedBase) {
+    res.json({ thumbnailUrl: null });
+    return;
+  }
+
+  const thumb = await fetchOembedThumbnail(`${oembedBase}${encodeURIComponent(rawUrl)}`);
+  res.json({ thumbnailUrl: thumb });
 });
 
 // ── GET /resources/:id ────────────────────────────────────────────────────────

@@ -41,14 +41,23 @@ function isVimeoUrl(url: string): boolean {
   } catch { return false; }
 }
 
-function useVimeoThumbnail(url: string, enabled: boolean) {
+function isLoomUrl(url: string): boolean {
+  try {
+    return new URL(url).hostname.includes('loom.com');
+  } catch { return false; }
+}
+
+/** Server-side OEmbed proxy — avoids CORS and third-party rate-limit failures. */
+function useOembedThumbnail(url: string, enabled: boolean) {
   return useQuery<string | null>({
-    queryKey: ['vimeo-thumbnail', url],
+    queryKey: ['oembed-thumbnail', url],
     queryFn: async () => {
-      const res = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`);
+      const domain = process.env.EXPO_PUBLIC_DOMAIN;
+      const baseUrl = domain ? `https://${domain}` : '';
+      const res = await fetch(`${baseUrl}/api/resources/oembed?url=${encodeURIComponent(url)}`);
       if (!res.ok) return null;
-      const data = await res.json();
-      return (data.thumbnail_url as string) ?? null;
+      const data = await res.json() as { thumbnailUrl: string | null };
+      return data.thumbnailUrl ?? null;
     },
     enabled,
     staleTime: 1000 * 60 * 60, // 1 hour — thumbnail URLs don't change
@@ -84,14 +93,16 @@ function StarRating({ rating }: { rating: number }) {
 
 function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }) {
   const colors = useColors();
+  const [failedThumb, setFailedThumb] = React.useState<string | null>(null);
   const formatIcon = FORMAT_ICONS[item.format] ?? 'link';
 
   const ytId = getYouTubeId(item.url);
-  const vimeo = isVimeoUrl(item.url);
-  const { data: vimeoThumb } = useVimeoThumbnail(item.url, vimeo && !ytId);
+  const needsOembed = !ytId && (isVimeoUrl(item.url) || isLoomUrl(item.url));
+  const { data: oembedThumb } = useOembedThumbnail(item.url, needsOembed);
   const thumb = ytId
     ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-    : vimeoThumb ?? null;
+    : oembedThumb ?? (item.thumbnailUrl ?? null);
+  const showThumb = !!thumb && thumb !== failedThumb;
 
   return (
     <Pressable
@@ -106,12 +117,13 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
         },
       ]}
     >
-      {thumb ? (
+      {showThumb ? (
         <View style={[styles.thumbnail, { borderRadius: colors.radius - 2 }]}>
           <Image
-            source={{ uri: thumb }}
+            source={{ uri: thumb! }}
             style={styles.thumbnailImage}
             resizeMode="cover"
+            onError={() => setFailedThumb(thumb)}
           />
         </View>
       ) : null}
