@@ -4,6 +4,7 @@ import { decodeToken } from "../lib/auth";
 export interface AuthenticatedRequest extends Request {
   userId: number;
   userRole: string;
+  accountRole: string;
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -20,5 +21,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
   (req as AuthenticatedRequest).userId = payload.userId;
   (req as AuthenticatedRequest).userRole = payload.role;
+  (req as AuthenticatedRequest).accountRole = payload.accountRole ?? payload.role;
   next();
 }

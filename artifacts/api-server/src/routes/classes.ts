@@ -59,7 +59,7 @@ async function getOrCreateClassList(classId: number, ownerId: number) {
   if (existing) return existing;
   const [created] = await db
     .insert(resourceListsTable)
-    .values({ name: "Class Resources", ownerId, classId })
+    .values({ name: "Class Resources", ownerId, classId, workspaceRole: "teacher" })
     .returning();
   return created;
 }
@@ -99,10 +99,10 @@ router.get("/classes", requireAuth, async (req, res): Promise<void> => {
 router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const [currentUser] = await db
-    .select({ role: usersTable.role })
+    .select({ role: usersTable.role, activeRole: usersTable.activeRole })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
-  if (!currentUser || currentUser.role !== "teacher") {
+  if (!currentUser || (currentUser.role !== "teacher" && !(currentUser.role === "admin" && currentUser.activeRole === "teacher"))) {
     res.status(403).json({ error: "Only teachers can create classes" });
     return;
   }
@@ -120,7 +120,7 @@ router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<v
     .values({ userId, classId: cls.id, role: "teacher" })
     .onConflictDoNothing();
   // Auto-create the shared "Class Resources" list for this class
-  await db.insert(resourceListsTable).values({ name: "Class Resources", ownerId: userId, classId: cls.id });
+  await db.insert(resourceListsTable).values({ name: "Class Resources", ownerId: userId, classId: cls.id, workspaceRole: "teacher" });
   res.status(201).json(CreateClassResponse.parse({ ...cls, memberCount: 1 }));
 });
 
@@ -266,7 +266,7 @@ router.post("/classes/:id/members", contentLimiter, requireAuth, async (req, res
   }
   // Use the user's account role as their membership role — prevents assigning
   // "teacher" role in the class to a student account (or vice versa).
-  const membershipRole = user.role;
+  const membershipRole = user.role === "admin" ? "student" : user.role;
   await db
     .insert(classMembersTable)
     .values({ userId: user.id, classId: params.data.id, role: membershipRole })

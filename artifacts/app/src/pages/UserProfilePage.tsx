@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { User, Globe, Tag, GraduationCap, ExternalLink, ShieldBan, Flag, Loader2, ClipboardPen } from 'lucide-react';
+import { User, Globe, Tag, GraduationCap, ExternalLink, ShieldBan, Flag, Loader2, ClipboardPen, BookOpen, List } from 'lucide-react';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Textarea } from '@workspace/edu-ds/components/ui/textarea';
@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Separator } from '@workspace/edu-ds/components/ui/separator';
-import { useGetPublicProfile, getGetPublicProfileQueryKey, useGetUserSafetyStatus, getGetUserSafetyStatusQueryKey, useBlockUser, useUnblockUser, useReportUser, ReportUserInputReason, useGetSeatingChart, getGetSeatingChartQueryKey, useUpdateStudentNote } from '@workspace/api-client-react';
+import { useGetPublicProfile, getGetPublicProfileQueryKey, useGetUserLibrary, getGetUserLibraryQueryKey, useGetUserSafetyStatus, getGetUserSafetyStatusQueryKey, useBlockUser, useUnblockUser, useReportUser, ReportUserInputReason, useGetSeatingChart, getGetSeatingChartQueryKey, useUpdateStudentNote } from '@workspace/api-client-react';
 
 export default function UserProfilePage() {
   const { userId } = useParams<{ userId: string }>();
@@ -29,6 +29,9 @@ export default function UserProfilePage() {
   useEffect(() => setTeacherNote(classStudent?.teacherNote ?? ""), [classStudent?.teacherNote]);
   const { data: profile, isLoading, isError } = useGetPublicProfile(id, {
     query: { enabled: !isNaN(id), queryKey: getGetPublicProfileQueryKey(id) },
+  });
+  const library = useGetUserLibrary(id, {
+    query: { enabled: !isNaN(id), queryKey: getGetUserLibraryQueryKey(id), retry: false },
   });
 
   async function saveTeacherNote() {
@@ -135,6 +138,20 @@ export default function UserProfilePage() {
             <Textarea value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} maxLength={1000} rows={3} placeholder="Optional context for the moderation team…" />
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button variant="ghost" size="sm" onClick={() => setReportOpen(false)}>Cancel</Button><Button size="sm" onClick={submitReport} disabled={reportUser.isPending}>{reportUser.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}Submit report</Button></div>
           </div>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><BookOpen size={16} className="text-primary" />User Library</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          {library.isLoading ? <Skeleton className="h-24 w-full" /> : library.isError ? (
+            <p className="text-sm text-muted-foreground">This user’s library is private or limited to classmates.</p>
+          ) : (library.data?.resources.length || library.data?.lists.length) ? (
+            <>
+              {library.data.lists.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lists</p><div className="space-y-2">{library.data.lists.map((item) => <button key={item.id} onClick={() => setLocation("/lists/" + item.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><List size={16} className="text-primary" /><span><span className="block text-sm font-medium">{item.name}</span>{item.description && <span className="block text-xs text-muted-foreground">{item.description}</span>}</span></button>)}</div></div>}
+              {library.data.resources.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resources</p><div className="space-y-2">{library.data.resources.map((resource) => <button key={resource.id} onClick={() => setLocation("/resources/" + resource.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><BookOpen size={16} className="text-primary" /><span><span className="block text-sm font-medium">{resource.title}</span><span className="block text-xs text-muted-foreground">{resource.subject} · {resource.format}</span></span></button>)}</div></div>}
+            </>
+          ) : <p className="text-sm text-muted-foreground">This user has not added anything to their library yet.</p>}
         </CardContent>
       </Card>
 

@@ -15,6 +15,15 @@ export type UserRole = typeof UserRole[keyof typeof UserRole];
 export const UserRole = {
   student: 'student',
   teacher: 'teacher',
+  admin: 'admin',
+} as const;
+
+export type UserActiveRole = typeof UserActiveRole[keyof typeof UserActiveRole];
+
+
+export const UserActiveRole = {
+  student: 'student',
+  teacher: 'teacher',
 } as const;
 
 export type UserProfileVisibility = typeof UserProfileVisibility[keyof typeof UserProfileVisibility];
@@ -26,11 +35,21 @@ export const UserProfileVisibility = {
   private: 'private',
 } as const;
 
+export type UserLibraryVisibility = typeof UserLibraryVisibility[keyof typeof UserLibraryVisibility];
+
+
+export const UserLibraryVisibility = {
+  everyone: 'everyone',
+  classmates: 'classmates',
+  private: 'private',
+} as const;
+
 export interface User {
   id: number;
   email: string;
   name: string;
   role: UserRole;
+  activeRole?: UserActiveRole;
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
@@ -43,6 +62,7 @@ export interface User {
   /** @nullable */
   websiteUrl?: string | null;
   profileVisibility: UserProfileVisibility;
+  libraryVisibility?: UserLibraryVisibility;
   showBio: boolean;
   showSubjects: boolean;
   showGradeOrDept: boolean;
@@ -56,6 +76,7 @@ export type PublicUserRole = typeof PublicUserRole[keyof typeof PublicUserRole];
 export const PublicUserRole = {
   student: 'student',
   teacher: 'teacher',
+  admin: 'admin',
 } as const;
 
 export interface PublicUser {
@@ -100,10 +121,20 @@ export const UserUpdateProfileVisibility = {
   private: 'private',
 } as const;
 
+export type UserUpdateLibraryVisibility = typeof UserUpdateLibraryVisibility[keyof typeof UserUpdateLibraryVisibility];
+
+
+export const UserUpdateLibraryVisibility = {
+  everyone: 'everyone',
+  classmates: 'classmates',
+  private: 'private',
+} as const;
+
 export interface UserUpdate {
   /** @minLength 1 */
   name?: string;
   profileVisibility?: UserUpdateProfileVisibility;
+  libraryVisibility?: UserUpdateLibraryVisibility;
   showBio?: boolean;
   showSubjects?: boolean;
   showGradeOrDept?: boolean;
@@ -120,6 +151,52 @@ export interface UserUpdate {
   timezone?: string | null;
   /** @nullable */
   websiteUrl?: string | null;
+}
+
+export type ResourceFormat = typeof ResourceFormat[keyof typeof ResourceFormat];
+
+
+export const ResourceFormat = {
+  article: 'article',
+  video: 'video',
+  pdf: 'pdf',
+  podcast: 'podcast',
+  interactive: 'interactive',
+  other: 'other',
+} as const;
+
+export interface Resource {
+  id: number;
+  title: string;
+  url: string;
+  /** @nullable */
+  description?: string | null;
+  format: ResourceFormat;
+  subject: string;
+  gradeLevel: string;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  submittedById: number;
+  avgRating: number;
+  reviewCount: number;
+  createdAt: string;
+}
+
+export interface ResourceList {
+  id: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  ownerId: number;
+  /** @nullable */
+  classId?: number | null;
+  itemCount: number;
+  createdAt: string;
+}
+
+export interface UserLibrary {
+  resources: Resource[];
+  lists: ResourceList[];
 }
 
 export interface UserSafetyStatus {
@@ -184,6 +261,74 @@ export interface RoleSwitchInput {
   role: RoleSwitchInputRole;
 }
 
+export type AccountUsageAiSearchWindow = typeof AccountUsageAiSearchWindow[keyof typeof AccountUsageAiSearchWindow];
+
+
+export const AccountUsageAiSearchWindow = {
+  hour: 'hour',
+} as const;
+
+export type AccountUsageAiSearch = {
+  used: number;
+  /** @nullable */
+  limit: number | null;
+  window: AccountUsageAiSearchWindow;
+};
+
+export type AccountUsageDeepResearchWindow = typeof AccountUsageDeepResearchWindow[keyof typeof AccountUsageDeepResearchWindow];
+
+
+export const AccountUsageDeepResearchWindow = {
+  day: 'day',
+} as const;
+
+export type AccountUsageDeepResearch = {
+  used: number;
+  /** @nullable */
+  limit: number | null;
+  window: AccountUsageDeepResearchWindow;
+};
+
+export interface AccountUsage {
+  plan: string;
+  unlimited: boolean;
+  aiSearch: AccountUsageAiSearch;
+  deepResearch: AccountUsageDeepResearch;
+}
+
+export type AdminOverviewPlanStatus = typeof AdminOverviewPlanStatus[keyof typeof AdminOverviewPlanStatus];
+
+
+export const AdminOverviewPlanStatus = {
+  active: 'active',
+} as const;
+
+export type AdminOverviewPlan = {
+  name: string;
+  status: AdminOverviewPlanStatus;
+  /** @nullable */
+  aiSearchLimit: number | null;
+  /** @nullable */
+  deepResearchDailyLimit: number | null;
+};
+
+export type AdminOverviewUsage = {
+  aiSearchesToday: number;
+  deepResearchToday: number;
+};
+
+export interface AdminOverview {
+  users: number;
+  students: number;
+  teachers: number;
+  admins: number;
+  goals: number;
+  resources: number;
+  cachedResearchReports: number;
+  plan: AdminOverviewPlan;
+  usage: AdminOverviewUsage;
+}
+
 export type LearningGoalLevel = typeof LearningGoalLevel[keyof typeof LearningGoalLevel];
 
 
@@ -214,6 +359,25 @@ export const LearningGoalStatus = {
   completed: 'completed',
 } as const;
 
+export interface LearningPathStep {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  query: string;
+  completed: boolean;
+}
+
 export interface LearningGoal {
   id: number;
   userId: number;
@@ -227,6 +391,7 @@ export interface LearningGoal {
   /** @nullable */
   targetDate?: string | null;
   status: LearningGoalStatus;
+  pathSteps: LearningPathStep[];
   createdAt: string;
   updatedAt: string;
 }
@@ -330,6 +495,8 @@ export interface LearningGoalPatch {
   /** @nullable */
   targetDate?: string | null;
   status?: LearningGoalPatchStatus;
+  /** @maxItems 20 */
+  pathSteps?: LearningPathStep[];
 }
 
 export interface Class {
@@ -400,6 +567,7 @@ export type ClassroomDeskShape = typeof ClassroomDeskShape[keyof typeof Classroo
 
 export const ClassroomDeskShape = {
   rectangle: 'rectangle',
+  polygon: 'polygon',
   round: 'round',
   oval: 'oval',
   trapezoid: 'trapezoid',
@@ -412,6 +580,16 @@ export interface ClassroomDesk {
      */
   id: string;
   shape: ClassroomDeskShape;
+  /**
+     * @minimum 25
+     * @maximum 85
+     */
+  angle?: number;
+  /**
+     * @minimum 3
+     * @maximum 12
+     */
+  sides?: number;
   /**
      * @minimum 0
      * @maximum 100
@@ -605,35 +783,6 @@ export interface PrefetchResourceResponse {
   thumbnailUrl?: string | null;
 }
 
-export type ResourceFormat = typeof ResourceFormat[keyof typeof ResourceFormat];
-
-
-export const ResourceFormat = {
-  article: 'article',
-  video: 'video',
-  pdf: 'pdf',
-  podcast: 'podcast',
-  interactive: 'interactive',
-  other: 'other',
-} as const;
-
-export interface Resource {
-  id: number;
-  title: string;
-  url: string;
-  /** @nullable */
-  description?: string | null;
-  format: ResourceFormat;
-  subject: string;
-  gradeLevel: string;
-  /** @nullable */
-  thumbnailUrl?: string | null;
-  submittedById: number;
-  avgRating: number;
-  reviewCount: number;
-  createdAt: string;
-}
-
 export type ResourceInputFormat = typeof ResourceInputFormat[keyof typeof ResourceInputFormat];
 
 
@@ -727,6 +876,36 @@ export interface SourceReviewLink {
   url: string;
 }
 
+export type SourceReviewMentionSourceType = typeof SourceReviewMentionSourceType[keyof typeof SourceReviewMentionSourceType];
+
+
+export const SourceReviewMentionSourceType = {
+  forum: 'forum',
+  comments: 'comments',
+  review: 'review',
+  article: 'article',
+  social: 'social',
+  official: 'official',
+  other: 'other',
+} as const;
+
+export type SourceReviewMentionSentiment = typeof SourceReviewMentionSentiment[keyof typeof SourceReviewMentionSentiment];
+
+
+export const SourceReviewMentionSentiment = {
+  positive: 'positive',
+  mixed: 'mixed',
+  negative: 'negative',
+  neutral: 'neutral',
+} as const;
+
+export interface SourceReviewMention {
+  summary: string;
+  url: string;
+  sourceType: SourceReviewMentionSourceType;
+  sentiment: SourceReviewMentionSentiment;
+}
+
 export type SourceReviewTrustLevel = typeof SourceReviewTrustLevel[keyof typeof SourceReviewTrustLevel];
 
 
@@ -758,7 +937,21 @@ export interface SourceReview {
   /** @nullable */
   trustReason?: string | null;
   summary: string;
+  /** @nullable */
+  reputationAnalysis?: string | null;
+  /** @nullable */
+  audienceSentiment?: string | null;
+  /** @nullable */
+  contentQuality?: string | null;
+  /** @nullable */
+  currencyAssessment?: string | null;
+  /** @nullable */
+  researchScope?: string | null;
+  strengths?: string[];
+  concerns?: string[];
+  limitations?: string[];
   links?: SourceReviewLink[];
+  mentions?: SourceReviewMention[];
   mode: SourceReviewMode;
 }
 
@@ -792,18 +985,6 @@ export interface AssignResourceBody {
 
 export interface AssignResourceResponse {
   listId: number;
-}
-
-export interface ResourceList {
-  id: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
-  ownerId: number;
-  /** @nullable */
-  classId?: number | null;
-  itemCount: number;
-  createdAt: string;
 }
 
 export interface ListItem {
@@ -1232,6 +1413,10 @@ format?: DiscoverResourcesFormat;
 subject?: string;
 gradeLevel?: string;
 /**
+ * Preferred language for AI search results, or any to avoid restricting language
+ */
+language?: DiscoverResourcesLanguage;
+/**
  * Page number for paginated results
  * @minimum 1
  */
@@ -1254,6 +1439,19 @@ export const DiscoverResourcesFormat = {
   other: 'other',
 } as const;
 
+export type DiscoverResourcesLanguage = typeof DiscoverResourcesLanguage[keyof typeof DiscoverResourcesLanguage];
+
+
+export const DiscoverResourcesLanguage = {
+  any: 'any',
+  en: 'en',
+  es: 'es',
+  fr: 'fr',
+  de: 'de',
+  pt: 'pt',
+  tr: 'tr',
+} as const;
+
 export type DiscoverResourcesResultType = typeof DiscoverResourcesResultType[keyof typeof DiscoverResourcesResultType];
 
 
@@ -1265,7 +1463,7 @@ export const DiscoverResourcesResultType = {
 
 export type GetResourceSourceReviewParams = {
 /**
- * quick — use model training knowledge only (fast, no web search); deep — use live web search for up-to-date information (slower, thorough)
+ * quick — use model training knowledge only (fast, no web search); deep — authenticated live web research; cached for 48 hours and subject to daily/monthly usage limits
  */
 mode?: GetResourceSourceReviewMode;
 };

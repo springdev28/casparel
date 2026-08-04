@@ -155,7 +155,9 @@ beforeEach(() => {
   mockActorRole = "teacher";
 
   vi.mocked(db.select).mockImplementation(makeSelectChain as unknown as () => ReturnType<typeof db.select>);
-  vi.mocked(db.transaction).mockImplementation(async (callback) => callback(db));
+  vi.mocked(db.transaction).mockImplementation(async (callback) =>
+    callback(db as unknown as Parameters<typeof callback>[0]),
+  );
 
   // update chain: .set().where().returning() → returns updated class row
   vi.mocked(db.update).mockImplementation(() => {

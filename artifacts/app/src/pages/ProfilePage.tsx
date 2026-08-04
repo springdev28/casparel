@@ -46,7 +46,9 @@ import {
   getGetCalendarStatusQueryKey,
   getCalendarGoogleConnectUrl,
   getGetMeQueryKey,
+  getGetResourceRecommendationsQueryKey,
   UserUpdateProfileVisibility,
+  UserUpdateLibraryVisibility,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@workspace/edu-ds/lib/utils';
@@ -123,6 +125,7 @@ export default function ProfilePage() {
     name: '',
     bio: '',
     profileVisibility: UserUpdateProfileVisibility.classmates as UserUpdateProfileVisibility,
+    libraryVisibility: UserUpdateLibraryVisibility.classmates as UserUpdateLibraryVisibility,
     showBio: true,
     showSubjects: true,
     showGradeOrDept: true,
@@ -141,6 +144,7 @@ export default function ProfilePage() {
       name: me.name ?? '',
       bio: me.bio ?? '',
       profileVisibility: me.profileVisibility as UserUpdateProfileVisibility,
+      libraryVisibility: (me.libraryVisibility ?? UserUpdateLibraryVisibility.classmates) as UserUpdateLibraryVisibility,
       showBio: me.showBio,
       showSubjects: me.showSubjects,
       showGradeOrDept: me.showGradeOrDept,
@@ -160,11 +164,12 @@ export default function ProfilePage() {
 
   async function handleSave() {
     try {
-      await updateMe.mutateAsync({
+      const updatedUser = await updateMe.mutateAsync({
         data: {
           name: form.name || undefined,
           bio: form.bio || null,
           profileVisibility: form.profileVisibility,
+          libraryVisibility: form.libraryVisibility,
           showBio: form.showBio,
           showSubjects: form.showSubjects,
           showGradeOrDept: form.showGradeOrDept,
@@ -175,7 +180,8 @@ export default function ProfilePage() {
           subjects: form.subjects.length > 0 ? form.subjects : null,
         },
       });
-      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      queryClient.setQueryData(getGetMeQueryKey(), updatedUser);
+      void queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
       toast({ title: 'Profile saved' });
       setEditing(false);
     } catch {
@@ -440,9 +446,18 @@ export default function ProfilePage() {
                   <option value={UserUpdateProfileVisibility.private}>Private — hidden from search and other users</option>
                 </select>
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="libraryVisibility">Who can see your User Library?</Label>
+                <select id="libraryVisibility" value={form.libraryVisibility} onChange={(event) => setForm((current) => ({ ...current, libraryVisibility: event.target.value as UserUpdateLibraryVisibility }))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value={UserUpdateLibraryVisibility.everyone}>Everyone</option>
+                  <option value={UserUpdateLibraryVisibility.classmates}>Classmates only</option>
+                  <option value={UserUpdateLibraryVisibility.private}>Private</option>
+                </select>
+                <p className="text-xs text-muted-foreground">Administrators can access libraries for moderation regardless of this setting.</p>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
-                  ["showBio", "Bio"], ["showSubjects", "Subjects & interests"], ["showGradeOrDept", me.role === "teacher" ? "Department" : "Grade level"], ["showWebsite", "Website / social link"],
+                  ["showBio", "Bio"], ["showSubjects", "Subjects & interests"], ["showGradeOrDept", (me.activeRole ?? me.role) === "teacher" ? "Department" : "Grade level"], ["showWebsite", "Website / social link"],
                 ].map(([field, label]) => (
                   <label key={field} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
                     <span>{label}</span><Switch checked={form[field as keyof typeof form] as boolean} onCheckedChange={(checked) => setForm((current) => ({ ...current, [field]: checked }))} />
@@ -454,7 +469,8 @@ export default function ProfilePage() {
           ) : (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2"><Eye size={15} className="text-muted-foreground" /><span className="text-sm">Audience</span><Badge variant="secondary" className="capitalize">{me.profileVisibility}</Badge></div>
-              <p className="text-xs text-muted-foreground">Visible fields: {[me.showBio && "Bio", me.showSubjects && "Subjects", me.showGradeOrDept && (me.role === "teacher" ? "Department" : "Grade"), me.showWebsite && "Website"].filter(Boolean).join(", ") || "Identity only"}</p>
+              <div className="flex flex-wrap items-center gap-2"><BookOpen size={15} className="text-muted-foreground" /><span className="text-sm">User Library</span><Badge variant="secondary" className="capitalize">{me.libraryVisibility ?? "classmates"}</Badge></div>
+              <p className="text-xs text-muted-foreground">Visible fields: {[me.showBio && "Bio", me.showSubjects && "Subjects", me.showGradeOrDept && ((me.activeRole ?? me.role) === "teacher" ? "Department" : "Grade"), me.showWebsite && "Website"].filter(Boolean).join(", ") || "Identity only"}</p>
             </div>
           )}
         </CardContent>
@@ -654,13 +670,13 @@ export default function ProfilePage() {
             <>
               <div className="space-y-1.5">
                 <Label htmlFor="gradeOrDept">
-                  {me.role === 'teacher' ? 'Department' : 'Grade level'}
+                  {(me.activeRole ?? me.role) === 'teacher' ? 'Department' : 'Grade level'}
                 </Label>
                 <Input
                   id="gradeOrDept"
                   value={form.gradeOrDept}
                   onChange={(e) => setForm((p) => ({ ...p, gradeOrDept: e.target.value }))}
-                  placeholder={me.role === 'teacher' ? 'e.g. Science Department' : 'e.g. Grade 10'}
+                  placeholder={(me.activeRole ?? me.role) === 'teacher' ? 'e.g. Science Department' : 'e.g. Grade 10'}
                 />
               </div>
               <div className="space-y-1.5">
@@ -699,7 +715,7 @@ export default function ProfilePage() {
               <div className="flex items-center gap-2">
                 <GraduationCap size={15} className="text-muted-foreground shrink-0" />
                 <span className="text-sm text-muted-foreground w-28 shrink-0">
-                  {me.role === 'teacher' ? 'Department' : 'Grade'}
+                  {(me.activeRole ?? me.role) === 'teacher' ? 'Department' : 'Grade'}
                 </span>
                 <span className={cn('text-sm', me.gradeOrDept ? 'text-foreground' : 'text-muted-foreground italic')}>
                   {me.gradeOrDept || 'Not set'}

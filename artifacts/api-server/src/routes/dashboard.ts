@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, or } from "drizzle-orm";
 import {
   db,
   classesTable,
@@ -34,7 +34,7 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
   const [{ listCount }] = await db
     .select({ listCount: sql<number>`cast(count(*) as int)` })
     .from(resourceListsTable)
-    .where(eq(resourceListsTable.ownerId, userId));
+    .where(and(eq(resourceListsTable.ownerId, userId), or(eq(resourceListsTable.workspaceRole, userRole as "student" | "teacher"), eq(resourceListsTable.workspaceRole, "shared"))!));
 
   const [{ reviewCount }] = await db
     .select({ reviewCount: sql<number>`cast(count(*) as int)` })

@@ -51,7 +51,7 @@ export default function ClassesPage() {
   const { data: classes, isLoading } = useListClasses();
   const { data: me } = useGetMe();
   const createClass = useCreateClass();
-  const isTeacher = me?.role === UserRole.teacher;
+  const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
 
   // Google Classroom
   const { data: gcStatus, isLoading: gcStatusLoading } = useGetGCStatus({

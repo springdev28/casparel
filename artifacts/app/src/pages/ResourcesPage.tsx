@@ -1,17 +1,59 @@
-import { useState, useRef, useEffect } from 'react';
-import { useLocation, useSearch as useRouteSearch, Link } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2, GraduationCap, FileText, Video, FileType2, Headphones, MousePointerClick, ImageIcon, ShieldCheck, CircleHelp } from 'lucide-react';
-import { Button } from '@workspace/edu-ds/components/ui/button';
-import { Input } from '@workspace/edu-ds/components/ui/input';
-import { Label } from '@workspace/edu-ds/components/ui/label';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@workspace/edu-ds/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@workspace/edu-ds/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
-import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
-import { Textarea } from '@workspace/edu-ds/components/ui/textarea';
-import { toast } from '@workspace/edu-ds/hooks/use-toast';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, useEffect } from "react";
+import { useLocation, useSearch as useRouteSearch, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Search,
+  Plus,
+  LogIn,
+  Globe,
+  ExternalLink,
+  Loader2,
+  BookOpen,
+  Sparkles,
+  X,
+  Wand2,
+  Trash2,
+  GraduationCap,
+  FileText,
+  Video,
+  FileType2,
+  Headphones,
+  MousePointerClick,
+  ImageIcon,
+  ShieldCheck,
+  CircleHelp,
+} from "lucide-react";
+import { Button } from "@workspace/edu-ds/components/ui/button";
+import { Input } from "@workspace/edu-ds/components/ui/input";
+import { Label } from "@workspace/edu-ds/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@workspace/edu-ds/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@workspace/edu-ds/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/edu-ds/components/ui/select";
+import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
+import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
+import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useListResources,
   useCreateResource,
@@ -33,66 +75,124 @@ import {
   ListResourcesSortBy,
   ResourceInputFormat,
   DiscoverResourcesFormat,
+  DiscoverResourcesLanguage,
   DiscoverResourcesResultType,
   UserRole,
   type DiscoveredResource,
-} from '@workspace/api-client-react';
-import { StarRating } from '../components/StarRating';
+} from "@workspace/api-client-react";
+import { StarRating } from "../components/StarRating";
+import {
+  AUTH_LANGUAGES,
+  useAuthLanguage,
+} from "../lib/auth-locale";
+import {
+  addSearchHistory,
+  deleteSearchHistory,
+  getSearchHistory,
+  type SearchHistoryItem,
+} from "../lib/searchHistory";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
+const SEARCH_LANGUAGE_OPTIONS = [
+  { code: DiscoverResourcesLanguage.any, label: "Any language" },
+  ...AUTH_LANGUAGES,
+];
+type SearchLanguage = (typeof SEARCH_LANGUAGE_OPTIONS)[number]["code"];
 
 const FORMAT_COLORS: Record<string, string> = {
-  article:     'bg-blue-100 text-blue-700',
-  video:       'bg-red-100 text-red-700',
-  pdf:         'bg-orange-100 text-orange-700',
+  article: "bg-blue-100 text-blue-700",
+  video: "bg-red-100 text-red-700",
+  pdf: "bg-orange-100 text-orange-700",
 
-  podcast:     'bg-purple-100 text-purple-700',
-  interactive: 'bg-emerald-100 text-emerald-700',
-  other:       'bg-gray-100 text-gray-700',
+  podcast: "bg-purple-100 text-purple-700",
+  interactive: "bg-emerald-100 text-emerald-700",
+  other: "bg-gray-100 text-gray-700",
 };
 function ProvenanceBadge({ resource }: { resource: DiscoveredResource }) {
   if (!resource.provenanceLevel) return null;
-  const labels = { institutional: "Institutional source", established: "Established platform", independent: "Independent source", unknown: "Unknown source" } as const;
-  const colors = { institutional: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700", established: "border-blue-500/30 bg-blue-500/10 text-blue-700", independent: "border-amber-500/30 bg-amber-500/10 text-amber-700", unknown: "border-muted bg-muted text-muted-foreground" } as const;
+  const labels = {
+    institutional: "Institutional source",
+    established: "Established platform",
+    independent: "Independent source",
+    unknown: "Unknown source",
+  } as const;
+  const colors = {
+    institutional: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
+    established: "border-blue-500/30 bg-blue-500/10 text-blue-700",
+    independent: "border-amber-500/30 bg-amber-500/10 text-amber-700",
+    unknown: "border-muted bg-muted text-muted-foreground",
+  } as const;
   const level = resource.provenanceLevel;
-  return <details className="group mt-2 text-xs"><summary className={`inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full border px-2 py-1 font-medium ${colors[level]}`}><ShieldCheck className="size-3.5" />{labels[level]}{resource.linkChecked && <span aria-label="Link checked">· link checked</span>}<CircleHelp className="size-3 opacity-60" /></summary><div className="mt-2 rounded-lg border bg-muted/40 p-2.5 text-muted-foreground"><p className="mb-1 font-medium text-foreground">Why this label?</p><ul className="space-y-1">{resource.provenanceSignals?.map((signal) => <li key={signal}>• {signal}</li>)}</ul><p className="mt-2 text-[11px]">Publisher provenance and link availability do not verify every claim in the content.</p></div></details>;
+  return (
+    <details className="group mt-2 text-xs">
+      <summary
+        className={`inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full border px-2 py-1 font-medium ${colors[level]}`}
+      >
+        <ShieldCheck className="size-3.5" />
+        {labels[level]}
+        {resource.linkChecked && (
+          <span aria-label="Link checked">· link checked</span>
+        )}
+        <CircleHelp className="size-3 opacity-60" />
+      </summary>
+      <div className="mt-2 rounded-lg border bg-muted/40 p-2.5 text-muted-foreground">
+        <p className="mb-1 font-medium text-foreground">Why this label?</p>
+        <ul className="space-y-1">
+          {resource.provenanceSignals?.map((signal) => (
+            <li key={signal}>• {signal}</li>
+          ))}
+        </ul>
+        <p className="mt-2 text-[11px]">
+          Publisher provenance and link availability do not verify every claim
+          in the content.
+        </p>
+      </div>
+    </details>
+  );
 }
-
 
 function getYouTubeId(url: string): string | null {
   try {
     const u = new URL(url);
-    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
-    if (u.hostname.includes('youtube.com')) {
-      const v = u.searchParams.get('v');
+    if (u.hostname === "youtu.be") return u.pathname.slice(1).split("?")[0];
+    if (u.hostname.includes("youtube.com")) {
+      const v = u.searchParams.get("v");
       if (v) return v;
       const m = u.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);
       if (m) return m[1];
     }
     return null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function isVimeoUrl(url: string): boolean {
   try {
-    return new URL(url).hostname.includes('vimeo.com');
-  } catch { return false; }
+    return new URL(url).hostname.includes("vimeo.com");
+  } catch {
+    return false;
+  }
 }
 
 function isLoomUrl(url: string): boolean {
   try {
-    return new URL(url).hostname.includes('loom.com');
-  } catch { return false; }
+    return new URL(url).hostname.includes("loom.com");
+  } catch {
+    return false;
+  }
 }
 
 /** Server-side OEmbed proxy — avoids CORS and third-party rate-limit failures. */
 function useOembedThumbnail(url: string, enabled: boolean) {
   return useQuery<string | null>({
-    queryKey: ['oembed-thumbnail', url],
+    queryKey: ["oembed-thumbnail", url],
     queryFn: async () => {
-      const res = await fetch(`/api/resources/oembed?url=${encodeURIComponent(url)}`);
+      const res = await fetch(
+        `/api/resources/oembed?url=${encodeURIComponent(url)}`,
+      );
       if (!res.ok) return null;
-      const data = await res.json() as { thumbnailUrl: string | null };
+      const data = (await res.json()) as { thumbnailUrl: string | null };
       return data.thumbnailUrl ?? null;
     },
     enabled,
@@ -103,7 +203,9 @@ function useOembedThumbnail(url: string, enabled: boolean) {
 
 function FormatBadge({ format }: { format: string }) {
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[format] ?? FORMAT_COLORS.other}`}>
+    <span
+      className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[format] ?? FORMAT_COLORS.other}`}
+    >
       {format}
     </span>
   );
@@ -118,17 +220,37 @@ const FORMAT_PREVIEW_STYLES: Record<string, string> = {
   other: "from-slate-100 via-gray-50 to-white text-slate-700",
 };
 
-function FormatPreview({ url, format, title }: { url: string; format: string; title: string }) {
+function FormatPreview({
+  url,
+  format,
+  title,
+}: {
+  url: string;
+  format: string;
+  title: string;
+}) {
   let hostname = "Learning resource";
-  try { hostname = new URL(url).hostname.replace(/^www\./, ""); } catch { /* keep fallback */ }
+  try {
+    hostname = new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    /* keep fallback */
+  }
 
   const iconClass = "size-9";
-  const icon = format === "article" ? <FileText className={iconClass} />
-    : format === "video" ? <Video className={iconClass} />
-    : format === "pdf" ? <FileType2 className={iconClass} />
-    : format === "podcast" ? <Headphones className={iconClass} />
-    : format === "interactive" ? <MousePointerClick className={iconClass} />
-    : <ImageIcon className={iconClass} />;
+  const icon =
+    format === "article" ? (
+      <FileText className={iconClass} />
+    ) : format === "video" ? (
+      <Video className={iconClass} />
+    ) : format === "pdf" ? (
+      <FileType2 className={iconClass} />
+    ) : format === "podcast" ? (
+      <Headphones className={iconClass} />
+    ) : format === "interactive" ? (
+      <MousePointerClick className={iconClass} />
+    ) : (
+      <ImageIcon className={iconClass} />
+    );
 
   return (
     <div
@@ -137,57 +259,103 @@ function FormatPreview({ url, format, title }: { url: string; format: string; ti
       aria-label={`${format} preview for ${title}`}
     >
       {icon}
-      <span className="max-w-full truncate text-xs font-semibold">{hostname}</span>
-      <span className="text-[10px] font-medium uppercase tracking-widest opacity-70">{format}</span>
+      <span className="max-w-full truncate text-xs font-semibold">
+        {hostname}
+      </span>
+      <span className="text-[10px] font-medium uppercase tracking-widest opacity-70">
+        {format}
+      </span>
     </div>
   );
 }
 
 // ── Shared resource card (library) ────────────────────────────────────────────
-function LibraryCard({ resource, onClick, onRemove, onAssign }: {
-  resource: { id: number; title: string; url: string; format: string; subject: string; gradeLevel: string; description?: string | null; avgRating: number; reviewCount: number; thumbnailUrl?: string | null };
+function LibraryCard({
+  resource,
+  onClick,
+  onRemove,
+  onAssign,
+}: {
+  resource: {
+    id: number;
+    title: string;
+    url: string;
+    format: string;
+    subject: string;
+    gradeLevel: string;
+    description?: string | null;
+    avgRating: number;
+    reviewCount: number;
+    thumbnailUrl?: string | null;
+  };
   onClick: () => void;
   onRemove?: () => void;
   onAssign?: () => void;
 }) {
   const [failedThumb, setFailedThumb] = useState<string | null>(null);
   const ytId = getYouTubeId(resource.url);
-  const needsOembed = !ytId && (isVimeoUrl(resource.url) || isLoomUrl(resource.url));
+  const needsOembed =
+    !ytId && (isVimeoUrl(resource.url) || isLoomUrl(resource.url));
   const { data: oembedThumb } = useOembedThumbnail(resource.url, needsOembed);
   const thumb = ytId
     ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-    : oembedThumb ?? resource.thumbnailUrl ?? null;
+    : (oembedThumb ?? resource.thumbnailUrl ?? null);
   const showImg = !!thumb && thumb !== failedThumb;
   return (
-    <Card className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden" onClick={onClick} data-testid="resource-card">
+    <Card
+      className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden"
+      onClick={onClick}
+      data-testid="resource-card"
+    >
       {showImg && (
         <div className="w-full h-36 overflow-hidden bg-black">
-          <img src={thumb} alt={resource.title} className="w-full h-full object-cover" loading="lazy" onError={() => setFailedThumb(thumb)} />
+          <img
+            src={thumb}
+            alt={resource.title}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => setFailedThumb(thumb)}
+          />
         </div>
       )}
       {!showImg && (
-        <FormatPreview url={resource.url} format={resource.format} title={resource.title} />
+        <FormatPreview
+          url={resource.url}
+          format={resource.format}
+          title={resource.title}
+        />
       )}
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base line-clamp-2">{resource.title}</CardTitle>
+          <CardTitle className="text-base line-clamp-2">
+            {resource.title}
+          </CardTitle>
           <FormatBadge format={resource.format} />
         </div>
-        <CardDescription className="text-xs">{resource.subject} · {resource.gradeLevel}</CardDescription>
+        <CardDescription className="text-xs">
+          {resource.subject} · {resource.gradeLevel}
+        </CardDescription>
       </CardHeader>
       {resource.description && (
         <CardContent className="pb-2">
-          <p className="text-sm text-muted-foreground line-clamp-2">{resource.description}</p>
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {resource.description}
+          </p>
         </CardContent>
       )}
       <CardFooter className="flex items-center justify-between pt-2">
         <StarRating value={resource.avgRating} size="sm" />
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{resource.reviewCount} review{resource.reviewCount !== 1 ? 's' : ''}</span>
+          <span className="text-xs text-muted-foreground">
+            {resource.reviewCount} review{resource.reviewCount !== 1 ? "s" : ""}
+          </span>
           {onAssign && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onAssign(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAssign();
+              }}
               className="text-muted-foreground hover:text-primary transition-colors"
               title="Assign to class"
             >
@@ -197,7 +365,10 @@ function LibraryCard({ resource, onClick, onRemove, onAssign }: {
           {onRemove && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
               className="text-muted-foreground hover:text-destructive transition-colors"
               title="Remove from library"
             >
@@ -211,41 +382,62 @@ function LibraryCard({ resource, onClick, onRemove, onAssign }: {
 }
 
 // ── Web result card ───────────────────────────────────────────────────────────
-function WebCard({ resource, onAdd, adding }: {
+function WebCard({
+  resource,
+  onAdd,
+  adding,
+}: {
   resource: DiscoveredResource;
   onAdd: (r: DiscoveredResource) => void;
   adding: boolean;
 }) {
   const [failedThumb, setFailedThumb] = useState<string | null>(null);
   const ytId = getYouTubeId(resource.url);
-  const needsOembed = !ytId && (isVimeoUrl(resource.url) || isLoomUrl(resource.url));
+  const needsOembed =
+    !ytId && (isVimeoUrl(resource.url) || isLoomUrl(resource.url));
   const { data: oembedThumb } = useOembedThumbnail(resource.url, needsOembed);
   const thumb = ytId
     ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-    : oembedThumb ?? resource.thumbnailUrl ?? null;
+    : (oembedThumb ?? resource.thumbnailUrl ?? null);
   const showImg = !!thumb && thumb !== failedThumb;
   return (
     <Card className="flex flex-col overflow-hidden">
       {showImg && (
         <div className="w-full h-36 overflow-hidden bg-black shrink-0">
-          <img src={thumb} alt={resource.title} className="w-full h-full object-cover" loading="lazy" onError={() => setFailedThumb(thumb)} />
+          <img
+            src={thumb}
+            alt={resource.title}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => setFailedThumb(thumb)}
+          />
         </div>
       )}
       {!showImg && (
-        <FormatPreview url={resource.url} format={resource.format} title={resource.title} />
+        <FormatPreview
+          url={resource.url}
+          format={resource.format}
+          title={resource.title}
+        />
       )}
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base line-clamp-2 leading-snug">{resource.title}</CardTitle>
+          <CardTitle className="text-base line-clamp-2 leading-snug">
+            {resource.title}
+          </CardTitle>
           <FormatBadge format={resource.format} />
         </div>
         <CardDescription className="text-xs">
-          {resource.source}{resource.subject ? ` · ${resource.subject}` : ''}{resource.gradeLevel ? ` · ${resource.gradeLevel}` : ''}
-        <ProvenanceBadge resource={resource} />
+          {resource.source}
+          {resource.subject ? ` · ${resource.subject}` : ""}
+          {resource.gradeLevel ? ` · ${resource.gradeLevel}` : ""}
+          <ProvenanceBadge resource={resource} />
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-2 flex-1">
-        <p className="text-sm text-muted-foreground line-clamp-3">{resource.description}</p>
+        <p className="text-sm text-muted-foreground line-clamp-3">
+          {resource.description}
+        </p>
       </CardContent>
       <CardFooter className="gap-2 pt-2 flex-wrap">
         <Button size="sm" variant="outline" asChild className="flex-1">
@@ -253,8 +445,21 @@ function WebCard({ resource, onAdd, adding }: {
             <ExternalLink size={12} className="mr-1.5" /> Open
           </a>
         </Button>
-        <Button size="sm" className="flex-1" disabled={adding} onClick={() => onAdd(resource)}>
-          {adding ? <><Loader2 size={12} className="mr-1.5 animate-spin" /> Adding…</> : <><Plus size={12} className="mr-1.5" /> Save</>}
+        <Button
+          size="sm"
+          className="flex-1"
+          disabled={adding}
+          onClick={() => onAdd(resource)}
+        >
+          {adding ? (
+            <>
+              <Loader2 size={12} className="mr-1.5 animate-spin" /> Adding…
+            </>
+          ) : (
+            <>
+              <Plus size={12} className="mr-1.5" /> Save
+            </>
+          )}
         </Button>
       </CardFooter>
     </Card>
@@ -263,8 +468,14 @@ function WebCard({ resource, onAdd, adding }: {
 
 function SourceCard({ resource }: { resource: DiscoveredResource }) {
   let hostname = resource.source;
-  try { hostname = new URL(resource.url).hostname.replace(/^www\./, ""); } catch { /* keep source */ }
-  const isChannel = /youtube\.com|vimeo\.com|podcasts?\.|tiktok\.com/i.test(resource.url);
+  try {
+    hostname = new URL(resource.url).hostname.replace(/^www\./, "");
+  } catch {
+    /* keep source */
+  }
+  const isChannel = /youtube\.com|vimeo\.com|podcasts?\.|tiktok\.com/i.test(
+    resource.url,
+  );
   return (
     <Card className="flex h-full flex-col border-primary/15 bg-gradient-to-br from-card to-primary/5">
       <CardHeader className="pb-3">
@@ -276,15 +487,26 @@ function SourceCard({ resource }: { resource: DiscoveredResource }) {
         <ProvenanceBadge resource={resource} />
       </CardHeader>
       <CardContent className="flex-1">
-        <p className="line-clamp-3 text-sm text-muted-foreground">{resource.description}</p>
+        <p className="line-clamp-3 text-sm text-muted-foreground">
+          {resource.description}
+        </p>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{isChannel ? "Channel" : "Website"}</span>
-          {resource.subject && <span className="rounded-full bg-muted px-2 py-1 text-xs">{resource.subject}</span>}
+          <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+            {isChannel ? "Channel" : "Website"}
+          </span>
+          {resource.subject && (
+            <span className="rounded-full bg-muted px-2 py-1 text-xs">
+              {resource.subject}
+            </span>
+          )}
         </div>
       </CardContent>
       <CardFooter>
         <Button asChild className="w-full">
-          <a href={resource.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} className="mr-2" /> Visit {isChannel ? "channel" : "website"}</a>
+          <a href={resource.url} target="_blank" rel="noopener noreferrer">
+            <ExternalLink size={14} className="mr-2" /> Visit{" "}
+            {isChannel ? "channel" : "website"}
+          </a>
         </Button>
       </CardFooter>
     </Card>
@@ -297,9 +519,16 @@ function CardSkeletons({ count = 6 }: { count?: number }) {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {Array.from({ length: count }).map((_, i) => (
         <Card key={i}>
-          <CardHeader><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
-          <CardContent><Skeleton className="h-14 w-full" /></CardContent>
-          <CardFooter><Skeleton className="h-4 w-24" /></CardFooter>
+          <CardHeader>
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-4 w-1/2 mt-1" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-14 w-full" />
+          </CardContent>
+          <CardFooter>
+            <Skeleton className="h-4 w-24" />
+          </CardFooter>
         </Card>
       ))}
     </div>
@@ -310,27 +539,38 @@ function CardSkeletons({ count = 6 }: { count?: number }) {
 
 export default function ResourcesPage() {
   const [, setLocation] = useLocation();
+  const { language: interfaceLanguage } = useAuthLanguage();
   const routeSearch = useRouteSearch();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [inputValue, setInputValue] = useState('');
-  const [activeQuery, setActiveQuery] = useState('');
-  const [formatFilter, setFormatFilter] = useState('');
-  const [subjectFilter, setSubjectFilter] = useState('');
-  const [gradeLevelFilter, setGradeLevelFilter] = useState('');
-  const [resultTypeFilter, setResultTypeFilter] = useState<DiscoverResourcesResultType>(DiscoverResourcesResultType.content);
-  const [sortByFilter, setSortByFilter] = useState<ListResourcesSortBy | ''>('');
-  const [minRatingFilter, setMinRatingFilter] = useState<number | ''>('');
+  const [inputValue, setInputValue] = useState("");
+  const [activeQuery, setActiveQuery] = useState("");
+  const [formatFilter, setFormatFilter] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState("");
+  const [gradeLevelFilter, setGradeLevelFilter] = useState("");
+  const [searchLanguage, setSearchLanguage] =
+    useState<SearchLanguage>(interfaceLanguage);
+  const [resultTypeFilter, setResultTypeFilter] =
+    useState<DiscoverResourcesResultType>(DiscoverResourcesResultType.content);
+  const [sortByFilter, setSortByFilter] = useState<ListResourcesSortBy | "">(
+    "",
+  );
+  const [minRatingFilter, setMinRatingFilter] = useState<number | "">("");
   const [libraryLimit, setLibraryLimit] = useState(12);
   const [webPage, setWebPage] = useState(1);
   const [allWebResults, setAllWebResults] = useState<DiscoveredResource[]>([]);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
 
   useEffect(() => {
     const params = new URLSearchParams(routeSearch);
     const goal = params.get("goal");
     const subject = params.get("subject");
-    if (goal) { setInputValue(goal); setActiveQuery(goal); setLibraryLimit(12); }
+    if (goal) {
+      setInputValue(goal);
+      setActiveQuery(goal);
+      setLibraryLimit(12);
+    }
     if (subject) setSubjectFilter(subject);
   }, [routeSearch]);
 
@@ -338,18 +578,30 @@ export default function ResourcesPage() {
   const isSourceMode = resultTypeFilter === DiscoverResourcesResultType.source;
 
   // Auth
-  const { data: me } = useGetMe({ query: { retry: false, queryKey: getGetMeQueryKey() } });
+  const { data: me } = useGetMe({
+    query: { retry: false, queryKey: getGetMeQueryKey() },
+  });
   const isLoggedIn = !!me;
 
+  useEffect(() => {
+    setSearchHistory(getSearchHistory(me?.id));
+  }, [me?.id]);
+
   // Recommendations (shown when NOT searching)
-  const { data: recommendations, isLoading: recsLoading } = useGetResourceRecommendations({
-    query: { queryKey: getGetResourceRecommendationsQueryKey(), staleTime: 1000 * 60 * 5 },
-  });
+  const { data: recommendations, isLoading: recsLoading } =
+    useGetResourceRecommendations({
+      query: {
+        queryKey: getGetResourceRecommendationsQueryKey(),
+        staleTime: 1000 * 60 * 5,
+      },
+    });
 
   // Library search results (shown when searching)
   const libraryParams = {
     ...(activeQuery ? { q: activeQuery } : {}),
-    ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as ListResourcesFormat } : {}),
+    ...(formatFilter && formatFilter !== "all"
+      ? { format: formatFilter as ListResourcesFormat }
+      : {}),
     ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
     ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
     ...(sortByFilter ? { sortBy: sortByFilter } : {}),
@@ -357,29 +609,54 @@ export default function ResourcesPage() {
     limit: libraryLimit,
     offset: 0,
   };
-  const { data: libraryResults, isLoading: libraryLoading } = useListResources(libraryParams, {
-    query: { enabled: isSearching && !isSourceMode, queryKey: getListResourcesQueryKey(libraryParams) },
-  });
+  const { data: libraryResults, isLoading: libraryLoading } = useListResources(
+    libraryParams,
+    {
+      query: {
+        enabled: isSearching && !isSourceMode,
+        queryKey: getListResourcesQueryKey(libraryParams),
+      },
+    },
+  );
 
   // Web discover (shown when searching) — accumulate across pages
   const discoverParams = {
     q: activeQuery,
-    ...(resultTypeFilter === DiscoverResourcesResultType.content && formatFilter && formatFilter !== 'all' ? { format: formatFilter as DiscoverResourcesFormat } : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
+    formatFilter &&
+    formatFilter !== "all"
+      ? { format: formatFilter as DiscoverResourcesFormat }
+      : {}),
     ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
-    ...(resultTypeFilter === DiscoverResourcesResultType.content && gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
+    gradeLevelFilter
+      ? { gradeLevel: gradeLevelFilter }
+      : {}),
+    language: searchLanguage,
     page: webPage,
     resultType: resultTypeFilter,
   };
-  const { data: webResults, isFetching: webLoading, isError: webError, error: webErrorObj } = useDiscoverResources(
-    discoverParams,
-    { query: { enabled: isSearching, staleTime: 1000 * 60 * 5, queryKey: getDiscoverResourcesQueryKey(discoverParams), retry: false } }
-  );
+  const {
+    data: webResults,
+    isFetching: webLoading,
+    isError: webError,
+    error: webErrorObj,
+  } = useDiscoverResources(discoverParams, {
+    query: {
+      enabled: isSearching,
+      staleTime: 1000 * 60 * 5,
+      queryKey: getDiscoverResourcesQueryKey(discoverParams),
+      retry: false,
+    },
+  });
 
   // Detect 429 rate-limit responses from the discover endpoint.
   // The generated client throws ApiError with .status (HTTP code) and .data (parsed body).
-  const webRateLimited = webError && (webErrorObj as { status?: number } | null)?.status === 429;
+  const webRateLimited =
+    webError && (webErrorObj as { status?: number } | null)?.status === 429;
   const webRateLimitRetryAfter: number = webRateLimited
-    ? ((webErrorObj as { data?: { retryAfter?: number } } | null)?.data?.retryAfter ?? 60)
+    ? ((webErrorObj as { data?: { retryAfter?: number } } | null)?.data
+        ?.retryAfter ?? 60)
     : 0;
 
   // Reset accumulated results when query changes; append on page increment
@@ -392,31 +669,58 @@ export default function ResourcesPage() {
   useEffect(() => {
     setWebPage(1);
     setAllWebResults([]);
-  }, [formatFilter, subjectFilter, gradeLevelFilter, sortByFilter, minRatingFilter, resultTypeFilter]);
+  }, [
+    formatFilter,
+    subjectFilter,
+    gradeLevelFilter,
+    sortByFilter,
+    minRatingFilter,
+    resultTypeFilter,
+    searchLanguage,
+  ]);
 
   useEffect(() => {
     if (!webResults || webResults.length === 0) return;
-    setAllWebResults((prev) => webPage === 1 ? webResults : [...prev, ...webResults]);
+    setAllWebResults((prev) =>
+      webPage === 1 ? webResults : [...prev, ...webResults],
+    );
   }, [webResults, webPage]);
 
-  const isTeacher = me?.role === UserRole.teacher;
+  const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
 
   // Classes for "Assign to class" teacher flow
-  const { data: classes } = useListClasses({ query: { enabled: isTeacher, queryKey: getListClassesQueryKey() } });
+  const { data: classes } = useListClasses({
+    query: { enabled: isTeacher, queryKey: getListClassesQueryKey() },
+  });
   const assignResource = useAssignResourceToClass();
-  const [assignTarget, setAssignTarget] = useState<{ id: number; title: string } | null>(null);
-  const [assignClassId, setAssignClassId] = useState('');
+  const [assignTarget, setAssignTarget] = useState<{
+    id: number;
+    title: string;
+  } | null>(null);
+  const [assignClassId, setAssignClassId] = useState("");
 
   async function handleAssign() {
     if (!assignTarget || !assignClassId) return;
     try {
-      await assignResource.mutateAsync({ id: Number(assignClassId), data: { resourceId: assignTarget.id } });
-      queryClient.invalidateQueries({ queryKey: getGetClassResourcesListQueryKey(Number(assignClassId)) });
-      toast({ title: 'Assigned!', description: `"${assignTarget.title}" added to the class resource list.` });
+      await assignResource.mutateAsync({
+        id: Number(assignClassId),
+        data: { resourceId: assignTarget.id },
+      });
+      queryClient.invalidateQueries({
+        queryKey: getGetClassResourcesListQueryKey(Number(assignClassId)),
+      });
+      toast({
+        title: "Assigned!",
+        description: `"${assignTarget.title}" added to the class resource list.`,
+      });
       setAssignTarget(null);
-      setAssignClassId('');
+      setAssignClassId("");
     } catch {
-      toast({ title: 'Error', description: 'Could not assign the resource.', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: "Could not assign the resource.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -428,35 +732,52 @@ export default function ResourcesPage() {
     try {
       await deleteResource.mutateAsync({ id: resourceId });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-      toast({ title: 'Removed', description: `"${title}" has been removed from the library.` });
+      queryClient.invalidateQueries({
+        queryKey: getGetResourceRecommendationsQueryKey(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getGetDashboardSummaryQueryKey(),
+      });
+      toast({
+        title: "Removed",
+        description: `"${title}" has been removed from the library.`,
+      });
     } catch {
-      toast({ title: 'Error', description: 'Could not remove the resource.', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: "Could not remove the resource.",
+        variant: "destructive",
+      });
     }
   }
   const [addingUrl, setAddingUrl] = useState<string | null>(null);
 
   // Submit form
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newUrl, setNewUrl] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newFormat, setNewFormat] = useState<ResourceInputFormat>(ResourceInputFormat.article);
-  const [newSubject, setNewSubject] = useState('');
-  const [newGrade, setNewGrade] = useState('');
+  const [newTitle, setNewTitle] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newFormat, setNewFormat] = useState<ResourceInputFormat>(
+    ResourceInputFormat.article,
+  );
+  const [newSubject, setNewSubject] = useState("");
+  const [newGrade, setNewGrade] = useState("");
   const [prefetching, setPrefetching] = useState(false);
-  const [prefetchedThumbnailUrl, setPrefetchedThumbnailUrl] = useState<string | null>(null);
+  const [prefetchedThumbnailUrl, setPrefetchedThumbnailUrl] = useState<
+    string | null
+  >(null);
   // Track which URL is currently being fetched so stale responses don't clobber newer edits
-  const prefetchingUrlRef = useRef<string>('');
+  const prefetchingUrlRef = useRef<string>("");
 
   async function handleUrlBlur() {
     const url = newUrl.trim();
     if (!url) return;
     try {
       const u = new URL(url);
-      if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
-    } catch { return; } // not a valid URL yet — skip
+      if (u.protocol !== "http:" && u.protocol !== "https:") return;
+    } catch {
+      return;
+    } // not a valid URL yet — skip
     // Don't prefetch if title is already filled (user typed it themselves)
     if (newTitle.trim()) return;
 
@@ -468,9 +789,15 @@ export default function ResourcesPage() {
       if (prefetchingUrlRef.current !== url) return;
       // Use functional updaters so we read the *current* state, not the closure-captured one.
       // This prevents a stale response from overwriting text the user typed while waiting.
-      if (meta.title) setNewTitle((cur) => cur.trim() ? cur : meta.title);
-      if (meta.description) setNewDesc((cur) => cur.trim() ? cur : meta.description);
-      if (meta.format) setNewFormat((cur) => cur !== ResourceInputFormat.article ? cur : meta.format as ResourceInputFormat);
+      if (meta.title) setNewTitle((cur) => (cur.trim() ? cur : meta.title));
+      if (meta.description)
+        setNewDesc((cur) => (cur.trim() ? cur : meta.description));
+      if (meta.format)
+        setNewFormat((cur) =>
+          cur !== ResourceInputFormat.article
+            ? cur
+            : (meta.format as ResourceInputFormat),
+        );
       setPrefetchedThumbnailUrl(meta.thumbnailUrl ?? null);
     } catch {
       // silently ignore — user can fill in manually
@@ -480,8 +807,8 @@ export default function ResourcesPage() {
   }
 
   function clearSearch() {
-    setInputValue('');
-    setActiveQuery('');
+    setInputValue("");
+    setActiveQuery("");
     inputRef.current?.focus();
   }
 
@@ -491,44 +818,91 @@ export default function ResourcesPage() {
     if (q) {
       setActiveQuery(q);
       setLibraryLimit(12); // reset pagination on new search
+      if (me?.id) setSearchHistory(addSearchHistory(me.id, q));
     }
   }
 
   function resetForm() {
-    setNewTitle(''); setNewUrl(''); setNewDesc('');
+    setNewTitle("");
+    setNewUrl("");
+    setNewDesc("");
     setNewFormat(ResourceInputFormat.article);
-    setNewSubject(''); setNewGrade('');
+    setNewSubject("");
+    setNewGrade("");
     setPrefetchedThumbnailUrl(null);
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await createResource.mutateAsync({ data: { title: newTitle, url: newUrl, description: newDesc || undefined, format: newFormat, subject: newSubject, gradeLevel: newGrade, thumbnailUrl: prefetchedThumbnailUrl ?? undefined } });
+      await createResource.mutateAsync({
+        data: {
+          title: newTitle,
+          url: newUrl,
+          description: newDesc || undefined,
+          format: newFormat,
+          subject: newSubject,
+          gradeLevel: newGrade,
+          thumbnailUrl: prefetchedThumbnailUrl ?? undefined,
+        },
+      });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-      toast({ title: 'Resource submitted!', description: `"${newTitle}" has been added.` });
+      queryClient.invalidateQueries({
+        queryKey: getGetResourceRecommendationsQueryKey(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getGetDashboardSummaryQueryKey(),
+      });
+      toast({
+        title: "Resource submitted!",
+        description: `"${newTitle}" has been added.`,
+      });
       resetForm();
       setDialogOpen(false);
     } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed",
+        variant: "destructive",
+      });
     }
   }
 
   async function handleAddWeb(resource: DiscoveredResource) {
-    if (!isLoggedIn) { setLocation('/auth/login'); return; }
+    if (!isLoggedIn) {
+      setLocation("/auth/login");
+      return;
+    }
     setAddingUrl(resource.url);
     try {
       await createResource.mutateAsync({
-        data: { title: resource.title, url: resource.url, description: resource.description, format: resource.format as ResourceInputFormat, subject: resource.subject ?? 'General', gradeLevel: resource.gradeLevel ?? 'All grades', thumbnailUrl: resource.thumbnailUrl ?? undefined },
+        data: {
+          title: resource.title,
+          url: resource.url,
+          description: resource.description,
+          format: resource.format as ResourceInputFormat,
+          subject: resource.subject ?? "General",
+          gradeLevel: resource.gradeLevel ?? "All grades",
+          thumbnailUrl: resource.thumbnailUrl ?? undefined,
+        },
       });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-      toast({ title: 'Saved to library!', description: `"${resource.title}" added.` });
+      queryClient.invalidateQueries({
+        queryKey: getGetResourceRecommendationsQueryKey(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getGetDashboardSummaryQueryKey(),
+      });
+      toast({
+        title: "Saved to library!",
+        description: `"${resource.title}" added.`,
+      });
     } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed",
+        variant: "destructive",
+      });
     } finally {
       setAddingUrl(null);
     }
@@ -536,7 +910,6 @@ export default function ResourcesPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
-
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -545,30 +918,52 @@ export default function ResourcesPage() {
             {isSearching
               ? `Showing library results and web results for "${activeQuery}"`
               : isLoggedIn
-                ? 'Your personalised library — based on what you\'ve been learning'
-                : 'Top-rated resources to get you started'}
+                ? "Your personalised library — based on what you've been learning"
+                : "Top-rated resources to get you started"}
           </p>
         </div>
         {isLoggedIn ? (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="submit-resource-button"><Plus size={16} className="mr-1.5" /> Submit Resource</Button>
+              <Button data-testid="submit-resource-button">
+                <Plus size={16} className="mr-1.5" /> Submit Resource
+              </Button>
             </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Submit a Resource</DialogTitle>
-                <DialogDescription>Share a learning resource with the community</DialogDescription>
+                <DialogDescription>
+                  Share a learning resource with the community
+                </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreate} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="res-title">Title</Label>
-                  <Input id="res-title" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} required data-testid="resource-title-input" />
+                  <Input
+                    id="res-title"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    required
+                    data-testid="resource-title-input"
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="res-url" className="flex items-center gap-1.5">
+                  <Label
+                    htmlFor="res-url"
+                    className="flex items-center gap-1.5"
+                  >
                     URL
-                    {prefetching && <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> auto-filling…</span>}
-                    {!prefetching && newTitle && newUrl && <span className="text-xs text-muted-foreground flex items-center gap-1"><Wand2 size={10} /> auto-filled</span>}
+                    {prefetching && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Loader2 size={10} className="animate-spin" />{" "}
+                        auto-filling…
+                      </span>
+                    )}
+                    {!prefetching && newTitle && newUrl && (
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Wand2 size={10} /> auto-filled
+                      </span>
+                    )}
                   </Label>
                   <Input
                     id="res-url"
@@ -582,29 +977,73 @@ export default function ResourcesPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-desc">Description (optional)</Label>
-                  <Textarea id="res-desc" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={2} data-testid="resource-desc-input" />
+                  <Textarea
+                    id="res-desc"
+                    value={newDesc}
+                    onChange={(e) => setNewDesc(e.target.value)}
+                    rows={2}
+                    data-testid="resource-desc-input"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>Format</Label>
-                    <Select value={newFormat} onValueChange={(v) => setNewFormat(v as ResourceInputFormat)}>
-                      <SelectTrigger data-testid="resource-format-select"><SelectValue /></SelectTrigger>
-                      <SelectContent>{Object.values(ResourceInputFormat).map((f) => <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>)}</SelectContent>
+                    <Select
+                      value={newFormat}
+                      onValueChange={(v) =>
+                        setNewFormat(v as ResourceInputFormat)
+                      }
+                    >
+                      <SelectTrigger data-testid="resource-format-select">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.values(ResourceInputFormat).map((f) => (
+                          <SelectItem key={f} value={f} className="capitalize">
+                            {f}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="res-subject">Subject</Label>
-                    <Input id="res-subject" value={newSubject} onChange={(e) => setNewSubject(e.target.value)} required data-testid="resource-subject-input" />
+                    <Input
+                      id="res-subject"
+                      value={newSubject}
+                      onChange={(e) => setNewSubject(e.target.value)}
+                      required
+                      data-testid="resource-subject-input"
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-grade">Grade Level</Label>
-                  <Input id="res-grade" value={newGrade} onChange={(e) => setNewGrade(e.target.value)} required data-testid="resource-grade-input" />
+                  <Input
+                    id="res-grade"
+                    value={newGrade}
+                    onChange={(e) => setNewGrade(e.target.value)}
+                    required
+                    data-testid="resource-grade-input"
+                  />
                 </div>
                 <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>Cancel</Button>
-                  <Button type="submit" disabled={createResource.isPending} data-testid="submit-resource-confirm">
-                    {createResource.isPending ? 'Submitting…' : 'Submit'}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setDialogOpen(false);
+                      resetForm();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={createResource.isPending}
+                    data-testid="submit-resource-confirm"
+                  >
+                    {createResource.isPending ? "Submitting…" : "Submit"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -612,7 +1051,9 @@ export default function ResourcesPage() {
           </Dialog>
         ) : (
           <Button variant="outline" asChild data-testid="sign-in-to-submit">
-            <Link href="/auth/login"><LogIn size={15} className="mr-1.5" /> Sign in</Link>
+            <Link href="/auth/login">
+              <LogIn size={15} className="mr-1.5" /> Sign in
+            </Link>
           </Button>
         )}
       </div>
@@ -621,71 +1062,218 @@ export default function ResourcesPage() {
       <form onSubmit={handleSearchSubmit} className="space-y-2">
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Search
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
             <Input
               ref={inputRef}
               className="pl-9 pr-9 h-11 text-base"
-              placeholder={'Search anything — "photosynthesis", "MIT calculus", "Python for beginners"…'}
+              placeholder={
+                'Search anything — "photosynthesis", "MIT calculus", "Python for beginners"…'
+              }
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               data-testid="search-input"
             />
             {inputValue && (
-              <button type="button" onClick={() => { setInputValue(''); setActiveQuery(''); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => {
+                  setInputValue("");
+                  setActiveQuery("");
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
                 <X size={15} />
               </button>
             )}
           </div>
-          <Button type="submit" size="lg" className="shrink-0" disabled={!inputValue.trim()}>
+          <Button
+            type="submit"
+            size="lg"
+            className="shrink-0"
+            disabled={!inputValue.trim()}
+          >
             <Search size={15} className="mr-1.5" /> Search
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Select value={resultTypeFilter} onValueChange={(value) => setResultTypeFilter(value as DiscoverResourcesResultType)}>
-            <SelectTrigger className="w-44 h-8 text-xs" data-testid="source-filter"><SelectValue /></SelectTrigger>
+          <Select
+            value={resultTypeFilter}
+            onValueChange={(value) =>
+              setResultTypeFilter(value as DiscoverResourcesResultType)
+            }
+          >
+            <SelectTrigger
+              className="w-44 h-8 text-xs"
+              data-testid="source-filter"
+            >
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value={DiscoverResourcesResultType.content}>Source: specific content</SelectItem>
-              <SelectItem value={DiscoverResourcesResultType.source}>Source: websites & channels</SelectItem>
+              <SelectItem value={DiscoverResourcesResultType.content}>
+                Source: specific content
+              </SelectItem>
+              <SelectItem value={DiscoverResourcesResultType.source}>
+                Source: websites & channels
+              </SelectItem>
             </SelectContent>
           </Select>
-          {!isSourceMode && <>
-          <Select value={formatFilter || 'all'} onValueChange={(v) => setFormatFilter(v === 'all' ? '' : v)}>
-            <SelectTrigger className="w-36 h-8 text-xs" data-testid="format-filter"><SelectValue placeholder="All formats" /></SelectTrigger>
+          <Select
+            value={searchLanguage}
+            onValueChange={(value) => setSearchLanguage(value as SearchLanguage)}
+          >
+            <SelectTrigger
+              className="w-36 h-8 text-xs"
+              data-testid="search-language-filter"
+            >
+              <SelectValue placeholder="Language" />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All formats</SelectItem>
-              {FORMAT_OPTIONS.map((f) => <SelectItem key={f} value={f} className="capitalize">{f}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input className="w-36 h-8 text-xs" placeholder="Subject…" value={subjectFilter} onChange={(e) => setSubjectFilter(e.target.value)} data-testid="subject-filter" />
-          <Select value={gradeLevelFilter || 'all'} onValueChange={(v) => setGradeLevelFilter(v === 'all' ? '' : v)}>
-            <SelectTrigger className="w-36 h-8 text-xs" data-testid="grade-filter"><SelectValue placeholder="All grades" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All grades</SelectItem>
-              {['K–5', '6–8', '9–12', 'College', 'Adult', 'All Ages'].map((g) => (
-                <SelectItem key={g} value={g}>{g}</SelectItem>
+              {SEARCH_LANGUAGE_OPTIONS.map((language) => (
+                <SelectItem key={language.code} value={language.code}>
+                  {language.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={minRatingFilter === '' ? 'any' : String(minRatingFilter)} onValueChange={(v) => setMinRatingFilter(v === 'any' ? '' : Number(v))}>
-            <SelectTrigger className="w-36 h-8 text-xs" data-testid="rating-filter"><SelectValue placeholder="Any rating" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any">Any rating</SelectItem>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <SelectItem key={n} value={String(n)}>{'★'.repeat(n)} & up</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={sortByFilter || 'newest'} onValueChange={(v) => setSortByFilter(v === 'newest' ? '' : v as ListResourcesSortBy)}>
-            <SelectTrigger className="w-36 h-8 text-xs" data-testid="sort-filter"><SelectValue placeholder="Newest first" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="newest">Newest first</SelectItem>
-              <SelectItem value={ListResourcesSortBy.top_rated}>Top rated</SelectItem>
-              <SelectItem value={ListResourcesSortBy.most_reviewed}>Most reviewed</SelectItem>
-            </SelectContent>
-          </Select>
-          </>}
+          {!isSourceMode && (
+            <>
+              <Select
+                value={formatFilter || "all"}
+                onValueChange={(v) => setFormatFilter(v === "all" ? "" : v)}
+              >
+                <SelectTrigger
+                  className="w-36 h-8 text-xs"
+                  data-testid="format-filter"
+                >
+                  <SelectValue placeholder="All formats" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All formats</SelectItem>
+                  {FORMAT_OPTIONS.map((f) => (
+                    <SelectItem key={f} value={f} className="capitalize">
+                      {f}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                className="w-36 h-8 text-xs"
+                placeholder="Subject…"
+                value={subjectFilter}
+                onChange={(e) => setSubjectFilter(e.target.value)}
+                data-testid="subject-filter"
+              />
+              <Select
+                value={gradeLevelFilter || "all"}
+                onValueChange={(v) => setGradeLevelFilter(v === "all" ? "" : v)}
+              >
+                <SelectTrigger
+                  className="w-36 h-8 text-xs"
+                  data-testid="grade-filter"
+                >
+                  <SelectValue placeholder="All grades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All grades</SelectItem>
+                  {["K–5", "6–8", "9–12", "College", "Adult", "All Ages"].map(
+                    (g) => (
+                      <SelectItem key={g} value={g}>
+                        {g}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+              <Select
+                value={minRatingFilter === "" ? "any" : String(minRatingFilter)}
+                onValueChange={(v) =>
+                  setMinRatingFilter(v === "any" ? "" : Number(v))
+                }
+              >
+                <SelectTrigger
+                  className="w-36 h-8 text-xs"
+                  data-testid="rating-filter"
+                >
+                  <SelectValue placeholder="Any rating" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any rating</SelectItem>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {"★".repeat(n)} & up
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={sortByFilter || "newest"}
+                onValueChange={(v) =>
+                  setSortByFilter(
+                    v === "newest" ? "" : (v as ListResourcesSortBy),
+                  )
+                }
+              >
+                <SelectTrigger
+                  className="w-36 h-8 text-xs"
+                  data-testid="sort-filter"
+                >
+                  <SelectValue placeholder="Newest first" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value={ListResourcesSortBy.top_rated}>
+                    Top rated
+                  </SelectItem>
+                  <SelectItem value={ListResourcesSortBy.most_reviewed}>
+                    Most reviewed
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
         </div>
       </form>
+
+      {isLoggedIn && searchHistory.length > 0 && (
+        <section aria-label="Recent searches" className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Recent searches
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {searchHistory.map((item) => (
+              <span
+                key={item.query}
+                className="inline-flex items-center rounded-full border bg-card"
+              >
+                <button
+                  type="button"
+                  className="px-3 py-1.5 text-sm hover:text-primary"
+                  onClick={() => {
+                    setInputValue(item.query);
+                    setActiveQuery(item.query);
+                  }}
+                >
+                  {item.query}
+                </button>
+                <button
+                  type="button"
+                  className="border-l px-2 py-1.5 text-muted-foreground hover:text-destructive"
+                  aria-label={`Delete ${item.query} from search history`}
+                  onClick={() =>
+                    me?.id &&
+                    setSearchHistory(deleteSearchHistory(me.id, item.query))
+                  }
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── RECOMMENDATIONS (default view, no active search) ─────────── */}
       {!isSearching && (
@@ -694,39 +1282,53 @@ export default function ResourcesPage() {
             <BookOpen size={14} />
             Library
           </h2>
-          {recsLoading
-            ? <CardSkeletons />
-            : !recommendations || recommendations.length === 0
-              ? (
-                <div className="py-12 text-center text-muted-foreground">
-                  <BookOpen size={36} className="mx-auto mb-3 opacity-30" />
-                  <p className="font-medium text-foreground">No resources yet</p>
-                  <p className="text-sm mt-1">Be the first to submit one, or search to find resources across the web.</p>
-                </div>
-              )
-              : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {recommendations.map((r) => (
-                    <LibraryCard
-                      key={r.id}
-                      resource={r}
-                      onClick={() => setLocation(`/resources/${r.id}`)}
-                      onRemove={me ? () => handleRemoveCard(r.id, r.title) : undefined}
-                      onAssign={isTeacher ? () => setAssignTarget({ id: r.id, title: r.title }) : undefined}
-                    />
-                  ))}
-                </div>
-              )
-          }
+          {recsLoading ? (
+            <CardSkeletons />
+          ) : !recommendations || recommendations.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <BookOpen size={36} className="mx-auto mb-3 opacity-30" />
+              <p className="font-medium text-foreground">No resources yet</p>
+              <p className="text-sm mt-1">
+                Be the first to submit one, or search to find resources across
+                the web.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recommendations.map((r) => (
+                <LibraryCard
+                  key={r.id}
+                  resource={r}
+                  onClick={() => setLocation(`/resources/${r.id}`)}
+                  onRemove={
+                    me ? () => handleRemoveCard(r.id, r.title) : undefined
+                  }
+                  onAssign={
+                    isTeacher
+                      ? () => setAssignTarget({ id: r.id, title: r.title })
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          )}
           {!isLoggedIn && recommendations && recommendations.length > 0 && (
             <div className="mt-6 rounded-lg border bg-muted/40 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
               <div>
-                <p className="font-medium text-sm">Get personalised recommendations</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Sign in and Schoolar learns what you like.</p>
+                <p className="font-medium text-sm">
+                  Get personalised recommendations
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Sign in and Schoolar learns what you like.
+                </p>
               </div>
               <div className="flex gap-2 shrink-0">
-                <Button variant="outline" size="sm" asChild><Link href="/auth/login">Sign in</Link></Button>
-                <Button size="sm" asChild><Link href="/auth/register">Get started</Link></Button>
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/auth/login">Sign in</Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link href="/auth/register">Get started</Link>
+                </Button>
               </div>
             </div>
           )}
@@ -737,49 +1339,68 @@ export default function ResourcesPage() {
       {isSearching && (
         <>
           {/* Library search results */}
-          {!isSourceMode && <section>
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
-              <BookOpen size={14} /> Library — "{activeQuery}"
-            </h2>
-            {libraryLoading
-              ? <CardSkeletons count={3} />
-              : !libraryResults || libraryResults.length === 0
-                ? <p className="text-sm text-muted-foreground py-2">No library results for "{activeQuery}".</p>
-                : (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {libraryResults.map((r) => (
-                        <LibraryCard
-                          key={r.id}
-                          resource={r}
-                          onClick={() => setLocation(`/resources/${r.id}`)}
-                          onRemove={me ? () => handleRemoveCard(r.id, r.title) : undefined}
-                          onAssign={isTeacher ? () => setAssignTarget({ id: r.id, title: r.title }) : undefined}
-                        />
-                      ))}
+          {!isSourceMode && (
+            <section>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
+                <BookOpen size={14} /> Library — "{activeQuery}"
+              </h2>
+              {libraryLoading ? (
+                <CardSkeletons count={3} />
+              ) : !libraryResults || libraryResults.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  No library results for "{activeQuery}".
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {libraryResults.map((r) => (
+                      <LibraryCard
+                        key={r.id}
+                        resource={r}
+                        onClick={() => setLocation(`/resources/${r.id}`)}
+                        onRemove={
+                          me ? () => handleRemoveCard(r.id, r.title) : undefined
+                        }
+                        onAssign={
+                          isTeacher
+                            ? () =>
+                                setAssignTarget({ id: r.id, title: r.title })
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </div>
+                  {libraryResults.length >= libraryLimit && (
+                    <div className="mt-4 text-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setLibraryLimit((n) => n + 12)}
+                      >
+                        Show more results
+                      </Button>
                     </div>
-                    {libraryResults.length >= libraryLimit && (
-                      <div className="mt-4 text-center">
-                        <Button variant="outline" size="sm" onClick={() => setLibraryLimit((n) => n + 12)}>
-                          Show more results
-                        </Button>
-                      </div>
-                    )}
-                  </>
-                )
-            }
-          </section>}
+                  )}
+                </>
+              )}
+            </section>
+          )}
 
           {/* Web results */}
           <section>
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
-              <Sparkles size={14} /> {resultTypeFilter === DiscoverResourcesResultType.source ? "Sources & channels" : "From the Web"} — "{activeQuery}"
+              <Sparkles size={14} />{" "}
+              {resultTypeFilter === DiscoverResourcesResultType.source
+                ? "Sources & channels"
+                : "From the Web"}{" "}
+              — "{activeQuery}"
             </h2>
 
             {webLoading && (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" /> Searching the entire web…
+                  <Loader2 size={12} className="animate-spin" /> Searching the
+                  entire web…
                 </p>
                 <CardSkeletons />
               </div>
@@ -787,15 +1408,30 @@ export default function ResourcesPage() {
 
             {webError && !webLoading && webRateLimited && (
               <div className="py-6 text-center">
-                <p className="text-sm text-amber-600 font-medium">Search limit reached — you can run up to 5 AI web searches per minute.</p>
-                <p className="text-xs text-muted-foreground mt-1">Try again in {webRateLimitRetryAfter} second{webRateLimitRetryAfter !== 1 ? 's' : ''}.</p>
+                <p className="text-sm text-amber-600 font-medium">
+                  Search limit reached — you can run up to 5 AI web searches per
+                  minute.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Try again in {webRateLimitRetryAfter} second
+                  {webRateLimitRetryAfter !== 1 ? "s" : ""}.
+                </p>
               </div>
             )}
 
             {webError && !webLoading && !webRateLimited && (
               <div className="py-6 text-center">
-                <p className="text-sm text-destructive font-medium">Web search failed — please try again.</p>
-                <Button variant="outline" size="sm" className="mt-3" onClick={() => setActiveQuery(activeQuery)}>Retry</Button>
+                <p className="text-sm text-destructive font-medium">
+                  Web search failed — please try again.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => setActiveQuery(activeQuery)}
+                >
+                  Retry
+                </Button>
               </div>
             )}
 
@@ -803,13 +1439,24 @@ export default function ResourcesPage() {
               <>
                 {!isSourceMode && !isLoggedIn && (
                   <p className="text-xs text-muted-foreground mb-3">
-                    <Link href="/auth/login" className="text-primary underline">Sign in</Link> to save web results to your library.
+                    <Link href="/auth/login" className="text-primary underline">
+                      Sign in
+                    </Link>{" "}
+                    to save web results to your library.
                   </p>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {allWebResults.map((r, i) => isSourceMode
-                    ? <SourceCard key={i} resource={r} />
-                    : <WebCard key={i} resource={r} onAdd={handleAddWeb} adding={addingUrl === r.url} />
+                  {allWebResults.map((r, i) =>
+                    isSourceMode ? (
+                      <SourceCard key={i} resource={r} />
+                    ) : (
+                      <WebCard
+                        key={i}
+                        resource={r}
+                        onAdd={handleAddWeb}
+                        adding={addingUrl === r.url}
+                      />
+                    ),
                   )}
                 </div>
                 <div className="mt-4 text-center">
@@ -819,7 +1466,17 @@ export default function ResourcesPage() {
                     disabled={webLoading}
                     onClick={() => setWebPage((p) => p + 1)}
                   >
-                    {webLoading ? <><Loader2 size={12} className="mr-1.5 animate-spin" /> Loading…</> : <><Sparkles size={12} className="mr-1.5" /> Search more resources</>}
+                    {webLoading ? (
+                      <>
+                        <Loader2 size={12} className="mr-1.5 animate-spin" />{" "}
+                        Loading…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={12} className="mr-1.5" /> Search more
+                        resources
+                      </>
+                    )}
                   </Button>
                 </div>
               </>
@@ -827,7 +1484,12 @@ export default function ResourcesPage() {
           </section>
 
           <div className="pt-2">
-            <Button variant="ghost" size="sm" onClick={clearSearch} className="text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearSearch}
+              className="text-muted-foreground"
+            >
               <X size={13} className="mr-1.5" /> Clear search — back to library
             </Button>
           </div>
@@ -835,35 +1497,58 @@ export default function ResourcesPage() {
       )}
 
       {/* Assign to Class dialog (teacher) */}
-      <Dialog open={!!assignTarget} onOpenChange={(open) => { if (!open) { setAssignTarget(null); setAssignClassId(''); } }}>
+      <Dialog
+        open={!!assignTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignTarget(null);
+            setAssignClassId("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign to Class</DialogTitle>
             <DialogDescription>
-              Add <strong>{assignTarget?.title}</strong> to a class resource list for your students.
+              Add <strong>{assignTarget?.title}</strong> to a class resource
+              list for your students.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {!classes || classes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">You don't have any classes yet.</p>
+              <p className="text-sm text-muted-foreground">
+                You don't have any classes yet.
+              </p>
             ) : (
               <Select value={assignClassId} onValueChange={setAssignClassId}>
-                <SelectTrigger data-testid="assign-class-select"><SelectValue placeholder="Select a class…" /></SelectTrigger>
+                <SelectTrigger data-testid="assign-class-select">
+                  <SelectValue placeholder="Select a class…" />
+                </SelectTrigger>
                 <SelectContent>
                   {classes.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setAssignTarget(null); setAssignClassId(''); }}>Cancel</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setAssignTarget(null);
+                  setAssignClassId("");
+                }}
+              >
+                Cancel
+              </Button>
               <Button
                 onClick={handleAssign}
                 disabled={!assignClassId || assignResource.isPending}
                 data-testid="assign-to-class-confirm"
               >
-                {assignResource.isPending ? 'Assigning…' : 'Assign'}
+                {assignResource.isPending ? "Assigning…" : "Assign"}
               </Button>
             </DialogFooter>
           </div>

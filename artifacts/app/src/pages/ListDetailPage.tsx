@@ -109,7 +109,7 @@ export default function ListDetailPage() {
     }
   }, [list?.items]);
 
-  const isTeacher = me?.role === UserRole.teacher;
+  const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
   const isOwner = me?.id != null && list != null && list.ownerId === me.id;
   const canShareToGC = isTeacher && isOwner;
   const canShareWithClass = isTeacher && isOwner;

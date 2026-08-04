@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@workspace/edu-ds/components/ui/toaster";
 import { TooltipProvider } from "@workspace/edu-ds/components/ui/tooltip";
 import { Route, Switch, Router as WouterRouter, Redirect } from "wouter";
-import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { setAuthTokenGetter, useGetMe, UserRole } from "@workspace/api-client-react";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -19,6 +19,7 @@ import ProfilePage from "./pages/ProfilePage";
 import UserProfilePage from "./pages/UserProfilePage";
 import PeoplePage from "./pages/PeoplePage";
 import GoalsPage from "./pages/GoalsPage";
+import AdminPage from "./pages/AdminPage";
 import AppShell from "./components/AppShell";
 import PublicShell from "./components/PublicShell";
 
@@ -63,6 +64,13 @@ function PrivateRoute({
  * Authenticated users get the full AppShell sidebar.
  * Unauthenticated users get a slim header with Sign In / Create Account.
  */
+function AdminRoute() {
+  const { data: me, isLoading } = useGetMe();
+  if (isLoading) return <AppShell><div className="p-8">Loading administrator panel...</div></AppShell>;
+  if (me?.role !== UserRole.admin) return <Redirect to="/dashboard" />;
+  return <AppShell><AdminPage /></AppShell>;
+}
+
 function PublicRoute({
   component: Component,
 }: {
@@ -106,6 +114,10 @@ function Router() {
       </Route>
       <Route path="/profile">
         {() => <PrivateRoute component={ProfilePage} />}
+      </Route>
+
+      <Route path="/admin">
+        {() => <AdminRoute />}
       </Route>
 
       {/* Requires account */}

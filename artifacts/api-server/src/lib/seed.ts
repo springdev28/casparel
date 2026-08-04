@@ -56,7 +56,7 @@ async function seed() {
     .insert(resourcesTable)
     .values({
       title: "Khan Academy — Quadratic Equations",
-      url: "https://www.khanacademy.org/math/algebra/quadratics",
+      url: "https://www.khanacademy.org/math/algebra-home/alg-quadratics",
       description: "Interactive lessons on quadratic equations with practice problems.",
       format: "interactive",
       subject: "Mathematics",

@@ -5,6 +5,8 @@
  * Schoolar API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { UserActiveRole } from './userActiveRole';
+import type { UserLibraryVisibility } from './userLibraryVisibility';
 import type { UserProfileVisibility } from './userProfileVisibility';
 import type { UserRole } from './userRole';
 
@@ -13,6 +15,7 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  activeRole?: UserActiveRole;
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
@@ -25,6 +28,7 @@ export interface User {
   /** @nullable */
   websiteUrl?: string | null;
   profileVisibility: UserProfileVisibility;
+  libraryVisibility?: UserLibraryVisibility;
   showBio: boolean;
   showSubjects: boolean;
   showGradeOrDept: boolean;

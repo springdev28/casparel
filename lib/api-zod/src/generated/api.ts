@@ -35,7 +35,8 @@ export const RegisterResponse = zod.object({
   "id": zod.int(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']).optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -43,6 +44,7 @@ export const RegisterResponse = zod.object({
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
   "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
   "showBio": zod.boolean(),
   "showSubjects": zod.boolean(),
   "showGradeOrDept": zod.boolean(),
@@ -66,7 +68,8 @@ export const LoginResponse = zod.object({
   "id": zod.int(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']).optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -74,6 +77,7 @@ export const LoginResponse = zod.object({
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
   "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
   "showBio": zod.boolean(),
   "showSubjects": zod.boolean(),
   "showGradeOrDept": zod.boolean(),
@@ -97,7 +101,8 @@ export const GetMeResponse = zod.object({
   "id": zod.int(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']).optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -105,6 +110,7 @@ export const GetMeResponse = zod.object({
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
   "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
   "showBio": zod.boolean(),
   "showSubjects": zod.boolean(),
   "showGradeOrDept": zod.boolean(),
@@ -124,6 +130,7 @@ export const updateMeBodyBioMax = 300;
 export const UpdateMeBody = zod.object({
   "name": zod.string().min(1).optional(),
   "profileVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
   "showBio": zod.boolean().optional(),
   "showSubjects": zod.boolean().optional(),
   "showGradeOrDept": zod.boolean().optional(),
@@ -139,7 +146,8 @@ export const UpdateMeResponse = zod.object({
   "id": zod.int(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']).optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -147,6 +155,7 @@ export const UpdateMeResponse = zod.object({
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
   "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
   "showBio": zod.boolean(),
   "showSubjects": zod.boolean(),
   "showGradeOrDept": zod.boolean(),
@@ -166,7 +175,8 @@ export const UploadAvatarResponse = zod.object({
   "id": zod.int(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']).optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -174,6 +184,7 @@ export const UploadAvatarResponse = zod.object({
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
   "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
   "showBio": zod.boolean(),
   "showSubjects": zod.boolean(),
   "showGradeOrDept": zod.boolean(),
@@ -193,7 +204,8 @@ export const SetPresetAvatarResponse = zod.object({
   "id": zod.int(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']).optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -201,11 +213,46 @@ export const SetPresetAvatarResponse = zod.object({
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
   "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
   "showBio": zod.boolean(),
   "showSubjects": zod.boolean(),
   "showGradeOrDept": zod.boolean(),
   "showWebsite": zod.boolean(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get a user library when the viewer has permission
+ */
+export const GetUserLibraryParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetUserLibraryResponse = zod.object({
+  "resources": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "submittedById": zod.int(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string()
+})),
+  "lists": zod.array(zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "ownerId": zod.int(),
+  "classId": zod.int().nullish(),
+  "itemCount": zod.int(),
+  "createdAt": zod.string()
+}))
 })
 
 
@@ -219,7 +266,7 @@ export const GetPublicProfileParams = zod.object({
 export const GetPublicProfileResponse = zod.object({
   "id": zod.int(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
   "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
@@ -295,7 +342,8 @@ export const SwitchRoleResponse = zod.object({
   "id": zod.int(),
   "email": zod.string(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']).optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -303,6 +351,7 @@ export const SwitchRoleResponse = zod.object({
   "timezone": zod.string().nullish(),
   "websiteUrl": zod.string().nullish(),
   "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
   "showBio": zod.boolean(),
   "showSubjects": zod.boolean(),
   "showGradeOrDept": zod.boolean(),
@@ -314,8 +363,59 @@ export const SwitchRoleResponse = zod.object({
 
 
 /**
+ * @summary Get the current account plan and AI usage
+ */
+export const GetMyUsageResponse = zod.object({
+  "plan": zod.string(),
+  "unlimited": zod.boolean(),
+  "aiSearch": zod.object({
+  "used": zod.int(),
+  "limit": zod.int().nullable(),
+  "window": zod.enum(['hour'])
+}),
+  "deepResearch": zod.object({
+  "used": zod.int(),
+  "limit": zod.int().nullable(),
+  "window": zod.enum(['day'])
+})
+})
+
+
+/**
+ * @summary Get administrator usage and content totals
+ */
+export const GetAdminOverviewResponse = zod.object({
+  "users": zod.int(),
+  "students": zod.int(),
+  "teachers": zod.int(),
+  "admins": zod.int(),
+  "goals": zod.int(),
+  "resources": zod.int(),
+  "cachedResearchReports": zod.int(),
+  "plan": zod.object({
+  "name": zod.string(),
+  "status": zod.enum(['active']),
+  "aiSearchLimit": zod.int().nullable(),
+  "deepResearchDailyLimit": zod.int().nullable()
+}),
+  "usage": zod.object({
+  "aiSearchesToday": zod.int(),
+  "deepResearchToday": zod.int()
+})
+})
+
+
+/**
  * @summary List the current user learning goals
  */
+export const listLearningGoalsResponsePathStepsItemIdMax = 80;
+
+export const listLearningGoalsResponsePathStepsItemTitleMax = 200;
+
+export const listLearningGoalsResponsePathStepsItemQueryMax = 300;
+
+
+
 export const ListLearningGoalsResponseItem = zod.object({
   "id": zod.int(),
   "userId": zod.int(),
@@ -326,6 +426,12 @@ export const ListLearningGoalsResponseItem = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemQueryMax),
+  "completed": zod.boolean()
+})),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -355,6 +461,14 @@ export const CreateLearningGoalBody = zod.object({
   "targetDate": zod.coerce.date().nullish()
 })
 
+export const createLearningGoalResponsePathStepsItemIdMax = 80;
+
+export const createLearningGoalResponsePathStepsItemTitleMax = 200;
+
+export const createLearningGoalResponsePathStepsItemQueryMax = 300;
+
+
+
 export const CreateLearningGoalResponse = zod.object({
   "id": zod.int(),
   "userId": zod.int(),
@@ -365,6 +479,12 @@ export const CreateLearningGoalResponse = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(createLearningGoalResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(createLearningGoalResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(createLearningGoalResponsePathStepsItemQueryMax),
+  "completed": zod.boolean()
+})),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -386,6 +506,14 @@ export const updateLearningGoalBodyDescriptionMax = 1000;
 
 export const updateLearningGoalBodyPreferredFormatsMax = 6;
 
+export const updateLearningGoalBodyPathStepsItemIdMax = 80;
+
+export const updateLearningGoalBodyPathStepsItemTitleMax = 200;
+
+export const updateLearningGoalBodyPathStepsItemQueryMax = 300;
+
+export const updateLearningGoalBodyPathStepsMax = 20;
+
 
 
 export const UpdateLearningGoalBody = zod.object({
@@ -395,8 +523,22 @@ export const UpdateLearningGoalBody = zod.object({
   "level": zod.enum(['beginner', 'intermediate', 'advanced']).optional(),
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).max(updateLearningGoalBodyPreferredFormatsMax).nullish(),
   "targetDate": zod.coerce.date().nullish(),
-  "status": zod.enum(['active', 'paused', 'completed']).optional()
+  "status": zod.enum(['active', 'paused', 'completed']).optional(),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateLearningGoalBodyPathStepsItemIdMax),
+  "title": zod.string().min(1).max(updateLearningGoalBodyPathStepsItemTitleMax),
+  "query": zod.string().min(1).max(updateLearningGoalBodyPathStepsItemQueryMax),
+  "completed": zod.boolean()
+})).max(updateLearningGoalBodyPathStepsMax).optional()
 })
+
+export const updateLearningGoalResponsePathStepsItemIdMax = 80;
+
+export const updateLearningGoalResponsePathStepsItemTitleMax = 200;
+
+export const updateLearningGoalResponsePathStepsItemQueryMax = 300;
+
+
 
 export const UpdateLearningGoalResponse = zod.object({
   "id": zod.int(),
@@ -408,6 +550,12 @@ export const UpdateLearningGoalResponse = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemQueryMax),
+  "completed": zod.boolean()
+})),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -496,7 +644,7 @@ export const GetClassResponse = zod.object({
   "user": zod.object({
   "id": zod.int(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
   "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
@@ -563,7 +711,7 @@ export const ListClassMembersResponseItem = zod.object({
   "user": zod.object({
   "id": zod.int(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
   "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
@@ -594,7 +742,7 @@ export const AddClassMemberResponse = zod.object({
   "user": zod.object({
   "id": zod.int(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
   "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
@@ -649,6 +797,12 @@ export const GetSeatingChartParams = zod.object({
 
 export const getSeatingChartResponseDesksItemIdMax = 80;
 
+export const getSeatingChartResponseDesksItemAngleMin = 25;
+export const getSeatingChartResponseDesksItemAngleMax = 85;
+
+export const getSeatingChartResponseDesksItemSidesMin = 3;
+export const getSeatingChartResponseDesksItemSidesMax = 12;
+
 export const getSeatingChartResponseDesksItemXMin = 0;
 export const getSeatingChartResponseDesksItemXMax = 100;
 
@@ -677,7 +831,9 @@ export const GetSeatingChartResponse = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(getSeatingChartResponseDesksItemIdMax),
-  "shape": zod.enum(['rectangle', 'round', 'oval', 'trapezoid']),
+  "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
+  "angle": zod.number().min(getSeatingChartResponseDesksItemAngleMin).max(getSeatingChartResponseDesksItemAngleMax).optional(),
+  "sides": zod.int().min(getSeatingChartResponseDesksItemSidesMin).max(getSeatingChartResponseDesksItemSidesMax).optional(),
   "x": zod.number().min(getSeatingChartResponseDesksItemXMin).max(getSeatingChartResponseDesksItemXMax),
   "y": zod.number().min(getSeatingChartResponseDesksItemYMin).max(getSeatingChartResponseDesksItemYMax),
   "width": zod.number().min(getSeatingChartResponseDesksItemWidthMin).max(getSeatingChartResponseDesksItemWidthMax),
@@ -713,6 +869,12 @@ export const updateSeatingChartBodyColumnsMax = 10;
 
 export const updateSeatingChartBodyDesksItemIdMax = 80;
 
+export const updateSeatingChartBodyDesksItemAngleMin = 25;
+export const updateSeatingChartBodyDesksItemAngleMax = 85;
+
+export const updateSeatingChartBodyDesksItemSidesMin = 3;
+export const updateSeatingChartBodyDesksItemSidesMax = 12;
+
 export const updateSeatingChartBodyDesksItemXMin = 0;
 export const updateSeatingChartBodyDesksItemXMax = 100;
 
@@ -744,7 +906,9 @@ export const UpdateSeatingChartBody = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(updateSeatingChartBodyDesksItemIdMax),
-  "shape": zod.enum(['rectangle', 'round', 'oval', 'trapezoid']),
+  "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
+  "angle": zod.number().min(updateSeatingChartBodyDesksItemAngleMin).max(updateSeatingChartBodyDesksItemAngleMax).optional(),
+  "sides": zod.int().min(updateSeatingChartBodyDesksItemSidesMin).max(updateSeatingChartBodyDesksItemSidesMax).optional(),
   "x": zod.number().min(updateSeatingChartBodyDesksItemXMin).max(updateSeatingChartBodyDesksItemXMax),
   "y": zod.number().min(updateSeatingChartBodyDesksItemYMin).max(updateSeatingChartBodyDesksItemYMax),
   "width": zod.number().min(updateSeatingChartBodyDesksItemWidthMin).max(updateSeatingChartBodyDesksItemWidthMax),
@@ -763,6 +927,12 @@ export const UpdateSeatingChartBody = zod.object({
 })
 
 export const updateSeatingChartResponseDesksItemIdMax = 80;
+
+export const updateSeatingChartResponseDesksItemAngleMin = 25;
+export const updateSeatingChartResponseDesksItemAngleMax = 85;
+
+export const updateSeatingChartResponseDesksItemSidesMin = 3;
+export const updateSeatingChartResponseDesksItemSidesMax = 12;
 
 export const updateSeatingChartResponseDesksItemXMin = 0;
 export const updateSeatingChartResponseDesksItemXMax = 100;
@@ -792,7 +962,9 @@ export const UpdateSeatingChartResponse = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(updateSeatingChartResponseDesksItemIdMax),
-  "shape": zod.enum(['rectangle', 'round', 'oval', 'trapezoid']),
+  "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
+  "angle": zod.number().min(updateSeatingChartResponseDesksItemAngleMin).max(updateSeatingChartResponseDesksItemAngleMax).optional(),
+  "sides": zod.int().min(updateSeatingChartResponseDesksItemSidesMin).max(updateSeatingChartResponseDesksItemSidesMax).optional(),
   "x": zod.number().min(updateSeatingChartResponseDesksItemXMin).max(updateSeatingChartResponseDesksItemXMax),
   "y": zod.number().min(updateSeatingChartResponseDesksItemYMin).max(updateSeatingChartResponseDesksItemYMax),
   "width": zod.number().min(updateSeatingChartResponseDesksItemWidthMin).max(updateSeatingChartResponseDesksItemWidthMax),
@@ -861,6 +1033,12 @@ export const SuggestSeatingPlanBody = zod.object({
 
 export const suggestSeatingPlanResponseDesksItemIdMax = 80;
 
+export const suggestSeatingPlanResponseDesksItemAngleMin = 25;
+export const suggestSeatingPlanResponseDesksItemAngleMax = 85;
+
+export const suggestSeatingPlanResponseDesksItemSidesMin = 3;
+export const suggestSeatingPlanResponseDesksItemSidesMax = 12;
+
 export const suggestSeatingPlanResponseDesksItemXMin = 0;
 export const suggestSeatingPlanResponseDesksItemXMax = 100;
 
@@ -888,7 +1066,9 @@ export const SuggestSeatingPlanResponse = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(suggestSeatingPlanResponseDesksItemIdMax),
-  "shape": zod.enum(['rectangle', 'round', 'oval', 'trapezoid']),
+  "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
+  "angle": zod.number().min(suggestSeatingPlanResponseDesksItemAngleMin).max(suggestSeatingPlanResponseDesksItemAngleMax).optional(),
+  "sides": zod.int().min(suggestSeatingPlanResponseDesksItemSidesMin).max(suggestSeatingPlanResponseDesksItemSidesMax).optional(),
   "x": zod.number().min(suggestSeatingPlanResponseDesksItemXMin).max(suggestSeatingPlanResponseDesksItemXMax),
   "y": zod.number().min(suggestSeatingPlanResponseDesksItemYMin).max(suggestSeatingPlanResponseDesksItemYMax),
   "width": zod.number().min(suggestSeatingPlanResponseDesksItemWidthMin).max(suggestSeatingPlanResponseDesksItemWidthMax),
@@ -1074,6 +1254,7 @@ export const PrefetchResourceMetadataResponse = zod.object({
 /**
  * @summary Search the internet for educational resources matching a query
  */
+export const discoverResourcesQueryLanguageDefault = `en`;
 export const discoverResourcesQueryPageDefault = 1;
 
 export const discoverResourcesQueryResultTypeDefault = `content`;
@@ -1083,6 +1264,7 @@ export const DiscoverResourcesQueryParams = zod.object({
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
+  "language": zod.enum(['any', 'en', 'es', 'fr', 'de', 'pt', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Preferred language for AI search results, or any to avoid restricting language'),
   "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number for paginated results'),
   "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery')
 })
@@ -1222,7 +1404,7 @@ export const GetResourceSourceReviewParams = zod.object({
 export const getResourceSourceReviewQueryModeDefault = `quick`;
 
 export const GetResourceSourceReviewQueryParams = zod.object({
-  "mode": zod.enum(['quick', 'deep']).default(getResourceSourceReviewQueryModeDefault).describe('quick — use model training knowledge only (fast, no web search); deep — use live web search for up-to-date information (slower, thorough)\n')
+  "mode": zod.enum(['quick', 'deep']).default(getResourceSourceReviewQueryModeDefault).describe('quick — use model training knowledge only (fast, no web search); deep — authenticated live web research; cached for 48 hours and subject to daily\/monthly usage limits\n')
 })
 
 export const GetResourceSourceReviewResponse = zod.object({
@@ -1234,9 +1416,23 @@ export const GetResourceSourceReviewResponse = zod.object({
   "trustLevel": zod.enum(['high', 'medium', 'low', 'unknown']),
   "trustReason": zod.string().nullish(),
   "summary": zod.string(),
+  "reputationAnalysis": zod.string().nullish(),
+  "audienceSentiment": zod.string().nullish(),
+  "contentQuality": zod.string().nullish(),
+  "currencyAssessment": zod.string().nullish(),
+  "researchScope": zod.string().nullish(),
+  "strengths": zod.array(zod.string()).optional(),
+  "concerns": zod.array(zod.string()).optional(),
+  "limitations": zod.array(zod.string()).optional(),
   "links": zod.array(zod.object({
   "label": zod.string(),
   "url": zod.string()
+})).optional(),
+  "mentions": zod.array(zod.object({
+  "summary": zod.string(),
+  "url": zod.url(),
+  "sourceType": zod.enum(['forum', 'comments', 'review', 'article', 'social', 'official', 'other']),
+  "sentiment": zod.enum(['positive', 'mixed', 'negative', 'neutral'])
 })).optional(),
   "mode": zod.enum(['quick', 'deep'])
 })
@@ -1263,7 +1459,7 @@ export const ListResourceReviewsResponseItem = zod.object({
   "user": zod.object({
   "id": zod.int(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
   "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
@@ -1304,7 +1500,7 @@ export const CreateResourceReviewResponse = zod.object({
   "user": zod.object({
   "id": zod.int(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
   "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
@@ -1840,7 +2036,7 @@ export const SearchUsersQueryParams = zod.object({
 export const SearchUsersResponseItem = zod.object({
   "id": zod.int(),
   "name": zod.string(),
-  "role": zod.enum(['student', 'teacher']),
+  "role": zod.enum(['student', 'teacher', 'admin']),
   "websiteUrl": zod.string().nullish(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -16,10 +16,14 @@ import {
 } from "lucide-react";
 import {
   getListLearningEvidenceQueryKey,
+  getListLearningGoalsQueryKey,
   useCreateLearningEvidence,
   useGetLearningSignals,
   useGetMe,
   useListLearningEvidence,
+  useListLearningGoals,
+  useUpdateLearningGoal,
+  useGetResourceRecommendations,
   UserRole,
 } from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
@@ -31,22 +35,139 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { getSearchHistory } from "../lib/searchHistory";
+import { getDashboardGoalId, pendingCheckInKey } from "../lib/dashboardGoal";
 
 const path = [
-  ["Fractions as parts of a whole", "Video · 8 min"],
-  ["Equivalent fractions, visually", "Interactive · 12 min"],
-  ["Finding common denominators", "Guided practice · 15 min"],
-  ["Explain your strategy", "Reflection · 5 min"],
+  {
+    title: "Fractions as parts of a whole",
+    concept: "Fractions as parts of a whole",
+    type: "Video · 8 min",
+    query: "fractions as parts of a whole",
+  },
+  {
+    title: "Equivalent fractions, visually",
+    concept: "Equivalent fractions",
+    type: "Interactive · 12 min",
+    query: "equivalent fractions visual interactive",
+  },
+  {
+    title: "Finding common denominators",
+    concept: "Common denominators",
+    type: "Guided practice · 15 min",
+    query: "finding common denominators guided practice",
+  },
+  {
+    title: "Explain your strategy",
+    concept: "Fraction strategy",
+    type: "Reflection · 5 min",
+    query: "explaining fraction strategies reflection",
+  },
 ] as const;
 
-function StudentView({ name }: { name?: string }) {
+function resourceSearch(query: string) {
+  return `/resources?goal=${encodeURIComponent(query)}&subject=Mathematics`;
+}
+
+const checkIns = [
+  {
+    concept: "Equivalent fractions",
+    prompt: "How confident are you explaining why 1/2 and 2/4 are equal?",
+  },
+  {
+    concept: "Fractions as parts of a whole",
+    prompt: "How confident are you showing a fraction as part of a whole?",
+  },
+  {
+    concept: "Common denominators",
+    prompt: "How confident are you finding a common denominator?",
+  },
+  {
+    concept: "Fraction strategy",
+    prompt: "How confident are you explaining the strategy you used?",
+  },
+] as const;
+
+function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: number; workspaceRole?: string }) {
   const [why, setWhy] = useState(true);
   const [confidence, setConfidence] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
-  const { data: evidence } = useListLearningEvidence();
+  const { data: evidence, isLoading: evidenceLoading } =
+    useListLearningEvidence();
   const createEvidence = useCreateLearningEvidence();
+  const { data: goals } = useListLearningGoals({
+    query: { queryKey: getListLearningGoalsQueryKey() },
+  });
+  const updateGoal = useUpdateLearningGoal();
+  const selectedGoalId = getDashboardGoalId(userId, workspaceRole);
+  const activeGoal =
+    goals?.find((goal) => goal.id === selectedGoalId) ??
+    goals?.find((goal) => goal.status === "active") ??
+    goals?.[0];
+  const path =
+    activeGoal?.pathSteps.map((step) => ({
+      ...step,
+      concept: step.id,
+      type: "Checklist step",
+    })) ?? [];
   const latest = evidence?.[0];
+  const completedSteps = new Set(
+    path.filter((step) => step.completed).map((step) => step.concept),
+  );
+  const progress = path.length ? (completedSteps.size / path.length) * 100 : 0;
+  async function togglePathStep(stepId: string) {
+    if (!activeGoal) return;
+    await updateGoal.mutateAsync({
+      id: activeGoal.id,
+      data: {
+        pathSteps: activeGoal.pathSteps.map((step) =>
+          step.id === stepId ? { ...step, completed: !step.completed } : step,
+        ),
+      },
+    });
+    await queryClient.invalidateQueries({
+      queryKey: getListLearningGoalsQueryKey(),
+    });
+  }
+  const nextStepIndex = path.findIndex(
+    (step) => !completedSteps.has(step.concept),
+  );
+  const recentSearch = getSearchHistory(userId)[0]?.query.toLocaleLowerCase();
+  const { data: verifiedRecommendations } = useGetResourceRecommendations();
+  const searchTerms = recentSearch?.split(/\s+/).filter(Boolean) ?? [];
+  const recommendation =
+    verifiedRecommendations?.find((resource) => {
+      const searchable = [
+        resource.title,
+        resource.description,
+        resource.subject,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase();
+      return searchTerms.some((term) => searchable.includes(term));
+    }) ?? verifiedRecommendations?.[0];
+  const goalEvidence = evidence?.filter((item) => item.learningGoalId === activeGoal?.id) ?? [];
+  const answeredCount = goalEvidence.length;
+  const [checkIn, setCheckIn] = useState<{ concept: string; prompt: string } | null>(null);
+  const [needsContinuation, setNeedsContinuation] = useState(false);
+  const [answeredThisVisit, setAnsweredThisVisit] = useState(false);
+  function createNextCheckIn() {
+    if (!activeGoal || !userId || !workspaceRole) return;
+    const step = activeGoal.pathSteps[answeredCount % Math.max(activeGoal.pathSteps.length, 1)];
+    const next = step ? { concept: step.title, prompt: `How confident are you with “${step.title}”?` } : { concept: activeGoal.title, prompt: `How confident are you that you achieved “${activeGoal.title}”?` };
+    localStorage.setItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id), JSON.stringify(next));
+    setCheckIn(next);
+    setNeedsContinuation(false);
+  }
+  useEffect(() => {
+    setConfidence(null); setAnsweredThisVisit(false); setCheckIn(null); setNeedsContinuation(false);
+    if (!activeGoal || !userId || !workspaceRole || evidence === undefined) return;
+    const saved = localStorage.getItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id));
+    if (saved) { try { setCheckIn(JSON.parse(saved)); return; } catch { localStorage.removeItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id)); } }
+    if (answeredCount > 0 && answeredCount % 5 === 0) setNeedsContinuation(true); else createNextCheckIn();
+  }, [activeGoal?.id, evidence === undefined]);
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -67,7 +188,7 @@ function StudentView({ name }: { name?: string }) {
           {latest
             ? `${Math.round((latest.understanding / 4) * 100)}%`
             : "No"}{" "}
-          mastery evidence · Fractions
+          mastery evidence · {activeGoal?.subject ?? "No active goal"}
         </Badge>
       </header>
       <section className="grid gap-5 lg:grid-cols-[1.5fr_.7fr]">
@@ -81,10 +202,12 @@ function StudentView({ name }: { name?: string }) {
               <div>
                 <Badge>Recommended next</Badge>
                 <h2 className="mt-2 text-2xl font-bold">
-                  Equivalent fractions, visually
+                  {recommendation?.title ?? "No recommendation available yet"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Interactive · 12 min · Khan Academy
+                  {recommendation
+                    ? `${recommendation.format} · Recommended from your learning activity`
+                    : "Search or save resources to improve recommendations"}
                 </p>
               </div>
             </div>
@@ -97,10 +220,9 @@ function StudentView({ name }: { name?: string }) {
                 <b className="text-sm">Why this resource?</b>
                 {why && (
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Your last checkpoint showed uncertainty when two fractions
-                    look different but have the same value. This visual activity
-                    targets that exact gap and matches your preference for
-                    interactive practice.
+                    This recommendation is based on your recent searches, saved
+                    resources, and progress toward{" "}
+                    {activeGoal?.title ?? "your next learning goal"}.
                   </p>
                 )}
               </div>
@@ -108,9 +230,15 @@ function StudentView({ name }: { name?: string }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="flex gap-2 text-sm text-muted-foreground">
                 <Target size={16} />
-                Goal: Add and subtract fractions confidently
+                Goal: {activeGoal?.title ?? "Create a goal to build your path"}
               </span>
-              <Button onClick={() => setLocation("/resources?q=equivalent+fractions")}>
+              <Button
+                disabled={!recommendation}
+                onClick={() =>
+                  recommendation &&
+                  setLocation(`/resources/${recommendation.id}`)
+                }
+              >
                 Continue learning
                 <ArrowRight size={16} className="ml-2" />
               </Button>
@@ -128,42 +256,42 @@ function StudentView({ name }: { name?: string }) {
                 </p>
               </div>
             </div>
-            <p className="mb-4 text-sm">
-              How confident are you explaining why 1/2 and 2/4 are equal?
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              {["Not yet", "Almost", "I can"].map((x, i) => (
-                <button
-                  key={x}
-                  disabled={createEvidence.isPending}
-                  onClick={async () => {
-                    setConfidence(i);
-                    await createEvidence.mutateAsync({
-                      data: {
-                        concept: "Equivalent fractions",
-                        confidence: i + 1,
-                        understanding: i === 0 ? 1 : i === 1 ? 2 : 4,
-                        reflection: x,
-                      },
-                    });
-                    await queryClient.invalidateQueries({
-                      queryKey: getListLearningEvidenceQueryKey(),
-                    });
-                  }}
-                  className={cn(
-                    "rounded-lg border p-3 text-xs font-semibold",
-                    confidence === i && "bg-primary text-primary-foreground",
-                  )}
-                >
-                  {x}
-                </button>
-              ))}
-            </div>
-            {confidence !== null && (
-              <p className="mt-4 flex gap-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800">
-                <Check size={15} />
-                Saved as learning evidence. Your path will adapt.
-              </p>
+            {needsContinuation ? (
+              <div className="space-y-3">
+                <p className="text-sm">You have completed five check-ins for <b>{activeGoal?.title}</b>. Would you like to continue check-ins for this goal?</p>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={createNextCheckIn}>Continue check-ins</Button>
+                  <Button size="sm" variant="outline" onClick={() => setNeedsContinuation(false)}>Not now</Button>
+                </div>
+              </div>
+            ) : checkIn ? (
+              <>
+                <p className="mb-4 text-sm">{checkIn.prompt}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {["Not yet", "Almost", "I can"].map((x, i) => (
+                    <button
+                      key={x}
+                      disabled={createEvidence.isPending || !activeGoal || answeredThisVisit}
+                      onClick={async () => {
+                        if (!activeGoal || !userId || !workspaceRole) return;
+                        try {
+                          await createEvidence.mutateAsync({ data: { learningGoalId: activeGoal.id, concept: checkIn.concept, confidence: i + 1, understanding: i === 0 ? 1 : i === 1 ? 2 : 4, reflection: x } });
+                          localStorage.removeItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id));
+                          setConfidence(i);
+                          setAnsweredThisVisit(true);
+                          await queryClient.invalidateQueries({ queryKey: getListLearningEvidenceQueryKey() });
+                        } catch (error) {
+                          toast({ title: "Could not save check-in", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+                        }
+                      }}
+                      className={cn("rounded-lg border p-3 text-xs font-semibold", confidence === i && "bg-primary text-primary-foreground")}
+                    >{x}</button>
+                  ))}
+                </div>
+                {confidence !== null && <p className="mt-4 flex gap-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800"><Check size={15} />Saved as learning evidence. A new check-in will appear next time you open the dashboard.</p>}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Check-ins are paused for this goal. Reopen the dashboard later or select another goal.</p>
             )}
           </CardContent>
         </Card>
@@ -178,33 +306,68 @@ function StudentView({ name }: { name?: string }) {
                   Built around your goal and updated as you learn.
                 </p>
               </div>
-              <b className="text-sm text-primary">1 of 4 complete</b>
+              <b className="text-sm text-primary">
+                {evidenceLoading
+                  ? "Loading progress…"
+                  : `${completedSteps.size} of ${path.length} complete`}
+              </b>
             </div>
-            <Progress value={25} className="mb-5 h-2" />
-            {path.map(([title, type], i) => (
-              <div
-                key={title}
-                className={cn(
-                  "flex items-center gap-4 rounded-xl p-3",
-                  i === 1 && "bg-primary/[.06]",
-                )}
-              >
-                <div
+            <Progress
+              value={evidenceLoading ? 0 : progress}
+              className="mb-5 h-2"
+            />
+            {path.length === 0 && (
+              <div className="rounded-xl border border-dashed p-8 text-center">
+                <Target className="mx-auto mb-2 text-muted-foreground" />
+                <p className="font-medium">Your path is empty</p>
+                <p className="text-sm text-muted-foreground">
+                  Create a goal to build your first checklist.
+                </p>
+                <Button
+                  className="mt-3"
+                  variant="outline"
+                  onClick={() => setLocation("/goals")}
+                >
+                  Set a goal
+                </Button>
+              </div>
+            )}
+            {path.map((step, i) => {
+              const isComplete = completedSteps.has(step.concept);
+              const isNext = !isComplete && i === nextStepIndex;
+              return (
+                <button
+                  key={step.title}
+                  type="button"
+                  onClick={() => togglePathStep(step.id)}
                   className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold",
-                    i === 0 && "bg-emerald-600 text-white",
-                    i === 1 && "bg-primary text-primary-foreground",
+                    "flex w-full items-center gap-4 rounded-xl p-3 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    isNext && "bg-primary/[.06]",
                   )}
                 >
-                  {i === 0 ? <Check size={15} /> : i + 1}
-                </div>
-                <div className="flex-1">
-                  <b className="text-sm">{title}</b>
-                  <p className="text-xs text-muted-foreground">{type}</p>
-                </div>
-                {i === 1 && <Badge variant="outline">In progress</Badge>}
-              </div>
-            ))}
+                  <div
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold",
+                      isComplete && "bg-emerald-600 text-white",
+                      isNext && "bg-primary text-primary-foreground",
+                    )}
+                  >
+                    {isComplete ? <Check size={15} /> : i + 1}
+                  </div>
+                  <div className="flex-1">
+                    <b className="text-sm">{step.title}</b>
+                    <p className="text-xs text-muted-foreground">{step.type}</p>
+                  </div>
+                  {isComplete ? (
+                    <Badge variant="outline">Complete</Badge>
+                  ) : (
+                    <span className="flex items-center text-xs font-medium text-primary">
+                      Mark complete
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </CardContent>
         </Card>
         <Card>
@@ -232,7 +395,7 @@ function StudentView({ name }: { name?: string }) {
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => setLocation("/resources?subject=Mathematics")}
+              onClick={() => setLocation("/classes")}
             >
               Explore class map
             </Button>
@@ -285,7 +448,10 @@ function TeacherView({ name }: { name?: string }) {
     ) ?? 0;
 
   function comingSoon(feature: string) {
-    toast({ title: `${feature} — coming soon`, description: "This feature is on the roadmap." });
+    toast({
+      title: `${feature} — coming soon`,
+      description: "This feature is on the roadmap.",
+    });
   }
 
   return (
@@ -441,9 +607,9 @@ export default function AdaptiveDashboardPage() {
         <Skeleton className="h-80 w-full" />
       </div>
     );
-  return me?.role === UserRole.teacher ? (
+  return me && (me?.activeRole ?? me?.role) === UserRole.teacher ? (
     <TeacherView name={me.name} />
   ) : (
-    <StudentView name={me?.name} />
+    <StudentView name={me?.name} userId={me?.id} workspaceRole={me?.activeRole ?? me?.role} />
   );
 }

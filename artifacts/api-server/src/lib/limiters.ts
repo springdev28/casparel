@@ -1,5 +1,6 @@
 import rateLimit from "express-rate-limit";
 import { buildRateLimitStore } from "./rateLimitStore";
+import { isAdminRequest } from "./adminAccess";
 
 /**
  * Global API limiter — 100 requests per minute per IP.
@@ -28,6 +29,7 @@ export const globalLimiter = rateLimit({
  * on every request, making it expensive to abuse.
  */
 export const discoverLimiter = rateLimit({
+  skip: isAdminRequest,
   requestPropertyName: "discoverRateLimit",
   validate: { singleCount: false },
   windowMs: 60 * 1000,

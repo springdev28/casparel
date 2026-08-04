@@ -9,7 +9,7 @@ import type { GetResourceSourceReviewMode } from './getResourceSourceReviewMode'
 
 export type GetResourceSourceReviewParams = {
 /**
- * quick — use model training knowledge only (fast, no web search); deep — use live web search for up-to-date information (slower, thorough)
+ * quick — use model training knowledge only (fast, no web search); deep — authenticated live web research; cached for 48 hours and subject to daily/monthly usage limits
  */
 mode?: GetResourceSourceReviewMode;
 };

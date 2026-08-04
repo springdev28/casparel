@@ -8,6 +8,7 @@
 import type { LearningGoalPatchLevel } from './learningGoalPatchLevel';
 import type { LearningGoalPatchPreferredFormatsItem } from './learningGoalPatchPreferredFormatsItem';
 import type { LearningGoalPatchStatus } from './learningGoalPatchStatus';
+import type { LearningPathStep } from './learningPathStep';
 
 export interface LearningGoalPatch {
   /**
@@ -34,4 +35,6 @@ export interface LearningGoalPatch {
   /** @nullable */
   targetDate?: Date | null;
   status?: LearningGoalPatchStatus;
+  /** @maxItems 20 */
+  pathSteps?: LearningPathStep[];
 }

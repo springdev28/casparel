@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
@@ -14,10 +14,16 @@ import {
   UserCog,
   User,
   Bell,
+  Gauge,
+  ShieldCheck,
+  ChevronDown,
+  ChevronRight,
+  Check,
 } from "lucide-react";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
+import { Input } from "@workspace/edu-ds/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -31,19 +37,27 @@ import {
   useGetGCAuthUrl,
   useDisconnectGoogle,
   useSwitchRole,
-  getGetMeQueryKey,
   getGetGCStatusQueryKey,
   getGetGCAuthUrlQueryKey,
   UserRole,
   RoleSwitchInputRole,
   useGetRecentActivity,
+  useGetMyUsage,
+  getGetMyUsageQueryKey,
+  getListLearningGoalsQueryKey,
+  useListLearningGoals,
+  useUpdateLearningGoal,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import ThemeCustomizer from "./ThemeCustomizer";
 import { AuthLanguageSelect } from "./AuthLanguageSelect";
 import { useAuthLanguage } from "../lib/auth-locale";
-import { Popover, PopoverContent, PopoverTrigger } from "@workspace/edu-ds/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/edu-ds/components/ui/popover";
 import BrandIcon from "./BrandIcon";
 
 const TOKEN_KEY = "schoolar_token";
@@ -69,12 +83,26 @@ interface AppShellProps {
 }
 
 export default function AppShell({ children }: AppShellProps) {
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const queryClient = useQueryClient();
   const { data: me, isLoading: meLoading } = useGetMe();
   const { language, setLanguage, copy } = useAuthLanguage();
   const { data: notifications } = useGetRecentActivity();
-  const isTeacher = me?.role === UserRole.teacher;
+  const { data: accountUsage } = useGetMyUsage({
+    query: { enabled: Boolean(me), refetchInterval: 30_000, queryKey: getGetMyUsageQueryKey() },
+  });
+  const { data: sidebarGoals } = useListLearningGoals({ query: { enabled: Boolean(me), queryKey: getListLearningGoalsQueryKey() } });
+  const updateSidebarGoal = useUpdateLearningGoal();
+  const [expandedPaths, setExpandedPaths] = useState<number[]>([]);
+  async function updatePath(goal: NonNullable<typeof sidebarGoals>[number], pathSteps: typeof goal.pathSteps) {
+    await updateSidebarGoal.mutateAsync({ id: goal.id, data: { pathSteps } });
+    await queryClient.invalidateQueries({ queryKey: getListLearningGoalsQueryKey() });
+  }
+  const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
+  const isAdmin = me?.role === UserRole.admin;
+  const navItems = isAdmin
+    ? [...NAV_ITEMS, { label: "Admin", href: "/admin", icon: ShieldCheck }]
+    : NAV_ITEMS;
 
   // Real Google Classroom status — only fetched for teachers
   const { data: gcStatus, isLoading: gcStatusLoading } = useGetGCStatus({
@@ -102,7 +130,10 @@ export default function AppShell({ children }: AppShellProps) {
 
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
-    setLocation("/resources");
+    queryClient.clear();
+    const configuredBase = import.meta.env.BASE_URL;
+    const basePath = configuredBase.endsWith("/") ? configuredBase.slice(0, -1) : configuredBase;
+    window.location.assign(basePath + "/resources");
   }
 
   async function handleGcConnect() {
@@ -138,15 +169,8 @@ export default function AppShell({ children }: AppShellProps) {
       });
       // Store the fresh token so subsequent requests carry the new role
       localStorage.setItem(TOKEN_KEY, result.token);
-      // Invalidate the me query so all role-conditional UI re-renders
-      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-      toast({
-        title: `Switched to ${newRole} mode`,
-        description:
-          newRole === "teacher"
-            ? "Teacher tools are now active."
-            : "Student view is now active.",
-      });
+      // Reload the current URL so every role-dependent query and component starts fresh.
+      window.location.reload();
     } catch {
       toast({
         title: "Error",
@@ -205,7 +229,7 @@ export default function AppShell({ children }: AppShellProps) {
     <div className="flex items-center gap-2 w-full" data-testid="role-switcher">
       <UserCog size={13} className="text-primary-foreground/60 shrink-0" />
       <Select
-        value={me.role}
+        value={me.activeRole ?? (me.role === UserRole.teacher ? RoleSwitchInputRole.teacher : RoleSwitchInputRole.student)}
         onValueChange={handleRoleSwitch}
         disabled={switchRoleMutation.isPending}
       >
@@ -242,7 +266,7 @@ export default function AppShell({ children }: AppShellProps) {
             className="flex-1 py-4 px-3 space-y-1"
             aria-label="Main navigation"
           >
-            {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
+            {navItems.map(({ label, href, icon: Icon }) => {
               const isActive =
                 location === href || location.startsWith(href + "/");
               const displayLabel =
@@ -267,6 +291,29 @@ export default function AppShell({ children }: AppShellProps) {
               );
             })}
           </nav>
+          <section className="border-t border-primary-foreground/20 px-3 py-3" data-testid="sidebar-paths">
+            <div className="mb-2 flex items-center justify-between px-2">
+              <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"><Target size={14} /> Paths</span>
+              <Link href="/goals" className="text-[10px] text-primary-foreground/70 hover:underline">Edit all</Link>
+            </div>
+            <div className="max-h-56 space-y-1 overflow-y-auto">
+              {sidebarGoals?.filter((goal) => goal.status === "active").map((goal) => {
+                const expanded = expandedPaths.includes(goal.id);
+                return <div key={goal.id} className="rounded-md bg-primary-foreground/10">
+                  <button type="button" className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs font-medium" onClick={() => setExpandedPaths((current) => expanded ? current.filter((id) => id !== goal.id) : [...current, goal.id])}>
+                    {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<span className="min-w-0 flex-1 truncate">{goal.title}</span><span className="text-[10px] text-primary-foreground/60">{goal.pathSteps.filter((step) => step.completed).length}/{goal.pathSteps.length}</span>
+                  </button>
+                  {expanded && <div className="space-y-1 px-2 pb-2">
+                    {goal.pathSteps.map((step) => <div key={step.id} className="flex items-center gap-1.5">
+                      <button type="button" aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`} className={cn("flex size-5 shrink-0 items-center justify-center rounded border border-primary-foreground/40", step.completed && "bg-emerald-500 text-white")} onClick={() => updatePath(goal, goal.pathSteps.map((item) => item.id === step.id ? { ...item, completed: !item.completed } : item))}>{step.completed && <Check size={12} />}</button>
+                      <Input defaultValue={step.title} aria-label={`Edit ${step.title}`} className={cn("h-7 border-primary-foreground/25 bg-transparent px-2 text-[11px] text-primary-foreground", step.completed && "line-through opacity-65")} onBlur={(event) => { const title = event.currentTarget.value.trim(); if (title && title !== step.title) updatePath(goal, goal.pathSteps.map((item) => item.id === step.id ? { ...item, title } : item)); }} />
+                    </div>)}
+                  </div>}
+                </div>;
+              })}
+              {sidebarGoals && !sidebarGoals.some((goal) => goal.status === "active") && <Link href="/goals" className="block rounded-md px-2 py-2 text-xs text-primary-foreground/65 hover:bg-primary-foreground/10">Resume a goal to show its path.</Link>}
+            </div>
+          </section>
 
           {/* Footer */}
           <div className="px-4 py-4 border-t border-primary-foreground/20 space-y-2">
@@ -302,6 +349,20 @@ export default function AppShell({ children }: AppShellProps) {
               </Link>
             ) : null}
 
+            {me ? (
+              <div className="rounded-lg border border-primary-foreground/20 bg-primary-foreground/10 p-3" data-testid="sidebar-plan-usage">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold"><Gauge size={13} /> Current plan</span>
+                  <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-semibold">{accountUsage?.plan ?? (isAdmin ? "Administrator" : "Free")}</span>
+                </div>
+                <div className="space-y-2 text-[11px] text-primary-foreground/75">
+                  <div><div className="flex justify-between"><span>AI search</span><span>{accountUsage?.unlimited ? "Unlimited" : String(accountUsage?.aiSearch.used ?? 0) + " / " + String(accountUsage?.aiSearch.limit ?? 20)}</span></div>{!accountUsage?.unlimited ? <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15"><div className="h-full rounded bg-primary-foreground/70" style={{ width: Math.min(100, ((accountUsage?.aiSearch.used ?? 0) / (accountUsage?.aiSearch.limit ?? 20)) * 100) + "%" }} /></div> : null}</div>
+                  <div><div className="flex justify-between"><span>Deep research</span><span>{accountUsage?.unlimited ? "Unlimited" : String(accountUsage?.deepResearch.used ?? 0) + " / " + String(accountUsage?.deepResearch.limit ?? 2)}</span></div>{!accountUsage?.unlimited ? <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15"><div className="h-full rounded bg-primary-foreground/70" style={{ width: Math.min(100, ((accountUsage?.deepResearch.used ?? 0) / (accountUsage?.deepResearch.limit ?? 2)) * 100) + "%" }} /></div> : null}</div>
+                </div>
+                {!accountUsage?.unlimited ? <p className="mt-2 text-[10px] text-primary-foreground/55">Search resets hourly · Research resets daily</p> : null}
+              </div>
+            ) : null}
+
             {/* Role switcher */}
             {roleSwitcher}
 
@@ -322,6 +383,7 @@ export default function AppShell({ children }: AppShellProps) {
               />
             </div>
             <ThemeCustomizer
+              accountId={me?.id}
               showLabel
               className="w-full justify-start text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 px-2"
             />
@@ -351,7 +413,7 @@ export default function AppShell({ children }: AppShellProps) {
             className="ml-2 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
             aria-label="Mobile navigation"
           >
-            {NAV_ITEMS.map(({ label, href, icon: Icon }) => {
+            {navItems.map(({ label, href, icon: Icon }) => {
               const isActive =
                 location === href || location.startsWith(href + "/");
               const displayLabel =
@@ -376,14 +438,14 @@ export default function AppShell({ children }: AppShellProps) {
             {/* Mobile role switcher — compact icon+select */}
             {me && (
               <Select
-                value={me.role}
+                value={me.activeRole ?? (me.role === UserRole.teacher ? RoleSwitchInputRole.teacher : RoleSwitchInputRole.student)}
                 onValueChange={handleRoleSwitch}
                 disabled={switchRoleMutation.isPending}
               >
                 <SelectTrigger
                   className="h-8 w-8 p-0 bg-transparent border-none text-primary-foreground/70 hover:bg-primary-foreground/10 focus:ring-0 focus:ring-offset-0 [&>svg]:hidden"
                   data-testid="mobile-role-select"
-                  title={`Current role: ${me.role}`}
+                  title={`Current role: ${me.activeRole ?? me.role}`}
                 >
                   <UserCog size={18} />
                 </SelectTrigger>
@@ -397,7 +459,10 @@ export default function AppShell({ children }: AppShellProps) {
                 </SelectContent>
               </Select>
             )}
-            <ThemeCustomizer className="text-primary-foreground/70 hover:bg-primary-foreground/10" />
+            <ThemeCustomizer
+              accountId={me?.id}
+              className="text-primary-foreground/70 hover:bg-primary-foreground/10"
+            />
             <button
               onClick={handleLogout}
               className="p-2 rounded-md text-primary-foreground/70 hover:bg-primary-foreground/10"
@@ -410,23 +475,61 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Main content */}
         <main className="flex-1 min-w-0 bg-background overflow-auto md:pt-0 pt-14">
-          <div className="sticky top-0 z-40 flex h-12 items-center justify-end border-b bg-background/95 px-4 backdrop-blur" data-testid="notification-bar">
+          <div
+            className="sticky top-0 z-40 flex h-12 items-center justify-end border-b bg-background/95 px-4 backdrop-blur"
+            data-testid="notification-bar"
+          >
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm" className="relative" aria-label="Notifications" data-testid="notifications-button">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="relative"
+                  aria-label="Notifications"
+                  data-testid="notifications-button"
+                >
                   <Bell size={18} />
-                  {notifications?.some((item) => item.type === "schedule") && <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />}
+                  {notifications?.some((item) => item.type === "schedule") && (
+                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-80 p-0">
-                <div className="border-b p-3"><b className="text-sm">{language === "tr" ? "Bildirimler" : "Notifications"}</b><p className="text-xs text-muted-foreground">{language === "tr" ? "Davetler ve program güncellemeleri" : "Invitations and schedule updates"}</p></div>
+                <div className="border-b p-3">
+                  <b className="text-sm">
+                    {language === "tr" ? "Bildirimler" : "Notifications"}
+                  </b>
+                  <p className="text-xs text-muted-foreground">
+                    {language === "tr"
+                      ? "Davetler ve program güncellemeleri"
+                      : "Invitations and schedule updates"}
+                  </p>
+                </div>
                 <div className="max-h-80 overflow-y-auto p-2">
-                  {!notifications?.length ? <p className="p-4 text-center text-sm text-muted-foreground">{language === "tr" ? "Yeni bildirim yok" : "No updates yet"}</p> : notifications.map((item) => (
-                    <Link key={item.id} href={item.type === "schedule" ? "/schedule" : "/dashboard"} className="block rounded-lg p-3 hover:bg-muted">
-                      <p className="text-sm">{item.message}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString(language === "tr" ? "tr-TR" : undefined)}</p>
-                    </Link>
-                  ))}
+                  {!notifications?.length ? (
+                    <p className="p-4 text-center text-sm text-muted-foreground">
+                      {language === "tr"
+                        ? "Yeni bildirim yok"
+                        : "No updates yet"}
+                    </p>
+                  ) : (
+                    notifications.map((item) => (
+                      <Link
+                        key={item.id}
+                        href={
+                          item.type === "schedule" ? "/schedule" : "/dashboard"
+                        }
+                        className="block rounded-lg p-3 hover:bg-muted"
+                      >
+                        <p className="text-sm">{item.message}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {new Date(item.createdAt).toLocaleString(
+                            language === "tr" ? "tr-TR" : undefined,
+                          )}
+                        </p>
+                      </Link>
+                    ))
+                  )}
                 </div>
               </PopoverContent>
             </Popover>

@@ -85,6 +85,69 @@
       "when": 1786733940675,
       "tag": "0011_illegal_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786820340675,
+      "tag": "0012_fix_khan_quadratics_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786906740675,
+      "tag": "0013_mean_jack_murdock",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786993140675,
+      "tag": "0014_glossy_shiver_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1787079540675,
+      "tag": "0015_bumpy_elektra",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787165940675,
+      "tag": "0016_nifty_groot",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787252340675,
+      "tag": "0017_stiff_greymalkin",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787338740675,
+      "tag": "0018_dry_tempest",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787425140675,
+      "tag": "0019_restore_legacy_role_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787511540675,
+      "tag": "0020_split_shared_goals",
+      "breakpoints": true
     }
   ]
 }

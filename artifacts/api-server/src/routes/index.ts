@@ -13,6 +13,7 @@ import googleClassroomRouter from "./googleClassroom";
 import calendarRouter from "./calendar";
 import learningGoalsRouter from "./learningGoals";
 import learningEvidenceRouter from "./learningEvidence";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(googleClassroomRouter);
 router.use(calendarRouter);
 router.use(learningGoalsRouter);
 router.use(learningEvidenceRouter);
+router.use(adminRouter);
 
 export default router;

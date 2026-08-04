@@ -1,20 +1,23 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, ilike, inArray, ne, sql } from "drizzle-orm";
+import { eq, and, or, ilike, inArray, ne, sql, desc } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
-import { db, usersTable, classMembersTable, userBlocksTable, userReportsTable } from "@workspace/db";
+import { db, pool, usersTable, classMembersTable, userBlocksTable, userReportsTable, resourcesTable, resourceListsTable } from "@workspace/db";
 import {
   RegisterBody,
   LoginBody,
   RegisterResponse,
   LoginResponse,
   GetMeResponse,
+  GetMyUsageResponse,
   UpdateMeBody,
   UpdateMeResponse,
   SwitchRoleBody,
   SwitchRoleResponse,
   GetPublicProfileParams,
   GetPublicProfileResponse,
+  GetUserLibraryParams,
+  GetUserLibraryResponse,
   UploadAvatarResponse,
   SetPresetAvatarBody,
   SetPresetAvatarResponse,
@@ -22,6 +25,7 @@ import {
   GetUserSafetyStatusParams, GetUserSafetyStatusResponse, BlockUserParams, BlockUserResponse, UnblockUserParams, ReportUserParams, ReportUserBody, ReportUserResponse,
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
+import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { buildRateLimitStore } from "../lib/rateLimitStore";
@@ -116,7 +120,7 @@ router.post("/auth/register", authRateLimiter, async (req, res): Promise<void> =
     .insert(usersTable)
     .values({ email, passwordHash, name, role })
     .returning();
-  const token = issueToken(user.id, user.role);
+  const token = issueToken(user.id, user.role, user.activeRole);
   res.status(201).json(RegisterResponse.parse({ user, token }));
 });
 
@@ -138,8 +142,12 @@ router.post("/auth/login", authRateLimiter, async (req, res): Promise<void> => {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
-  const token = issueToken(user.id, user.role);
-  res.json(LoginResponse.parse({ user, token }));
+  let loggedInUser = user;
+  if (user.role !== "admin" && isAllowlistedAdminEmail(user.email)) {
+    [loggedInUser] = await db.update(usersTable).set({ role: "admin" }).where(eq(usersTable.id, user.id)).returning();
+  }
+  const token = issueToken(loggedInUser.id, loggedInUser.role, loggedInUser.activeRole);
+  res.json(LoginResponse.parse({ user: loggedInUser, token }));
 });
 
 // POST /auth/logout
@@ -156,6 +164,25 @@ router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   res.json(GetMeResponse.parse(user));
+});
+
+// GET /users/me/usage
+router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
+  const { userId, accountRole } = req as AuthenticatedRequest;
+  const unlimited = accountRole === "admin";
+  const result = await pool.query<{ key: string; hits: number }>(
+    `SELECT key, CASE WHEN reset_time > NOW() THEN hits ELSE 0 END AS hits
+     FROM rate_limit_hits WHERE key = ANY($1::text[])`,
+    [["ai-search-hourly:user:" + userId, "deep-user-day:" + userId]],
+  );
+  const usage = new Map(result.rows.map((row) => [row.key, Number(row.hits)]));
+  const searchLimit = Number(process.env.AI_SEARCH_HOURLY_LIMIT ?? 20);
+  res.json(GetMyUsageResponse.parse({
+    plan: unlimited ? "Administrator" : "Free",
+    unlimited,
+    aiSearch: { used: usage.get("ai-search-hourly:user:" + userId) ?? 0, limit: unlimited ? null : searchLimit, window: "hour" },
+    deepResearch: { used: usage.get("deep-user-day:" + userId) ?? 0, limit: unlimited ? null : 2, window: "day" },
+  }));
 });
 
 // PATCH /users/me
@@ -180,7 +207,7 @@ router.patch("/users/me", contentLimiter, requireAuth, async (req, res): Promise
 
 // PATCH /users/me/role
 router.patch("/users/me/role", contentLimiter, requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, accountRole } = req as AuthenticatedRequest;
   const parsed = SwitchRoleBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -188,10 +215,12 @@ router.patch("/users/me/role", contentLimiter, requireAuth, async (req, res): Pr
   }
   const [user] = await db
     .update(usersTable)
-    .set({ role: parsed.data.role, gradeOrDept: null })
+    .set(accountRole === "admin"
+      ? { activeRole: parsed.data.role }
+      : { role: parsed.data.role, activeRole: parsed.data.role, gradeOrDept: null })
     .where(eq(usersTable.id, userId))
     .returning();
-  const token = issueToken(user.id, user.role);
+  const token = issueToken(user.id, user.role, user.activeRole);
   res.json(SwitchRoleResponse.parse({ user, token }));
 });
 
@@ -246,8 +275,8 @@ type PrivacyUser = Pick<typeof usersTable.$inferSelect, "id" | "name" | "role" |
 
 const privacyUserSelection = { id: usersTable.id, name: usersTable.name, role: usersTable.role, avatarUrl: usersTable.avatarUrl, bio: usersTable.bio, subjects: usersTable.subjects, gradeOrDept: usersTable.gradeOrDept, websiteUrl: usersTable.websiteUrl, profileVisibility: usersTable.profileVisibility, showBio: usersTable.showBio, showSubjects: usersTable.showSubjects, showGradeOrDept: usersTable.showGradeOrDept, showWebsite: usersTable.showWebsite };
 
-function maskPublicUser(user: PrivacyUser) {
-  return { id: user.id, name: user.name, role: user.role, avatarUrl: user.avatarUrl, bio: user.showBio ? user.bio : null, subjects: user.showSubjects ? user.subjects : null, gradeOrDept: user.showGradeOrDept ? user.gradeOrDept : null, websiteUrl: user.showWebsite ? user.websiteUrl : null };
+function maskPublicUser(user: PrivacyUser, revealAll = false) {
+  return { id: user.id, name: user.name, role: user.role, avatarUrl: user.avatarUrl, bio: revealAll || user.showBio ? user.bio : null, subjects: revealAll || user.showSubjects ? user.subjects : null, gradeOrDept: revealAll || user.showGradeOrDept ? user.gradeOrDept : null, websiteUrl: revealAll || user.showWebsite ? user.websiteUrl : null };
 }
 
 async function sharesClass(firstUserId: number, secondUserId: number): Promise<boolean> {
@@ -264,19 +293,21 @@ async function blockedIdsFor(userId: number): Promise<Set<number>> {
 
 // GET /users/search — shared classmates by default; opt-in profile discovery with scope=all
 router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, accountRole } = req as AuthenticatedRequest;
+  const isAdmin = accountRole === "admin";
   const parsed = SearchUsersQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
   const { q = "", classId, scope = "shared", role, subject = "", limit = 24, offset = 0 } = parsed.data;
-  const blockedIds = await blockedIdsFor(userId);
+  const blockedIds = isAdmin ? new Set<number>() : await blockedIdsFor(userId);
   const searchTerm = q.trim().replace(/\s+/g, " ");
   const subjectTerm = subject.trim();
 
-  if (scope === "all") {
-    const conditions = [ne(usersTable.id, userId), eq(usersTable.profileVisibility, "everyone" as const)];
+  if (scope === "all" || isAdmin) {
+    const conditions = [ne(usersTable.id, userId)];
+    if (!isAdmin) conditions.push(eq(usersTable.profileVisibility, "everyone" as const));
     if (role) conditions.push(eq(usersTable.role, role));
     if (searchTerm) {
       const pattern = `%${searchTerm}%`;
@@ -299,7 +330,7 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
       ? sql`case when lower(${usersTable.name}) = lower(${searchTerm}) then 0 when lower(${usersTable.name}) like lower(${searchTerm}) || chr(37) then 1 else 2 end`
       : usersTable.name;
     const users = await db.select(privacyUserSelection).from(usersTable).where(and(...conditions)).orderBy(relevance, usersTable.name).limit(limit).offset(offset);
-    res.json(users.filter((user) => !blockedIds.has(user.id)).map(maskPublicUser));
+    res.json(users.filter((user) => !blockedIds.has(user.id)).map((user) => maskPublicUser(user, isAdmin)));
     return;
   }
 
@@ -321,7 +352,7 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
     const lower = searchTerm.toLowerCase();
     users = users.filter((user) => user.name.toLowerCase().includes(lower));
   }
-  res.json(users.filter((user) => !blockedIds.has(user.id)).slice(offset, offset + limit).map(maskPublicUser));
+  res.json(users.filter((user) => !blockedIds.has(user.id)).slice(offset, offset + limit).map((user) => maskPublicUser(user, isAdmin)));
 });
 
 async function usersHaveBlock(firstId: number, secondId: number): Promise<boolean> {
@@ -369,18 +400,38 @@ router.post("/users/:id/report", contentLimiter, requireAuth, async (req, res): 
   res.status(201).json(ReportUserResponse.parse({ received: true }));
 });
 
+// GET /users/:id/library — independently audience-checked user library
+router.get("/users/:id/library", requireAuth, async (req, res): Promise<void> => {
+  const { userId, accountRole } = req as AuthenticatedRequest;
+  const parsed = GetUserLibraryParams.safeParse({ id: Number(req.params.id) });
+  if (!parsed.success) { res.status(400).json({ error: "Invalid user ID" }); return; }
+  const [owner] = await db.select({ id: usersTable.id, libraryVisibility: usersTable.libraryVisibility, activeRole: usersTable.activeRole }).from(usersTable).where(eq(usersTable.id, parsed.data.id));
+  if (!owner) { res.status(404).json({ error: "User not found" }); return; }
+  const isAdmin = accountRole === "admin";
+  if (!isAdmin && owner.id !== userId) {
+    if (owner.libraryVisibility === "private") { res.status(403).json({ error: "This library is private" }); return; }
+    if (owner.libraryVisibility === "classmates" && !(await sharesClass(userId, owner.id))) { res.status(403).json({ error: "This library is visible to classmates only" }); return; }
+  }
+  const [resources, lists] = await Promise.all([
+    db.select().from(resourcesTable).where(and(eq(resourcesTable.submittedById, owner.id), or(eq(resourcesTable.workspaceRole, owner.activeRole as "student" | "teacher"), eq(resourcesTable.workspaceRole, "shared"))!)).orderBy(desc(resourcesTable.createdAt)),
+    db.select().from(resourceListsTable).where(and(eq(resourceListsTable.ownerId, owner.id), or(eq(resourceListsTable.workspaceRole, owner.activeRole as "student" | "teacher"), eq(resourceListsTable.workspaceRole, "shared"))!)).orderBy(desc(resourceListsTable.createdAt)),
+  ]);
+  res.json(GetUserLibraryResponse.parse({ resources, lists }));
+});
+
 // GET /users/:id — audience-checked profile with field-level masking
 router.get("/users/:id", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, accountRole } = req as AuthenticatedRequest;
   const parsed = GetPublicProfileParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) { res.status(400).json({ error: "Invalid user ID" }); return; }
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.id));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
-  if (user.id !== userId) {
+  const isAdmin = accountRole === "admin";
+  if (user.id !== userId && !isAdmin) {
     if (user.profileVisibility === "private") { res.status(403).json({ error: "This profile is private" }); return; }
     if (user.profileVisibility === "classmates" && !(await sharesClass(userId, user.id))) { res.status(403).json({ error: "This profile is visible to classmates only" }); return; }
   }
-  res.json(GetPublicProfileResponse.parse(maskPublicUser(user)));
+  res.json(GetPublicProfileResponse.parse(maskPublicUser(user, isAdmin)));
 });
 
 export default router;

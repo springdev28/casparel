@@ -179,6 +179,22 @@ paths:
         "400":
           description: Invalid avatar
 
+  /users/{id}/library:
+    get:
+      operationId: getUserLibrary
+      tags: [auth]
+      summary: Get a user library when the viewer has permission
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: User library
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserLibrary" }
+        "403": { description: Library is not visible to this viewer }
+        "404": { description: User not found }
+
   /users/{id}:
     get:
       operationId: getPublicProfile
@@ -277,6 +293,34 @@ paths:
           description: Invalid role value
         "401":
           description: Not authenticated
+
+  /users/me/usage:
+    get:
+      operationId: getMyUsage
+      tags: [auth]
+      summary: Get the current account plan and AI usage
+      responses:
+        "200":
+          description: Current plan and usage
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountUsage" }
+        "401": { description: Not authenticated }
+
+  /admin/overview:
+    get:
+      operationId: getAdminOverview
+      tags: [admin]
+      summary: Get administrator usage and content totals
+      responses:
+        "200":
+          description: Administrator overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminOverview"
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
 
   /learning-goals:
     get:
@@ -821,6 +865,13 @@ paths:
           in: query
           schema:
             type: string
+        - name: language
+          in: query
+          schema:
+            type: string
+            enum: [any, en, es, fr, de, pt, tr]
+            default: en
+          description: Preferred language for AI search results, or any to avoid restricting language
         - name: page
           in: query
           schema:
@@ -956,7 +1007,7 @@ paths:
             default: quick
           description: >
             quick — use model training knowledge only (fast, no web search);
-            deep — use live web search for up-to-date information (slower, thorough)
+            deep — authenticated live web research; cached for 48 hours and subject to daily/monthly usage limits
       responses:
         "200":
           description: Source review
@@ -1833,7 +1884,8 @@ components:
         id: { type: integer }
         email: { type: string }
         name: { type: string }
-        role: { type: string, enum: [student, teacher] }
+        role: { type: string, enum: [student, teacher, admin] }
+        activeRole: { type: string, enum: [student, teacher] }
         avatarUrl: { type: ["string", "null"] }
         bio: { type: ["string", "null"] }
         subjects: { type: array, items: { type: string }, nullable: true }
@@ -1841,6 +1893,8 @@ components:
         timezone: { type: ["string", "null"] }
         websiteUrl: { type: ["string", "null"] }
         profileVisibility:
+          { type: string, enum: [everyone, classmates, private] }
+        libraryVisibility:
           { type: string, enum: [everyone, classmates, private] }
         showBio: { type: boolean }
         showSubjects: { type: boolean }
@@ -1854,7 +1908,7 @@ components:
       properties:
         id: { type: integer }
         name: { type: string }
-        role: { type: string, enum: [student, teacher] }
+        role: { type: string, enum: [student, teacher, admin] }
         websiteUrl: { type: ["string", "null"] }
         avatarUrl: { type: ["string", "null"] }
         bio: { type: ["string", "null"] }
@@ -1889,6 +1943,8 @@ components:
         name: { type: string, minLength: 1 }
         profileVisibility:
           { type: string, enum: [everyone, classmates, private] }
+        libraryVisibility:
+          { type: string, enum: [everyone, classmates, private] }
         showBio: { type: boolean }
         showSubjects: { type: boolean }
         showGradeOrDept: { type: boolean }
@@ -1898,6 +1954,17 @@ components:
         gradeOrDept: { type: ["string", "null"] }
         timezone: { type: ["string", "null"] }
         websiteUrl: { type: ["string", "null"] }
+
+    UserLibrary:
+      type: object
+      required: [resources, lists]
+      properties:
+        resources:
+          type: array
+          items: { $ref: "#/components/schemas/Resource" }
+        lists:
+          type: array
+          items: { $ref: "#/components/schemas/ResourceList" }
 
     UserSafetyStatus:
       type: object
@@ -1950,10 +2017,67 @@ components:
       properties:
         role: { type: string, enum: [student, teacher] }
 
+    AccountUsage:
+      type: object
+      required: [plan, unlimited, aiSearch, deepResearch]
+      properties:
+        plan: { type: string }
+        unlimited: { type: boolean }
+        aiSearch:
+          type: object
+          required: [used, limit, window]
+          properties:
+            used: { type: integer }
+            limit: { type: ["integer", "null"] }
+            window: { type: string, enum: [hour] }
+        deepResearch:
+          type: object
+          required: [used, limit, window]
+          properties:
+            used: { type: integer }
+            limit: { type: ["integer", "null"] }
+            window: { type: string, enum: [day] }
+
+    AdminOverview:
+      type: object
+      required: [users, students, teachers, admins, goals, resources, cachedResearchReports, plan, usage]
+      properties:
+        users: { type: integer }
+        students: { type: integer }
+        teachers: { type: integer }
+        admins: { type: integer }
+        goals: { type: integer }
+        resources: { type: integer }
+        cachedResearchReports: { type: integer }
+        plan:
+          type: object
+          required: [name, status, aiSearchLimit, deepResearchDailyLimit]
+          properties:
+            name: { type: string }
+            status: { type: string, enum: [active] }
+            aiSearchLimit: { type: ["integer", "null"] }
+            deepResearchDailyLimit: { type: ["integer", "null"] }
+        usage:
+          type: object
+          required: [aiSearchesToday, deepResearchToday]
+          properties:
+            aiSearchesToday: { type: integer }
+            deepResearchToday: { type: integer }
+
     LearningGoal:
       type: object
       required:
-        [id, userId, title, subject, level, status, createdAt, updatedAt]
+        [
+          id,
+          userId,
+          title,
+          subject,
+          level,
+          status,
+          pathSteps,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         id: { type: integer }
         userId: { type: integer }
@@ -1970,6 +2094,9 @@ components:
             }
         targetDate: { type: ["string", "null"], format: date }
         status: { type: string, enum: [active, paused, completed] }
+        pathSteps:
+          type: array
+          items: { $ref: "#/components/schemas/LearningPathStep" }
         createdAt: { type: string }
         updatedAt: { type: string }
 
@@ -2008,6 +2135,19 @@ components:
             }
         targetDate: { type: ["string", "null"], format: date }
         status: { type: string, enum: [active, paused, completed] }
+        pathSteps:
+          type: array
+          maxItems: 20
+          items: { $ref: "#/components/schemas/LearningPathStep" }
+
+    LearningPathStep:
+      type: object
+      required: [id, title, query, completed]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 80 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        query: { type: string, minLength: 1, maxLength: 300 }
+        completed: { type: boolean }
 
     # ── Classes ─────────────────────────────────────────────────────────────
     Class:
@@ -2076,7 +2216,9 @@ components:
       required: [id, shape, x, y, width, height, rotation, capacity, label]
       properties:
         id: { type: string, minLength: 1, maxLength: 80 }
-        shape: { type: string, enum: [rectangle, round, oval, trapezoid] }
+        shape: { type: string, enum: [rectangle, polygon, round, oval, trapezoid] }
+        angle: { type: number, minimum: 25, maximum: 85 }
+        sides: { type: integer, minimum: 3, maximum: 12 }
         x: { type: number, minimum: 0, maximum: 100 }
         y: { type: number, minimum: 0, maximum: 100 }
         width: { type: number, minimum: 8, maximum: 60 }
@@ -2305,6 +2447,19 @@ components:
         label: { type: string }
         url: { type: string }
 
+    SourceReviewMention:
+      type: object
+      required: [summary, url, sourceType, sentiment]
+      properties:
+        summary: { type: string }
+        url: { type: string, format: uri }
+        sourceType:
+          {
+            type: string,
+            enum: [forum, comments, review, article, social, official, other],
+          }
+        sentiment: { type: string, enum: [positive, mixed, negative, neutral] }
+
     SourceReview:
       type: object
       required: [sourceName, sourceType, summary, trustLevel, mode]
@@ -2317,10 +2472,28 @@ components:
         trustLevel: { type: string, enum: [high, medium, low, unknown] }
         trustReason: { type: ["string", "null"] }
         summary: { type: string }
+        reputationAnalysis: { type: ["string", "null"] }
+        audienceSentiment: { type: ["string", "null"] }
+        contentQuality: { type: ["string", "null"] }
+        currencyAssessment: { type: ["string", "null"] }
+        researchScope: { type: ["string", "null"] }
+        strengths:
+          type: array
+          items: { type: string }
+        concerns:
+          type: array
+          items: { type: string }
+        limitations:
+          type: array
+          items: { type: string }
         links:
           type: array
           items:
             $ref: "#/components/schemas/SourceReviewLink"
+        mentions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceReviewMention"
         mode: { type: string, enum: [quick, deep] }
 
     # ── Reviews ─────────────────────────────────────────────────────────────

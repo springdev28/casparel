@@ -1,0 +1,1 @@
+ALTER TABLE "learning_goals" ADD COLUMN IF NOT EXISTS "path_steps" jsonb DEFAULT '[]'::jsonb NOT NULL;

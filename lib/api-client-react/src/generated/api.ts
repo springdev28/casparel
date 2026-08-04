@@ -20,7 +20,9 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccountUsage,
   ActivityItem,
+  AdminOverview,
   AssignResourceBody,
   AssignResourceResponse,
   AuthResponse,
@@ -94,6 +96,7 @@ import type {
   StudySessionWithParticipants,
   UploadAvatarBody,
   User,
+  UserLibrary,
   UserSafetyStatus,
   UserUpdate
 } from './api.schemas';
@@ -707,6 +710,83 @@ export const useSetPresetAvatar = <TError = ErrorType<void>,
       return useMutation(getSetPresetAvatarMutationOptions(options));
     }
 
+export const getGetUserLibraryUrl = (id: number,) => {
+
+
+
+
+  return `/api/users/${id}/library`
+}
+
+/**
+ * @summary Get a user library when the viewer has permission
+ */
+export const getUserLibrary = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<UserLibrary> => {
+
+  return customFetch<UserLibrary>(getGetUserLibraryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUserLibraryQueryKey = (id: number,) => {
+    return [
+    `/api/users/${id}/library`
+    ] as const;
+    }
+
+
+export const getGetUserLibraryQueryOptions = <TData = Awaited<ReturnType<typeof getUserLibrary>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserLibrary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserLibraryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserLibrary>>> = ({ signal }) => getUserLibrary(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserLibrary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUserLibraryQueryResult = NonNullable<Awaited<ReturnType<typeof getUserLibrary>>>
+export type GetUserLibraryQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a user library when the viewer has permission
+ */
+
+export function useGetUserLibrary<TData = Awaited<ReturnType<typeof getUserLibrary>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserLibrary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUserLibraryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetPublicProfileUrl = (id: number,) => {
 
 
@@ -1145,6 +1225,160 @@ export const useSwitchRole = <TError = ErrorType<void>,
       > => {
       return useMutation(getSwitchRoleMutationOptions(options));
     }
+
+export const getGetMyUsageUrl = () => {
+
+
+
+
+  return `/api/users/me/usage`
+}
+
+/**
+ * @summary Get the current account plan and AI usage
+ */
+export const getMyUsage = async ( options?: Parameters<typeof customFetch>[1]): Promise<AccountUsage> => {
+
+  return customFetch<AccountUsage>(getGetMyUsageUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyUsageQueryKey = () => {
+    return [
+    `/api/users/me/usage`
+    ] as const;
+    }
+
+
+export const getGetMyUsageQueryOptions = <TData = Awaited<ReturnType<typeof getMyUsage>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyUsage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyUsageQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyUsage>>> = ({ signal }) => getMyUsage({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyUsage>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getMyUsage>>>
+export type GetMyUsageQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the current account plan and AI usage
+ */
+
+export function useGetMyUsage<TData = Awaited<ReturnType<typeof getMyUsage>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyUsage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyUsageQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminOverviewUrl = () => {
+
+
+
+
+  return `/api/admin/overview`
+}
+
+/**
+ * @summary Get administrator usage and content totals
+ */
+export const getAdminOverview = async ( options?: Parameters<typeof customFetch>[1]): Promise<AdminOverview> => {
+
+  return customFetch<AdminOverview>(getGetAdminOverviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminOverviewQueryKey = () => {
+    return [
+    `/api/admin/overview`
+    ] as const;
+    }
+
+
+export const getGetAdminOverviewQueryOptions = <TData = Awaited<ReturnType<typeof getAdminOverview>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminOverviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminOverview>>> = ({ signal }) => getAdminOverview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminOverview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAdminOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminOverview>>>
+export type GetAdminOverviewQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get administrator usage and content totals
+ */
+
+export function useGetAdminOverview<TData = Awaited<ReturnType<typeof getAdminOverview>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAdminOverview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAdminOverviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListLearningGoalsUrl = () => {
 

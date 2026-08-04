@@ -18,6 +18,7 @@ import { AuthLanguageSelect } from "../../components/AuthLanguageSelect";
 import { useAuthLanguage } from "../../lib/auth-locale";
 
 const TOKEN_KEY = "schoolar_token";
+const CHECK_IN_INDEX_KEY = "schoolar_check_in_index";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
@@ -34,6 +35,12 @@ export default function LoginPage() {
         data: { email, password },
       });
       localStorage.setItem(TOKEN_KEY, result.token);
+      const previousCheckIn = Number(
+        localStorage.getItem(CHECK_IN_INDEX_KEY) ?? -1,
+      );
+      const nextCheckIn = (previousCheckIn + 1) % 4;
+      localStorage.setItem(CHECK_IN_INDEX_KEY, String(nextCheckIn));
+      sessionStorage.setItem(CHECK_IN_INDEX_KEY, String(nextCheckIn));
       setLocation("/dashboard");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : copy.loginFailed;

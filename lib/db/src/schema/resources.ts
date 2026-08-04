@@ -21,6 +21,7 @@ export const resourcesTable = pgTable("resources", {
   subject: text("subject").notNull(),
   gradeLevel: text("grade_level").notNull(),
   thumbnailUrl: text("thumbnail_url"),
+  workspaceRole: text("workspace_role").$type<"student" | "teacher" | "shared">().notNull().default("student"),
   submittedById: integer("submitted_by_id").notNull().references(() => usersTable.id),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });

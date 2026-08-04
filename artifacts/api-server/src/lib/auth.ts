@@ -38,6 +38,7 @@ const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 interface TokenPayload {
   userId: number;
   role: string;
+  accountRole: string;
   iat: number;
   exp: number;
 }
@@ -70,9 +71,10 @@ function verify(token: string): TokenPayload | null {
   }
 }
 
-export function issueToken(userId: number, role: string): string {
+export function issueToken(userId: number, accountRole: string, activeRole?: string): string {
   const now = Date.now();
-  return sign({ userId, role, iat: now, exp: now + TOKEN_TTL_MS });
+  const role = activeRole ?? (accountRole === "teacher" ? "teacher" : "student");
+  return sign({ userId, role, accountRole, iat: now, exp: now + TOKEN_TTL_MS });
 }
 
 export function decodeToken(token: string): TokenPayload | null {

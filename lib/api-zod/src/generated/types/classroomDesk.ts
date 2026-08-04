@@ -15,6 +15,16 @@ export interface ClassroomDesk {
   id: string;
   shape: ClassroomDeskShape;
   /**
+     * @minimum 25
+     * @maximum 85
+     */
+  angle?: number;
+  /**
+     * @minimum 3
+     * @maximum 12
+     */
+  sides?: number;
+  /**
      * @minimum 0
      * @maximum 100
      */

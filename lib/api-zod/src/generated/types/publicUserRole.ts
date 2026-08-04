@@ -12,4 +12,5 @@ export type PublicUserRole = typeof PublicUserRole[keyof typeof PublicUserRole];
 export const PublicUserRole = {
   student: 'student',
   teacher: 'teacher',
+  admin: 'admin',
 } as const;

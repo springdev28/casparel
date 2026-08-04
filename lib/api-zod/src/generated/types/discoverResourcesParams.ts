@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DiscoverResourcesFormat } from './discoverResourcesFormat';
+import type { DiscoverResourcesLanguage } from './discoverResourcesLanguage';
 import type { DiscoverResourcesResultType } from './discoverResourcesResultType';
 
 export type DiscoverResourcesParams = {
@@ -16,6 +17,10 @@ q: string;
 format?: DiscoverResourcesFormat;
 subject?: string;
 gradeLevel?: string;
+/**
+ * Preferred language for AI search results, or any to avoid restricting language
+ */
+language?: DiscoverResourcesLanguage;
 /**
  * Page number for paginated results
  * @minimum 1

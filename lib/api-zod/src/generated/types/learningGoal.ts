@@ -8,6 +8,7 @@
 import type { LearningGoalLevel } from './learningGoalLevel';
 import type { LearningGoalPreferredFormatsItem } from './learningGoalPreferredFormatsItem';
 import type { LearningGoalStatus } from './learningGoalStatus';
+import type { LearningPathStep } from './learningPathStep';
 
 export interface LearningGoal {
   id: number;
@@ -22,6 +23,7 @@ export interface LearningGoal {
   /** @nullable */
   targetDate?: Date | null;
   status: LearningGoalStatus;
+  pathSteps: LearningPathStep[];
   createdAt: string;
   updatedAt: string;
 }

@@ -63,7 +63,7 @@ export default function ClassDetailPage() {
   });
   const { data: me } = useGetMe();
   // GC status: fetch for any teacher-role user (not class-specific)
-  const isTeacherRole = me?.role === UserRole.teacher;
+  const isTeacherRole = (me?.activeRole ?? me?.role) === UserRole.teacher;
   const { data: gcStatus } = useGetGCStatus({
     query: { enabled: isTeacherRole, queryKey: getGetGCStatusQueryKey() },
   });

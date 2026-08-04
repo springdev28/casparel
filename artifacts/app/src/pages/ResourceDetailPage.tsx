@@ -1,18 +1,52 @@
-import { useState } from 'react';
-import { useParams, useLocation, Link } from 'wouter';
-import { ArrowLeft, ExternalLink, Plus, BookOpen, LogIn, Search, ShieldCheck, ShieldAlert, Shield, ShieldX, ExternalLink as LinkIcon, Trash2, GraduationCap } from 'lucide-react';
-import { Button } from '@workspace/edu-ds/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
-import { Badge } from '@workspace/edu-ds/components/ui/badge';
-import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
-import { Textarea } from '@workspace/edu-ds/components/ui/textarea';
-import { Label } from '@workspace/edu-ds/components/ui/label';
-import { Separator } from '@workspace/edu-ds/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@workspace/edu-ds/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
-import { toast } from '@workspace/edu-ds/hooks/use-toast';
-import { useQueryClient } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
+import { useState } from "react";
+import { useParams, useLocation, Link } from "wouter";
+import {
+  ArrowLeft,
+  ExternalLink,
+  Plus,
+  BookOpen,
+  LogIn,
+  Search,
+  ShieldCheck,
+  ShieldAlert,
+  Shield,
+  ShieldX,
+  ExternalLink as LinkIcon,
+  Trash2,
+  GraduationCap,
+} from "lucide-react";
+import { Button } from "@workspace/edu-ds/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@workspace/edu-ds/components/ui/card";
+import { Badge } from "@workspace/edu-ds/components/ui/badge";
+import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
+import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
+import { Label } from "@workspace/edu-ds/components/ui/label";
+import { Separator } from "@workspace/edu-ds/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@workspace/edu-ds/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/edu-ds/components/ui/select";
+import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
 import {
   useGetResource,
   useListResourceReviews,
@@ -35,18 +69,18 @@ import {
   getGetClassResourcesListQueryKey,
   getListClassesQueryKey,
   UserRole,
-} from '@workspace/api-client-react';
-import type { SourceReview } from '@workspace/api-client-react';
-import { StarRating } from '../components/StarRating';
+} from "@workspace/api-client-react";
+import type { SourceReview } from "@workspace/api-client-react";
+import { StarRating } from "../components/StarRating";
 
 // ── Media helpers ────────────────────────────────────────────────────────────
 
 function getYouTubeId(url: string): string | null {
   try {
     const u = new URL(url);
-    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
-    if (u.hostname.includes('youtube.com')) {
-      const v = u.searchParams.get('v');
+    if (u.hostname === "youtu.be") return u.pathname.slice(1).split("?")[0];
+    if (u.hostname.includes("youtube.com")) {
+      const v = u.searchParams.get("v");
       if (v) return v;
       const m = u.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);
       if (m) return m[1];
@@ -60,7 +94,7 @@ function getYouTubeId(url: string): string | null {
 function getVimeoId(url: string): string | null {
   try {
     const u = new URL(url);
-    if (!u.hostname.includes('vimeo.com')) return null;
+    if (!u.hostname.includes("vimeo.com")) return null;
     // /123456789 or /video/123456789
     const m = u.pathname.match(/\/(?:video\/)?(\d+)/);
     return m ? m[1] : null;
@@ -72,7 +106,7 @@ function getVimeoId(url: string): string | null {
 function getLoomId(url: string): string | null {
   try {
     const u = new URL(url);
-    if (!u.hostname.includes('loom.com')) return null;
+    if (!u.hostname.includes("loom.com")) return null;
     // /share/abc123def or /embed/abc123def
     const m = u.pathname.match(/\/(?:share|embed)\/([a-zA-Z0-9]+)/);
     return m ? m[1] : null;
@@ -84,12 +118,12 @@ function getLoomId(url: string): string | null {
 function getGoogleDriveId(url: string): string | null {
   try {
     const u = new URL(url);
-    if (!u.hostname.includes('drive.google.com')) return null;
+    if (!u.hostname.includes("drive.google.com")) return null;
     // https://drive.google.com/file/d/{fileId}/view  or  /preview  or  /edit
     const m = u.pathname.match(/\/file\/d\/([^/]+)/);
     if (m) return m[1];
     // https://drive.google.com/open?id={fileId}
-    const id = u.searchParams.get('id');
+    const id = u.searchParams.get("id");
     return id || null;
   } catch {
     return null;
@@ -99,9 +133,9 @@ function getGoogleDriveId(url: string): string | null {
 function isPdf(url: string): boolean {
   try {
     const pathname = new URL(url).pathname.toLowerCase();
-    return pathname.endsWith('.pdf');
+    return pathname.endsWith(".pdf");
   } catch {
-    return url.toLowerCase().endsWith('.pdf');
+    return url.toLowerCase().endsWith(".pdf");
   }
 }
 
@@ -109,7 +143,10 @@ function ResourceEmbed({ url }: { url: string }) {
   const ytId = getYouTubeId(url);
   if (ytId) {
     return (
-      <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+      <div
+        className="relative w-full overflow-hidden rounded-lg bg-black"
+        style={{ aspectRatio: "16/9" }}
+      >
         <iframe
           src={`https://www.youtube.com/embed/${ytId}`}
           title="YouTube video player"
@@ -124,7 +161,10 @@ function ResourceEmbed({ url }: { url: string }) {
   const vimeoId = getVimeoId(url);
   if (vimeoId) {
     return (
-      <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+      <div
+        className="relative w-full overflow-hidden rounded-lg bg-black"
+        style={{ aspectRatio: "16/9" }}
+      >
         <iframe
           src={`https://player.vimeo.com/video/${vimeoId}?badge=0&autopause=0`}
           title="Vimeo video player"
@@ -139,7 +179,10 @@ function ResourceEmbed({ url }: { url: string }) {
   const loomId = getLoomId(url);
   if (loomId) {
     return (
-      <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+      <div
+        className="relative w-full overflow-hidden rounded-lg bg-black"
+        style={{ aspectRatio: "16/9" }}
+      >
         <iframe
           src={`https://www.loom.com/embed/${loomId}`}
           title="Loom video player"
@@ -153,7 +196,10 @@ function ResourceEmbed({ url }: { url: string }) {
   const driveId = getGoogleDriveId(url);
   if (driveId) {
     return (
-      <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ aspectRatio: '16/9' }}>
+      <div
+        className="relative w-full overflow-hidden rounded-lg bg-black"
+        style={{ aspectRatio: "16/9" }}
+      >
         <iframe
           src={`https://drive.google.com/file/d/${driveId}/preview`}
           title="Google Drive video player"
@@ -167,7 +213,10 @@ function ResourceEmbed({ url }: { url: string }) {
 
   if (isPdf(url)) {
     return (
-      <div className="w-full rounded-lg overflow-hidden border bg-muted" style={{ height: '520px' }}>
+      <div
+        className="w-full rounded-lg overflow-hidden border bg-muted"
+        style={{ height: "520px" }}
+      >
         <iframe
           src={url}
           title="PDF viewer"
@@ -182,65 +231,124 @@ function ResourceEmbed({ url }: { url: string }) {
 
 // ── Trust metadata ────────────────────────────────────────────────────────────
 
-const TRUST_META: Record<SourceReview['trustLevel'], { label: string; icon: typeof ShieldCheck; color: string }> = {
-  high:    { label: 'Highly Trusted',    icon: ShieldCheck,  color: 'text-green-600' },
-  medium:  { label: 'Generally Trusted', icon: Shield,       color: 'text-yellow-600' },
-  low:     { label: 'Use with Caution',  icon: ShieldAlert,  color: 'text-orange-500' },
-  unknown: { label: 'Trust Unknown',     icon: ShieldX,      color: 'text-muted-foreground' },
+const TRUST_META: Record<
+  SourceReview["trustLevel"],
+  { label: string; icon: typeof ShieldCheck; color: string }
+> = {
+  high: { label: "Highly Trusted", icon: ShieldCheck, color: "text-green-600" },
+  medium: {
+    label: "Generally Trusted",
+    icon: Shield,
+    color: "text-yellow-600",
+  },
+  low: {
+    label: "Use with Caution",
+    icon: ShieldAlert,
+    color: "text-orange-500",
+  },
+  unknown: {
+    label: "Trust Unknown",
+    icon: ShieldX,
+    color: "text-muted-foreground",
+  },
 };
 
-function SourceReviewPanel({ resourceId }: { resourceId: number }) {
+function SourceReviewPanel({
+  resourceId,
+  isLoggedIn,
+}: {
+  resourceId: number;
+  isLoggedIn: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<'quick' | 'deep' | null>(null);
+  const [mode, setMode] = useState<"quick" | "deep" | null>(null);
 
-  const { data: quickData, isLoading: quickLoading, isError: quickError } = useGetResourceSourceReview(
+  const {
+    data: quickData,
+    isLoading: quickLoading,
+    isError: quickError,
+  } = useGetResourceSourceReview(
     resourceId,
-    { mode: 'quick' },
-    { query: { enabled: mode === 'quick', queryKey: getGetResourceSourceReviewQueryKey(resourceId, { mode: 'quick' }), staleTime: 1000 * 60 * 10 } }
+    { mode: "quick" },
+    {
+      query: {
+        enabled: mode === "quick",
+        queryKey: getGetResourceSourceReviewQueryKey(resourceId, {
+          mode: "quick",
+        }),
+        staleTime: 1000 * 60 * 10,
+      },
+    },
   );
-  const { data: deepData, isLoading: deepLoading, isError: deepError } = useGetResourceSourceReview(
+  const {
+    data: deepData,
+    isLoading: deepLoading,
+    isError: deepError,
+  } = useGetResourceSourceReview(
     resourceId,
-    { mode: 'deep' },
-    { query: { enabled: mode === 'deep', queryKey: getGetResourceSourceReviewQueryKey(resourceId, { mode: 'deep' }), staleTime: 1000 * 60 * 10 } }
+    { mode: "deep" },
+    {
+      query: {
+        enabled: mode === "deep",
+        queryKey: getGetResourceSourceReviewQueryKey(resourceId, {
+          mode: "deep",
+        }),
+        staleTime: 1000 * 60 * 10,
+      },
+    },
   );
 
-  const data = mode === 'quick' ? quickData : mode === 'deep' ? deepData : undefined;
-  const isLoading = mode === 'quick' ? quickLoading : mode === 'deep' ? deepLoading : false;
-  const isError = mode === 'quick' ? quickError : mode === 'deep' ? deepError : false;
+  const data =
+    mode === "quick" ? quickData : mode === "deep" ? deepData : undefined;
+  const isLoading =
+    mode === "quick" ? quickLoading : mode === "deep" ? deepLoading : false;
+  const isError =
+    mode === "quick" ? quickError : mode === "deep" ? deepError : false;
 
   function handleOpen() {
     setOpen(true);
   }
 
-  function handleModeSelect(selected: 'quick' | 'deep') {
+  function handleModeSelect(selected: "quick" | "deep") {
     setMode(selected);
   }
 
   const trust = data ? TRUST_META[data.trustLevel] : null;
-  const loadingLabel = mode === 'deep' ? 'Analysing with AI training knowledge…' : 'Looking up source…';
+  const loadingLabel =
+    mode === "deep"
+      ? "Searching forums, comments, reviews, and the wider web…"
+      : "Looking up source…";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" onClick={handleOpen} data-testid="review-source-button">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleOpen}
+          data-testid="review-source-button"
+        >
           <Search size={14} className="mr-1.5" /> Review the Source
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Source Review</DialogTitle>
           <DialogDescription>
-            AI-researched background on the publisher or uploader of this resource.
+            AI-researched background on the publisher or uploader of this
+            resource.
           </DialogDescription>
         </DialogHeader>
 
         {/* Mode picker — shown when no mode has been chosen yet */}
         {mode === null && (
           <div className="space-y-3 py-1">
-            <p className="text-sm text-muted-foreground">Choose how thoroughly to research this source:</p>
+            <p className="text-sm text-muted-foreground">
+              Choose how thoroughly to research this source:
+            </p>
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => handleModeSelect('quick')}
+                onClick={() => handleModeSelect("quick")}
                 data-testid="mode-quick"
                 className="flex flex-col gap-1.5 rounded-lg border p-4 text-left hover:border-primary hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
@@ -250,13 +358,15 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
                 </span>
               </button>
               <button
-                onClick={() => handleModeSelect('deep')}
+                onClick={() => handleModeSelect("deep")}
                 data-testid="mode-deep"
+                disabled={!isLoggedIn}
                 className="flex flex-col gap-1.5 rounded-lg border p-4 text-left hover:border-primary hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <span className="text-sm font-semibold">🔍 Deep Research</span>
                 <span className="text-xs text-muted-foreground leading-relaxed">
-                  In-depth AI analysis using training knowledge. Slower but thorough.
+                  Live web research across forums, comments, reviews, articles,
+                  and other mentions.
                 </span>
               </button>
             </div>
@@ -269,7 +379,9 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
             <Skeleton className="h-4 w-1/2" />
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-4 w-3/4" />
-            <div className="text-xs text-muted-foreground text-center pt-1">{loadingLabel}</div>
+            <div className="text-xs text-muted-foreground text-center pt-1">
+              {loadingLabel}
+            </div>
           </div>
         )}
 
@@ -286,14 +398,23 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-foreground">{data.sourceName}</p>
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                      {data.mode === 'deep' ? '🔍 Deep Research' : '⚡ Quick'}
+                    <p className="font-semibold text-foreground">
+                      {data.sourceName}
+                    </p>
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] px-1.5 py-0"
+                    >
+                      {data.mode === "deep" ? "🔍 Deep Research" : "⚡ Quick"}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground capitalize">{data.sourceType.replace(/-/g, ' ')}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {data.sourceType.replace(/-/g, " ")}
+                  </p>
                 </div>
-                <div className={`flex items-center gap-1.5 text-sm font-medium ${trust.color}`}>
+                <div
+                  className={`flex items-center gap-1.5 text-sm font-medium ${trust.color}`}
+                >
                   <trust.icon size={16} />
                   <span>{trust.label}</span>
                 </div>
@@ -304,24 +425,137 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
             {(data.founded || data.headquarters) && (
               <div className="flex gap-4 text-xs text-muted-foreground">
                 {data.founded && <span>Founded: {data.founded}</span>}
-                {data.headquarters && <span>Location: {data.headquarters}</span>}
+                {data.headquarters && (
+                  <span>Location: {data.headquarters}</span>
+                )}
               </div>
             )}
 
             <Separator />
 
             {/* Summary */}
-            <p className="text-sm text-foreground leading-relaxed">{data.summary}</p>
+            <p className="text-sm text-foreground leading-relaxed">
+              {data.summary}
+            </p>
 
             {/* Trust reason */}
             {data.trustReason && (
-              <p className="text-xs text-muted-foreground italic border-l-2 pl-3">{data.trustReason}</p>
+              <p className="text-xs text-muted-foreground italic border-l-2 pl-3">
+                {data.trustReason}
+              </p>
             )}
+
+            {data.mode === "deep" &&
+              (data.reputationAnalysis ||
+                data.audienceSentiment ||
+                data.contentQuality ||
+                data.currencyAssessment) && (
+                <div className="space-y-4">
+                  {[
+                    ["Reputation and independence", data.reputationAnalysis],
+                    ["Audience sentiment", data.audienceSentiment],
+                    ["Educational content quality", data.contentQuality],
+                    ["Currency and outdatedness", data.currencyAssessment],
+                  ].map(([heading, body]) =>
+                    body ? (
+                      <section
+                        key={heading}
+                        className="rounded-lg border bg-muted/20 p-4"
+                      >
+                        <h3 className="mb-2 text-sm font-semibold">
+                          {heading}
+                        </h3>
+                        <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                          {body}
+                        </p>
+                      </section>
+                    ) : null,
+                  )}
+                </div>
+              )}
+
+            {data.mode === "deep" &&
+              ((data.strengths?.length ?? 0) > 0 ||
+                (data.concerns?.length ?? 0) > 0) && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <section className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <h3 className="mb-2 text-sm font-semibold text-emerald-800">
+                      Evidence-backed strengths
+                    </h3>
+                    <ul className="space-y-2 text-xs leading-relaxed">
+                      {data.strengths?.map((item, i) => (
+                        <li key={i}>• {item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                  <section className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+                    <h3 className="mb-2 text-sm font-semibold text-amber-800">
+                      Concerns and caveats
+                    </h3>
+                    <ul className="space-y-2 text-xs leading-relaxed">
+                      {data.concerns?.map((item, i) => (
+                        <li key={i}>• {item}</li>
+                      ))}
+                    </ul>
+                  </section>
+                </div>
+              )}
+
+            {data.mentions && data.mentions.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  What others say
+                </p>
+                {data.mentions.map((mention, i) => (
+                  <a
+                    key={i}
+                    href={mention.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-lg border p-3 hover:bg-muted/50"
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <Badge variant="outline" className="capitalize">
+                        {mention.sourceType}
+                      </Badge>
+                      <span className="text-[11px] capitalize text-muted-foreground">
+                        {mention.sentiment}
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed">{mention.summary}</p>
+                    <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-primary">
+                      <LinkIcon size={10} /> View evidence
+                    </span>
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {data.mode === "deep" &&
+              ((data.limitations?.length ?? 0) > 0 || data.researchScope) && (
+                <section className="rounded-lg border border-dashed p-4">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Research scope and limitations
+                  </h3>
+                  {data.researchScope && (
+                    <p className="mb-2 text-xs leading-relaxed">
+                      {data.researchScope}
+                    </p>
+                  )}
+                  <ul className="space-y-1 text-xs text-muted-foreground">
+                    {data.limitations?.map((item, i) => (
+                      <li key={i}>• {item}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
 
             {/* Links */}
             {data.links && data.links.length > 0 && (
               <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Learn more</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Learn more
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {data.links.map((link, i) => (
                     <a
@@ -340,7 +574,9 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
             )}
 
             <p className="text-xs text-muted-foreground pt-1">
-              This review is AI-generated from training knowledge{data.mode === 'deep' ? ' with detailed reasoning' : ''} and may not be fully accurate.
+              {data.mode === "deep"
+                ? "This review uses live web research; open the evidence links to verify each claim."
+                : "This quick review is AI-generated from training knowledge and may not be fully accurate."}
             </p>
 
             {/* Switch mode */}
@@ -354,7 +590,9 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
         )}
 
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>Close</Button>
+          <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
+            Close
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -368,50 +606,84 @@ export default function ResourceDetailPage() {
   const resourceId = Number(id);
 
   const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState('');
+  const [reviewComment, setReviewComment] = useState("");
   const [addToListOpen, setAddToListOpen] = useState(false);
-  const [selectedListId, setSelectedListId] = useState('');
-  const [listNote, setListNote] = useState('');
+  const [selectedListId, setSelectedListId] = useState("");
+  const [listNote, setListNote] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  const { data: resource, isLoading: resourceLoading } = useGetResource(resourceId, {
-    query: { enabled: !!resourceId, queryKey: getGetResourceQueryKey(resourceId) },
+  const { data: resource, isLoading: resourceLoading } = useGetResource(
+    resourceId,
+    {
+      query: {
+        enabled: !!resourceId,
+        queryKey: getGetResourceQueryKey(resourceId),
+      },
+    },
+  );
+  const { data: reviews, isLoading: reviewsLoading } = useListResourceReviews(
+    resourceId,
+    {
+      query: {
+        enabled: !!resourceId,
+        queryKey: getListResourceReviewsQueryKey(resourceId),
+      },
+    },
+  );
+  const { data: me } = useGetMe({
+    query: { retry: false, queryKey: getGetMeQueryKey() },
   });
-  const { data: reviews, isLoading: reviewsLoading } = useListResourceReviews(resourceId, {
-    query: { enabled: !!resourceId, queryKey: getListResourceReviewsQueryKey(resourceId) },
+  const { data: lists } = useListResourceLists({
+    query: { enabled: !!me, queryKey: getListResourceListsQueryKey() },
   });
-  const { data: me } = useGetMe({ query: { retry: false, queryKey: getGetMeQueryKey() } });
-  const { data: lists } = useListResourceLists({ query: { enabled: !!me, queryKey: getListResourceListsQueryKey() } });
   const createReview = useCreateResourceReview();
   const addListItem = useAddListItem();
   const deleteResource = useDeleteResource();
 
   const isLoggedIn = !!me;
-  const isTeacher = me?.role === UserRole.teacher;
+  const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
 
   // Assign to class
-  const { data: classes } = useListClasses({ query: { enabled: isTeacher, queryKey: getListClassesQueryKey() } });
+  const { data: classes } = useListClasses({
+    query: { enabled: isTeacher, queryKey: getListClassesQueryKey() },
+  });
   const assignResource = useAssignResourceToClass();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [assignClassId, setAssignClassId] = useState('');
+  const [assignClassId, setAssignClassId] = useState("");
 
   async function handleAssign() {
     if (!assignClassId) return;
     try {
-      await assignResource.mutateAsync({ id: Number(assignClassId), data: { resourceId } });
-      queryClient.invalidateQueries({ queryKey: getGetClassResourcesListQueryKey(Number(assignClassId)) });
-      toast({ title: 'Assigned!', description: 'Resource added to class resource list.' });
+      await assignResource.mutateAsync({
+        id: Number(assignClassId),
+        data: { resourceId },
+      });
+      queryClient.invalidateQueries({
+        queryKey: getGetClassResourcesListQueryKey(Number(assignClassId)),
+      });
+      toast({
+        title: "Assigned!",
+        description: "Resource added to class resource list.",
+      });
       setAssignDialogOpen(false);
-      setAssignClassId('');
+      setAssignClassId("");
     } catch {
-      toast({ title: 'Error', description: 'Could not assign the resource.', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: "Could not assign the resource.",
+        variant: "destructive",
+      });
     }
   }
 
   async function handleReviewSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (reviewRating === 0) {
-      toast({ title: 'Select a rating', description: 'Please choose 1–5 stars.', variant: 'destructive' });
+      toast({
+        title: "Select a rating",
+        description: "Please choose 1–5 stars.",
+        variant: "destructive",
+      });
       return;
     }
     try {
@@ -419,15 +691,20 @@ export default function ResourceDetailPage() {
         id: resourceId,
         data: { rating: reviewRating, comment: reviewComment || undefined },
       });
-      queryClient.invalidateQueries({ queryKey: getListResourceReviewsQueryKey(resourceId) });
-      queryClient.invalidateQueries({ queryKey: getGetResourceQueryKey(resourceId) });
+      queryClient.invalidateQueries({
+        queryKey: getListResourceReviewsQueryKey(resourceId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getGetResourceQueryKey(resourceId),
+      });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
-      toast({ title: 'Review submitted!' });
+      toast({ title: "Review submitted!" });
       setReviewRating(0);
-      setReviewComment('');
+      setReviewComment("");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to submit review';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
+      const message =
+        err instanceof Error ? err.message : "Failed to submit review";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   }
 
@@ -435,13 +712,18 @@ export default function ResourceDetailPage() {
     try {
       await deleteResource.mutateAsync({ id: resourceId });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetResourceRecommendationsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-      toast({ title: 'Resource removed from library.' });
-      setLocation('/resources');
+      queryClient.invalidateQueries({
+        queryKey: getGetResourceRecommendationsQueryKey(),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getGetDashboardSummaryQueryKey(),
+      });
+      toast({ title: "Resource removed from library." });
+      setLocation("/resources");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to remove resource';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
+      const message =
+        err instanceof Error ? err.message : "Failed to remove resource";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   }
 
@@ -453,13 +735,14 @@ export default function ResourceDetailPage() {
         id: Number(selectedListId),
         data: { resourceId, note: listNote || undefined },
       });
-      toast({ title: 'Added to list!' });
+      toast({ title: "Added to list!" });
       setAddToListOpen(false);
-      setSelectedListId('');
-      setListNote('');
+      setSelectedListId("");
+      setListNote("");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to add to list';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
+      const message =
+        err instanceof Error ? err.message : "Failed to add to list";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   }
 
@@ -485,7 +768,13 @@ export default function ResourceDetailPage() {
       <div className="p-6 flex flex-col items-center justify-center min-h-64">
         <BookOpen size={40} className="text-muted-foreground mb-3" />
         <p className="text-foreground font-semibold">Resource not found</p>
-        <Button variant="outline" className="mt-4" onClick={() => setLocation('/resources')}>Back to Resources</Button>
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => setLocation("/resources")}
+        >
+          Back to Resources
+        </Button>
       </div>
     );
   }
@@ -493,7 +782,12 @@ export default function ResourceDetailPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       {/* Back */}
-      <Button variant="ghost" size="sm" onClick={() => setLocation('/resources')} data-testid="back-button">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setLocation("/resources")}
+        data-testid="back-button"
+      >
         <ArrowLeft size={16} className="mr-1.5" /> Resources
       </Button>
 
@@ -503,101 +797,170 @@ export default function ResourceDetailPage() {
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex-1 min-w-0">
               <CardTitle className="text-xl">{resource.title}</CardTitle>
-              <CardDescription className="mt-1">{resource.subject} · {resource.gradeLevel}</CardDescription>
+              <CardDescription className="mt-1">
+                {resource.subject} · {resource.gradeLevel}
+              </CardDescription>
             </div>
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              <Badge variant="secondary" className="capitalize">{resource.format}</Badge>
+              <Badge variant="secondary" className="capitalize">
+                {resource.format}
+              </Badge>
 
               {/* Review the Source */}
-              <SourceReviewPanel resourceId={resourceId} />
+              <SourceReviewPanel resourceId={resourceId} isLoggedIn={!!me} />
 
               {/* Add to List — auth-gated */}
               {isLoggedIn ? (
                 <Dialog open={addToListOpen} onOpenChange={setAddToListOpen}>
                   <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" data-testid="add-to-list-button">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="add-to-list-button"
+                    >
                       <Plus size={14} className="mr-1" /> Add to List
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Add to a List</DialogTitle>
-                      <DialogDescription>Choose which list to add this resource to</DialogDescription>
+                      <DialogDescription>
+                        Choose which list to add this resource to
+                      </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAddToList} className="space-y-4">
                       <div className="space-y-1.5">
                         <Label htmlFor="list-select">List</Label>
                         {lists && lists.length > 0 ? (
-                          <Select value={selectedListId} onValueChange={setSelectedListId}>
-                            <SelectTrigger id="list-select" data-testid="list-select">
+                          <Select
+                            value={selectedListId}
+                            onValueChange={setSelectedListId}
+                          >
+                            <SelectTrigger
+                              id="list-select"
+                              data-testid="list-select"
+                            >
                               <SelectValue placeholder="Select a list…" />
                             </SelectTrigger>
                             <SelectContent>
                               {lists.map((l) => (
-                                <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                                <SelectItem key={l.id} value={String(l.id)}>
+                                  {l.name}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         ) : (
-                          <p className="text-sm text-muted-foreground">No lists yet. Create one first.</p>
+                          <p className="text-sm text-muted-foreground">
+                            No lists yet. Create one first.
+                          </p>
                         )}
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="list-note">Note (optional)</Label>
-                        <Textarea id="list-note" value={listNote} onChange={(e) => setListNote(e.target.value)} rows={2} data-testid="list-note-input" />
+                        <Textarea
+                          id="list-note"
+                          value={listNote}
+                          onChange={(e) => setListNote(e.target.value)}
+                          rows={2}
+                          data-testid="list-note-input"
+                        />
                       </div>
                       <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setAddToListOpen(false)}>Cancel</Button>
-                        <Button type="submit" disabled={!selectedListId || addListItem.isPending} data-testid="add-to-list-confirm">
-                          {addListItem.isPending ? 'Adding…' : 'Add to List'}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setAddToListOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={!selectedListId || addListItem.isPending}
+                          data-testid="add-to-list-confirm"
+                        >
+                          {addListItem.isPending ? "Adding…" : "Add to List"}
                         </Button>
                       </DialogFooter>
                     </form>
                   </DialogContent>
                 </Dialog>
               ) : (
-                <Button size="sm" variant="outline" asChild data-testid="sign-in-to-save">
-                  <Link href="/auth/login"><Plus size={14} className="mr-1" /> Save to List</Link>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  asChild
+                  data-testid="sign-in-to-save"
+                >
+                  <Link href="/auth/login">
+                    <Plus size={14} className="mr-1" /> Save to List
+                  </Link>
                 </Button>
               )}
 
               {/* Assign to Class — teachers only */}
               {isLoggedIn && isTeacher && (
-                <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+                <Dialog
+                  open={assignDialogOpen}
+                  onOpenChange={setAssignDialogOpen}
+                >
                   <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" data-testid="assign-to-class-button">
-                      <GraduationCap size={14} className="mr-1" /> Assign to Class
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid="assign-to-class-button"
+                    >
+                      <GraduationCap size={14} className="mr-1" /> Assign to
+                      Class
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Assign to Class</DialogTitle>
-                      <DialogDescription>Add this resource to a class resource list for your students.</DialogDescription>
+                      <DialogDescription>
+                        Add this resource to a class resource list for your
+                        students.
+                      </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="space-y-1.5">
                         <Label>Class</Label>
                         {!classes || classes.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No classes found. Create a class first.</p>
+                          <p className="text-sm text-muted-foreground">
+                            No classes found. Create a class first.
+                          </p>
                         ) : (
-                          <Select value={assignClassId} onValueChange={setAssignClassId}>
-                            <SelectTrigger data-testid="assign-class-select"><SelectValue placeholder="Select a class…" /></SelectTrigger>
+                          <Select
+                            value={assignClassId}
+                            onValueChange={setAssignClassId}
+                          >
+                            <SelectTrigger data-testid="assign-class-select">
+                              <SelectValue placeholder="Select a class…" />
+                            </SelectTrigger>
                             <SelectContent>
                               {classes.map((c) => (
-                                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                                <SelectItem key={c.id} value={String(c.id)}>
+                                  {c.name}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         )}
                       </div>
                       <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setAssignDialogOpen(false)}>Cancel</Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setAssignDialogOpen(false)}
+                        >
+                          Cancel
+                        </Button>
                         <Button
                           onClick={handleAssign}
                           disabled={!assignClassId || assignResource.isPending}
                           data-testid="assign-to-class-confirm"
                         >
-                          {assignResource.isPending ? 'Assigning…' : 'Assign'}
+                          {assignResource.isPending ? "Assigning…" : "Assign"}
                         </Button>
                       </DialogFooter>
                     </div>
@@ -607,9 +970,17 @@ export default function ResourceDetailPage() {
 
               {/* Remove from library — only for submitter */}
               {isLoggedIn && (
-                <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+                <Dialog
+                  open={deleteConfirmOpen}
+                  onOpenChange={setDeleteConfirmOpen}
+                >
                   <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" data-testid="remove-resource-button">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive hover:text-destructive"
+                      data-testid="remove-resource-button"
+                    >
                       <Trash2 size={14} className="mr-1" /> Remove
                     </Button>
                   </DialogTrigger>
@@ -617,13 +988,24 @@ export default function ResourceDetailPage() {
                     <DialogHeader>
                       <DialogTitle>Remove this resource?</DialogTitle>
                       <DialogDescription>
-                        This will permanently delete "{resource.title}" and all its reviews. This cannot be undone.
+                        This will permanently delete "{resource.title}" and all
+                        its reviews. This cannot be undone.
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
-                      <Button variant="destructive" onClick={handleDelete} disabled={deleteResource.isPending} data-testid="confirm-remove-button">
-                        {deleteResource.isPending ? 'Removing…' : 'Remove'}
+                      <Button
+                        variant="outline"
+                        onClick={() => setDeleteConfirmOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleDelete}
+                        disabled={deleteResource.isPending}
+                        data-testid="confirm-remove-button"
+                      >
+                        {deleteResource.isPending ? "Removing…" : "Remove"}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -631,7 +1013,12 @@ export default function ResourceDetailPage() {
               )}
 
               <Button size="sm" asChild>
-                <a href={resource.url} target="_blank" rel="noopener noreferrer" data-testid="open-resource-link">
+                <a
+                  href={resource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="open-resource-link"
+                >
                   <ExternalLink size={14} className="mr-1" /> Open
                 </a>
               </Button>
@@ -643,11 +1030,16 @@ export default function ResourceDetailPage() {
           <ResourceEmbed url={resource.url} />
 
           {resource.description && (
-            <p className="text-sm text-muted-foreground">{resource.description}</p>
+            <p className="text-sm text-muted-foreground">
+              {resource.description}
+            </p>
           )}
           <div className="flex items-center gap-3">
             <StarRating value={resource.avgRating} />
-            <span className="text-sm text-muted-foreground">{resource.avgRating.toFixed(1)} · {resource.reviewCount} review{resource.reviewCount !== 1 ? 's' : ''}</span>
+            <span className="text-sm text-muted-foreground">
+              {resource.avgRating.toFixed(1)} · {resource.reviewCount} review
+              {resource.reviewCount !== 1 ? "s" : ""}
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -666,10 +1058,16 @@ export default function ResourceDetailPage() {
               <form onSubmit={handleReviewSubmit} className="space-y-3">
                 <div>
                   <Label className="text-xs mb-1.5 block">Your rating</Label>
-                  <StarRating value={reviewRating} onChange={setReviewRating} data-testid="review-rating" />
+                  <StarRating
+                    value={reviewRating}
+                    onChange={setReviewRating}
+                    data-testid="review-rating"
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="review-comment" className="text-xs">Comment (optional)</Label>
+                  <Label htmlFor="review-comment" className="text-xs">
+                    Comment (optional)
+                  </Label>
                   <Textarea
                     id="review-comment"
                     value={reviewComment}
@@ -679,8 +1077,13 @@ export default function ResourceDetailPage() {
                     data-testid="review-comment-input"
                   />
                 </div>
-                <Button type="submit" size="sm" disabled={createReview.isPending} data-testid="submit-review-button">
-                  {createReview.isPending ? 'Submitting…' : 'Submit Review'}
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={createReview.isPending}
+                  data-testid="submit-review-button"
+                >
+                  {createReview.isPending ? "Submitting…" : "Submit Review"}
                 </Button>
               </form>
             </CardContent>
@@ -688,9 +1091,13 @@ export default function ResourceDetailPage() {
         ) : (
           <Card className="mb-4 border-dashed">
             <CardContent className="py-5 flex items-center justify-between gap-4">
-              <p className="text-sm text-muted-foreground">Sign in to write a review and help others find great resources.</p>
+              <p className="text-sm text-muted-foreground">
+                Sign in to write a review and help others find great resources.
+              </p>
               <Button size="sm" asChild data-testid="sign-in-to-review">
-                <Link href="/auth/login"><LogIn size={14} className="mr-1.5" /> Sign in</Link>
+                <Link href="/auth/login">
+                  <LogIn size={14} className="mr-1.5" /> Sign in
+                </Link>
               </Button>
             </CardContent>
           </Card>
@@ -712,7 +1119,9 @@ export default function ResourceDetailPage() {
             ))}
           </div>
         ) : !reviews || reviews.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">No reviews yet. Be the first!</p>
+          <p className="text-sm text-muted-foreground text-center py-8">
+            No reviews yet. Be the first!
+          </p>
         ) : (
           <div className="space-y-3">
             {reviews.map((review) => (
@@ -720,15 +1129,21 @@ export default function ResourceDetailPage() {
                 <CardContent className="py-3">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{review.user.name}</span>
+                      <span className="text-sm font-medium">
+                        {review.user.name}
+                      </span>
                       <StarRating value={review.rating} size="sm" />
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(review.createdAt), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(review.createdAt), {
+                        addSuffix: true,
+                      })}
                     </span>
                   </div>
                   {review.comment && (
-                    <p className="text-sm text-muted-foreground">{review.comment}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {review.comment}
+                    </p>
                   )}
                 </CardContent>
               </Card>

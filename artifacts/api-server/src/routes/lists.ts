@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, max, asc, inArray } from "drizzle-orm";
+import { eq, sql, and, max, asc, inArray, or } from "drizzle-orm";
 import { db, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, classMembersTable } from "@workspace/db";
 import {
   ListResourceListsResponse,
@@ -51,7 +51,7 @@ async function listWithCount(id: number) {
 
 // GET /lists/shared — lists shared with classes the user is a member of
 router.get("/lists/shared", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const memberships = await db
     .select({ classId: classMembersTable.classId })
     .from(classMembersTable)
@@ -68,18 +68,18 @@ router.get("/lists/shared", requireAuth, async (req, res): Promise<void> => {
 
 // GET /lists — only the current user's own lists
 router.get("/lists", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const rows = await db
     .select()
     .from(resourceListsTable)
-    .where(eq(resourceListsTable.ownerId, userId));
+    .where(and(eq(resourceListsTable.ownerId, userId), or(eq(resourceListsTable.workspaceRole, userRole as "student" | "teacher"), eq(resourceListsTable.workspaceRole, "shared"))!));
   const lists = await Promise.all(rows.map((l) => listWithCount(l.id)));
   res.json(ListResourceListsResponse.parse(lists.filter(Boolean)));
 });
 
 // POST /lists — any authenticated user
 router.post("/lists", contentLimiter, requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const parsed = CreateResourceListBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -87,20 +87,20 @@ router.post("/lists", contentLimiter, requireAuth, async (req, res): Promise<voi
   }
   const [list] = await db
     .insert(resourceListsTable)
-    .values({ ...parsed.data, ownerId: userId })
+    .values({ ...parsed.data, ownerId: userId, workspaceRole: userRole as "student" | "teacher" })
     .returning();
   res.status(201).json(CreateResourceListResponse.parse({ ...list, itemCount: 0 }));
 });
 
 // GET /lists/:id — owner or member of the shared class
 router.get("/lists/:id", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const params = GetResourceListParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await canReadList(params.data.id, userId))) {
+  if (!(await canReadList(params.data.id, userId, userRole))) {
     res.status(403).json({ error: "You do not have access to this list" });
     return;
   }
@@ -125,13 +125,13 @@ router.get("/lists/:id", requireAuth, async (req, res): Promise<void> => {
 
 // PATCH /lists/:id — owner only
 router.patch("/lists/:id", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const params = UpdateResourceListParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await isListOwner(params.data.id, userId))) {
+  if (!(await isListOwner(params.data.id, userId, userRole))) {
     res.status(403).json({ error: "Only the list owner can update this list" });
     return;
   }
@@ -155,7 +155,7 @@ router.patch("/lists/:id", requireAuth, async (req, res): Promise<void> => {
 
 // DELETE /lists/:id — owner only
 router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const params = DeleteResourceListParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -172,7 +172,7 @@ router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
     res.sendStatus(204);
     return;
   }
-  if (!(await isListOwner(params.data.id, userId))) {
+  if (!(await isListOwner(params.data.id, userId, userRole))) {
     res.status(403).json({ error: "Only the list owner can delete this list" });
     return;
   }
@@ -183,13 +183,13 @@ router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
 
 // POST /lists/:id/items — owner only
 router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const params = AddListItemParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await isListOwner(params.data.id, userId))) {
+  if (!(await isListOwner(params.data.id, userId, userRole))) {
     res.status(403).json({ error: "Only the list owner can add items" });
     return;
   }
@@ -215,13 +215,13 @@ router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): P
 // Must be registered before DELETE /lists/:id/items/:itemId so Express doesn't
 // mistake "reorder" for an itemId.
 router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const params = ReorderListItemsParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await isListOwner(params.data.id, userId))) {
+  if (!(await isListOwner(params.data.id, userId, userRole))) {
     res.status(403).json({ error: "Only the list owner can reorder items" });
     return;
   }
@@ -263,13 +263,13 @@ router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<v
 
 // DELETE /lists/:id/items/:itemId — list owner only
 router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const params = RemoveListItemParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await isListItemOwner(params.data.itemId, userId))) {
+  if (!(await isListItemOwner(params.data.itemId, userId, userRole))) {
     res.status(403).json({ error: "Only the list owner can remove items" });
     return;
   }
@@ -281,13 +281,13 @@ router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise
 
 // POST /lists/:id/share — list owner + class teacher
 router.post("/lists/:id/share", contentLimiter, requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const params = ShareListWithClassParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  if (!(await isListOwner(params.data.id, userId))) {
+  if (!(await isListOwner(params.data.id, userId, userRole))) {
     res.status(403).json({ error: "Only the list owner can share this list" });
     return;
   }

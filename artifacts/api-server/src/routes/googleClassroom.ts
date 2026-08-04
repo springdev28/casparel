@@ -71,8 +71,8 @@ async function requireTeacher(
   next: Parameters<typeof requireAuth>[2],
 ): Promise<void> {
   const { userId } = req as AuthenticatedRequest;
-  const [user] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
-  if (!user || user.role !== "teacher") {
+  const [user] = await db.select({ role: usersTable.role, activeRole: usersTable.activeRole }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!user || (user.role !== "teacher" && !(user.role === "admin" && user.activeRole === "teacher"))) {
     res.status(403).json({ error: "Only teachers can use Google Classroom integration" });
     return;
   }

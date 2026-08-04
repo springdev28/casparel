@@ -11,6 +11,7 @@ export type ClassroomDeskShape = typeof ClassroomDeskShape[keyof typeof Classroo
 
 export const ClassroomDeskShape = {
   rectangle: 'rectangle',
+  polygon: 'polygon',
   round: 'round',
   oval: 'oval',
   trapezoid: 'trapezoid',

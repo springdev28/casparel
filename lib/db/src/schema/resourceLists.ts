@@ -9,6 +9,7 @@ export const resourceListsTable = pgTable("resource_lists", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  workspaceRole: text("workspace_role").$type<"student" | "teacher" | "shared">().notNull().default("student"),
   ownerId: integer("owner_id").notNull().references(() => usersTable.id),
   classId: integer("class_id").references(() => classesTable.id),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),

@@ -3,7 +3,7 @@
  * All helpers return true if the check passes, false otherwise.
  * Route handlers should respond 403 when a check fails.
  */
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import {
   db,
   classesTable,
@@ -24,10 +24,10 @@ import {
 export async function isClassTeacher(classId: number, userId: number): Promise<boolean> {
   // Verify live DB role so downgraded accounts cannot retain teacher privileges.
   const [user] = await db
-    .select({ role: usersTable.role })
+    .select({ role: usersTable.role, activeRole: usersTable.activeRole })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
-  if (!user || user.role !== "teacher") return false;
+  if (!user || (user.role !== "teacher" && !(user.role === "admin" && user.activeRole === "teacher"))) return false;
 
   const [cls] = await db
     .select()
@@ -64,11 +64,11 @@ export async function isReviewOwner(reviewId: number, userId: number): Promise<b
 }
 
 /** User owns this list */
-export async function isListOwner(listId: number, userId: number): Promise<boolean> {
+export async function isListOwner(listId: number, userId: number, workspaceRole: string): Promise<boolean> {
   const [row] = await db
     .select()
     .from(resourceListsTable)
-    .where(and(eq(resourceListsTable.id, listId), eq(resourceListsTable.ownerId, userId)));
+    .where(and(eq(resourceListsTable.id, listId), eq(resourceListsTable.ownerId, userId), or(eq(resourceListsTable.workspaceRole, workspaceRole as "student" | "teacher"), eq(resourceListsTable.workspaceRole, "shared"))!));
   return !!row;
 }
 
@@ -76,13 +76,13 @@ export async function isListOwner(listId: number, userId: number): Promise<boole
  * User can read this list: either they own it, or it is shared to a class
  * they are a member of.
  */
-export async function canReadList(listId: number, userId: number): Promise<boolean> {
+export async function canReadList(listId: number, userId: number, workspaceRole: string): Promise<boolean> {
   const [list] = await db
     .select()
     .from(resourceListsTable)
     .where(eq(resourceListsTable.id, listId));
   if (!list) return false;
-  if (list.ownerId === userId) return true;
+  if (list.ownerId === userId) return list.workspaceRole === workspaceRole || list.workspaceRole === "shared";
   if (list.classId !== null) return isClassMember(list.classId, userId);
   return false;
 }
@@ -97,11 +97,11 @@ export async function isScheduleBlockOwner(blockId: number, userId: number): Pro
 }
 
 /** User owns a list item (via owning the parent list) */
-export async function isListItemOwner(itemId: number, userId: number): Promise<boolean> {
+export async function isListItemOwner(itemId: number, userId: number, workspaceRole: string): Promise<boolean> {
   const [item] = await db
     .select()
     .from(listItemsTable)
     .where(eq(listItemsTable.id, itemId));
   if (!item) return false;
-  return isListOwner(item.listId, userId);
+  return isListOwner(item.listId, userId, workspaceRole);
 }
