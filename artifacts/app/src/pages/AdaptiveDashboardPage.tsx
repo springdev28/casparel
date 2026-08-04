@@ -27,8 +27,10 @@ import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Card, CardContent } from "@workspace/edu-ds/components/ui/card";
 import { Progress } from "@workspace/edu-ds/components/ui/progress";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
+import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 
 const path = [
   ["Fractions as parts of a whole", "Video · 8 min"],
@@ -41,6 +43,7 @@ function StudentView({ name }: { name?: string }) {
   const [why, setWhy] = useState(true);
   const [confidence, setConfidence] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const { data: evidence } = useListLearningEvidence();
   const createEvidence = useCreateLearningEvidence();
   const latest = evidence?.[0];
@@ -107,7 +110,7 @@ function StudentView({ name }: { name?: string }) {
                 <Target size={16} />
                 Goal: Add and subtract fractions confidently
               </span>
-              <Button>
+              <Button onClick={() => setLocation("/resources?q=equivalent+fractions")}>
                 Continue learning
                 <ArrowRight size={16} className="ml-2" />
               </Button>
@@ -226,7 +229,11 @@ function StudentView({ name }: { name?: string }) {
                 Equivalent values
               </span>
             </div>
-            <Button variant="outline" className="w-full">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setLocation("/resources?subject=Mathematics")}
+            >
               Explore class map
             </Button>
           </CardContent>
@@ -253,7 +260,9 @@ const signals = [
     "Understanding improved 24% after this resource.",
   ],
 ] as const;
+
 function TeacherView({ name }: { name?: string }) {
+  const [, setLocation] = useLocation();
   const { data: learningSignals } = useGetLearningSignals();
   const liveSignals = learningSignals?.signals.length
     ? learningSignals.signals.map(
@@ -274,6 +283,11 @@ function TeacherView({ name }: { name?: string }) {
       (sum, signal) => sum + signal.stalledCount,
       0,
     ) ?? 0;
+
+  function comingSoon(feature: string) {
+    toast({ title: `${feature} — coming soon`, description: "This feature is on the roadmap." });
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -286,7 +300,7 @@ function TeacherView({ name }: { name?: string }) {
             Here&apos;s what your learners&apos; evidence suggests doing next.
           </p>
         </div>
-        <Button>
+        <Button onClick={() => comingSoon("Ask Schoolar")}>
           <Sparkles size={16} className="mr-2" />
           Ask Schoolar
         </Button>
@@ -326,7 +340,11 @@ function TeacherView({ name }: { name?: string }) {
                     <b className="text-sm">{title}</b>
                     <p className="text-xs text-muted-foreground">{text}</p>
                   </div>
-                  <Button size="sm" variant="ghost">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setLocation("/classes")}
+                  >
                     Review
                   </Button>
                 </div>
@@ -367,11 +385,15 @@ function TeacherView({ name }: { name?: string }) {
                 </div>
               ))}
             </div>
-            <Button className="w-full">
+            <Button className="w-full" onClick={() => setLocation("/classes")}>
               Review differentiated assignment
               <ArrowRight size={16} className="ml-2" />
             </Button>
-            <Button variant="ghost" className="mt-2 w-full">
+            <Button
+              variant="ghost"
+              className="mt-2 w-full"
+              onClick={() => comingSoon("AI grouping suggestions")}
+            >
               <RefreshCw size={14} className="mr-2" />
               Try another grouping
             </Button>
@@ -387,13 +409,14 @@ function TeacherView({ name }: { name?: string }) {
         </p>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
-            [Users, "Form balanced groups"],
-            [Target, "Differentiate an assignment"],
-            [CalendarDays, "Plan the schedule"],
-            [BookOpen, "Sequence next week"],
-          ].map(([Icon, title]) => (
+            [Users, "Form balanced groups", "/classes"],
+            [Target, "Differentiate an assignment", "/classes"],
+            [CalendarDays, "Plan the schedule", "/schedule"],
+            [BookOpen, "Sequence next week", "/schedule"],
+          ].map(([Icon, title, href]) => (
             <button
               key={title as string}
+              onClick={() => setLocation(href as string)}
               className="rounded-xl border bg-card p-5 text-left shadow-sm hover:border-primary"
             >
               <Icon className="mb-3 text-primary" />
