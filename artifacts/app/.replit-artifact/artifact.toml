@@ -12,7 +12,7 @@ paths = [ "/" ]
 localPort = 23863
 
 [services.development]
-run = "pnpm --filter @workspace/app run dev:full"
+run = "pnpm --filter @workspace/app run dev"
 
 [services.production]
 build = [ "pnpm", "--filter", "@workspace/app", "run", "build" ]

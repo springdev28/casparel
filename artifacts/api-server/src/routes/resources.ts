@@ -242,7 +242,11 @@ function parseDiscoverOutput(textOutput: string): ReturnType<typeof DiscoverReso
     return [];
   }
 
-  const items = Array.isArray(parsed) ? parsed : [];
+  const items = Array.isArray(parsed)
+    ? parsed
+    : parsed && typeof parsed === "object" && Array.isArray((parsed as { resources?: unknown }).resources)
+      ? (parsed as { resources: unknown[] }).resources
+      : [];
   const validated = DiscoverResourcesResponse.safeParse(items);
   if (validated.success) return validated.data;
 
@@ -265,7 +269,41 @@ async function callDiscoverAI(
     const response = await openai.responses.create(
       {
         model: "gpt-4o-mini",
-        tools: [{ type: "web_search_preview" }],
+        tools: [{ type: "web_search_preview", search_context_size: "low" }],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "educational_resources",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: ["resources"],
+              properties: {
+                resources: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 6,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["title", "url", "description", "format", "source", "thumbnailUrl", "subject", "gradeLevel"],
+                    properties: {
+                      title: { type: "string" },
+                      url: { type: "string" },
+                      description: { type: "string" },
+                      format: { type: "string", enum: ["article", "video", "pdf", "podcast", "interactive", "other"] },
+                      source: { type: "string" },
+                      thumbnailUrl: { type: ["string", "null"] },
+                      subject: { type: ["string", "null"] },
+                      gradeLevel: { type: ["string", "null"] },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         input: prompt,
       },
       { signal: ac.signal },
@@ -282,6 +320,8 @@ async function callDiscoverAI(
 }
 
 const DISCOVER_MIN_RESULTS = 3;
+const DISCOVER_CACHE_TTL_MS = 10 * 60 * 1000;
+const discoverCache = new Map<string, { expiresAt: number; items: ReturnType<typeof DiscoverResourcesResponse.parse> }>();
 
 router.get("/resources/discover", discoverLimiter, async (req, res): Promise<void> => {
   const params = DiscoverResourcesQueryParams.safeParse(req.query);
@@ -291,6 +331,16 @@ router.get("/resources/discover", discoverLimiter, async (req, res): Promise<voi
   }
 
   const { q, format, subject, gradeLevel, page = 1 } = params.data;
+  const cacheKey = JSON.stringify({ q: q.trim().toLowerCase(), format, subject: subject?.trim().toLowerCase(), gradeLevel, page });
+  if (process.env.NODE_ENV !== "test") {
+    const cached = discoverCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      res.setHeader("X-Search-Cache", "HIT");
+      res.json(cached.items);
+      return;
+    }
+    if (cached) discoverCache.delete(cacheKey);
+  }
 
   const formatHint = format ? ` Focus on ${format} resources.` : "";
   const subjectHint = subject ? ` Subject area: ${subject}.` : "";
@@ -307,8 +357,8 @@ router.get("/resources/discover", discoverLimiter, async (req, res): Promise<voi
         : "";
     return `Suggest 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}${pageHint}
 
-Search the web and recommend well-known, publicly accessible resources. Return a JSON array only. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
-Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse; no search-result pages, homepages standing in for a resource, or paywalls; JSON only, no markdown.${exclusionNote}`;
+Search the web and recommend well-known, publicly accessible resources. Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
+Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse; no search-result pages, homepages standing in for a resource, or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
   };
 
   try {
@@ -325,6 +375,8 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
     const reachable = await filterReachableUrls(firstBatch, 2000);
 
     if (reachable.length >= DISCOVER_MIN_RESULTS) {
+      if (process.env.NODE_ENV !== "test") discoverCache.set(cacheKey, { expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS, items: reachable });
+      res.setHeader("X-Search-Cache", "MISS");
       res.json(reachable);
       return;
     }
@@ -356,6 +408,8 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       return;
     }
 
+    if (process.env.NODE_ENV !== "test") discoverCache.set(cacheKey, { expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS, items: merged });
+    res.setHeader("X-Search-Cache", "MISS");
     res.json(merged);
   } catch (err) {
     console.error("Discover AI error:", err);
