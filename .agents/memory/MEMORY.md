@@ -3,3 +3,4 @@
 - [Orval Zod v4 import fix](orval-zod-v4.md) — orval 8.x generates `z.int()` (Zod v4 API); post-process generated files with sed to replace `from 'zod'` → `from 'zod/v4'` since the workspace ships zod@3 with a /v4 compat export.
 - [EduHub auth token](eduhub-auth.md) — Bearer token signed with HMAC-SHA256 using SESSION_SECRET (no bcrypt/jwt packages); token key "schooler_token" in localStorage (migrates old "eduhub_token" on first load); setAuthTokenGetter wired at module level in App.tsx.
 - [Schooler public browse](schooler-public.md) — GET /resources, /resources/:id, /resources/:id/reviews are public (no requireAuth); frontend uses PublicShell for unauthenticated, AppShell for authenticated; avg rating uses Number() not .toFixed() (pg returns strings).
+- [Dashboard resource count](dashboard-resource-count.md) — resourceCount must count ALL resources (no where clause); task merges repeatedly revert this to a per-user filter — recheck after every merge.
