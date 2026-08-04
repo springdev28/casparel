@@ -128,9 +128,11 @@ export default function AppShell({ children }: AppShellProps) {
     }
   }
 
-  // Build the sidebar GC widget (teachers only, when GC is configured)
-  const gcWidget =
-    isTeacher && gcStatus?.configured ? (
+  // Build the sidebar GC widget (teachers only)
+  const gcWidget = isTeacher ? (
+    gcStatusLoading ? (
+      <Skeleton className="h-6 w-40 bg-primary-foreground/20" />
+    ) : gcStatus?.configured ? (
       gcStatus.connected ? (
         <button
           onClick={handleGcDisconnect}
@@ -157,9 +159,18 @@ export default function AppShell({ children }: AppShellProps) {
           <span className="truncate">Connect Google Classroom</span>
         </button>
       )
-    ) : isTeacher && gcStatusLoading ? (
-      <Skeleton className="h-6 w-40 bg-primary-foreground/20" />
-    ) : null;
+    ) : gcStatus && !gcStatus.configured ? (
+      <span
+        className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-primary-foreground/40 cursor-default"
+        title="Google Classroom credentials are not configured on this server. Contact your admin."
+        data-testid="sidebar-gc-not-configured"
+      >
+        <Link2 size={13} className="shrink-0" />
+        <span className="truncate">Google Classroom</span>
+        <span className="text-[10px] ml-auto shrink-0">(not set up)</span>
+      </span>
+    ) : null
+  ) : null;
 
   // Role switcher — shown when user data is loaded
   const roleSwitcher = me ? (

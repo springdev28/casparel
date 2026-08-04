@@ -281,6 +281,17 @@ export default function ClassesPage() {
                   )}
                   Connect Google Classroom
                 </Button>
+              ) : gcStatus && !gcStatus.configured ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  title="Google Classroom credentials are not configured on this server. Contact your admin."
+                  data-testid="gc-not-configured-button"
+                >
+                  <BookOpen size={15} className="mr-1.5 text-muted-foreground" />
+                  Google Classroom (not configured)
+                </Button>
               ) : null}
             </>
           )}

@@ -56,8 +56,10 @@ export default function ClassDetailPage() {
     query: { enabled: !!classId, queryKey: getGetClassQueryKey(classId) },
   });
   const { data: me } = useGetMe();
+  // GC status: fetch for any teacher-role user (not class-specific)
+  const isTeacherRole = me?.role === UserRole.teacher;
   const { data: gcStatus } = useGetGCStatus({
-    query: { queryKey: getGetGCStatusQueryKey() },
+    query: { enabled: isTeacherRole, queryKey: getGetGCStatusQueryKey() },
   });
   const { data: classResList, isLoading: resListLoading } = useGetClassResourcesList(classId, {
     query: { enabled: !!classId, queryKey: getGetClassResourcesListQueryKey(classId) },
@@ -67,9 +69,10 @@ export default function ClassDetailPage() {
   const addMember = useAddClassMember();
   const bulkInvite = useBulkInviteClassMembers();
 
-  // Use class-specific role: only the teacher of THIS class can manage it
+  // Class-specific teacher check: only the teacher of THIS class can manage it
   const isTeacher = me?.id != null && cls?.teacherId === me.id;
   const gcConnected = gcStatus?.connected === true;
+  const gcConfigured = gcStatus?.configured === true;
 
   const rosterEnabled = syncDialogOpen && !!selectedCourseId && gcConnected;
   const { data: roster, isLoading: rosterLoading } = useGetGCCourseStudents(
@@ -168,70 +171,93 @@ export default function ClassDetailPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary">{cls.members.length} member{cls.members.length !== 1 ? 's' : ''}</Badge>
 
-              {gcConnected && isTeacher && (
-                <Dialog open={syncDialogOpen} onOpenChange={handleSyncDialogOpenChange}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" data-testid="sync-roster-button">
-                      <RefreshCw size={14} className="mr-1" /> Sync Roster
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-lg">
-                    <DialogHeader>
-                      <DialogTitle>Sync Google Classroom Roster</DialogTitle>
-                      <DialogDescription>Enter the Google Classroom course ID to pull its student roster.</DialogDescription>
-                    </DialogHeader>
-                    {!selectedCourseId && <SyncCourseIdStep onConfirm={(id) => setSelectedCourseId(id)} />}
-                    {selectedCourseId && !rosterConfirmed && (
-                      <div className="space-y-4">
-                        {rosterLoading ? (
-                          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
-                        ) : !roster || roster.length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-6">No students found in this course.</p>
-                        ) : (
-                          <>
-                            <p className="text-sm text-muted-foreground">
-                              Found <strong>{roster.length}</strong> student{roster.length !== 1 ? 's' : ''}.{' '}
-                              <span className="text-green-600 dark:text-green-400">{linked.length} matched</span> to accounts.{' '}
-                              <span className="text-muted-foreground">{unlinked.length} have no account yet.</span>
-                            </p>
-                            <div className="max-h-56 overflow-y-auto divide-y divide-border rounded-md border">
-                              {roster.map((s: GCRosterStudent) => (
-                                <div key={s.gcUserId} className="flex items-center justify-between px-3 py-2 gap-2">
-                                  <div>
-                                    <p className="text-sm font-medium">{s.name}</p>
-                                    <p className="text-xs text-muted-foreground">{s.email}</p>
+              {/* Sync Roster — visible to all teachers; state varies by GC connection */}
+              {isTeacher && (
+                gcConnected ? (
+                  <Dialog open={syncDialogOpen} onOpenChange={handleSyncDialogOpenChange}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" data-testid="sync-roster-button">
+                        <RefreshCw size={14} className="mr-1" /> Sync Roster
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>Sync Google Classroom Roster</DialogTitle>
+                        <DialogDescription>Enter the Google Classroom course ID to pull its student roster.</DialogDescription>
+                      </DialogHeader>
+                      {!selectedCourseId && <SyncCourseIdStep onConfirm={(id) => setSelectedCourseId(id)} />}
+                      {selectedCourseId && !rosterConfirmed && (
+                        <div className="space-y-4">
+                          {rosterLoading ? (
+                            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+                          ) : !roster || roster.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-6">No students found in this course.</p>
+                          ) : (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                Found <strong>{roster.length}</strong> student{roster.length !== 1 ? 's' : ''}.{' '}
+                                <span className="text-green-600 dark:text-green-400">{linked.length} matched</span> to accounts.{' '}
+                                <span className="text-muted-foreground">{unlinked.length} have no account yet.</span>
+                              </p>
+                              <div className="max-h-56 overflow-y-auto divide-y divide-border rounded-md border">
+                                {roster.map((s: GCRosterStudent) => (
+                                  <div key={s.gcUserId} className="flex items-center justify-between px-3 py-2 gap-2">
+                                    <div>
+                                      <p className="text-sm font-medium">{s.name}</p>
+                                      <p className="text-xs text-muted-foreground">{s.email}</p>
+                                    </div>
+                                    {s.linkedUserId
+                                      ? <CheckCircle2 size={16} className="text-green-600 dark:text-green-400 shrink-0" />
+                                      : <AlertCircle size={16} className="text-muted-foreground shrink-0" />}
                                   </div>
-                                  {s.linkedUserId
-                                    ? <CheckCircle2 size={16} className="text-green-600 dark:text-green-400 shrink-0" />
-                                    : <AlertCircle size={16} className="text-muted-foreground shrink-0" />}
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setSelectedCourseId(null)}>Back</Button>
-                          <Button onClick={() => setRosterConfirmed(true)} disabled={!roster || roster.length === 0 || linked.length === 0}>
-                            Add {linked.length} Student{linked.length !== 1 ? 's' : ''}
-                          </Button>
-                        </DialogFooter>
-                      </div>
-                    )}
-                    {selectedCourseId && rosterConfirmed && (
-                      <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                          This will enroll <strong>{linked.length}</strong> student{linked.length !== 1 ? 's' : ''} who already have accounts.
-                        </p>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setRosterConfirmed(false)}>Back</Button>
-                          <Button onClick={handleSyncRoster} disabled={bulkInvite.isPending} data-testid="sync-roster-confirm">
-                            {bulkInvite.isPending ? 'Syncing…' : 'Confirm Sync'}
-                          </Button>
-                        </DialogFooter>
-                      </div>
-                    )}
-                  </DialogContent>
-                </Dialog>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setSelectedCourseId(null)}>Back</Button>
+                            <Button onClick={() => setRosterConfirmed(true)} disabled={!roster || roster.length === 0 || linked.length === 0}>
+                              Add {linked.length} Student{linked.length !== 1 ? 's' : ''}
+                            </Button>
+                          </DialogFooter>
+                        </div>
+                      )}
+                      {selectedCourseId && rosterConfirmed && (
+                        <div className="space-y-4">
+                          <p className="text-sm text-muted-foreground">
+                            This will enroll <strong>{linked.length}</strong> student{linked.length !== 1 ? 's' : ''} who already have accounts.
+                          </p>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setRosterConfirmed(false)}>Back</Button>
+                            <Button onClick={handleSyncRoster} disabled={bulkInvite.isPending} data-testid="sync-roster-confirm">
+                              {bulkInvite.isPending ? 'Syncing…' : 'Confirm Sync'}
+                            </Button>
+                          </DialogFooter>
+                        </div>
+                      )}
+                    </DialogContent>
+                  </Dialog>
+                ) : gcConfigured ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setLocation('/classes?connect_gc=1')}
+                    title="Connect Google Classroom to sync the roster"
+                    data-testid="sync-roster-connect-button"
+                  >
+                    <RefreshCw size={14} className="mr-1" /> Sync Roster
+                  </Button>
+                ) : gcStatus && !gcConfigured ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled
+                    title="Google Classroom credentials are not configured on this server. Contact your admin."
+                    data-testid="sync-roster-not-configured-button"
+                  >
+                    <RefreshCw size={14} className="mr-1" /> Sync Roster
+                  </Button>
+                ) : null
               )}
 
               {isTeacher && (

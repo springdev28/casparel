@@ -355,16 +355,29 @@ export default function ListDetailPage() {
           </Dialog>
         )}
 
-        {canShareToGC && gcStatus?.configured && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={openGCShareDialog}
-            data-testid="share-to-gc-button"
-          >
-            <BookOpen size={15} className="mr-1.5 text-[#4285F4]" />
-            {gcStatus.connected ? 'Share to Google Classroom' : 'Connect Google Classroom'}
-          </Button>
+        {canShareToGC && (
+          gcStatus?.configured ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openGCShareDialog}
+              data-testid="share-to-gc-button"
+            >
+              <BookOpen size={15} className="mr-1.5 text-[#4285F4]" />
+              {gcStatus.connected ? 'Share to Google Classroom' : 'Connect Google Classroom'}
+            </Button>
+          ) : gcStatus && !gcStatus.configured ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              title="Google Classroom credentials are not configured on this server. Contact your admin."
+              data-testid="share-to-gc-not-configured-button"
+            >
+              <BookOpen size={15} className="mr-1.5 text-muted-foreground" />
+              Google Classroom (not configured)
+            </Button>
+          ) : null
         )}
       </div>
 
