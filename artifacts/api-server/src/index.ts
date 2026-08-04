@@ -3,13 +3,7 @@ import { logger } from "./lib/logger";
 import { runMigrations } from "@workspace/db";
 import { initRateLimitStore } from "./lib/rateLimitStore";
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
+const rawPort = process.env["PORT"] ?? "5000";
 
 const port = Number(rawPort);
 
