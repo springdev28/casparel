@@ -77,7 +77,9 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
 };
 
 function browserLanguage(): AuthLanguage {
-  const candidates = typeof navigator === 'undefined' ? [] : [navigator.language, ...navigator.languages];
+  const candidates = typeof navigator === 'undefined'
+    ? []
+    : [navigator.language, ...(Array.isArray(navigator.languages) ? navigator.languages : [])];
   for (const candidate of candidates) {
     const code = candidate?.toLowerCase().split('-')[0];
     if (AUTH_LANGUAGES.some((language) => language.code === code)) return code as AuthLanguage;
@@ -86,7 +88,12 @@ function browserLanguage(): AuthLanguage {
 }
 
 function initialLanguage(): AuthLanguage {
-  const saved = localStorage.getItem(AUTH_LANGUAGE_KEY);
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(AUTH_LANGUAGE_KEY);
+  } catch {
+    // Storage can be blocked in embedded previews or privacy modes.
+  }
   return AUTH_LANGUAGES.some((language) => language.code === saved) ? saved as AuthLanguage : browserLanguage();
 }
 
@@ -98,7 +105,11 @@ export function useAuthLanguage() {
   }, [language]);
 
   function setLanguage(next: AuthLanguage) {
-    localStorage.setItem(AUTH_LANGUAGE_KEY, next);
+    try {
+      localStorage.setItem(AUTH_LANGUAGE_KEY, next);
+    } catch {
+      // Keep the in-memory selection working when persistence is unavailable.
+    }
     setLanguageState(next);
   }
 
