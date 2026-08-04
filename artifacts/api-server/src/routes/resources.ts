@@ -184,7 +184,7 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
   res.json(GetResourceRecommendationsResponse.parse(results.filter(Boolean)));
 });
 
-// ── GET /resources/discover — public, AI web search ──────────────────────────
+// ── GET /resources/discover — public, AI knowledge-based search ──────────────
 // NOTE: must stay above /resources/:id
 
 /** Extract and validate resource items from a raw AI text response. */
@@ -221,20 +221,11 @@ async function callDiscoverAI(
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 22000);
   try {
-    const response = await openai.responses.create(
-      { model: "gpt-4o-mini", tools: [{ type: "web_search_preview" }], input: prompt },
+    const response = await openai.chat.completions.create(
+      { model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }] },
       { signal: ac.signal },
     );
-    const textOutput = response.output
-      .filter((b) => b.type === "message")
-      .flatMap((b) =>
-        (
-          b as { type: string; content: Array<{ type: string; text?: string }> }
-        ).content
-          .filter((c) => c.type === "output_text" && c.text)
-          .map((c) => c.text as string),
-      )
-      .join("");
+    const textOutput = response.choices[0]?.message?.content ?? "";
     return parseDiscoverOutput(textOutput);
   } finally {
     clearTimeout(timer);
@@ -282,9 +273,9 @@ router.get("/resources/discover", async (req, res): Promise<void> => {
       excludeUrls.length > 0
         ? `\nDo NOT include any of these URLs (they are unreachable):\n${excludeUrls.map((u) => `- ${u}`).join("\n")}`
         : "";
-    return `Find 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}${pageHint}
+    return `Suggest 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}${pageHint}
 
-Return a JSON array only. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
+Use your training knowledge to recommend well-known, publicly accessible resources. Return a JSON array only. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
 Rules: real public URLs only, prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse, no paywalls, JSON only no markdown.${exclusionNote}`;
   };
 
@@ -396,7 +387,7 @@ router.post("/resources/prefetch", requireAuth, async (req, res): Promise<void> 
   const ytThumbnail = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
 
   // ── 3. Use AI with web-fetch to extract page metadata ────────────────────
-  const prompt = `Fetch and analyse this URL: ${url}
+  const prompt = `Analyse this URL based on your training knowledge: ${url}
 
 Return ONLY a JSON object with these fields (no markdown fences, no extra text):
 {
@@ -409,24 +400,16 @@ Return ONLY a JSON object with these fields (no markdown fences, no extra text):
 Rules:
 - For YouTube/Vimeo URLs, format must be "video"
 - For .pdf URLs, format must be "pdf"
-- thumbnailUrl: for YouTube use https://img.youtube.com/vi/{videoId}/hqdefault.jpg; for others use the page's og:image or null
+- thumbnailUrl: for YouTube use https://img.youtube.com/vi/{videoId}/hqdefault.jpg; for others use null
 - Keep title and description concise and factual`;
 
   try {
-    const response = await openai.responses.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      tools: [{ type: "web_search_preview" }],
-      input: prompt,
+      messages: [{ role: "user", content: prompt }],
     });
 
-    const textOutput = response.output
-      .filter((b) => b.type === "message")
-      .flatMap((b) =>
-        (b as { type: string; content: Array<{ type: string; text?: string }> }).content
-          .filter((c) => c.type === "output_text" && c.text)
-          .map((c) => c.text as string)
-      )
-      .join("");
+    const textOutput = response.choices[0]?.message?.content ?? "";
 
     const cleaned = textOutput
       .replace(/^```(?:json)?\s*/i, "")

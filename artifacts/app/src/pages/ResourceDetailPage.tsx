@@ -217,7 +217,7 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
   }
 
   const trust = data ? TRUST_META[data.trustLevel] : null;
-  const loadingLabel = mode === 'deep' ? 'Searching the web…' : 'Looking up source…';
+  const loadingLabel = mode === 'deep' ? 'Analysing with AI training knowledge…' : 'Looking up source…';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -256,7 +256,7 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
               >
                 <span className="text-sm font-semibold">🔍 Deep Research</span>
                 <span className="text-xs text-muted-foreground leading-relaxed">
-                  Searches the live web for up-to-date info. Slower but thorough.
+                  In-depth AI analysis using training knowledge. Slower but thorough.
                 </span>
               </button>
             </div>
@@ -340,7 +340,7 @@ function SourceReviewPanel({ resourceId }: { resourceId: number }) {
             )}
 
             <p className="text-xs text-muted-foreground pt-1">
-              This review is AI-generated {data.mode === 'deep' ? 'from live web sources' : 'from training knowledge'} and may not be fully accurate.
+              This review is AI-generated from training knowledge{data.mode === 'deep' ? ' with detailed reasoning' : ''} and may not be fully accurate.
             </p>
 
             {/* Switch mode */}

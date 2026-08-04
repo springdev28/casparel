@@ -46,25 +46,12 @@ function validateItems(items: unknown[]): DiscoverList {
 
 /** Call the AI and return validated resource items, or an empty array on failure. */
 async function fetchFromAI(prompt: string): Promise<DiscoverList> {
-  const response = await openai.responses.create({
+  const response = await openai.chat.completions.create({
     model: "gpt-4o",
-    tools: [{ type: "web_search_preview" }],
-    input: prompt,
+    messages: [{ role: "user", content: prompt }],
   });
 
-  const textOutput = response.output
-    .filter((b) => b.type === "message")
-    .flatMap((b) =>
-      (
-        b as {
-          type: string;
-          content: Array<{ type: string; text?: string }>;
-        }
-      ).content
-        .filter((c) => c.type === "output_text" && c.text)
-        .map((c) => c.text as string)
-    )
-    .join("");
+  const textOutput = response.choices[0]?.message?.content ?? "";
 
   const rawItems = parseAIOutput(textOutput);
   if (rawItems.length === 0) return [];
@@ -91,7 +78,7 @@ router.get("/resources/discover", async (req, res): Promise<void> => {
         ? `\n\nDo NOT include any of these URLs (they were unreachable):\n${excludeUrls.map((u) => `- ${u}`).join("\n")}`
         : "";
 
-    return `You are an educational research assistant. Search the web and find 8–12 high-quality educational resources matching this query: "${q}"${subjectHint}${gradeHint}${formatHint}
+    return `You are an educational research assistant. Using your training knowledge, suggest 8–12 high-quality educational resources matching this query: "${q}"${subjectHint}${gradeHint}${formatHint}
 
 Return ONLY a JSON array. Each element must have these fields:
 - title: string — full title of the resource

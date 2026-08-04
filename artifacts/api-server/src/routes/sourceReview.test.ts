@@ -2,8 +2,8 @@
  * Unit tests for GET /resources/:id/source-review
  *
  * The OpenAI client and DB are fully mocked. Tests assert:
- *  - Quick mode: openai.responses.create is called WITHOUT the web_search_preview tool
- *  - Deep mode:  openai.responses.create is called WITH the web_search_preview tool
+ *  - Quick mode: openai.chat.completions.create is called (no tools)
+ *  - Deep mode:  openai.chat.completions.create is called with a longer/more detailed prompt
  *  - Default (no mode param) behaves like quick
  *  - Response body always includes the resolved `mode` field
  *  - 404 when the resource does not exist
@@ -61,8 +61,10 @@ const mockResponsePayload = {
 
 vi.mock("@workspace/integrations-openai-ai-server", () => {
   const openai = {
-    responses: {
-      create: vi.fn(),
+    chat: {
+      completions: {
+        create: vi.fn(),
+      },
     },
   };
   return { openai };
@@ -83,19 +85,17 @@ function buildApp() {
   return app;
 }
 
-/** Build a fake OpenAI response wrapping the given JSON payload. */
+/** Build a fake Chat Completions response wrapping the given JSON payload. */
 function fakeOpenAIResponse(payload: Record<string, unknown>) {
   return {
-    output: [
+    choices: [
       {
-        type: "message",
-        content: [
-          // annotations is required by ResponseOutputText; an empty array satisfies the type
-          { type: "output_text" as const, text: JSON.stringify(payload), annotations: [] },
-        ],
+        message: {
+          content: JSON.stringify(payload),
+        },
       },
     ],
-  } as unknown as Awaited<ReturnType<typeof openai.responses.create>>;
+  } as unknown as Awaited<ReturnType<typeof openai.chat.completions.create>>;
 }
 
 // ── beforeEach ─────────────────────────────────────────────────────────────────
@@ -120,9 +120,9 @@ beforeEach(() => {
     return chain as unknown as ReturnType<typeof db.select>;
   });
 
-  // openai.responses.create → capture args, return a valid payload
+  // openai.chat.completions.create → capture args, return a valid payload
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (openai.responses.create as any).mockImplementation(
+  (openai.chat.completions.create as any).mockImplementation(
     async (args: Record<string, unknown>) => {
       lastCreateCall = args;
       return fakeOpenAIResponse(mockResponsePayload);
@@ -135,30 +135,53 @@ beforeEach(() => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("GET /api/resources/:id/source-review — mode contract", () => {
-  it("quick mode: does NOT attach the web_search_preview tool", async () => {
+  it("quick mode: uses chat.completions.create with no tools", async () => {
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review?mode=quick",
     );
 
     expect(res.status).toBe(200);
     expect(lastCreateCall).not.toBeNull();
-    // tools must be absent (undefined or empty) for Quick mode
+    // Chat Completions API — no tools field
     expect(lastCreateCall!.tools).toBeUndefined();
   });
 
-  it("deep mode: attaches the web_search_preview tool", async () => {
+  it("deep mode: uses chat.completions.create with a more detailed prompt than quick", async () => {
+    // Capture quick prompt
+    let quickPrompt = "";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (openai.chat.completions.create as any).mockImplementation(
+      async (args: Record<string, unknown>) => {
+        lastCreateCall = args;
+        const messages = args.messages as Array<{ role: string; content: string }>;
+        quickPrompt = messages[0]?.content ?? "";
+        return fakeOpenAIResponse(mockResponsePayload);
+      },
+    );
+    await request(buildApp()).get("/api/resources/42/source-review?mode=quick");
+
+    let deepPrompt = "";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (openai.chat.completions.create as any).mockImplementation(
+      async (args: Record<string, unknown>) => {
+        lastCreateCall = args;
+        const messages = args.messages as Array<{ role: string; content: string }>;
+        deepPrompt = messages[0]?.content ?? "";
+        return fakeOpenAIResponse(mockResponsePayload);
+      },
+    );
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review?mode=deep",
     );
 
     expect(res.status).toBe(200);
-    expect(lastCreateCall).not.toBeNull();
-    const tools = lastCreateCall!.tools as Array<{ type: string }>;
-    expect(Array.isArray(tools)).toBe(true);
-    expect(tools.some((t) => t.type === "web_search_preview")).toBe(true);
+    // Deep prompt should be longer (contains additional reasoning instructions)
+    expect(deepPrompt.length).toBeGreaterThan(quickPrompt.length);
+    // No tools on the Chat Completions call
+    expect(lastCreateCall!.tools).toBeUndefined();
   });
 
-  it("default (no mode param) behaves like quick — no web_search_preview tool", async () => {
+  it("default (no mode param) behaves like quick — no tools", async () => {
     const res = await request(buildApp()).get("/api/resources/42/source-review");
 
     expect(res.status).toBe(200);
@@ -208,7 +231,7 @@ describe("GET /api/resources/:id/source-review — edge cases", () => {
     const res = await request(buildApp()).get("/api/resources/99/source-review");
 
     expect(res.status).toBe(404);
-    expect(openai.responses.create).not.toHaveBeenCalled();
+    expect(openai.chat.completions.create).not.toHaveBeenCalled();
   });
 
   it("returns 400 on an invalid :id path param", async () => {
@@ -217,7 +240,7 @@ describe("GET /api/resources/:id/source-review — edge cases", () => {
     );
 
     expect(res.status).toBe(400);
-    expect(openai.responses.create).not.toHaveBeenCalled();
+    expect(openai.chat.completions.create).not.toHaveBeenCalled();
   });
 
   it("returns 400 when an invalid mode value is supplied", async () => {
@@ -226,16 +249,17 @@ describe("GET /api/resources/:id/source-review — edge cases", () => {
     );
 
     expect(res.status).toBe(400);
-    expect(openai.responses.create).not.toHaveBeenCalled();
+    expect(openai.chat.completions.create).not.toHaveBeenCalled();
   });
 
   it("returns 502 when OpenAI returns unparseable JSON", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (openai.responses.create as any).mockResolvedValueOnce({
-      output: [
+    (openai.chat.completions.create as any).mockResolvedValueOnce({
+      choices: [
         {
-          type: "message",
-          content: [{ type: "output_text", text: "not json at all", annotations: [] }],
+          message: {
+            content: "not json at all",
+          },
         },
       ],
     });

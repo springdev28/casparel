@@ -61,24 +61,16 @@ Use only your training knowledge — do not search the web. Provide your best as
 
   const deepPrompt = `${basePrompt}
 
-Research the publisher/uploader/creator behind this URL thoroughly using web search. Find up-to-date information and include relevant links you discover.`;
+Reason carefully and thoroughly about the publisher/uploader/creator behind this URL. Draw on everything you know from your training data about this organisation, institution, channel, or individual — their history, reputation, funding, editorial standards, and any known controversies or endorsements. Provide your most detailed credibility assessment even when direct information is limited, by reasoning from the domain, URL patterns, and related entities you do know.`;
 
   try {
-    const response = await openai.responses.create({
+    const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      ...(mode === "deep" ? { tools: [{ type: "web_search_preview" as const }] } : {}),
-      input: mode === "deep" ? deepPrompt : quickPrompt,
+      messages: [{ role: "user", content: mode === "deep" ? deepPrompt : quickPrompt }],
     });
 
     // Extract text output from the response
-    const textOutput = response.output
-      .filter((b) => b.type === "message")
-      .flatMap((b) =>
-        (b as { type: string; content: Array<{ type: string; text?: string }> }).content
-          .filter((c) => c.type === "output_text" && c.text)
-          .map((c) => c.text as string)
-      )
-      .join("");
+    const textOutput = response.choices[0]?.message?.content ?? "";
 
     // Strip markdown code fences if present
     const cleaned = textOutput.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
