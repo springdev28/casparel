@@ -21,7 +21,7 @@ import {
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { isResourceOwner } from "../lib/authz";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { contentLimiter } from "../lib/limiters";
+import { contentLimiter, discoverLimiter } from "../lib/limiters";
 import { filterReachableUrls, checkUrlReachable } from "../lib/check-url-reachable";
 
 const router: IRouter = Router();
@@ -251,7 +251,7 @@ async function validateDiscoverThumbnails<
   );
 }
 
-router.get("/resources/discover", async (req, res): Promise<void> => {
+router.get("/resources/discover", discoverLimiter, async (req, res): Promise<void> => {
   const params = DiscoverResourcesQueryParams.safeParse(req.query);
   if (!params.success) {
     res.status(400).json({ error: "Missing query parameter: q" });

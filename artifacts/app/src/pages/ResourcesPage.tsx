@@ -286,10 +286,17 @@ export default function ResourcesPage() {
     ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
     page: webPage,
   };
-  const { data: webResults, isFetching: webLoading, isError: webError } = useDiscoverResources(
+  const { data: webResults, isFetching: webLoading, isError: webError, error: webErrorObj } = useDiscoverResources(
     discoverParams,
-    { query: { enabled: isSearching, staleTime: 1000 * 60 * 5, queryKey: getDiscoverResourcesQueryKey(discoverParams) } }
+    { query: { enabled: isSearching, staleTime: 1000 * 60 * 5, queryKey: getDiscoverResourcesQueryKey(discoverParams), retry: false } }
   );
+
+  // Detect 429 rate-limit responses from the discover endpoint.
+  // The generated client throws ApiError with .status (HTTP code) and .data (parsed body).
+  const webRateLimited = webError && (webErrorObj as { status?: number } | null)?.status === 429;
+  const webRateLimitRetryAfter: number = webRateLimited
+    ? ((webErrorObj as { data?: { retryAfter?: number } } | null)?.data?.retryAfter ?? 60)
+    : 0;
 
   // Reset accumulated results when query changes; append on page increment
   useEffect(() => {
@@ -676,7 +683,14 @@ export default function ResourcesPage() {
               </div>
             )}
 
-            {webError && !webLoading && (
+            {webError && !webLoading && webRateLimited && (
+              <div className="py-6 text-center">
+                <p className="text-sm text-amber-600 font-medium">Search limit reached — you can run up to 5 AI web searches per minute.</p>
+                <p className="text-xs text-muted-foreground mt-1">Try again in {webRateLimitRetryAfter} second{webRateLimitRetryAfter !== 1 ? 's' : ''}.</p>
+              </div>
+            )}
+
+            {webError && !webLoading && !webRateLimited && (
               <div className="py-6 text-center">
                 <p className="text-sm text-destructive font-medium">Web search failed — please try again.</p>
                 <Button variant="outline" size="sm" className="mt-3" onClick={() => setActiveQuery(activeQuery)}>Retry</Button>

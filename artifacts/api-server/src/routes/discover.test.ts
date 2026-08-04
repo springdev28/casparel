@@ -19,6 +19,14 @@ import { describe, it, vi, beforeEach, expect } from "vitest";
 import request from "supertest";
 import express from "express";
 
+// ── Rate-limit limiter mock — bypass so tests don't exhaust the 5-req cap ─────
+
+vi.mock("../lib/limiters", () => ({
+  discoverLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  contentLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+  globalLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
 // ── DB mock (not used by discover but required for the module to load) ─────────
 
 vi.mock("@workspace/db", () => {
