@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -127,7 +126,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 export default function DashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { logout, user: authUser } = useAuth();
+  const { user: authUser } = useAuth();
 
   const { data: me } = useGetMe();
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetDashboardSummary();
@@ -182,15 +181,6 @@ export default function DashboardScreen() {
             {isTeacher ? "Here's your classroom overview" : "Here's your learning overview"}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={logout}
-          style={[
-            styles.logoutBtn,
-            { borderColor: colors.border, borderRadius: colors.radius },
-          ]}
-        >
-          <Feather name="log-out" size={18} color={colors.mutedForeground} />
-        </TouchableOpacity>
       </View>
 
       {/* Stat Cards */}
@@ -279,14 +269,6 @@ const styles = StyleSheet.create({
   headerLeft: { flex: 1, gap: 2 },
   greeting: { fontSize: 26, letterSpacing: -0.5 },
   greetingSub: { fontSize: 13 },
-  logoutBtn: {
-    width: 38,
-    height: 38,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
