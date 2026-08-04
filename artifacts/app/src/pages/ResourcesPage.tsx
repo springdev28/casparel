@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2, GraduationCap } from 'lucide-react';
+import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2, GraduationCap, FileText, Video, FileType2, Headphones, MousePointerClick, ImageIcon } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -99,6 +99,40 @@ function FormatBadge({ format }: { format: string }) {
   );
 }
 
+const FORMAT_PREVIEW_STYLES: Record<string, string> = {
+  article: "from-blue-100 via-sky-50 to-white text-blue-700",
+  video: "from-red-100 via-rose-50 to-white text-red-700",
+  pdf: "from-orange-100 via-amber-50 to-white text-orange-700",
+  podcast: "from-purple-100 via-violet-50 to-white text-purple-700",
+  interactive: "from-emerald-100 via-teal-50 to-white text-emerald-700",
+  other: "from-slate-100 via-gray-50 to-white text-slate-700",
+};
+
+function FormatPreview({ url, format, title }: { url: string; format: string; title: string }) {
+  let hostname = "Learning resource";
+  try { hostname = new URL(url).hostname.replace(/^www\./, ""); } catch { /* keep fallback */ }
+
+  const iconClass = "size-9";
+  const icon = format === "article" ? <FileText className={iconClass} />
+    : format === "video" ? <Video className={iconClass} />
+    : format === "pdf" ? <FileType2 className={iconClass} />
+    : format === "podcast" ? <Headphones className={iconClass} />
+    : format === "interactive" ? <MousePointerClick className={iconClass} />
+    : <ImageIcon className={iconClass} />;
+
+  return (
+    <div
+      className={`w-full h-36 bg-gradient-to-br ${FORMAT_PREVIEW_STYLES[format] ?? FORMAT_PREVIEW_STYLES.other} flex flex-col items-center justify-center gap-2 px-5 text-center`}
+      role="img"
+      aria-label={`${format} preview for ${title}`}
+    >
+      {icon}
+      <span className="max-w-full truncate text-xs font-semibold">{hostname}</span>
+      <span className="text-[10px] font-medium uppercase tracking-widest opacity-70">{format}</span>
+    </div>
+  );
+}
+
 // ── Shared resource card (library) ────────────────────────────────────────────
 function LibraryCard({ resource, onClick, onRemove, onAssign }: {
   resource: { id: number; title: string; url: string; format: string; subject: string; gradeLevel: string; description?: string | null; avgRating: number; reviewCount: number; thumbnailUrl?: string | null };
@@ -122,9 +156,7 @@ function LibraryCard({ resource, onClick, onRemove, onAssign }: {
         </div>
       )}
       {!showImg && (
-        <div className="w-full h-36 flex items-center justify-center bg-muted/40">
-          <FormatBadge format={resource.format} />
-        </div>
+        <FormatPreview url={resource.url} format={resource.format} title={resource.title} />
       )}
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
@@ -190,9 +222,7 @@ function WebCard({ resource, onAdd, adding }: {
         </div>
       )}
       {!showImg && (
-        <div className="w-full h-36 flex items-center justify-center bg-muted/40 shrink-0">
-          <FormatBadge format={resource.format} />
-        </div>
+        <FormatPreview url={resource.url} format={resource.format} title={resource.title} />
       )}
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">

@@ -19,6 +19,7 @@ import ProfilePage from './pages/ProfilePage';
 import UserProfilePage from './pages/UserProfilePage';
 import AppShell from './components/AppShell';
 import PublicShell from './components/PublicShell';
+import ThemeCustomizer from './components/ThemeCustomizer';
 
 const TOKEN_KEY = 'schooler_token';
 
@@ -137,6 +138,7 @@ function App() {
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Router />
         </WouterRouter>
+        <ThemeCustomizer />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
