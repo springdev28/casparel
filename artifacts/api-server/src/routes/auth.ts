@@ -90,14 +90,24 @@ function detectRasterImageMime(buf: Buffer): "image/png" | "image/jpeg" | "image
 
 const router: IRouter = Router();
 
-// 5 attempts per IP per 15 minutes on auth endpoints
+// 20 attempts per IP per 15 minutes on auth endpoints.
+// 5 was too restrictive — a user whose session expires and retries a couple
+// of times (or who misremembers their password) would hit the limit and be
+// locked out.  20 still provides meaningful brute-force protection.
 const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: "Too many attempts. Please try again in 15 minutes." },
   store: buildRateLimitStore("auth"),
+  handler(_req, res, _next, options) {
+    const retryAfter = Math.ceil(options.windowMs / 1000 / 60);
+    res.setHeader("Retry-After", retryAfter * 60);
+    res.status(429).json({
+      error: `Too many sign-in attempts. Please wait ${retryAfter} minutes and try again.`,
+      retryAfter: retryAfter * 60,
+    });
+  },
 });
 
 // POST /auth/register

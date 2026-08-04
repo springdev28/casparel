@@ -1,3 +1,37 @@
 /* Import EduDS design system — provides Tailwind, tokens, and component themes.
    Do NOT add a separate @import "tailwindcss" — it is included via the package. */
 @import "@workspace/edu-ds/styles.css";
+
+
+/* Subtle startup-style ambient field. It never intercepts input and is removed
+   from the tree when the persisted motion switch is off. */
+.codex-ambient {
+  position: fixed;
+  inset: 0 0 0 14rem;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: .52;
+  background: radial-gradient(circle at 55% 15%, hsl(var(--primary) / .08), transparent 42%);
+}
+.codex-ambient span {
+  position: absolute;
+  width: 42rem;
+  height: 42rem;
+  border-radius: 44% 56% 63% 37%;
+  border: 1px solid hsl(var(--primary) / .14);
+  background: radial-gradient(circle at 35% 35%, hsl(var(--primary) / .08), transparent 65%);
+  filter: blur(1px);
+  animation: schoolar-ambient-drift 24s ease-in-out infinite alternate;
+}
+.codex-ambient span:nth-child(1) { left: 8%; top: -28rem; }
+.codex-ambient span:nth-child(2) { right: -18rem; top: 26%; animation-delay: -8s; animation-duration: 30s; }
+.codex-ambient span:nth-child(3) { left: 22%; bottom: -34rem; animation-delay: -15s; animation-duration: 34s; }
+@keyframes schoolar-ambient-drift {
+  from { transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(.96); }
+  to { transform: translate3d(5%, 4%, 0) rotate(16deg) scale(1.06); }
+}
+@media (max-width: 767px) { .codex-ambient { inset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .codex-ambient span { animation: none; }
+}

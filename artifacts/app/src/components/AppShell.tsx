@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronRight,
   Check,
+  Waves,
 } from "lucide-react";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -94,6 +95,14 @@ export default function AppShell({ children }: AppShellProps) {
   const { data: sidebarGoals } = useListLearningGoals({ query: { enabled: Boolean(me), queryKey: getListLearningGoalsQueryKey() } });
   const updateSidebarGoal = useUpdateLearningGoal();
   const [expandedPaths, setExpandedPaths] = useState<number[]>([]);
+  const [ambientMotion, setAmbientMotion] = useState(() => localStorage.getItem("schoolar_ambient_motion") !== "off");
+  function toggleAmbientMotion() {
+    setAmbientMotion((current) => {
+      const next = !current;
+      localStorage.setItem("schoolar_ambient_motion", next ? "on" : "off");
+      return next;
+    });
+  }
   async function updatePath(goal: NonNullable<typeof sidebarGoals>[number], pathSteps: typeof goal.pathSteps) {
     await updateSidebarGoal.mutateAsync({ id: goal.id, data: { pathSteps } });
     await queryClient.invalidateQueries({ queryKey: getListLearningGoalsQueryKey() });
@@ -474,11 +483,16 @@ export default function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 bg-background overflow-auto md:pt-0 pt-14">
+        <main className="relative flex-1 min-w-0 bg-background overflow-auto md:pt-0 pt-14">
+          {ambientMotion && <div className="codex-ambient" aria-hidden="true"><span /><span /><span /></div>}
           <div
-            className="sticky top-0 z-40 flex h-12 items-center justify-end border-b bg-background/95 px-4 backdrop-blur"
+            className="sticky top-0 z-40 flex h-12 items-center justify-end gap-1 border-b bg-background/85 px-4 backdrop-blur"
             data-testid="notification-bar"
           >
+            <Button variant="ghost" size="sm" onClick={toggleAmbientMotion} aria-pressed={ambientMotion} title={ambientMotion ? "Turn animated background off" : "Turn animated background on"} data-testid="ambient-motion-toggle">
+              <Waves size={17} className="mr-2" />
+              <span className="hidden sm:inline">Motion {ambientMotion ? "on" : "off"}</span>
+            </Button>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -534,7 +548,7 @@ export default function AppShell({ children }: AppShellProps) {
               </PopoverContent>
             </Popover>
           </div>
-          {children}
+          <div className="relative z-10">{children}</div>
         </main>
       </div>
     </>

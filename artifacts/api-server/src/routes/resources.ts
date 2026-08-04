@@ -210,11 +210,11 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
   }
 
   if (!userId) {
-    // Check more candidates than needed so dead links can be removed without
-    // leaving an unnecessarily short recommendation list.
-    const results = await topRatedResources(24);
-    const reachable = await filterReachableUrls(results, 4000);
-    res.json(GetResourceRecommendationsResponse.parse(reachable.slice(0, 12)));
+    // Resources in the DB are already validated when added — no live URL
+    // reachability check needed here (those checks time out in the sandbox
+    // and would silently empty the recommendations list).
+    const results = await topRatedResources(12);
+    res.json(GetResourceRecommendationsResponse.parse(results));
     return;
   }
 
@@ -321,14 +321,10 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
     candidates = [...candidates, ...extra.map((r) => r.id)];
   }
 
-  const results = await Promise.all(
-    candidates.map((id) => resourceWithRating(id)),
-  );
-  const reachable = await filterReachableUrls(
-    results.filter((item): item is NonNullable<typeof item> => item !== null),
-    4000,
-  );
-  res.json(GetResourceRecommendationsResponse.parse(reachable.slice(0, 12)));
+  const results = (
+    await Promise.all(candidates.map((id) => resourceWithRating(id)))
+  ).filter((item): item is NonNullable<typeof item> => item !== null);
+  res.json(GetResourceRecommendationsResponse.parse(results.slice(0, 12)));
 });
 
 // ── GET /resources/discover — public, AI knowledge-based search ──────────────

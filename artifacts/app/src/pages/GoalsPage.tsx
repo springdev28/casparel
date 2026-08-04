@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import {
+  ArrowDown,
+  ArrowUp,
   BookOpen,
   CalendarPlus,
   Check,
@@ -72,6 +74,7 @@ export default function GoalsPage() {
   const updateGoal = useUpdateLearningGoal();
   const deleteGoal = useDeleteLearningGoal();
   const [open, setOpen] = useState(false);
+  const [newStepTitles, setNewStepTitles] = useState<Record<number, string>>({});
   const [form, setForm] = useState({
     title: "",
     subject: "",
@@ -134,6 +137,27 @@ export default function GoalsPage() {
         step.id === stepId ? { ...step, completed: !step.completed } : step,
       ),
     });
+  }
+  async function renameStep(goal: LearningGoal, stepId: string, title: string) {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    await patch(goal.id, { pathSteps: goal.pathSteps.map((step) => step.id === stepId ? { ...step, title: cleanTitle, query: cleanTitle } : step) });
+  }
+  async function addStep(goal: LearningGoal) {
+    const title = newStepTitles[goal.id]?.trim();
+    if (!title) return;
+    await patch(goal.id, { pathSteps: [...goal.pathSteps, { id: crypto.randomUUID(), title, query: title, completed: false }] });
+    setNewStepTitles((current) => ({ ...current, [goal.id]: "" }));
+  }
+  async function deleteStep(goal: LearningGoal, stepId: string) {
+    await patch(goal.id, { pathSteps: goal.pathSteps.filter((step) => step.id !== stepId) });
+  }
+  async function moveStep(goal: LearningGoal, index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= goal.pathSteps.length) return;
+    const pathSteps = [...goal.pathSteps];
+    [pathSteps[index], pathSteps[target]] = [pathSteps[target], pathSteps[index]];
+    await patch(goal.id, { pathSteps });
   }
   async function remove(id: number) {
     if (!confirm("Delete this learning goal?")) return;
@@ -333,31 +357,21 @@ export default function GoalsPage() {
                       </span>
                     </div>
                     <div className="space-y-1">
-                      {goal.pathSteps.map((step) => (
-                        <div key={step.id} className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`}
-                            onClick={() => toggleStep(goal, step.id)}
-                            className={cn(
-                              "flex size-6 shrink-0 items-center justify-center rounded border",
-                              step.completed && "bg-emerald-600 text-white",
-                            )}
-                          >
+                      {goal.pathSteps.map((step, index) => (
+                        <div key={step.id} className="flex items-center gap-1.5">
+                          <button type="button" aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`} onClick={() => toggleStep(goal, step.id)} className={cn("flex size-7 shrink-0 items-center justify-center rounded border", step.completed && "bg-emerald-600 text-white")}>
                             {step.completed && <Check size={14} />}
                           </button>
-                          <Link
-                            href={`/resources?goal=${encodeURIComponent(step.query)}&subject=${subject}`}
-                            className={cn(
-                              "text-sm hover:text-primary hover:underline",
-                              step.completed &&
-                                "text-muted-foreground line-through",
-                            )}
-                          >
-                            {step.title}
-                          </Link>
+                          <Input defaultValue={step.title} key={`${step.id}:${step.title}`} aria-label={`Rename ${step.title}`} className={cn("h-8 min-w-0 flex-1 text-sm", step.completed && "text-muted-foreground line-through")} onBlur={(event) => { if (event.currentTarget.value.trim() !== step.title) void renameStep(goal, step.id, event.currentTarget.value); }} />
+                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === 0} onClick={() => moveStep(goal, index, -1)} aria-label={`Move ${step.title} up`}><ArrowUp size={14} /></Button>
+                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === goal.pathSteps.length - 1} onClick={() => moveStep(goal, index, 1)} aria-label={`Move ${step.title} down`}><ArrowDown size={14} /></Button>
+                          <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => deleteStep(goal, step.id)} aria-label={`Delete ${step.title}`}><Trash2 size={14} /></Button>
                         </div>
                       ))}
+                      <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); void addStep(goal); }}>
+                        <Input value={newStepTitles[goal.id] ?? ""} onChange={(event) => setNewStepTitles((current) => ({ ...current, [goal.id]: event.target.value }))} placeholder="Add a path step…" aria-label={`Add step to ${goal.title}`} />
+                        <Button type="submit" size="sm" disabled={!newStepTitles[goal.id]?.trim()}><Plus className="mr-1 size-4" /> Add</Button>
+                      </form>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2">

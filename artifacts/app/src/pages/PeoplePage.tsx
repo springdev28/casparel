@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearch as useRouteSearch } from 'wouter';
-import { BriefcaseBusiness, ChevronDown, ExternalLink, Github, Globe2, GraduationCap, Instagram, Linkedin, Loader2, Search, Twitter, Users, Youtube } from 'lucide-react';
+import { BriefcaseBusiness, ChevronDown, ExternalLink, Github, Globe2, GraduationCap, Instagram, Linkedin, Loader2, Search, Target, Twitter, Users, Youtube } from 'lucide-react';
 import {
   DiscoverResourcesResultType,
   SearchUsersRole,
@@ -8,9 +8,12 @@ import {
   getDiscoverResourcesQueryKey,
   getSearchUsersQueryKey,
   useDiscoverResources,
+  useGetMe,
+  useListLearningGoals,
   useSearchUsers,
   type DiscoveredResource,
 } from '@workspace/api-client-react';
+import { getDashboardGoalId } from '../lib/dashboardGoal';
 import { Avatar, AvatarFallback, AvatarImage } from '@workspace/edu-ds/components/ui/avatar';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
@@ -99,6 +102,10 @@ export default function PeoplePage() {
   const [accountLimit, setAccountLimit] = useState(24);
   const [socialPage, setSocialPage] = useState(1);
   const [allSocialPeople, setAllSocialPeople] = useState<DiscoveredResource[]>([]);
+  const [goalContext, setGoalContext] = useState('');
+  const { data: me } = useGetMe();
+  const { data: goals } = useListLearningGoals();
+  const selectedGoal = goals?.find((goal) => goal.id === getDashboardGoalId(me?.id, me?.activeRole ?? me?.role));
 
   const params = {
     scope: SearchUsersScope.all,
@@ -112,20 +119,21 @@ export default function PeoplePage() {
     query: { enabled: profileSource === "schoolar", queryKey: getSearchUsersQueryKey(params), staleTime: 60_000 },
   });
 
-  const socialQuery = [query ? '"' + query + '"' : "", subject.trim(), role === SearchUsersRole.student ? "student" : role === SearchUsersRole.teacher ? "educator professional" : "student educator professional"].filter(Boolean).join(" ");
+  const associatedTopic = goalContext || selectedGoal?.title || selectedGoal?.subject || '';
+  const socialQuery = [query ? '"' + query + '"' : "", subject.trim(), associatedTopic, role === SearchUsersRole.student ? "student" : role === SearchUsersRole.teacher ? "educator professional" : "student educator professional"].filter(Boolean).join(" ");
   const { data: socialPeople, isFetching: socialLoading, isError: socialError } = useDiscoverResources(
     { q: socialQuery || "students educators professionals", resultType: DiscoverResourcesResultType.people, page: socialPage },
-    { query: { enabled: profileSource === "social" && !!(query || subject.trim()), queryKey: getDiscoverResourcesQueryKey({ q: socialQuery || "students educators professionals", resultType: DiscoverResourcesResultType.people, page: socialPage }), staleTime: 300_000, retry: false } },
+    { query: { enabled: profileSource === "social", queryKey: getDiscoverResourcesQueryKey({ q: socialQuery || "students educators professionals", resultType: DiscoverResourcesResultType.people, page: socialPage }), staleTime: 300_000, retry: false } },
   );
 
   useEffect(() => {
     const params = new URLSearchParams(routeSearch);
     const goal = params.get("goal");
     const subjectParam = params.get("subject");
-    if (goal) { setInputValue(goal); setQuery(goal); }
+    if (goal) setGoalContext(goal);
     if (subjectParam) setSubject(subjectParam);
   }, [routeSearch]);
-  useEffect(() => { setAccountLimit(24); setSocialPage(1); setAllSocialPeople([]); }, [query, subject, role, profileSource]);
+  useEffect(() => { setAccountLimit(24); setSocialPage(1); setAllSocialPeople([]); }, [query, subject, role, profileSource, associatedTopic]);
   useEffect(() => {
     if (!socialPeople) return;
     setAllSocialPeople((current) => socialPage === 1 ? socialPeople : [...current, ...socialPeople.filter((item) => !current.some((existing) => existing.url === item.url))]);
@@ -148,6 +156,7 @@ export default function PeoplePage() {
       </div>
 
       <form onSubmit={submit} className="space-y-3 rounded-xl border bg-card p-4 shadow-sm">
+        {associatedTopic && !query && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Target className="size-4 text-primary" /> Showing people associated with <b className="text-foreground">{associatedTopic}</b>. A name is optional.</div>}
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -188,9 +197,7 @@ export default function PeoplePage() {
       </form>
 
       {profileSource === 'social' ? (
-        !query && !subject.trim() ? (
-          <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground"><Globe2 className="mx-auto mb-3 size-9 opacity-40" /><p className="font-medium text-foreground">Search for a subject or person</p><p className="mt-1 text-sm">Search returns direct social, scholar, and university profile pages only.</p></div>
-        ) : socialLoading && allSocialPeople.length === 0 ? (
+        socialLoading && allSocialPeople.length === 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-52 rounded-xl" />)}</div>
         ) : socialError ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">Public profile search could not be loaded. Try a more specific name or subject.</div>

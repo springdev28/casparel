@@ -5,6 +5,7 @@ import { TooltipProvider } from "@workspace/edu-ds/components/ui/tooltip";
 import { Route, Switch, Router as WouterRouter, Redirect } from "wouter";
 import { setAuthTokenGetter, useGetMe, UserRole } from "@workspace/api-client-react";
 
+import { applyLastSavedColors } from "./components/ThemeCustomizer";
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 import DashboardPage from "./pages/AdaptiveDashboardPage";
@@ -33,6 +34,10 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Apply the most-recently-saved interface colors immediately so there is no
+// flash of default colors while the /me response is in flight.
+applyLastSavedColors();
 
 // Migrate any existing token from the old key name
 const _oldToken = localStorage.getItem("eduhub_token");

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -100,7 +100,13 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
     query: { queryKey: getListLearningGoalsQueryKey() },
   });
   const updateGoal = useUpdateLearningGoal();
-  const selectedGoalId = getDashboardGoalId(userId, workspaceRole);
+  const [selectedGoalId, setSelectedGoalId] = useState(() => getDashboardGoalId(userId, workspaceRole));
+  useEffect(() => {
+    setSelectedGoalId(getDashboardGoalId(userId, workspaceRole));
+    const syncGoal = (event: Event) => setSelectedGoalId((event as CustomEvent<number>).detail);
+    window.addEventListener("schoolar-dashboard-goal", syncGoal);
+    return () => window.removeEventListener("schoolar-dashboard-goal", syncGoal);
+  }, [userId, workspaceRole]);
   const activeGoal =
     goals?.find((goal) => goal.id === selectedGoalId) ??
     goals?.find((goal) => goal.status === "active") ??
@@ -134,20 +140,21 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
     (step) => !completedSteps.has(step.concept),
   );
   const recentSearch = getSearchHistory(userId)[0]?.query.toLocaleLowerCase();
-  const { data: verifiedRecommendations } = useGetResourceRecommendations();
-  const searchTerms = recentSearch?.split(/\s+/).filter(Boolean) ?? [];
-  const recommendation =
-    verifiedRecommendations?.find((resource) => {
-      const searchable = [
-        resource.title,
-        resource.description,
-        resource.subject,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLocaleLowerCase();
-      return searchTerms.some((term) => searchable.includes(term));
-    }) ?? verifiedRecommendations?.[0];
+  const { data: verifiedRecommendations, isFetching: recommendationsRefreshing } = useGetResourceRecommendations({
+    query: { queryKey: ["resource-recommendations", activeGoal?.id] },
+  });
+  const recommendation = useMemo(() => {
+    const goalTerms = [activeGoal?.title, activeGoal?.subject, activeGoal?.description,
+      ...((activeGoal?.pathSteps ?? []).map((step) => `${step.title} ${step.query}`))]
+      .filter(Boolean).join(" ").toLocaleLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2);
+    const recentTerms = recentSearch?.split(/\s+/).filter(Boolean) ?? [];
+    return [...(verifiedRecommendations ?? [])].map((resource) => {
+      const searchable = [resource.title, resource.description, resource.subject].filter(Boolean).join(" ").toLocaleLowerCase();
+      const score = goalTerms.reduce((sum, term) => sum + (searchable.includes(term) ? 3 : 0), 0)
+        + recentTerms.reduce((sum, term) => sum + (searchable.includes(term) ? 1 : 0), 0);
+      return { resource, score };
+    }).sort((a, b) => b.score - a.score)[0]?.resource;
+  }, [activeGoal, recentSearch, verifiedRecommendations]);
   const goalEvidence = evidence?.filter((item) => item.learningGoalId === activeGoal?.id) ?? [];
   const answeredCount = goalEvidence.length;
   const [checkIn, setCheckIn] = useState<{ concept: string; prompt: string } | null>(null);
@@ -200,7 +207,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                 <BookOpen />
               </div>
               <div>
-                <Badge>Recommended next</Badge>
+                <Badge>{recommendationsRefreshing ? "Refreshing for goal…" : "Recommended next"}</Badge>
                 <h2 className="mt-2 text-2xl font-bold">
                   {recommendation?.title ?? "No recommendation available yet"}
                 </h2>

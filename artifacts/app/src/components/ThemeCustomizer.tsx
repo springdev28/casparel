@@ -12,7 +12,22 @@ import {
 import { Label } from "@workspace/edu-ds/components/ui/label";
 
 const STORAGE_KEY_PREFIX = "schoolar_interface_colors";
+const LAST_COLORS_KEY = "schoolar_interface_colors:last";
 const THEME_CHANGE_EVENT = "schoolar-interface-colors-change";
+
+/**
+ * Apply the most-recently-saved colors immediately, before the user record
+ * loads from the API.  Called once at module import time so there is no flash
+ * of default colors during the initial /me round-trip.
+ */
+export function applyLastSavedColors() {
+  try {
+    const raw = localStorage.getItem(LAST_COLORS_KEY);
+    if (raw) applyColors({ ...DEFAULT_COLORS, ...JSON.parse(raw) });
+  } catch {
+    /* ignore */
+  }
+}
 
 type InterfaceColors = {
   background: string;
@@ -161,7 +176,11 @@ function loadColors(accountId?: number): InterfaceColors {
 }
 
 function saveColors(accountId: number, colors: InterfaceColors) {
-  localStorage.setItem(storageKey(accountId), JSON.stringify(colors));
+  const json = JSON.stringify(colors);
+  localStorage.setItem(storageKey(accountId), json);
+  // Also save to the device-global key so colors can be restored before the
+  // /me response arrives on the next page load.
+  localStorage.setItem(LAST_COLORS_KEY, json);
   window.dispatchEvent(
     new CustomEvent<InterfaceColors>(THEME_CHANGE_EVENT, { detail: colors }),
   );
@@ -189,7 +208,8 @@ export default function ThemeCustomizer({
     applyColors(colors);
   }, [colors]);
 
-  useEffect(() => () => applyColors(DEFAULT_COLORS), []);
+  // No cleanup-on-unmount reset: colors should stay applied during navigation.
+  // Colors are only reset explicitly when the user clicks "Reset defaults".
 
   useEffect(() => {
     const syncFromTab = (event: StorageEvent) => {
