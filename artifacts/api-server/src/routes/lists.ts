@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, max, asc } from "drizzle-orm";
-import { db, resourceListsTable, listItemsTable, resourcesTable, reviewsTable } from "@workspace/db";
+import { eq, sql, and, max, asc, inArray } from "drizzle-orm";
+import { db, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, classMembersTable } from "@workspace/db";
 import {
   ListResourceListsResponse,
   CreateResourceListBody,
@@ -48,6 +48,23 @@ async function listWithCount(id: number) {
     .where(eq(listItemsTable.listId, id));
   return { ...list, itemCount: count };
 }
+
+// GET /lists/shared — lists shared with classes the user is a member of
+router.get("/lists/shared", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const memberships = await db
+    .select({ classId: classMembersTable.classId })
+    .from(classMembersTable)
+    .where(eq(classMembersTable.userId, userId));
+  if (memberships.length === 0) { res.json([]); return; }
+  const classIds = memberships.map((m) => m.classId);
+  const rows = await db
+    .select()
+    .from(resourceListsTable)
+    .where(inArray(resourceListsTable.classId, classIds));
+  const lists = await Promise.all(rows.map((l) => listWithCount(l.id)));
+  res.json(ListResourceListsResponse.parse(lists.filter(Boolean)));
+});
 
 // GET /lists — only the current user's own lists
 router.get("/lists", requireAuth, async (req, res): Promise<void> => {

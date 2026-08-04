@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { Plus, List, Trash2 } from 'lucide-react';
+import { Plus, List, Trash2, Users } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
 import { Textarea } from '@workspace/edu-ds/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
+import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@workspace/edu-ds/components/ui/dialog';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
+import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -15,6 +17,7 @@ import {
   useListResourceLists,
   useCreateResourceList,
   useDeleteResourceList,
+  useListSharedResourceLists,
   getListResourceListsQueryKey,
 } from '@workspace/api-client-react';
 
@@ -30,6 +33,7 @@ export default function ListsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
 
   const { data: lists, isLoading } = useListResourceLists();
+  const { data: sharedLists, isLoading: sharedLoading } = useListSharedResourceLists();
   const createList = useCreateResourceList();
   const deleteList = useDeleteResourceList();
 
@@ -171,6 +175,55 @@ export default function ListsPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Shared with me */}
+      {((sharedLists && sharedLists.length > 0) || sharedLoading) && (
+        <>
+          <Separator />
+          <div>
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-4">
+              <Users size={18} /> Shared with me
+            </h2>
+            {sharedLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2 mt-1" /></CardHeader>
+                    <CardContent><Skeleton className="h-4 w-20" /></CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sharedLists!.map((list) => (
+                  <Card
+                    key={list.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setLocation(`/lists/${list.id}`)}
+                    data-testid="shared-list-card"
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-base">{list.name}</CardTitle>
+                        <Badge variant="secondary" className="shrink-0 text-xs">Shared</Badge>
+                      </div>
+                      {list.description && (
+                        <CardDescription className="line-clamp-2">{list.description}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <span>{list.itemCount} item{list.itemCount !== 1 ? 's' : ''}</span>
+                        <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true })}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Delete confirmation dialog */}

@@ -328,6 +328,78 @@ paths:
         "204":
           description: Removed
 
+  /classes/{id}/resources-list:
+    get:
+      operationId: getClassResourcesList
+      tags: [classes]
+      summary: Get the class resources list with items (teachers and members)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Class resources list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceListWithItems"
+        "403":
+          description: Not a class member
+
+  /classes/{id}/assign:
+    post:
+      operationId: assignResourceToClass
+      tags: [classes]
+      summary: Assign a resource to the class list (teacher only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignResourceBody"
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssignResourceResponse"
+        "403":
+          description: Not the class teacher
+        "404":
+          description: Resource not found
+
+  /classes/{id}/resources-list/items/{resourceId}:
+    delete:
+      operationId: removeClassResource
+      tags: [classes]
+      summary: Remove a resource from the class list (teacher only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+        "403":
+          description: Not the class teacher
+
   # ── Resources ─────────────────────────────────────────────────────────────
   /resources:
     get:
@@ -839,6 +911,21 @@ paths:
         "204":
           description: Shared
 
+  /lists/shared:
+    get:
+      operationId: listSharedResourceLists
+      tags: [lists]
+      summary: Lists shared with the current user via their class memberships
+      responses:
+        "200":
+          description: Shared lists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResourceList"
+
   # ── Schedule ──────────────────────────────────────────────────────────────
   /schedule:
     get:
@@ -1302,6 +1389,18 @@ components:
       properties:
         rating:  { type: integer, minimum: 1, maximum: 5 }
         comment: { type: string }
+
+    AssignResourceBody:
+      type: object
+      required: [resourceId]
+      properties:
+        resourceId: { type: integer }
+
+    AssignResourceResponse:
+      type: object
+      required: [listId]
+      properties:
+        listId: { type: integer }
 
     # ── Resource Lists ───────────────────────────────────────────────────────
     ResourceList:

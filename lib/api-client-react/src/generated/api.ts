@@ -21,6 +21,8 @@ import type {
 
 import type {
   ActivityItem,
+  AssignResourceBody,
+  AssignResourceResponse,
   AuthResponse,
   BulkInviteInput,
   BulkInviteResult,
@@ -1266,6 +1268,228 @@ export const useRemoveClassMember = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRemoveClassMemberMutationOptions(options));
+    }
+
+export const getGetClassResourcesListUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/resources-list`
+}
+
+/**
+ * @summary Get the class resources list with items (teachers and members)
+ */
+export const getClassResourcesList = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ResourceListWithItems> => {
+
+  return customFetch<ResourceListWithItems>(getGetClassResourcesListUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClassResourcesListQueryKey = (id: number,) => {
+    return [
+    `/api/classes/${id}/resources-list`
+    ] as const;
+    }
+
+
+export const getGetClassResourcesListQueryOptions = <TData = Awaited<ReturnType<typeof getClassResourcesList>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClassResourcesList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClassResourcesListQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClassResourcesList>>> = ({ signal }) => getClassResourcesList(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClassResourcesList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetClassResourcesListQueryResult = NonNullable<Awaited<ReturnType<typeof getClassResourcesList>>>
+export type GetClassResourcesListQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the class resources list with items (teachers and members)
+ */
+
+export function useGetClassResourcesList<TData = Awaited<ReturnType<typeof getClassResourcesList>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClassResourcesList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetClassResourcesListQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAssignResourceToClassUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/assign`
+}
+
+/**
+ * @summary Assign a resource to the class list (teacher only)
+ */
+export const assignResourceToClass = async (id: number,
+    assignResourceBody: AssignResourceBody, options?: Parameters<typeof customFetch>[1]): Promise<AssignResourceResponse> => {
+
+  return customFetch<AssignResourceResponse>(getAssignResourceToClassUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assignResourceBody)
+  }
+);}
+
+
+
+
+
+export const getAssignResourceToClassMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignResourceToClass>>, TError,{id: number;data: BodyType<AssignResourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof assignResourceToClass>>, TError,{id: number;data: BodyType<AssignResourceBody>}, TContext> => {
+
+const mutationKey = ['assignResourceToClass'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof assignResourceToClass>>, {id: number;data: BodyType<AssignResourceBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  assignResourceToClass(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AssignResourceToClassMutationResult = NonNullable<Awaited<ReturnType<typeof assignResourceToClass>>>
+    export type AssignResourceToClassMutationBody = BodyType<AssignResourceBody>
+    export type AssignResourceToClassMutationError = ErrorType<void>
+
+    /**
+ * @summary Assign a resource to the class list (teacher only)
+ */
+export const useAssignResourceToClass = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignResourceToClass>>, TError,{id: number;data: BodyType<AssignResourceBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof assignResourceToClass>>,
+        TError,
+        {id: number;data: BodyType<AssignResourceBody>},
+        TContext
+      > => {
+      return useMutation(getAssignResourceToClassMutationOptions(options));
+    }
+
+export const getRemoveClassResourceUrl = (id: number,
+    resourceId: number,) => {
+
+
+
+
+  return `/api/classes/${id}/resources-list/items/${resourceId}`
+}
+
+/**
+ * @summary Remove a resource from the class list (teacher only)
+ */
+export const removeClassResource = async (id: number,
+    resourceId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRemoveClassResourceUrl(id,resourceId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveClassResourceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeClassResource>>, TError,{id: number;resourceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeClassResource>>, TError,{id: number;resourceId: number}, TContext> => {
+
+const mutationKey = ['removeClassResource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeClassResource>>, {id: number;resourceId: number}> = (props) => {
+          const {id,resourceId} = props ?? {};
+
+          return  removeClassResource(id,resourceId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveClassResourceMutationResult = NonNullable<Awaited<ReturnType<typeof removeClassResource>>>
+
+    export type RemoveClassResourceMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove a resource from the class list (teacher only)
+ */
+export const useRemoveClassResource = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeClassResource>>, TError,{id: number;resourceId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeClassResource>>,
+        TError,
+        {id: number;resourceId: number},
+        TContext
+      > => {
+      return useMutation(getRemoveClassResourceMutationOptions(options));
     }
 
 export const getListResourcesUrl = (params?: ListResourcesParams,) => {
@@ -2919,6 +3143,83 @@ export const useShareListWithClass = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getShareListWithClassMutationOptions(options));
     }
+
+export const getListSharedResourceListsUrl = () => {
+
+
+
+
+  return `/api/lists/shared`
+}
+
+/**
+ * @summary Lists shared with the current user via their class memberships
+ */
+export const listSharedResourceLists = async ( options?: Parameters<typeof customFetch>[1]): Promise<ResourceList[]> => {
+
+  return customFetch<ResourceList[]>(getListSharedResourceListsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSharedResourceListsQueryKey = () => {
+    return [
+    `/api/lists/shared`
+    ] as const;
+    }
+
+
+export const getListSharedResourceListsQueryOptions = <TData = Awaited<ReturnType<typeof listSharedResourceLists>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSharedResourceLists>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSharedResourceListsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSharedResourceLists>>> = ({ signal }) => listSharedResourceLists({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSharedResourceLists>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSharedResourceListsQueryResult = NonNullable<Awaited<ReturnType<typeof listSharedResourceLists>>>
+export type ListSharedResourceListsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Lists shared with the current user via their class memberships
+ */
+
+export function useListSharedResourceLists<TData = Awaited<ReturnType<typeof listSharedResourceLists>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSharedResourceLists>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSharedResourceListsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListScheduleBlocksUrl = (params?: ListScheduleBlocksParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -328,6 +328,73 @@ export const RemoveClassMemberResponse = zod.void()
 
 
 /**
+ * @summary Get the class resources list with items (teachers and members)
+ */
+export const GetClassResourcesListParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetClassResourcesListResponse = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "ownerId": zod.int(),
+  "classId": zod.int().nullish(),
+  "itemCount": zod.int(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "id": zod.int(),
+  "listId": zod.int(),
+  "resourceId": zod.int(),
+  "note": zod.string().nullish(),
+  "addedAt": zod.string(),
+  "position": zod.int(),
+  "resource": zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "submittedById": zod.int(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string()
+})
+}))
+})
+
+
+/**
+ * @summary Assign a resource to the class list (teacher only)
+ */
+export const AssignResourceToClassParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const AssignResourceToClassBody = zod.object({
+  "resourceId": zod.int()
+})
+
+export const AssignResourceToClassResponse = zod.object({
+  "listId": zod.int()
+})
+
+
+/**
+ * @summary Remove a resource from the class list (teacher only)
+ */
+export const RemoveClassResourceParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "resourceId": zod.coerce.number().int()
+})
+
+export const RemoveClassResourceResponse = zod.void()
+
+
+/**
  * @summary List and search resources
  */
 export const listResourcesQueryMinRatingMax = 5;
@@ -852,6 +919,21 @@ export const ShareListWithClassBody = zod.object({
 })
 
 export const ShareListWithClassResponse = zod.void()
+
+
+/**
+ * @summary Lists shared with the current user via their class memberships
+ */
+export const ListSharedResourceListsResponseItem = zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "ownerId": zod.int(),
+  "classId": zod.int().nullish(),
+  "itemCount": zod.int(),
+  "createdAt": zod.string()
+})
+export const ListSharedResourceListsResponse = zod.array(ListSharedResourceListsResponseItem)
 
 
 /**

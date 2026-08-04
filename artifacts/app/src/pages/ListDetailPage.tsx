@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical } from 'lucide-react';
+import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical, Users } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { Alert, AlertDescription } from '@workspace/edu-ds/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/edu-ds/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@workspace/edu-ds/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -35,10 +36,14 @@ import {
   useGetGCStatus,
   useListGCCourses,
   useShareToGC,
+  useListClasses,
+  useShareListWithClass,
   getGetResourceListQueryKey,
   getListResourceListsQueryKey,
   getGetGCStatusQueryKey,
   getListGCCoursesQueryKey,
+  getListClassesQueryKey,
+  getListSharedResourceListsQueryKey,
   UserRole,
 } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
@@ -58,7 +63,7 @@ interface ListItemData {
   resourceId: number;
   note?: string | null;
   addedAt: string;
-  position: number;
+  position?: number;
   resource: {
     id: number;
     title: string;
@@ -80,6 +85,10 @@ export default function ListDetailPage() {
 
   // Local ordered items for optimistic drag-reorder
   const [orderedItems, setOrderedItems] = useState<ListItemData[] | null>(null);
+
+  // Share with class state
+  const [shareWithClassOpen, setShareWithClassOpen] = useState(false);
+  const [shareClassId, setShareClassId] = useState('');
 
   // Google Classroom share state
   const [gcDialogOpen, setGcDialogOpen] = useState(false);
@@ -103,6 +112,10 @@ export default function ListDetailPage() {
   const isTeacher = me?.role === UserRole.teacher;
   const isOwner = me?.id != null && list != null && list.ownerId === me.id;
   const canShareToGC = isTeacher && isOwner;
+  const canShareWithClass = isTeacher && isOwner;
+
+  const { data: classes } = useListClasses({ query: { enabled: !!me, queryKey: getListClassesQueryKey() } });
+  const shareWithClass = useShareListWithClass();
 
   const { data: gcStatus } = useGetGCStatus({
     query: { enabled: canShareToGC, queryKey: getGetGCStatusQueryKey() },
@@ -178,6 +191,19 @@ export default function ListDetailPage() {
       toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {
       setRemovingId(null);
+    }
+  }
+
+  async function handleShareWithClass() {
+    if (!shareClassId) return;
+    try {
+      await shareWithClass.mutateAsync({ id: listId, data: { classId: Number(shareClassId) } });
+      queryClient.invalidateQueries({ queryKey: getListSharedResourceListsQueryKey() });
+      toast({ title: 'Shared with class!', description: 'Students can now see this list on the class page.' });
+      setShareWithClassOpen(false);
+      setShareClassId('');
+    } catch {
+      toast({ title: 'Error', description: 'Could not share with the class.', variant: 'destructive' });
     }
   }
 
@@ -288,6 +314,46 @@ export default function ListDetailPage() {
         <Button variant="ghost" size="sm" onClick={() => setLocation('/lists')} data-testid="back-button">
           <ArrowLeft size={16} className="mr-1.5" /> Lists
         </Button>
+
+        {canShareWithClass && (
+          <Dialog open={shareWithClassOpen} onOpenChange={setShareWithClassOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="share-with-class-button">
+                <Users size={14} className="mr-1.5" /> Share with Class
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Share with Class</DialogTitle>
+                <DialogDescription>Make this list visible to all members of a class.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                {!classes || classes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">You're not in any classes yet.</p>
+                ) : (
+                  <Select value={shareClassId} onValueChange={setShareClassId}>
+                    <SelectTrigger data-testid="share-class-select"><SelectValue placeholder="Select a class…" /></SelectTrigger>
+                    <SelectContent>
+                      {classes.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShareWithClassOpen(false)}>Cancel</Button>
+                  <Button
+                    onClick={handleShareWithClass}
+                    disabled={!shareClassId || shareWithClass.isPending}
+                    data-testid="share-with-class-confirm"
+                  >
+                    {shareWithClass.isPending ? 'Sharing…' : 'Share'}
+                  </Button>
+                </DialogFooter>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {canShareToGC && gcStatus?.configured && (
           <Button

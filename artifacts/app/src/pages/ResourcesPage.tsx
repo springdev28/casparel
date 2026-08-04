@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2 } from 'lucide-react';
+import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2, GraduationCap } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -20,15 +20,20 @@ import {
   useDiscoverResources,
   useGetResourceRecommendations,
   usePrefetchResourceMetadata,
+  useListClasses,
+  useAssignResourceToClass,
   getDiscoverResourcesQueryKey,
   getListResourcesQueryKey,
   getGetMeQueryKey,
   getGetResourceRecommendationsQueryKey,
   getGetDashboardSummaryQueryKey,
+  getGetClassResourcesListQueryKey,
+  getListClassesQueryKey,
   ListResourcesFormat,
   ListResourcesSortBy,
   ResourceInputFormat,
   DiscoverResourcesFormat,
+  UserRole,
   type DiscoveredResource,
 } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
@@ -95,10 +100,11 @@ function FormatBadge({ format }: { format: string }) {
 }
 
 // ── Shared resource card (library) ────────────────────────────────────────────
-function LibraryCard({ resource, onClick, onRemove }: {
+function LibraryCard({ resource, onClick, onRemove, onAssign }: {
   resource: { id: number; title: string; url: string; format: string; subject: string; gradeLevel: string; description?: string | null; avgRating: number; reviewCount: number; thumbnailUrl?: string | null };
   onClick: () => void;
   onRemove?: () => void;
+  onAssign?: () => void;
 }) {
   const [failedThumb, setFailedThumb] = useState<string | null>(null);
   const ytId = getYouTubeId(resource.url);
@@ -136,6 +142,16 @@ function LibraryCard({ resource, onClick, onRemove }: {
         <StarRating value={resource.avgRating} size="sm" />
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{resource.reviewCount} review{resource.reviewCount !== 1 ? 's' : ''}</span>
+          {onAssign && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onAssign(); }}
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="Assign to class"
+            >
+              <GraduationCap size={13} />
+            </button>
+          )}
           {onRemove && (
             <button
               type="button"
@@ -285,6 +301,27 @@ export default function ResourcesPage() {
     if (!webResults || webResults.length === 0) return;
     setAllWebResults((prev) => webPage === 1 ? webResults : [...prev, ...webResults]);
   }, [webResults, webPage]);
+
+  const isTeacher = me?.role === UserRole.teacher;
+
+  // Classes for "Assign to class" teacher flow
+  const { data: classes } = useListClasses({ query: { enabled: isTeacher, queryKey: getListClassesQueryKey() } });
+  const assignResource = useAssignResourceToClass();
+  const [assignTarget, setAssignTarget] = useState<{ id: number; title: string } | null>(null);
+  const [assignClassId, setAssignClassId] = useState('');
+
+  async function handleAssign() {
+    if (!assignTarget || !assignClassId) return;
+    try {
+      await assignResource.mutateAsync({ id: Number(assignClassId), data: { resourceId: assignTarget.id } });
+      queryClient.invalidateQueries({ queryKey: getGetClassResourcesListQueryKey(Number(assignClassId)) });
+      toast({ title: 'Assigned!', description: `"${assignTarget.title}" added to the class resource list.` });
+      setAssignTarget(null);
+      setAssignClassId('');
+    } catch {
+      toast({ title: 'Error', description: 'Could not assign the resource.', variant: 'destructive' });
+    }
+  }
 
   const createResource = useCreateResource();
   const deleteResource = useDeleteResource();
@@ -566,6 +603,7 @@ export default function ResourcesPage() {
                       resource={r}
                       onClick={() => setLocation(`/resources/${r.id}`)}
                       onRemove={me ? () => handleRemoveCard(r.id, r.title) : undefined}
+                      onAssign={isTeacher ? () => setAssignTarget({ id: r.id, title: r.title }) : undefined}
                     />
                   ))}
                 </div>
@@ -607,6 +645,7 @@ export default function ResourcesPage() {
                           resource={r}
                           onClick={() => setLocation(`/resources/${r.id}`)}
                           onRemove={me ? () => handleRemoveCard(r.id, r.title) : undefined}
+                          onAssign={isTeacher ? () => setAssignTarget({ id: r.id, title: r.title }) : undefined}
                         />
                       ))}
                     </div>
@@ -677,6 +716,42 @@ export default function ResourcesPage() {
           </div>
         </>
       )}
+
+      {/* Assign to Class dialog (teacher) */}
+      <Dialog open={!!assignTarget} onOpenChange={(open) => { if (!open) { setAssignTarget(null); setAssignClassId(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign to Class</DialogTitle>
+            <DialogDescription>
+              Add <strong>{assignTarget?.title}</strong> to a class resource list for your students.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {!classes || classes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">You don't have any classes yet.</p>
+            ) : (
+              <Select value={assignClassId} onValueChange={setAssignClassId}>
+                <SelectTrigger data-testid="assign-class-select"><SelectValue placeholder="Select a class…" /></SelectTrigger>
+                <SelectContent>
+                  {classes.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setAssignTarget(null); setAssignClassId(''); }}>Cancel</Button>
+              <Button
+                onClick={handleAssign}
+                disabled={!assignClassId || assignResource.isPending}
+                data-testid="assign-to-class-confirm"
+              >
+                {assignResource.isPending ? 'Assigning…' : 'Assign'}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

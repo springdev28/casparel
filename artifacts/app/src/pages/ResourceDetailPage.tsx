@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation, Link } from 'wouter';
-import { ArrowLeft, ExternalLink, Plus, BookOpen, LogIn, Search, ShieldCheck, ShieldAlert, Shield, ShieldX, ExternalLink as LinkIcon, Trash2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Plus, BookOpen, LogIn, Search, ShieldCheck, ShieldAlert, Shield, ShieldX, ExternalLink as LinkIcon, Trash2, GraduationCap } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
@@ -22,6 +22,8 @@ import {
   useGetMe,
   useGetResourceSourceReview,
   useDeleteResource,
+  useListClasses,
+  useAssignResourceToClass,
   getListResourceReviewsQueryKey,
   getGetResourceQueryKey,
   getListResourcesQueryKey,
@@ -30,6 +32,9 @@ import {
   getGetResourceSourceReviewQueryKey,
   getGetResourceRecommendationsQueryKey,
   getGetDashboardSummaryQueryKey,
+  getGetClassResourcesListQueryKey,
+  getListClassesQueryKey,
+  UserRole,
 } from '@workspace/api-client-react';
 import type { SourceReview } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
@@ -382,6 +387,26 @@ export default function ResourceDetailPage() {
   const deleteResource = useDeleteResource();
 
   const isLoggedIn = !!me;
+  const isTeacher = me?.role === UserRole.teacher;
+
+  // Assign to class
+  const { data: classes } = useListClasses({ query: { enabled: isTeacher, queryKey: getListClassesQueryKey() } });
+  const assignResource = useAssignResourceToClass();
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [assignClassId, setAssignClassId] = useState('');
+
+  async function handleAssign() {
+    if (!assignClassId) return;
+    try {
+      await assignResource.mutateAsync({ id: Number(assignClassId), data: { resourceId } });
+      queryClient.invalidateQueries({ queryKey: getGetClassResourcesListQueryKey(Number(assignClassId)) });
+      toast({ title: 'Assigned!', description: 'Resource added to class resource list.' });
+      setAssignDialogOpen(false);
+      setAssignClassId('');
+    } catch {
+      toast({ title: 'Error', description: 'Could not assign the resource.', variant: 'destructive' });
+    }
+  }
 
   async function handleReviewSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -534,6 +559,50 @@ export default function ResourceDetailPage() {
                 <Button size="sm" variant="outline" asChild data-testid="sign-in-to-save">
                   <Link href="/auth/login"><Plus size={14} className="mr-1" /> Save to List</Link>
                 </Button>
+              )}
+
+              {/* Assign to Class — teachers only */}
+              {isLoggedIn && isTeacher && (
+                <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" data-testid="assign-to-class-button">
+                      <GraduationCap size={14} className="mr-1" /> Assign to Class
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Assign to Class</DialogTitle>
+                      <DialogDescription>Add this resource to a class resource list for your students.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label>Class</Label>
+                        {!classes || classes.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No classes found. Create a class first.</p>
+                        ) : (
+                          <Select value={assignClassId} onValueChange={setAssignClassId}>
+                            <SelectTrigger data-testid="assign-class-select"><SelectValue placeholder="Select a class…" /></SelectTrigger>
+                            <SelectContent>
+                              {classes.map((c) => (
+                                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setAssignDialogOpen(false)}>Cancel</Button>
+                        <Button
+                          onClick={handleAssign}
+                          disabled={!assignClassId || assignResource.isPending}
+                          data-testid="assign-to-class-confirm"
+                        >
+                          {assignResource.isPending ? 'Assigning…' : 'Assign'}
+                        </Button>
+                      </DialogFooter>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               )}
 
               {/* Remove from library — only for submitter */}

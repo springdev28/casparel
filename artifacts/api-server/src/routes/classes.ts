@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and } from "drizzle-orm";
-import { db, classesTable, classMembersTable, usersTable } from "@workspace/db";
+import { eq, sql, and, max, asc } from "drizzle-orm";
+import { db, classesTable, classMembersTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable } from "@workspace/db";
 import {
   ListClassesResponse,
   CreateClassBody,
@@ -20,10 +20,38 @@ import {
   BulkInviteClassMembersParams,
   BulkInviteClassMembersBody,
   BulkInviteClassMembersResponse,
+  GetResourceListResponse,
+  AssignResourceToClassBody,
+  AssignResourceToClassResponse,
+  ListResourceListsResponse,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher, isClassMember } from "../lib/authz";
+
+async function resourceWithRating(id: number) {
+  const [r] = await db.select().from(resourcesTable).where(eq(resourcesTable.id, id));
+  if (!r) return null;
+  const [stats] = await db
+    .select({ avg: sql<number>`coalesce(avg(rating), 0)`, count: sql<number>`cast(count(*) as int)` })
+    .from(reviewsTable)
+    .where(eq(reviewsTable.resourceId, id));
+  return { ...r, avgRating: Math.round(Number(stats.avg) * 10) / 10, reviewCount: stats.count };
+}
+
+/** Find or create the "Class Resources" list for a class. ownerId is used only when creating. */
+async function getOrCreateClassList(classId: number, ownerId: number) {
+  const [existing] = await db
+    .select()
+    .from(resourceListsTable)
+    .where(and(eq(resourceListsTable.classId, classId), eq(resourceListsTable.name, "Class Resources")));
+  if (existing) return existing;
+  const [created] = await db
+    .insert(resourceListsTable)
+    .values({ name: "Class Resources", ownerId, classId })
+    .returning();
+  return created;
+}
 
 const router: IRouter = Router();
 
@@ -80,6 +108,8 @@ router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<v
     .insert(classMembersTable)
     .values({ userId, classId: cls.id, role: "teacher" })
     .onConflictDoNothing();
+  // Auto-create the shared "Class Resources" list for this class
+  await db.insert(resourceListsTable).values({ name: "Class Resources", ownerId: userId, classId: cls.id });
   res.status(201).json(CreateClassResponse.parse({ ...cls, memberCount: 1 }));
 });
 
@@ -325,6 +355,137 @@ router.delete("/classes/:id/members/:userId", requireAuth, async (req, res): Pro
       ),
     );
   res.sendStatus(204);
+});
+
+// GET /classes/:id/resources-list — any class member can view
+router.get("/classes/:id/resources-list", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = GetClassParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  if (!(await isClassMember(params.data.id, userId)) && !(await isClassTeacher(params.data.id, userId))) {
+    res.status(403).json({ error: "Not a member of this class" }); return;
+  }
+
+  const [list] = await db
+    .select()
+    .from(resourceListsTable)
+    .where(and(eq(resourceListsTable.classId, params.data.id), eq(resourceListsTable.name, "Class Resources")));
+
+  if (!list) {
+    // Class list not created yet — return empty shell
+    res.json(GetResourceListResponse.parse({ id: 0, name: "Class Resources", description: null, ownerId: 0, classId: params.data.id, itemCount: 0, createdAt: new Date().toISOString(), items: [] }));
+    return;
+  }
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`cast(count(*) as int)` })
+    .from(listItemsTable)
+    .where(eq(listItemsTable.listId, list.id));
+
+  const itemRows = await db
+    .select()
+    .from(listItemsTable)
+    .where(eq(listItemsTable.listId, list.id))
+    .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
+
+  const items = (await Promise.all(
+    itemRows.map(async (item) => {
+      const resource = await resourceWithRating(item.resourceId);
+      return resource ? { ...item, resource } : null;
+    })
+  )).filter(Boolean);
+
+  res.json(GetResourceListResponse.parse({ ...list, itemCount: count, items }));
+});
+
+// POST /classes/:id/assign — teacher only; adds resource to the class list
+router.post("/classes/:id/assign", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = GetClassParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  if (!(await isClassTeacher(params.data.id, userId))) {
+    res.status(403).json({ error: "Only the class teacher can assign resources" }); return;
+  }
+
+  const parsed = AssignResourceToClassBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  // Validate resource exists before inserting (avoid FK 500)
+  const [resource] = await db.select({ id: resourcesTable.id }).from(resourcesTable)
+    .where(eq(resourcesTable.id, parsed.data.resourceId));
+  if (!resource) { res.status(404).json({ error: "Resource not found" }); return; }
+
+  const list = await getOrCreateClassList(params.data.id, userId);
+
+  // Skip duplicate
+  const [already] = await db
+    .select()
+    .from(listItemsTable)
+    .where(and(eq(listItemsTable.listId, list.id), eq(listItemsTable.resourceId, parsed.data.resourceId)));
+
+  if (!already) {
+    const [{ maxPos }] = await db
+      .select({ maxPos: max(listItemsTable.position) })
+      .from(listItemsTable)
+      .where(eq(listItemsTable.listId, list.id));
+    await db.insert(listItemsTable).values({ listId: list.id, resourceId: parsed.data.resourceId, position: (maxPos ?? -1) + 1 });
+  }
+
+  res.json(AssignResourceToClassResponse.parse({ listId: list.id }));
+});
+
+// DELETE /classes/:id/resources-list/items/:resourceId — teacher removes item from class list
+router.delete("/classes/:id/resources-list/items/:resourceId", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const classId = Number(req.params.id);
+  const resourceId = Number(req.params.resourceId);
+  if (!classId || !resourceId) { res.status(400).json({ error: "Invalid params" }); return; }
+
+  if (!(await isClassTeacher(classId, userId))) {
+    res.status(403).json({ error: "Only the class teacher can remove resources" }); return;
+  }
+
+  const [list] = await db
+    .select()
+    .from(resourceListsTable)
+    .where(and(eq(resourceListsTable.classId, classId), eq(resourceListsTable.name, "Class Resources")));
+
+  if (list) {
+    await db
+      .delete(listItemsTable)
+      .where(and(eq(listItemsTable.listId, list.id), eq(listItemsTable.resourceId, resourceId)));
+  }
+
+  res.sendStatus(204);
+});
+
+// GET /classes/:id/shared-lists — other lists shared with this class (not "Class Resources")
+router.get("/classes/:id/shared-lists", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const classId = Number(req.params.id);
+  if (!classId) { res.status(400).json({ error: "Invalid classId" }); return; }
+
+  if (!(await isClassMember(classId, userId)) && !(await isClassTeacher(classId, userId))) {
+    res.status(403).json({ error: "Not a member of this class" }); return;
+  }
+
+  const rows = await db
+    .select()
+    .from(resourceListsTable)
+    .where(and(eq(resourceListsTable.classId, classId)));
+
+  const lists = await Promise.all(
+    rows.map(async (l) => {
+      const [{ count }] = await db
+        .select({ count: sql<number>`cast(count(*) as int)` })
+        .from(listItemsTable)
+        .where(eq(listItemsTable.listId, l.id));
+      return { ...l, itemCount: count };
+    })
+  );
+  res.json(ListResourceListsResponse.parse(lists));
 });
 
 export default router;

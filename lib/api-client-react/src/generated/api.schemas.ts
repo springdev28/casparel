@@ -328,6 +328,14 @@ export interface ReviewInput {
   comment?: string;
 }
 
+export interface AssignResourceBody {
+  resourceId: number;
+}
+
+export interface AssignResourceResponse {
+  listId: number;
+}
+
 export interface ResourceList {
   id: number;
   name: string;

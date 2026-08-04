@@ -8,6 +8,8 @@
 
 export * from './activityItem';
 export * from './activityItemType';
+export * from './assignResourceBody';
+export * from './assignResourceResponse';
 export * from './authResponse';
 export * from './bulkInviteInput';
 export * from './bulkInviteResult';

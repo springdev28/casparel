@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -19,11 +19,25 @@ import {
   useBulkInviteClassMembers,
   useGetGCCourseStudents,
   useGetGCStatus,
+  useGetMe,
+  useGetClassResourcesList,
+  useRemoveClassResource,
   getGetClassQueryKey,
   getGetGCStatusQueryKey,
+  getGetClassResourcesListQueryKey,
   ClassMemberInputRole,
+  UserRole,
   type GCRosterStudent,
 } from '@workspace/api-client-react';
+
+const FORMAT_COLORS: Record<string, string> = {
+  article: 'bg-blue-100 text-blue-700',
+  video: 'bg-red-100 text-red-700',
+  pdf: 'bg-orange-100 text-orange-700',
+  podcast: 'bg-purple-100 text-purple-700',
+  interactive: 'bg-emerald-100 text-emerald-700',
+  other: 'bg-gray-100 text-gray-700',
+};
 
 export default function ClassDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -34,8 +48,6 @@ export default function ClassDetailPage() {
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
   const [memberRole, setMemberRole] = useState<ClassMemberInputRole>(ClassMemberInputRole.student);
-
-  // Sync roster state
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [rosterConfirmed, setRosterConfirmed] = useState(false);
@@ -43,42 +55,39 @@ export default function ClassDetailPage() {
   const { data: cls, isLoading } = useGetClass(classId, {
     query: { enabled: !!classId, queryKey: getGetClassQueryKey(classId) },
   });
-
-  // Determine if the current user is the class teacher
+  const { data: me } = useGetMe();
   const { data: gcStatus } = useGetGCStatus({
     query: { queryKey: getGetGCStatusQueryKey() },
   });
+  const { data: classResList, isLoading: resListLoading } = useGetClassResourcesList(classId, {
+    query: { enabled: !!classId, queryKey: getGetClassResourcesListQueryKey(classId) },
+  });
+  const removeClassResource = useRemoveClassResource();
 
   const addMember = useAddClassMember();
   const bulkInvite = useBulkInviteClassMembers();
 
-  // Roster fetch — only fires once the teacher picks a course and opens the sync dialog
-  const rosterEnabled = syncDialogOpen && !!selectedCourseId && gcStatus?.connected === true;
+  // Use class-specific role: only the teacher of THIS class can manage it
+  const isTeacher = me?.id != null && cls?.teacherId === me.id;
+  const gcConnected = gcStatus?.connected === true;
+
+  const rosterEnabled = syncDialogOpen && !!selectedCourseId && gcConnected;
   const { data: roster, isLoading: rosterLoading } = useGetGCCourseStudents(
     selectedCourseId ?? '',
-    {
-      query: {
-        enabled: rosterEnabled,
-        queryKey: ['getGCCourseStudents', selectedCourseId ?? ''],
-      },
-    },
+    { query: { enabled: rosterEnabled, queryKey: ['getGCCourseStudents', selectedCourseId ?? ''] } },
   );
 
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await addMember.mutateAsync({
-        id: classId,
-        data: { email: memberEmail, role: memberRole },
-      });
+      await addMember.mutateAsync({ id: classId, data: { email: memberEmail, role: memberRole } });
       queryClient.invalidateQueries({ queryKey: getGetClassQueryKey(classId) });
       toast({ title: 'Member added!', description: `${memberEmail} has been added.` });
       setMemberEmail('');
       setMemberRole(ClassMemberInputRole.student);
       setMemberDialogOpen(false);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to add member';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to add member', variant: 'destructive' });
     }
   }
 
@@ -93,41 +102,36 @@ export default function ClassDetailPage() {
       setRosterConfirmed(false);
       toast({
         title: 'Roster synced!',
-        description: `Added ${result.added} student${result.added !== 1 ? 's' : ''}. ${result.alreadyMember} already enrolled. ${result.notFound} had no EduHub account.`,
+        description: `Added ${result.added} student${result.added !== 1 ? 's' : ''}. ${result.alreadyMember} already enrolled. ${result.notFound} had no account.`,
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to sync roster';
-      toast({ title: 'Error', description: message, variant: 'destructive' });
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to sync roster', variant: 'destructive' });
+    }
+  }
+
+  async function handleRemoveResource(resourceId: number) {
+    try {
+      await removeClassResource.mutateAsync({ id: classId, resourceId });
+      queryClient.invalidateQueries({ queryKey: getGetClassResourcesListQueryKey(classId) });
+      toast({ title: 'Resource removed from class.' });
+    } catch {
+      toast({ title: 'Error', description: 'Could not remove the resource.', variant: 'destructive' });
     }
   }
 
   function handleSyncDialogOpenChange(open: boolean) {
     setSyncDialogOpen(open);
-    if (!open) {
-      setSelectedCourseId(null);
-      setRosterConfirmed(false);
-    }
+    if (!open) { setSelectedCourseId(null); setRosterConfirmed(false); }
   }
 
   if (isLoading) {
     return (
       <div className="p-6 max-w-4xl mx-auto space-y-6">
         <Skeleton className="h-8 w-32" />
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-7 w-1/2" />
-            <Skeleton className="h-4 w-1/3 mt-1" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <Skeleton className="h-4 w-40" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
+        <Card><CardHeader><Skeleton className="h-7 w-1/2" /><Skeleton className="h-4 w-1/3 mt-1" /></CardHeader>
+          <CardContent><div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-4 w-40" /></div>
+          ))}</div></CardContent>
         </Card>
       </div>
     );
@@ -143,11 +147,9 @@ export default function ClassDetailPage() {
     );
   }
 
-  const isTeacher = gcStatus !== undefined; // gcStatus only loads for teachers via requireTeacher on the API
-  const gcConnected = gcStatus?.connected === true;
-
   const linked = roster?.filter((s: GCRosterStudent) => s.linkedUserId !== null && s.linkedUserId !== undefined) ?? [];
   const unlinked = roster?.filter((s: GCRosterStudent) => !s.linkedUserId) ?? [];
+  const resourceItems = classResList?.items ?? [];
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -166,8 +168,7 @@ export default function ClassDetailPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary">{cls.members.length} member{cls.members.length !== 1 ? 's' : ''}</Badge>
 
-              {/* Sync Roster — only visible when GC is connected */}
-              {gcConnected && (
+              {gcConnected && isTeacher && (
                 <Dialog open={syncDialogOpen} onOpenChange={handleSyncDialogOpenChange}>
                   <DialogTrigger asChild>
                     <Button size="sm" variant="outline" data-testid="sync-roster-button">
@@ -177,34 +178,20 @@ export default function ClassDetailPage() {
                   <DialogContent className="max-w-lg">
                     <DialogHeader>
                       <DialogTitle>Sync Google Classroom Roster</DialogTitle>
-                      <DialogDescription>
-                        Enter the Google Classroom course ID to pull its student roster into this class.
-                      </DialogDescription>
+                      <DialogDescription>Enter the Google Classroom course ID to pull its student roster.</DialogDescription>
                     </DialogHeader>
-
-                    {/* Step 1: enter course ID */}
-                    {!selectedCourseId && (
-                      <SyncCourseIdStep onConfirm={(id) => setSelectedCourseId(id)} />
-                    )}
-
-                    {/* Step 2: show roster preview */}
+                    {!selectedCourseId && <SyncCourseIdStep onConfirm={(id) => setSelectedCourseId(id)} />}
                     {selectedCourseId && !rosterConfirmed && (
                       <div className="space-y-4">
                         {rosterLoading ? (
-                          <div className="space-y-2">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                              <Skeleton key={i} className="h-9 w-full" />
-                            ))}
-                          </div>
+                          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
                         ) : !roster || roster.length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-6">
-                            No students found in this course.
-                          </p>
+                          <p className="text-sm text-muted-foreground text-center py-6">No students found in this course.</p>
                         ) : (
                           <>
                             <p className="text-sm text-muted-foreground">
                               Found <strong>{roster.length}</strong> student{roster.length !== 1 ? 's' : ''}.{' '}
-                              <span className="text-green-600 dark:text-green-400">{linked.length} matched</span> to EduHub accounts.{' '}
+                              <span className="text-green-600 dark:text-green-400">{linked.length} matched</span> to accounts.{' '}
                               <span className="text-muted-foreground">{unlinked.length} have no account yet.</span>
                             </p>
                             <div className="max-h-56 overflow-y-auto divide-y divide-border rounded-md border">
@@ -214,46 +201,30 @@ export default function ClassDetailPage() {
                                     <p className="text-sm font-medium">{s.name}</p>
                                     <p className="text-xs text-muted-foreground">{s.email}</p>
                                   </div>
-                                  {s.linkedUserId ? (
-                                    <CheckCircle2 size={16} className="text-green-600 dark:text-green-400 shrink-0" aria-label="Matched to EduHub account" />
-                                  ) : (
-                                    <AlertCircle size={16} className="text-muted-foreground shrink-0" aria-label="No EduHub account" />
-                                  )}
+                                  {s.linkedUserId
+                                    ? <CheckCircle2 size={16} className="text-green-600 dark:text-green-400 shrink-0" />
+                                    : <AlertCircle size={16} className="text-muted-foreground shrink-0" />}
                                 </div>
                               ))}
                             </div>
-                            {unlinked.length > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                Students without an EduHub account will be skipped. They can join after creating an account.
-                              </p>
-                            )}
                           </>
                         )}
                         <DialogFooter>
                           <Button variant="outline" onClick={() => setSelectedCourseId(null)}>Back</Button>
-                          <Button
-                            onClick={() => setRosterConfirmed(true)}
-                            disabled={!roster || roster.length === 0 || linked.length === 0}
-                          >
+                          <Button onClick={() => setRosterConfirmed(true)} disabled={!roster || roster.length === 0 || linked.length === 0}>
                             Add {linked.length} Student{linked.length !== 1 ? 's' : ''}
                           </Button>
                         </DialogFooter>
                       </div>
                     )}
-
-                    {/* Step 3: confirm */}
                     {selectedCourseId && rosterConfirmed && (
                       <div className="space-y-4">
                         <p className="text-sm text-muted-foreground">
-                          This will enroll <strong>{linked.length}</strong> student{linked.length !== 1 ? 's' : ''} who already have EduHub accounts into this class.
+                          This will enroll <strong>{linked.length}</strong> student{linked.length !== 1 ? 's' : ''} who already have accounts.
                         </p>
                         <DialogFooter>
                           <Button variant="outline" onClick={() => setRosterConfirmed(false)}>Back</Button>
-                          <Button
-                            onClick={handleSyncRoster}
-                            disabled={bulkInvite.isPending}
-                            data-testid="sync-roster-confirm"
-                          >
+                          <Button onClick={handleSyncRoster} disabled={bulkInvite.isPending} data-testid="sync-roster-confirm">
                             {bulkInvite.isPending ? 'Syncing…' : 'Confirm Sync'}
                           </Button>
                         </DialogFooter>
@@ -263,66 +234,56 @@ export default function ClassDetailPage() {
                 </Dialog>
               )}
 
-              <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" data-testid="add-member-button">
-                    <UserPlus size={14} className="mr-1" /> Add Member
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add a Member</DialogTitle>
-                    <DialogDescription>Add a student or teacher to this class by email</DialogDescription>
-                  </DialogHeader>
-                  <form onSubmit={handleAddMember} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="member-email">Email address</Label>
-                      <Input
-                        id="member-email"
-                        type="email"
-                        value={memberEmail}
-                        onChange={(e) => setMemberEmail(e.target.value)}
-                        required
-                        placeholder="user@example.com"
-                        data-testid="member-email-input"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="member-role">Role</Label>
-                      <Select value={memberRole} onValueChange={(v) => setMemberRole(v as ClassMemberInputRole)}>
-                        <SelectTrigger id="member-role" data-testid="member-role-select">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={ClassMemberInputRole.student}>Student</SelectItem>
-                          <SelectItem value={ClassMemberInputRole.teacher}>Teacher</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <DialogFooter>
-                      <Button type="button" variant="outline" onClick={() => setMemberDialogOpen(false)}>Cancel</Button>
-                      <Button type="submit" disabled={addMember.isPending} data-testid="add-member-confirm">
-                        {addMember.isPending ? 'Adding…' : 'Add Member'}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              {isTeacher && (
+                <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" data-testid="add-member-button">
+                      <UserPlus size={14} className="mr-1" /> Add Member
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Add a Member</DialogTitle>
+                      <DialogDescription>Add a student or teacher to this class by email</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleAddMember} className="space-y-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="member-email">Email address</Label>
+                        <Input id="member-email" type="email" value={memberEmail} onChange={(e) => setMemberEmail(e.target.value)} required placeholder="user@example.com" data-testid="member-email-input" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="member-role">Role</Label>
+                        <Select value={memberRole} onValueChange={(v) => setMemberRole(v as ClassMemberInputRole)}>
+                          <SelectTrigger id="member-role" data-testid="member-role-select"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={ClassMemberInputRole.student}>Student</SelectItem>
+                            <SelectItem value={ClassMemberInputRole.teacher}>Teacher</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setMemberDialogOpen(false)}>Cancel</Button>
+                        <Button type="submit" disabled={addMember.isPending} data-testid="add-member-confirm">
+                          {addMember.isPending ? 'Adding…' : 'Add Member'}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           </div>
-          {cls.description && (
-            <p className="text-sm text-muted-foreground mt-2">{cls.description}</p>
-          )}
+          {cls.description && <p className="text-sm text-muted-foreground mt-2">{cls.description}</p>}
         </CardHeader>
       </Card>
 
-      {/* Members List */}
+      {/* Members */}
       <section>
         <h2 className="text-lg font-semibold text-foreground mb-4">Members</h2>
         {cls.members.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Users size={32} className="text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">No members yet. Add members to get started.</p>
+            <p className="text-sm text-muted-foreground">No members yet.</p>
           </div>
         ) : (
           <Card>
@@ -331,9 +292,7 @@ export default function ClassDetailPage() {
                 <div key={member.userId} className="flex items-center justify-between py-3 gap-3" data-testid="member-item">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase">
-                        {member.user.name.charAt(0)}
-                      </span>
+                      <span className="text-xs font-semibold text-muted-foreground uppercase">{member.user.name.charAt(0)}</span>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">{member.user.name}</p>
@@ -341,9 +300,7 @@ export default function ClassDetailPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant={member.role === 'teacher' ? 'default' : 'secondary'} className="capitalize">
-                      {member.role}
-                    </Badge>
+                    <Badge variant={member.role === 'teacher' ? 'default' : 'secondary'} className="capitalize">{member.role}</Badge>
                     <span className="text-xs text-muted-foreground hidden sm:inline">
                       Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true })}
                     </span>
@@ -354,33 +311,104 @@ export default function ClassDetailPage() {
           </Card>
         )}
       </section>
+
       <Separator />
+
+      {/* Class Resources */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Class Resources</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isTeacher ? 'Resources you assign show here for all class members.' : 'Resources assigned by your teacher.'}
+            </p>
+          </div>
+          {isTeacher && (
+            <Button size="sm" variant="outline" onClick={() => setLocation('/resources')}>
+              <BookOpen size={14} className="mr-1.5" /> Assign a Resource
+            </Button>
+          )}
+        </div>
+
+        {resListLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i}><CardContent className="py-4"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2 mt-2" /></CardContent></Card>
+            ))}
+          </div>
+        ) : resourceItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/20">
+            <BookOpen size={32} className="text-muted-foreground mb-3" />
+            <p className="text-sm font-medium text-foreground">No resources assigned yet</p>
+            {isTeacher && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Open a resource and click <strong>Assign to Class</strong> to add it here.
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {resourceItems.map((item) => (
+              <Card key={item.id} className="hover:shadow-sm transition-shadow" data-testid="class-resource-item">
+                <CardContent className="py-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-foreground line-clamp-1">{item.resource.title}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
+                          {item.resource.format}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={item.resource.url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink size={12} />
+                        </a>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setLocation(`/resources/${item.resource.id}`)}
+                      >
+                        View
+                      </Button>
+                      {isTeacher && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleRemoveResource(item.resource.id)}
+                          disabled={removeClassResource.isPending}
+                          data-testid="remove-class-resource"
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
 
-/** Step 1 of the sync flow: collect the GC course ID from the teacher. */
 function SyncCourseIdStep({ onConfirm }: { onConfirm: (courseId: string) => void }) {
   const [courseId, setCourseId] = useState('');
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label htmlFor="gc-course-id">Google Classroom Course ID</Label>
-        <Input
-          id="gc-course-id"
-          value={courseId}
-          onChange={(e) => setCourseId(e.target.value.trim())}
-          placeholder="e.g. 123456789"
-          data-testid="gc-course-id-input"
-        />
-        <p className="text-xs text-muted-foreground">
-          Find the ID in your Google Classroom URL: classroom.google.com/c/<strong>COURSE_ID</strong>
-        </p>
+        <Input id="gc-course-id" value={courseId} onChange={(e) => setCourseId(e.target.value.trim())} placeholder="e.g. 123456789" data-testid="gc-course-id-input" />
+        <p className="text-xs text-muted-foreground">Find the ID in your Google Classroom URL: classroom.google.com/c/<strong>COURSE_ID</strong></p>
       </div>
       <DialogFooter>
-        <Button onClick={() => onConfirm(courseId)} disabled={!courseId}>
-          Fetch Roster
-        </Button>
+        <Button onClick={() => onConfirm(courseId)} disabled={!courseId}>Fetch Roster</Button>
       </DialogFooter>
     </div>
   );
