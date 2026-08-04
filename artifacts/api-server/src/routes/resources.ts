@@ -221,11 +221,19 @@ async function callDiscoverAI(
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 22000);
   try {
-    const response = await openai.chat.completions.create(
-      { model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }] },
+    const response = await openai.responses.create(
+      {
+        model: "gpt-4o-mini",
+        tools: [{ type: "web_search_preview" }],
+        input: prompt,
+      },
       { signal: ac.signal },
     );
-    const textOutput = response.choices[0]?.message?.content ?? "";
+    const textOutput = response.output_text ?? response.output
+      .flatMap((item) => item.type === "message" ? item.content : [])
+      .filter((item) => item.type === "output_text")
+      .map((item) => item.text)
+      .join("");
     return parseDiscoverOutput(textOutput);
   } finally {
     clearTimeout(timer);
@@ -275,8 +283,8 @@ router.get("/resources/discover", discoverLimiter, async (req, res): Promise<voi
         : "";
     return `Suggest 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}${pageHint}
 
-Use your training knowledge to recommend well-known, publicly accessible resources. Return a JSON array only. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
-Rules: real public URLs only, prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse, no paywalls, JSON only no markdown.${exclusionNote}`;
+Search the web and recommend well-known, publicly accessible resources. Return a JSON array only. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
+Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse; no search-result pages, homepages standing in for a resource, or paywalls; JSON only, no markdown.${exclusionNote}`;
   };
 
   try {

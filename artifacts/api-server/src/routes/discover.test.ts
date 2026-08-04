@@ -53,13 +53,7 @@ vi.mock("@workspace/db", () => {
 // ── OpenAI mock ────────────────────────────────────────────────────────────────
 
 vi.mock("@workspace/integrations-openai-ai-server", () => {
-  const openai = {
-    chat: {
-      completions: {
-        create: vi.fn(),
-      },
-    },
-  };
+  const openai = { responses: { create: vi.fn() } };
   return { openai };
 });
 
@@ -88,14 +82,13 @@ function buildApp() {
 /** Wrap a JSON payload into the Chat Completions response shape. */
 function fakeAIResponse(items: unknown[]) {
   return {
-    choices: [
+    output: [
       {
-        message: {
-          content: JSON.stringify(items),
-        },
+        type: "message",
+        content: [{ type: "output_text", text: JSON.stringify(items), annotations: [] }],
       },
     ],
-  } as unknown as Awaited<ReturnType<typeof openai.chat.completions.create>>;
+  } as unknown as Awaited<ReturnType<typeof openai.responses.create>>;
 }
 
 /** A minimal valid resource item matching the DiscoverResourcesResponse schema. */
@@ -130,7 +123,7 @@ describe("GET /api/resources/discover — filtering", () => {
       makeItem({ url: "https://khanacademy.org/c" }),
     ];
 
-    vi.mocked(openai.chat.completions.create).mockResolvedValueOnce(fakeAIResponse(items));
+    vi.mocked(openai.responses.create).mockResolvedValueOnce(fakeAIResponse(items));
     // All items pass the reachability check
     vi.mocked(filterReachableUrls).mockResolvedValueOnce(items);
 
@@ -142,7 +135,7 @@ describe("GET /api/resources/discover — filtering", () => {
     expect(res.body).toHaveLength(3);
     expect(res.body[0].url).toBe("https://khanacademy.org/a");
     // AI was called exactly once
-    expect(openai.chat.completions.create).toHaveBeenCalledTimes(1);
+    expect(openai.responses.create).toHaveBeenCalledTimes(1);
     // Reachability was checked exactly once
     expect(filterReachableUrls).toHaveBeenCalledTimes(1);
   });
@@ -152,7 +145,7 @@ describe("GET /api/resources/discover — filtering", () => {
     const dead = makeItem({ url: "https://dead.example.com/gone" });
     const items = [live, live, live, dead];
 
-    vi.mocked(openai.chat.completions.create).mockResolvedValueOnce(fakeAIResponse(items));
+    vi.mocked(openai.responses.create).mockResolvedValueOnce(fakeAIResponse(items));
     // Only the live items survive
     vi.mocked(filterReachableUrls).mockResolvedValueOnce([live, live, live]);
 
@@ -182,7 +175,7 @@ describe("GET /api/resources/discover — retry when too few results survive", (
       makeItem({ url: "https://e.example.com" }),
     ];
 
-    vi.mocked(openai.chat.completions.create)
+    vi.mocked(openai.responses.create)
       .mockResolvedValueOnce(fakeAIResponse(firstItems))  // first call
       .mockResolvedValueOnce(fakeAIResponse(secondItems)); // retry call
 
@@ -197,7 +190,7 @@ describe("GET /api/resources/discover — retry when too few results survive", (
     expect(res.status).toBe(200);
     // Merged: 1 from first pass + 3 from second pass
     expect(res.body.length).toBeGreaterThanOrEqual(2);
-    expect(openai.chat.completions.create).toHaveBeenCalledTimes(2);
+    expect(openai.responses.create).toHaveBeenCalledTimes(2);
   });
 
   it("includes dead URLs in the exclusion hint on retry", async () => {
@@ -205,7 +198,7 @@ describe("GET /api/resources/discover — retry when too few results survive", (
     const liveItem = makeItem({ url: "https://live.example.com/ok" });
     const deadItem = makeItem({ url: deadUrl });
 
-    vi.mocked(openai.chat.completions.create)
+    vi.mocked(openai.responses.create)
       .mockResolvedValueOnce(fakeAIResponse([liveItem, deadItem]))
       .mockResolvedValueOnce(fakeAIResponse([]));
 
@@ -216,19 +209,19 @@ describe("GET /api/resources/discover — retry when too few results survive", (
     await request(buildApp()).get("/api/resources/discover?q=physics");
 
     // The retry prompt (messages[0].content) must include the dead URL
-    const retryCallMessages = (
-      vi.mocked(openai.chat.completions.create).mock.calls[1][0] as {
-        messages: Array<{ role: string; content: string }>;
+    const retryPrompt = (
+      vi.mocked(openai.responses.create).mock.calls[1][0] as {
+        input: string;
       }
-    ).messages;
-    expect(retryCallMessages[0].content).toContain(deadUrl);
+    ).input;
+    expect(retryPrompt).toContain(deadUrl);
   });
 
   it("deduplicates URLs when merging first and second batch survivors", async () => {
     const sharedItem = makeItem({ url: "https://shared.example.com" });
     const extra = makeItem({ url: "https://extra.example.com" });
 
-    vi.mocked(openai.chat.completions.create)
+    vi.mocked(openai.responses.create)
       .mockResolvedValueOnce(fakeAIResponse([sharedItem]))
       .mockResolvedValueOnce(fakeAIResponse([sharedItem, extra]));
 
@@ -255,7 +248,7 @@ describe("GET /api/resources/discover — total failure", () => {
   it("returns 502 when both AI passes yield zero reachable results", async () => {
     const item = makeItem({ url: "https://all-dead.example.com" });
 
-    vi.mocked(openai.chat.completions.create)
+    vi.mocked(openai.responses.create)
       .mockResolvedValueOnce(fakeAIResponse([item]))
       .mockResolvedValueOnce(fakeAIResponse([item]));
 
@@ -272,7 +265,7 @@ describe("GET /api/resources/discover — total failure", () => {
   });
 
   it("returns 502 when the AI returns an empty/unparseable first response", async () => {
-    vi.mocked(openai.chat.completions.create).mockResolvedValueOnce(
+    vi.mocked(openai.responses.create).mockResolvedValueOnce(
       fakeAIResponse([]), // empty array → 0 items
     );
     vi.mocked(filterReachableUrls).mockResolvedValueOnce([]);
@@ -296,7 +289,7 @@ describe("GET /api/resources/discover — input validation", () => {
     );
 
     expect(res.status).toBe(400);
-    expect(openai.chat.completions.create).not.toHaveBeenCalled();
+    expect(openai.responses.create).not.toHaveBeenCalled();
     expect(filterReachableUrls).not.toHaveBeenCalled();
   });
 });
