@@ -29,7 +29,8 @@ router.get("/schedule", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
 
   // Validate query params (weekStart coerces to Date via orval config)
-  const qParsed = ListScheduleBlocksQueryParams.safeParse(req.query);
+  const rawWeekStart = typeof req.query.weekStart === "string" ? new Date(req.query.weekStart + "T00:00:00Z") : req.query.weekStart;
+  const qParsed = ListScheduleBlocksQueryParams.safeParse({ ...req.query, weekStart: rawWeekStart });
   if (!qParsed.success) {
     res.status(400).json({ error: qParsed.error.message });
     return;

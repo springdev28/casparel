@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import {
   User,
   Camera,
+  Palette,
   Globe,
   BookOpen,
   Tag,
@@ -35,6 +36,8 @@ import {
   useGetMe,
   useUpdateMe,
   useUploadAvatar,
+  useSetPresetAvatar,
+  PresetAvatarInputAvatarId,
   useGetCalendarStatus,
   useDisconnectCalendarGoogle,
   getGetCalendarStatusQueryKey,
@@ -63,6 +66,15 @@ const TIMEZONES = [
   'Australia/Sydney',
   'Pacific/Auckland',
 ];
+
+const AVATAR_PRESETS = [
+  [PresetAvatarInputAvatarId['cosmic-cat'], "🐱", "bg-indigo-700"], [PresetAvatarInputAvatarId['sunny-fox'], "🦊", "bg-orange-500"],
+  [PresetAvatarInputAvatarId['clever-owl'], "🦉", "bg-violet-600"], [PresetAvatarInputAvatarId['ocean-otter'], "🦦", "bg-sky-700"],
+  [PresetAvatarInputAvatarId['mint-panda'], "🐼", "bg-emerald-700"], [PresetAvatarInputAvatarId['brave-lion'], "🦁", "bg-amber-700"],
+  [PresetAvatarInputAvatarId['star-bunny'], "🐰", "bg-pink-700"], [PresetAvatarInputAvatarId['purple-koala'], "🐨", "bg-purple-700"],
+  [PresetAvatarInputAvatarId['red-panda'], "🐻", "bg-red-700"], [PresetAvatarInputAvatarId['sky-penguin'], "🐧", "bg-cyan-800"],
+  [PresetAvatarInputAvatarId['green-frog'], "🐸", "bg-green-700"], [PresetAvatarInputAvatarId['moon-wolf'], "🐺", "bg-slate-700"],
+] as const;
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History', 'Geography',
@@ -99,8 +111,10 @@ export default function ProfilePage() {
   const { data: me, isLoading } = useGetMe();
   const updateMe = useUpdateMe();
   const uploadAvatar = useUploadAvatar();
+  const setPresetAvatar = useSetPresetAvatar();
 
   const [editing, setEditing] = useState(false);
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
     bio: '',
@@ -160,6 +174,17 @@ export default function ProfilePage() {
       toast({ title: 'Avatar updated' });
     } catch {
       toast({ title: 'Error', description: 'Could not upload avatar', variant: 'destructive' });
+    }
+  }
+
+  async function choosePresetAvatar(avatarId: PresetAvatarInputAvatarId) {
+    try {
+      await setPresetAvatar.mutateAsync({ data: { avatarId } });
+      await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      setAvatarPickerOpen(false);
+      toast({ title: "Avatar updated", description: "Your expressive avatar is now your profile picture." });
+    } catch {
+      toast({ title: "Error", description: "Could not update avatar", variant: "destructive" });
     }
   }
 
@@ -396,12 +421,12 @@ export default function ProfilePage() {
                 )}
               </div>
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setAvatarPickerOpen((open) => !open)}
                 disabled={uploadAvatar.isPending}
                 className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors shadow"
-                title="Change avatar"
+                title="Choose an avatar"
               >
-                <Camera size={13} />
+                <Palette size={13} />
               </button>
               <input
                 ref={fileInputRef}

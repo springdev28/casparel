@@ -1,4 +1,4 @@
-import { pgTable, integer, timestamp, primaryKey, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, integer, timestamp, primaryKey, pgEnum, text } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { classesTable } from "./classes";
 
@@ -10,6 +10,9 @@ export const classMembersTable = pgTable(
     userId: integer("user_id").notNull().references(() => usersTable.id),
     classId: integer("class_id").notNull().references(() => classesTable.id),
     role: memberRoleEnum("role").notNull().default("student"),
+    teacherNote: text("teacher_note"),
+    seatRow: integer("seat_row"),
+    seatColumn: integer("seat_column"),
     joinedAt: timestamp("joined_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.classId] })],

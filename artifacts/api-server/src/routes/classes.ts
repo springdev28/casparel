@@ -24,6 +24,14 @@ import {
   AssignResourceToClassBody,
   AssignResourceToClassResponse,
   ListResourceListsResponse,
+  GetSeatingChartParams,
+  GetSeatingChartResponse,
+  UpdateSeatingChartParams,
+  UpdateSeatingChartBody,
+  UpdateSeatingChartResponse,
+  UpdateStudentNoteParams,
+  UpdateStudentNoteBody,
+  UpdateStudentNoteResponse,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
@@ -361,6 +369,72 @@ router.delete("/classes/:id/members/:userId", requireAuth, async (req, res): Pro
       ),
     );
   res.sendStatus(204);
+});
+
+async function seatingChart(classId: number) {
+  const [cls] = await db.select({ rows: classesTable.seatingRows, columns: classesTable.seatingColumns }).from(classesTable).where(eq(classesTable.id, classId));
+  if (!cls) return null;
+  const students = await db.select({
+    userId: classMembersTable.userId, name: usersTable.name, avatarUrl: usersTable.avatarUrl,
+    gradeOrDept: usersTable.gradeOrDept, teacherNote: classMembersTable.teacherNote,
+    seatRow: classMembersTable.seatRow, seatColumn: classMembersTable.seatColumn,
+  }).from(classMembersTable).innerJoin(usersTable, eq(usersTable.id, classMembersTable.userId))
+    .where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.role, "student"))).orderBy(asc(usersTable.name));
+  return { classId, rows: cls.rows, columns: cls.columns, students };
+}
+
+router.get("/classes/:id/seating-chart", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = GetSeatingChartParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!(await isClassTeacher(params.data.id, userId))) { res.status(403).json({ error: "Only the class teacher can view private seating notes" }); return; }
+  const chart = await seatingChart(params.data.id);
+  if (!chart) { res.status(404).json({ error: "Class not found" }); return; }
+  res.json(GetSeatingChartResponse.parse(chart));
+});
+
+router.put("/classes/:id/seating-chart", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = UpdateSeatingChartParams.safeParse(req.params);
+  const body = UpdateSeatingChartBody.safeParse(req.body);
+  if (!params.success || !body.success) { res.status(400).json({ error: "Invalid seating chart" }); return; }
+  if (!(await isClassTeacher(params.data.id, userId))) { res.status(403).json({ error: "Only the class teacher can edit seating" }); return; }
+  const occupied = new Set<string>();
+  const memberRows = await db.select({ userId: classMembersTable.userId }).from(classMembersTable)
+    .where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.role, "student")));
+  const studentIds = new Set(memberRows.map((member) => member.userId));
+  for (const assignment of body.data.assignments) {
+    if (!studentIds.has(assignment.userId)) { res.status(400).json({ error: "Every assignment must reference a student in this class" }); return; }
+    if (assignment.row == null || assignment.column == null) continue;
+    if (assignment.row >= body.data.rows || assignment.column >= body.data.columns) { res.status(400).json({ error: "Seat is outside the classroom grid" }); return; }
+    const key = `:`;
+    if (occupied.has(key)) { res.status(400).json({ error: "Two students cannot share one seat" }); return; }
+    occupied.add(key);
+  }
+  await db.transaction(async (tx) => {
+    await tx.update(classesTable).set({ seatingRows: body.data.rows, seatingColumns: body.data.columns }).where(eq(classesTable.id, params.data.id));
+    await tx.update(classMembersTable).set({ seatRow: null, seatColumn: null }).where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.role, "student")));
+    for (const assignment of body.data.assignments) {
+      await tx.update(classMembersTable).set({ seatRow: assignment.row, seatColumn: assignment.column })
+        .where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.userId, assignment.userId), eq(classMembersTable.role, "student")));
+    }
+  });
+  res.json(UpdateSeatingChartResponse.parse(await seatingChart(params.data.id)));
+});
+
+router.put("/classes/:id/students/:userId/note", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId: teacherId } = req as AuthenticatedRequest;
+  const params = UpdateStudentNoteParams.safeParse(req.params);
+  const body = UpdateStudentNoteBody.safeParse(req.body);
+  if (!params.success || !body.success) { res.status(400).json({ error: "Invalid note" }); return; }
+  if (!(await isClassTeacher(params.data.id, teacherId))) { res.status(403).json({ error: "Only the class teacher can edit private notes" }); return; }
+  const [updated] = await db.update(classMembersTable).set({ teacherNote: body.data.note?.trim() || null }).where(and(
+    eq(classMembersTable.classId, params.data.id), eq(classMembersTable.userId, params.data.userId), eq(classMembersTable.role, "student"),
+  )).returning();
+  if (!updated) { res.status(404).json({ error: "Student not found in class" }); return; }
+  const [student] = await db.select({ userId: usersTable.id, name: usersTable.name, avatarUrl: usersTable.avatarUrl, gradeOrDept: usersTable.gradeOrDept })
+    .from(usersTable).where(eq(usersTable.id, params.data.userId));
+  res.json(UpdateStudentNoteResponse.parse({ ...student, teacherNote: updated.teacherNote, seatRow: updated.seatRow, seatColumn: updated.seatColumn }));
 });
 
 // GET /classes/:id/resources-list — any class member can view

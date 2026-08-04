@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Link } from 'wouter';
 import { GraduationCap } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
+import ThemeCustomizer from './ThemeCustomizer';
 
 interface PublicShellProps {
   children: ReactNode;
@@ -21,6 +22,7 @@ export default function PublicShell({ children }: PublicShellProps) {
 
           {/* Auth actions */}
           <div className="flex items-center gap-2">
+            <ThemeCustomizer className="text-foreground hover:bg-accent" />
             <Button variant="ghost" size="sm" asChild>
               <Link href="/auth/login">Sign in</Link>
             </Button>

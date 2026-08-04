@@ -80,7 +80,7 @@ function buildGoogleCalUrl(session: { title: string; startsAt: string; durationM
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 import type { StudySessionWithParticipants } from '@workspace/api-client-react';
-import { Link } from 'wouter';
+import { Link, useSearch as useRouteSearch } from 'wouter';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const BLOCK_COLORS = [
@@ -800,6 +800,7 @@ function PendingInvitationsBanner({
 }
 
 export default function SchedulePage() {
+  const routeSearch = useRouteSearch();
   const queryClient = useQueryClient();
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -813,6 +814,11 @@ export default function SchedulePage() {
   const [selectedResource, setSelectedResource] = useState<{ id: number; title: string } | null>(null);
   const [selectedList, setSelectedList] = useState<{ id: number; name: string } | null>(null);
   const [selectedSession, setSelectedSession] = useState<StudySessionWithParticipants | null>(null);
+
+  useEffect(() => {
+    const goal = new URLSearchParams(routeSearch).get("goal");
+    if (goal) { setNewTitle("Study: " + goal); setNewNotes("Learning goal: " + goal); setDialogOpen(true); }
+  }, [routeSearch]);
 
   const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
 

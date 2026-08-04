@@ -1,10 +1,11 @@
-import { useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { Palette, RotateCcw } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/edu-ds/components/ui/dialog';
 import { Label } from '@workspace/edu-ds/components/ui/label';
 
 const STORAGE_KEY = 'schoolar_interface_colors';
+const THEME_CHANGE_EVENT = 'schoolar-interface-colors-change';
 
 type InterfaceColors = {
   background: string;
@@ -119,31 +120,60 @@ function loadColors(): InterfaceColors {
   }
 }
 
-export default function ThemeCustomizer() {
+const initialColors = loadColors();
+applyColors(initialColors);
+
+function saveColors(colors: InterfaceColors) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(colors));
+  window.dispatchEvent(new CustomEvent<InterfaceColors>(THEME_CHANGE_EVENT, { detail: colors }));
+}
+
+export default function ThemeCustomizer({ showLabel = false, className = "" }: { showLabel?: boolean; className?: string }) {
   const [open, setOpen] = useState(false);
-  const [colors, setColors] = useState<InterfaceColors>(loadColors);
+  const [colors, setColors] = useState<InterfaceColors>(initialColors);
 
   useLayoutEffect(() => {
     applyColors(colors);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(colors));
   }, [colors]);
 
+  useEffect(() => {
+    const syncFromTab = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY || !event.newValue) return;
+      try { setColors({ ...DEFAULT_COLORS, ...JSON.parse(event.newValue) }); } catch { /* ignore invalid external values */ }
+    };
+    const syncInPage = (event: Event) => {
+      setColors((event as CustomEvent<InterfaceColors>).detail);
+    };
+    window.addEventListener("storage", syncFromTab);
+    window.addEventListener(THEME_CHANGE_EVENT, syncInPage);
+    return () => {
+      window.removeEventListener("storage", syncFromTab);
+      window.removeEventListener(THEME_CHANGE_EVENT, syncInPage);
+    };
+  }, []);
+
+  function updateColors(next: InterfaceColors) {
+    setColors(next);
+    saveColors(next);
+  }
+
   function resetColors() {
-    localStorage.removeItem(STORAGE_KEY);
-    setColors(DEFAULT_COLORS);
+    updateColors(DEFAULT_COLORS);
   }
 
   return (
     <>
       <Button
         type="button"
-        size="icon"
-        className="fixed bottom-5 right-5 z-50 rounded-full shadow-lg"
+        size={showLabel ? "sm" : "icon"}
+        variant="ghost"
+        className={className}
         onClick={() => setOpen(true)}
         aria-label="Customize interface colors"
         title="Customize interface colors"
       >
         <Palette className="size-4" />
+        {showLabel && <span className="ml-2">Interface colors</span>}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -168,7 +198,7 @@ export default function ThemeCustomizer() {
                     id={`theme-${key}`}
                     type="color"
                     value={colors[key]}
-                    onChange={(event) => setColors((current) => ({ ...current, [key]: event.target.value }))}
+                    onChange={(event) => updateColors({ ...colors, [key]: event.target.value })}
                     className="h-10 w-12 cursor-pointer rounded border bg-transparent p-1"
                   />
                 </div>

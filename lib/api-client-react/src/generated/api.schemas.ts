@@ -92,6 +92,28 @@ export interface UserUpdate {
   websiteUrl?: string | null;
 }
 
+export type PresetAvatarInputAvatarId = typeof PresetAvatarInputAvatarId[keyof typeof PresetAvatarInputAvatarId];
+
+
+export const PresetAvatarInputAvatarId = {
+  'cosmic-cat': 'cosmic-cat',
+  'sunny-fox': 'sunny-fox',
+  'clever-owl': 'clever-owl',
+  'ocean-otter': 'ocean-otter',
+  'mint-panda': 'mint-panda',
+  'brave-lion': 'brave-lion',
+  'star-bunny': 'star-bunny',
+  'purple-koala': 'purple-koala',
+  'red-panda': 'red-panda',
+  'sky-penguin': 'sky-penguin',
+  'green-frog': 'green-frog',
+  'moon-wolf': 'moon-wolf',
+} as const;
+
+export interface PresetAvatarInput {
+  avatarId: PresetAvatarInputAvatarId;
+}
+
 export type RoleSwitchInputRole = typeof RoleSwitchInputRole[keyof typeof RoleSwitchInputRole];
 
 
@@ -104,6 +126,154 @@ export interface RoleSwitchInput {
   role: RoleSwitchInputRole;
 }
 
+export type LearningGoalLevel = typeof LearningGoalLevel[keyof typeof LearningGoalLevel];
+
+
+export const LearningGoalLevel = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type LearningGoalPreferredFormatsItem = typeof LearningGoalPreferredFormatsItem[keyof typeof LearningGoalPreferredFormatsItem];
+
+
+export const LearningGoalPreferredFormatsItem = {
+  article: 'article',
+  video: 'video',
+  pdf: 'pdf',
+  podcast: 'podcast',
+  interactive: 'interactive',
+  other: 'other',
+} as const;
+
+export type LearningGoalStatus = typeof LearningGoalStatus[keyof typeof LearningGoalStatus];
+
+
+export const LearningGoalStatus = {
+  active: 'active',
+  paused: 'paused',
+  completed: 'completed',
+} as const;
+
+export interface LearningGoal {
+  id: number;
+  userId: number;
+  title: string;
+  subject: string;
+  /** @nullable */
+  description?: string | null;
+  level: LearningGoalLevel;
+  /** @nullable */
+  preferredFormats?: LearningGoalPreferredFormatsItem[] | null;
+  /** @nullable */
+  targetDate?: string | null;
+  status: LearningGoalStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type LearningGoalInputLevel = typeof LearningGoalInputLevel[keyof typeof LearningGoalInputLevel];
+
+
+export const LearningGoalInputLevel = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type LearningGoalInputPreferredFormatsItem = typeof LearningGoalInputPreferredFormatsItem[keyof typeof LearningGoalInputPreferredFormatsItem];
+
+
+export const LearningGoalInputPreferredFormatsItem = {
+  article: 'article',
+  video: 'video',
+  pdf: 'pdf',
+  podcast: 'podcast',
+  interactive: 'interactive',
+  other: 'other',
+} as const;
+
+export interface LearningGoalInput {
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  subject: string;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  description?: string | null;
+  level: LearningGoalInputLevel;
+  /** @maxItems 6 */
+  preferredFormats?: LearningGoalInputPreferredFormatsItem[];
+  /** @nullable */
+  targetDate?: string | null;
+}
+
+export type LearningGoalPatchLevel = typeof LearningGoalPatchLevel[keyof typeof LearningGoalPatchLevel];
+
+
+export const LearningGoalPatchLevel = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type LearningGoalPatchPreferredFormatsItem = typeof LearningGoalPatchPreferredFormatsItem[keyof typeof LearningGoalPatchPreferredFormatsItem];
+
+
+export const LearningGoalPatchPreferredFormatsItem = {
+  article: 'article',
+  video: 'video',
+  pdf: 'pdf',
+  podcast: 'podcast',
+  interactive: 'interactive',
+  other: 'other',
+} as const;
+
+export type LearningGoalPatchStatus = typeof LearningGoalPatchStatus[keyof typeof LearningGoalPatchStatus];
+
+
+export const LearningGoalPatchStatus = {
+  active: 'active',
+  paused: 'paused',
+  completed: 'completed',
+} as const;
+
+export interface LearningGoalPatch {
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  title?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  subject?: string;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  description?: string | null;
+  level?: LearningGoalPatchLevel;
+  /**
+     * @maxItems 6
+     * @nullable
+     */
+  preferredFormats?: LearningGoalPatchPreferredFormatsItem[] | null;
+  /** @nullable */
+  targetDate?: string | null;
+  status?: LearningGoalPatchStatus;
+}
+
 export interface Class {
   id: number;
   name: string;
@@ -111,6 +281,8 @@ export interface Class {
   gradeLevel: string;
   /** @nullable */
   description?: string | null;
+  seatingRows?: number;
+  seatingColumns?: number;
   teacherId: number;
   memberCount?: number;
   createdAt: string;
@@ -139,6 +311,8 @@ export interface ClassWithMembers {
   gradeLevel: string;
   /** @nullable */
   description?: string | null;
+  seatingRows?: number;
+  seatingColumns?: number;
   teacherId: number;
   memberCount?: number;
   createdAt: string;
@@ -161,6 +335,59 @@ export interface ClassPatch {
   subject?: string;
   gradeLevel?: string;
   description?: string;
+}
+
+export interface SeatingStudent {
+  userId: number;
+  name: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** @nullable */
+  gradeOrDept?: string | null;
+  /** @nullable */
+  teacherNote?: string | null;
+  /** @nullable */
+  seatRow?: number | null;
+  /** @nullable */
+  seatColumn?: number | null;
+}
+
+export interface SeatingChart {
+  classId: number;
+  rows: number;
+  columns: number;
+  students: SeatingStudent[];
+}
+
+export interface SeatingAssignment {
+  userId: number;
+  /** @nullable */
+  row?: number | null;
+  /** @nullable */
+  column?: number | null;
+}
+
+export interface SeatingChartInput {
+  /**
+     * @minimum 1
+     * @maximum 10
+     */
+  rows: number;
+  /**
+     * @minimum 1
+     * @maximum 10
+     */
+  columns: number;
+  /** @maxItems 100 */
+  assignments: SeatingAssignment[];
+}
+
+export interface StudentNoteInput {
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  note: string | null;
 }
 
 export type ClassMemberInputRole = typeof ClassMemberInputRole[keyof typeof ClassMemberInputRole];
@@ -745,6 +972,10 @@ gradeLevel?: string;
  * @minimum 1
  */
 page?: number;
+/**
+ * Return specific learning content, direct publisher websites and channels, or public social profiles for people discovery
+ */
+resultType?: DiscoverResourcesResultType;
 };
 
 export type DiscoverResourcesFormat = typeof DiscoverResourcesFormat[keyof typeof DiscoverResourcesFormat];
@@ -757,6 +988,15 @@ export const DiscoverResourcesFormat = {
   podcast: 'podcast',
   interactive: 'interactive',
   other: 'other',
+} as const;
+
+export type DiscoverResourcesResultType = typeof DiscoverResourcesResultType[keyof typeof DiscoverResourcesResultType];
+
+
+export const DiscoverResourcesResultType = {
+  content: 'content',
+  source: 'source',
+  people: 'people',
 } as const;
 
 export type GetResourceSourceReviewParams = {
@@ -790,4 +1030,43 @@ q?: string;
  * Restrict to a specific class
  */
 classId?: number;
+/**
+ * Search shared-class users or all discoverable profiles
+ */
+scope?: SearchUsersScope;
+/**
+ * Filter by student or teacher role
+ */
+role?: SearchUsersRole;
+/**
+ * Match profile subjects, bio, or grade and department
+ */
+subject?: string;
+/**
+ * Maximum number of matching accounts to return
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * Number of matching accounts to skip
+ * @minimum 0
+ */
+offset?: number;
 };
+
+export type SearchUsersScope = typeof SearchUsersScope[keyof typeof SearchUsersScope];
+
+
+export const SearchUsersScope = {
+  shared: 'shared',
+  all: 'all',
+} as const;
+
+export type SearchUsersRole = typeof SearchUsersRole[keyof typeof SearchUsersRole];
+
+
+export const SearchUsersRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;

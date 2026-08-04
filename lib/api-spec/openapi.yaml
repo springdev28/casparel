@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: auth
     description: Authentication and user management
+  - name: learning-goals
+    description: Personal learning goals and coordinated next steps
   - name: classes
     description: Class management
   - name: resources
@@ -156,6 +158,27 @@ paths:
         "401":
           description: Not authenticated
 
+  /users/me/avatar/preset:
+    put:
+      operationId: setPresetAvatar
+      tags: [auth]
+      summary: Select an expressive preset avatar as the current user profile picture
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresetAvatarInput"
+      responses:
+        "200":
+          description: Avatar selected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid avatar
+
   /users/{id}:
     get:
       operationId: getPublicProfile
@@ -201,6 +224,74 @@ paths:
           description: Invalid role value
         "401":
           description: Not authenticated
+
+  /learning-goals:
+    get:
+      operationId: listLearningGoals
+      tags: [learning-goals]
+      summary: List the current user learning goals
+      responses:
+        "200":
+          description: Learning goals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LearningGoal"
+    post:
+      operationId: createLearningGoal
+      tags: [learning-goals]
+      summary: Create a learning goal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningGoalInput"
+      responses:
+        "201":
+          description: Created learning goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+
+  /learning-goals/{id}:
+    patch:
+      operationId: updateLearningGoal
+      tags: [learning-goals]
+      summary: Update a learning goal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningGoalPatch"
+      responses:
+        "200":
+          description: Updated learning goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+        "404": { description: Goal not found }
+    delete:
+      operationId: deleteLearningGoal
+      tags: [learning-goals]
+      summary: Delete a learning goal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Goal deleted }
 
   # ── Classes ───────────────────────────────────────────────────────────────
   /classes:
@@ -382,6 +473,75 @@ paths:
       responses:
         "204":
           description: Removed
+
+  /classes/{id}/seating-chart:
+    get:
+      operationId: getSeatingChart
+      tags: [classes]
+      summary: Get the visual classroom seating chart (teacher only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Seating chart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeatingChart"
+        "403": { description: Not the class teacher }
+    put:
+      operationId: updateSeatingChart
+      tags: [classes]
+      summary: Update classroom dimensions and all student seat assignments (teacher only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeatingChartInput"
+      responses:
+        "200":
+          description: Updated seating chart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeatingChart"
+
+  /classes/{id}/students/{userId}/note:
+    put:
+      operationId: updateStudentNote
+      tags: [classes]
+      summary: Save a private teacher note for a student
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentNoteInput"
+      responses:
+        "200":
+          description: Updated student seating record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeatingStudent"
 
   /classes/{id}/resources-list:
     get:
@@ -590,6 +750,13 @@ paths:
             minimum: 1
             default: 1
           description: Page number for paginated results
+        - name: resultType
+          in: query
+          schema:
+            type: string
+            enum: [content, source, people]
+            default: content
+          description: Return specific learning content, direct publisher websites and channels, or public social profiles for people discovery
       responses:
         "200":
           description: Discovered resources from the web
@@ -1216,6 +1383,39 @@ paths:
           schema:
             type: integer
           description: Restrict to a specific class
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [shared, all]
+            default: shared
+          description: Search shared-class users or all discoverable profiles
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [student, teacher]
+          description: Filter by student or teacher role
+        - name: subject
+          in: query
+          schema:
+            type: string
+          description: Match profile subjects, bio, or grade and department
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 24
+          description: Maximum number of matching accounts to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of matching accounts to skip
       responses:
         "200":
           description: Matching users
@@ -1554,11 +1754,65 @@ components:
         timezone:    { type: ["string", "null"] }
         websiteUrl:  { type: ["string", "null"] }
 
+    PresetAvatarInput:
+      type: object
+      required: [avatarId]
+      properties:
+        avatarId:
+          type: string
+          enum: [cosmic-cat, sunny-fox, clever-owl, ocean-otter, mint-panda, brave-lion, star-bunny, purple-koala, red-panda, sky-penguin, green-frog, moon-wolf]
+
     RoleSwitchInput:
       type: object
       required: [role]
       properties:
         role: { type: string, enum: [student, teacher] }
+
+    LearningGoal:
+      type: object
+      required: [id, userId, title, subject, level, status, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        title: { type: string }
+        subject: { type: string }
+        description: { type: ["string", "null"] }
+        level: { type: string, enum: [beginner, intermediate, advanced] }
+        preferredFormats:
+          type: ["array", "null"]
+          items: { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        targetDate: { type: ["string", "null"], format: date }
+        status: { type: string, enum: [active, paused, completed] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    LearningGoalInput:
+      type: object
+      required: [title, subject, level]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 160 }
+        subject: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: ["string", "null"], maxLength: 1000 }
+        level: { type: string, enum: [beginner, intermediate, advanced] }
+        preferredFormats:
+          type: array
+          maxItems: 6
+          items: { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        targetDate: { type: ["string", "null"], format: date }
+
+    LearningGoalPatch:
+      type: object
+      properties:
+        title: { type: string, minLength: 2, maxLength: 160 }
+        subject: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: ["string", "null"], maxLength: 1000 }
+        level: { type: string, enum: [beginner, intermediate, advanced] }
+        preferredFormats:
+          type: ["array", "null"]
+          maxItems: 6
+          items: { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        targetDate: { type: ["string", "null"], format: date }
+        status: { type: string, enum: [active, paused, completed] }
 
     # ── Classes ─────────────────────────────────────────────────────────────
     Class:
@@ -1570,6 +1824,8 @@ components:
         subject:     { type: string }
         gradeLevel:  { type: string }
         description: { type: ["string", "null"] }
+        seatingRows: { type: integer }
+        seatingColumns: { type: integer }
         teacherId:   { type: integer }
         memberCount: { type: integer }
         createdAt:   { type: string }
@@ -1583,6 +1839,8 @@ components:
         subject:     { type: string }
         gradeLevel:  { type: string }
         description: { type: ["string", "null"] }
+        seatingRows: { type: integer }
+        seatingColumns: { type: integer }
         teacherId:   { type: integer }
         memberCount: { type: integer }
         createdAt:   { type: string }
@@ -1617,6 +1875,56 @@ components:
         role:     { type: string, enum: [student, teacher] }
         joinedAt: { type: string }
         user:     { $ref: "#/components/schemas/PublicUser" }
+
+    SeatingStudent:
+      type: object
+      required: [userId, name]
+      properties:
+        userId: { type: integer }
+        name: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+        gradeOrDept: { type: ["string", "null"] }
+        teacherNote: { type: ["string", "null"] }
+        seatRow: { type: ["integer", "null"] }
+        seatColumn: { type: ["integer", "null"] }
+
+    SeatingChart:
+      type: object
+      required: [classId, rows, columns, students]
+      properties:
+        classId: { type: integer }
+        rows: { type: integer }
+        columns: { type: integer }
+        students:
+          type: array
+          items:
+            $ref: "#/components/schemas/SeatingStudent"
+
+    SeatingAssignment:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: integer }
+        row: { type: ["integer", "null"] }
+        column: { type: ["integer", "null"] }
+
+    SeatingChartInput:
+      type: object
+      required: [rows, columns, assignments]
+      properties:
+        rows: { type: integer, minimum: 1, maximum: 10 }
+        columns: { type: integer, minimum: 1, maximum: 10 }
+        assignments:
+          type: array
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/SeatingAssignment"
+
+    StudentNoteInput:
+      type: object
+      required: [note]
+      properties:
+        note: { type: ["string", "null"], maxLength: 2000 }
 
     ClassMemberInput:
       type: object

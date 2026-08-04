@@ -153,6 +153,28 @@ export const UploadAvatarResponse = zod.object({
 
 
 /**
+ * @summary Select an expressive preset avatar as the current user profile picture
+ */
+export const SetPresetAvatarBody = zod.object({
+  "avatarId": zod.enum(['cosmic-cat', 'sunny-fox', 'clever-owl', 'ocean-otter', 'mint-panda', 'brave-lion', 'star-bunny', 'purple-koala', 'red-panda', 'sky-penguin', 'green-frog', 'moon-wolf'])
+})
+
+export const SetPresetAvatarResponse = zod.object({
+  "id": zod.int(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher']),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "websiteUrl": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Get a public profile for any signed-in user
  */
 export const GetPublicProfileParams = zod.object({
@@ -196,6 +218,116 @@ export const SwitchRoleResponse = zod.object({
 
 
 /**
+ * @summary List the current user learning goals
+ */
+export const ListLearningGoalsResponseItem = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListLearningGoalsResponse = zod.array(ListLearningGoalsResponseItem)
+
+
+/**
+ * @summary Create a learning goal
+ */
+export const createLearningGoalBodyTitleMin = 2;
+export const createLearningGoalBodyTitleMax = 160;
+
+export const createLearningGoalBodySubjectMax = 100;
+
+export const createLearningGoalBodyDescriptionMax = 1000;
+
+export const createLearningGoalBodyPreferredFormatsMax = 6;
+
+
+
+export const CreateLearningGoalBody = zod.object({
+  "title": zod.string().min(createLearningGoalBodyTitleMin).max(createLearningGoalBodyTitleMax),
+  "subject": zod.string().min(1).max(createLearningGoalBodySubjectMax),
+  "description": zod.string().max(createLearningGoalBodyDescriptionMax).nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).max(createLearningGoalBodyPreferredFormatsMax).optional(),
+  "targetDate": zod.coerce.date().nullish()
+})
+
+export const CreateLearningGoalResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a learning goal
+ */
+export const UpdateLearningGoalParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateLearningGoalBodyTitleMin = 2;
+export const updateLearningGoalBodyTitleMax = 160;
+
+export const updateLearningGoalBodySubjectMax = 100;
+
+export const updateLearningGoalBodyDescriptionMax = 1000;
+
+export const updateLearningGoalBodyPreferredFormatsMax = 6;
+
+
+
+export const UpdateLearningGoalBody = zod.object({
+  "title": zod.string().min(updateLearningGoalBodyTitleMin).max(updateLearningGoalBodyTitleMax).optional(),
+  "subject": zod.string().min(1).max(updateLearningGoalBodySubjectMax).optional(),
+  "description": zod.string().max(updateLearningGoalBodyDescriptionMax).nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']).optional(),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).max(updateLearningGoalBodyPreferredFormatsMax).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']).optional()
+})
+
+export const UpdateLearningGoalResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a learning goal
+ */
+export const DeleteLearningGoalParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteLearningGoalResponse = zod.void()
+
+
+/**
  * @summary List classes the current user belongs to
  */
 export const ListClassesResponseItem = zod.object({
@@ -204,6 +336,8 @@ export const ListClassesResponseItem = zod.object({
   "subject": zod.string(),
   "gradeLevel": zod.string(),
   "description": zod.string().nullish(),
+  "seatingRows": zod.int().optional(),
+  "seatingColumns": zod.int().optional(),
   "teacherId": zod.int(),
   "memberCount": zod.int().optional(),
   "createdAt": zod.string()
@@ -232,6 +366,8 @@ export const CreateClassResponse = zod.object({
   "subject": zod.string(),
   "gradeLevel": zod.string(),
   "description": zod.string().nullish(),
+  "seatingRows": zod.int().optional(),
+  "seatingColumns": zod.int().optional(),
   "teacherId": zod.int(),
   "memberCount": zod.int().optional(),
   "createdAt": zod.string()
@@ -251,6 +387,8 @@ export const GetClassResponse = zod.object({
   "subject": zod.string(),
   "gradeLevel": zod.string(),
   "description": zod.string().nullish(),
+  "seatingRows": zod.int().optional(),
+  "seatingColumns": zod.int().optional(),
   "teacherId": zod.int(),
   "memberCount": zod.int().optional(),
   "createdAt": zod.string(),
@@ -295,6 +433,8 @@ export const UpdateClassResponse = zod.object({
   "subject": zod.string(),
   "gradeLevel": zod.string(),
   "description": zod.string().nullish(),
+  "seatingRows": zod.int().optional(),
+  "seatingColumns": zod.int().optional(),
   "teacherId": zod.int(),
   "memberCount": zod.int().optional(),
   "createdAt": zod.string()
@@ -399,6 +539,97 @@ export const RemoveClassMemberParams = zod.object({
 })
 
 export const RemoveClassMemberResponse = zod.void()
+
+
+/**
+ * @summary Get the visual classroom seating chart (teacher only)
+ */
+export const GetSeatingChartParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetSeatingChartResponse = zod.object({
+  "classId": zod.int(),
+  "rows": zod.int(),
+  "columns": zod.int(),
+  "students": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "teacherNote": zod.string().nullish(),
+  "seatRow": zod.int().nullish(),
+  "seatColumn": zod.int().nullish()
+}))
+})
+
+
+/**
+ * @summary Update classroom dimensions and all student seat assignments (teacher only)
+ */
+export const UpdateSeatingChartParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateSeatingChartBodyRowsMax = 10;
+
+export const updateSeatingChartBodyColumnsMax = 10;
+
+export const updateSeatingChartBodyAssignmentsMax = 100;
+
+
+
+export const UpdateSeatingChartBody = zod.object({
+  "rows": zod.int().min(1).max(updateSeatingChartBodyRowsMax),
+  "columns": zod.int().min(1).max(updateSeatingChartBodyColumnsMax),
+  "assignments": zod.array(zod.object({
+  "userId": zod.int(),
+  "row": zod.int().nullish(),
+  "column": zod.int().nullish()
+})).max(updateSeatingChartBodyAssignmentsMax)
+})
+
+export const UpdateSeatingChartResponse = zod.object({
+  "classId": zod.int(),
+  "rows": zod.int(),
+  "columns": zod.int(),
+  "students": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "teacherNote": zod.string().nullish(),
+  "seatRow": zod.int().nullish(),
+  "seatColumn": zod.int().nullish()
+}))
+})
+
+
+/**
+ * @summary Save a private teacher note for a student
+ */
+export const UpdateStudentNoteParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "userId": zod.coerce.number().int()
+})
+
+export const updateStudentNoteBodyNoteMax = 2000;
+
+
+
+export const UpdateStudentNoteBody = zod.object({
+  "note": zod.string().max(updateStudentNoteBodyNoteMax).nullable()
+})
+
+export const UpdateStudentNoteResponse = zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "teacherNote": zod.string().nullish(),
+  "seatRow": zod.int().nullish(),
+  "seatColumn": zod.int().nullish()
+})
 
 
 /**
@@ -567,14 +798,15 @@ export const PrefetchResourceMetadataResponse = zod.object({
  */
 export const discoverResourcesQueryPageDefault = 1;
 
-
+export const discoverResourcesQueryResultTypeDefault = `content`;
 
 export const DiscoverResourcesQueryParams = zod.object({
   "q": zod.coerce.string().describe('Search query'),
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
-  "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number for paginated results')
+  "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number for paginated results'),
+  "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social profiles for people discovery')
 })
 
 export const DiscoverResourcesResponseItem = zod.object({
@@ -1302,9 +1534,23 @@ export const RsvpStudySessionResponse = zod.object({
 /**
  * @summary Search users who share a class with the requester
  */
+export const searchUsersQueryScopeDefault = `shared`;
+export const searchUsersQueryLimitDefault = 24;
+export const searchUsersQueryLimitMax = 100;
+
+export const searchUsersQueryOffsetDefault = 0;
+export const searchUsersQueryOffsetMin = 0;
+
+
+
 export const SearchUsersQueryParams = zod.object({
   "q": zod.coerce.string().optional().describe('Name search query'),
-  "classId": zod.coerce.number().int().optional().describe('Restrict to a specific class')
+  "classId": zod.coerce.number().int().optional().describe('Restrict to a specific class'),
+  "scope": zod.enum(['shared', 'all']).default(searchUsersQueryScopeDefault).describe('Search shared-class users or all discoverable profiles'),
+  "role": zod.enum(['student', 'teacher']).optional().describe('Filter by student or teacher role'),
+  "subject": zod.coerce.string().optional().describe('Match profile subjects, bio, or grade and department'),
+  "limit": zod.coerce.number().int().min(1).max(searchUsersQueryLimitMax).default(searchUsersQueryLimitDefault).describe('Maximum number of matching accounts to return'),
+  "offset": zod.coerce.number().int().min(searchUsersQueryOffsetMin).default(searchUsersQueryOffsetDefault).describe('Number of matching accounts to skip')
 })
 
 export const SearchUsersResponseItem = zod.object({
@@ -1380,6 +1626,8 @@ export const ImportGCCourseResponse = zod.object({
   "subject": zod.string(),
   "gradeLevel": zod.string(),
   "description": zod.string().nullish(),
+  "seatingRows": zod.int().optional(),
+  "seatingColumns": zod.int().optional(),
   "teacherId": zod.int(),
   "memberCount": zod.int().optional(),
   "createdAt": zod.string()

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation, Link } from 'wouter';
+import { useLocation, useSearch as useRouteSearch, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Plus, LogIn, Globe, ExternalLink, Loader2, BookOpen, Sparkles, X, Wand2, Trash2, GraduationCap, FileText, Video, FileType2, Headphones, MousePointerClick, ImageIcon } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
@@ -33,6 +33,7 @@ import {
   ListResourcesSortBy,
   ResourceInputFormat,
   DiscoverResourcesFormat,
+  DiscoverResourcesResultType,
   UserRole,
   type DiscoveredResource,
 } from '@workspace/api-client-react';
@@ -250,7 +251,36 @@ function WebCard({ resource, onAdd, adding }: {
   );
 }
 
-// ── Skeleton grid ─────────────────────────────────────────────────────────────
+function SourceCard({ resource }: { resource: DiscoveredResource }) {
+  let hostname = resource.source;
+  try { hostname = new URL(resource.url).hostname.replace(/^www\./, ""); } catch { /* keep source */ }
+  const isChannel = /youtube\.com|vimeo\.com|podcasts?\.|tiktok\.com/i.test(resource.url);
+  return (
+    <Card className="flex h-full flex-col border-primary/15 bg-gradient-to-br from-card to-primary/5">
+      <CardHeader className="pb-3">
+        <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          {isChannel ? <Video size={22} /> : <Globe size={22} />}
+        </div>
+        <CardTitle className="text-lg leading-snug">{resource.title}</CardTitle>
+        <CardDescription className="truncate">{hostname}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex-1">
+        <p className="line-clamp-3 text-sm text-muted-foreground">{resource.description}</p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{isChannel ? "Channel" : "Website"}</span>
+          {resource.subject && <span className="rounded-full bg-muted px-2 py-1 text-xs">{resource.subject}</span>}
+        </div>
+      </CardContent>
+      <CardFooter>
+        <Button asChild className="w-full">
+          <a href={resource.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} className="mr-2" /> Visit {isChannel ? "channel" : "website"}</a>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+// ── Skeleton grid ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 function CardSkeletons({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -269,6 +299,7 @@ function CardSkeletons({ count = 6 }: { count?: number }) {
 
 export default function ResourcesPage() {
   const [, setLocation] = useLocation();
+  const routeSearch = useRouteSearch();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -277,13 +308,23 @@ export default function ResourcesPage() {
   const [formatFilter, setFormatFilter] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('');
   const [gradeLevelFilter, setGradeLevelFilter] = useState('');
+  const [resultTypeFilter, setResultTypeFilter] = useState<DiscoverResourcesResultType>(DiscoverResourcesResultType.content);
   const [sortByFilter, setSortByFilter] = useState<ListResourcesSortBy | ''>('');
   const [minRatingFilter, setMinRatingFilter] = useState<number | ''>('');
   const [libraryLimit, setLibraryLimit] = useState(12);
   const [webPage, setWebPage] = useState(1);
   const [allWebResults, setAllWebResults] = useState<DiscoveredResource[]>([]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(routeSearch);
+    const goal = params.get("goal");
+    const subject = params.get("subject");
+    if (goal) { setInputValue(goal); setActiveQuery(goal); setLibraryLimit(12); }
+    if (subject) setSubjectFilter(subject);
+  }, [routeSearch]);
+
   const isSearching = activeQuery.trim().length > 0;
+  const isSourceMode = resultTypeFilter === DiscoverResourcesResultType.source;
 
   // Auth
   const { data: me } = useGetMe({ query: { retry: false, queryKey: getGetMeQueryKey() } });
@@ -306,16 +347,17 @@ export default function ResourcesPage() {
     offset: 0,
   };
   const { data: libraryResults, isLoading: libraryLoading } = useListResources(libraryParams, {
-    query: { enabled: isSearching, queryKey: getListResourcesQueryKey(libraryParams) },
+    query: { enabled: isSearching && !isSourceMode, queryKey: getListResourcesQueryKey(libraryParams) },
   });
 
   // Web discover (shown when searching) — accumulate across pages
   const discoverParams = {
     q: activeQuery,
-    ...(formatFilter && formatFilter !== 'all' ? { format: formatFilter as DiscoverResourcesFormat } : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content && formatFilter && formatFilter !== 'all' ? { format: formatFilter as DiscoverResourcesFormat } : {}),
     ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
-    ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content && gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
     page: webPage,
+    resultType: resultTypeFilter,
   };
   const { data: webResults, isFetching: webLoading, isError: webError, error: webErrorObj } = useDiscoverResources(
     discoverParams,
@@ -339,7 +381,7 @@ export default function ResourcesPage() {
   useEffect(() => {
     setWebPage(1);
     setAllWebResults([]);
-  }, [formatFilter, subjectFilter, gradeLevelFilter, sortByFilter, minRatingFilter]);
+  }, [formatFilter, subjectFilter, gradeLevelFilter, sortByFilter, minRatingFilter, resultTypeFilter]);
 
   useEffect(() => {
     if (!webResults || webResults.length === 0) return;
@@ -588,6 +630,14 @@ export default function ResourcesPage() {
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Select value={resultTypeFilter} onValueChange={(value) => setResultTypeFilter(value as DiscoverResourcesResultType)}>
+            <SelectTrigger className="w-44 h-8 text-xs" data-testid="source-filter"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={DiscoverResourcesResultType.content}>Source: specific content</SelectItem>
+              <SelectItem value={DiscoverResourcesResultType.source}>Source: websites & channels</SelectItem>
+            </SelectContent>
+          </Select>
+          {!isSourceMode && <>
           <Select value={formatFilter || 'all'} onValueChange={(v) => setFormatFilter(v === 'all' ? '' : v)}>
             <SelectTrigger className="w-36 h-8 text-xs" data-testid="format-filter"><SelectValue placeholder="All formats" /></SelectTrigger>
             <SelectContent>
@@ -622,6 +672,7 @@ export default function ResourcesPage() {
               <SelectItem value={ListResourcesSortBy.most_reviewed}>Most reviewed</SelectItem>
             </SelectContent>
           </Select>
+          </>}
         </div>
       </form>
 
@@ -675,7 +726,7 @@ export default function ResourcesPage() {
       {isSearching && (
         <>
           {/* Library search results */}
-          <section>
+          {!isSourceMode && <section>
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
               <BookOpen size={14} /> Library — "{activeQuery}"
             </h2>
@@ -706,12 +757,12 @@ export default function ResourcesPage() {
                   </>
                 )
             }
-          </section>
+          </section>}
 
           {/* Web results */}
           <section>
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
-              <Sparkles size={14} /> From the Web — "{activeQuery}"
+              <Sparkles size={14} /> {resultTypeFilter === DiscoverResourcesResultType.source ? "Sources & channels" : "From the Web"} — "{activeQuery}"
             </h2>
 
             {webLoading && (
@@ -739,15 +790,16 @@ export default function ResourcesPage() {
 
             {!webError && allWebResults.length > 0 && (
               <>
-                {!isLoggedIn && (
+                {!isSourceMode && !isLoggedIn && (
                   <p className="text-xs text-muted-foreground mb-3">
                     <Link href="/auth/login" className="text-primary underline">Sign in</Link> to save web results to your library.
                   </p>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {allWebResults.map((r, i) => (
-                    <WebCard key={i} resource={r} onAdd={handleAddWeb} adding={addingUrl === r.url} />
-                  ))}
+                  {allWebResults.map((r, i) => isSourceMode
+                    ? <SourceCard key={i} resource={r} />
+                    : <WebCard key={i} resource={r} onAdd={handleAddWeb} adding={addingUrl === r.url} />
+                  )}
                 </div>
                 <div className="mt-4 text-center">
                   <Button
@@ -756,7 +808,7 @@ export default function ResourcesPage() {
                     disabled={webLoading}
                     onClick={() => setWebPage((p) => p + 1)}
                   >
-                    {webLoading ? <><Loader2 size={12} className="mr-1.5 animate-spin" /> Loading…</> : <><Sparkles size={12} className="mr-1.5" /> Load more web results</>}
+                    {webLoading ? <><Loader2 size={12} className="mr-1.5 animate-spin" /> Loading…</> : <><Sparkles size={12} className="mr-1.5" /> Search more resources</>}
                   </Button>
                 </div>
               </>

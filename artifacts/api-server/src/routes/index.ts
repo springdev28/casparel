@@ -11,6 +11,7 @@ import dashboardRouter from "./dashboard";
 import sourceReviewRouter from "./sourceReview";
 import googleClassroomRouter from "./googleClassroom";
 import calendarRouter from "./calendar";
+import learningGoalsRouter from "./learningGoals";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(dashboardRouter);
 router.use(sourceReviewRouter);
 router.use(googleClassroomRouter);
 router.use(calendarRouter);
+router.use(learningGoalsRouter);
 
 export default router;

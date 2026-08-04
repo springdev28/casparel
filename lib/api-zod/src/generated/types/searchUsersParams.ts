@@ -5,6 +5,8 @@
  * Schoolar API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { SearchUsersRole } from './searchUsersRole';
+import type { SearchUsersScope } from './searchUsersScope';
 
 export type SearchUsersParams = {
 /**
@@ -15,4 +17,27 @@ q?: string;
  * Restrict to a specific class
  */
 classId?: number;
+/**
+ * Search shared-class users or all discoverable profiles
+ */
+scope?: SearchUsersScope;
+/**
+ * Filter by student or teacher role
+ */
+role?: SearchUsersRole;
+/**
+ * Match profile subjects, bio, or grade and department
+ */
+subject?: string;
+/**
+ * Maximum number of matching accounts to return
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * Number of matching accounts to skip
+ * @minimum 0
+ */
+offset?: number;
 };

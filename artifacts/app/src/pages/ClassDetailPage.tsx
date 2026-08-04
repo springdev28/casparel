@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { SeatingChartEditor } from '../components/SeatingChartEditor';
 import {
   useGetClass,
   useAddClassMember,
@@ -339,6 +340,8 @@ export default function ClassDetailPage() {
           </Card>
         )}
       </section>
+
+      {isTeacher && <><Separator /><SeatingChartEditor classId={classId} /></>}
 
       <Separator />
 

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DiscoverResourcesFormat } from './discoverResourcesFormat';
+import type { DiscoverResourcesResultType } from './discoverResourcesResultType';
 
 export type DiscoverResourcesParams = {
 /**
@@ -20,4 +21,8 @@ gradeLevel?: string;
  * @minimum 1
  */
 page?: number;
+/**
+ * Return specific learning content, direct publisher websites and channels, or public social profiles for people discovery
+ */
+resultType?: DiscoverResourcesResultType;
 };

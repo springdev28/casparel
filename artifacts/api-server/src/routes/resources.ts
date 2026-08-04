@@ -64,16 +64,17 @@ router.get("/resources", async (req, res): Promise<void> => {
     return;
   }
   const { q, format, subject, gradeLevel, sortBy, minRating, limit = 12, offset = 0 } = params.data;
-  const searchTerm = q?.trim();
+  const searchTerm = q?.trim().replace(/\s+/g, " ");
   const conditions = [];
   if (searchTerm) {
-    const pattern = `%${searchTerm}%`;
-    conditions.push(or(
-      ilike(resourcesTable.title, pattern),
-      ilike(resourcesTable.description, pattern),
-      ilike(resourcesTable.subject, pattern),
-      ilike(resourcesTable.gradeLevel, pattern),
-    ));
+    const tokens = searchTerm.split(" ").filter(Boolean).slice(0, 8);
+    conditions.push(and(...tokens.map((token) => {
+      const pattern = "%" + token + "%";
+      return or(
+        ilike(resourcesTable.title, pattern), ilike(resourcesTable.description, pattern),
+        ilike(resourcesTable.subject, pattern), ilike(resourcesTable.gradeLevel, pattern),
+      )!;
+    }))!);
   }
   if (format) conditions.push(eq(resourcesTable.format, format as "article" | "video" | "pdf" | "podcast" | "interactive" | "other"));
   if (subject) conditions.push(ilike(resourcesTable.subject, `%${subject}%`));
@@ -283,7 +284,7 @@ async function callDiscoverAI(
                 resources: {
                   type: "array",
                   minItems: 1,
-                  maxItems: 6,
+                  maxItems: 8,
                   items: {
                     type: "object",
                     additionalProperties: false,
@@ -323,6 +324,35 @@ const DISCOVER_MIN_RESULTS = 3;
 const DISCOVER_CACHE_TTL_MS = 10 * 60 * 1000;
 const discoverCache = new Map<string, { expiresAt: number; items: ReturnType<typeof DiscoverResourcesResponse.parse> }>();
 
+function isDirectSourceUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+      return parts[0]?.startsWith("@") || ["channel", "c", "user"].includes(parts[0] ?? "");
+    }
+    if (host.endsWith("wikipedia.org")) return false;
+    if (/\.(html?|pdf|docx?)$/i.test(url.pathname)) return false;
+    return parts.length <= 2;
+  } catch { return false; }
+}
+
+function isDirectSocialProfileUrl(rawUrl: string): boolean {
+  if (/\s|%20/i.test(rawUrl)) return false;
+  try {
+    const url = new URL(rawUrl);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (host === "linkedin.com") return parts[0] === "in" && parts.length === 2;
+    if (host === "youtube.com") return parts.length >= 1 && (parts[0].startsWith("@") || ["channel", "c", "user"].includes(parts[0]));
+    if (["x.com", "twitter.com", "instagram.com", "tiktok.com", "github.com"].includes(host)) {
+      return parts.length === 1 && !["search", "explore", "topics"].includes(parts[0]?.toLowerCase() ?? "");
+    }
+    return false;
+  } catch { return false; }
+}
+
 router.get("/resources/discover", discoverLimiter, async (req, res): Promise<void> => {
   const params = DiscoverResourcesQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -330,8 +360,8 @@ router.get("/resources/discover", discoverLimiter, async (req, res): Promise<voi
     return;
   }
 
-  const { q, format, subject, gradeLevel, page = 1 } = params.data;
-  const cacheKey = JSON.stringify({ q: q.trim().toLowerCase(), format, subject: subject?.trim().toLowerCase(), gradeLevel, page });
+  const { q, format, subject, gradeLevel, page = 1, resultType = "content" } = params.data;
+  const cacheKey = JSON.stringify({ q: q.trim().toLowerCase(), format, subject: subject?.trim().toLowerCase(), gradeLevel, page, resultType });
   if (process.env.NODE_ENV !== "test") {
     const cached = discoverCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
@@ -355,24 +385,40 @@ router.get("/resources/discover", discoverLimiter, async (req, res): Promise<voi
       excludeUrls.length > 0
         ? `\nDo NOT include any of these URLs (they are unreachable):\n${excludeUrls.map((u) => `- ${u}`).join("\n")}`
         : "";
-    return `Suggest 6 high-quality educational resources for: "${q}"${subjectHint}${gradeHint}${formatHint}${pageHint}
+    const sourceRules = resultType === "source"
+      ? "Return ONLY official publisher or institution landing pages and direct creator channel pages. Never return an individual article, lesson, course, video, episode, PDF, Wikipedia article, search page, category page, or playlist. For YouTube use a handle URL or /channel/... URL, never /watch or /playlist."
+      : resultType === "people"
+        ? "Return ONLY direct public profiles of real students, researchers, educators, or subject professionals on LinkedIn, YouTube, X, Instagram, TikTok, or GitHub. Each URL must open that person profile, not a post, video, search page, company, school, topic, or hashtag. Do not guess handles or invent profiles."
+        : "Recommend specific lessons, articles, videos, documents, episodes, or interactive activities rather than generic homepages.";
+    const kind = resultType === "source" ? "sources and channels" : resultType === "people" ? "people and public profiles" : "resources";
+    const preferenceRules = resultType === "people"
+      ? "Search specifically for indexed profile URLs on the allowed social platforms. Prefer established public-facing educators, researchers, science communicators, and subject professionals when private student profiles cannot be verified."
+      : resultType === "source"
+        ? "Prefer official organisations, universities, nonprofits, and established educator channels."
+        : "Prefer Khan Academy, MIT OpenCourseWare, Wikipedia, TED-Ed, and CrashCourse when relevant.";
+    return `Suggest up to 8 high-quality educational ${kind} for: "${q}"${subjectHint}${gradeHint}${resultType === "content" ? formatHint : ""}${pageHint}
 
-Search the web and recommend well-known, publicly accessible resources. Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
-Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; prefer Khan Academy/MIT OCW/Wikipedia/TED-Ed/CrashCourse; no search-result pages, homepages standing in for a resource, or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
+Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
+Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
   };
 
   try {
     // ── First AI call ────────────────────────────────────────────────────────
-    const firstBatch = await callDiscoverAI(buildPrompt());
+    const rawFirstBatch = await callDiscoverAI(buildPrompt());
+    const firstBatch = resultType === "source"
+      ? rawFirstBatch.filter((item) => isDirectSourceUrl(item.url))
+      : resultType === "people"
+        ? rawFirstBatch.filter((item) => isDirectSocialProfileUrl(item.url))
+        : rawFirstBatch;
 
-    if (firstBatch.length === 0) {
+    if (firstBatch.length === 0 && resultType === "content") {
       res.status(502).json({ error: "AI returned invalid resource data" });
       return;
     }
 
     // Validate all result URLs in parallel with a short timeout. Thumbnail URLs
     // are left to the browser so they cannot hold up otherwise useful results.
-    const reachable = await filterReachableUrls(firstBatch, 2000);
+    const reachable = resultType === "people" ? firstBatch : await filterReachableUrls(firstBatch, 2000);
 
     if (reachable.length >= DISCOVER_MIN_RESULTS) {
       if (process.env.NODE_ENV !== "test") discoverCache.set(cacheKey, { expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS, items: reachable });
@@ -391,8 +437,13 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       `Discover: ${deadUrls.length} dead URL(s) on first pass; re-invoking AI.`,
     );
 
-    const secondBatch = await callDiscoverAI(buildPrompt(deadUrls));
-    const reachableSecond = await filterReachableUrls(secondBatch, 2000);
+    const rawSecondBatch = await callDiscoverAI(buildPrompt(deadUrls));
+    const secondBatch = resultType === "source"
+      ? rawSecondBatch.filter((item) => isDirectSourceUrl(item.url))
+      : resultType === "people"
+        ? rawSecondBatch.filter((item) => isDirectSocialProfileUrl(item.url))
+        : rawSecondBatch;
+    const reachableSecond = resultType === "people" ? secondBatch : await filterReachableUrls(secondBatch, 2000);
 
     // Merge survivors from both batches, deduplicated by URL
     const merged = [...reachable];

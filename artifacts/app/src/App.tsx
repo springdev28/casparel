@@ -17,9 +17,10 @@ import ListDetailPage from './pages/ListDetailPage';
 import SchedulePage from './pages/SchedulePage';
 import ProfilePage from './pages/ProfilePage';
 import UserProfilePage from './pages/UserProfilePage';
+import PeoplePage from './pages/PeoplePage';
+import GoalsPage from './pages/GoalsPage';
 import AppShell from './components/AppShell';
 import PublicShell from './components/PublicShell';
-import ThemeCustomizer from './components/ThemeCustomizer';
 
 const TOKEN_KEY = 'schooler_token';
 
@@ -89,6 +90,9 @@ function Router() {
       </Route>
 
       {/* Profile pages */}
+      <Route path="/people">
+        {() => <PrivateRoute component={PeoplePage} />}
+      </Route>
       <Route path="/profile/:userId">
         {() => <PrivateRoute component={UserProfilePage} />}
       </Route>
@@ -97,6 +101,9 @@ function Router() {
       </Route>
 
       {/* Requires account */}
+      <Route path="/goals">
+        {() => <PrivateRoute component={GoalsPage} />}
+      </Route>
       <Route path="/dashboard">
         {() => <PrivateRoute component={DashboardPage} />}
       </Route>
@@ -138,7 +145,6 @@ function App() {
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
           <Router />
         </WouterRouter>
-        <ThemeCustomizer />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

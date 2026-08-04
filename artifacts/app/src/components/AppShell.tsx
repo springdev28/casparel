@@ -2,6 +2,7 @@ import { ReactNode, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import {
   LayoutDashboard,
+  Target,
   BookOpen,
   Users,
   List,
@@ -38,6 +39,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
+import ThemeCustomizer from './ThemeCustomizer';
 
 const TOKEN_KEY = 'schooler_token';
 
@@ -49,7 +51,9 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Goals', href: '/goals', icon: Target },
   { label: 'Resources', href: '/resources', icon: BookOpen },
+  { label: 'People', href: '/people', icon: Users },
   { label: 'Classes', href: '/classes', icon: Users },
   { label: 'Lists', href: '/lists', icon: List },
   { label: 'Schedule', href: '/schedule', icon: Calendar },
@@ -261,6 +265,11 @@ export default function AppShell({ children }: AppShellProps) {
             {/* Google Classroom connect — real OAuth, teachers only */}
             {gcWidget}
 
+            <ThemeCustomizer
+              showLabel
+              className="w-full justify-start text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 px-2"
+            />
+
             <Button
               variant="ghost"
               size="sm"
@@ -318,6 +327,7 @@ export default function AppShell({ children }: AppShellProps) {
                 </SelectContent>
               </Select>
             )}
+            <ThemeCustomizer className="text-primary-foreground/70 hover:bg-primary-foreground/10" />
             <button
               onClick={handleLogout}
               className="p-2 rounded-md text-primary-foreground/70 hover:bg-primary-foreground/10"

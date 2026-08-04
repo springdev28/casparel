@@ -13,6 +13,8 @@ export interface Class {
   gradeLevel: string;
   /** @nullable */
   description?: string | null;
+  seatingRows?: number;
+  seatingColumns?: number;
   teacherId: number;
   memberCount?: number;
   createdAt: string;

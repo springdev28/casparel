@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, or, ilike, inArray, ne, sql } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
 import { db, usersTable, classMembersTable } from "@workspace/db";
@@ -16,11 +16,36 @@ import {
   GetPublicProfileParams,
   GetPublicProfileResponse,
   UploadAvatarResponse,
+  SetPresetAvatarBody,
+  SetPresetAvatarResponse,
+  SearchUsersQueryParams,
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { buildRateLimitStore } from "../lib/rateLimitStore";
+
+const PRESET_AVATARS: Record<string, { bg: string; accent: string; emoji: string }> = {
+  "cosmic-cat": { bg: "#312e81", accent: "#a5b4fc", emoji: "🐱" },
+  "sunny-fox": { bg: "#f97316", accent: "#ffedd5", emoji: "🦊" },
+  "clever-owl": { bg: "#7c3aed", accent: "#ede9fe", emoji: "🦉" },
+  "ocean-otter": { bg: "#0369a1", accent: "#bae6fd", emoji: "🦦" },
+  "mint-panda": { bg: "#047857", accent: "#d1fae5", emoji: "🐼" },
+  "brave-lion": { bg: "#b45309", accent: "#fef3c7", emoji: "🦁" },
+  "star-bunny": { bg: "#be185d", accent: "#fce7f3", emoji: "🐰" },
+  "purple-koala": { bg: "#6d28d9", accent: "#ddd6fe", emoji: "🐨" },
+  "red-panda": { bg: "#b91c1c", accent: "#fee2e2", emoji: "🐻" },
+  "sky-penguin": { bg: "#075985", accent: "#e0f2fe", emoji: "🐧" },
+  "green-frog": { bg: "#15803d", accent: "#dcfce7", emoji: "🐸" },
+  "moon-wolf": { bg: "#334155", accent: "#e2e8f0", emoji: "🐺" },
+};
+
+function presetAvatarDataUrl(avatarId: string): string | null {
+  const avatar = PRESET_AVATARS[avatarId];
+  if (!avatar) return null;
+  const svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"256\" height=\"256\" viewBox=\"0 0 256 256\"><rect width=\"256\" height=\"256\" rx=\"128\" fill=\"" + avatar.bg + "\"/><circle cx=\"128\" cy=\"132\" r=\"94\" fill=\"" + avatar.accent + "\" opacity=\".28\"/><text x=\"128\" y=\"160\" text-anchor=\"middle\" font-size=\"112\">" + avatar.emoji + "</text></svg>";
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
 
 // Multer for avatar upload — 2 MB limit, memory storage.
 // fileFilter accepts everything so we can read the buffer first; the real
@@ -205,52 +230,53 @@ router.post(
   },
 );
 
-// GET /users/search?q=&classId= — users who share a class with the requester
+// PUT /users/me/avatar/preset — server-curated SVG avatar, safe for public profiles
+router.put("/users/me/avatar/preset", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const parsed = SetPresetAvatarBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  const avatarUrl = presetAvatarDataUrl(parsed.data.avatarId);
+  if (!avatarUrl) { res.status(400).json({ error: "Unknown preset avatar" }); return; }
+  const [user] = await db.update(usersTable).set({ avatarUrl }).where(eq(usersTable.id, userId)).returning();
+  res.json(SetPresetAvatarResponse.parse(user));
+});
+
+// GET /users/search — shared classmates by default; opt-in profile discovery with scope=all
 router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
-  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
-  const classId = req.query.classId ? Number(req.query.classId) : undefined;
-
-  // Find classes the requester belongs to
-  const myClasses = await db
-    .select({ classId: classMembersTable.classId })
-    .from(classMembersTable)
-    .where(eq(classMembersTable.userId, userId));
-
-  if (myClasses.length === 0) {
-    res.json([]);
+  const parsed = SearchUsersQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const { q = "", classId, scope = "shared", role, subject = "", limit = 24, offset = 0 } = parsed.data;
+  const searchTerm = q.trim().replace(/\s+/g, " ");
+  const subjectTerm = subject.trim();
 
-  const classIds = classId
-    ? myClasses.map((c) => c.classId).filter((id) => id === classId)
-    : myClasses.map((c) => c.classId);
-
-  if (classIds.length === 0) {
-    res.json([]);
-    return;
-  }
-
-  // Find users who share any of those classes (excluding self)
-  const sharedMemberRows = await db
-    .selectDistinct({ userId: classMembersTable.userId })
-    .from(classMembersTable)
-    .where(
-      and(
-        inArray(classMembersTable.classId, classIds),
-        sql`${classMembersTable.userId} != ${userId}`,
-      ),
-    );
-
-  if (sharedMemberRows.length === 0) {
-    res.json([]);
-    return;
-  }
-
-  const sharedUserIds = sharedMemberRows.map((r) => r.userId);
-
-  let users = await db
-    .select({
+  if (scope === "all") {
+    const conditions = [ne(usersTable.id, userId)];
+    if (role) conditions.push(eq(usersTable.role, role));
+    if (searchTerm) {
+      const pattern = `%${searchTerm}%`;
+      conditions.push(or(
+        ilike(usersTable.name, pattern),
+        ilike(usersTable.bio, pattern),
+        ilike(usersTable.gradeOrDept, pattern),
+        sql`array_to_string(${usersTable.subjects}, ' ') ilike ${pattern}`,
+      )!);
+    }
+    if (subjectTerm) {
+      const pattern = `%${subjectTerm}%`;
+      conditions.push(or(
+        sql`array_to_string(${usersTable.subjects}, ' ') ilike ${pattern}`,
+        ilike(usersTable.bio, pattern),
+        ilike(usersTable.gradeOrDept, pattern),
+      )!);
+    }
+    const relevance = searchTerm
+      ? sql`case when lower(${usersTable.name}) = lower(${searchTerm}) then 0 when lower(${usersTable.name}) like lower(${searchTerm}) || chr(37) then 1 when array_to_string(${usersTable.subjects}, ' ') ilike ${`%${searchTerm}%`} then 2 when ${usersTable.gradeOrDept} ilike ${`%${searchTerm}%`} then 3 else 4 end`
+      : usersTable.name;
+    const users = await db.select({
       id: usersTable.id,
       name: usersTable.name,
       role: usersTable.role,
@@ -258,16 +284,36 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
       bio: usersTable.bio,
       subjects: usersTable.subjects,
       gradeOrDept: usersTable.gradeOrDept,
-    })
-    .from(usersTable)
-    .where(inArray(usersTable.id, sharedUserIds));
-
-  if (q) {
-    const lower = q.toLowerCase();
-    users = users.filter((u) => u.name?.toLowerCase().includes(lower));
+    }).from(usersTable).where(and(...conditions)).orderBy(relevance, usersTable.name).limit(limit).offset(offset);
+    res.json(users);
+    return;
   }
 
-  res.json(users.slice(0, 20));
+  const myClasses = await db.select({ classId: classMembersTable.classId })
+    .from(classMembersTable).where(eq(classMembersTable.userId, userId));
+  if (myClasses.length === 0) { res.json([]); return; }
+  const classIds = classId
+    ? myClasses.map((item) => item.classId).filter((id) => id === classId)
+    : myClasses.map((item) => item.classId);
+  if (classIds.length === 0) { res.json([]); return; }
+  const sharedMemberRows = await db.selectDistinct({ userId: classMembersTable.userId })
+    .from(classMembersTable)
+    .where(and(inArray(classMembersTable.classId, classIds), ne(classMembersTable.userId, userId)));
+  if (sharedMemberRows.length === 0) { res.json([]); return; }
+  let users = await db.select({
+    id: usersTable.id,
+    name: usersTable.name,
+    role: usersTable.role,
+    avatarUrl: usersTable.avatarUrl,
+    bio: usersTable.bio,
+    subjects: usersTable.subjects,
+    gradeOrDept: usersTable.gradeOrDept,
+  }).from(usersTable).where(inArray(usersTable.id, sharedMemberRows.map((item) => item.userId)));
+  if (searchTerm) {
+    const lower = searchTerm.toLowerCase();
+    users = users.filter((user) => user.name.toLowerCase().includes(lower));
+  }
+  res.json(users.slice(offset, offset + limit));
 });
 
 // GET /users/:id — public profile (requires auth, returns safe subset)
