@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { LoginBody, LoginResponse } from "@workspace/api-zod";
 import { pool, runMigrations } from "@workspace/db";
 import { issueToken, verifyPassword } from "../lib/auth";
+import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -213,6 +214,14 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     if (!ok) {
       res.status(401).json({ error: "Invalid credentials" });
       return;
+    }
+
+    if (row.role !== "admin" && isAllowlistedAdminEmail(row.email)) {
+      await pool.query(
+        `UPDATE public.users SET role = 'admin' WHERE id = $1`,
+        [row.id],
+      );
+      row = { ...row, role: "admin" };
     }
 
     const user = toApiUser(row);
