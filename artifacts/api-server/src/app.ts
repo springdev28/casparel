@@ -5,6 +5,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import router from "./routes";
+import loginCompatRouter from "./routes/loginCompat";
 import { logger } from "./lib/logger";
 import { globalLimiter } from "./lib/limiters";
 
@@ -38,6 +39,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", globalLimiter);
+app.use("/api", loginCompatRouter);
 app.use("/api", router);
 
 if (process.env.NODE_ENV === "production") {
