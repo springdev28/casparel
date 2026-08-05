@@ -1,6 +1,7 @@
 {
   "name": "workspace",
   "version": "0.0.0",
+  "author": "Bahar Yüksel",
   "main": "artifacts/api-server/dist/index.mjs",
   "license": "MIT",
   "scripts": {
