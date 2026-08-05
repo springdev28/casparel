@@ -27,6 +27,17 @@ vi.mock("../lib/limiters", () => ({
   globalLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
+vi.mock("../lib/aiCostControls", () => ({
+  requireAiSearchEnabled: (_req: unknown, _res: unknown, next: () => void) =>
+    next(),
+  aiSearchDailyUserLimiter: (_req: unknown, _res: unknown, next: () => void) =>
+    next(),
+  aiSearchDailyBudget: (_req: unknown, _res: unknown, next: () => void) =>
+    next(),
+  paidRetryAllowed: () => true,
+  recordAiUsage: vi.fn(),
+}));
+
 // ── DB mock (not used by discover but required for the module to load) ─────────
 
 vi.mock("@workspace/db", () => {
@@ -73,20 +84,41 @@ import resourcesRouter, { isDirectPeopleProfileUrl } from "./resources.js";
 // ── Helpers ────────────────────────────────────────────────────────────────────
 describe("people profile URL validation", () => {
   it("accepts direct Turkish university and scholarly profiles", () => {
-    expect(isDirectPeopleProfileUrl("https://example.edu.tr/akademik/ayse-yilmaz")).toBe(true);
-    expect(isDirectPeopleProfileUrl("https://scholar.google.com/citations?user=abc123")).toBe(true);
-    expect(isDirectPeopleProfileUrl("https://orcid.org/0000-0002-1825-0097")).toBe(true);
+    expect(
+      isDirectPeopleProfileUrl("https://example.edu.tr/akademik/ayse-yilmaz"),
+    ).toBe(true);
+    expect(
+      isDirectPeopleProfileUrl(
+        "https://scholar.google.com/citations?user=abc123",
+      ),
+    ).toBe(true);
+    expect(
+      isDirectPeopleProfileUrl("https://orcid.org/0000-0002-1825-0097"),
+    ).toBe(true);
   });
 
   it("rejects university search, news, and document pages", () => {
-    expect(isDirectPeopleProfileUrl("https://example.edu.tr/search/professor")).toBe(false);
-    expect(isDirectPeopleProfileUrl("https://example.edu.tr/news/professor-award")).toBe(false);
-    expect(isDirectPeopleProfileUrl("https://haber.example.edu.tr/en/newsdetail/professor-award")).toBe(false);
-    expect(isDirectPeopleProfileUrl("https://example.edu.tr/professor-receives-awards/")).toBe(false);
-    expect(isDirectPeopleProfileUrl("https://example.edu.tr/cv/professor.pdf")).toBe(false);
+    expect(
+      isDirectPeopleProfileUrl("https://example.edu.tr/search/professor"),
+    ).toBe(false);
+    expect(
+      isDirectPeopleProfileUrl("https://example.edu.tr/news/professor-award"),
+    ).toBe(false);
+    expect(
+      isDirectPeopleProfileUrl(
+        "https://haber.example.edu.tr/en/newsdetail/professor-award",
+      ),
+    ).toBe(false);
+    expect(
+      isDirectPeopleProfileUrl(
+        "https://example.edu.tr/professor-receives-awards/",
+      ),
+    ).toBe(false);
+    expect(
+      isDirectPeopleProfileUrl("https://example.edu.tr/cv/professor.pdf"),
+    ).toBe(false);
   });
 });
-
 
 function buildApp() {
   const app = express();
@@ -101,7 +133,9 @@ function fakeAIResponse(items: unknown[]) {
     output: [
       {
         type: "message",
-        content: [{ type: "output_text", text: JSON.stringify(items), annotations: [] }],
+        content: [
+          { type: "output_text", text: JSON.stringify(items), annotations: [] },
+        ],
       },
     ],
   } as unknown as Awaited<ReturnType<typeof openai.responses.create>>;
@@ -130,22 +164,45 @@ beforeEach(() => {
 describe("exact-person platform coverage", () => {
   it("runs a LinkedIn-targeted second pass even after three first-pass profiles", async () => {
     const first = [
-      makeItem({ url: "https://example.edu.tr/faculty/ada-lovelace", title: "Ada Lovelace" }),
-      makeItem({ url: "https://scholar.google.com/citations?user=ada123", title: "Ada Lovelace" }),
-      makeItem({ url: "https://orcid.org/0000-0002-1825-0097", title: "Ada Lovelace" }),
+      makeItem({
+        url: "https://example.edu.tr/faculty/ada-lovelace",
+        title: "Ada Lovelace",
+      }),
+      makeItem({
+        url: "https://scholar.google.com/citations?user=ada123",
+        title: "Ada Lovelace",
+      }),
+      makeItem({
+        url: "https://orcid.org/0000-0002-1825-0097",
+        title: "Ada Lovelace",
+      }),
     ];
-    const linkedIn = makeItem({ url: "https://www.linkedin.com/in/ada-lovelace", title: "Ada Lovelace" });
+    const linkedIn = makeItem({
+      url: "https://www.linkedin.com/in/ada-lovelace",
+      title: "Ada Lovelace",
+    });
     vi.mocked(openai.responses.create)
       .mockResolvedValueOnce(fakeAIResponse(first))
       .mockResolvedValueOnce(fakeAIResponse([linkedIn]));
 
-    const res = await request(buildApp()).get("/api/resources/discover")
-      .query({ q: "exact-person: Ada Lovelace; affiliation: Example University", resultType: "people" });
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({
+        q: "exact-person: Ada Lovelace; affiliation: Example University",
+        resultType: "people",
+      });
 
     expect(res.status).toBe(200);
     expect(openai.responses.create).toHaveBeenCalledTimes(2);
-    expect((vi.mocked(openai.responses.create).mock.calls[1][0] as { input: string }).input).toContain("site:linkedin.com/in");
-    expect(res.body.some((item: { url: string }) => item.url.includes("linkedin.com/in/"))).toBe(true);
+    expect(
+      (vi.mocked(openai.responses.create).mock.calls[1][0] as { input: string })
+        .input,
+    ).toContain("site:linkedin.com/in");
+    expect(
+      res.body.some((item: { url: string }) =>
+        item.url.includes("linkedin.com/in/"),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -161,7 +218,9 @@ describe("GET /api/resources/discover — filtering", () => {
       makeItem({ url: "https://khanacademy.org/c" }),
     ];
 
-    vi.mocked(openai.responses.create).mockResolvedValueOnce(fakeAIResponse(items));
+    vi.mocked(openai.responses.create).mockResolvedValueOnce(
+      fakeAIResponse(items),
+    );
     // All items pass the reachability check
     vi.mocked(filterReachableUrls).mockResolvedValueOnce(items);
 
@@ -174,7 +233,9 @@ describe("GET /api/resources/discover — filtering", () => {
     expect(res.body[0].url).toBe("https://khanacademy.org/a");
     expect(res.body[0].provenanceLevel).toBe("established");
     expect(res.body[0].linkChecked).toBe(true);
-    expect(res.body[0].provenanceSignals).toContain("Established publishing platform");
+    expect(res.body[0].provenanceSignals).toContain(
+      "Established publishing platform",
+    );
     // AI was called exactly once
     expect(openai.responses.create).toHaveBeenCalledTimes(1);
     // Reachability was checked exactly once
@@ -186,7 +247,9 @@ describe("GET /api/resources/discover — filtering", () => {
     const dead = makeItem({ url: "https://dead.example.com/gone" });
     const items = [live, live, live, dead];
 
-    vi.mocked(openai.responses.create).mockResolvedValueOnce(fakeAIResponse(items));
+    vi.mocked(openai.responses.create).mockResolvedValueOnce(
+      fakeAIResponse(items),
+    );
     // Only the live items survive
     vi.mocked(filterReachableUrls).mockResolvedValueOnce([live, live, live]);
 
@@ -196,7 +259,9 @@ describe("GET /api/resources/discover — filtering", () => {
 
     expect(res.status).toBe(200);
     // dead URL is absent
-    expect(res.body.every((item: { url: string }) => item.url !== dead.url)).toBe(true);
+    expect(
+      res.body.every((item: { url: string }) => item.url !== dead.url),
+    ).toBe(true);
   });
 });
 
@@ -217,12 +282,12 @@ describe("GET /api/resources/discover — retry when too few results survive", (
     ];
 
     vi.mocked(openai.responses.create)
-      .mockResolvedValueOnce(fakeAIResponse(firstItems))  // first call
+      .mockResolvedValueOnce(fakeAIResponse(firstItems)) // first call
       .mockResolvedValueOnce(fakeAIResponse(secondItems)); // retry call
 
     vi.mocked(filterReachableUrls)
-      .mockResolvedValueOnce([firstItems[0]])              // only 1 survives
-      .mockResolvedValueOnce(secondItems);                 // all second-batch survive
+      .mockResolvedValueOnce([firstItems[0]]) // only 1 survives
+      .mockResolvedValueOnce(secondItems); // all second-batch survive
 
     const res = await request(buildApp()).get(
       "/api/resources/discover?q=chemistry",
@@ -267,7 +332,7 @@ describe("GET /api/resources/discover — retry when too few results survive", (
       .mockResolvedValueOnce(fakeAIResponse([sharedItem, extra]));
 
     vi.mocked(filterReachableUrls)
-      .mockResolvedValueOnce([sharedItem])  // 1 → retry
+      .mockResolvedValueOnce([sharedItem]) // 1 → retry
       .mockResolvedValueOnce([sharedItem, extra]);
 
     const res = await request(buildApp()).get(
@@ -294,7 +359,7 @@ describe("GET /api/resources/discover — total failure", () => {
       .mockResolvedValueOnce(fakeAIResponse([item]));
 
     vi.mocked(filterReachableUrls)
-      .mockResolvedValueOnce([])  // zero survivors → retry
+      .mockResolvedValueOnce([]) // zero survivors → retry
       .mockResolvedValueOnce([]); // still zero
 
     const res = await request(buildApp()).get(
@@ -311,9 +376,7 @@ describe("GET /api/resources/discover — total failure", () => {
     );
     vi.mocked(filterReachableUrls).mockResolvedValueOnce([]);
 
-    const res = await request(buildApp()).get(
-      "/api/resources/discover?q=math",
-    );
+    const res = await request(buildApp()).get("/api/resources/discover?q=math");
 
     expect(res.status).toBe(502);
   });

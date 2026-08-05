@@ -278,8 +278,8 @@ function StudentView({ name, userId, workspaceRole, isAdmin }: { name?: string; 
                 <Button variant="outline" disabled={!recommendation || (!isAdmin && dailySourceRefreshes >= 3)} onClick={recommendAnotherDashboardSource} data-testid="dashboard-recommend-another-source">
                   <RefreshCw size={16} className="mr-2" /> Recommend another source
                 </Button>
-                <Button disabled={!recommendation} asChild={Boolean(recommendation)}>
-                  {recommendation ? <a href={recommendation.url} target="_blank" rel="noopener noreferrer">Visit source <ArrowRight size={16} className="ml-2" /></a> : <span>No source</span>}
+                <Button disabled={!recommendation} onClick={() => setLocation("/resources#recommended-source")}>
+                  {recommendation ? <>Visit source <ArrowRight size={16} className="ml-2" /></> : "No source"}
                 </Button>
               </div>
             </div>

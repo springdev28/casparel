@@ -816,7 +816,8 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/ClassResourceRecommendation" }
+                items:
+                  { $ref: "#/components/schemas/ClassResourceRecommendation" }
     post:
       operationId: recommendResourceToClass
       tags: [classes]
@@ -830,13 +831,15 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/ClassResourceRecommendationInput" }
+            schema:
+              { $ref: "#/components/schemas/ClassResourceRecommendationInput" }
       responses:
         "201":
           description: Recommendation created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/ClassResourceRecommendation" }
+              schema:
+                { $ref: "#/components/schemas/ClassResourceRecommendation" }
 
   /classes/{id}/resource-recommendations/{recommendationId}:
     patch:
@@ -856,13 +859,15 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/ClassResourceRecommendationReview" }
+            schema:
+              { $ref: "#/components/schemas/ClassResourceRecommendationReview" }
       responses:
         "200":
           description: Reviewed recommendation
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/ClassResourceRecommendation" }
+              schema:
+                { $ref: "#/components/schemas/ClassResourceRecommendation" }
 
   # ── Resources ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   /resources:
@@ -2156,7 +2161,7 @@ components:
           properties:
             used: { type: integer }
             limit: { type: ["integer", "null"] }
-            window: { type: string, enum: [hour] }
+            window: { type: string, enum: [day] }
         deepResearch:
           type: object
           required: [used, limit, window]
@@ -2165,9 +2170,53 @@ components:
             limit: { type: ["integer", "null"] }
             window: { type: string, enum: [day] }
 
+    AdminAiFeatureUsage:
+      type: object
+      required: [total, month, estimatedCostUsd]
+      properties:
+        total: { type: integer }
+        month: { type: integer }
+        estimatedCostUsd: { type: number }
+
+    AdminUserAiUsage:
+      type: object
+      required:
+        [
+          userId,
+          name,
+          email,
+          searches,
+          quickReviews,
+          deepResearch,
+          metadata,
+          total,
+          estimatedCostUsd,
+        ]
+      properties:
+        userId: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        searches: { type: integer }
+        quickReviews: { type: integer }
+        deepResearch: { type: integer }
+        metadata: { type: integer }
+        total: { type: integer }
+        estimatedCostUsd: { type: number }
+
     AdminOverview:
       type: object
-      required: [users, students, teachers, admins, goals, resources, cachedResearchReports, plan, usage]
+      required:
+        [
+          users,
+          students,
+          teachers,
+          admins,
+          goals,
+          resources,
+          cachedResearchReports,
+          plan,
+          usage,
+        ]
       properties:
         users: { type: integer }
         students: { type: integer }
@@ -2186,10 +2235,33 @@ components:
             deepResearchDailyLimit: { type: ["integer", "null"] }
         usage:
           type: object
-          required: [aiSearchesToday, deepResearchToday]
+          required:
+            [
+              aiSearchesToday,
+              deepResearchToday,
+              totalAiRequests,
+              estimatedCostUsd,
+              byFeature,
+              byUser,
+            ]
           properties:
             aiSearchesToday: { type: integer }
             deepResearchToday: { type: integer }
+            totalAiRequests: { type: integer }
+            estimatedCostUsd: { type: number }
+            byFeature:
+              type: object
+              required: [search, quick-review, deep-research, metadata]
+              properties:
+                search: { $ref: "#/components/schemas/AdminAiFeatureUsage" }
+                quick-review:
+                  { $ref: "#/components/schemas/AdminAiFeatureUsage" }
+                deep-research:
+                  { $ref: "#/components/schemas/AdminAiFeatureUsage" }
+                metadata: { $ref: "#/components/schemas/AdminAiFeatureUsage" }
+            byUser:
+              type: array
+              items: { $ref: "#/components/schemas/AdminUserAiUsage" }
 
     LearningGoal:
       type: object
@@ -2352,7 +2424,8 @@ components:
       required: [id, shape, x, y, width, height, rotation, capacity, label]
       properties:
         id: { type: string, minLength: 1, maxLength: 80 }
-        shape: { type: string, enum: [rectangle, polygon, round, oval, trapezoid] }
+        shape:
+          { type: string, enum: [rectangle, polygon, round, oval, trapezoid] }
         angle: { type: number, minimum: 25, maximum: 85 }
         sides: { type: integer, minimum: 3, maximum: 12 }
         x: { type: number, minimum: 0, maximum: 100 }
@@ -2831,7 +2904,17 @@ components:
 
     ClassResourceRecommendation:
       type: object
-      required: [id, classId, resourceId, recommendedById, recommenderName, status, resource, createdAt]
+      required:
+        [
+          id,
+          classId,
+          resourceId,
+          recommendedById,
+          recommenderName,
+          status,
+          resource,
+          createdAt,
+        ]
       properties:
         id: { type: integer }
         classId: { type: integer }

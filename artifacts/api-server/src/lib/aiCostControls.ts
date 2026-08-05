@@ -18,31 +18,35 @@ export const requireAiSearchEnabled: RequestHandler = (_req, res, next) => {
   next();
 };
 
-export const aiSearchHourlyLimiter = rateLimit({
+export const aiSearchDailyUserLimiter = rateLimit({
   skip: isAdminRequest,
   keyGenerator: (req) => {
     const header = req.headers.authorization;
-    const payload = header?.startsWith("Bearer ") ? decodeToken(header.slice(7)) : null;
-    return payload ? "user:" + payload.userId : ipKeyGenerator(req.ip ?? "unknown");
+    const payload = header?.startsWith("Bearer ")
+      ? decodeToken(header.slice(7))
+      : null;
+    return payload
+      ? "user:" + payload.userId
+      : ipKeyGenerator(req.ip ?? "unknown");
   },
-  requestPropertyName: "aiSearchHourlyRateLimit",
+  requestPropertyName: "aiSearchDailyUserRateLimit",
   validate: { singleCount: false },
-  windowMs: 60 * 60 * 1000,
-  max: positiveLimit(process.env.AI_SEARCH_HOURLY_LIMIT, 20),
+  windowMs: 24 * 60 * 60 * 1000,
+  max: positiveLimit(process.env.AI_SEARCH_DAILY_USER_LIMIT, 3),
   standardHeaders: true,
   legacyHeaders: false,
-  store: buildRateLimitStore("ai-search-hourly"),
+  store: buildRateLimitStore("ai-search-user-day"),
   handler(req, res, _next, options) {
     const reset = (
-      req as unknown as { aiSearchHourlyRateLimit?: { resetTime?: Date } }
-    ).aiSearchHourlyRateLimit?.resetTime;
+      req as unknown as { aiSearchDailyUserRateLimit?: { resetTime?: Date } }
+    ).aiSearchDailyUserRateLimit?.resetTime;
     const retryAfter = reset
       ? Math.ceil((reset.getTime() - Date.now()) / 1000)
       : Math.ceil(options.windowMs / 1000);
     res.setHeader("Retry-After", retryAfter);
     res
       .status(429)
-      .json({ error: "Hourly AI search limit reached.", retryAfter });
+      .json({ error: "Daily AI search limit reached.", retryAfter });
   },
 });
 
@@ -51,7 +55,7 @@ export const aiSearchDailyBudget = rateLimit({
   requestPropertyName: "aiSearchDailyRateLimit",
   validate: { singleCount: false },
   windowMs: 24 * 60 * 60 * 1000,
-  max: positiveLimit(process.env.AI_SEARCH_DAILY_LIMIT, 50),
+  max: positiveLimit(process.env.AI_SEARCH_DAILY_LIMIT, 3000),
   keyGenerator: () => "all-ai-searches",
   standardHeaders: true,
   legacyHeaders: false,
@@ -75,6 +79,38 @@ export function paidRetryAllowed() {
     process.env.NODE_ENV === "test" ||
     process.env.AI_SEARCH_ALLOW_RETRY === "true"
   );
+}
+
+export type AiUsageFeature =
+  "search" | "quick-review" | "deep-research" | "metadata";
+
+export async function recordAiUsage(
+  feature: AiUsageFeature,
+  userId: number | null,
+) {
+  if (process.env.NODE_ENV === "test") return;
+  const tenYears = 10 * 365 * 24 * 60 * 60 * 1000;
+  const month = 30 * 24 * 60 * 60 * 1000;
+  const tasks = [
+    consumeAiQuota("usage-total", feature, tenYears, 2_000_000_000),
+    consumeAiQuota("usage-month", feature, month, 2_000_000_000),
+  ];
+  if (userId !== null) {
+    tasks.push(
+      consumeAiQuota(
+        "usage-user-total",
+        String(userId) + ":" + feature,
+        tenYears,
+        2_000_000_000,
+      ),
+    );
+  }
+  try {
+    await Promise.all(tasks);
+  } catch (error) {
+    // Usage telemetry must never turn a successful AI response into a 502.
+    console.error("Could not record AI usage", error);
+  }
 }
 
 export async function consumeAiQuota(

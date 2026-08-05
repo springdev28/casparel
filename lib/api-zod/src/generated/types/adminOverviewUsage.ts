@@ -5,8 +5,14 @@
  * Schoolar API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminOverviewUsageByFeature } from './adminOverviewUsageByFeature';
+import type { AdminUserAiUsage } from './adminUserAiUsage';
 
 export type AdminOverviewUsage = {
   aiSearchesToday: number;
   deepResearchToday: number;
+  totalAiRequests: number;
+  estimatedCostUsd: number;
+  byFeature: AdminOverviewUsageByFeature;
+  byUser: AdminUserAiUsage[];
 };

@@ -43,6 +43,12 @@ const DEFAULT_COLORS: InterfaceColors = {
   accent: "#dff7f1",
 };
 
+/** Restore the signed-out interface without deleting account-specific colors. */
+export function applyDefaultColors() {
+  localStorage.removeItem(LAST_COLORS_KEY);
+  applyColors(DEFAULT_COLORS);
+}
+
 const COLOR_FIELDS: Array<{
   key: keyof InterfaceColors;
   label: string;

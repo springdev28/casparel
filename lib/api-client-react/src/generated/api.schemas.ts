@@ -265,7 +265,7 @@ export type AccountUsageAiSearchWindow = typeof AccountUsageAiSearchWindow[keyof
 
 
 export const AccountUsageAiSearchWindow = {
-  hour: 'hour',
+  day: 'day',
 } as const;
 
 export type AccountUsageAiSearch = {
@@ -296,6 +296,24 @@ export interface AccountUsage {
   deepResearch: AccountUsageDeepResearch;
 }
 
+export interface AdminAiFeatureUsage {
+  total: number;
+  month: number;
+  estimatedCostUsd: number;
+}
+
+export interface AdminUserAiUsage {
+  userId: number;
+  name: string;
+  email: string;
+  searches: number;
+  quickReviews: number;
+  deepResearch: number;
+  metadata: number;
+  total: number;
+  estimatedCostUsd: number;
+}
+
 export type AdminOverviewPlanStatus = typeof AdminOverviewPlanStatus[keyof typeof AdminOverviewPlanStatus];
 
 
@@ -312,9 +330,20 @@ export type AdminOverviewPlan = {
   deepResearchDailyLimit: number | null;
 };
 
+export type AdminOverviewUsageByFeature = {
+  search: AdminAiFeatureUsage;
+  'quick-review': AdminAiFeatureUsage;
+  'deep-research': AdminAiFeatureUsage;
+  metadata: AdminAiFeatureUsage;
+};
+
 export type AdminOverviewUsage = {
   aiSearchesToday: number;
   deepResearchToday: number;
+  totalAiRequests: number;
+  estimatedCostUsd: number;
+  byFeature: AdminOverviewUsageByFeature;
+  byUser: AdminUserAiUsage[];
 };
 
 export interface AdminOverview {

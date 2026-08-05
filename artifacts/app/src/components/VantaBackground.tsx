@@ -2,9 +2,15 @@ import { useEffect, useRef, type CSSProperties } from "react";
 import * as THREE from "three";
 import p5 from "p5";
 
-export type VantaStyle = "off" | "net" | "globe" | "halo" | "dots" | "cells" | "rings" | "topology";
+export type VantaStyle = "off" | "net" | "globe" | "halo" | "cells" | "rings" | "topology";
 
-type VantaInstance = { destroy: () => void; resize?: () => void };
+type VantaRing = { speed: number; userData?: Record<string, unknown> };
+type VantaInstance = {
+  destroy: () => void;
+  resize?: () => void;
+  setOptions?: (options: Record<string, unknown>) => void;
+  rings?: VantaRing[];
+};
 type VantaFactory = (options: Record<string, unknown>) => VantaInstance;
 type VantaModule = { default?: VantaFactory | { default?: VantaFactory }; [key: string]: unknown };
 function factoryFrom(module: VantaModule): VantaFactory {
@@ -18,7 +24,6 @@ async function loadFactory(style: Exclude<VantaStyle, "off">): Promise<VantaFact
     case "net": return factoryFrom(await import("vanta/dist/vanta.net.min.js"));
     case "globe": return factoryFrom(await import("vanta/dist/vanta.globe.min.js"));
     case "halo": return factoryFrom(await import("vanta/dist/vanta.halo.min.js"));
-    case "dots": return factoryFrom(await import("vanta/dist/vanta.dots.min.js"));
     case "cells": return factoryFrom(await import("vanta/dist/vanta.cells.min.js"));
     case "rings": return factoryFrom(await import("vanta/dist/vanta.rings.min.js"));
     case "topology": return factoryFrom(await import("vanta/dist/vanta.topology.min.js"));
@@ -29,14 +34,26 @@ const EFFECT_OPTIONS: Record<Exclude<VantaStyle, "off">, Record<string, unknown>
   net: { color: 0x22c55e, backgroundColor: 0x07110b, points: 10, maxDistance: 22, spacing: 18 },
   globe: { color: 0x16a34a, color2: 0x60a5fa, backgroundColor: 0x070b12, size: 0.9 },
   halo: { baseColor: 0x16a34a, backgroundColor: 0x070b12, amplitudeFactor: 1.1, xOffset: 0.18, size: 1.2 },
-  dots: { color: 0x22c55e, color2: 0x60a5fa, backgroundColor: 0x070b12, size: 3, spacing: 28, showLines: true },
   cells: { color1: 0x34d399, color2: 0x60a5fa, backgroundColor: 0xf4fbf7, size: 1.35, speed: 0.75 },
   rings: { color: 0x22c55e, backgroundColor: 0x070b12, backgroundAlpha: 0.35 },
   topology: { color: 0x15803d, backgroundColor: 0xf6faf7 },
 };
 
+function applyIntensity(instance: VantaInstance, style: VantaStyle, intensity: number) {
+  instance.setOptions?.({ speed: intensity });
+  if (style !== "rings") return;
+  for (const ring of instance.rings ?? []) {
+    ring.userData ??= {};
+    const savedSpeed = ring.userData.schoolarBaseSpeed;
+    const baseSpeed = typeof savedSpeed === "number" ? savedSpeed : ring.speed;
+    ring.userData.schoolarBaseSpeed = baseSpeed;
+    ring.speed = baseSpeed * intensity;
+  }
+}
+
 export default function VantaBackground({ style, intensity }: { style: VantaStyle; intensity: number }) {
   const elementRef = useRef<HTMLDivElement>(null);
+  const instanceRef = useRef<VantaInstance | undefined>(undefined);
 
   useEffect(() => {
     if (style === "off" || !elementRef.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -61,11 +78,24 @@ export default function VantaBackground({ style, intensity }: { style: VantaStyl
         scale: 1,
         scaleMobile: 0.7,
       });
+      instanceRef.current = instance;
+      applyIntensity(instance, style, intensity);
+    }).catch((error: unknown) => {
+      if (!disposed) console.error(`Unable to start the ${style} background`, error);
     });
     return () => {
       disposed = true;
-      instance?.destroy();
+      try {
+        instance?.destroy();
+      } catch (error) {
+        console.error(`Unable to clean up the ${style} background`, error);
+      }
+      if (instanceRef.current === instance) instanceRef.current = undefined;
     };
+  }, [style]);
+
+  useEffect(() => {
+    if (instanceRef.current) applyIntensity(instanceRef.current, style, intensity);
   }, [style, intensity]);
 
   if (style === "off") return null;

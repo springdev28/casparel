@@ -14,7 +14,11 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 const basePath = process.env.BASE_PATH ?? '/';
-const apiUrl = process.env.API_URL ?? 'http://127.0.0.1:5000';
+// Replit runs the API as a dedicated service on 8080; local development uses
+// 5000. Keep this fallback in sync with the API server so starting Vite
+// directly does not proxy /api requests to an unused port and return a 502.
+const apiPort = process.env.REPL_ID ? '8080' : '5000';
+const apiUrl = process.env.API_URL ?? `http://127.0.0.1:${apiPort}`;
 
 export default defineConfig({
   base: basePath,

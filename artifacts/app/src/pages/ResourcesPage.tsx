@@ -1391,7 +1391,7 @@ export default function ResourcesPage() {
 
       {/* ── AUTOMATIC INTERNET SOURCE RECOMMENDATION ─────────── */}
       {!isSearching && (
-        <section>
+        <section id="recommended-source" className="scroll-mt-16">
           <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             <Globe size={14} /> Recommended internet source
           </h2>

@@ -113,8 +113,8 @@ describe("GET /api/resources/discover — rate limiting", () => {
     vi.mocked(filterReachableUrls).mockResolvedValue(items);
   });
 
-  it("allows the first 5 requests within the window", async () => {
-    for (let i = 1; i <= 5; i++) {
+  it("allows the first 3 requests within the daily window", async () => {
+    for (let i = 1; i <= 3; i++) {
       const res = await request(app)
         .get("/api/resources/discover?q=algebra")
         .set("X-Forwarded-For", "10.0.0.1");
@@ -122,15 +122,15 @@ describe("GET /api/resources/discover — rate limiting", () => {
     }
   });
 
-  it("returns 429 on the 6th request from the same IP", async () => {
-    // Exhaust the 5-request allowance
-    for (let i = 0; i < 5; i++) {
+  it("returns 429 on the 4th request from the same IP", async () => {
+    // Exhaust the 3-request daily allowance
+    for (let i = 0; i < 3; i++) {
       await request(app)
         .get("/api/resources/discover?q=algebra")
         .set("X-Forwarded-For", "10.0.0.1");
     }
 
-    // 6th request must be rate-limited
+    // 4th request must be rate-limited
     const res = await request(app)
       .get("/api/resources/discover?q=algebra")
       .set("X-Forwarded-For", "10.0.0.1");
@@ -142,7 +142,7 @@ describe("GET /api/resources/discover — rate limiting", () => {
   });
 
   it("includes a Retry-After header on the 429 response", async () => {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       await request(app)
         .get("/api/resources/discover?q=algebra")
         .set("X-Forwarded-For", "10.0.0.1");
@@ -159,7 +159,7 @@ describe("GET /api/resources/discover — rate limiting", () => {
 
   it("does not rate-limit a different IP in the same window", async () => {
     // Exhaust quota for IP A
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       await request(app)
         .get("/api/resources/discover?q=algebra")
         .set("X-Forwarded-For", "10.0.0.1");

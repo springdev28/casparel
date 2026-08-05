@@ -371,7 +371,7 @@ export const GetMyUsageResponse = zod.object({
   "aiSearch": zod.object({
   "used": zod.int(),
   "limit": zod.int().nullable(),
-  "window": zod.enum(['hour'])
+  "window": zod.enum(['day'])
 }),
   "deepResearch": zod.object({
   "used": zod.int(),
@@ -400,7 +400,42 @@ export const GetAdminOverviewResponse = zod.object({
 }),
   "usage": zod.object({
   "aiSearchesToday": zod.int(),
-  "deepResearchToday": zod.int()
+  "deepResearchToday": zod.int(),
+  "totalAiRequests": zod.int(),
+  "estimatedCostUsd": zod.number(),
+  "byFeature": zod.object({
+  "search": zod.object({
+  "total": zod.int(),
+  "month": zod.int(),
+  "estimatedCostUsd": zod.number()
+}),
+  "quick-review": zod.object({
+  "total": zod.int(),
+  "month": zod.int(),
+  "estimatedCostUsd": zod.number()
+}),
+  "deep-research": zod.object({
+  "total": zod.int(),
+  "month": zod.int(),
+  "estimatedCostUsd": zod.number()
+}),
+  "metadata": zod.object({
+  "total": zod.int(),
+  "month": zod.int(),
+  "estimatedCostUsd": zod.number()
+})
+}),
+  "byUser": zod.array(zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "email": zod.string(),
+  "searches": zod.int(),
+  "quickReviews": zod.int(),
+  "deepResearch": zod.int(),
+  "metadata": zod.int(),
+  "total": zod.int(),
+  "estimatedCostUsd": zod.number()
+}))
 })
 })
 

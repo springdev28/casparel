@@ -35,8 +35,9 @@ import { filterReachableUrls } from "../lib/check-url-reachable";
 import { isAdminRequest } from "../lib/adminAccess";
 import {
   aiSearchDailyBudget,
-  aiSearchHourlyLimiter,
+  aiSearchDailyUserLimiter,
   paidRetryAllowed,
+  recordAiUsage,
   requireAiSearchEnabled,
 } from "../lib/aiCostControls";
 
@@ -392,6 +393,7 @@ function parseDiscoverOutput(
 async function callDiscoverAI(
   prompt: string,
   maxItems = 8,
+  userId: number | null = null,
 ): Promise<ReturnType<typeof DiscoverResourcesResponse.parse>> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 22000);
@@ -458,6 +460,7 @@ async function callDiscoverAI(
       },
       { signal: ac.signal },
     );
+    await recordAiUsage("search", userId);
     const textOutput =
       response.output_text ??
       response.output
@@ -648,7 +651,7 @@ router.get(
   "/resources/discover",
   requireAiSearchEnabled,
   discoverLimiter,
-  aiSearchHourlyLimiter,
+  aiSearchDailyUserLimiter,
   aiSearchDailyBudget,
   async (req, res): Promise<void> => {
     const params = DiscoverResourcesQueryParams.safeParse(req.query);
@@ -670,15 +673,22 @@ router.get(
     try {
       const { decodeToken } = await import("../lib/auth");
       const auth = req.headers.authorization;
-      if (auth?.startsWith("Bearer ")) discoverUserId = decodeToken(auth.slice(7))?.userId ?? null;
+      if (auth?.startsWith("Bearer "))
+        discoverUserId = decodeToken(auth.slice(7))?.userId ?? null;
     } catch {
       // Public discovery remains available without authentication.
     }
     const savedRows = discoverUserId
-      ? await db.select({ url: resourcesTable.url }).from(resourcesTable).where(eq(resourcesTable.submittedById, discoverUserId))
+      ? await db
+          .select({ url: resourcesTable.url })
+          .from(resourcesTable)
+          .where(eq(resourcesTable.submittedById, discoverUserId))
       : [];
-    const savedUrlKeys = new Set(savedRows.map((row) => canonicalResourceUrl(row.url)));
-    const isUnsavedResult = (item: { url: string }) => !savedUrlKeys.has(canonicalResourceUrl(item.url));
+    const savedUrlKeys = new Set(
+      savedRows.map((row) => canonicalResourceUrl(row.url)),
+    );
+    const isUnsavedResult = (item: { url: string }) =>
+      !savedUrlKeys.has(canonicalResourceUrl(item.url));
 
     const exactPersonSearch =
       resultType === "people" &&
@@ -772,10 +782,13 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       const rawFirstBatch = await callDiscoverAI(
         buildPrompt(),
         peopleBatchSize,
+        discoverUserId,
       );
       const firstBatch =
         resultType === "source"
-          ? rawFirstBatch.filter((item) => isDirectSourceUrl(item.url) && isUnsavedResult(item))
+          ? rawFirstBatch.filter(
+              (item) => isDirectSourceUrl(item.url) && isUnsavedResult(item),
+            )
           : resultType === "people"
             ? rawFirstBatch.filter((item) => isDirectPeopleProfileUrl(item.url))
             : rawFirstBatch;
@@ -839,10 +852,13 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       const rawSecondBatch = await callDiscoverAI(
         buildPrompt(deadUrls, exactPersonSearch),
         peopleBatchSize,
+        discoverUserId,
       );
       const secondBatch =
         resultType === "source"
-          ? rawSecondBatch.filter((item) => isDirectSourceUrl(item.url) && isUnsavedResult(item))
+          ? rawSecondBatch.filter(
+              (item) => isDirectSourceUrl(item.url) && isUnsavedResult(item),
+            )
           : resultType === "people"
             ? rawSecondBatch.filter((item) =>
                 isDirectPeopleProfileUrl(item.url),
@@ -885,53 +901,6 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       );
     } catch (err) {
       console.error("Discover AI error:", err);
-      if (resultType === "people") {
-        const pattern = "%" + effectiveQuery.trim() + "%";
-        const visibility = isAdminRequest(req)
-          ? undefined
-          : eq(usersTable.profileVisibility, "everyone");
-        const matches = await db
-          .select({
-            id: usersTable.id,
-            name: usersTable.name,
-            bio: usersTable.bio,
-            avatarUrl: usersTable.avatarUrl,
-            goalSubject: learningGoalsTable.subject,
-          })
-          .from(learningGoalsTable)
-          .innerJoin(usersTable, eq(usersTable.id, learningGoalsTable.userId))
-          .where(
-            and(
-              visibility,
-              or(
-                ilike(learningGoalsTable.title, pattern),
-                ilike(learningGoalsTable.subject, pattern),
-                ilike(learningGoalsTable.description, pattern),
-                ilike(usersTable.name, pattern),
-              ),
-            ),
-          )
-          .limit(16);
-        const unique = new Map<number, (typeof matches)[number]>();
-        matches.forEach((match) => {
-          if (!unique.has(match.id)) unique.set(match.id, match);
-        });
-        const fallback = [...unique.values()].slice(0, 8).map((match) => ({
-          title: match.name,
-          url: "/profile/" + match.id,
-          description:
-            match.bio ||
-            "Schoolar member learning about " + match.goalSubject + ".",
-          format: "other" as const,
-          source: "Schoolar profile",
-          thumbnailUrl: match.avatarUrl,
-          subject: match.goalSubject,
-          gradeLevel: null,
-        }));
-        res.setHeader("X-Search-Fallback", "local-people");
-        res.json(DiscoverResourcesResponse.parse(fallback));
-        return;
-      }
       res.status(502).json({ error: "Search failed. Please try again." });
     }
   },
@@ -944,7 +913,7 @@ router.post(
   "/resources/prefetch",
   requireAuth,
   requireAiSearchEnabled,
-  aiSearchHourlyLimiter,
+  aiSearchDailyUserLimiter,
   aiSearchDailyBudget,
   async (req, res): Promise<void> => {
     const parsed = PrefetchResourceMetadataBody.safeParse(req.body);
@@ -1055,10 +1024,11 @@ Rules:
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         max_tokens: 500,
         messages: [{ role: "user", content: prompt }],
       });
+      await recordAiUsage("metadata", (req as AuthenticatedRequest).userId);
 
       const textOutput = response.choices[0]?.message?.content ?? "";
 

@@ -10,5 +10,5 @@ export type AccountUsageAiSearchWindow = typeof AccountUsageAiSearchWindow[keyof
 
 
 export const AccountUsageAiSearchWindow = {
-  hour: 'hour',
+  day: 'day',
 } as const;

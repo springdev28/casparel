@@ -17,11 +17,11 @@ import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
-import { consumeAiQuota } from "../lib/aiCostControls";
+import { consumeAiQuota, recordAiUsage } from "../lib/aiCostControls";
 
 const router: IRouter = Router();
 const QUICK_CACHE_MS = 30 * 24 * 60 * 60 * 1000;
-const DEEP_CACHE_MS = 48 * 60 * 60 * 1000;
+const DEEP_CACHE_MS = 90 * 24 * 60 * 60 * 1000;
 const activeDeepUsers = new Set<number>();
 const activeReviews = new Set<string>();
 
@@ -154,48 +154,48 @@ router.get(
         return;
       }
       if ((req as AuthenticatedRequest).accountRole !== "admin") {
-      const daily = await consumeAiQuota(
-        "deep-user-day",
-        String(deepUserId),
-        24 * 60 * 60 * 1000,
-        2,
-      );
-      if (!daily.allowed) {
-        res.setHeader("Retry-After", daily.retryAfter);
-        res.status(429).json({
-          error: "Daily deep research limit reached.",
-          retryAfter: daily.retryAfter,
-        });
-        return;
-      }
-      const monthly = await consumeAiQuota(
-        "deep-user-month",
-        String(deepUserId),
-        30 * 24 * 60 * 60 * 1000,
-        10,
-      );
-      if (!monthly.allowed) {
-        res.setHeader("Retry-After", monthly.retryAfter);
-        res.status(429).json({
-          error: "Monthly deep research limit reached.",
-          retryAfter: monthly.retryAfter,
-        });
-        return;
-      }
-      const globalDaily = await consumeAiQuota(
-        "deep-global-day",
-        "all",
-        24 * 60 * 60 * 1000,
-        25,
-      );
-      if (!globalDaily.allowed) {
-        res.setHeader("Retry-After", globalDaily.retryAfter);
-        res.status(429).json({
-          error: "Today’s deep research budget has been reached.",
-          retryAfter: globalDaily.retryAfter,
-        });
-        return;
-      }
+        const daily = await consumeAiQuota(
+          "deep-user-day",
+          String(deepUserId),
+          24 * 60 * 60 * 1000,
+          2,
+        );
+        if (!daily.allowed) {
+          res.setHeader("Retry-After", daily.retryAfter);
+          res.status(429).json({
+            error: "Daily deep research limit reached.",
+            retryAfter: daily.retryAfter,
+          });
+          return;
+        }
+        const monthly = await consumeAiQuota(
+          "deep-user-month",
+          String(deepUserId),
+          30 * 24 * 60 * 60 * 1000,
+          2,
+        );
+        if (!monthly.allowed) {
+          res.setHeader("Retry-After", monthly.retryAfter);
+          res.status(429).json({
+            error: "Monthly deep research limit reached.",
+            retryAfter: monthly.retryAfter,
+          });
+          return;
+        }
+        const globalDaily = await consumeAiQuota(
+          "deep-global-day",
+          "all",
+          24 * 60 * 60 * 1000,
+          200,
+        );
+        if (!globalDaily.allowed) {
+          res.setHeader("Retry-After", globalDaily.retryAfter);
+          res.status(429).json({
+            error: "Today’s deep research budget has been reached.",
+            retryAfter: globalDaily.retryAfter,
+          });
+          return;
+        }
       }
       activeDeepUsers.add(deepUserId);
       activeReviews.add(reviewKey);
@@ -238,10 +238,10 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
 
     try {
       let textOutput = "";
-      if (mode === "deep" && openai.responses?.create) {
+      if (mode === "deep") {
         const response = await openai.responses.create({
           model: "gpt-4o",
-          max_output_tokens: 5000,
+          max_output_tokens: 2500,
           text: {
             format: {
               type: "json_schema",
@@ -352,17 +352,19 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
           input: deepPrompt,
         });
         textOutput = response.output_text ?? "";
+        await recordAiUsage("deep-research", deepUserId);
       } else {
         const response = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
             {
               role: "user",
-              content: mode === "deep" ? deepPrompt : quickPrompt,
+              content: quickPrompt,
             },
           ],
         });
         textOutput = response.choices[0]?.message?.content ?? "";
+        await recordAiUsage("quick-review", deepUserId);
       }
 
       // Strip markdown code fences if present
@@ -390,27 +392,9 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
         mode,
       });
       if (!validated.success) {
-        // Return the raw parsed data with fallback defaults if validation fails
-        const fallback = GetResourceSourceReviewResponse.parse({
-          sourceName:
-            (parsed as Record<string, unknown>).sourceName ?? "Unknown",
-          sourceType: (parsed as Record<string, unknown>).sourceType ?? "other",
-          description: (parsed as Record<string, unknown>).description ?? null,
-          founded: null,
-          headquarters: null,
-          trustLevel: "unknown",
-          trustReason: null,
-          summary: String(
-            (parsed as Record<string, unknown>).summary ??
-              "No summary available.",
-          ),
-          links: [],
-          mentions: [],
-          mode,
-        });
-        await cacheReview(canonicalUrl, mode, fallback);
-        res.setHeader("X-Source-Review-Cache", "MISS");
-        res.json(fallback);
+        res
+          .status(502)
+          .json({ error: "AI returned a response that failed validation" });
         return;
       }
 

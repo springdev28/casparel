@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useState, type CSSProperties } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
@@ -51,7 +51,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
-import ThemeCustomizer from "./ThemeCustomizer";
+import ThemeCustomizer, { applyDefaultColors } from "./ThemeCustomizer";
 import { AuthLanguageSelect } from "./AuthLanguageSelect";
 import { useAuthLanguage } from "../lib/auth-locale";
 import {
@@ -80,6 +80,36 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Schedule", href: "/schedule", icon: Calendar },
 ];
 
+
+const AMBIENT_BACKGROUNDS: Partial<Record<VantaStyle, [number, number, number]>> = {
+  net: [7, 17, 11], globe: [7, 11, 18], halo: [7, 11, 18],
+  cells: [244, 251, 247], rings: [7, 11, 18], topology: [246, 250, 247],
+};
+
+function hslChannelsToRgb(value: string): [number, number, number] {
+  const match = value.match(/([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/);
+  if (!match) return [248, 247, 243];
+  const hue = Number(match[1]) / 360;
+  const saturation = Number(match[2]) / 100;
+  const lightness = Number(match[3]) / 100;
+  const channel = (offset: number) => {
+    const k = (offset + hue * 12) % 12;
+    return lightness - saturation * Math.min(lightness, 1 - lightness) * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+  };
+  return [channel(0) * 255, channel(8) * 255, channel(4) * 255];
+}
+
+function shouldUseLightAmbientText(style: VantaStyle, intensity: number) {
+  const base = hslChannelsToRgb(getComputedStyle(document.documentElement).getPropertyValue("--background"));
+  const effect = AMBIENT_BACKGROUNDS[style];
+  const alpha = effect ? Math.min(1, 0.35 + intensity * 0.25) : 0;
+  const rgb = effect?.map((value, index) => value * alpha + base[index] * (1 - alpha)) ?? base;
+  const linear = rgb.map((value) => {
+    const channel = value / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2] <= 0.179;
+}
 
 interface AppShellProps {
   children: ReactNode;
@@ -121,13 +151,22 @@ export default function AppShell({ children }: AppShellProps) {
   const [expandedPaths, setExpandedPaths] = useState<number[]>([]);
   const [ambientStyle, setAmbientStyle] = useState<VantaStyle>(() => {
     const saved = sessionStorage.getItem("schoolar_ambient_style") ?? localStorage.getItem("schoolar_ambient_style");
-    if (saved === "off" || saved === "net" || saved === "globe" || saved === "halo" || saved === "dots" || saved === "cells" || saved === "rings" || saved === "topology") return saved;
+    if (saved === "off" || saved === "net" || saved === "globe" || saved === "halo" || saved === "cells" || saved === "rings" || saved === "topology") return saved;
     return localStorage.getItem("schoolar_ambient_motion") === "off" ? "off" : "net";
   });
   const [ambientIntensity, setAmbientIntensity] = useState(() => {
     const saved = Number(sessionStorage.getItem("schoolar_ambient_intensity") ?? localStorage.getItem("schoolar_ambient_intensity") ?? "1");
     return Number.isFinite(saved) ? Math.min(2, Math.max(0.5, saved)) : 1;
   });
+  const [lightAmbientText, setLightAmbientText] = useState(() => shouldUseLightAmbientText(ambientStyle, ambientIntensity));
+  useEffect(() => {
+    const updateContrast = () => setLightAmbientText(shouldUseLightAmbientText(ambientStyle, ambientIntensity));
+    updateContrast();
+    const observer = new MutationObserver(updateContrast);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+    return () => observer.disconnect();
+  }, [ambientStyle, ambientIntensity]);
+
   function chooseAmbientIntensity(value: number) {
     setAmbientIntensity(value);
     const saved = String(value);
@@ -176,6 +215,7 @@ export default function AppShell({ children }: AppShellProps) {
 
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
+    applyDefaultColors();
     queryClient.clear();
     const configuredBase = import.meta.env.BASE_URL;
     const basePath = configuredBase.endsWith("/") ? configuredBase.slice(0, -1) : configuredBase;
@@ -520,7 +560,7 @@ export default function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Main content */}
-        <main className="relative flex-1 min-w-0 bg-background overflow-auto md:pt-0 pt-14">
+        <main className="relative flex-1 min-w-0 bg-background text-foreground overflow-auto md:pt-0 pt-14" style={{ "--foreground": lightAmbientText ? "0 0% 100%" : "0 0% 0%", "--muted-foreground": lightAmbientText ? "0 0% 82%" : "0 0% 28%" } as CSSProperties}>
           <VantaBackground style={ambientStyle} intensity={ambientIntensity} />
           <div
             className="sticky top-0 z-40 flex h-12 items-center justify-end gap-1 border-b bg-background/85 px-4 backdrop-blur"
@@ -535,15 +575,14 @@ export default function AppShell({ children }: AppShellProps) {
                 <SelectItem value="net">Net</SelectItem>
                 <SelectItem value="globe">Globe</SelectItem>
                 <SelectItem value="halo">Halo</SelectItem>
-                <SelectItem value="dots">Dots</SelectItem>
                 <SelectItem value="cells">Cells</SelectItem>
                 <SelectItem value="rings">Rings</SelectItem>
                 <SelectItem value="topology">Topology</SelectItem>
               </SelectContent>
             </Select>
-            <label className="hidden items-center gap-2 px-2 text-xs text-muted-foreground sm:flex" title="Background animation intensity">
-              <span>Intensity</span>
-              <input type="range" min="0.5" max="2" step="0.25" value={ambientIntensity} onChange={(event) => chooseAmbientIntensity(Number(event.target.value))} className="h-1.5 w-24 cursor-pointer accent-primary" data-testid="ambient-intensity-slider" />
+            <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground sm:px-2" title="Background animation intensity">
+              <span className="sr-only sm:not-sr-only">Intensity</span>
+              <input type="range" min="0.5" max="2" step="0.25" value={ambientIntensity} onChange={(event) => chooseAmbientIntensity(Number(event.target.value))} className="h-1.5 w-16 cursor-pointer accent-primary sm:w-24" aria-label="Background animation intensity" data-testid="ambient-intensity-slider" />
             </label>
             <Popover>
               <PopoverTrigger asChild>

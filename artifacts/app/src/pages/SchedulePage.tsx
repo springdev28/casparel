@@ -1419,7 +1419,7 @@ export default function SchedulePage() {
 
       {/* Weekly Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+        <div className="grid grid-cols-1 gap-2 rounded-xl border bg-card/90 p-3 text-card-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80 md:grid-cols-7 [&_.text-muted-foreground]:text-card-foreground/70">
           {Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="space-y-2">
               <Skeleton className="h-6 w-full" />
@@ -1428,7 +1428,7 @@ export default function SchedulePage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+        <div className="grid grid-cols-1 gap-2 rounded-xl border bg-card/90 p-3 text-card-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80 md:grid-cols-7 [&_.text-muted-foreground]:text-card-foreground/70">
           {weekDays.map((day, i) => {
             const dayBlocks = blocksForDay(day);
             const daySessions = studySessionsForDay(day);
