@@ -14,17 +14,19 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-async function main() {
-  logger.info("Running database migrations…");
+async function prepareDatabase() {
+  logger.info("Running database migrations...");
   await runMigrations();
   logger.info("Migrations complete");
 
   if (process.env.RATE_LIMIT_STORE !== "memory") {
-    logger.info("Initialising persistent rate-limit store…");
+    logger.info("Initialising persistent rate-limit store...");
     await initRateLimitStore();
     logger.info("Rate-limit store ready");
   }
+}
 
+function main() {
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");
@@ -32,9 +34,13 @@ async function main() {
     }
     logger.info({ port }, "Server listening");
   });
+
+  void prepareDatabase().catch((err) => {
+    logger.error({ err }, "Database setup failed");
+    if (process.env.REQUIRE_DATABASE_READY === "true") {
+      process.exit(1);
+    }
+  });
 }
 
-main().catch((err) => {
-  logger.error({ err }, "Startup failed");
-  process.exit(1);
-});
+main();
