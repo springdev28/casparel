@@ -215,7 +215,8 @@ router.post(
         uniqueInvitees.map((inviteeId) => ({
           userId: inviteeId,
           type: "schedule" as const,
-          message: `You were invited to “${session.title}” on ${new Date(session.startsAt).toLocaleString()}`,
+          workspaceRole: "student" as const,
+          message: `You were invited to "${session.title}" on ${new Date(session.startsAt).toLocaleString()}`,
         })),
       );
     }

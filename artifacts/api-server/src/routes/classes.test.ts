@@ -43,6 +43,8 @@ vi.mock("@workspace/db", () => {
     resourcesTable: stub("resources"),
     reviewsTable: stub("reviews"),
     googleTokensTable: stub("google_tokens"),
+    activityLogTable: stub("activity_log"),
+    classResourceRecommendationsTable: stub("class_recommendations"),
   };
 });
 
@@ -439,6 +441,67 @@ describe("DELETE /api/classes/:id/members/:userId — teacher-only", () => {
     const res = await request(buildApp())
       .delete(`/api/classes/${CLASS_ID}/members/${MEMBER_ID}`)
       .set("Authorization", tokenFor("teacher"));   // stale teacher JWT
+
+    expect(res.status).toBe(403);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Active-role downgrade regression — teacher account switched to student mode
+// isClassTeacher must deny access even when role="teacher" but activeRole="student"
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("isClassTeacher active-role downgrade — role=teacher, activeRole=student", () => {
+  /** Returns a users-table stub where the account role is "teacher" but the
+   *  active role is "student" (i.e. the user has switched to student mode). */
+  function stubbedTeacherInStudentMode() {
+    const chain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockResolvedValue([
+        { id: TEACHER_ID, role: "teacher", activeRole: "student", email: "teacher@example.com", name: "Teacher", createdAt: new Date().toISOString() },
+      ]),
+    };
+    return chain as unknown as ReturnType<typeof db.select>;
+  }
+
+  it("PATCH /classes/:id returns 403 when teacher is in student mode", async () => {
+    vi.mocked(db.select).mockImplementationOnce(() => stubbedTeacherInStudentMode());
+
+    const res = await request(buildApp())
+      .patch(`/api/classes/${CLASS_ID}`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ name: "Should be blocked" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /classes/:id returns 403 when teacher is in student mode", async () => {
+    vi.mocked(db.select).mockImplementationOnce(() => stubbedTeacherInStudentMode());
+
+    const res = await request(buildApp())
+      .delete(`/api/classes/${CLASS_ID}`)
+      .set("Authorization", tokenFor("teacher"));
+
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /classes/:id/members returns 403 when teacher is in student mode", async () => {
+    vi.mocked(db.select).mockImplementationOnce(() => stubbedTeacherInStudentMode());
+
+    const res = await request(buildApp())
+      .post(`/api/classes/${CLASS_ID}/members`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ email: "member@example.com", role: "student" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /classes/:id/members/:userId returns 403 when teacher is in student mode", async () => {
+    vi.mocked(db.select).mockImplementationOnce(() => stubbedTeacherInStudentMode());
+
+    const res = await request(buildApp())
+      .delete(`/api/classes/${CLASS_ID}/members/${MEMBER_ID}`)
+      .set("Authorization", tokenFor("teacher"));
 
     expect(res.status).toBe(403);
   });

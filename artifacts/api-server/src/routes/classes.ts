@@ -338,7 +338,8 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
     } else if (existingUserIds.has(user.id)) {
       results.push({ email, status: "already_member" });
     } else {
-      toInsert.push({ userId: user.id, classId: params.data.id, role: user.role as "student" | "teacher" });
+      const memberRole = user.role === "admin" ? "student" : user.role as "student" | "teacher";
+      toInsert.push({ userId: user.id, classId: params.data.id, role: memberRole });
       results.push({ email, status: "added" });
     }
   }
@@ -728,7 +729,7 @@ router.post("/classes/:id/resource-recommendations", contentLimiter, requireAuth
   const recommendation = existing ?? (await db.insert(classResourceRecommendationsTable).values({ classId, resourceId: resource.id, recommendedById: userId, note: parsed.data.note?.trim() || null }).returning())[0];
   const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
   const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, userId));
-  if (!existing && cls && student) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: ` recommended “${resource.title}” for ${cls.name}.` });
+  if (!existing && cls && student) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: `${student.name} recommended "${resource.title}" for ${cls.name}.` });
   res.status(201).json(ListClassResourceRecommendationsResponse.element.parse(await recommendationView(recommendation.id)));
 });
 

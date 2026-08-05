@@ -115,7 +115,7 @@ router.patch("/classes/:id/student-goals/:goalId", contentLimiter, requireAuth, 
     userId: goal.userId,
     type: "class",
     workspaceRole: "student",
-    message: `Your teacher updated your goal “”.`,
+    message: `Your teacher updated your goal "${goal.title}".`,
   });
   res.json(UpdateClassStudentGoalResponse.parse({ ...goal, studentName: existing.studentName, classId }));
 });

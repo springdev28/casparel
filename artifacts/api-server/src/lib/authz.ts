@@ -27,6 +27,8 @@ export async function isClassTeacher(classId: number, userId: number): Promise<b
     .select({ role: usersTable.role, activeRole: usersTable.activeRole })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
+  // Require effective active role of "teacher".  A teacher or admin who has
+  // switched to student mode cannot perform teacher actions, even on their own classes.
   if (!user || !["teacher", "admin"].includes(user.role) || (user.activeRole ?? user.role) !== "teacher") return false;
 
   const [cls] = await db
