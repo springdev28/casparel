@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { sslForConnectionString } from "./ssl";
 
 const { Pool } = pg;
+const MIGRATION_LOCK_NAME = "schoolar:database-migrations";
 
 /**
  * Applies all pending Drizzle migrations.
@@ -41,12 +42,23 @@ export async function runMigrations(): Promise<void> {
     connectionString,
     ...(ssl ? { ssl } : {}),
   });
-  const db = drizzle(pool);
+  const client = await pool.connect();
+  let lockAcquired = false;
+
   try {
+    // Login recovery and startup can request migrations at the same time. A
+    // session advisory lock serializes them across every running app process.
+    await client.query("SELECT pg_advisory_lock(hashtext($1))", [
+      MIGRATION_LOCK_NAME,
+    ]);
+    lockAcquired = true;
+
+    const db = drizzle(client);
+
     // PostgreSQL cannot use a newly added enum value until the transaction that
     // added it commits. Drizzle runs pending migrations in one transaction, so
     // prepare and commit this enum change before migration 0016 uses the type.
-    const roleType = await pool.query<{ exists: boolean }>(`
+    const roleType = await client.query<{ exists: boolean }>(`
       SELECT EXISTS (
         SELECT 1
           FROM pg_type
@@ -56,16 +68,26 @@ export async function runMigrations(): Promise<void> {
       ) AS exists
     `);
     if (!roleType.rows[0]?.exists) {
-      await pool.query(
+      await client.query(
         `CREATE TYPE "public"."user_role" AS ENUM ('student', 'teacher')`,
       );
     }
-    await pool.query(
+    await client.query(
       `ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'admin'`,
     );
 
     await migrate(db, { migrationsFolder });
   } finally {
+    if (lockAcquired) {
+      try {
+        await client.query("SELECT pg_advisory_unlock(hashtext($1))", [
+          MIGRATION_LOCK_NAME,
+        ]);
+      } catch {
+        // Closing the connection releases the lock if the unlock query fails.
+      }
+    }
+    client.release();
     await pool.end();
   }
 }
