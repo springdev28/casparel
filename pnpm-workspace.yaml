@@ -25,6 +25,8 @@
 #     - typescript
 #
 # ============================================================================
+packageImportMethod: copy
+
 minimumReleaseAge: 1440
 
 minimumReleaseAgeExclude:
