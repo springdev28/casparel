@@ -18,38 +18,100 @@ type LegacyUserRow = {
 
 type DatabaseError = Error & {
   code?: string;
+  cause?: unknown;
+  errors?: unknown[];
 };
 
-function databaseErrorCode(err: unknown): string {
-  const error = err as DatabaseError;
-  const message = error?.message?.toLowerCase() ?? "";
+type DatabaseDiagnostic = {
+  code: string;
+  message: string;
+};
 
-  switch (error?.code) {
-    case "28P01":
-      return "DATABASE_CREDENTIALS";
-    case "3D000":
-      return "DATABASE_NAME";
-    case "42P01":
-      return "DATABASE_SCHEMA";
-    case "42501":
-      return "DATABASE_PERMISSIONS";
-    case "ENOTFOUND":
-    case "EAI_AGAIN":
-      return "DATABASE_HOST";
-    case "ECONNREFUSED":
-    case "ECONNRESET":
-    case "ETIMEDOUT":
-      return "DATABASE_NETWORK";
-    default:
-      if (
+function collectDatabaseErrors(err: unknown): DatabaseError[] {
+  const collected: DatabaseError[] = [];
+  const pending: unknown[] = [err];
+  const seen = new Set<unknown>();
+
+  while (pending.length > 0 && collected.length < 8) {
+    const current = pending.shift();
+    if (!current || typeof current !== "object" || seen.has(current)) {
+      continue;
+    }
+
+    seen.add(current);
+    const error = current as DatabaseError;
+    collected.push(error);
+
+    if (error.cause) pending.push(error.cause);
+    if (Array.isArray(error.errors)) pending.push(...error.errors);
+  }
+
+  return collected;
+}
+
+function sanitizeDatabaseMessage(message: string): string {
+  return message
+    .replace(/postgres(?:ql)?:\/\/\S+/gi, "[database-url-redacted]")
+    .replace(/user\s+"[^"]+"/gi, 'user "[redacted]"')
+    .replace(/password\s*=\s*\S+/gi, "password=[redacted]")
+    .slice(0, 500);
+}
+
+function databaseDiagnostics(err: unknown): DatabaseDiagnostic[] {
+  return collectDatabaseErrors(err).map((error) => ({
+    code: error.code ?? error.name ?? "UNKNOWN",
+    message: sanitizeDatabaseMessage(error.message ?? "Unknown database error"),
+  }));
+}
+
+function databaseErrorCode(err: unknown): string {
+  const errors = collectDatabaseErrors(err);
+  const messages = errors.map((error) => error.message?.toLowerCase() ?? "");
+
+  for (const error of errors) {
+    switch (error.code) {
+      case "28P01":
+        return "DATABASE_CREDENTIALS";
+      case "3D000":
+        return "DATABASE_NAME";
+      case "42P01":
+        return "DATABASE_SCHEMA";
+      case "42501":
+        return "DATABASE_PERMISSIONS";
+      case "ENOTFOUND":
+      case "EAI_AGAIN":
+        return "DATABASE_HOST";
+      case "ECONNREFUSED":
+      case "ECONNRESET":
+      case "ETIMEDOUT":
+      case "ENETUNREACH":
+        return "DATABASE_NETWORK";
+    }
+  }
+
+  if (
+    messages.some(
+      (message) =>
         message.includes("certificate") ||
         message.includes("self-signed") ||
-        message.includes("ssl")
-      ) {
-        return "DATABASE_TLS";
-      }
-      return "DATABASE_QUERY";
+        message.includes("ssl"),
+    )
+  ) {
+    return "DATABASE_TLS";
   }
+
+  if (
+    messages.some(
+      (message) =>
+        message.includes("timeout") ||
+        message.includes("timed out") ||
+        message.includes("connection terminated"),
+    )
+  ) {
+    return "DATABASE_NETWORK";
+  }
+
+  return "DATABASE_QUERY";
 }
 
 async function findUser(email: string): Promise<LegacyUserRow | undefined> {
@@ -127,10 +189,16 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     row = await findUserWithSchemaRecovery(email);
   } catch (err) {
     const code = databaseErrorCode(err);
+    const diagnostics = databaseDiagnostics(err);
     logger.error({ err, code }, "Login database query failed");
+    console.error(
+      "Login database query failed",
+      JSON.stringify({ code, diagnostics }),
+    );
     res.status(503).json({
       error: "Database unavailable",
       code,
+      details: diagnostics.map((diagnostic) => diagnostic.code),
     });
     return;
   }
