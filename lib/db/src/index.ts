@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./schema";
+import { sslForConnectionString } from "./ssl";
 
 const { Pool } = pg;
 
@@ -10,14 +11,12 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-function shouldUseSsl(connectionString: string): boolean {
-  if (connectionString.includes("sslmode=")) return false;
-  return process.env.NODE_ENV === "production" && !connectionString.includes("localhost") && !connectionString.includes("127.0.0.1");
-}
+const connectionString = process.env.DATABASE_URL.trim();
+const ssl = sslForConnectionString(connectionString);
 
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ...(shouldUseSsl(process.env.DATABASE_URL) ? { ssl: true } : {}),
+  connectionString,
+  ...(ssl ? { ssl } : {}),
 });
 export const db = drizzle(pool, { schema });
 
