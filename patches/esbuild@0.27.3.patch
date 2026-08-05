@@ -1,0 +1,18 @@
+diff --git a/install.js b/install.js
+index 0cfd3d4..6462c3a 100644
+--- a/install.js
++++ b/install.js
+@@ -285,6 +285,14 @@ checkAndPreparePackage().then(() => {
+   if (isToPathJS) {
+     validateBinaryVersion(process.execPath, toPath);
+   } else {
++    // Hostinger's managed builder can materialize this binary without the
++    // executable bit, causing esbuild's postinstall validation to fail with
++    // EACCES before the application build starts.
++    try {
++      fs2.chmodSync(toPath, 493);
++    } catch {
++    }
+     validateBinaryVersion(toPath);
+   }
+ });
