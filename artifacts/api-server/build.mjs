@@ -122,6 +122,11 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
+
+  // Hostinger runs a single Node.js web app. Bundle the Vite output beside the
+  // API entry point so Express can serve the SPA and /api from one process.
+  const frontendSource = path.resolve(artifactDir, "../app/dist/public");
+  await cp(frontendSource, path.resolve(distDir, "public"), { recursive: true });
 }
 
 buildAll().catch((err) => {

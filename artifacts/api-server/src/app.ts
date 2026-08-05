@@ -1,6 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { globalLimiter } from "./lib/limiters";
@@ -36,5 +38,21 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", globalLimiter);
 app.use("/api", router);
+
+if (process.env.NODE_ENV === "production") {
+  const publicDir = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "public",
+  );
+
+  app.use(express.static(publicDir));
+  app.get("/{*path}", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+}
 
 export default app;
