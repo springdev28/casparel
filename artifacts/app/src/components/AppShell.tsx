@@ -111,6 +111,22 @@ function shouldUseLightAmbientText(style: VantaStyle, intensity: number) {
   return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2] <= 0.179;
 }
 
+function shouldUseLightToolbarText() {
+  const background = hslChannelsToRgb(
+    getComputedStyle(document.documentElement).getPropertyValue("--background"),
+  );
+  const linear = background.map((value) => {
+    const channel = value / 255;
+    return channel <= 0.04045
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return (
+    0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2] <=
+    0.179
+  );
+}
+
 interface AppShellProps {
   children: ReactNode;
 }
@@ -166,6 +182,20 @@ export default function AppShell({ children }: AppShellProps) {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
     return () => observer.disconnect();
   }, [ambientStyle, ambientIntensity]);
+  const [lightToolbarText, setLightToolbarText] = useState(() =>
+    shouldUseLightToolbarText(),
+  );
+  useEffect(() => {
+    const updateToolbarContrast = () =>
+      setLightToolbarText(shouldUseLightToolbarText());
+    updateToolbarContrast();
+    const observer = new MutationObserver(updateToolbarContrast);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
+    return () => observer.disconnect();
+  }, []);
 
   function chooseAmbientIntensity(value: number) {
     setAmbientIntensity(value);
@@ -564,6 +594,12 @@ export default function AppShell({ children }: AppShellProps) {
           <VantaBackground style={ambientStyle} intensity={ambientIntensity} />
           <div
             className="sticky top-0 z-40 flex h-12 items-center justify-end gap-1 border-b bg-background/85 px-4 backdrop-blur"
+            style={{
+              "--foreground": lightToolbarText ? "0 0% 100%" : "0 0% 0%",
+              "--muted-foreground": lightToolbarText
+                ? "0 0% 82%"
+                : "0 0% 28%",
+            } as CSSProperties}
             data-testid="notification-bar"
           >
             <Select value={ambientStyle} onValueChange={chooseAmbientStyle}>
