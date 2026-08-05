@@ -46,12 +46,20 @@ export async function runMigrations(): Promise<void> {
     // PostgreSQL cannot use a newly added enum value until the transaction that
     // added it commits. Drizzle runs pending migrations in one transaction, so
     // prepare and commit this enum change before migration 0016 uses the type.
-    await pool.query(`
-      DO $ BEGIN
-        CREATE TYPE "public"."user_role" AS ENUM ('student', 'teacher');
-      EXCEPTION WHEN duplicate_object THEN NULL;
-      END $;
+    const roleType = await pool.query<{ exists: boolean }>(`
+      SELECT EXISTS (
+        SELECT 1
+          FROM pg_type
+          JOIN pg_namespace ON pg_namespace.oid = pg_type.typnamespace
+         WHERE pg_namespace.nspname = 'public'
+           AND pg_type.typname = 'user_role'
+      ) AS exists
     `);
+    if (!roleType.rows[0]?.exists) {
+      await pool.query(
+        `CREATE TYPE "public"."user_role" AS ENUM ('student', 'teacher')`,
+      );
+    }
     await pool.query(
       `ALTER TYPE "public"."user_role" ADD VALUE IF NOT EXISTS 'admin'`,
     );
