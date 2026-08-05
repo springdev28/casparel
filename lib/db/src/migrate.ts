@@ -7,6 +7,11 @@ import { fileURLToPath } from "url";
 
 const { Pool } = pg;
 
+function shouldUseSsl(connectionString: string): boolean {
+  if (connectionString.includes("sslmode=")) return false;
+  return process.env.NODE_ENV === "production" && !connectionString.includes("localhost") && !connectionString.includes("127.0.0.1");
+}
+
 /**
  * Applies all pending Drizzle migrations.
  * Uses a dedicated short-lived pool so the main app pool is unaffected.
@@ -34,7 +39,10 @@ export async function runMigrations(): Promise<void> {
   const fallback = path.resolve(__dirname, "../migrations");
   const migrationsFolder = fs.existsSync(primary) ? primary : fallback;
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ...(shouldUseSsl(process.env.DATABASE_URL) ? { ssl: true } : {}),
+  });
   const db = drizzle(pool);
   try {
     await migrate(db, { migrationsFolder });
