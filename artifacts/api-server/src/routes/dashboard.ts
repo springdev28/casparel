@@ -77,11 +77,14 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
 
 // GET /activity/recent
 router.get("/activity/recent", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
+  const { userId, userRole } = req as AuthenticatedRequest;
   const rows = await db
     .select()
     .from(activityLogTable)
-    .where(eq(activityLogTable.userId, userId))
+    .where(and(
+      eq(activityLogTable.userId, userId),
+      eq(activityLogTable.workspaceRole, userRole as "student" | "teacher"),
+    ))
     .orderBy(sql`created_at desc`)
     .limit(20);
   res.json(GetRecentActivityResponse.parse(rows.map((r) => ({ ...r, userName: null }))));

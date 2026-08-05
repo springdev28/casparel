@@ -13,3 +13,4 @@ export * from "./learningGoals";
 export * from "./userSafety";
 export * from "./learningEvidence";
 export * from "./sourceReviewCache";
+export * from "./classResourceRecommendations";

@@ -396,6 +396,11 @@ export interface LearningGoal {
   updatedAt: string;
 }
 
+export type StudentLearningGoal = LearningGoal & {
+  studentName: string;
+  classId: number;
+};
+
 export type LearningGoalInputLevel = typeof LearningGoalInputLevel[keyof typeof LearningGoalInputLevel];
 
 
@@ -1120,6 +1125,50 @@ export const StudySessionRsvpStatus = {
 
 export interface StudySessionRsvp {
   status: StudySessionRsvpStatus;
+}
+
+export interface ClassResourceRecommendationInput {
+  resourceId: number;
+  /** @maxLength 500 */
+  note?: string;
+}
+
+export type ClassResourceRecommendationReviewStatus = typeof ClassResourceRecommendationReviewStatus[keyof typeof ClassResourceRecommendationReviewStatus];
+
+
+export const ClassResourceRecommendationReviewStatus = {
+  approved: 'approved',
+  declined: 'declined',
+} as const;
+
+export interface ClassResourceRecommendationReview {
+  status: ClassResourceRecommendationReviewStatus;
+}
+
+export type ClassResourceRecommendationStatus = typeof ClassResourceRecommendationStatus[keyof typeof ClassResourceRecommendationStatus];
+
+
+export const ClassResourceRecommendationStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  declined: 'declined',
+} as const;
+
+export interface ClassResourceRecommendation {
+  id: number;
+  classId: number;
+  resourceId: number;
+  recommendedById: number;
+  recommenderName: string;
+  status: ClassResourceRecommendationStatus;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  reviewedById?: number | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  createdAt: string;
+  resource: Resource;
 }
 
 export interface ScheduleBlock {

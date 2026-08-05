@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, ilike, and, or, notInArray } from "drizzle-orm";
+import { eq, ne, sql, ilike, and, or, notInArray } from "drizzle-orm";
 import {
   db,
   resourcesTable,
@@ -62,6 +62,17 @@ async function resourceWithRating(id: number) {
     avgRating: Math.round(Number(stats.avg) * 10) / 10,
     reviewCount: stats.count,
   };
+}
+
+function canonicalResourceUrl(raw: string) {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLocaleLowerCase().replace(/^www\./, "");
+    const path = url.pathname.replace(/\/$/, "") || "/";
+    return (host + path + url.search).toLocaleLowerCase();
+  } catch {
+    return raw.trim().replace(/\/$/, "").toLocaleLowerCase();
+  }
 }
 
 async function topRatedResources(limit = 12) {
@@ -295,7 +306,12 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
         )!,
       ),
     )!;
-    const conditions = [interestMatch];
+    // A user's submitted resources are their library. Recommendations should
+    // always point to something new rather than back into that library.
+    const conditions = [
+      interestMatch,
+      ne(resourcesTable.submittedById, userId),
+    ];
     if (reviewedIds.length > 0)
       conditions.push(notInArray(resourcesTable.id, reviewedIds));
 
@@ -314,8 +330,9 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
   // Pad with top-rated resources if not enough personalised results
   if (candidates.length < 6) {
     const exclude = [...reviewedIds, ...candidates];
-    const conditions =
-      exclude.length > 0 ? [notInArray(resourcesTable.id, exclude)] : [];
+    const conditions = [ne(resourcesTable.submittedById, userId)];
+    if (exclude.length > 0)
+      conditions.push(notInArray(resourcesTable.id, exclude));
     const extra = await db
       .select({ id: resourcesTable.id })
       .from(resourcesTable)
@@ -649,6 +666,20 @@ router.get(
       page = 1,
       resultType = "content",
     } = params.data;
+    let discoverUserId: number | null = null;
+    try {
+      const { decodeToken } = await import("../lib/auth");
+      const auth = req.headers.authorization;
+      if (auth?.startsWith("Bearer ")) discoverUserId = decodeToken(auth.slice(7))?.userId ?? null;
+    } catch {
+      // Public discovery remains available without authentication.
+    }
+    const savedRows = discoverUserId
+      ? await db.select({ url: resourcesTable.url }).from(resourcesTable).where(eq(resourcesTable.submittedById, discoverUserId))
+      : [];
+    const savedUrlKeys = new Set(savedRows.map((row) => canonicalResourceUrl(row.url)));
+    const isUnsavedResult = (item: { url: string }) => !savedUrlKeys.has(canonicalResourceUrl(item.url));
+
     const exactPersonSearch =
       resultType === "people" &&
       q.trim().toLowerCase().startsWith("exact-person:");
@@ -663,12 +694,13 @@ router.get(
       language,
       page,
       resultType,
+      userId: discoverUserId,
     });
     if (process.env.NODE_ENV !== "test") {
       const cached = discoverCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
         res.setHeader("X-Search-Cache", "HIT");
-        res.json(cached.items);
+        res.json(cached.items.filter(isUnsavedResult));
         return;
       }
       if (cached) discoverCache.delete(cacheKey);
@@ -743,7 +775,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       );
       const firstBatch =
         resultType === "source"
-          ? rawFirstBatch.filter((item) => isDirectSourceUrl(item.url))
+          ? rawFirstBatch.filter((item) => isDirectSourceUrl(item.url) && isUnsavedResult(item))
           : resultType === "people"
             ? rawFirstBatch.filter((item) => isDirectPeopleProfileUrl(item.url))
             : rawFirstBatch;
@@ -810,7 +842,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       );
       const secondBatch =
         resultType === "source"
-          ? rawSecondBatch.filter((item) => isDirectSourceUrl(item.url))
+          ? rawSecondBatch.filter((item) => isDirectSourceUrl(item.url) && isUnsavedResult(item))
           : resultType === "people"
             ? rawSecondBatch.filter((item) =>
                 isDirectPeopleProfileUrl(item.url),

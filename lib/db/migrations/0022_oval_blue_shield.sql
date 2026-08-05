@@ -1,0 +1,1 @@
+ALTER TABLE "activity_log" ADD COLUMN IF NOT EXISTS "workspace_role" text DEFAULT 'shared' NOT NULL;

@@ -50,11 +50,18 @@ import {
   getListLearningGoalsQueryKey,
   LearningGoalInputLevel,
   LearningGoalStatus,
+  UserRole,
   useCreateLearningGoal,
   useDeleteLearningGoal,
   useGetMe,
   useListLearningGoals,
   useUpdateLearningGoal,
+  useListClasses,
+  useListClassStudentGoals,
+  useUpdateClassStudentGoal,
+  getListClassesQueryKey,
+  getListClassStudentGoalsQueryKey,
+  type StudentLearningGoal,
   type LearningGoal,
 } from "@workspace/api-client-react";
 
@@ -64,6 +71,18 @@ export default function GoalsPage() {
   const { data: me } = useGetMe();
   const workspaceRole = me?.activeRole ?? me?.role;
   const [dashboardGoalId, setDashboardGoal] = useState<number | null>(null);
+  const isTeacher = workspaceRole === UserRole.teacher;
+  const { data: classes } = useListClasses({ query: { enabled: isTeacher, queryKey: getListClassesQueryKey() } });
+  const teacherClasses = (classes ?? []).filter((item) => item.teacherId === me?.id);
+  const [managedClassId, setManagedClassId] = useState(0);
+  useEffect(() => { if (!managedClassId && teacherClasses[0]) setManagedClassId(teacherClasses[0].id); }, [managedClassId, teacherClasses]);
+  const { data: studentGoals, isLoading: studentGoalsLoading } = useListClassStudentGoals(managedClassId, { query: { enabled: isTeacher && managedClassId > 0, queryKey: getListClassStudentGoalsQueryKey(managedClassId) } });
+  const updateStudentGoal = useUpdateClassStudentGoal();
+  async function manageStudentGoal(goalId: number, data: { status?: LearningGoalStatus; targetDate?: string | null }) {
+    await updateStudentGoal.mutateAsync({ id: managedClassId, goalId, data });
+    await client.invalidateQueries({ queryKey: getListClassStudentGoalsQueryKey(managedClassId) });
+    toast({ title: "Student goal updated" });
+  }
   useEffect(() => {
     setDashboardGoal(getDashboardGoalId(me?.id, workspaceRole));
   }, [me?.id, workspaceRole]);
@@ -290,6 +309,36 @@ export default function GoalsPage() {
           </DialogContent>
         </Dialog>
       </div>
+      {isTeacher && (
+        <section className="rounded-xl border bg-card p-4" data-testid="manage-student-goals">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-semibold"><Users className="size-4 text-primary" /> Manage students&apos; goals</h2>
+              <p className="text-xs text-muted-foreground">Review and update goals for students in your classes.</p>
+            </div>
+            <Select value={managedClassId ? String(managedClassId) : ""} onValueChange={(value) => setManagedClassId(Number(value))}>
+              <SelectTrigger className="w-56"><SelectValue placeholder="Select a class" /></SelectTrigger>
+              <SelectContent>{teacherClasses.map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          {studentGoalsLoading ? <Skeleton className="h-24 w-full" /> : !(studentGoals as StudentLearningGoal[] | undefined)?.length ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No student goals in this class yet.</p>
+          ) : (
+            <div className="space-y-2">{(studentGoals as StudentLearningGoal[]).map((goal) => (
+              <div key={goal.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                <div><p className="text-sm font-medium">{goal.title}</p><p className="text-xs text-muted-foreground">{goal.studentName} · {goal.subject}</p></div>
+                <div className="flex items-center gap-2">
+                  <Select value={goal.status} onValueChange={(status) => manageStudentGoal(goal.id, { status: status as LearningGoalStatus })}>
+                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value={LearningGoalStatus.active}>Active</SelectItem><SelectItem value={LearningGoalStatus.paused}>Paused</SelectItem><SelectItem value={LearningGoalStatus.completed}>Completed</SelectItem></SelectContent>
+                  </Select>
+                  <Input className="w-36" type="date" value={goal.targetDate ?? ""} onChange={(event) => manageStudentGoal(goal.id, { targetDate: event.target.value || null })} />
+                </div>
+              </div>
+            ))}</div>
+          )}
+        </section>
+      )}
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {[1, 2, 3, 4].map((item) => (

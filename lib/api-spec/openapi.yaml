@@ -665,6 +665,54 @@ paths:
                 $ref: "#/components/schemas/SeatingPlanSuggestion"
         "403": { description: Not the class teacher }
 
+  /classes/{id}/student-goals:
+    get:
+      operationId: listClassStudentGoals
+      tags: [learning-goals]
+      summary: List learning goals for students in a teacher-owned class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Student goals
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StudentLearningGoal" }
+        "403": { description: Not the class teacher }
+
+  /classes/{id}/student-goals/{goalId}:
+    patch:
+      operationId: updateClassStudentGoal
+      tags: [learning-goals]
+      summary: Update a student learning goal as their class teacher
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: goalId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LearningGoalPatch" }
+      responses:
+        "200":
+          description: Updated student goal
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudentLearningGoal" }
+        "403": { description: Not the class teacher }
+        "404": { description: Student goal not found }
+
   /classes/{id}/resources-list:
     get:
       operationId: getClassResourcesList
@@ -737,7 +785,86 @@ paths:
         "403":
           description: Not the class teacher
 
-  # ── Resources ─────────────────────────────────────────────────────────────
+  /classes/{id}/leave:
+    delete:
+      operationId: leaveClass
+      tags: [classes]
+      summary: Leave a class; owners transfer ownership to another teacher
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Left class }
+        "409": { description: Owner must add another teacher first }
+
+  /classes/{id}/resource-recommendations:
+    get:
+      operationId: listClassResourceRecommendations
+      tags: [classes]
+      summary: List student resource recommendations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Recommendations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClassResourceRecommendation" }
+    post:
+      operationId: recommendResourceToClass
+      tags: [classes]
+      summary: Recommend a resource for teacher approval (students only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassResourceRecommendationInput" }
+      responses:
+        "201":
+          description: Recommendation created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClassResourceRecommendation" }
+
+  /classes/{id}/resource-recommendations/{recommendationId}:
+    patch:
+      operationId: reviewClassResourceRecommendation
+      tags: [classes]
+      summary: Approve or decline a student resource recommendation (teacher only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: recommendationId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassResourceRecommendationReview" }
+      responses:
+        "200":
+          description: Reviewed recommendation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClassResourceRecommendation" }
+
+  # ── Resources ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   /resources:
     get:
       operationId: listResources
@@ -2100,6 +2227,15 @@ components:
         createdAt: { type: string }
         updatedAt: { type: string }
 
+    StudentLearningGoal:
+      allOf:
+        - $ref: "#/components/schemas/LearningGoal"
+        - type: object
+          required: [studentName, classId]
+          properties:
+            studentName: { type: string }
+            classId: { type: integer }
+
     LearningGoalInput:
       type: object
       required: [title, subject, level]
@@ -2680,7 +2816,36 @@ components:
       properties:
         status: { type: string, enum: [accepted, declined] }
 
-    # ── Schedule ────────────────────────────────────────────────────────────
+    ClassResourceRecommendationInput:
+      type: object
+      required: [resourceId]
+      properties:
+        resourceId: { type: integer }
+        note: { type: string, maxLength: 500 }
+
+    ClassResourceRecommendationReview:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [approved, declined] }
+
+    ClassResourceRecommendation:
+      type: object
+      required: [id, classId, resourceId, recommendedById, recommenderName, status, resource, createdAt]
+      properties:
+        id: { type: integer }
+        classId: { type: integer }
+        resourceId: { type: integer }
+        recommendedById: { type: integer }
+        recommenderName: { type: string }
+        status: { type: string, enum: [pending, approved, declined] }
+        note: { type: ["string", "null"] }
+        reviewedById: { type: ["integer", "null"] }
+        reviewedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+        resource: { $ref: "#/components/schemas/Resource" }
+
+    # ── Schedule ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     ScheduleBlock:
       type: object
       required: [id, userId, title, date, startTime, endTime, createdAt]

@@ -1091,6 +1091,121 @@ export const SuggestSeatingPlanResponse = zod.object({
 
 
 /**
+ * @summary List learning goals for students in a teacher-owned class
+ */
+export const ListClassStudentGoalsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const listClassStudentGoalsResponseOnePathStepsItemIdMax = 80;
+
+export const listClassStudentGoalsResponseOnePathStepsItemTitleMax = 200;
+
+export const listClassStudentGoalsResponseOnePathStepsItemQueryMax = 300;
+
+
+
+export const ListClassStudentGoalsResponseItem = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemIdMax),
+  "title": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemQueryMax),
+  "completed": zod.boolean()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "studentName": zod.string(),
+  "classId": zod.int()
+}))
+export const ListClassStudentGoalsResponse = zod.array(ListClassStudentGoalsResponseItem)
+
+
+/**
+ * @summary Update a student learning goal as their class teacher
+ */
+export const UpdateClassStudentGoalParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "goalId": zod.coerce.number().int()
+})
+
+export const updateClassStudentGoalBodyTitleMin = 2;
+export const updateClassStudentGoalBodyTitleMax = 160;
+
+export const updateClassStudentGoalBodySubjectMax = 100;
+
+export const updateClassStudentGoalBodyDescriptionMax = 1000;
+
+export const updateClassStudentGoalBodyPreferredFormatsMax = 6;
+
+export const updateClassStudentGoalBodyPathStepsItemIdMax = 80;
+
+export const updateClassStudentGoalBodyPathStepsItemTitleMax = 200;
+
+export const updateClassStudentGoalBodyPathStepsItemQueryMax = 300;
+
+export const updateClassStudentGoalBodyPathStepsMax = 20;
+
+
+
+export const UpdateClassStudentGoalBody = zod.object({
+  "title": zod.string().min(updateClassStudentGoalBodyTitleMin).max(updateClassStudentGoalBodyTitleMax).optional(),
+  "subject": zod.string().min(1).max(updateClassStudentGoalBodySubjectMax).optional(),
+  "description": zod.string().max(updateClassStudentGoalBodyDescriptionMax).nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']).optional(),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).max(updateClassStudentGoalBodyPreferredFormatsMax).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']).optional(),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateClassStudentGoalBodyPathStepsItemIdMax),
+  "title": zod.string().min(1).max(updateClassStudentGoalBodyPathStepsItemTitleMax),
+  "query": zod.string().min(1).max(updateClassStudentGoalBodyPathStepsItemQueryMax),
+  "completed": zod.boolean()
+})).max(updateClassStudentGoalBodyPathStepsMax).optional()
+})
+
+export const updateClassStudentGoalResponseOnePathStepsItemIdMax = 80;
+
+export const updateClassStudentGoalResponseOnePathStepsItemTitleMax = 200;
+
+export const updateClassStudentGoalResponseOnePathStepsItemQueryMax = 300;
+
+
+
+export const UpdateClassStudentGoalResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemIdMax),
+  "title": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemQueryMax),
+  "completed": zod.boolean()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "studentName": zod.string(),
+  "classId": zod.int()
+}))
+
+
+/**
  * @summary Get the class resources list with items (teachers and members)
  */
 export const GetClassResourcesListParams = zod.object({
@@ -1155,6 +1270,136 @@ export const RemoveClassResourceParams = zod.object({
 })
 
 export const RemoveClassResourceResponse = zod.void()
+
+
+/**
+ * @summary Leave a class; owners transfer ownership to another teacher
+ */
+export const LeaveClassParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const LeaveClassResponse = zod.void()
+
+
+/**
+ * @summary List student resource recommendations
+ */
+export const ListClassResourceRecommendationsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListClassResourceRecommendationsResponseItem = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "resourceId": zod.int(),
+  "recommendedById": zod.int(),
+  "recommenderName": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'declined']),
+  "note": zod.string().nullish(),
+  "reviewedById": zod.int().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "resource": zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "submittedById": zod.int(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string()
+})
+})
+export const ListClassResourceRecommendationsResponse = zod.array(ListClassResourceRecommendationsResponseItem)
+
+
+/**
+ * @summary Recommend a resource for teacher approval (students only)
+ */
+export const RecommendResourceToClassParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const recommendResourceToClassBodyNoteMax = 500;
+
+
+
+export const RecommendResourceToClassBody = zod.object({
+  "resourceId": zod.int(),
+  "note": zod.string().max(recommendResourceToClassBodyNoteMax).optional()
+})
+
+export const RecommendResourceToClassResponse = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "resourceId": zod.int(),
+  "recommendedById": zod.int(),
+  "recommenderName": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'declined']),
+  "note": zod.string().nullish(),
+  "reviewedById": zod.int().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "resource": zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "submittedById": zod.int(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Approve or decline a student resource recommendation (teacher only)
+ */
+export const ReviewClassResourceRecommendationParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "recommendationId": zod.coerce.number().int()
+})
+
+export const ReviewClassResourceRecommendationBody = zod.object({
+  "status": zod.enum(['approved', 'declined'])
+})
+
+export const ReviewClassResourceRecommendationResponse = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "resourceId": zod.int(),
+  "recommendedById": zod.int(),
+  "recommenderName": zod.string(),
+  "status": zod.enum(['pending', 'approved', 'declined']),
+  "note": zod.string().nullish(),
+  "reviewedById": zod.int().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "resource": zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "submittedById": zod.int(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string()
+})
+})
 
 
 /**

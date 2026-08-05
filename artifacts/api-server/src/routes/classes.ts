@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, max, asc } from "drizzle-orm";
-import { db, classesTable, classMembersTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable } from "@workspace/db";
+import { eq, sql, and, max, asc, desc } from "drizzle-orm";
+import { db, classesTable, classMembersTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable } from "@workspace/db";
 import {
   ListClassesResponse,
   CreateClassBody,
@@ -35,6 +35,9 @@ import {
   SuggestSeatingPlanBody,
   SuggestSeatingPlanResponse,
   UpdateStudentNoteResponse,
+  RecommendResourceToClassBody,
+  ListClassResourceRecommendationsResponse,
+  ReviewClassResourceRecommendationBody,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
@@ -102,7 +105,7 @@ router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<v
     .select({ role: usersTable.role, activeRole: usersTable.activeRole })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
-  if (!currentUser || (currentUser.role !== "teacher" && !(currentUser.role === "admin" && currentUser.activeRole === "teacher"))) {
+  if (!currentUser || !["teacher", "admin"].includes(currentUser.role) || (currentUser.activeRole ?? currentUser.role) !== "teacher") {
     res.status(403).json({ error: "Only teachers can create classes" });
     return;
   }
@@ -280,6 +283,7 @@ router.post("/classes/:id/members", contentLimiter, requireAuth, async (req, res
         eq(classMembersTable.classId, params.data.id),
       ),
     );
+  await db.insert(activityLogTable).values({ userId: user.id, type: "class", workspaceRole: membershipRole, message: "You were added to a class." });
   res.status(201).json(AddClassMemberResponse.parse({ ...member, user }));
 });
 
@@ -341,6 +345,7 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
 
   if (toInsert.length > 0) {
     await db.insert(classMembersTable).values(toInsert).onConflictDoNothing();
+    await db.insert(activityLogTable).values(toInsert.map((member) => ({ userId: member.userId, type: "class" as const, workspaceRole: member.role, message: "You were added to a class." })));
   }
 
   const added = results.filter((r) => r.status === "added").length;
@@ -369,6 +374,7 @@ router.delete("/classes/:id/members/:userId", requireAuth, async (req, res): Pro
     res.status(400).json({ error: "Cannot remove the class owner" });
     return;
   }
+  const [removedMembership] = await db.select({ role: classMembersTable.role }).from(classMembersTable).where(and(eq(classMembersTable.userId, params.data.userId), eq(classMembersTable.classId, params.data.id)));
   await db
     .delete(classMembersTable)
     .where(
@@ -377,6 +383,7 @@ router.delete("/classes/:id/members/:userId", requireAuth, async (req, res): Pro
         eq(classMembersTable.classId, params.data.id),
       ),
     );
+  if (removedMembership) await db.insert(activityLogTable).values({ userId: params.data.userId, type: "class", workspaceRole: removedMembership.role, message: "You were removed from " + (cls?.name ?? "a class") + "." });
   res.sendStatus(204);
 });
 
@@ -595,7 +602,7 @@ router.post("/classes/:id/assign", contentLimiter, requireAuth, async (req, res)
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   // Validate resource exists before inserting (avoid FK 500)
-  const [resource] = await db.select({ id: resourcesTable.id }).from(resourcesTable)
+  const [resource] = await db.select({ id: resourcesTable.id, title: resourcesTable.title }).from(resourcesTable)
     .where(eq(resourcesTable.id, parsed.data.resourceId));
   if (!resource) { res.status(404).json({ error: "Resource not found" }); return; }
 
@@ -613,6 +620,11 @@ router.post("/classes/:id/assign", contentLimiter, requireAuth, async (req, res)
       .from(listItemsTable)
       .where(eq(listItemsTable.listId, list.id));
     await db.insert(listItemsTable).values({ listId: list.id, resourceId: parsed.data.resourceId, position: (maxPos ?? -1) + 1 });
+  }
+
+  if (!already) {
+    const students = await db.select({ userId: classMembersTable.userId }).from(classMembersTable).where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.role, "student")));
+    if (students.length) await db.insert(activityLogTable).values(students.map((student) => ({ userId: student.userId, type: "class" as const, workspaceRole: "student" as const, message: "A new class resource was added: “" + resource.title + "”." })));
   }
 
   res.json(AssignResourceToClassResponse.parse({ listId: list.id }));
@@ -644,6 +656,107 @@ router.delete("/classes/:id/resources-list/items/:resourceId", requireAuth, asyn
 });
 
 // GET /classes/:id/shared-lists — other lists shared with this class (not "Class Resources")
+// DELETE /classes/:id/leave — any member may leave. Transfer ownership first.
+router.delete("/classes/:id/leave", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const classId = Number(req.params.id);
+  if (!classId || !(await isClassMember(classId, userId))) {
+    res.status(403).json({ error: "Not a member of this class" }); return;
+  }
+  const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
+  if (!cls) { res.status(404).json({ error: "Class not found" }); return; }
+  if (cls.teacherId === userId) {
+    const [nextTeacher] = await db.select({ userId: classMembersTable.userId })
+      .from(classMembersTable)
+      .where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.role, "teacher")))
+      .orderBy(asc(classMembersTable.joinedAt));
+    const successor = nextTeacher?.userId === userId
+      ? (await db.select({ userId: classMembersTable.userId }).from(classMembersTable)
+          .where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.role, "teacher")))
+          .orderBy(asc(classMembersTable.joinedAt))).find((member) => member.userId !== userId)
+      : nextTeacher;
+    if (!successor) {
+      res.status(409).json({ error: "Add another teacher before leaving this class" }); return;
+    }
+    await db.update(classesTable).set({ teacherId: successor.userId }).where(eq(classesTable.id, classId));
+  }
+  await db.delete(classMembersTable).where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.userId, userId)));
+  if (cls.teacherId !== userId) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: "A student left " + cls.name + "." });
+  res.sendStatus(204);
+});
+
+async function recommendationView(id: number) {
+  const [row] = await db.select().from(classResourceRecommendationsTable).where(eq(classResourceRecommendationsTable.id, id));
+  if (!row) return null;
+  const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, row.recommendedById));
+  const resource = await resourceWithRating(row.resourceId);
+  return resource && user ? { ...row, recommenderName: user.name, resource } : null;
+}
+
+router.get("/classes/:id/resource-recommendations", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const classId = Number(req.params.id);
+  if (!classId || (!(await isClassMember(classId, userId)) && !(await isClassTeacher(classId, userId)))) {
+    res.status(403).json({ error: "Not a member of this class" }); return;
+  }
+  const teacher = await isClassTeacher(classId, userId);
+  const rows = await db.select({ id: classResourceRecommendationsTable.id })
+    .from(classResourceRecommendationsTable)
+    .where(teacher ? eq(classResourceRecommendationsTable.classId, classId) : and(eq(classResourceRecommendationsTable.classId, classId), eq(classResourceRecommendationsTable.recommendedById, userId)))
+    .orderBy(desc(classResourceRecommendationsTable.createdAt));
+  const items = (await Promise.all(rows.map((row) => recommendationView(row.id)))).filter(Boolean);
+  res.json(ListClassResourceRecommendationsResponse.parse(items));
+});
+
+router.post("/classes/:id/resource-recommendations", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const classId = Number(req.params.id);
+  const parsed = RecommendResourceToClassBody.safeParse(req.body);
+  if (!classId || !parsed.success) { res.status(400).json({ error: "Invalid recommendation" }); return; }
+  const [[membership], [currentUser]] = await Promise.all([
+    db.select().from(classMembersTable).where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.userId, userId))),
+    db.select({ role: usersTable.role, activeRole: usersTable.activeRole }).from(usersTable).where(eq(usersTable.id, userId)),
+  ]);
+  if (!membership) { res.status(403).json({ error: "Join this class before recommending resources" }); return; }
+  if (!currentUser || (currentUser.activeRole ?? currentUser.role) !== "student") { res.status(403).json({ error: "Switch to student mode to recommend resources" }); return; }
+  const [resource] = await db.select().from(resourcesTable).where(eq(resourcesTable.id, parsed.data.resourceId));
+  if (!resource) { res.status(404).json({ error: "Resource not found" }); return; }
+  const [existing] = await db.select().from(classResourceRecommendationsTable).where(and(
+    eq(classResourceRecommendationsTable.classId, classId), eq(classResourceRecommendationsTable.resourceId, resource.id),
+    eq(classResourceRecommendationsTable.recommendedById, userId), eq(classResourceRecommendationsTable.status, "pending"),
+  ));
+  const recommendation = existing ?? (await db.insert(classResourceRecommendationsTable).values({ classId, resourceId: resource.id, recommendedById: userId, note: parsed.data.note?.trim() || null }).returning())[0];
+  const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
+  const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!existing && cls && student) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: ` recommended “${resource.title}” for ${cls.name}.` });
+  res.status(201).json(ListClassResourceRecommendationsResponse.element.parse(await recommendationView(recommendation.id)));
+});
+
+router.patch("/classes/:id/resource-recommendations/:recommendationId", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const classId = Number(req.params.id);
+  const recommendationId = Number(req.params.recommendationId);
+  const parsed = ReviewClassResourceRecommendationBody.safeParse(req.body);
+  if (!classId || !recommendationId || !parsed.success) { res.status(400).json({ error: "Invalid review" }); return; }
+  if (!(await isClassTeacher(classId, userId))) { res.status(403).json({ error: "Only the class teacher can review recommendations" }); return; }
+  const [pending] = await db.select().from(classResourceRecommendationsTable).where(and(eq(classResourceRecommendationsTable.id, recommendationId), eq(classResourceRecommendationsTable.classId, classId), eq(classResourceRecommendationsTable.status, "pending")));
+  if (!pending) { res.status(404).json({ error: "Pending recommendation not found" }); return; }
+  await db.transaction(async (tx) => {
+    if (parsed.data.status === "approved") {
+      const list = await getOrCreateClassList(classId, userId);
+      const [already] = await tx.select().from(listItemsTable).where(and(eq(listItemsTable.listId, list.id), eq(listItemsTable.resourceId, pending.resourceId)));
+      if (!already) {
+        const [{ maxPos }] = await tx.select({ maxPos: max(listItemsTable.position) }).from(listItemsTable).where(eq(listItemsTable.listId, list.id));
+        await tx.insert(listItemsTable).values({ listId: list.id, resourceId: pending.resourceId, position: (maxPos ?? -1) + 1 });
+      }
+    }
+    await tx.update(classResourceRecommendationsTable).set({ status: parsed.data.status, reviewedById: userId, reviewedAt: new Date().toISOString() }).where(eq(classResourceRecommendationsTable.id, recommendationId));
+    const [resource] = await tx.select({ title: resourcesTable.title }).from(resourcesTable).where(eq(resourcesTable.id, pending.resourceId));
+    await tx.insert(activityLogTable).values({ userId: pending.recommendedById, type: "class", workspaceRole: "student", message: `Your recommendation “${resource?.title ?? "Resource"}” was ${parsed.data.status}.` });
+  });
+  res.json(ListClassResourceRecommendationsResponse.element.parse(await recommendationView(recommendationId)));
+});
+
 router.get("/classes/:id/shared-lists", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const classId = Number(req.params.id);

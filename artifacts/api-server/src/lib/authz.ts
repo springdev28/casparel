@@ -27,7 +27,7 @@ export async function isClassTeacher(classId: number, userId: number): Promise<b
     .select({ role: usersTable.role, activeRole: usersTable.activeRole })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
-  if (!user || (user.role !== "teacher" && !(user.role === "admin" && user.activeRole === "teacher"))) return false;
+  if (!user || !["teacher", "admin"].includes(user.role) || (user.activeRole ?? user.role) !== "teacher") return false;
 
   const [cls] = await db
     .select()

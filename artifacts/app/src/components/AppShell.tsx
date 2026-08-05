@@ -60,6 +60,7 @@ import {
   PopoverTrigger,
 } from "@workspace/edu-ds/components/ui/popover";
 import BrandIcon from "./BrandIcon";
+import VantaBackground, { type VantaStyle } from "./VantaBackground";
 
 const TOKEN_KEY = "schoolar_token";
 
@@ -79,6 +80,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Schedule", href: "/schedule", icon: Calendar },
 ];
 
+
 interface AppShellProps {
   children: ReactNode;
 }
@@ -92,16 +94,51 @@ export default function AppShell({ children }: AppShellProps) {
   const { data: accountUsage } = useGetMyUsage({
     query: { enabled: Boolean(me), refetchInterval: 30_000, queryKey: getGetMyUsageQueryKey() },
   });
+  const activeNotificationRole = me?.activeRole ?? me?.role ?? "student";
+  const notificationReadKey = `schoolar_read_notifications:${me?.id ?? "guest"}:${activeNotificationRole}`;
+  const [readNotificationIds, setReadNotificationIds] = useState<number[]>([]);
+  useEffect(() => {
+    try {
+      setReadNotificationIds(
+        JSON.parse(localStorage.getItem(notificationReadKey) ?? "[]"),
+      );
+    } catch {
+      setReadNotificationIds([]);
+    }
+  }, [notificationReadKey]);
+  const unreadNotifications = (notifications ?? []).filter(
+    (item) => !readNotificationIds.includes(item.id),
+  );
+  function markNotificationRead(id: number) {
+    setReadNotificationIds((current) => {
+      const next = current.includes(id) ? current : [...current, id];
+      localStorage.setItem(notificationReadKey, JSON.stringify(next));
+      return next;
+    });
+  }
   const { data: sidebarGoals } = useListLearningGoals({ query: { enabled: Boolean(me), queryKey: getListLearningGoalsQueryKey() } });
   const updateSidebarGoal = useUpdateLearningGoal();
   const [expandedPaths, setExpandedPaths] = useState<number[]>([]);
-  const [ambientMotion, setAmbientMotion] = useState(() => localStorage.getItem("schoolar_ambient_motion") !== "off");
-  function toggleAmbientMotion() {
-    setAmbientMotion((current) => {
-      const next = !current;
-      localStorage.setItem("schoolar_ambient_motion", next ? "on" : "off");
-      return next;
-    });
+  const [ambientStyle, setAmbientStyle] = useState<VantaStyle>(() => {
+    const saved = sessionStorage.getItem("schoolar_ambient_style") ?? localStorage.getItem("schoolar_ambient_style");
+    if (saved === "off" || saved === "net" || saved === "globe" || saved === "halo" || saved === "dots" || saved === "cells" || saved === "rings" || saved === "topology") return saved;
+    return localStorage.getItem("schoolar_ambient_motion") === "off" ? "off" : "net";
+  });
+  const [ambientIntensity, setAmbientIntensity] = useState(() => {
+    const saved = Number(sessionStorage.getItem("schoolar_ambient_intensity") ?? localStorage.getItem("schoolar_ambient_intensity") ?? "1");
+    return Number.isFinite(saved) ? Math.min(2, Math.max(0.5, saved)) : 1;
+  });
+  function chooseAmbientIntensity(value: number) {
+    setAmbientIntensity(value);
+    const saved = String(value);
+    localStorage.setItem("schoolar_ambient_intensity", saved);
+    sessionStorage.setItem("schoolar_ambient_intensity", saved);
+  }
+  function chooseAmbientStyle(value: string) {
+    const next = value as VantaStyle;
+    setAmbientStyle(next);
+    localStorage.setItem("schoolar_ambient_style", next);
+    sessionStorage.setItem("schoolar_ambient_style", next);
   }
   async function updatePath(goal: NonNullable<typeof sidebarGoals>[number], pathSteps: typeof goal.pathSteps) {
     await updateSidebarGoal.mutateAsync({ id: goal.id, data: { pathSteps } });
@@ -484,15 +521,30 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Main content */}
         <main className="relative flex-1 min-w-0 bg-background overflow-auto md:pt-0 pt-14">
-          {ambientMotion && <div className="codex-ambient" aria-hidden="true"><span /><span /><span /></div>}
+          <VantaBackground style={ambientStyle} intensity={ambientIntensity} />
           <div
             className="sticky top-0 z-40 flex h-12 items-center justify-end gap-1 border-b bg-background/85 px-4 backdrop-blur"
             data-testid="notification-bar"
           >
-            <Button variant="ghost" size="sm" onClick={toggleAmbientMotion} aria-pressed={ambientMotion} title={ambientMotion ? "Turn animated background off" : "Turn animated background on"} data-testid="ambient-motion-toggle">
-              <Waves size={17} className="mr-2" />
-              <span className="hidden sm:inline">Motion {ambientMotion ? "on" : "off"}</span>
-            </Button>
+            <Select value={ambientStyle} onValueChange={chooseAmbientStyle}>
+              <SelectTrigger className="h-9 w-36 border-0 bg-transparent" data-testid="ambient-style-select">
+                <Waves size={16} className="mr-2" /><SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="off">Off</SelectItem>
+                <SelectItem value="net">Net</SelectItem>
+                <SelectItem value="globe">Globe</SelectItem>
+                <SelectItem value="halo">Halo</SelectItem>
+                <SelectItem value="dots">Dots</SelectItem>
+                <SelectItem value="cells">Cells</SelectItem>
+                <SelectItem value="rings">Rings</SelectItem>
+                <SelectItem value="topology">Topology</SelectItem>
+              </SelectContent>
+            </Select>
+            <label className="hidden items-center gap-2 px-2 text-xs text-muted-foreground sm:flex" title="Background animation intensity">
+              <span>Intensity</span>
+              <input type="range" min="0.5" max="2" step="0.25" value={ambientIntensity} onChange={(event) => chooseAmbientIntensity(Number(event.target.value))} className="h-1.5 w-24 cursor-pointer accent-primary" data-testid="ambient-intensity-slider" />
+            </label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -503,7 +555,7 @@ export default function AppShell({ children }: AppShellProps) {
                   data-testid="notifications-button"
                 >
                   <Bell size={18} />
-                  {notifications?.some((item) => item.type === "schedule") && (
+                  {unreadNotifications.length > 0 && (
                     <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
                   )}
                 </Button>
@@ -531,8 +583,9 @@ export default function AppShell({ children }: AppShellProps) {
                       <Link
                         key={item.id}
                         href={
-                          item.type === "schedule" ? "/schedule" : "/dashboard"
+                          item.type === "schedule" ? "/schedule" : item.type === "class" ? "/classes" : "/dashboard"
                         }
+                        onClick={() => markNotificationRead(item.id)}
                         className="block rounded-lg p-3 hover:bg-muted"
                       >
                         <p className="text-sm">{item.message}</p>

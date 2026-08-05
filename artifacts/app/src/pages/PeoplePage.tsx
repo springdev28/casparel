@@ -12,6 +12,7 @@ import {
   Loader2,
   Search,
   Target,
+  X,
   Twitter,
   Users,
   Youtube,
@@ -23,12 +24,9 @@ import {
   getDiscoverResourcesQueryKey,
   getSearchUsersQueryKey,
   useDiscoverResources,
-  useGetMe,
-  useListLearningGoals,
   useSearchUsers,
   type DiscoveredResource,
 } from "@workspace/api-client-react";
-import { getDashboardGoalId } from "../lib/dashboardGoal";
 import {
   Avatar,
   AvatarFallback,
@@ -278,12 +276,6 @@ export default function PeoplePage() {
     [],
   );
   const [goalContext, setGoalContext] = useState("");
-  const { data: me } = useGetMe();
-  const { data: goals } = useListLearningGoals();
-  const selectedGoal = goals?.find(
-    (goal) =>
-      goal.id === getDashboardGoalId(me?.id, me?.activeRole ?? me?.role),
-  );
 
   const params = {
     scope: SearchUsersScope.all,
@@ -305,8 +297,7 @@ export default function PeoplePage() {
     },
   });
 
-  const associatedTopic =
-    goalContext || selectedGoal?.title || selectedGoal?.subject || "";
+  const associatedTopic = query ? "" : goalContext;
   const socialQuery = [
     query ? '"' + query + '"' : "",
     subject.trim(),
@@ -347,8 +338,8 @@ export default function PeoplePage() {
     const params = new URLSearchParams(routeSearch);
     const goal = params.get("goal");
     const subjectParam = params.get("subject");
-    if (goal) setGoalContext(goal);
-    if (subjectParam) setSubject(subjectParam);
+    setGoalContext(goal ?? "");
+    setSubject(subjectParam ?? "");
   }, [routeSearch]);
   useEffect(() => {
     setAccountLimit(24);
@@ -396,7 +387,21 @@ export default function PeoplePage() {
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    setGoalContext("");
+    window.history.replaceState(null, "", window.location.pathname);
     setQuery(inputValue.trim().replace(/\s+/g, " "));
+  }
+
+  function clearSearch() {
+    setInputValue("");
+    setQuery("");
+    setSubject("");
+    setRole("all");
+    setGoalContext("");
+    setAccountLimit(24);
+    setSocialPage(1);
+    setAllSocialPeople([]);
+    window.history.replaceState(null, "", window.location.pathname);
   }
 
   return (
@@ -435,6 +440,9 @@ export default function PeoplePage() {
           </div>
           <Button type="submit" size="lg">
             <Search className="mr-2 size-4" /> Search people
+          </Button>
+          <Button type="button" size="lg" variant="outline" onClick={clearSearch} data-testid="people-clear-search">
+            <X className="mr-2 size-4" /> Clear
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">

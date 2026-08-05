@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -25,6 +25,12 @@ import {
   useDeleteClass,
   useRemoveClassMember,
   useRemoveClassResource,
+  useLeaveClass,
+  useListClassResourceRecommendations,
+  useReviewClassResourceRecommendation,
+  getListClassResourceRecommendationsQueryKey,
+  ClassResourceRecommendationStatus,
+  type ClassResourceRecommendation,
   getListClassesQueryKey,
   getGetClassQueryKey,
   getGetGCStatusQueryKey,
@@ -56,6 +62,7 @@ export default function ClassDetailPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [rosterConfirmed, setRosterConfirmed] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<{ userId: number; name: string } | null>(null);
 
   const { data: cls, isLoading } = useGetClass(classId, {
@@ -73,12 +80,17 @@ export default function ClassDetailPage() {
   const removeClassResource = useRemoveClassResource();
   const deleteClass = useDeleteClass();
   const removeClassMember = useRemoveClassMember();
+  const leaveClass = useLeaveClass();
+  const reviewRecommendation = useReviewClassResourceRecommendation();
+  const { data: classRecommendations } = useListClassResourceRecommendations(classId, {
+    query: { enabled: !!classId, queryKey: getListClassResourceRecommendationsQueryKey(classId) },
+  });
 
   const addMember = useAddClassMember();
   const bulkInvite = useBulkInviteClassMembers();
 
   // Class-specific teacher check: only the teacher of THIS class can manage it
-  const isTeacher = me?.id != null && cls?.teacherId === me.id;
+  const isTeacher = isTeacherRole && me?.id != null && cls?.teacherId === me.id;
   const gcConnected = gcStatus?.connected === true;
   const gcConfigured = gcStatus?.configured === true;
 
@@ -138,6 +150,30 @@ export default function ClassDetailPage() {
       setLocation("/classes");
     } catch (err: unknown) {
       toast({ title: "Could not delete class", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+    }
+  }
+
+  async function handleLeaveClass() {
+    try {
+      await leaveClass.mutateAsync({ id: classId });
+      await queryClient.invalidateQueries({ queryKey: getListClassesQueryKey() });
+      toast({ title: "You left the class" });
+      setLocation("/classes");
+    } catch (err: unknown) {
+      toast({ title: "Could not leave class", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+    }
+  }
+
+  async function handleReviewRecommendation(recommendationId: number, status: "approved" | "declined") {
+    try {
+      await reviewRecommendation.mutateAsync({ id: classId, recommendationId, data: { status } });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getListClassResourceRecommendationsQueryKey(classId) }),
+        queryClient.invalidateQueries({ queryKey: getGetClassResourcesListQueryKey(classId) }),
+      ]);
+      toast({ title: status === "approved" ? "Recommendation approved" : "Recommendation declined" });
+    } catch (err: unknown) {
+      toast({ title: "Could not review recommendation", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
     }
   }
 
@@ -203,6 +239,10 @@ export default function ClassDetailPage() {
               <Badge variant="secondary">{cls.members.length} member{cls.members.length !== 1 ? 's' : ''}</Badge>
 
               {/* Sync Roster — visible to all teachers; state varies by GC connection */}
+              <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
+                <DialogTrigger asChild><Button size="sm" variant="outline" data-testid="leave-class-button"><LogOut size={14} className="mr-1" /> Leave Class</Button></DialogTrigger>
+                <DialogContent><DialogHeader><DialogTitle>Leave {cls.name}?</DialogTitle><DialogDescription>You will lose access to class resources. Class owners must have another teacher available for ownership transfer.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setLeaveDialogOpen(false)}>Cancel</Button><Button variant="destructive" onClick={handleLeaveClass} disabled={leaveClass.isPending} data-testid="leave-class-confirm">{leaveClass.isPending ? "Leaving…" : "Leave Class"}</Button></DialogFooter></DialogContent>
+              </Dialog>
               {isTeacher && (
                 gcConnected ? (
                   <Dialog open={syncDialogOpen} onOpenChange={handleSyncDialogOpenChange}>
@@ -289,9 +329,7 @@ export default function ClassDetailPage() {
                     <RefreshCw size={14} className="mr-1" /> Sync Roster
                   </Button>
                 ) : null
-              )}
-
-              {isTeacher && (
+              )}              {isTeacher && (
                 <Dialog open={memberDialogOpen} onOpenChange={setMemberDialogOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm" data-testid="add-member-button">
@@ -327,8 +365,7 @@ export default function ClassDetailPage() {
                     </form>
                   </DialogContent>
                 </Dialog>
-              )}
-              {isTeacher && (
+              )}              {isTeacher && (
                 <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                   <DialogTrigger asChild><Button size="sm" variant="destructive" data-testid="delete-class-button"><Trash2 size={14} className="mr-1" /> Delete Class</Button></DialogTrigger>
                   <DialogContent><DialogHeader><DialogTitle>Delete {cls.name}?</DialogTitle><DialogDescription>This permanently deletes the class, its memberships, and its class resource list. Original resources remain available.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button><Button variant="destructive" onClick={handleDeleteClass} disabled={deleteClass.isPending} data-testid="delete-class-confirm">{deleteClass.isPending ? "Deleting…" : "Delete Class"}</Button></DialogFooter></DialogContent>
@@ -386,6 +423,20 @@ export default function ClassDetailPage() {
 
       <Separator />
 
+      {isTeacher && (classRecommendations as ClassResourceRecommendation[] | undefined)?.some((item) => item.status === ClassResourceRecommendationStatus.pending) && (
+        <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" data-testid="student-recommendations-bar">
+          <div className="mb-3"><h2 className="font-semibold">Student recommendations</h2><p className="text-xs text-muted-foreground">Review student suggestions before they become class resources.</p></div>
+          <div className="space-y-2">
+            {(classRecommendations as ClassResourceRecommendation[]).filter((item) => item.status === ClassResourceRecommendationStatus.pending).map((item) => (
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3">
+                <div><p className="text-sm font-medium">{item.resource.title}</p><p className="text-xs text-muted-foreground">Recommended by {item.recommenderName}{item.note ? ` — ${item.note}` : ""}</p></div>
+                <div className="flex gap-2"><Button size="sm" onClick={() => handleReviewRecommendation(item.id, "approved")} disabled={reviewRecommendation.isPending}><Check size={14} className="mr-1" /> Approve</Button><Button size="sm" variant="outline" onClick={() => handleReviewRecommendation(item.id, "declined")} disabled={reviewRecommendation.isPending}><X size={14} className="mr-1" /> Decline</Button></div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Class Resources */}
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -395,9 +446,13 @@ export default function ClassDetailPage() {
               {isTeacher ? 'Resources you assign show here for all class members.' : 'Resources assigned by your teacher.'}
             </p>
           </div>
-          {isTeacher && (
+          {isTeacher ? (
             <Button size="sm" variant="outline" onClick={() => setLocation('/resources')}>
               <BookOpen size={14} className="mr-1.5" /> Assign a Resource
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setLocation(`/resources?goal=${encodeURIComponent(cls.subject)}&subject=${encodeURIComponent(cls.subject)}&mode=source`)} data-testid="recommend-class-source">
+              <BookOpen size={14} className="mr-1.5" /> Recommend a Source
             </Button>
           )}
         </div>
@@ -445,8 +500,7 @@ export default function ClassDetailPage() {
                         onClick={() => setLocation(`/resources/${item.resource.id}`)}
                       >
                         View
-                      </Button>
-                      {isTeacher && (
+                      </Button>                      {isTeacher && (
                         <Button
                           size="sm"
                           variant="ghost"

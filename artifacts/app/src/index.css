@@ -1,67 +1,27 @@
-/* Import EduDS design system — provides Tailwind, tokens, and component themes.
-   Do NOT add a separate @import "tailwindcss" — it is included via the package. */
+/* Import EduDS design system — provides Tailwind, tokens, and component themes. */
 @import "@workspace/edu-ds/styles.css";
 
-/* Subtle startup-style ambient field. It never intercepts input and is removed
-   from the tree when the persisted motion switch is off. */
-.codex-ambient {
+.vanta-background {
   position: fixed;
   inset: 0 0 0 14rem;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
-  opacity: 0.78;
-  background: radial-gradient(
-    circle at 55% 15%,
-    hsl(var(--primary) / 0.12),
-    transparent 42%
-  );
+  opacity: var(--vanta-opacity, 0.5);
 }
-.codex-ambient span {
-  position: absolute;
-  width: 24rem;
-  height: 24rem;
-  border-radius: 44% 56% 63% 37%;
-  border: 1px solid hsl(var(--primary) / 0.24);
-  background: radial-gradient(
-    circle at 35% 35%,
-    hsl(var(--primary) / 0.14),
-    transparent 65%
-  );
-  filter: blur(1px);
-  animation: schoolar-ambient-drift 24s ease-in-out infinite alternate;
-}
-.codex-ambient span:nth-child(1) {
-  left: 8%;
-  top: -10rem;
-}
-.codex-ambient span:nth-child(2) {
-  right: -7rem;
-  top: 26%;
-  animation-delay: -8s;
-  animation-duration: 30s;
-}
-.codex-ambient span:nth-child(3) {
-  left: 22%;
-  bottom: -14rem;
-  animation-delay: -15s;
-  animation-duration: 34s;
-}
-@keyframes schoolar-ambient-drift {
-  from {
-    transform: translate3d(-8%, -4%, 0) rotate(0deg) scale(0.94);
-  }
-  to {
-    transform: translate3d(18%, 12%, 0) rotate(24deg) scale(1.1);
-  }
-}
+.vanta-background canvas { display: block; }
 @media (max-width: 767px) {
-  .codex-ambient {
-    inset: 0;
-  }
+  .vanta-background { inset: 0; opacity: 0.3; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .codex-ambient span {
-    animation: none;
-  }
+.vanta-background--cells { opacity: 0.58; }
+.vanta-background--topology { opacity: 0.82; }
+.vanta-background--rings { opacity: 0.72; }
+.vanta-background--dots { opacity: 0.58; }
+.vanta-background--topology canvas {
+  animation: topology-canvas-drift var(--vanta-duration, 24s) ease-in-out infinite alternate;
+  transform-origin: center;
+}
+@keyframes topology-canvas-drift {
+  from { transform: scale(1.02) translate3d(-0.8%, -0.5%, 0); }
+  to { transform: scale(1.08) translate3d(1.5%, 1%, 0); }
 }

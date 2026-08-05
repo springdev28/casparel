@@ -23,7 +23,9 @@ import {
   useListLearningEvidence,
   useListLearningGoals,
   useUpdateLearningGoal,
-  useGetResourceRecommendations,
+  useDiscoverResources,
+  DiscoverResourcesResultType,
+
   UserRole,
 } from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
@@ -35,7 +37,6 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { getSearchHistory } from "../lib/searchHistory";
 import { getDashboardGoalId, pendingCheckInKey } from "../lib/dashboardGoal";
 
 const path = [
@@ -88,7 +89,7 @@ const checkIns = [
   },
 ] as const;
 
-function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: number; workspaceRole?: string }) {
+function StudentView({ name, userId, workspaceRole, isAdmin }: { name?: string; userId?: number; workspaceRole?: string; isAdmin?: boolean }) {
   const [why, setWhy] = useState(true);
   const [confidence, setConfidence] = useState<number | null>(null);
   const queryClient = useQueryClient();
@@ -139,22 +140,57 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
   const nextStepIndex = path.findIndex(
     (step) => !completedSteps.has(step.concept),
   );
-  const recentSearch = getSearchHistory(userId)[0]?.query.toLocaleLowerCase();
-  const { data: verifiedRecommendations, isFetching: recommendationsRefreshing } = useGetResourceRecommendations({
-    query: { queryKey: ["resource-recommendations", activeGoal?.id] },
+  const sourceQuery =
+    [activeGoal?.subject, activeGoal?.title].filter(Boolean).join(" ") ||
+    "high-quality educational learning sources";
+  const { data: internetSources, isFetching: recommendationsRefreshing } =
+    useDiscoverResources(
+      {
+        q: sourceQuery,
+        resultType: DiscoverResourcesResultType.source,
+        page: 1,
+      },
+      {
+        query: {
+          queryKey: [
+            "dashboard-internet-source",
+            userId,
+            activeGoal?.id,
+            sourceQuery,
+          ],
+          staleTime: 300_000,
+          retry: false,
+        },
+      },
+    );
+  const [skippedSourceUrls, setSkippedSourceUrls] = useState<string[]>([]);
+  const [dailySourceRefreshes, setDailySourceRefreshes] = useState(() => {
+    const day = new Date().toLocaleDateString("en-CA");
+    return Number(
+      localStorage.getItem(
+        `schoolar_dashboard_source_refreshes:${userId ?? "guest"}:${day}`,
+      ) ?? "0",
+    );
   });
-  const recommendation = useMemo(() => {
-    const goalTerms = [activeGoal?.title, activeGoal?.subject, activeGoal?.description,
-      ...((activeGoal?.pathSteps ?? []).map((step) => `${step.title} ${step.query}`))]
-      .filter(Boolean).join(" ").toLocaleLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2);
-    const recentTerms = recentSearch?.split(/\s+/).filter(Boolean) ?? [];
-    return [...(verifiedRecommendations ?? [])].map((resource) => {
-      const searchable = [resource.title, resource.description, resource.subject].filter(Boolean).join(" ").toLocaleLowerCase();
-      const score = goalTerms.reduce((sum, term) => sum + (searchable.includes(term) ? 3 : 0), 0)
-        + recentTerms.reduce((sum, term) => sum + (searchable.includes(term) ? 1 : 0), 0);
-      return { resource, score };
-    }).sort((a, b) => b.score - a.score)[0]?.resource;
-  }, [activeGoal, recentSearch, verifiedRecommendations]);
+  useEffect(() => {
+    setSkippedSourceUrls([]);
+  }, [activeGoal?.id]);
+  const recommendation = (internetSources ?? []).find(
+    (source) => !skippedSourceUrls.includes(source.url),
+  );
+  function recommendAnotherDashboardSource() {
+    if (!recommendation || (!isAdmin && dailySourceRefreshes >= 3)) return;
+    setSkippedSourceUrls((urls) => [...urls, recommendation.url]);
+    if (!isAdmin) {
+      const next = dailySourceRefreshes + 1;
+      const day = new Date().toLocaleDateString("en-CA");
+      localStorage.setItem(
+        `schoolar_dashboard_source_refreshes:${userId ?? "guest"}:${day}`,
+        String(next),
+      );
+      setDailySourceRefreshes(next);
+    }
+  }
   const goalEvidence = evidence?.filter((item) => item.learningGoalId === activeGoal?.id) ?? [];
   const answeredCount = goalEvidence.length;
   const [checkIn, setCheckIn] = useState<{ concept: string; prompt: string } | null>(null);
@@ -213,7 +249,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   {recommendation
-                    ? `${recommendation.format} · Recommended from your learning activity`
+                    ? `Internet source · Recommended from your active goal`
                     : "Search or save resources to improve recommendations"}
                 </p>
               </div>
@@ -227,8 +263,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                 <b className="text-sm">Why this resource?</b>
                 {why && (
                   <p className="mt-1 text-sm text-muted-foreground">
-                    This recommendation is based on your recent searches, saved
-                    resources, and progress toward{" "}
+                    This source was found on the internet from your active goal and is never selected from your saved library. Goal:{" "}
                     {activeGoal?.title ?? "your next learning goal"}.
                   </p>
                 )}
@@ -239,16 +274,14 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                 <Target size={16} />
                 Goal: {activeGoal?.title ?? "Create a goal to build your path"}
               </span>
-              <Button
-                disabled={!recommendation}
-                onClick={() =>
-                  recommendation &&
-                  setLocation(`/resources/${recommendation.id}`)
-                }
-              >
-                Continue learning
-                <ArrowRight size={16} className="ml-2" />
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" disabled={!recommendation || (!isAdmin && dailySourceRefreshes >= 3)} onClick={recommendAnotherDashboardSource} data-testid="dashboard-recommend-another-source">
+                  <RefreshCw size={16} className="mr-2" /> Recommend another source
+                </Button>
+                <Button disabled={!recommendation} asChild={Boolean(recommendation)}>
+                  {recommendation ? <a href={recommendation.url} target="_blank" rel="noopener noreferrer">Visit source <ArrowRight size={16} className="ml-2" /></a> : <span>No source</span>}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -617,6 +650,6 @@ export default function AdaptiveDashboardPage() {
   return me && (me?.activeRole ?? me?.role) === UserRole.teacher ? (
     <TeacherView name={me.name} />
   ) : (
-    <StudentView name={me?.name} userId={me?.id} workspaceRole={me?.activeRole ?? me?.role} />
+    <StudentView name={me?.name} userId={me?.id} workspaceRole={me?.activeRole ?? me?.role} isAdmin={me?.role === UserRole.admin} />
   );
 }

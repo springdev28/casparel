@@ -58,6 +58,8 @@ import {
   useDeleteResource,
   useListClasses,
   useAssignResourceToClass,
+  useRecommendResourceToClass,
+  getListClassResourceRecommendationsQueryKey,
   getListResourceReviewsQueryKey,
   getGetResourceQueryKey,
   getListResourcesQueryKey,
@@ -645,11 +647,15 @@ export default function ResourceDetailPage() {
 
   // Assign to class
   const { data: classes } = useListClasses({
-    query: { enabled: isTeacher, queryKey: getListClassesQueryKey() },
+    query: { enabled: isLoggedIn, queryKey: getListClassesQueryKey() },
   });
   const assignResource = useAssignResourceToClass();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignClassId, setAssignClassId] = useState("");
+  const [recommendDialogOpen, setRecommendDialogOpen] = useState(false);
+  const [recommendClassId, setRecommendClassId] = useState("");
+  const [recommendNote, setRecommendNote] = useState("");
+  const recommendResource = useRecommendResourceToClass();
 
   async function handleAssign() {
     if (!assignClassId) return;
@@ -673,6 +679,20 @@ export default function ResourceDetailPage() {
         description: "Could not assign the resource.",
         variant: "destructive",
       });
+    }
+  }
+
+  async function handleRecommend() {
+    if (!recommendClassId) return;
+    try {
+      await recommendResource.mutateAsync({ id: Number(recommendClassId), data: { resourceId, note: recommendNote.trim() || undefined } });
+      queryClient.invalidateQueries({ queryKey: getListClassResourceRecommendationsQueryKey(Number(recommendClassId)) });
+      toast({ title: "Recommendation sent", description: "Your teacher was notified and can approve it." });
+      setRecommendDialogOpen(false);
+      setRecommendClassId("");
+      setRecommendNote("");
+    } catch (err: unknown) {
+      toast({ title: "Could not recommend resource", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
     }
   }
 
@@ -964,6 +984,16 @@ export default function ResourceDetailPage() {
                         </Button>
                       </DialogFooter>
                     </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+
+              {isLoggedIn && !isTeacher && (
+                <Dialog open={recommendDialogOpen} onOpenChange={setRecommendDialogOpen}>
+                  <DialogTrigger asChild><Button size="sm" variant="outline" data-testid="recommend-to-class-button"><GraduationCap size={14} className="mr-1" /> Recommend to Class</Button></DialogTrigger>
+                  <DialogContent><DialogHeader><DialogTitle>Recommend to Class</DialogTitle><DialogDescription>Your teacher must approve this suggestion before it appears in class resources.</DialogDescription></DialogHeader>
+                    <div className="space-y-4"><div className="space-y-1.5"><Label>Class</Label><Select value={recommendClassId} onValueChange={setRecommendClassId}><SelectTrigger><SelectValue placeholder="Select a class…" /></SelectTrigger><SelectContent>{classes?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1.5"><Label>Why do you recommend it? (optional)</Label><Textarea value={recommendNote} onChange={(event) => setRecommendNote(event.target.value)} maxLength={500} /></div></div>
+                    <DialogFooter><Button variant="outline" onClick={() => setRecommendDialogOpen(false)}>Cancel</Button><Button onClick={handleRecommend} disabled={!recommendClassId || recommendResource.isPending}>{recommendResource.isPending ? "Sending…" : "Send Recommendation"}</Button></DialogFooter>
                   </DialogContent>
                 </Dialog>
               )}

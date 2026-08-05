@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, desc, eq } from "drizzle-orm";
-import { db, learningGoalsTable } from "@workspace/db";
+import { db, learningGoalsTable, classMembersTable, usersTable, activityLogTable } from "@workspace/db";
 import {
   CreateLearningGoalBody,
   CreateLearningGoalResponse,
@@ -9,12 +9,16 @@ import {
   UpdateLearningGoalBody,
   UpdateLearningGoalParams,
   UpdateLearningGoalResponse,
+  ListClassStudentGoalsResponse,
+  UpdateClassStudentGoalBody,
+  UpdateClassStudentGoalResponse,
 } from "@workspace/api-zod";
 import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import { isClassTeacher } from "../lib/authz";
 
 const router: IRouter = Router();
 function dateString(
@@ -52,6 +56,69 @@ function initialPath(title: string, subject: string) {
     },
   ];
 }
+
+// Teacher view of goals belonging to students enrolled in an owned class.
+router.get("/classes/:id/student-goals", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const classId = Number(req.params.id);
+  if (!classId || !(await isClassTeacher(classId, userId))) {
+    res.status(403).json({ error: "Only the class teacher can manage student goals" });
+    return;
+  }
+  const rows = await db
+    .select({ goal: learningGoalsTable, studentName: usersTable.name })
+    .from(learningGoalsTable)
+    .innerJoin(classMembersTable, and(
+      eq(classMembersTable.userId, learningGoalsTable.userId),
+      eq(classMembersTable.classId, classId),
+      eq(classMembersTable.role, "student"),
+    ))
+    .innerJoin(usersTable, eq(usersTable.id, learningGoalsTable.userId))
+    .where(eq(learningGoalsTable.workspaceRole, "student"))
+    .orderBy(desc(learningGoalsTable.updatedAt));
+  res.json(ListClassStudentGoalsResponse.parse(rows.map((row) => ({ ...row.goal, studentName: row.studentName, classId }))));
+});
+
+router.patch("/classes/:id/student-goals/:goalId", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const classId = Number(req.params.id);
+  const goalId = Number(req.params.goalId);
+  const body = UpdateClassStudentGoalBody.safeParse(req.body);
+  if (!classId || !goalId || !body.success) {
+    res.status(400).json({ error: "Invalid student goal update" });
+    return;
+  }
+  if (!(await isClassTeacher(classId, userId))) {
+    res.status(403).json({ error: "Only the class teacher can manage student goals" });
+    return;
+  }
+  const [existing] = await db
+    .select({ goal: learningGoalsTable, studentName: usersTable.name })
+    .from(learningGoalsTable)
+    .innerJoin(classMembersTable, and(
+      eq(classMembersTable.userId, learningGoalsTable.userId),
+      eq(classMembersTable.classId, classId),
+      eq(classMembersTable.role, "student"),
+    ))
+    .innerJoin(usersTable, eq(usersTable.id, learningGoalsTable.userId))
+    .where(and(eq(learningGoalsTable.id, goalId), eq(learningGoalsTable.workspaceRole, "student")));
+  if (!existing) {
+    res.status(404).json({ error: "Student goal not found in this class" });
+    return;
+  }
+  const [goal] = await db.update(learningGoalsTable).set({
+    ...body.data,
+    targetDate: dateString(body.data.targetDate),
+    updatedAt: new Date().toISOString(),
+  }).where(eq(learningGoalsTable.id, goalId)).returning();
+  await db.insert(activityLogTable).values({
+    userId: goal.userId,
+    type: "class",
+    workspaceRole: "student",
+    message: `Your teacher updated your goal “”.`,
+  });
+  res.json(UpdateClassStudentGoalResponse.parse({ ...goal, studentName: existing.studentName, classId }));
+});
 
 router.get("/learning-goals", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;

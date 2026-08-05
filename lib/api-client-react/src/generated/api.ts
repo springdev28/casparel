@@ -36,6 +36,9 @@ import type {
   ClassMember,
   ClassMemberInput,
   ClassPatch,
+  ClassResourceRecommendation,
+  ClassResourceRecommendationInput,
+  ClassResourceRecommendationReview,
   ClassWithMembers,
   DashboardSummary,
   DiscoverResourcesParams,
@@ -89,6 +92,7 @@ import type {
   SeatingStudent,
   ShareListInput,
   SourceReview,
+  StudentLearningGoal,
   StudentNoteInput,
   StudySessionInput,
   StudySessionPatch,
@@ -2628,6 +2632,157 @@ export const useSuggestSeatingPlan = <TError = ErrorType<void>,
       return useMutation(getSuggestSeatingPlanMutationOptions(options));
     }
 
+export const getListClassStudentGoalsUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/student-goals`
+}
+
+/**
+ * @summary List learning goals for students in a teacher-owned class
+ */
+export const listClassStudentGoals = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<StudentLearningGoal[]> => {
+
+  return customFetch<StudentLearningGoal[]>(getListClassStudentGoalsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClassStudentGoalsQueryKey = (id: number,) => {
+    return [
+    `/api/classes/${id}/student-goals`
+    ] as const;
+    }
+
+
+export const getListClassStudentGoalsQueryOptions = <TData = Awaited<ReturnType<typeof listClassStudentGoals>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClassStudentGoals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClassStudentGoalsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClassStudentGoals>>> = ({ signal }) => listClassStudentGoals(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClassStudentGoals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListClassStudentGoalsQueryResult = NonNullable<Awaited<ReturnType<typeof listClassStudentGoals>>>
+export type ListClassStudentGoalsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List learning goals for students in a teacher-owned class
+ */
+
+export function useListClassStudentGoals<TData = Awaited<ReturnType<typeof listClassStudentGoals>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClassStudentGoals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListClassStudentGoalsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateClassStudentGoalUrl = (id: number,
+    goalId: number,) => {
+
+
+
+
+  return `/api/classes/${id}/student-goals/${goalId}`
+}
+
+/**
+ * @summary Update a student learning goal as their class teacher
+ */
+export const updateClassStudentGoal = async (id: number,
+    goalId: number,
+    learningGoalPatch: LearningGoalPatch, options?: Parameters<typeof customFetch>[1]): Promise<StudentLearningGoal> => {
+
+  return customFetch<StudentLearningGoal>(getUpdateClassStudentGoalUrl(id,goalId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(learningGoalPatch)
+  }
+);}
+
+
+
+
+
+export const getUpdateClassStudentGoalMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClassStudentGoal>>, TError,{id: number;goalId: number;data: BodyType<LearningGoalPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateClassStudentGoal>>, TError,{id: number;goalId: number;data: BodyType<LearningGoalPatch>}, TContext> => {
+
+const mutationKey = ['updateClassStudentGoal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateClassStudentGoal>>, {id: number;goalId: number;data: BodyType<LearningGoalPatch>}> = (props) => {
+          const {id,goalId,data} = props ?? {};
+
+          return  updateClassStudentGoal(id,goalId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateClassStudentGoalMutationResult = NonNullable<Awaited<ReturnType<typeof updateClassStudentGoal>>>
+    export type UpdateClassStudentGoalMutationBody = BodyType<LearningGoalPatch>
+    export type UpdateClassStudentGoalMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a student learning goal as their class teacher
+ */
+export const useUpdateClassStudentGoal = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateClassStudentGoal>>, TError,{id: number;goalId: number;data: BodyType<LearningGoalPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateClassStudentGoal>>,
+        TError,
+        {id: number;goalId: number;data: BodyType<LearningGoalPatch>},
+        TContext
+      > => {
+      return useMutation(getUpdateClassStudentGoalMutationOptions(options));
+    }
+
 export const getGetClassResourcesListUrl = (id: number,) => {
 
 
@@ -2848,6 +3003,300 @@ export const useRemoveClassResource = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRemoveClassResourceMutationOptions(options));
+    }
+
+export const getLeaveClassUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/leave`
+}
+
+/**
+ * @summary Leave a class; owners transfer ownership to another teacher
+ */
+export const leaveClass = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getLeaveClassUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getLeaveClassMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveClass>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof leaveClass>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['leaveClass'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof leaveClass>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  leaveClass(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LeaveClassMutationResult = NonNullable<Awaited<ReturnType<typeof leaveClass>>>
+
+    export type LeaveClassMutationError = ErrorType<void>
+
+    /**
+ * @summary Leave a class; owners transfer ownership to another teacher
+ */
+export const useLeaveClass = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveClass>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof leaveClass>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getLeaveClassMutationOptions(options));
+    }
+
+export const getListClassResourceRecommendationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/resource-recommendations`
+}
+
+/**
+ * @summary List student resource recommendations
+ */
+export const listClassResourceRecommendations = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ClassResourceRecommendation[]> => {
+
+  return customFetch<ClassResourceRecommendation[]>(getListClassResourceRecommendationsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClassResourceRecommendationsQueryKey = (id: number,) => {
+    return [
+    `/api/classes/${id}/resource-recommendations`
+    ] as const;
+    }
+
+
+export const getListClassResourceRecommendationsQueryOptions = <TData = Awaited<ReturnType<typeof listClassResourceRecommendations>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClassResourceRecommendations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClassResourceRecommendationsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClassResourceRecommendations>>> = ({ signal }) => listClassResourceRecommendations(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClassResourceRecommendations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListClassResourceRecommendationsQueryResult = NonNullable<Awaited<ReturnType<typeof listClassResourceRecommendations>>>
+export type ListClassResourceRecommendationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List student resource recommendations
+ */
+
+export function useListClassResourceRecommendations<TData = Awaited<ReturnType<typeof listClassResourceRecommendations>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClassResourceRecommendations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListClassResourceRecommendationsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRecommendResourceToClassUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/resource-recommendations`
+}
+
+/**
+ * @summary Recommend a resource for teacher approval (students only)
+ */
+export const recommendResourceToClass = async (id: number,
+    classResourceRecommendationInput: ClassResourceRecommendationInput, options?: Parameters<typeof customFetch>[1]): Promise<ClassResourceRecommendation> => {
+
+  return customFetch<ClassResourceRecommendation>(getRecommendResourceToClassUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(classResourceRecommendationInput)
+  }
+);}
+
+
+
+
+
+export const getRecommendResourceToClassMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recommendResourceToClass>>, TError,{id: number;data: BodyType<ClassResourceRecommendationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recommendResourceToClass>>, TError,{id: number;data: BodyType<ClassResourceRecommendationInput>}, TContext> => {
+
+const mutationKey = ['recommendResourceToClass'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recommendResourceToClass>>, {id: number;data: BodyType<ClassResourceRecommendationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  recommendResourceToClass(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecommendResourceToClassMutationResult = NonNullable<Awaited<ReturnType<typeof recommendResourceToClass>>>
+    export type RecommendResourceToClassMutationBody = BodyType<ClassResourceRecommendationInput>
+    export type RecommendResourceToClassMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Recommend a resource for teacher approval (students only)
+ */
+export const useRecommendResourceToClass = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recommendResourceToClass>>, TError,{id: number;data: BodyType<ClassResourceRecommendationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recommendResourceToClass>>,
+        TError,
+        {id: number;data: BodyType<ClassResourceRecommendationInput>},
+        TContext
+      > => {
+      return useMutation(getRecommendResourceToClassMutationOptions(options));
+    }
+
+export const getReviewClassResourceRecommendationUrl = (id: number,
+    recommendationId: number,) => {
+
+
+
+
+  return `/api/classes/${id}/resource-recommendations/${recommendationId}`
+}
+
+/**
+ * @summary Approve or decline a student resource recommendation (teacher only)
+ */
+export const reviewClassResourceRecommendation = async (id: number,
+    recommendationId: number,
+    classResourceRecommendationReview: ClassResourceRecommendationReview, options?: Parameters<typeof customFetch>[1]): Promise<ClassResourceRecommendation> => {
+
+  return customFetch<ClassResourceRecommendation>(getReviewClassResourceRecommendationUrl(id,recommendationId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(classResourceRecommendationReview)
+  }
+);}
+
+
+
+
+
+export const getReviewClassResourceRecommendationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewClassResourceRecommendation>>, TError,{id: number;recommendationId: number;data: BodyType<ClassResourceRecommendationReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewClassResourceRecommendation>>, TError,{id: number;recommendationId: number;data: BodyType<ClassResourceRecommendationReview>}, TContext> => {
+
+const mutationKey = ['reviewClassResourceRecommendation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewClassResourceRecommendation>>, {id: number;recommendationId: number;data: BodyType<ClassResourceRecommendationReview>}> = (props) => {
+          const {id,recommendationId,data} = props ?? {};
+
+          return  reviewClassResourceRecommendation(id,recommendationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewClassResourceRecommendationMutationResult = NonNullable<Awaited<ReturnType<typeof reviewClassResourceRecommendation>>>
+    export type ReviewClassResourceRecommendationMutationBody = BodyType<ClassResourceRecommendationReview>
+    export type ReviewClassResourceRecommendationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Approve or decline a student resource recommendation (teacher only)
+ */
+export const useReviewClassResourceRecommendation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewClassResourceRecommendation>>, TError,{id: number;recommendationId: number;data: BodyType<ClassResourceRecommendationReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewClassResourceRecommendation>>,
+        TError,
+        {id: number;recommendationId: number;data: BodyType<ClassResourceRecommendationReview>},
+        TContext
+      > => {
+      return useMutation(getReviewClassResourceRecommendationMutationOptions(options));
     }
 
 export const getListResourcesUrl = (params?: ListResourcesParams,) => {

@@ -61,7 +61,7 @@ import {
   useDeleteResource,
   useGetMe,
   useDiscoverResources,
-  useGetResourceRecommendations,
+  useListLearningGoals,
   usePrefetchResourceMetadata,
   useListClasses,
   useAssignResourceToClass,
@@ -72,6 +72,7 @@ import {
   getGetDashboardSummaryQueryKey,
   getGetClassResourcesListQueryKey,
   getListClassesQueryKey,
+  getListLearningGoalsQueryKey,
   ListResourcesFormat,
   ListResourcesSortBy,
   ResourceInputFormat,
@@ -91,6 +92,19 @@ import {
 } from "../lib/searchHistory";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
+const DAILY_SOURCE_RECOMMENDATION_LIMIT = 3;
+
+function sourceRecommendationUsageKey(userId?: number) {
+  const date = new Date().toLocaleDateString("en-CA");
+  return `schoolar_source_recommendations:${userId ?? "guest"}:${date}`;
+}
+
+function getSourceRecommendationUsage(userId?: number) {
+  const value = Number(
+    localStorage.getItem(sourceRecommendationUsageKey(userId)) ?? "0",
+  );
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
 const SEARCH_LANGUAGE_OPTIONS = [
   { code: DiscoverResourcesLanguage.any, label: "Any language" },
   ...AUTH_LANGUAGES,
@@ -587,12 +601,14 @@ export default function ResourcesPage() {
     const params = new URLSearchParams(routeSearch);
     const goal = params.get("goal");
     const subject = params.get("subject");
+    const mode = params.get("mode");
     if (goal) {
       setInputValue(goal);
       setActiveQuery(goal);
       setLibraryLimit(12);
     }
     if (subject) setSubjectFilter(subject);
+    if (mode === "source") setResultTypeFilter(DiscoverResourcesResultType.source);
   }, [routeSearch]);
 
   const isSearching = activeQuery.trim().length > 0;
@@ -603,17 +619,42 @@ export default function ResourcesPage() {
     query: { retry: false, queryKey: getGetMeQueryKey() },
   });
   const isLoggedIn = !!me;
+  const isAdmin = me?.role === "admin";
+
+  useEffect(() => {
+    setSourceRefreshes(getSourceRecommendationUsage(me?.id));
+  }, [me?.id]);
 
   useEffect(() => {
     setSearchHistory(getSearchHistory(me?.id));
   }, [me?.id]);
 
-  // Recommendations (shown when NOT searching)
-  const { data: recommendations, isLoading: recsLoading } =
-    useGetResourceRecommendations({
+  const { data: learningGoals } = useListLearningGoals({
+    query: { enabled: isLoggedIn, queryKey: getListLearningGoalsQueryKey() },
+  });
+  const personalisedSourceQuery = [
+    ...(me?.subjects ?? []),
+    ...(learningGoals ?? [])
+      .filter((goal) => goal.status === "active")
+      .flatMap((goal) => [goal.title, goal.subject]),
+  ]
+    .map((term) => term.trim())
+    .filter(Boolean)
+    .filter((term, index, all) => all.indexOf(term) === index)
+    .slice(0, 8)
+    .join(" ") || "high-quality educational sources for lifelong learning";
+  const personalisedDiscoverParams = {
+    q: personalisedSourceQuery,
+    resultType: DiscoverResourcesResultType.source,
+    page: 1,
+  };
+  const { data: personalisedSources, isFetching: personalisedSourcesLoading } =
+    useDiscoverResources(personalisedDiscoverParams, {
       query: {
-        queryKey: getGetResourceRecommendationsQueryKey(),
-        staleTime: 1000 * 60 * 5,
+        enabled: !isSearching,
+        queryKey: ["personalised-internet-sources", me?.id ?? "guest", personalisedSourceQuery],
+        staleTime: 300_000,
+        retry: false,
       },
     });
 
@@ -638,6 +679,21 @@ export default function ResourcesPage() {
         queryKey: getListResourcesQueryKey(libraryParams),
       },
     },
+  );
+
+  // Load the catalogue to identify this user's existing library URLs even
+  // while source-only mode hides the library results panel.
+  const libraryCatalogParams = { limit: 50, offset: 0 };
+  const { data: libraryCatalog } = useListResources(libraryCatalogParams, {
+    query: {
+      enabled: isLoggedIn,
+      queryKey: getListResourcesQueryKey(libraryCatalogParams),
+    },
+  });
+  const savedLibraryUrls = new Set(
+    (libraryCatalog ?? [])
+      .filter((resource) => resource.submittedById === me?.id)
+      .map((resource) => resource.url),
   );
 
   // Web discover (shown when searching) — accumulate across pages
@@ -685,7 +741,6 @@ export default function ResourcesPage() {
     setWebPage(1);
     setAllWebResults([]);
     setHiddenSourceUrls([]);
-    setSourceRefreshes(0);
   }, [activeQuery]);
 
   // Reset accumulated results when any filter changes
@@ -935,17 +990,34 @@ export default function ResourcesPage() {
 
   async function handleSaveSource(resource: DiscoveredResource) {
     const saved = await handleAddWeb(resource);
-    if (saved) setHiddenSourceUrls((urls) => [...urls, resource.url]);
+    if (saved) {
+      // Advance immediately; the invalidated library query also ensures this
+      // URL remains excluded if the search results are rebuilt.
+      setHiddenSourceUrls((urls) => [...new Set([...urls, resource.url])]);
+    }
   }
 
-  function recommendAnotherSource() {
-    if (sourceRefreshes >= 3) return;
-    const visibleSource = allWebResults.find(
-      (resource) => !hiddenSourceUrls.includes(resource.url),
+  function recommendAnotherSource(sourcePool: DiscoveredResource[] = allWebResults) {
+    if (!isAdmin && sourceRefreshes >= DAILY_SOURCE_RECOMMENDATION_LIMIT) return;
+    const visibleSource = sourcePool.find(
+      (resource) =>
+        !hiddenSourceUrls.includes(resource.url) &&
+        !savedLibraryUrls.has(resource.url),
     );
-    if (visibleSource)
-      setHiddenSourceUrls((urls) => [...urls, visibleSource.url]);
-    setSourceRefreshes((count) => count + 1);
+    if (!visibleSource) return;
+    setHiddenSourceUrls((urls) => [...new Set([...urls, visibleSource.url])]);
+    if (isAdmin) return;
+    setSourceRefreshes((count) => {
+      const next = Math.min(
+        count + 1,
+        DAILY_SOURCE_RECOMMENDATION_LIMIT,
+      );
+      localStorage.setItem(
+        sourceRecommendationUsageKey(me?.id),
+        String(next),
+      );
+      return next;
+    });
   }
 
   return (
@@ -1317,65 +1389,54 @@ export default function ResourcesPage() {
         </section>
       )}
 
-      {/* ── RECOMMENDATIONS (default view, no active search) ─────────── */}
+      {/* ── AUTOMATIC INTERNET SOURCE RECOMMENDATION ─────────── */}
       {!isSearching && (
         <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
-            <BookOpen size={14} />
-            Library
+          <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <Globe size={14} /> Recommended internet source
           </h2>
-          {recsLoading ? (
-            <CardSkeletons />
-          ) : !recommendations || recommendations.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <BookOpen size={36} className="mx-auto mb-3 opacity-30" />
-              <p className="font-medium text-foreground">No resources yet</p>
-              <p className="text-sm mt-1">
-                Be the first to submit one, or search to find resources across
-                the web.
-              </p>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Automatically searched from {isLoggedIn ? "your selected interests and active learning goals" : "high-quality educational sources"}. Saved library sources are excluded.
+          </p>
+          {personalisedSourcesLoading ? (
+            <CardSkeletons count={1} />
+          ) : !(personalisedSources ?? []).some((resource) => !hiddenSourceUrls.includes(resource.url) && !savedLibraryUrls.has(resource.url)) ? (
+            <div className="rounded-lg border py-10 text-center text-muted-foreground">
+              <Globe size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="font-medium text-foreground">No new source found</p>
+              <p className="mt-1 text-sm">Try adding interests or an active learning goal.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recommendations.map((r) => (
-                <LibraryCard
-                  key={r.id}
-                  resource={r}
-                  onClick={() => setLocation(`/resources/${r.id}`)}
-                  onRemove={
-                    me ? () => handleRemoveCard(r.id, r.title) : undefined
-                  }
-                  onAssign={
-                    isTeacher
-                      ? () => setAssignTarget({ id: r.id, title: r.title })
-                      : undefined
-                  }
-                />
-              ))}
+            <div className="max-w-xl">
+              {(personalisedSources ?? [])
+                .filter((resource) => !hiddenSourceUrls.includes(resource.url) && !savedLibraryUrls.has(resource.url))
+                .slice(0, 1)
+                .map((resource) => (
+                  <SourceCard key={resource.url} resource={resource} onSave={handleSaveSource} saving={addingUrl === resource.url} />
+                ))}
             </div>
           )}
-          {!isLoggedIn && recommendations && recommendations.length > 0 && (
-            <div className="mt-6 rounded-lg border bg-muted/40 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div>
-                <p className="font-medium text-sm">
-                  Get personalised recommendations
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Sign in and Schoolar learns what you like.
-                </p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <Button variant="outline" size="sm" asChild>
-                  <Link href="/auth/login">Sign in</Link>
-                </Button>
-                <Button size="sm" asChild>
-                  <Link href="/auth/register">Get started</Link>
-                </Button>
-              </div>
-            </div>
-          )}
+          <div className="mt-4 space-y-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={personalisedSourcesLoading || (!isAdmin && sourceRefreshes >= DAILY_SOURCE_RECOMMENDATION_LIMIT)}
+              onClick={() => recommendAnotherSource(personalisedSources ?? [])}
+              data-testid="personalised-recommend-another-source"
+            >
+              <RefreshCw size={12} className="mr-1.5" /> Recommend another source
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {isAdmin ? (
+                "Unlimited additional recommendations for admins"
+              ) : (
+                <>{Math.max(DAILY_SOURCE_RECOMMENDATION_LIMIT - sourceRefreshes, 0)} of {DAILY_SOURCE_RECOMMENDATION_LIMIT} additional recommendations remaining today</>
+              )}
+            </p>
+          </div>
         </section>
       )}
+
 
       {/* ── SEARCH RESULTS ────────────────────────────────────────────── */}
       {isSearching && (
@@ -1492,7 +1553,8 @@ export default function ResourcesPage() {
                     ? allWebResults
                         .filter(
                           (resource) =>
-                            !hiddenSourceUrls.includes(resource.url),
+                            !hiddenSourceUrls.includes(resource.url) &&
+                            !savedLibraryUrls.has(resource.url),
                         )
                         .slice(0, 1)
                     : allWebResults
@@ -1520,16 +1582,24 @@ export default function ResourcesPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={sourceRefreshes >= 3 || webLoading}
-                        onClick={recommendAnotherSource}
+                        disabled={
+                          (!isAdmin && sourceRefreshes >= DAILY_SOURCE_RECOMMENDATION_LIMIT) ||
+                          webLoading
+                        }
+                        onClick={() => recommendAnotherSource()}
                         data-testid="recommend-another-source"
                       >
                         <RefreshCw size={12} className="mr-1.5" /> Recommend
                         another source
                       </Button>
                       <p className="text-xs text-muted-foreground">
-                        {3 - sourceRefreshes} of 3 additional recommendations
-                        remaining for this search
+                        {isAdmin ? (
+                          "Unlimited additional recommendations for admins"
+                        ) : (
+                          <>
+                            {Math.max(DAILY_SOURCE_RECOMMENDATION_LIMIT - sourceRefreshes, 0)} of {DAILY_SOURCE_RECOMMENDATION_LIMIT} additional recommendations remaining today
+                          </>
+                        )}
                       </p>
                     </div>
                   ) : (

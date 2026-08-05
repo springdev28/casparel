@@ -3,7 +3,10 @@ import { logger } from "./lib/logger";
 import { runMigrations } from "@workspace/db";
 import { initRateLimitStore } from "./lib/rateLimitStore";
 
-const rawPort = process.env["PORT"] ?? "5000";
+// Replit runs the API as a dedicated service on 8080. Local development keeps
+// the conventional 5000 fallback. This must match the web app proxy defaults
+// or every /api request is sent to an unused port and surfaces as a 502.
+const rawPort = process.env["PORT"] ?? (process.env["REPL_ID"] ? "8080" : "5000");
 
 const port = Number(rawPort);
 

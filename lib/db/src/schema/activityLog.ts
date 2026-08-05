@@ -16,6 +16,7 @@ export const activityLogTable = pgTable("activity_log", {
   userId: integer("user_id").references(() => usersTable.id),
   type: activityTypeEnum("type").notNull(),
   message: text("message").notNull(),
+  workspaceRole: text("workspace_role").$type<"student" | "teacher" | "shared">().notNull().default("shared"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });
 
