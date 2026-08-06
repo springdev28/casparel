@@ -150,7 +150,10 @@ function applyColors(colors: InterfaceColors) {
     "--secondary": surface,
     "--secondary-foreground": surfaceForeground,
     "--muted": surface,
-    "--muted-foreground": surfaceForeground,
+    // Unframed secondary text sits on the page canvas, so its contrast follows
+    // the page background. Cards and other surfaces provide their own text
+    // colors locally.
+    "--muted-foreground": backgroundForeground,
     "--primary": primary,
     "--primary-foreground": primaryForeground,
     "--ring": primary,
