@@ -157,7 +157,61 @@ router.get("/classes/:id", requireAuth, async (req, res): Promise<void> => {
       return { ...m, user };
     }),
   );
-  res.json(GetClassResponse.parse({ ...cls, members }));
+
+  const ownMembership = membersRaw.find((member) => member.userId === userId);
+  let mySeat:
+    | {
+        assigned: boolean;
+        layoutMode: "grid" | "custom";
+        row: number | null;
+        column: number | null;
+        deskId: string | null;
+        deskLabel: string | null;
+        deskSeat: number | null;
+        relativePosition: "front" | "middle" | "back" | null;
+      }
+    | undefined;
+
+  if (ownMembership?.role === "student") {
+    const desks = cls.seatingLayout ?? [];
+    const layoutMode = desks.length > 0 ? "custom" : "grid";
+    const desk =
+      layoutMode === "custom"
+        ? desks.find((item) => item.id === ownMembership.seatDeskId)
+        : undefined;
+    const assigned =
+      layoutMode === "custom"
+        ? desk != null && ownMembership.seatPosition != null
+        : ownMembership.seatRow != null && ownMembership.seatColumn != null;
+    const positionPercent = !assigned
+      ? null
+      : layoutMode === "custom"
+        ? desk?.y ?? null
+        : ((ownMembership.seatRow! + 0.5) /
+            Math.max(cls.seatingRows, 1)) *
+          100;
+    const relativePosition =
+      positionPercent == null
+        ? null
+        : positionPercent <= 33
+          ? "front"
+          : positionPercent >= 67
+            ? "back"
+            : "middle";
+
+    mySeat = {
+      assigned,
+      layoutMode,
+      row: ownMembership.seatRow,
+      column: ownMembership.seatColumn,
+      deskId: ownMembership.seatDeskId,
+      deskLabel: desk?.label || null,
+      deskSeat: ownMembership.seatPosition,
+      relativePosition,
+    };
+  }
+
+  res.json(GetClassResponse.parse({ ...cls, members, mySeat }));
 });
 
 // PATCH /classes/:id — class teacher only
