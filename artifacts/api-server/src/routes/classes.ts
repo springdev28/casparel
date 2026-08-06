@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod/v4";
 import { eq, sql, and, max, asc, desc } from "drizzle-orm";
 import { db, classesTable, classMembersTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable } from "@workspace/db";
 import {
@@ -459,10 +460,64 @@ router.get("/classes/:id/seating-chart", requireAuth, async (req, res): Promise<
   const { userId } = req as AuthenticatedRequest;
   const params = GetSeatingChartParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  if (!(await isClassTeacher(params.data.id, userId))) { res.status(403).json({ error: "Only the class teacher can view private seating notes" }); return; }
+  const teacher = await isClassTeacher(params.data.id, userId);
+  if (!teacher && !(await isClassMember(params.data.id, userId))) {
+    res.status(403).json({ error: "Only class members can view the seating chart" });
+    return;
+  }
   const chart = await seatingChart(params.data.id);
   if (!chart) { res.status(404).json({ error: "Class not found" }); return; }
-  res.json(GetSeatingChartResponse.parse(chart));
+  const visibleChart = teacher
+    ? chart
+    : {
+        ...chart,
+        students: chart.students.map((student) => ({ ...student, teacherNote: null })),
+      };
+  res.json(GetSeatingChartResponse.parse(visibleChart));
+});
+
+const SeatingSuggestionBody = z.object({
+  message: z.string().trim().min(3).max(1000),
+});
+
+router.post("/classes/:id/seating-suggestions", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const params = GetSeatingChartParams.safeParse(req.params);
+  const body = SeatingSuggestionBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "Please enter a suggestion between 3 and 1000 characters" });
+    return;
+  }
+
+  const [membership] = await db
+    .select({ role: classMembersTable.role })
+    .from(classMembersTable)
+    .where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.userId, userId)));
+  if (membership?.role !== "student") {
+    res.status(403).json({ error: "Only students in this class can submit seating suggestions" });
+    return;
+  }
+
+  const [cls] = await db
+    .select({ name: classesTable.name, teacherId: classesTable.teacherId })
+    .from(classesTable)
+    .where(eq(classesTable.id, params.data.id));
+  const [student] = await db
+    .select({ name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  if (!cls || !student) {
+    res.status(404).json({ error: "Class or student not found" });
+    return;
+  }
+
+  await db.insert(activityLogTable).values({
+    userId: cls.teacherId,
+    type: "class",
+    workspaceRole: "teacher",
+    message: `${student.name} suggested a seating change in ${cls.name}: ${body.data.message}`,
+  });
+  res.status(201).json({ success: true });
 });
 
 router.put("/classes/:id/seating-chart", contentLimiter, requireAuth, async (req, res): Promise<void> => {
