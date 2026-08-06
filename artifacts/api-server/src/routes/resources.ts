@@ -76,6 +76,23 @@ function canonicalResourceUrl(raw: string) {
   }
 }
 
+function queryString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, 160)
+    : undefined;
+}
+
+function queryBoolean(value: unknown): boolean | undefined {
+  return value === "true" ? true : value === "false" ? false : undefined;
+}
+
+function boundedInteger(value: unknown, min: number, max: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max
+    ? parsed
+    : undefined;
+}
+
 async function topRatedResources(limit = 12) {
   // all resources ordered by avg rating descending
   const rows = await db
@@ -112,6 +129,13 @@ router.get("/resources", async (req, res): Promise<void> => {
     limit = 12,
     offset = 0,
   } = params.data;
+  const sourceFilter = queryString(req.query.source);
+  const exactPhrase = queryString(req.query.exactPhrase);
+  const excludedWords = queryString(req.query.exclude);
+  const dateAdded = queryString(req.query.dateAdded);
+  const librarySort = queryString(req.query.librarySort);
+  const hasThumbnail = queryBoolean(req.query.hasThumbnail);
+  const minReviews = boundedInteger(req.query.minReviews, 0, 10000);
   const searchTerm = q?.trim().replace(/\s+/g, " ");
   const conditions = [];
   if (searchTerm) {
@@ -140,6 +164,47 @@ router.get("/resources", async (req, res): Promise<void> => {
     );
   if (subject) conditions.push(ilike(resourcesTable.subject, `%${subject}%`));
   if (gradeLevel) conditions.push(eq(resourcesTable.gradeLevel, gradeLevel));
+  if (sourceFilter)
+    conditions.push(ilike(resourcesTable.url, `%${sourceFilter}%`));
+  if (exactPhrase) {
+    const pattern = `%${exactPhrase}%`;
+    conditions.push(
+      or(
+        ilike(resourcesTable.title, pattern),
+        ilike(resourcesTable.description, pattern),
+        ilike(resourcesTable.subject, pattern),
+      )!,
+    );
+  }
+  if (excludedWords) {
+    const tokens = excludedWords.split(/[\s,]+/).filter(Boolean).slice(0, 8);
+    for (const token of tokens) {
+      const pattern = `%${token}%`;
+      conditions.push(
+        sql`not (
+          ${resourcesTable.title} ilike ${pattern}
+          or coalesce(${resourcesTable.description}, '') ilike ${pattern}
+          or ${resourcesTable.subject} ilike ${pattern}
+        )`,
+      );
+    }
+  }
+  if (hasThumbnail === true)
+    conditions.push(
+      sql`${resourcesTable.thumbnailUrl} is not null and trim(${resourcesTable.thumbnailUrl}) <> ''`,
+    );
+  if (hasThumbnail === false)
+    conditions.push(
+      sql`${resourcesTable.thumbnailUrl} is null or trim(${resourcesTable.thumbnailUrl}) = ''`,
+    );
+  if (dateAdded === "day")
+    conditions.push(sql`${resourcesTable.createdAt} >= now() - interval '1 day'`);
+  if (dateAdded === "week")
+    conditions.push(sql`${resourcesTable.createdAt} >= now() - interval '7 days'`);
+  if (dateAdded === "month")
+    conditions.push(sql`${resourcesTable.createdAt} >= now() - interval '30 days'`);
+  if (dateAdded === "year")
+    conditions.push(sql`${resourcesTable.createdAt} >= now() - interval '1 year'`);
 
   const avgRating = sql<number>`round(coalesce(avg(${reviewsTable.rating}), 0)::numeric, 1)::float`;
   const reviewCount = sql<number>`cast(count(${reviewsTable.id}) as int)`;
@@ -154,13 +219,19 @@ router.get("/resources", async (req, res): Promise<void> => {
       end`
     : sql`0`;
   const orderExpr =
-    sortBy === "most_reviewed"
-      ? sql`${reviewCount} desc`
-      : sortBy === "top_rated"
-        ? sql`${avgRating} desc`
-        : searchTerm
-          ? sql`${relevance}, ${avgRating} desc, ${reviewCount} desc, ${resourcesTable.createdAt} desc`
-          : sql`${resourcesTable.createdAt} desc`;
+    librarySort === "oldest"
+      ? sql`${resourcesTable.createdAt} asc`
+      : librarySort === "title_asc"
+        ? sql`lower(${resourcesTable.title}) asc`
+        : librarySort === "title_desc"
+          ? sql`lower(${resourcesTable.title}) desc`
+          : sortBy === "most_reviewed"
+            ? sql`${reviewCount} desc`
+            : sortBy === "top_rated"
+              ? sql`${avgRating} desc`
+              : searchTerm
+                ? sql`${relevance}, ${avgRating} desc, ${reviewCount} desc, ${resourcesTable.createdAt} desc`
+                : sql`${resourcesTable.createdAt} desc`;
 
   // Return resources and review aggregates in one query. This avoids the old
   // two-query-per-result pattern and keeps response time flat as pages grow.
@@ -183,7 +254,16 @@ router.get("/resources", async (req, res): Promise<void> => {
     .leftJoin(reviewsTable, eq(reviewsTable.resourceId, resourcesTable.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .groupBy(resourcesTable.id)
-    .having(minRating ? sql`${avgRating} >= ${minRating}` : undefined)
+    .having(
+      minRating || minReviews !== undefined
+        ? and(
+            ...(minRating ? [sql`${avgRating} >= ${minRating}`] : []),
+            ...(minReviews !== undefined
+              ? [sql`${reviewCount} >= ${minReviews}`]
+              : []),
+          )
+        : undefined,
+    )
     .orderBy(orderExpr)
     .limit(limit)
     .offset(offset);
@@ -669,6 +749,17 @@ router.get(
       page = 1,
       resultType = "content",
     } = params.data;
+    const exactPhrase = queryString(req.query.exactPhrase);
+    const excludedWords = queryString(req.query.exclude);
+    const sourceFilter = queryString(req.query.source);
+    const freshness = queryString(req.query.freshness);
+    const difficulty = queryString(req.query.difficulty);
+    const accessType = queryString(req.query.accessType);
+    const license = queryString(req.query.license);
+    const contentLength = queryString(req.query.contentLength);
+    const sourceQuality = queryString(req.query.sourceQuality);
+    const captions = queryBoolean(req.query.captions);
+    const transcript = queryBoolean(req.query.transcript);
     let discoverUserId: number | null = null;
     try {
       const { decodeToken } = await import("../lib/auth");
@@ -704,6 +795,17 @@ router.get(
       language,
       page,
       resultType,
+      exactPhrase,
+      excludedWords,
+      sourceFilter,
+      freshness,
+      difficulty,
+      accessType,
+      license,
+      contentLength,
+      sourceQuality,
+      captions,
+      transcript,
       userId: discoverUserId,
     });
     if (process.env.NODE_ENV !== "test") {
@@ -737,6 +839,59 @@ router.get(
       page > 1
         ? ` Find a DIFFERENT set of resources from what you would normally return first — skip the most obvious results and surface less commonly known but equally high-quality alternatives.`
         : "";
+    const extendedFilterHints = [
+      exactPhrase
+        ? `The page title or content must contain the exact phrase "${exactPhrase}".`
+        : "",
+      excludedWords
+        ? `Exclude results about any of these terms: ${excludedWords}.`
+        : "",
+      sourceFilter
+        ? `Only use results from this website, publisher, creator, or domain: ${sourceFilter}.`
+        : "",
+      freshness === "week"
+        ? "Prefer resources published or updated within the past week."
+        : freshness === "month"
+          ? "Prefer resources published or updated within the past month."
+          : freshness === "year"
+            ? "Only return resources published or updated within the past year."
+            : freshness === "three_years"
+              ? "Only return resources published or updated within the past three years."
+              : "",
+      difficulty && difficulty !== "any"
+        ? `The learning difficulty must be ${difficulty}.`
+        : "",
+      accessType === "free"
+        ? "Only return resources that can be used without payment or a subscription."
+        : accessType === "no_account"
+          ? "Only return resources that can be opened without creating an account."
+          : accessType === "open"
+            ? "Prefer open-access resources."
+            : "",
+      license === "reusable"
+        ? "Only return resources with an open, Creative Commons, or public-domain reuse license."
+        : license === "known"
+          ? "Only return resources whose license or usage rights are clearly stated."
+          : "",
+      contentLength === "short"
+        ? "Prefer resources requiring at most 15 minutes."
+        : contentLength === "medium"
+          ? "Prefer resources requiring about 15 to 45 minutes."
+          : contentLength === "long"
+            ? "Prefer substantial resources requiring more than 45 minutes."
+            : "",
+      sourceQuality === "institutional"
+        ? "Only return academic, government, museum, library, or established nonprofit sources."
+        : sourceQuality === "established"
+          ? "Prefer well-established publishers and educational platforms."
+          : "",
+      captions === true ? "For video or audio, captions must be available." : "",
+      transcript === true
+        ? "For video or audio, a transcript must be available."
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     const buildPrompt = (excludeUrls: string[] = [], platformPass = false) => {
       const exclusionNote =
@@ -771,7 +926,7 @@ router.get(
         resultType === "people" && !exactPersonSearch ? 12 : 8;
       return `Suggest up to ${requestedCount} high-quality educational ${kind} for: "${effectiveQuery}"${subjectHint}${gradeHint}${languageHint}${resultType === "content" ? formatHint : ""}${pageHint}
 
-Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
+Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. ${extendedFilterHints} ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
 Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} ${platformSearchRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
     };
 
