@@ -217,6 +217,18 @@ async function materialResult(id: number, userId: number) {
   return { ...material, approvals };
 }
 
+router.get("/forum/access", requireAuth, async (req, res): Promise<void> => {
+  const auth = req as AuthenticatedRequest;
+  const user = await currentUser(auth.userId);
+  res.json({
+    isAdmin: auth.accountRole === "admin",
+    teacherVerified: user?.teacherVerified === true,
+    canApprove:
+      auth.accountRole === "admin" ||
+      (user?.role === "teacher" && user.teacherVerified === true),
+  });
+});
+
 router.get("/forum/materials", requireAuth, async (req, res): Promise<void> => {
   const auth = req as AuthenticatedRequest;
   const q = cleanText(req.query.q, 160);
