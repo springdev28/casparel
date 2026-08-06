@@ -176,4 +176,81 @@ router.get(
   },
 );
 
+const adminUserSelection = {
+  id: usersTable.id,
+  name: usersTable.name,
+  email: usersTable.email,
+  role: usersTable.role,
+  activeRole: usersTable.activeRole,
+  avatarUrl: usersTable.avatarUrl,
+  bio: usersTable.bio,
+  subjects: usersTable.subjects,
+  gradeOrDept: usersTable.gradeOrDept,
+  timezone: usersTable.timezone,
+  profileVisibility: usersTable.profileVisibility,
+  libraryVisibility: usersTable.libraryVisibility,
+  showBio: usersTable.showBio,
+  showSubjects: usersTable.showSubjects,
+  showGradeOrDept: usersTable.showGradeOrDept,
+  showWebsite: usersTable.showWebsite,
+  websiteUrl: usersTable.websiteUrl,
+  bannedAt: usersTable.bannedAt,
+  bannedReason: usersTable.bannedReason,
+  createdAt: usersTable.createdAt,
+};
+
+router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
+  const users = await db
+    .select(adminUserSelection)
+    .from(usersTable)
+    .orderBy(sql`${usersTable.createdAt} desc`);
+  res.json(users);
+});
+
+router.patch("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<void> => {
+  const adminId = (req as import("../middlewares/requireAuth").AuthenticatedRequest).userId;
+  const targetId = Number(req.params.id);
+  const reason =
+    typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
+  if (!targetId) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+  if (targetId === adminId) {
+    res.status(400).json({ error: "Administrators cannot ban their own account" });
+    return;
+  }
+  const [user] = await db
+    .update(usersTable)
+    .set({
+      bannedAt: new Date().toISOString(),
+      bannedReason: reason || "Banned by an administrator",
+    })
+    .where(eq(usersTable.id, targetId))
+    .returning(adminUserSelection);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(user);
+});
+
+router.delete("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<void> => {
+  const targetId = Number(req.params.id);
+  if (!targetId) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+  const [user] = await db
+    .update(usersTable)
+    .set({ bannedAt: null, bannedReason: null })
+    .where(eq(usersTable.id, targetId))
+    .returning(adminUserSelection);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(user);
+});
+
 export default router;
