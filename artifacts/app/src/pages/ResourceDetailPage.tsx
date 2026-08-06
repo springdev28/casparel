@@ -14,6 +14,8 @@ import {
   ExternalLink as LinkIcon,
   Trash2,
   GraduationCap,
+  Send,
+  UserRoundSearch,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -26,6 +28,7 @@ import {
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
+import { Input } from "@workspace/edu-ds/components/ui/input";
 import { Label } from "@workspace/edu-ds/components/ui/label";
 import { Separator } from "@workspace/edu-ds/components/ui/separator";
 import {
@@ -601,6 +604,34 @@ function SourceReviewPanel({
   );
 }
 
+type RecommendationPerson = {
+  id: number;
+  name: string;
+  role: string;
+  avatarUrl: string | null;
+  bio: string | null;
+};
+
+function apiUrl(path: string) {
+  return import.meta.env.BASE_URL.replace(/\/$/, "") + "/api" + path;
+}
+
+async function authenticatedRequest(path: string, init?: RequestInit) {
+  const response = await fetch(apiUrl(path), {
+    ...init,
+    headers: {
+      Authorization: "Bearer " + localStorage.getItem("schoolar_token"),
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...init?.headers,
+    },
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error || "Request failed");
+  }
+  return response.status === 204 ? null : response.json();
+}
+
 export default function ResourceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
@@ -613,6 +644,13 @@ export default function ResourceDetailPage() {
   const [selectedListId, setSelectedListId] = useState("");
   const [listNote, setListNote] = useState("");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [personRecommendOpen, setPersonRecommendOpen] = useState(false);
+  const [personQuery, setPersonQuery] = useState("");
+  const [recommendationPeople, setRecommendationPeople] = useState<RecommendationPerson[]>([]);
+  const [selectedRecipientId, setSelectedRecipientId] = useState<number | null>(null);
+  const [personRecommendNote, setPersonRecommendNote] = useState("");
+  const [peopleLoading, setPeopleLoading] = useState(false);
+  const [personSending, setPersonSending] = useState(false);
 
   const { data: resource, isLoading: resourceLoading } = useGetResource(
     resourceId,
@@ -693,6 +731,61 @@ export default function ResourceDetailPage() {
       setRecommendNote("");
     } catch (err: unknown) {
       toast({ title: "Could not recommend resource", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+    }
+  }
+
+  async function searchRecommendationPeople() {
+    setPeopleLoading(true);
+    try {
+      const params = new URLSearchParams({
+        scope: "all",
+        q: personQuery.trim(),
+        limit: "30",
+      });
+      const people = (await authenticatedRequest("/users/search?" + params.toString())) as RecommendationPerson[];
+      setRecommendationPeople(people);
+      if (selectedRecipientId && !people.some((person) => person.id === selectedRecipientId)) {
+        setSelectedRecipientId(null);
+      }
+    } catch (error) {
+      toast({
+        title: "Could not load people",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setPeopleLoading(false);
+    }
+  }
+
+  async function handleRecommendToPerson() {
+    if (!selectedRecipientId) return;
+    setPersonSending(true);
+    try {
+      await authenticatedRequest("/resources/" + resourceId + "/recommend", {
+        method: "POST",
+        body: JSON.stringify({
+          recipientId: selectedRecipientId,
+          note: personRecommendNote.trim() || undefined,
+        }),
+      });
+      const recipient = recommendationPeople.find((person) => person.id === selectedRecipientId);
+      toast({
+        title: "Recommendation sent",
+        description: recipient ? recipient.name + " was notified." : "The user was notified.",
+      });
+      setPersonRecommendOpen(false);
+      setSelectedRecipientId(null);
+      setPersonRecommendNote("");
+      setPersonQuery("");
+    } catch (error) {
+      toast({
+        title: "Could not send recommendation",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setPersonSending(false);
     }
   }
 
@@ -988,12 +1081,91 @@ export default function ResourceDetailPage() {
                 </Dialog>
               )}
 
-              {isLoggedIn && !isTeacher && (
+              {isLoggedIn && Boolean(classes?.length) && (
                 <Dialog open={recommendDialogOpen} onOpenChange={setRecommendDialogOpen}>
                   <DialogTrigger asChild><Button size="sm" variant="outline" data-testid="recommend-to-class-button"><GraduationCap size={14} className="mr-1" /> Recommend to Class</Button></DialogTrigger>
                   <DialogContent><DialogHeader><DialogTitle>Recommend to Class</DialogTitle><DialogDescription>Your teacher must approve this suggestion before it appears in class resources.</DialogDescription></DialogHeader>
                     <div className="space-y-4"><div className="space-y-1.5"><Label>Class</Label><Select value={recommendClassId} onValueChange={setRecommendClassId}><SelectTrigger><SelectValue placeholder="Select a class…" /></SelectTrigger><SelectContent>{classes?.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1.5"><Label>Why do you recommend it? (optional)</Label><Textarea value={recommendNote} onChange={(event) => setRecommendNote(event.target.value)} maxLength={500} /></div></div>
                     <DialogFooter><Button variant="outline" onClick={() => setRecommendDialogOpen(false)}>Cancel</Button><Button onClick={handleRecommend} disabled={!recommendClassId || recommendResource.isPending}>{recommendResource.isPending ? "Sending…" : "Send Recommendation"}</Button></DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+
+              {isLoggedIn && (
+                <Dialog
+                  open={personRecommendOpen}
+                  onOpenChange={(next) => {
+                    setPersonRecommendOpen(next);
+                    if (next) void searchRecommendationPeople();
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" data-testid="recommend-to-person-button">
+                      <Send size={14} className="mr-1" /> Recommend to Person
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Recommend to a person</DialogTitle>
+                      <DialogDescription>
+                        Send this resource to any discoverable Schoolar account. Students, teachers, and administrators can all recommend resources.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <form
+                        className="flex gap-2"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void searchRecommendationPeople();
+                        }}
+                      >
+                        <Input
+                          value={personQuery}
+                          onChange={(event) => setPersonQuery(event.target.value)}
+                          placeholder="Search by name or subject..."
+                          aria-label="Search recommendation recipients"
+                        />
+                        <Button type="submit" variant="outline" disabled={peopleLoading}>
+                          <UserRoundSearch className="size-4" />
+                          <span className="sr-only">Search</span>
+                        </Button>
+                      </form>
+                      <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border p-2">
+                        {peopleLoading ? (
+                          <p className="p-3 text-sm text-muted-foreground">Loading people...</p>
+                        ) : recommendationPeople.length ? (
+                          recommendationPeople.map((person) => (
+                            <button
+                              key={person.id}
+                              type="button"
+                              onClick={() => setSelectedRecipientId(person.id)}
+                              className={"flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors " + (selectedRecipientId === person.id ? "bg-accent text-accent-foreground" : "hover:bg-muted")}
+                            >
+                              <span><b>{person.name}</b><span className="ml-2 text-xs capitalize text-muted-foreground">{person.role}</span></span>
+                              {selectedRecipientId === person.id && <span className="text-xs font-medium">Selected</span>}
+                            </button>
+                          ))
+                        ) : (
+                          <p className="p-3 text-sm text-muted-foreground">No matching accounts.</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="person-recommend-note">Message (optional)</Label>
+                        <Textarea
+                          id="person-recommend-note"
+                          value={personRecommendNote}
+                          onChange={(event) => setPersonRecommendNote(event.target.value)}
+                          maxLength={500}
+                          placeholder="Why this resource may be useful..."
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setPersonRecommendOpen(false)}>Cancel</Button>
+                      <Button onClick={handleRecommendToPerson} disabled={!selectedRecipientId || personSending}>
+                        {personSending ? "Sending..." : "Send recommendation"}
+                      </Button>
+                    </DialogFooter>
                   </DialogContent>
                 </Dialog>
               )}
