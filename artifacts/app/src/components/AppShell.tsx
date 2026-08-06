@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Check,
   Waves,
+  MessagesSquare,
 } from "lucide-react";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -74,6 +75,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Goals", href: "/goals", icon: Target },
   { label: "Resources", href: "/resources", icon: BookOpen },
+  { label: "Forum", href: "/forum", icon: MessagesSquare },
   { label: "People", href: "/people", icon: Users },
   { label: "Classes", href: "/classes", icon: Users },
   { label: "Lists", href: "/lists", icon: List },
