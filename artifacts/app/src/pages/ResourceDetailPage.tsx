@@ -833,11 +833,18 @@ export default function ResourceDetailPage() {
   }
 
   async function searchRecommendationPeople() {
+    const query = personQuery.trim();
+    if (!query) {
+      setRecommendationPeople([]);
+      setSelectedRecipientId(null);
+      return;
+    }
+
     setPeopleLoading(true);
     try {
       const params = new URLSearchParams({
         scope: "all",
-        q: personQuery.trim(),
+        q: query,
         limit: "30",
       });
       const people = (await authenticatedRequest("/users/search?" + params.toString())) as RecommendationPerson[];
@@ -1192,10 +1199,7 @@ export default function ResourceDetailPage() {
               {isLoggedIn && (
                 <Dialog
                   open={personRecommendOpen}
-                  onOpenChange={(next) => {
-                    setPersonRecommendOpen(next);
-                    if (next) void searchRecommendationPeople();
-                  }}
+                  onOpenChange={setPersonRecommendOpen}
                 >
                   <DialogTrigger asChild>
                     <Button size="sm" variant="outline" data-testid="recommend-to-person-button">
@@ -1223,7 +1227,11 @@ export default function ResourceDetailPage() {
                           placeholder="Search by name or subject..."
                           aria-label="Search recommendation recipients"
                         />
-                        <Button type="submit" variant="outline" disabled={peopleLoading}>
+                        <Button
+                          type="submit"
+                          variant="outline"
+                          disabled={peopleLoading || !personQuery.trim()}
+                        >
                           <UserRoundSearch className="size-4" />
                           <span className="sr-only">Search</span>
                         </Button>
