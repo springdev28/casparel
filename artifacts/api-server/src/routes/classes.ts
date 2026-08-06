@@ -1,5 +1,4 @@
 import { Router, type IRouter } from "express";
-import { z } from "zod/v4";
 import { eq, sql, and, max, asc, desc } from "drizzle-orm";
 import { db, classesTable, classMembersTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable } from "@workspace/db";
 import {
@@ -476,15 +475,11 @@ router.get("/classes/:id/seating-chart", requireAuth, async (req, res): Promise<
   res.json(GetSeatingChartResponse.parse(visibleChart));
 });
 
-const SeatingSuggestionBody = z.object({
-  message: z.string().trim().min(3).max(1000),
-});
-
 router.post("/classes/:id/seating-suggestions", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetSeatingChartParams.safeParse(req.params);
-  const body = SeatingSuggestionBody.safeParse(req.body);
-  if (!params.success || !body.success) {
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+  if (!params.success || message.length < 3 || message.length > 1000) {
     res.status(400).json({ error: "Please enter a suggestion between 3 and 1000 characters" });
     return;
   }
@@ -515,7 +510,7 @@ router.post("/classes/:id/seating-suggestions", contentLimiter, requireAuth, asy
     userId: cls.teacherId,
     type: "class",
     workspaceRole: "teacher",
-    message: `${student.name} suggested a seating change in ${cls.name}: ${body.data.message}`,
+    message: `${student.name} suggested a seating change in ${cls.name}: ${message}`,
   });
   res.status(201).json({ success: true });
 });
