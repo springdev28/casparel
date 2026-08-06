@@ -22,10 +22,9 @@ import {
   useGetMe,
   useListLearningEvidence,
   useListLearningGoals,
+  useListResources,
   useUpdateLearningGoal,
-  useDiscoverResources,
-  DiscoverResourcesResultType,
-
+  getListResourcesQueryKey,
   UserRole,
 } from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
@@ -89,8 +88,7 @@ const checkIns = [
   },
 ] as const;
 
-function StudentView({ name, userId, workspaceRole, isAdmin }: { name?: string; userId?: number; workspaceRole?: string; isAdmin?: boolean }) {
-  const [why, setWhy] = useState(true);
+function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: number; workspaceRole?: string }) {
   const [confidence, setConfidence] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -140,57 +138,42 @@ function StudentView({ name, userId, workspaceRole, isAdmin }: { name?: string; 
   const nextStepIndex = path.findIndex(
     (step) => !completedSteps.has(step.concept),
   );
-  const sourceQuery =
-    [activeGoal?.subject, activeGoal?.title].filter(Boolean).join(" ") ||
-    "high-quality educational learning sources";
-  const { data: internetSources, isFetching: recommendationsRefreshing } =
-    useDiscoverResources(
-      {
-        q: sourceQuery,
-        resultType: DiscoverResourcesResultType.source,
-        page: 1,
-      },
-      {
-        query: {
-          queryKey: [
-            "dashboard-internet-source",
-            userId,
-            activeGoal?.id,
-            sourceQuery,
-          ],
-          staleTime: 300_000,
-          retry: false,
-        },
-      },
-    );
-  const [skippedSourceUrls, setSkippedSourceUrls] = useState<string[]>([]);
-  const [dailySourceRefreshes, setDailySourceRefreshes] = useState(() => {
-    const day = new Date().toLocaleDateString("en-CA");
-    return Number(
-      localStorage.getItem(
-        `schoolar_dashboard_source_refreshes:${userId ?? "guest"}:${day}`,
-      ) ?? "0",
-    );
+  const libraryCatalogParams = { limit: 50, offset: 0 };
+  const { data: libraryCatalog } = useListResources(libraryCatalogParams, {
+    query: {
+      enabled: Boolean(userId && activeGoal),
+      queryKey: getListResourcesQueryKey(libraryCatalogParams),
+    },
   });
+  const [continueResourceIds, setContinueResourceIds] = useState<number[]>([]);
   useEffect(() => {
-    setSkippedSourceUrls([]);
-  }, [activeGoal?.id]);
-  const recommendation = (internetSources ?? []).find(
-    (source) => !skippedSourceUrls.includes(source.url),
-  );
-  function recommendAnotherDashboardSource() {
-    if (!recommendation || (!isAdmin && dailySourceRefreshes >= 3)) return;
-    setSkippedSourceUrls((urls) => [...urls, recommendation.url]);
-    if (!isAdmin) {
-      const next = dailySourceRefreshes + 1;
-      const day = new Date().toLocaleDateString("en-CA");
-      localStorage.setItem(
-        `schoolar_dashboard_source_refreshes:${userId ?? "guest"}:${day}`,
-        String(next),
-      );
-      setDailySourceRefreshes(next);
+    if (!userId || !activeGoal) {
+      setContinueResourceIds([]);
+      return;
     }
-  }
+    try {
+      const stored = JSON.parse(
+        localStorage.getItem(
+          `schoolar_continue_studying:${userId}:${activeGoal.id}`,
+        ) ?? "[]",
+      ) as unknown;
+      setContinueResourceIds(
+        Array.isArray(stored)
+          ? stored
+              .filter((id): id is number => Number.isInteger(id) && id > 0)
+              .slice(0, 6)
+          : [],
+      );
+    } catch {
+      setContinueResourceIds([]);
+    }
+  }, [userId, activeGoal?.id]);
+  const continueResources = continueResourceIds
+    .map((id) => (libraryCatalog ?? []).find((resource) => resource.id === id))
+    .filter(
+      (resource): resource is NonNullable<typeof resource> =>
+        resource !== undefined,
+    );
   const goalEvidence = evidence?.filter((item) => item.learningGoalId === activeGoal?.id) ?? [];
   const answeredCount = goalEvidence.length;
   const [checkIn, setCheckIn] = useState<{ concept: string; prompt: string } | null>(null);
@@ -238,51 +221,75 @@ function StudentView({ name, userId, workspaceRole, isAdmin }: { name?: string; 
         <Card className="overflow-hidden border-primary/20">
           <div className="h-1.5 bg-primary" />
           <CardContent className="p-6">
-            <div className="flex gap-4">
-              <div className="rounded-2xl bg-primary/10 p-3 text-primary">
-                <BookOpen />
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex gap-4">
+                <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                  <BookOpen />
+                </div>
+                <div>
+                  <Badge variant="secondary">Continue studying</Badge>
+                  <h2 className="mt-2 text-2xl font-bold">
+                    {activeGoal?.title ?? "Choose a learning goal"}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {activeGoal
+                      ? `${continueResources.length} library resource${continueResources.length === 1 ? "" : "s"} selected for this goal`
+                      : "Your selected library resources will appear here"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <Badge>{recommendationsRefreshing ? "Refreshing for goal…" : "Recommended next"}</Badge>
-                <h2 className="mt-2 text-2xl font-bold">
-                  {recommendation?.title ?? "No recommendation available yet"}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {recommendation
-                    ? `Internet source · Recommended from your active goal`
-                    : "Search or save resources to improve recommendations"}
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setLocation(
+                    activeGoal
+                      ? `/resources?goal=${encodeURIComponent(activeGoal.title)}#continue-studying`
+                      : "/resources#continue-studying",
+                  )
+                }
+              >
+                <BookOpen size={16} className="mr-2" />
+                Choose resources
+              </Button>
+            </div>
+
+            {continueResources.length ? (
+              <div className="my-5 divide-y border-y">
+                {continueResources.map((resource) => (
+                  <div
+                    key={resource.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{resource.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {resource.subject} · {resource.format}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => window.open(resource.url, "_blank", "noopener,noreferrer")}
+                    >
+                      Open <ArrowRight size={15} className="ml-2" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="my-5 rounded-xl border border-dashed p-6 text-center">
+                <BookOpen className="mx-auto mb-2 text-muted-foreground" />
+                <p className="font-medium">No study resources selected</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Choose resources from your library to keep studying this goal.
                 </p>
               </div>
-            </div>
-            <button
-              className="my-5 flex w-full gap-3 rounded-xl border bg-primary/[.04] p-4 text-left"
-              onClick={() => setWhy(!why)}
-            >
-              <Sparkles className="shrink-0 text-primary" size={19} />
-              <div>
-                <b className="text-sm">Why this resource?</b>
-                {why && (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    This source was found on the internet from your active goal and is never selected from your saved library. Goal:{" "}
-                    {activeGoal?.title ?? "your next learning goal"}.
-                  </p>
-                )}
-              </div>
-            </button>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="flex gap-2 text-sm text-muted-foreground">
-                <Target size={16} />
-                Goal: {activeGoal?.title ?? "Create a goal to build your path"}
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" disabled={!recommendation || (!isAdmin && dailySourceRefreshes >= 3)} onClick={recommendAnotherDashboardSource} data-testid="dashboard-recommend-another-source">
-                  <RefreshCw size={16} className="mr-2" /> Recommend another source
-                </Button>
-                <Button disabled={!recommendation} onClick={() => setLocation("/resources#recommended-source")}>
-                  {recommendation ? <>Visit source <ArrowRight size={16} className="ml-2" /></> : "No source"}
-                </Button>
-              </div>
-            </div>
+            )}
+
+            <span className="flex gap-2 text-sm text-muted-foreground">
+              <Target size={16} />
+              Goal: {activeGoal?.title ?? "Create a goal to build your path"}
+            </span>
           </CardContent>
         </Card>
         <Card>
@@ -650,6 +657,6 @@ export default function AdaptiveDashboardPage() {
   return me && (me?.activeRole ?? me?.role) === UserRole.teacher ? (
     <TeacherView name={me.name} />
   ) : (
-    <StudentView name={me?.name} userId={me?.id} workspaceRole={me?.activeRole ?? me?.role} isAdmin={me?.role === UserRole.admin} />
+    <StudentView name={me?.name} userId={me?.id} workspaceRole={me?.activeRole ?? me?.role} />
   );
 }
