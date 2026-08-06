@@ -60,7 +60,7 @@ type PublicPersonGroup = {
   links: DiscoveredResource[];
 };
 
-const PUBLIC_PEOPLE_PAGE_SIZE = 9;
+const PUBLIC_PEOPLE_PAGE_SIZE = 12;
 
 function personName(title: string): string {
   return (
