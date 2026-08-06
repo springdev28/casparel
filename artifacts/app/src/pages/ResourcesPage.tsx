@@ -600,6 +600,8 @@ export default function ResourcesPage() {
   const [hiddenSourceUrls, setHiddenSourceUrls] = useState<string[]>([]);
   const [sourceRefreshes, setSourceRefreshes] = useState(0);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+  const [personalisedSearchRequested, setPersonalisedSearchRequested] =
+    useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [exactPhraseFilter, setExactPhraseFilter] = useState("");
   const [excludedWordsFilter, setExcludedWordsFilter] = useState("");
@@ -624,7 +626,6 @@ export default function ResourcesPage() {
     const mode = params.get("mode");
     if (goal) {
       setInputValue(goal);
-      setActiveQuery(goal);
       setLibraryLimit(12);
     }
     if (subject) setSubjectFilter(subject);
@@ -668,15 +669,22 @@ export default function ResourcesPage() {
     resultType: DiscoverResourcesResultType.source,
     page: 1,
   };
-  const { data: personalisedSources, isFetching: personalisedSourcesLoading } =
-    useDiscoverResources(personalisedDiscoverParams, {
-      query: {
-        enabled: !isSearching,
-        queryKey: ["personalised-internet-sources", me?.id ?? "guest", personalisedSourceQuery],
-        staleTime: 300_000,
-        retry: false,
-      },
-    });
+  const {
+    data: personalisedSources,
+    isFetching: personalisedSourcesLoading,
+    refetch: searchPersonalisedSources,
+  } = useDiscoverResources(personalisedDiscoverParams, {
+    query: {
+      enabled: false,
+      queryKey: [
+        "personalised-internet-sources",
+        me?.id ?? "guest",
+        personalisedSourceQuery,
+      ],
+      staleTime: 300_000,
+      retry: false,
+    },
+  });
 
   // Library search results (shown when searching)
   const libraryParams = {
@@ -1752,51 +1760,93 @@ export default function ResourcesPage() {
         </section>
       )}
 
-      {/* ── AUTOMATIC INTERNET SOURCE RECOMMENDATION ─────────── */}
+      {/* ── ON-DEMAND INTERNET SOURCE RECOMMENDATION ─────────── */}
       {!isSearching && (
         <section id="recommended-source" className="scroll-mt-16">
           <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             <Globe size={14} /> Recommended internet source
           </h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            Automatically searched from {isLoggedIn ? "your selected interests and active learning goals" : "high-quality educational sources"}. Saved library sources are excluded.
+            Search using {isLoggedIn ? "your selected interests and active learning goals" : "high-quality educational topics"}. Saved library sources are excluded.
           </p>
-          {personalisedSourcesLoading ? (
+          {!personalisedSearchRequested ? (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPersonalisedSearchRequested(true);
+                void searchPersonalisedSources();
+              }}
+              data-testid="find-personalised-source"
+            >
+              <Search size={15} className="mr-1.5" /> Find a recommended source
+            </Button>
+          ) : personalisedSourcesLoading ? (
             <CardSkeletons count={1} />
-          ) : !(personalisedSources ?? []).some((resource) => !hiddenSourceUrls.includes(resource.url) && !savedLibraryUrls.has(resource.url)) ? (
+          ) : !(personalisedSources ?? []).some(
+              (resource) =>
+                !hiddenSourceUrls.includes(resource.url) &&
+                !savedLibraryUrls.has(resource.url),
+            ) ? (
             <div className="rounded-lg border py-10 text-center text-muted-foreground">
               <Globe size={32} className="mx-auto mb-3 opacity-30" />
               <p className="font-medium text-foreground">No new source found</p>
-              <p className="mt-1 text-sm">Try adding interests or an active learning goal.</p>
+              <p className="mt-1 text-sm">
+                Try adding interests or an active learning goal.
+              </p>
             </div>
           ) : (
-            <div className="max-w-xl">
-              {(personalisedSources ?? [])
-                .filter((resource) => !hiddenSourceUrls.includes(resource.url) && !savedLibraryUrls.has(resource.url))
-                .slice(0, 1)
-                .map((resource) => (
-                  <SourceCard key={resource.url} resource={resource} onSave={handleSaveSource} saving={addingUrl === resource.url} />
-                ))}
-            </div>
+            <>
+              <div className="max-w-xl">
+                {(personalisedSources ?? [])
+                  .filter(
+                    (resource) =>
+                      !hiddenSourceUrls.includes(resource.url) &&
+                      !savedLibraryUrls.has(resource.url),
+                  )
+                  .slice(0, 1)
+                  .map((resource) => (
+                    <SourceCard
+                      key={resource.url}
+                      resource={resource}
+                      onSave={handleSaveSource}
+                      saving={addingUrl === resource.url}
+                    />
+                  ))}
+              </div>
+              <div className="mt-4 space-y-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={
+                    personalisedSourcesLoading ||
+                    (!isAdmin &&
+                      sourceRefreshes >= DAILY_SOURCE_RECOMMENDATION_LIMIT)
+                  }
+                  onClick={() =>
+                    recommendAnotherSource(personalisedSources ?? [])
+                  }
+                  data-testid="personalised-recommend-another-source"
+                >
+                  <RefreshCw size={12} className="mr-1.5" /> Recommend another
+                  source
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {isAdmin ? (
+                    "Unlimited additional recommendations for admins"
+                  ) : (
+                    <>
+                      {Math.max(
+                        DAILY_SOURCE_RECOMMENDATION_LIMIT - sourceRefreshes,
+                        0,
+                      )}{" "}
+                      of {DAILY_SOURCE_RECOMMENDATION_LIMIT} additional
+                      recommendations remaining today
+                    </>
+                  )}
+                </p>
+              </div>
+            </>
           )}
-          <div className="mt-4 space-y-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={personalisedSourcesLoading || (!isAdmin && sourceRefreshes >= DAILY_SOURCE_RECOMMENDATION_LIMIT)}
-              onClick={() => recommendAnotherSource(personalisedSources ?? [])}
-              data-testid="personalised-recommend-another-source"
-            >
-              <RefreshCw size={12} className="mr-1.5" /> Recommend another source
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              {isAdmin ? (
-                "Unlimited additional recommendations for admins"
-              ) : (
-                <>{Math.max(DAILY_SOURCE_RECOMMENDATION_LIMIT - sourceRefreshes, 0)} of {DAILY_SOURCE_RECOMMENDATION_LIMIT} additional recommendations remaining today</>
-              )}
-            </p>
-          </div>
         </section>
       )}
 
