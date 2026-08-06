@@ -1,6 +1,23 @@
 /* Import EduDS design system — provides Tailwind, tokens, and component themes. */
 @import "@workspace/edu-ds/styles.css";
 
+/* Blocks keep their own readable foreground while bare page copy follows the
+   animated canvas contrast supplied by AppShell. */
+.ambient-copy-contrast :where(.bg-card, .bg-popover, .bg-secondary, .bg-muted) {
+  --foreground: var(--card-foreground);
+  --muted-foreground: var(--surface-muted-foreground, var(--card-foreground));
+}
+
+.ambient-copy-contrast :where(.bg-accent) {
+  --foreground: var(--accent-foreground);
+  --muted-foreground: var(--accent-foreground);
+}
+
+.ambient-copy-contrast :where(.bg-primary) {
+  --foreground: var(--primary-foreground);
+  --muted-foreground: var(--primary-foreground);
+}
+
 .vanta-background {
   position: fixed;
   inset: 0 0 0 14rem;
