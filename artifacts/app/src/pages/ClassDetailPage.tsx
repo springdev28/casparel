@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MapPin } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -221,15 +221,6 @@ export default function ClassDetailPage() {
   const unlinked = roster?.filter((s: GCRosterStudent) => !s.linkedUserId) ?? [];
   const resourceItems = classResList?.items ?? [];
   const ownMembership = cls.members.find((member) => member.userId === me?.id);
-  const showOwnSeat = ownMembership?.role === "student" && cls.mySeat;
-  const seatPositionCopy =
-    cls.mySeat?.relativePosition === "front"
-      ? "Near the front of the room"
-      : cls.mySeat?.relativePosition === "back"
-        ? "Toward the back of the room"
-        : cls.mySeat?.relativePosition === "middle"
-          ? "In the middle of the room"
-          : null;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -387,43 +378,6 @@ export default function ClassDetailPage() {
         </CardHeader>
       </Card>
 
-      {showOwnSeat && (
-        <section aria-labelledby="student-seat-heading">
-          <h2
-            id="student-seat-heading"
-            className="mb-4 text-lg font-semibold text-foreground"
-          >
-            Your position
-          </h2>
-          <Card data-testid="student-seat-position">
-            <CardContent className="flex items-center gap-4 py-5">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <MapPin size={20} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-foreground">
-                    {cls.mySeat!.assigned
-                      ? cls.mySeat!.layoutMode === "custom"
-                        ? `${cls.mySeat!.deskLabel || "Desk"} · Seat ${(cls.mySeat!.deskSeat ?? 0) + 1}`
-                        : `Row ${(cls.mySeat!.row ?? 0) + 1} · Seat ${(cls.mySeat!.column ?? 0) + 1}`
-                      : "No seat assigned yet"}
-                  </p>
-                  <Badge variant={cls.mySeat!.assigned ? "secondary" : "outline"}>
-                    {cls.mySeat!.assigned ? "Assigned" : "Awaiting assignment"}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {cls.mySeat!.assigned
-                    ? seatPositionCopy
-                    : "Your teacher has not placed you in the seating plan yet."}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-      )}
-
       {/* Members */}
       <section>
         <h2 className="text-lg font-semibold text-foreground mb-4">Members</h2>
@@ -466,7 +420,12 @@ export default function ClassDetailPage() {
         <DialogContent><DialogHeader><DialogTitle>Remove {memberToRemove?.name}?</DialogTitle><DialogDescription>They will lose access to this class and its shared resources. You can add them again later.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setMemberToRemove(null)}>Cancel</Button><Button variant="destructive" onClick={handleRemoveMember} disabled={removeClassMember.isPending} data-testid="remove-class-member-confirm">{removeClassMember.isPending ? "Removing…" : "Remove Member"}</Button></DialogFooter></DialogContent>
       </Dialog>
 
-      {isTeacher && <><Separator /><SeatingChartEditor classId={classId} /></>}
+      {(isTeacher || ownMembership?.role === "student") && (
+        <>
+          <Separator />
+          <SeatingChartEditor classId={classId} readOnly={!isTeacher} />
+        </>
+      )}
 
       <Separator />
 
