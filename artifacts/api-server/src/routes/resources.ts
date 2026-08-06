@@ -480,7 +480,7 @@ async function callDiscoverAI(
   try {
     const response = await openai.responses.create(
       {
-        model: "gpt-4o-mini",
+        model: "gpt-5-nano",
         max_output_tokens:
           maxItems >= 18
             ? 3200
@@ -489,7 +489,8 @@ async function callDiscoverAI(
               : maxItems >= 12
                 ? 2200
                 : 1400,
-        tools: [{ type: "web_search_preview", search_context_size: "low" }],
+        tools: [{ type: "web_search", search_context_size: "low" }],
+        reasoning: { effort: "minimal" },
         text: {
           format: {
             type: "json_schema",
@@ -562,7 +563,7 @@ async function callDiscoverAI(
 }
 
 const DISCOVER_MIN_RESULTS = 3;
-const DISCOVER_CACHE_TTL_MS = 10 * 60 * 1000;
+const DISCOVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const discoverCache = new Map<
   string,
   {
@@ -1221,14 +1222,15 @@ Rules:
 - Keep title and description concise and factual`;
 
     try {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        max_tokens: 500,
-        messages: [{ role: "user", content: prompt }],
+      const response = await openai.responses.create({
+        model: "gpt-5-nano",
+        max_output_tokens: 500,
+        reasoning: { effort: "minimal" },
+        input: prompt,
       });
       await recordAiUsage("metadata", (req as AuthenticatedRequest).userId);
 
-      const textOutput = response.choices[0]?.message?.content ?? "";
+      const textOutput = response.output_text ?? "";
 
       const cleaned = textOutput
         .replace(/^```(?:json)?\s*/i, "")
