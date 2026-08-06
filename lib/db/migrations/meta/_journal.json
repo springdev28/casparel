@@ -169,6 +169,13 @@
       "when": 1787770740675,
       "tag": "0023_admin_account_controls",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787857140675,
+      "tag": "0024_education_forum",
+      "breakpoints": true
     }
   ]
 }
