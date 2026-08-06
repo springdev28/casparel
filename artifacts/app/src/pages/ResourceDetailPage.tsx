@@ -236,6 +236,45 @@ function ResourceEmbed({ url }: { url: string }) {
 
 // ── Trust metadata ────────────────────────────────────────────────────────────
 
+type ResourceFilterProfile = {
+  provider: string | null;
+  author: string | null;
+  sourceDomain: string | null;
+  uploadTime: string | null;
+  lastEdited: string | null;
+  addedToSchoolar: string;
+  subject: string;
+  gradeLevel: string;
+  format: string;
+  language: string | null;
+  difficulty: string | null;
+  accessType: string | null;
+  license: string | null;
+  duration: string | null;
+  readingTime: string | null;
+  captions: boolean | null;
+  transcript: boolean | null;
+  audience: string | null;
+  keywords: string[];
+  hasThumbnail: boolean;
+  avgRating: number;
+  reviewCount: number;
+};
+
+function knownBoolean(value: boolean | null) {
+  return value === null ? "Not available" : value ? "Yes" : "No";
+}
+
+function schoolarDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(date);
+}
+
 const TRUST_META: Record<
   SourceReview["trustLevel"],
   { label: string; icon: typeof ShieldCheck; color: string }
@@ -305,6 +344,13 @@ function SourceReviewPanel({
 
   const data =
     mode === "quick" ? quickData : mode === "deep" ? deepData : undefined;
+  const profile = data
+    ? (
+        data as SourceReview & {
+          resourceProfile?: ResourceFilterProfile;
+        }
+      ).resourceProfile
+    : undefined;
   const isLoading =
     mode === "quick" ? quickLoading : mode === "deep" ? deepLoading : false;
   const isError =
@@ -322,7 +368,7 @@ function SourceReviewPanel({
   const loadingLabel =
     mode === "deep"
       ? "Searching forums, comments, reviews, and the wider web…"
-      : "Looking up source…";
+      : "Looking up source and resource facts…";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -357,9 +403,9 @@ function SourceReviewPanel({
                 data-testid="mode-quick"
                 className="flex flex-col gap-1.5 rounded-lg border p-4 text-left hover:border-primary hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="text-sm font-semibold">⚡ Quick Overlook</span>
+                <span className="text-sm font-semibold">Quick Overlook</span>
                 <span className="text-xs text-muted-foreground leading-relaxed">
-                  Uses the AI's built-in knowledge. Fast results, no web search.
+                  Brief live lookup of the source and the resource's key facts.
                 </span>
               </button>
               <button
@@ -368,7 +414,7 @@ function SourceReviewPanel({
                 disabled={!isLoggedIn}
                 className="flex flex-col gap-1.5 rounded-lg border p-4 text-left hover:border-primary hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="text-sm font-semibold">🔍 Deep Research</span>
+                <span className="text-sm font-semibold">Deep Research</span>
                 <span className="text-xs text-muted-foreground leading-relaxed">
                   Live web research across forums, comments, reviews, articles,
                   and other mentions.
@@ -410,7 +456,7 @@ function SourceReviewPanel({
                       variant="secondary"
                       className="text-[10px] px-1.5 py-0"
                     >
-                      {data.mode === "deep" ? "🔍 Deep Research" : "⚡ Quick"}
+                      {data.mode === "deep" ? "Deep Research" : "Quick"}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground capitalize">
@@ -436,7 +482,59 @@ function SourceReviewPanel({
               </div>
             )}
 
-            <Separator />
+            {profile && (
+              <section className="border-y py-4" data-testid="resource-facts">
+                <h3 className="mb-3 text-sm font-semibold">Resource facts</h3>
+                <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    ["Uploaded / published", profile.uploadTime],
+                    ["Last edited", profile.lastEdited],
+                    ["Added to Schoolar", schoolarDate(profile.addedToSchoolar)],
+                    ["Subject", profile.subject],
+                    ["Grade", profile.gradeLevel],
+                    ["Format", profile.format],
+                    ["Language", profile.language],
+                    ["Difficulty", profile.difficulty],
+                    ["Access", profile.accessType],
+                    ["Usage rights", profile.license],
+                    ["Duration", profile.duration],
+                    ["Reading time", profile.readingTime],
+                    ["Captions", knownBoolean(profile.captions)],
+                    ["Transcript", knownBoolean(profile.transcript)],
+                    ["Author / uploader", profile.author],
+                    ["Provider", profile.provider],
+                    ["Source domain", profile.sourceDomain],
+                    ["Audience", profile.audience],
+                    ["Preview image", profile.hasThumbnail ? "Yes" : "No"],
+                    [
+                      "Schoolar rating",
+                      profile.avgRating > 0
+                        ? `${profile.avgRating.toFixed(1)} / 5`
+                        : "Not rated",
+                    ],
+                    ["Schoolar reviews", String(profile.reviewCount)],
+                    [
+                      "Keywords",
+                      profile.keywords.length > 0
+                        ? profile.keywords.join(", ")
+                        : null,
+                    ],
+                    ["Source quality", trust.label],
+                  ].map(([label, value]) => (
+                    <div key={label} className="min-w-0">
+                      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {label}
+                      </dt>
+                      <dd className="mt-0.5 break-words text-sm text-foreground">
+                        {value || "Not available"}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            )}
+
+            {!profile && <Separator />}
 
             {/* Summary */}
             <p className="text-sm text-foreground leading-relaxed">
@@ -581,7 +679,7 @@ function SourceReviewPanel({
             <p className="text-xs text-muted-foreground pt-1">
               {data.mode === "deep"
                 ? "This review uses live web research; open the evidence links to verify each claim."
-                : "This quick review is AI-generated from training knowledge and may not be fully accurate."}
+                : "This quick review uses a brief live lookup; verify important details on the resource page."}
             </p>
 
             {/* Switch mode */}
