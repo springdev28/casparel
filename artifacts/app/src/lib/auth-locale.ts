@@ -236,6 +236,11 @@ export function useAuthLanguage() {
       // Keep the in-memory selection working when persistence is unavailable.
     }
     setLanguageState(next);
+    document.dispatchEvent(
+      new CustomEvent<AuthLanguage>("schoolar-language-change", {
+        detail: next,
+      }),
+    );
   }
 
   return { language, setLanguage, copy: AUTH_COPY[language] };
