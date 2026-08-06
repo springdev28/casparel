@@ -151,7 +151,7 @@ async function moderateForumText(
     const response = await openai.responses.create({
       model: "gpt-4o-mini",
       max_output_tokens: 180,
-      ...(/https?:\\/\\//i.test(input)
+      ...(/https?:\/\//i.test(input)
         ? { tools: [{ type: "web_search_preview" as const, search_context_size: "low" as const }] }
         : {}),
       input:
