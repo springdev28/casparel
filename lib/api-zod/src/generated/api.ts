@@ -686,7 +686,17 @@ export const GetClassResponse = zod.object({
   "subjects": zod.array(zod.string()).nullish(),
   "gradeOrDept": zod.string().nullish()
 })
-}))
+})),
+  "mySeat": zod.object({
+  "assigned": zod.boolean(),
+  "layoutMode": zod.enum(['grid', 'custom']),
+  "row": zod.int().nullish(),
+  "column": zod.int().nullish(),
+  "deskId": zod.string().nullish(),
+  "deskLabel": zod.string().nullish(),
+  "deskSeat": zod.int().nullish(),
+  "relativePosition": zod.enum(['front', 'middle', 'back']).nullish()
+}).optional()
 })
 
 
