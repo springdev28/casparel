@@ -81,10 +81,6 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 
-const AMBIENT_BACKGROUNDS: Partial<Record<VantaStyle, [number, number, number]>> = {
-  net: [7, 17, 11], globe: [7, 11, 18], halo: [7, 11, 18],
-  cells: [244, 251, 247], rings: [7, 11, 18], topology: [246, 250, 247],
-};
 
 function hslChannelsToRgb(value: string): [number, number, number] {
   const match = value.match(/([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/);
@@ -97,18 +93,6 @@ function hslChannelsToRgb(value: string): [number, number, number] {
     return lightness - saturation * Math.min(lightness, 1 - lightness) * Math.max(-1, Math.min(k - 3, 9 - k, 1));
   };
   return [channel(0) * 255, channel(8) * 255, channel(4) * 255];
-}
-
-function shouldUseLightAmbientText(style: VantaStyle, intensity: number) {
-  const base = hslChannelsToRgb(getComputedStyle(document.documentElement).getPropertyValue("--background"));
-  const effect = AMBIENT_BACKGROUNDS[style];
-  const alpha = effect ? Math.min(1, 0.35 + intensity * 0.25) : 0;
-  const rgb = effect?.map((value, index) => value * alpha + base[index] * (1 - alpha)) ?? base;
-  const linear = rgb.map((value) => {
-    const channel = value / 255;
-    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2] <= 0.179;
 }
 
 function shouldUseLightToolbarText() {
@@ -174,14 +158,6 @@ export default function AppShell({ children }: AppShellProps) {
     const saved = Number(sessionStorage.getItem("schoolar_ambient_intensity") ?? localStorage.getItem("schoolar_ambient_intensity") ?? "1");
     return Number.isFinite(saved) ? Math.min(2, Math.max(0.5, saved)) : 1;
   });
-  const [lightAmbientText, setLightAmbientText] = useState(() => shouldUseLightAmbientText(ambientStyle, ambientIntensity));
-  useEffect(() => {
-    const updateContrast = () => setLightAmbientText(shouldUseLightAmbientText(ambientStyle, ambientIntensity));
-    updateContrast();
-    const observer = new MutationObserver(updateContrast);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style"] });
-    return () => observer.disconnect();
-  }, [ambientStyle, ambientIntensity]);
   const [lightToolbarText, setLightToolbarText] = useState(() =>
     shouldUseLightToolbarText(),
   );
@@ -590,7 +566,7 @@ export default function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Main content */}
-        <main className="relative flex-1 min-w-0 bg-background text-foreground overflow-auto md:pt-0 pt-14" style={{ "--foreground": lightAmbientText ? "0 0% 100%" : "0 0% 0%", "--muted-foreground": lightAmbientText ? "0 0% 82%" : "0 0% 28%" } as CSSProperties}>
+        <main className="relative flex-1 min-w-0 bg-background text-foreground overflow-auto md:pt-0 pt-14">
           <VantaBackground style={ambientStyle} intensity={ambientIntensity} />
           <div
             className="sticky top-0 z-40 flex h-12 items-center justify-end gap-1 border-b bg-background/85 px-4 backdrop-blur"
