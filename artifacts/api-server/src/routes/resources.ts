@@ -42,8 +42,6 @@ import {
 } from "../lib/aiCostControls";
 
 const router: IRouter = Router();
-const DISCOVERY_MODEL =
-  process.env.AI_DISCOVERY_MODEL?.trim() || "gpt-5.6-luna";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -482,7 +480,7 @@ async function callDiscoverAI(
   try {
     const response = await openai.responses.create(
       {
-        model: DISCOVERY_MODEL,
+        model: "gpt-4o-mini",
         max_output_tokens:
           maxItems >= 18
             ? 3200
