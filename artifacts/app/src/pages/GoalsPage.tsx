@@ -103,7 +103,13 @@ export default function GoalsPage() {
     targetDate: "",
   });
   const [editingGoal, setEditingGoal] = useState<LearningGoal | null>(null);
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<{
+    title: string;
+    subject: string;
+    description: string;
+    level: LearningGoalInputLevel;
+    targetDate: string;
+  }>({
     title: "",
     subject: "",
     description: "",
