@@ -563,6 +563,38 @@ export interface ClassMember {
   user: PublicUser;
 }
 
+export type MyClassSeatLayoutMode = typeof MyClassSeatLayoutMode[keyof typeof MyClassSeatLayoutMode];
+
+export const MyClassSeatLayoutMode = {
+  grid: 'grid',
+  custom: 'custom',
+} as const;
+
+export type MyClassSeatRelativePosition = typeof MyClassSeatRelativePosition[keyof typeof MyClassSeatRelativePosition];
+
+export const MyClassSeatRelativePosition = {
+  front: 'front',
+  middle: 'middle',
+  back: 'back',
+} as const;
+
+export interface MyClassSeat {
+  assigned: boolean;
+  layoutMode: MyClassSeatLayoutMode;
+  /** @nullable */
+  row: number | null;
+  /** @nullable */
+  column: number | null;
+  /** @nullable */
+  deskId: string | null;
+  /** @nullable */
+  deskLabel: string | null;
+  /** @nullable */
+  deskSeat: number | null;
+  /** @nullable */
+  relativePosition: MyClassSeatRelativePosition | null;
+}
+
 export interface ClassWithMembers {
   id: number;
   name: string;
@@ -576,6 +608,7 @@ export interface ClassWithMembers {
   memberCount?: number;
   createdAt: string;
   members: ClassMember[];
+  mySeat?: MyClassSeat;
 }
 
 export interface ClassInput {
