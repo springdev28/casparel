@@ -1933,7 +1933,6 @@ export default function ResourcesPage() {
                             !hiddenSourceUrls.includes(resource.url) &&
                             !savedLibraryUrls.has(resource.url),
                         )
-                        .slice(0, 1)
                     : allWebResults
                   ).map((r, i) =>
                     isSourceMode ? (
