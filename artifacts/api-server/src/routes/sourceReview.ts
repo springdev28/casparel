@@ -339,7 +339,7 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
       let textOutput = "";
       if (mode === "deep") {
         const response = await openai.responses.create({
-          model: "gpt-4o",
+          model: "gpt-5-mini",
           max_output_tokens: 2500,
           text: {
             format: {
@@ -493,16 +493,18 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
               },
             },
           },
-          tools: [{ type: "web_search_preview", search_context_size: "high" }],
+          tools: [{ type: "web_search", search_context_size: "high" }],
+          reasoning: { effort: "low" },
           input: deepPrompt,
         });
         textOutput = response.output_text ?? "";
         await recordAiUsage("deep-research", deepUserId);
       } else {
         const response = await openai.responses.create({
-          model: "gpt-4o-mini",
+          model: "gpt-5-nano",
           max_output_tokens: 1400,
-          tools: [{ type: "web_search_preview", search_context_size: "low" }],
+          tools: [{ type: "web_search", search_context_size: "low" }],
+          reasoning: { effort: "minimal" },
           input: quickPrompt,
         });
         textOutput = response.output_text ?? "";
