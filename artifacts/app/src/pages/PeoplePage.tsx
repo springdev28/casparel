@@ -61,7 +61,6 @@ type PublicPersonGroup = {
 };
 
 const PUBLIC_PEOPLE_PAGE_SIZE = 9;
-const PUBLIC_PEOPLE_AUTO_SEARCH_PAGES = 5;
 
 function personName(title: string): string {
   return (
