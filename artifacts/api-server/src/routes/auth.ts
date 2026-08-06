@@ -244,6 +244,65 @@ router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
   res.json(GetMeResponse.parse(user));
 });
 
+router.get("/users/me/access", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const [user] = await db
+    .select({
+      bannedAt: usersTable.bannedAt,
+      bannedReason: usersTable.bannedReason,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+  const adminContact =
+    process.env.ADMIN_EMAILS?.split(",").map((email) => email.trim()).find(Boolean) ??
+    "baharyuksel0403@gmail.com";
+  res.json({
+    banned: Boolean(user.bannedAt),
+    bannedAt: user.bannedAt,
+    bannedReason: user.bannedReason,
+    adminContact,
+  });
+});
+
+router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const deletedMarker = `deleted-account-${userId}-${Date.now()}`;
+  const [user] = await db
+    .update(usersTable)
+    .set({
+      email: deletedMarker + "@invalid.local",
+      passwordHash: deletedMarker,
+      name: "Deleted user",
+      role: "student",
+      activeRole: "student",
+      avatarUrl: null,
+      bio: null,
+      subjects: null,
+      gradeOrDept: null,
+      timezone: null,
+      profileVisibility: "private",
+      libraryVisibility: "private",
+      showBio: false,
+      showSubjects: false,
+      showGradeOrDept: false,
+      showWebsite: false,
+      websiteUrl: null,
+      bannedAt: new Date().toISOString(),
+      bannedReason: "Account deleted by user",
+    })
+    .where(eq(usersTable.id, userId))
+    .returning({ id: usersTable.id });
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.sendStatus(204);
+});
+
 // GET /users/me/usage
 router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
   const { userId, accountRole } = req as AuthenticatedRequest;
