@@ -488,6 +488,12 @@ function translateText(node: Text, language: AuthLanguage) {
   if (source === undefined) {
     source = node.data;
     TEXT_ORIGINALS.set(node, source);
+  } else {
+    const previousTranslation = translateValue(source, "tr");
+    if (node.data !== source && node.data !== previousTranslation) {
+      source = node.data;
+      TEXT_ORIGINALS.set(node, source);
+    }
   }
   const next = translateValue(source, language);
   if (node.data !== next) node.data = next;
@@ -502,8 +508,17 @@ function translateAttributes(element: Element, language: AuthLanguage) {
   for (const attribute of TRANSLATED_ATTRIBUTES) {
     const current = element.getAttribute(attribute);
     if (current === null) continue;
-    if (!originals.has(attribute)) originals.set(attribute, current);
-    const source = originals.get(attribute) ?? current;
+    let source = originals.get(attribute);
+    if (source === undefined) {
+      source = current;
+      originals.set(attribute, source);
+    } else {
+      const previousTranslation = translateValue(source, "tr");
+      if (current !== source && current !== previousTranslation) {
+        source = current;
+        originals.set(attribute, source);
+      }
+    }
     const next = translateValue(source, language);
     if (current !== next) element.setAttribute(attribute, next);
   }
