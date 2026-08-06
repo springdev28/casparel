@@ -42,6 +42,8 @@ import {
 } from "../lib/aiCostControls";
 
 const router: IRouter = Router();
+const DISCOVERY_MODEL =
+  process.env.AI_DISCOVERY_MODEL?.trim() || "gpt-5.6-luna";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -480,8 +482,15 @@ async function callDiscoverAI(
   try {
     const response = await openai.responses.create(
       {
-        model: "gpt-4o-mini",
-        max_output_tokens: maxItems > 8 ? 1800 : 1200,
+        model: DISCOVERY_MODEL,
+        max_output_tokens:
+          maxItems >= 18
+            ? 3200
+            : maxItems >= 16
+              ? 2800
+              : maxItems >= 12
+                ? 2200
+                : 1400,
         tools: [{ type: "web_search_preview", search_context_size: "low" }],
         text: {
           format: {
@@ -893,6 +902,14 @@ router.get(
       .filter(Boolean)
       .join(" ");
 
+    const requestedCount = exactPersonSearch
+      ? 8
+      : resultType === "people"
+        ? 18
+        : resultType === "source"
+          ? 12
+          : 16;
+
     const buildPrompt = (excludeUrls: string[] = [], platformPass = false) => {
       const exclusionNote =
         excludeUrls.length > 0
@@ -922,21 +939,17 @@ router.get(
           : resultType === "source"
             ? "Prefer official organisations, universities, nonprofits, and established educator channels."
             : "Prefer Khan Academy, MIT OpenCourseWare, Wikipedia, TED-Ed, and CrashCourse when relevant.";
-      const requestedCount =
-        resultType === "people" && !exactPersonSearch ? 12 : 8;
       return `Suggest up to ${requestedCount} high-quality educational ${kind} for: "${effectiveQuery}"${subjectHint}${gradeHint}${languageHint}${resultType === "content" ? formatHint : ""}${pageHint}
 
-Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. ${extendedFilterHints} ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
+Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. Use the full result allowance and return ${requestedCount} distinct results whenever enough credible matches exist. ${extendedFilterHints} ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
 Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} ${platformSearchRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
     };
 
     try {
       // ── First AI call ────────────────────────────────────────────────────────
-      const peopleBatchSize =
-        resultType === "people" && !exactPersonSearch ? 12 : 8;
       const rawFirstBatch = await callDiscoverAI(
         buildPrompt(),
-        peopleBatchSize,
+        requestedCount,
         discoverUserId,
       );
       const firstBatch =
@@ -960,7 +973,12 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
           ? firstBatch
           : await filterReachableUrls(firstBatch, 2000);
 
-      const minimumResults = resultType === "people" ? 9 : DISCOVER_MIN_RESULTS;
+      const minimumResults =
+        resultType === "people"
+          ? 12
+          : resultType === "source"
+            ? 6
+            : Math.max(DISCOVER_MIN_RESULTS, 8);
       if (!exactPersonSearch && reachable.length >= minimumResults) {
         if (process.env.NODE_ENV !== "test")
           discoverCache.set(cacheKey, {
@@ -1006,7 +1024,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
 
       const rawSecondBatch = await callDiscoverAI(
         buildPrompt(deadUrls, exactPersonSearch),
-        peopleBatchSize,
+        requestedCount,
         discoverUserId,
       );
       const secondBatch =
