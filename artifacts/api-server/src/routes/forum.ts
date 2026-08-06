@@ -246,7 +246,7 @@ router.get("/forum/materials", requireAuth, async (req, res): Promise<void> => {
   if (unit) conditions.push(ilike(forumMaterialsTable.unit, `%${unit}%`));
   if (topic) conditions.push(ilike(forumMaterialsTable.topic, `%${topic}%`));
   if (type && MATERIAL_TYPES.has(type))
-    conditions.push(eq(forumMaterialsTable.materialType, type as typeof forumMaterialsTable.materialType.enumValues[number]));
+    conditions.push(eq(forumMaterialsTable.materialType, type as "video" | "infographic" | "article" | "worksheet" | "activity" | "notes"));
   if (uploader)
     conditions.push(ilike(forumMaterialsTable.uploaderName, `%${uploader}%`));
   if (date === "day")
