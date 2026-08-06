@@ -476,7 +476,7 @@ async function callDiscoverAI(
   userId: number | null = null,
 ): Promise<ReturnType<typeof DiscoverResourcesResponse.parse>> {
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 22000);
+  const timer = setTimeout(() => ac.abort(), 55000);
   try {
     const response = await openai.responses.create(
       {
