@@ -23,6 +23,7 @@ import GoalsPage from "./pages/GoalsPage";
 import AdminPage from "./pages/AdminPage";
 import AppShell from "./components/AppShell";
 import PublicShell from "./components/PublicShell";
+import UiTranslationBridge from "./components/UiTranslationBridge";
 
 const TOKEN_KEY = "schoolar_token";
 
@@ -166,6 +167,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <UiTranslationBridge />
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
