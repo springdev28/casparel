@@ -149,10 +149,11 @@ async function moderateForumText(
     }
 
     const response = await openai.responses.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5-nano",
       max_output_tokens: 180,
+      reasoning: { effort: "minimal" },
       ...(/https?:\/\//i.test(input)
-        ? { tools: [{ type: "web_search_preview" as const, search_context_size: "low" as const }] }
+        ? { tools: [{ type: "web_search" as const, search_context_size: "low" as const }] }
         : {}),
       input:
         'Review this education-forum content. When URLs are present, inspect the linked destination. Flag only clear fabricated factual claims, targeted hate, harassment, sexual content, dangerous instructions, severe misinformation, or an unsafe/inappropriate linked destination. Opinions, criticism, jokes, uncertainty, and ordinary mistakes are allowed. Return JSON only as {"flagged":boolean,"reason":string}.\\n\\nCONTENT:\\n' +
