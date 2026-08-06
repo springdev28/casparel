@@ -71,6 +71,7 @@ import {
   getDiscoverResourcesQueryKey,
   getListResourcesQueryKey,
   getGetMeQueryKey,
+  getGetMyUsageQueryKey,
   getGetResourceRecommendationsQueryKey,
   getGetDashboardSummaryQueryKey,
   getGetClassResourcesListQueryKey,
@@ -786,6 +787,7 @@ export default function ResourcesPage() {
     isFetching: webLoading,
     isError: webError,
     error: webErrorObj,
+    refetch: retryWebSearch,
   } = useDiscoverResources(discoverParams, {
     query: {
       enabled: isSearching,
@@ -795,14 +797,20 @@ export default function ResourcesPage() {
     },
   });
 
-  // Detect 429 rate-limit responses from the discover endpoint.
-  // The generated client throws ApiError with .status (HTTP code) and .data (parsed body).
-  const webRateLimited =
-    webError && (webErrorObj as { status?: number } | null)?.status === 429;
-  const webRateLimitRetryAfter: number = webRateLimited
-    ? ((webErrorObj as { data?: { retryAfter?: number } } | null)?.data
-        ?.retryAfter ?? 60)
+  // The generated client throws ApiError with .status and parsed response data.
+  const webErrorResponse = webErrorObj as {
+    status?: number;
+    data?: { retryAfter?: number; error?: string; code?: string };
+  } | null;
+  const webRateLimited = webError && webErrorResponse?.status === 429;
+  const webDailyLimited =
+    webRateLimited && /daily/i.test(webErrorResponse?.data?.error ?? "");
+  const webRateLimitRetryAfter = webRateLimited
+    ? (webErrorResponse?.data?.retryAfter ?? 60)
     : 0;
+  const webCreditsExhausted =
+    webErrorResponse?.status === 503 &&
+    webErrorResponse.data?.code === "AI_CREDITS_EXHAUSTED";
 
   // Reset accumulated results when query changes; append on page increment
   useEffect(() => {
@@ -846,6 +854,11 @@ export default function ResourcesPage() {
       webPage === 1 ? webResults : [...prev, ...webResults],
     );
   }, [webResults, webPage]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !isSearching || webLoading) return;
+    void queryClient.invalidateQueries({ queryKey: getGetMyUsageQueryKey() });
+  }, [isLoggedIn, isSearching, queryClient, webError, webLoading, webResults]);
 
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
 
@@ -1862,12 +1875,17 @@ export default function ResourcesPage() {
             {webError && !webLoading && webRateLimited && (
               <div className="py-6 text-center">
                 <p className="text-sm text-amber-600 font-medium">
-                  Search limit reached — you can run up to 5 AI web searches per
-                  minute.
+                  {webDailyLimited
+                    ? "Your daily search limit has been reached."
+                    : "Too many searches were started at once."}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Try again in {webRateLimitRetryAfter} second
-                  {webRateLimitRetryAfter !== 1 ? "s" : ""}.
+                  {webDailyLimited ? "Your allowance resets daily." : (
+                    <>
+                      Try again in {webRateLimitRetryAfter} second
+                      {webRateLimitRetryAfter !== 1 ? "s" : ""}.
+                    </>
+                  )}
                 </p>
               </div>
             )}
@@ -1875,13 +1893,22 @@ export default function ResourcesPage() {
             {webError && !webLoading && !webRateLimited && (
               <div className="py-6 text-center">
                 <p className="text-sm text-destructive font-medium">
-                  Web search failed — please try again.
+                  {webCreditsExhausted
+                    ? isAdmin
+                      ? "Web search is unavailable because the OpenAI project has no credits."
+                      : "Web search is temporarily unavailable. Please contact an administrator."
+                    : "Web search failed — please try again."}
                 </p>
+                {webCreditsExhausted && isAdmin ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Add credits in OpenAI billing, then retry this search.
+                  </p>
+                ) : null}
                 <Button
                   variant="outline"
                   size="sm"
                   className="mt-3"
-                  onClick={() => setActiveQuery(activeQuery)}
+                  onClick={() => void retryWebSearch()}
                 >
                   Retry
                 </Button>
