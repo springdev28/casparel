@@ -182,6 +182,7 @@ const adminUserSelection = {
   email: usersTable.email,
   role: usersTable.role,
   activeRole: usersTable.activeRole,
+  teacherVerified: usersTable.teacherVerified,
   avatarUrl: usersTable.avatarUrl,
   bio: usersTable.bio,
   subjects: usersTable.subjects,
@@ -232,6 +233,29 @@ router.patch("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<voi
     res.status(404).json({ error: "User not found" });
     return;
   }
+  res.json(user);
+});
+
+router.patch("/admin/users/:id/teacher-verification", requireAdmin, async (req, res): Promise<void> => {
+  const targetId = Number(req.params.id);
+  const verified = req.body?.verified === true;
+  if (!targetId) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+  const [target] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, targetId));
+  if (!target || target.role !== "teacher") {
+    res.status(400).json({ error: "Only teacher accounts can be verified" });
+    return;
+  }
+  const [user] = await db
+    .update(usersTable)
+    .set({ teacherVerified: verified })
+    .where(eq(usersTable.id, targetId))
+    .returning(adminUserSelection);
   res.json(user);
 });
 
