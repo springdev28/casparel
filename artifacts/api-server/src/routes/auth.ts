@@ -48,6 +48,7 @@ import {
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { buildRateLimitStore } from "../lib/rateLimitStore";
+import { aiSearchDailyUserLimiter } from "../lib/aiCostControls";
 
 const PRESET_AVATARS: Record<
   string,
@@ -545,7 +546,11 @@ async function blockedIdsFor(userId: number): Promise<Set<number>> {
 }
 
 // GET /users/search — shared classmates by default; opt-in profile discovery with scope=all
-router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
+router.get(
+  "/users/search",
+  requireAuth,
+  aiSearchDailyUserLimiter,
+  async (req, res): Promise<void> => {
   const { userId, accountRole } = req as AuthenticatedRequest;
   const isAdmin = accountRole === "admin";
   const parsed = SearchUsersQueryParams.safeParse(req.query);
@@ -672,7 +677,8 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
       .slice(offset, offset + limit)
       .map((user) => maskPublicUser(user, isAdmin)),
   );
-});
+  },
+);
 
 async function usersHaveBlock(
   firstId: number,
