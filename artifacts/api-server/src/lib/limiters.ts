@@ -7,6 +7,7 @@ import { isAdminRequest } from "./adminAccess";
  * Applied to every /api route.
  */
 export const globalLimiter = rateLimit({
+  skip: isAdminRequest,
   requestPropertyName: "globalRateLimit",
   windowMs: 60 * 1000,
   max: 100,
@@ -55,6 +56,7 @@ export const discoverLimiter = rateLimit({
  * Applied to POST /resources and POST /reviews to slow automated content spam.
  */
 export const contentLimiter = rateLimit({
+  skip: isAdminRequest,
   requestPropertyName: "contentRateLimit",
   validate: { singleCount: false },
   windowMs: 60 * 1000,
