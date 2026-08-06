@@ -95,11 +95,8 @@ function hslChannelsToRgb(value: string): [number, number, number] {
   return [channel(0) * 255, channel(8) * 255, channel(4) * 255];
 }
 
-function shouldUseLightToolbarText() {
-  const background = hslChannelsToRgb(
-    getComputedStyle(document.documentElement).getPropertyValue("--background"),
-  );
-  const linear = background.map((value) => {
+function usesLightText(rgb: number[]) {
+  const linear = rgb.map((value) => {
     const channel = value / 255;
     return channel <= 0.04045
       ? channel / 12.92
@@ -108,6 +105,35 @@ function shouldUseLightToolbarText() {
   return (
     0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2] <=
     0.179
+  );
+}
+
+function pageBackgroundRgb() {
+  return hslChannelsToRgb(
+    getComputedStyle(document.documentElement).getPropertyValue("--background"),
+  );
+}
+
+function shouldUseLightToolbarText() {
+  return usesLightText(pageBackgroundRgb());
+}
+
+const AMBIENT_BACKGROUND_RGB: Record<Exclude<VantaStyle, "off">, [number, number, number]> = {
+  net: [7, 17, 11],
+  globe: [7, 11, 18],
+  halo: [7, 11, 18],
+  cells: [244, 251, 247],
+  rings: [7, 11, 18],
+  topology: [246, 250, 247],
+};
+
+function shouldUseLightPageText(style: VantaStyle, intensity: number) {
+  if (style === "off") return shouldUseLightToolbarText();
+  const page = pageBackgroundRgb();
+  const effect = AMBIENT_BACKGROUND_RGB[style];
+  const opacity = Math.min(1, 0.35 + intensity * 0.25);
+  return usesLightText(
+    page.map((channel, index) => channel * (1 - opacity) + effect[index] * opacity),
   );
 }
 
@@ -161,17 +187,22 @@ export default function AppShell({ children }: AppShellProps) {
   const [lightToolbarText, setLightToolbarText] = useState(() =>
     shouldUseLightToolbarText(),
   );
+  const [lightPageText, setLightPageText] = useState(() =>
+    shouldUseLightPageText(ambientStyle, ambientIntensity),
+  );
   useEffect(() => {
-    const updateToolbarContrast = () =>
+    const updateContrast = () => {
       setLightToolbarText(shouldUseLightToolbarText());
-    updateToolbarContrast();
-    const observer = new MutationObserver(updateToolbarContrast);
+      setLightPageText(shouldUseLightPageText(ambientStyle, ambientIntensity));
+    };
+    updateContrast();
+    const observer = new MutationObserver(updateContrast);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class", "style"],
     });
     return () => observer.disconnect();
-  }, []);
+  }, [ambientIntensity, ambientStyle]);
 
   function chooseAmbientIntensity(value: number) {
     setAmbientIntensity(value);
@@ -191,6 +222,11 @@ export default function AppShell({ children }: AppShellProps) {
   }
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
   const isAdmin = me?.role === UserRole.admin;
+  const hasUnlimitedUsage = isAdmin || accountUsage?.unlimited === true;
+  const aiSearchUsed = accountUsage?.aiSearch.used ?? 0;
+  const aiSearchLimit = accountUsage?.aiSearch.limit ?? 3;
+  const deepResearchUsed = accountUsage?.deepResearch.used ?? 0;
+  const deepResearchLimit = accountUsage?.deepResearch.limit ?? 2;
   const navItems = isAdmin
     ? [...NAV_ITEMS, { label: "Admin", href: "/admin", icon: ShieldCheck }]
     : NAV_ITEMS;
@@ -448,10 +484,40 @@ export default function AppShell({ children }: AppShellProps) {
                   <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-semibold">{accountUsage?.plan ?? (isAdmin ? "Administrator" : "Free")}</span>
                 </div>
                 <div className="space-y-2 text-[11px] text-primary-foreground/75">
-                  <div><div className="flex justify-between"><span>AI search</span><span>{accountUsage?.unlimited ? "Unlimited" : String(accountUsage?.aiSearch.used ?? 0) + " / " + String(accountUsage?.aiSearch.limit ?? 20)}</span></div>{!accountUsage?.unlimited ? <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15"><div className="h-full rounded bg-primary-foreground/70" style={{ width: Math.min(100, ((accountUsage?.aiSearch.used ?? 0) / (accountUsage?.aiSearch.limit ?? 20)) * 100) + "%" }} /></div> : null}</div>
-                  <div><div className="flex justify-between"><span>Deep research</span><span>{accountUsage?.unlimited ? "Unlimited" : String(accountUsage?.deepResearch.used ?? 0) + " / " + String(accountUsage?.deepResearch.limit ?? 2)}</span></div>{!accountUsage?.unlimited ? <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15"><div className="h-full rounded bg-primary-foreground/70" style={{ width: Math.min(100, ((accountUsage?.deepResearch.used ?? 0) / (accountUsage?.deepResearch.limit ?? 2)) * 100) + "%" }} /></div> : null}</div>
+                  <div>
+                    <div className="flex justify-between">
+                      <span>AI search</span>
+                      <span>{hasUnlimitedUsage ? "Unlimited" : `${aiSearchUsed} / ${aiSearchLimit}`}</span>
+                    </div>
+                    {!hasUnlimitedUsage ? (
+                      <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15">
+                        <div
+                          className="h-full rounded bg-primary-foreground/70"
+                          style={{ width: Math.min(100, (aiSearchUsed / aiSearchLimit) * 100) + "%" }}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                  <div>
+                    <div className="flex justify-between">
+                      <span>Deep research</span>
+                      <span>{hasUnlimitedUsage ? "Unlimited" : `${deepResearchUsed} / ${deepResearchLimit}`}</span>
+                    </div>
+                    {!hasUnlimitedUsage ? (
+                      <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15">
+                        <div
+                          className="h-full rounded bg-primary-foreground/70"
+                          style={{ width: Math.min(100, (deepResearchUsed / deepResearchLimit) * 100) + "%" }}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-                {!accountUsage?.unlimited ? <p className="mt-2 text-[10px] text-primary-foreground/55">Search resets hourly · Research resets daily</p> : null}
+                <p className="mt-2 text-[10px] text-primary-foreground/55">
+                  {hasUnlimitedUsage
+                    ? "No search or research limits"
+                    : "Search and research reset daily"}
+                </p>
               </div>
             ) : null}
 
@@ -652,7 +718,15 @@ export default function AppShell({ children }: AppShellProps) {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="relative z-10">{children}</div>
+          <div
+            className="ambient-copy-contrast relative z-10"
+            style={{
+              "--foreground": lightPageText ? "0 0% 100%" : "225 21.1% 7.5%",
+              "--muted-foreground": lightPageText ? "0 0% 82%" : "0 0% 28%",
+            } as CSSProperties}
+          >
+            {children}
+          </div>
         </main>
       </div>
     </>
