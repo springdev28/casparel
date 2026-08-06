@@ -504,7 +504,7 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
           model: "gpt-5-nano",
           max_output_tokens: 1400,
           tools: [{ type: "web_search", search_context_size: "low" }],
-          reasoning: { effort: "minimal" },
+          reasoning: { effort: "low" },
           input: quickPrompt,
         });
         textOutput = response.output_text ?? "";
