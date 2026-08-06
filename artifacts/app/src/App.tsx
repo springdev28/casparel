@@ -1,7 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@workspace/edu-ds/components/ui/toaster";
 import { TooltipProvider } from "@workspace/edu-ds/components/ui/tooltip";
+import { Button } from "@workspace/edu-ds/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@workspace/edu-ds/components/ui/card";
+import { Ban, Loader2, Mail, Trash2 } from "lucide-react";
 import { Route, Switch, Router as WouterRouter, Redirect } from "wouter";
 import { setAuthTokenGetter, useGetMe, UserRole } from "@workspace/api-client-react";
 
@@ -49,6 +52,118 @@ if (_oldToken && !localStorage.getItem(TOKEN_KEY)) {
 
 // Set up auth token getter once at module level
 setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
+
+type AccountAccess = {
+  banned: boolean;
+  bannedAt: string | null;
+  bannedReason: string | null;
+  adminContact: string;
+};
+
+function apiUrl(path: string) {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  return base + "/api" + path;
+}
+
+function BannedAccountPage({ access }: { access: AccountAccess }) {
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteAccount() {
+    if (!window.confirm("Permanently delete your account? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      const response = await fetch(apiUrl("/users/me"), {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + localStorage.getItem(TOKEN_KEY) },
+      });
+      if (!response.ok) throw new Error("Account deletion failed");
+      localStorage.removeItem(TOKEN_KEY);
+      queryClient.clear();
+      window.location.assign(import.meta.env.BASE_URL + "resources");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <main className="flex min-h-[100dvh] items-center justify-center bg-background p-4 text-foreground">
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <div className="mb-2 flex size-11 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+            <Ban className="size-5" />
+          </div>
+          <CardTitle>Account banned</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {access.bannedReason || "This account has been restricted by an administrator."}
+          </p>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row">
+          <Button asChild className="flex-1">
+            <a href={"mailto:" + access.adminContact}>
+              <Mail className="mr-2 size-4" /> Contact an admin
+            </a>
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            className="flex-1"
+            onClick={deleteAccount}
+            disabled={deleting}
+          >
+            {deleting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Trash2 className="mr-2 size-4" />}
+            Delete account
+          </Button>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
+
+function AccountAccessGate({ children }: { children: ReactNode }) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const [access, setAccess] = useState<AccountAccess | null>(null);
+  const [checked, setChecked] = useState(!token);
+
+  useEffect(() => {
+    if (!token) {
+      setChecked(true);
+      setAccess(null);
+      return;
+    }
+    const controller = new AbortController();
+    void fetch(apiUrl("/users/me/access"), {
+      headers: { Authorization: "Bearer " + token },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (response.status === 401) {
+          localStorage.removeItem(TOKEN_KEY);
+          return null;
+        }
+        if (!response.ok) throw new Error("Could not verify account access");
+        return (await response.json()) as AccountAccess;
+      })
+      .then((value) => {
+        setAccess(value);
+        setChecked(true);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setChecked(true);
+      });
+    return () => controller.abort();
+  }, [token]);
+
+  if (!checked) {
+    return (
+      <main className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground">
+        <Loader2 className="size-6 animate-spin text-primary" aria-label="Checking account access" />
+      </main>
+    );
+  }
+  if (access?.banned) return <BannedAccountPage access={access} />;
+  return <>{children}</>;
+}
 
 /** Fully private page — redirects to login if unauthenticated. */
 function PrivateRoute({
@@ -170,7 +285,7 @@ function App() {
       <UiTranslationBridge />
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <AccountAccessGate><Router /></AccountAccessGate>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
