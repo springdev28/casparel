@@ -1056,6 +1056,33 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       );
     } catch (err) {
       console.error("Discover AI error:", err);
+
+      // Keep recently cached results usable during an upstream billing or
+      // availability incident, even after their normal freshness window.
+      const stale = discoverCache.get(cacheKey);
+      if (stale?.items.length) {
+        res.setHeader("X-Search-Cache", "STALE");
+        res.json(stale.items);
+        return;
+      }
+
+      const upstreamStatus =
+        typeof err === "object" && err !== null && "status" in err
+          ? Number((err as { status?: unknown }).status)
+          : null;
+      const upstreamMessage =
+        err instanceof Error ? err.message : String(err);
+      if (
+        upstreamStatus === 429 &&
+        /no credits remaining|billing/i.test(upstreamMessage)
+      ) {
+        res.status(503).json({
+          error: "Web search is temporarily unavailable because the AI service has no credits.",
+          code: "AI_CREDITS_EXHAUSTED",
+        });
+        return;
+      }
+
       res.status(502).json({ error: "Search failed. Please try again." });
     }
   },
