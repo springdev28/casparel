@@ -151,7 +151,7 @@ async function moderateForumText(
     const response = await openai.responses.create({
       model: "gpt-5-nano",
       max_output_tokens: 180,
-      reasoning: { effort: "minimal" },
+      reasoning: { effort: "low" },
       ...(/https?:\/\//i.test(input)
         ? { tools: [{ type: "web_search" as const, search_context_size: "low" as const }] }
         : {}),
