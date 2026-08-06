@@ -357,7 +357,7 @@ export default function ForumPage() {
         </TabsList>
 
         <TabsContent value="materials" className="space-y-5">
-          <section className="space-y-3 border-y bg-background/80 py-4">
+          <section className="space-y-3 rounded-md border bg-background/90 p-4 shadow-sm">
             <div className="flex flex-wrap gap-2">
               <div className="relative min-w-[220px] flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={materialQuery} onChange={(event) => setMaterialQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadMaterials()} placeholder="Search titles, tags, units, topics, uploaders..." className="pl-9" /></div>
               <Button onClick={loadMaterials} disabled={loadingMaterials}><Search className="mr-2 size-4" />Search</Button>
@@ -422,7 +422,7 @@ export default function ForumPage() {
         </TabsContent>
 
         <TabsContent value="posts" className="space-y-5">
-          <section className="flex flex-wrap gap-2 border-y bg-background/80 py-4">
+          <section className="flex flex-wrap gap-2 rounded-md border bg-background/90 p-4 shadow-sm">
             <div className="relative min-w-[220px] flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={postQuery} onChange={(event) => setPostQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadPosts()} placeholder="Search forum posts..." className="pl-9" /></div>
             <Select value={postKind} onValueChange={setPostKind}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Posts & surveys</SelectItem><SelectItem value="post">Posts</SelectItem><SelectItem value="survey">Surveys</SelectItem></SelectContent></Select>
             <Select value={postTag} onValueChange={setPostTag}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All tags</SelectItem>{POST_TAGS.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}</SelectContent></Select>
