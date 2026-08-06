@@ -216,13 +216,17 @@ router.get(
           )[0];
     if (cached) {
       const report = GetResourceSourceReviewResponse.safeParse(cached.report);
-      if (report.success) {
-        const cachedProfile =
-          cached.report &&
-          typeof cached.report === "object" &&
-          "resourceProfile" in cached.report
-            ? (cached.report as { resourceProfile?: unknown }).resourceProfile
-            : undefined;
+      const cachedProfile =
+        cached.report &&
+        typeof cached.report === "object" &&
+        "resourceProfile" in cached.report
+          ? (cached.report as { resourceProfile?: unknown }).resourceProfile
+          : undefined;
+      if (
+        report.success &&
+        cachedProfile &&
+        typeof cachedProfile === "object"
+      ) {
         res.setHeader("X-Source-Review-Cache", "HIT");
         res.json({
           ...report.data,
@@ -325,7 +329,7 @@ Respond ONLY with valid JSON matching this structure, no markdown or extra text.
 
     const quickPrompt = `${basePrompt}
 
-Use only your training knowledge — do not search the web. Provide your best assessment based on what you already know about this URL and domain.`;
+Perform a brief live lookup of the exact resource page and its publisher. Prioritize the page's own metadata for publication date, last edit date, author, language, license, duration, captions, and transcript status. Keep the assessment concise, use null for anything the page or reliable search results do not establish, and never guess.`;
 
     const deepPrompt = `${basePrompt}
 
@@ -495,16 +499,13 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
         textOutput = response.output_text ?? "";
         await recordAiUsage("deep-research", deepUserId);
       } else {
-        const response = await openai.chat.completions.create({
+        const response = await openai.responses.create({
           model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "user",
-              content: quickPrompt,
-            },
-          ],
+          max_output_tokens: 1400,
+          tools: [{ type: "web_search_preview", search_context_size: "low" }],
+          input: quickPrompt,
         });
-        textOutput = response.choices[0]?.message?.content ?? "";
+        textOutput = response.output_text ?? "";
         await recordAiUsage("quick-review", deepUserId);
       }
 
