@@ -55,7 +55,7 @@ export const aiSearchDailyBudget = rateLimit({
   requestPropertyName: "aiSearchDailyRateLimit",
   validate: { singleCount: false },
   windowMs: 24 * 60 * 60 * 1000,
-  max: positiveLimit(process.env.AI_SEARCH_DAILY_LIMIT, 3000),
+  max: positiveLimit(process.env.AI_SEARCH_DAILY_LIMIT, 100),
   keyGenerator: () => "all-ai-searches",
   standardHeaders: true,
   legacyHeaders: false,
