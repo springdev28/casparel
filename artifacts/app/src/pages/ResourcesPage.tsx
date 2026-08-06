@@ -22,7 +22,7 @@ import {
   ImageIcon,
   ShieldCheck,
   CircleHelp,
-  RefreshCw,
+  Target,
   SlidersHorizontal,
   RotateCcw,
 } from "lucide-react";
@@ -96,19 +96,25 @@ import {
 } from "../lib/searchHistory";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
-const DAILY_SOURCE_RECOMMENDATION_LIMIT = 3;
-
-function sourceRecommendationUsageKey(userId?: number) {
-  const date = new Date().toLocaleDateString("en-CA");
-  return `schoolar_source_recommendations:${userId ?? "guest"}:${date}`;
+function continueStudyingStorageKey(userId: number, goalId: number) {
+  return `schoolar_continue_studying:${userId}:${goalId}`;
 }
 
-function getSourceRecommendationUsage(userId?: number) {
-  const value = Number(
-    localStorage.getItem(sourceRecommendationUsageKey(userId)) ?? "0",
-  );
-  return Number.isFinite(value) && value > 0 ? value : 0;
+function getContinueStudyingResourceIds(userId: number, goalId: number) {
+  try {
+    const parsed = JSON.parse(
+      localStorage.getItem(continueStudyingStorageKey(userId, goalId)) ?? "[]",
+    ) as unknown;
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((id): id is number => Number.isInteger(id) && id > 0)
+          .slice(0, 6)
+      : [];
+  } catch {
+    return [];
+  }
 }
+
 const SEARCH_LANGUAGE_OPTIONS = [
   { code: DiscoverResourcesLanguage.any, label: "Any language" },
   ...AUTH_LANGUAGES,
@@ -598,9 +604,10 @@ export default function ResourcesPage() {
   const [webPage, setWebPage] = useState(1);
   const [allWebResults, setAllWebResults] = useState<DiscoveredResource[]>([]);
   const [hiddenSourceUrls, setHiddenSourceUrls] = useState<string[]>([]);
-  const [sourceRefreshes, setSourceRefreshes] = useState(0);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
-  const [personalisedSearchRequested, setPersonalisedSearchRequested] =
+  const [continueGoalId, setContinueGoalId] = useState("");
+  const [continueResourceIds, setContinueResourceIds] = useState<number[]>([]);
+  const [chooseContinueResourcesOpen, setChooseContinueResourcesOpen] =
     useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [exactPhraseFilter, setExactPhraseFilter] = useState("");
@@ -643,49 +650,12 @@ export default function ResourcesPage() {
   const isAdmin = me?.role === "admin";
 
   useEffect(() => {
-    setSourceRefreshes(getSourceRecommendationUsage(me?.id));
-  }, [me?.id]);
-
-  useEffect(() => {
     setSearchHistory(getSearchHistory(me?.id));
   }, [me?.id]);
 
   const { data: learningGoals } = useListLearningGoals({
     query: { enabled: isLoggedIn, queryKey: getListLearningGoalsQueryKey() },
   });
-  const personalisedSourceQuery = [
-    ...(me?.subjects ?? []),
-    ...(learningGoals ?? [])
-      .filter((goal) => goal.status === "active")
-      .flatMap((goal) => [goal.title, goal.subject]),
-  ]
-    .map((term) => term.trim())
-    .filter(Boolean)
-    .filter((term, index, all) => all.indexOf(term) === index)
-    .slice(0, 8)
-    .join(" ") || "high-quality educational sources for lifelong learning";
-  const personalisedDiscoverParams = {
-    q: personalisedSourceQuery,
-    resultType: DiscoverResourcesResultType.source,
-    page: 1,
-  };
-  const {
-    data: personalisedSources,
-    isFetching: personalisedSourcesLoading,
-    refetch: searchPersonalisedSources,
-  } = useDiscoverResources(personalisedDiscoverParams, {
-    query: {
-      enabled: false,
-      queryKey: [
-        "personalised-internet-sources",
-        me?.id ?? "guest",
-        personalisedSourceQuery,
-      ],
-      staleTime: 300_000,
-      retry: false,
-    },
-  });
-
   // Library search results (shown when searching)
   const libraryParams = {
     ...(activeQuery ? { q: activeQuery } : {}),
@@ -738,6 +708,64 @@ export default function ResourcesPage() {
       .filter((resource) => resource.submittedById === me?.id)
       .map((resource) => resource.url),
   );
+
+  const activeLearningGoals = (learningGoals ?? []).filter(
+    (goal) => goal.status === "active",
+  );
+  const selectedContinueGoal = activeLearningGoals.find(
+    (goal) => String(goal.id) === continueGoalId,
+  );
+  const continueResources = continueResourceIds
+    .map((id) => (libraryCatalog ?? []).find((resource) => resource.id === id))
+    .filter(
+      (resource): resource is NonNullable<typeof resource> =>
+        resource !== undefined,
+    );
+
+  useEffect(() => {
+    if (!activeLearningGoals.length) {
+      setContinueGoalId("");
+      return;
+    }
+    const routeGoal = new URLSearchParams(routeSearch).get("goal");
+    const requestedGoal = routeGoal
+      ? activeLearningGoals.find(
+          (goal) => goal.title.toLocaleLowerCase() === routeGoal.toLocaleLowerCase(),
+        )
+      : undefined;
+    const currentGoalExists = activeLearningGoals.some(
+      (goal) => String(goal.id) === continueGoalId,
+    );
+    if (requestedGoal) setContinueGoalId(String(requestedGoal.id));
+    else if (!currentGoalExists)
+      setContinueGoalId(String(activeLearningGoals[0].id));
+  }, [learningGoals, routeSearch, continueGoalId]);
+
+  useEffect(() => {
+    if (!me?.id || !selectedContinueGoal) {
+      setContinueResourceIds([]);
+      return;
+    }
+    setContinueResourceIds(
+      getContinueStudyingResourceIds(me.id, selectedContinueGoal.id),
+    );
+  }, [me?.id, selectedContinueGoal?.id]);
+
+  function setContinueResource(resourceId: number, selected: boolean) {
+    if (!me?.id || !selectedContinueGoal) return;
+    setContinueResourceIds((current) => {
+      const next = selected
+        ? current.includes(resourceId) || current.length >= 6
+          ? current
+          : [...current, resourceId]
+        : current.filter((id) => id !== resourceId);
+      localStorage.setItem(
+        continueStudyingStorageKey(me.id, selectedContinueGoal.id),
+        JSON.stringify(next),
+      );
+      return next;
+    });
+  }
 
   // Web discover (shown when searching) — accumulate across pages
   const discoverParams = {
@@ -1135,29 +1163,6 @@ export default function ResourcesPage() {
       // URL remains excluded if the search results are rebuilt.
       setHiddenSourceUrls((urls) => [...new Set([...urls, resource.url])]);
     }
-  }
-
-  function recommendAnotherSource(sourcePool: DiscoveredResource[] = allWebResults) {
-    if (!isAdmin && sourceRefreshes >= DAILY_SOURCE_RECOMMENDATION_LIMIT) return;
-    const visibleSource = sourcePool.find(
-      (resource) =>
-        !hiddenSourceUrls.includes(resource.url) &&
-        !savedLibraryUrls.has(resource.url),
-    );
-    if (!visibleSource) return;
-    setHiddenSourceUrls((urls) => [...new Set([...urls, visibleSource.url])]);
-    if (isAdmin) return;
-    setSourceRefreshes((count) => {
-      const next = Math.min(
-        count + 1,
-        DAILY_SOURCE_RECOMMENDATION_LIMIT,
-      );
-      localStorage.setItem(
-        sourceRecommendationUsageKey(me?.id),
-        String(next),
-      );
-      return next;
-    });
   }
 
   return (
@@ -1760,91 +1765,148 @@ export default function ResourcesPage() {
         </section>
       )}
 
-      {/* ── ON-DEMAND INTERNET SOURCE RECOMMENDATION ─────────── */}
-      {!isSearching && (
-        <section id="recommended-source" className="scroll-mt-16">
-          <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            <Globe size={14} /> Recommended internet source
-          </h2>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Search using {isLoggedIn ? "your selected interests and active learning goals" : "high-quality educational topics"}. Saved library sources are excluded.
-          </p>
-          {!personalisedSearchRequested ? (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPersonalisedSearchRequested(true);
-                void searchPersonalisedSources();
-              }}
-              data-testid="find-personalised-source"
-            >
-              <Search size={15} className="mr-1.5" /> Find a recommended source
-            </Button>
-          ) : personalisedSourcesLoading ? (
-            <CardSkeletons count={1} />
-          ) : !(personalisedSources ?? []).some(
-              (resource) =>
-                !hiddenSourceUrls.includes(resource.url) &&
-                !savedLibraryUrls.has(resource.url),
-            ) ? (
-            <div className="rounded-lg border py-10 text-center text-muted-foreground">
-              <Globe size={32} className="mx-auto mb-3 opacity-30" />
-              <p className="font-medium text-foreground">No new source found</p>
-              <p className="mt-1 text-sm">
-                Try adding interests or an active learning goal.
+      {/* ── CONTINUE STUDYING ─────────────────────────────────────── */}
+      {!isSearching && isLoggedIn && (
+        <section id="continue-studying" className="scroll-mt-16 space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                <Target size={14} /> Continue studying
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Keep the library resources you use for each active goal together.
               </p>
+            </div>
+            {activeLearningGoals.length > 0 && (
+              <div className="w-full sm:w-72">
+                <Label htmlFor="continue-goal" className="sr-only">
+                  Learning goal
+                </Label>
+                <Select value={continueGoalId} onValueChange={setContinueGoalId}>
+                  <SelectTrigger id="continue-goal">
+                    <SelectValue placeholder="Choose a learning goal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeLearningGoals.map((goal) => (
+                      <SelectItem key={goal.id} value={String(goal.id)}>
+                        {goal.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          {!activeLearningGoals.length ? (
+            <div className="border-y py-8 text-center">
+              <p className="font-medium">No active learning goals</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Create or resume a goal before choosing study resources.
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-4">
+                <Link href="/goals">Open learning goals</Link>
+              </Button>
             </div>
           ) : (
             <>
-              <div className="max-w-xl">
-                {(personalisedSources ?? [])
-                  .filter(
-                    (resource) =>
-                      !hiddenSourceUrls.includes(resource.url) &&
-                      !savedLibraryUrls.has(resource.url),
-                  )
-                  .slice(0, 1)
-                  .map((resource) => (
-                    <SourceCard
-                      key={resource.url}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-y py-3">
+                <div>
+                  <p className="font-medium">{selectedContinueGoal?.title}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedContinueGoal?.subject}
+                    {continueResourceIds.length
+                      ? ` · ${continueResourceIds.length} selected`
+                      : " · No resources selected"}
+                  </p>
+                </div>
+                <Dialog
+                  open={chooseContinueResourcesOpen}
+                  onOpenChange={setChooseContinueResourcesOpen}
+                >
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <BookOpen size={14} className="mr-1.5" /> Choose resources
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Choose resources</DialogTitle>
+                      <DialogDescription>
+                        Select up to six library resources for this goal.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+                      {(libraryCatalog ?? []).length ? (
+                        (libraryCatalog ?? []).map((resource) => {
+                          const checked = continueResourceIds.includes(resource.id);
+                          const disabled =
+                            !checked && continueResourceIds.length >= 6;
+                          return (
+                            <label
+                              key={resource.id}
+                              className="flex cursor-pointer items-start gap-3 border-b py-3 last:border-b-0"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                disabled={disabled}
+                                onCheckedChange={(value) =>
+                                  setContinueResource(
+                                    resource.id,
+                                    value === true,
+                                  )
+                                }
+                                aria-label={`Use ${resource.title} for this goal`}
+                              />
+                              <span className="min-w-0">
+                                <span className="block font-medium">
+                                  {resource.title}
+                                </span>
+                                <span className="block text-xs text-muted-foreground">
+                                  {resource.subject} · {resource.format}
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })
+                      ) : (
+                        <p className="py-8 text-center text-sm text-muted-foreground">
+                          Your library is empty. Save a resource first.
+                        </p>
+                      )}
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        onClick={() => setChooseContinueResourcesOpen(false)}
+                      >
+                        Done
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {continueResources.length ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {continueResources.map((resource) => (
+                    <LibraryCard
+                      key={resource.id}
                       resource={resource}
-                      onSave={handleSaveSource}
-                      saving={addingUrl === resource.url}
+                      onClick={() => setLocation(`/resources/${resource.id}`)}
                     />
                   ))}
-              </div>
-              <div className="mt-4 space-y-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={
-                    personalisedSourcesLoading ||
-                    (!isAdmin &&
-                      sourceRefreshes >= DAILY_SOURCE_RECOMMENDATION_LIMIT)
-                  }
-                  onClick={() =>
-                    recommendAnotherSource(personalisedSources ?? [])
-                  }
-                  data-testid="personalised-recommend-another-source"
-                >
-                  <RefreshCw size={12} className="mr-1.5" /> Recommend another
-                  source
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  {isAdmin ? (
-                    "Unlimited additional recommendations for admins"
-                  ) : (
-                    <>
-                      {Math.max(
-                        DAILY_SOURCE_RECOMMENDATION_LIMIT - sourceRefreshes,
-                        0,
-                      )}{" "}
-                      of {DAILY_SOURCE_RECOMMENDATION_LIMIT} additional
-                      recommendations remaining today
-                    </>
-                  )}
-                </p>
-              </div>
+                </div>
+              ) : (
+                <div className="border-b py-8 text-center text-muted-foreground">
+                  <BookOpen size={30} className="mx-auto mb-3 opacity-30" />
+                  <p className="font-medium text-foreground">
+                    Choose resources for this goal
+                  </p>
+                  <p className="mt-1 text-sm">
+                    They will stay here whenever you return to continue studying.
+                  </p>
+                </div>
+              )}
             </>
           )}
         </section>
@@ -2003,51 +2065,24 @@ export default function ResourcesPage() {
                   )}
                 </div>
                 <div className="mt-4 text-center">
-                  {isSourceMode ? (
-                    <div className="space-y-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={
-                          (!isAdmin && sourceRefreshes >= DAILY_SOURCE_RECOMMENDATION_LIMIT) ||
-                          webLoading
-                        }
-                        onClick={() => recommendAnotherSource()}
-                        data-testid="recommend-another-source"
-                      >
-                        <RefreshCw size={12} className="mr-1.5" /> Recommend
-                        another source
-                      </Button>
-                      <p className="text-xs text-muted-foreground">
-                        {isAdmin ? (
-                          "Unlimited additional recommendations for admins"
-                        ) : (
-                          <>
-                            {Math.max(DAILY_SOURCE_RECOMMENDATION_LIMIT - sourceRefreshes, 0)} of {DAILY_SOURCE_RECOMMENDATION_LIMIT} additional recommendations remaining today
-                          </>
-                        )}
-                      </p>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={webLoading}
-                      onClick={() => setWebPage((p) => p + 1)}
-                    >
-                      {webLoading ? (
-                        <>
-                          <Loader2 size={12} className="mr-1.5 animate-spin" />{" "}
-                          Loading…
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={12} className="mr-1.5" /> Search more
-                          resources
-                        </>
-                      )}
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={webLoading}
+                    onClick={() => setWebPage((page) => page + 1)}
+                  >
+                    {webLoading ? (
+                      <>
+                        <Loader2 size={12} className="mr-1.5 animate-spin" />{" "}
+                        Loading…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={12} className="mr-1.5" /> Search more{" "}
+                        {isSourceMode ? "sources" : "resources"}
+                      </>
+                    )}
+                  </Button>
                 </div>
               </>
             )}
