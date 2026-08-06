@@ -32,6 +32,7 @@ type AdminUser = {
   email: string;
   role: string;
   activeRole: string;
+  teacherVerified: boolean;
   avatarUrl: string | null;
   bio: string | null;
   subjects: string[] | null;
@@ -158,6 +159,26 @@ export default function AdminPage() {
     }
   }
 
+  async function setTeacherVerification(user: AdminUser, verified: boolean) {
+    setBusyUserId(user.id);
+    try {
+      const updated = (await adminRequest("/admin/users/" + user.id + "/teacher-verification", {
+        method: "PATCH",
+        body: JSON.stringify({ verified }),
+      })) as AdminUser;
+      setUsers((current) => current.map((item) => item.id === user.id ? updated : item));
+      toast({ title: user.name + (verified ? " is now a verified teacher" : " is no longer verified") });
+    } catch (actionError) {
+      toast({
+        title: "Could not update teacher verification",
+        description: actionError instanceof Error ? actionError.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <div>
@@ -238,6 +259,11 @@ export default function AdminPage() {
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Badge variant={user.bannedAt ? "destructive" : "secondary"}>{user.bannedAt ? "Banned" : "Active"}</Badge>
+                          {user.role === "teacher" && (
+                            <Button size="sm" variant="outline" onClick={() => setTeacherVerification(user, !user.teacherVerified)} disabled={busyUserId === user.id}>
+                              <ShieldCheck className="mr-1 size-3.5" /> {user.teacherVerified ? "Remove verification" : "Verify teacher"}
+                            </Button>
+                          )}
                           {user.id !== me?.id && (
                             user.bannedAt ? (
                               <Button size="sm" variant="outline" onClick={() => unbanUser(user)} disabled={busyUserId === user.id}>
@@ -262,6 +288,7 @@ export default function AdminPage() {
                             <div><p className="text-xs font-medium text-muted-foreground">Timezone</p><p>{user.timezone || "Not set"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Website</p><p className="break-all">{user.websiteUrl || "Not set"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Field visibility</p><p>Bio {String(user.showBio)}, subjects {String(user.showSubjects)}, grade {String(user.showGradeOrDept)}, website {String(user.showWebsite)}</p></div>
+                            <div><p className="text-xs font-medium text-muted-foreground">Teacher verification</p><p>{user.role === "teacher" ? (user.teacherVerified ? "Verified" : "Not verified") : "Not applicable"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Ban date</p><p>{user.bannedAt ? new Date(user.bannedAt).toLocaleString() : "Not banned"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Ban reason</p><p>{user.bannedReason || "None"}</p></div>
                           </div>
