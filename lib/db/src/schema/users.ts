@@ -24,6 +24,7 @@ export const usersTable = pgTable("users", {
   showGradeOrDept: boolean("show_grade_or_dept").notNull().default(true),
   showWebsite: boolean("show_website").notNull().default(true),
   websiteUrl: text("website_url"),
+  teacherVerified: boolean("teacher_verified").notNull().default(false),
   bannedAt: timestamp("banned_at", { withTimezone: true, mode: "string" }),
   bannedReason: text("banned_reason"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
