@@ -23,6 +23,8 @@ import {
   ShieldCheck,
   CircleHelp,
   RefreshCw,
+  SlidersHorizontal,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
@@ -53,6 +55,7 @@ import {
 } from "@workspace/edu-ds/components/ui/select";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
+import { Checkbox } from "@workspace/edu-ds/components/ui/checkbox";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -596,6 +599,22 @@ export default function ResourcesPage() {
   const [hiddenSourceUrls, setHiddenSourceUrls] = useState<string[]>([]);
   const [sourceRefreshes, setSourceRefreshes] = useState(0);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [exactPhraseFilter, setExactPhraseFilter] = useState("");
+  const [excludedWordsFilter, setExcludedWordsFilter] = useState("");
+  const [sourceDomainFilter, setSourceDomainFilter] = useState("");
+  const [dateAddedFilter, setDateAddedFilter] = useState("");
+  const [minReviewsFilter, setMinReviewsFilter] = useState("");
+  const [thumbnailFilter, setThumbnailFilter] = useState("");
+  const [librarySortFilter, setLibrarySortFilter] = useState("");
+  const [freshnessFilter, setFreshnessFilter] = useState("");
+  const [difficultyFilter, setDifficultyFilter] = useState("");
+  const [accessFilter, setAccessFilter] = useState("");
+  const [licenseFilter, setLicenseFilter] = useState("");
+  const [contentLengthFilter, setContentLengthFilter] = useState("");
+  const [sourceQualityFilter, setSourceQualityFilter] = useState("");
+  const [captionsRequired, setCaptionsRequired] = useState(false);
+  const [transcriptRequired, setTranscriptRequired] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(routeSearch);
@@ -668,6 +687,21 @@ export default function ResourcesPage() {
     ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
     ...(sortByFilter ? { sortBy: sortByFilter } : {}),
     ...(minRatingFilter ? { minRating: minRatingFilter as number } : {}),
+    ...(exactPhraseFilter.trim()
+      ? { exactPhrase: exactPhraseFilter.trim() }
+      : {}),
+    ...(excludedWordsFilter.trim()
+      ? { exclude: excludedWordsFilter.trim() }
+      : {}),
+    ...(sourceDomainFilter.trim()
+      ? { source: sourceDomainFilter.trim() }
+      : {}),
+    ...(dateAddedFilter ? { dateAdded: dateAddedFilter } : {}),
+    ...(minReviewsFilter ? { minReviews: Number(minReviewsFilter) } : {}),
+    ...(thumbnailFilter
+      ? { hasThumbnail: thumbnailFilter === "with" }
+      : {}),
+    ...(librarySortFilter ? { librarySort: librarySortFilter } : {}),
     limit: libraryLimit,
     offset: 0,
   };
@@ -712,6 +746,40 @@ export default function ResourcesPage() {
     language: searchLanguage,
     page: webPage,
     resultType: resultTypeFilter,
+    ...(exactPhraseFilter.trim()
+      ? { exactPhrase: exactPhraseFilter.trim() }
+      : {}),
+    ...(excludedWordsFilter.trim()
+      ? { exclude: excludedWordsFilter.trim() }
+      : {}),
+    ...(sourceDomainFilter.trim()
+      ? { source: sourceDomainFilter.trim() }
+      : {}),
+    ...(freshnessFilter ? { freshness: freshnessFilter } : {}),
+    ...(sourceQualityFilter ? { sourceQuality: sourceQualityFilter } : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
+    difficultyFilter
+      ? { difficulty: difficultyFilter }
+      : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content && accessFilter
+      ? { accessType: accessFilter }
+      : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
+    licenseFilter
+      ? { license: licenseFilter }
+      : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
+    contentLengthFilter
+      ? { contentLength: contentLengthFilter }
+      : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
+    captionsRequired
+      ? { captions: true }
+      : {}),
+    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
+    transcriptRequired
+      ? { transcript: true }
+      : {}),
   };
   const {
     data: webResults,
@@ -755,6 +823,21 @@ export default function ResourcesPage() {
     minRatingFilter,
     resultTypeFilter,
     searchLanguage,
+    exactPhraseFilter,
+    excludedWordsFilter,
+    sourceDomainFilter,
+    dateAddedFilter,
+    minReviewsFilter,
+    thumbnailFilter,
+    librarySortFilter,
+    freshnessFilter,
+    difficultyFilter,
+    accessFilter,
+    licenseFilter,
+    contentLengthFilter,
+    sourceQualityFilter,
+    captionsRequired,
+    transcriptRequired,
   ]);
 
   useEffect(() => {
@@ -889,6 +972,42 @@ export default function ResourcesPage() {
     setActiveQuery("");
     inputRef.current?.focus();
   }
+
+  function resetAdvancedFilters() {
+    setExactPhraseFilter("");
+    setExcludedWordsFilter("");
+    setSourceDomainFilter("");
+    setDateAddedFilter("");
+    setMinReviewsFilter("");
+    setThumbnailFilter("");
+    setLibrarySortFilter("");
+    setFreshnessFilter("");
+    setDifficultyFilter("");
+    setAccessFilter("");
+    setLicenseFilter("");
+    setContentLengthFilter("");
+    setSourceQualityFilter("");
+    setCaptionsRequired(false);
+    setTranscriptRequired(false);
+  }
+
+  const activeAdvancedFilterCount = [
+    exactPhraseFilter,
+    excludedWordsFilter,
+    sourceDomainFilter,
+    dateAddedFilter,
+    minReviewsFilter,
+    thumbnailFilter,
+    librarySortFilter,
+    freshnessFilter,
+    difficultyFilter,
+    accessFilter,
+    licenseFilter,
+    contentLengthFilter,
+    sourceQualityFilter,
+    captionsRequired,
+    transcriptRequired,
+  ].filter(Boolean).length;
 
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1323,12 +1442,19 @@ export default function ResourcesPage() {
                 </SelectContent>
               </Select>
               <Select
-                value={sortByFilter || "newest"}
-                onValueChange={(v) =>
-                  setSortByFilter(
-                    v === "newest" ? "" : (v as ListResourcesSortBy),
-                  )
-                }
+                value={librarySortFilter || sortByFilter || "newest"}
+                onValueChange={(v) => {
+                  if (
+                    v === ListResourcesSortBy.top_rated ||
+                    v === ListResourcesSortBy.most_reviewed
+                  ) {
+                    setSortByFilter(v as ListResourcesSortBy);
+                    setLibrarySortFilter("");
+                  } else {
+                    setSortByFilter("");
+                    setLibrarySortFilter(v === "newest" ? "" : v);
+                  }
+                }}
               >
                 <SelectTrigger
                   className="w-36 h-8 text-xs"
@@ -1338,6 +1464,9 @@ export default function ResourcesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value="oldest">Oldest first</SelectItem>
+                  <SelectItem value="title_asc">Title A–Z</SelectItem>
+                  <SelectItem value="title_desc">Title Z–A</SelectItem>
                   <SelectItem value={ListResourcesSortBy.top_rated}>
                     Top rated
                   </SelectItem>
@@ -1349,6 +1478,227 @@ export default function ResourcesPage() {
             </>
           )}
         </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAdvancedFilters((current) => !current)}
+            aria-expanded={showAdvancedFilters}
+            data-testid="advanced-filters-toggle"
+          >
+            <SlidersHorizontal size={14} className="mr-1.5" />
+            More filters
+            {activeAdvancedFilterCount > 0 && (
+              <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                {activeAdvancedFilterCount}
+              </span>
+            )}
+          </Button>
+          {activeAdvancedFilterCount > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={resetAdvancedFilters}
+              className="text-muted-foreground"
+            >
+              <RotateCcw size={13} className="mr-1.5" /> Reset
+            </Button>
+          )}
+        </div>
+
+        {showAdvancedFilters && (
+          <div className="space-y-4 border-t pt-4" data-testid="advanced-filters">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Match
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="exact-phrase-filter" className="text-xs">
+                    Exact phrase
+                  </Label>
+                  <Input
+                    id="exact-phrase-filter"
+                    className="h-9 text-sm"
+                    value={exactPhraseFilter}
+                    onChange={(event) => setExactPhraseFilter(event.target.value)}
+                    placeholder="e.g. cellular respiration"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="exclude-filter" className="text-xs">
+                    Exclude words
+                  </Label>
+                  <Input
+                    id="exclude-filter"
+                    className="h-9 text-sm"
+                    value={excludedWordsFilter}
+                    onChange={(event) =>
+                      setExcludedWordsFilter(event.target.value)
+                    }
+                    placeholder="comma or space separated"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="source-domain-filter" className="text-xs">
+                    Website, publisher, or creator
+                  </Label>
+                  <Input
+                    id="source-domain-filter"
+                    className="h-9 text-sm"
+                    value={sourceDomainFilter}
+                    onChange={(event) =>
+                      setSourceDomainFilter(event.target.value)
+                    }
+                    placeholder="e.g. mit.edu"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {!isSourceMode && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Saved library
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Date added</Label>
+                    <Select value={dateAddedFilter || "any"} onValueChange={(value) => setDateAddedFilter(value === "any" ? "" : value)}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Any time</SelectItem>
+                        <SelectItem value="day">Past 24 hours</SelectItem>
+                        <SelectItem value="week">Past week</SelectItem>
+                        <SelectItem value="month">Past month</SelectItem>
+                        <SelectItem value="year">Past year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Minimum reviews</Label>
+                    <Select value={minReviewsFilter || "any"} onValueChange={(value) => setMinReviewsFilter(value === "any" ? "" : value)}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Any review count</SelectItem>
+                        <SelectItem value="1">1 or more</SelectItem>
+                        <SelectItem value="3">3 or more</SelectItem>
+                        <SelectItem value="5">5 or more</SelectItem>
+                        <SelectItem value="10">10 or more</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Preview image</Label>
+                    <Select value={thumbnailFilter || "any"} onValueChange={(value) => setThumbnailFilter(value === "any" ? "" : value)}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">With or without</SelectItem>
+                        <SelectItem value="with">Has preview image</SelectItem>
+                        <SelectItem value="without">No preview image</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Web discovery
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Published or updated</Label>
+                  <Select value={freshnessFilter || "any"} onValueChange={(value) => setFreshnessFilter(value === "any" ? "" : value)}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any time</SelectItem>
+                      <SelectItem value="week">Past week</SelectItem>
+                      <SelectItem value="month">Past month</SelectItem>
+                      <SelectItem value="year">Past year</SelectItem>
+                      <SelectItem value="three_years">Past 3 years</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Source quality</Label>
+                  <Select value={sourceQualityFilter || "any"} onValueChange={(value) => setSourceQualityFilter(value === "any" ? "" : value)}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any source</SelectItem>
+                      <SelectItem value="institutional">Institutional only</SelectItem>
+                      <SelectItem value="established">Established sources</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {!isSourceMode && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Difficulty</Label>
+                      <Select value={difficultyFilter || "any"} onValueChange={(value) => setDifficultyFilter(value === "any" ? "" : value)}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any difficulty</SelectItem>
+                          <SelectItem value="beginner">Beginner</SelectItem>
+                          <SelectItem value="intermediate">Intermediate</SelectItem>
+                          <SelectItem value="advanced">Advanced</SelectItem>
+                          <SelectItem value="mixed">Mixed levels</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Access</Label>
+                      <Select value={accessFilter || "any"} onValueChange={(value) => setAccessFilter(value === "any" ? "" : value)}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any access</SelectItem>
+                          <SelectItem value="free">Free</SelectItem>
+                          <SelectItem value="no_account">No account required</SelectItem>
+                          <SelectItem value="open">Open access preferred</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Usage rights</Label>
+                      <Select value={licenseFilter || "any"} onValueChange={(value) => setLicenseFilter(value === "any" ? "" : value)}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any license</SelectItem>
+                          <SelectItem value="reusable">Reusable or open</SelectItem>
+                          <SelectItem value="known">License stated</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Learning length</Label>
+                      <Select value={contentLengthFilter || "any"} onValueChange={(value) => setContentLengthFilter(value === "any" ? "" : value)}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any length</SelectItem>
+                          <SelectItem value="short">Up to 15 minutes</SelectItem>
+                          <SelectItem value="medium">15–45 minutes</SelectItem>
+                          <SelectItem value="long">More than 45 minutes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <label className="flex min-h-9 items-center gap-2 text-sm">
+                      <Checkbox checked={captionsRequired} onCheckedChange={(checked) => setCaptionsRequired(checked === true)} />
+                      Captions available
+                    </label>
+                    <label className="flex min-h-9 items-center gap-2 text-sm">
+                      <Checkbox checked={transcriptRequired} onCheckedChange={(checked) => setTranscriptRequired(checked === true)} />
+                      Transcript available
+                    </label>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </form>
 
       {isLoggedIn && searchHistory.length > 0 && (
