@@ -2391,6 +2391,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ClassMember"
+        mySeat:
+          $ref: "#/components/schemas/MyClassSeat"
 
     ClassInput:
       type: object
@@ -2408,6 +2410,21 @@ components:
         subject: { type: string }
         gradeLevel: { type: string }
         description: { type: string }
+
+    MyClassSeat:
+      type: object
+      required:
+        [assigned, layoutMode, row, column, deskId, deskLabel, deskSeat, relativePosition]
+      properties:
+        assigned: { type: boolean }
+        layoutMode: { type: string, enum: [grid, custom] }
+        row: { type: ["integer", "null"] }
+        column: { type: ["integer", "null"] }
+        deskId: { type: ["string", "null"] }
+        deskLabel: { type: ["string", "null"] }
+        deskSeat: { type: ["integer", "null"] }
+        relativePosition:
+          { type: ["string", "null"], enum: [front, middle, back, null] }
 
     ClassMember:
       type: object
