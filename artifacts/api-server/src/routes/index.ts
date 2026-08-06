@@ -14,6 +14,7 @@ import calendarRouter from "./calendar";
 import learningGoalsRouter from "./learningGoals";
 import learningEvidenceRouter from "./learningEvidence";
 import adminRouter from "./admin";
+import forumRouter from "./forum";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(calendarRouter);
 router.use(learningGoalsRouter);
 router.use(learningEvidenceRouter);
 router.use(adminRouter);
+router.use(forumRouter);
 
 export default router;
