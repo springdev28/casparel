@@ -490,7 +490,7 @@ async function callDiscoverAI(
                 ? 2200
                 : 1400,
         tools: [{ type: "web_search", search_context_size: "low" }],
-        reasoning: { effort: "minimal" },
+        reasoning: { effort: "low" },
         text: {
           format: {
             type: "json_schema",
