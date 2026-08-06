@@ -8,6 +8,7 @@ import {
   Check,
   CheckCircle2,
   Pause,
+  Pencil,
   LayoutDashboard,
   Plus,
   Target,
@@ -101,6 +102,14 @@ export default function GoalsPage() {
     level: LearningGoalInputLevel.beginner,
     targetDate: "",
   });
+  const [editingGoal, setEditingGoal] = useState<LearningGoal | null>(null);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    subject: "",
+    description: "",
+    level: LearningGoalInputLevel.beginner,
+    targetDate: "",
+  });
   async function refresh() {
     await client.invalidateQueries({
       queryKey: getListLearningGoalsQueryKey(),
@@ -143,6 +152,39 @@ export default function GoalsPage() {
       });
     }
   }
+  function startEditing(goal: LearningGoal) {
+    setEditingGoal(goal);
+    setEditForm({
+      title: goal.title,
+      subject: goal.subject,
+      description: goal.description ?? "",
+      level: goal.level as LearningGoalInputLevel,
+      targetDate: goal.targetDate ?? "",
+    });
+  }
+
+  async function submitEdit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editingGoal) return;
+    try {
+      await patch(editingGoal.id, {
+        title: editForm.title.trim(),
+        subject: editForm.subject.trim(),
+        description: editForm.description.trim() || null,
+        level: editForm.level,
+        targetDate: editForm.targetDate || null,
+      });
+      setEditingGoal(null);
+      toast({ title: "Learning goal updated" });
+    } catch (error) {
+      toast({
+        title: "Could not update goal",
+        description: error instanceof Error ? error.message : "Please check the form and try again.",
+        variant: "destructive",
+      });
+    }
+  }
+
   async function patch(
     id: number,
     data: Parameters<typeof updateGoal.mutateAsync>[0]["data"],
@@ -309,6 +351,49 @@ export default function GoalsPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <Dialog open={Boolean(editingGoal)} onOpenChange={(next) => { if (!next) setEditingGoal(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit learning goal</DialogTitle>
+            <DialogDescription>Update the outcome, subject, level, date, or context.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitEdit} className="space-y-4">
+            <div>
+              <Label htmlFor="edit-goal-title">Outcome</Label>
+              <Input id="edit-goal-title" value={editForm.title} onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} minLength={2} maxLength={160} required />
+            </div>
+            <div>
+              <Label htmlFor="edit-goal-subject">Subject</Label>
+              <Input id="edit-goal-subject" value={editForm.subject} onChange={(event) => setEditForm((current) => ({ ...current, subject: event.target.value }))} required />
+            </div>
+            <div>
+              <Label>Current level</Label>
+              <Select value={editForm.level} onValueChange={(level) => setEditForm((current) => ({ ...current, level: level as LearningGoalInputLevel }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={LearningGoalInputLevel.beginner}>Beginner</SelectItem>
+                  <SelectItem value={LearningGoalInputLevel.intermediate}>Intermediate</SelectItem>
+                  <SelectItem value={LearningGoalInputLevel.advanced}>Advanced</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-goal-date">Target date <span className="text-muted-foreground">(optional)</span></Label>
+              <Input id="edit-goal-date" type="date" value={editForm.targetDate} onChange={(event) => setEditForm((current) => ({ ...current, targetDate: event.target.value }))} />
+            </div>
+            <div>
+              <Label htmlFor="edit-goal-description">Context <span className="text-muted-foreground">(optional)</span></Label>
+              <Textarea id="edit-goal-description" value={editForm.description} onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} maxLength={1000} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditingGoal(null)}>Cancel</Button>
+              <Button type="submit" disabled={updateGoal.isPending}>{updateGoal.isPending ? "Saving…" : "Save changes"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {isTeacher && (
         <section className="rounded-xl border bg-card p-4" data-testid="manage-student-goals">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -381,14 +466,26 @@ export default function GoalsPage() {
                         <Badge className="capitalize">{goal.status}</Badge>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => remove(goal.id)}
-                      aria-label="Delete goal"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <div className="flex items-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => startEditing(goal)}
+                        aria-label="Edit goal"
+                        title="Edit goal"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => remove(goal.id)}
+                        aria-label="Delete goal"
+                        title="Delete goal"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
