@@ -6,6 +6,7 @@ import {
   reviewsTable,
   usersTable,
   learningGoalsTable,
+  activityLogTable,
 } from "@workspace/db";
 import {
   ListResourcesResponse,
@@ -430,6 +431,80 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
   ).filter((item): item is NonNullable<typeof item> => item !== null);
   res.json(GetResourceRecommendationsResponse.parse(results.slice(0, 12)));
 });
+
+// ── POST /resources/:id/recommend — authenticated ────────────────────────────
+
+router.post(
+  "/resources/:id/recommend",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const auth = req as AuthenticatedRequest;
+    const resourceId = Number(req.params.id);
+    const recipientId = Number(req.body?.recipientId);
+    const note =
+      typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) : "";
+
+    if (
+      !Number.isInteger(resourceId) ||
+      resourceId <= 0 ||
+      !Number.isInteger(recipientId) ||
+      recipientId <= 0
+    ) {
+      res.status(400).json({ error: "A valid resource and recipient are required" });
+      return;
+    }
+    if (recipientId === auth.userId) {
+      res.status(400).json({ error: "Choose another person to receive this recommendation" });
+      return;
+    }
+
+    const [[resource], [sender], [recipient]] = await Promise.all([
+      db
+        .select({ id: resourcesTable.id, title: resourcesTable.title })
+        .from(resourcesTable)
+        .where(eq(resourcesTable.id, resourceId)),
+      db
+        .select({ name: usersTable.name })
+        .from(usersTable)
+        .where(eq(usersTable.id, auth.userId)),
+      db
+        .select({
+          id: usersTable.id,
+          activeRole: usersTable.activeRole,
+          bannedAt: usersTable.bannedAt,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.id, recipientId)),
+    ]);
+
+    if (!resource) {
+      res.status(404).json({ error: "Resource not found" });
+      return;
+    }
+    if (!sender || !recipient || recipient.bannedAt) {
+      res.status(404).json({ error: "Recipient not found" });
+      return;
+    }
+
+    const message =
+      sender.name +
+      ' recommended "' +
+      resource.title +
+      '" to you.' +
+      (note ? " Message: " + note : "");
+
+    await db.insert(activityLogTable).values({
+      userId: recipient.id,
+      type: "resource",
+      workspaceRole:
+        recipient.activeRole === "teacher" ? "teacher" : "student",
+      message,
+    });
+
+    res.status(201).json({ sent: true });
+  },
+);
 
 // ── GET /resources/discover — public, AI knowledge-based search ──────────────
 // NOTE: must stay above /resources/:id
