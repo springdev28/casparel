@@ -5,8 +5,13 @@ import {
   type Request,
   type Response,
 } from "express";
-import { and, eq, gt } from "drizzle-orm";
-import { db, resourcesTable, sourceReviewCacheTable } from "@workspace/db";
+import { and, eq, gt, sql } from "drizzle-orm";
+import {
+  db,
+  resourcesTable,
+  reviewsTable,
+  sourceReviewCacheTable,
+} from "@workspace/db";
 import {
   GetResourceSourceReviewParams,
   GetResourceSourceReviewQueryParams,
@@ -42,6 +47,72 @@ function canonicalResourceUrl(rawUrl: string) {
   } catch {
     return rawUrl.trim();
   }
+}
+
+type ResourceProfileInput = Record<string, unknown>;
+
+function profileText(input: ResourceProfileInput, key: string) {
+  const value = input[key];
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, 300)
+    : null;
+}
+
+function resourceProfile(
+  raw: unknown,
+  resource: {
+    url: string;
+    subject: string;
+    gradeLevel: string;
+    format: string;
+    thumbnailUrl: string | null;
+    createdAt: string;
+  },
+  sourceName: string,
+  stats: { avgRating: number; reviewCount: number },
+) {
+  const input =
+    raw && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as ResourceProfileInput)
+      : {};
+  let sourceDomain: string | null = null;
+  try {
+    sourceDomain = new URL(resource.url).hostname.replace(/^www\./, "");
+  } catch {
+    // Keep the domain unavailable for malformed legacy URLs.
+  }
+  const keywords = Array.isArray(input.keywords)
+    ? input.keywords
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 10)
+    : [];
+
+  return {
+    provider: profileText(input, "provider") ?? sourceName,
+    author: profileText(input, "author"),
+    sourceDomain,
+    uploadTime: profileText(input, "uploadTime"),
+    lastEdited: profileText(input, "lastEdited"),
+    addedToSchoolar: resource.createdAt,
+    subject: profileText(input, "subject") ?? resource.subject,
+    gradeLevel: profileText(input, "gradeLevel") ?? resource.gradeLevel,
+    format: profileText(input, "format") ?? resource.format,
+    language: profileText(input, "language"),
+    difficulty: profileText(input, "difficulty"),
+    accessType: profileText(input, "accessType"),
+    license: profileText(input, "license"),
+    duration: profileText(input, "duration"),
+    readingTime: profileText(input, "readingTime"),
+    captions: typeof input.captions === "boolean" ? input.captions : null,
+    transcript: typeof input.transcript === "boolean" ? input.transcript : null,
+    audience: profileText(input, "audience"),
+    keywords,
+    hasThumbnail: Boolean(resource.thumbnailUrl),
+    avgRating: stats.avgRating,
+    reviewCount: stats.reviewCount,
+  };
 }
 
 async function cacheReview(
@@ -114,6 +185,15 @@ router.get(
       return;
     }
 
+    const [reviewStats] = await db
+      .select({
+        avgRating: sql<number>`round(coalesce(avg(${reviewsTable.rating}), 0)::numeric, 1)::float`,
+        reviewCount: sql<number>`cast(count(${reviewsTable.id}) as int)`,
+      })
+      .from(reviewsTable)
+      .where(eq(reviewsTable.resourceId, resource.id));
+    const stats = reviewStats ?? { avgRating: 0, reviewCount: 0 };
+
     const { title, url } = resource;
     const canonicalUrl = canonicalResourceUrl(url);
     const reviewKey = mode + ":" + canonicalUrl;
@@ -137,8 +217,22 @@ router.get(
     if (cached) {
       const report = GetResourceSourceReviewResponse.safeParse(cached.report);
       if (report.success) {
+        const cachedProfile =
+          cached.report &&
+          typeof cached.report === "object" &&
+          "resourceProfile" in cached.report
+            ? (cached.report as { resourceProfile?: unknown }).resourceProfile
+            : undefined;
         res.setHeader("X-Source-Review-Cache", "HIT");
-        res.json(report.data);
+        res.json({
+          ...report.data,
+          resourceProfile: resourceProfile(
+            cachedProfile,
+            resource,
+            report.data.sourceName,
+            stats,
+          ),
+        });
         return;
       }
     }
@@ -212,6 +306,7 @@ Please provide a structured JSON response with the following fields:
 - description: A 1-2 sentence description of the source
 - founded: Year or approximate period the source was founded (or null if unknown)
 - headquarters: City/country of the source (or null if unknown/not applicable)
+- resourceProfile: An object describing this specific resource, not just its publisher. It must contain provider, author, uploadTime, lastEdited, subject, gradeLevel, format, language, difficulty, accessType, license, duration, readingTime, captions, transcript, audience, and keywords. Use null when a fact is unavailable; never invent a date, license, duration, caption, or transcript status. difficulty should be "beginner", "intermediate", "advanced", or "mixed" when known. accessType should explain whether it is free, paid, subscription-based, or requires an account. keywords should contain up to 10 concise topics.
 - trustLevel: "high" if the source is a well-known accredited institution, government body, or established educational org; "medium" if reputable but less formal; "low" if unknown, unverified, or potentially biased; "unknown" if you cannot determine
 - trustReason: A brief one-sentence explanation of the trust level rating
 - summary: For quick mode, 2-3 sentences. For deep mode, a substantial 5-8 sentence executive assessment that synthesizes the evidence without repeating the sections below.
@@ -256,6 +351,7 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
                   "description",
                   "founded",
                   "headquarters",
+                  "resourceProfile",
                   "trustLevel",
                   "trustReason",
                   "summary",
@@ -290,6 +386,51 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
                   description: { type: ["string", "null"] },
                   founded: { type: ["string", "null"] },
                   headquarters: { type: ["string", "null"] },
+                  resourceProfile: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: [
+                      "provider",
+                      "author",
+                      "uploadTime",
+                      "lastEdited",
+                      "subject",
+                      "gradeLevel",
+                      "format",
+                      "language",
+                      "difficulty",
+                      "accessType",
+                      "license",
+                      "duration",
+                      "readingTime",
+                      "captions",
+                      "transcript",
+                      "audience",
+                      "keywords",
+                    ],
+                    properties: {
+                      provider: { type: ["string", "null"] },
+                      author: { type: ["string", "null"] },
+                      uploadTime: { type: ["string", "null"] },
+                      lastEdited: { type: ["string", "null"] },
+                      subject: { type: ["string", "null"] },
+                      gradeLevel: { type: ["string", "null"] },
+                      format: { type: ["string", "null"] },
+                      language: { type: ["string", "null"] },
+                      difficulty: { type: ["string", "null"] },
+                      accessType: { type: ["string", "null"] },
+                      license: { type: ["string", "null"] },
+                      duration: { type: ["string", "null"] },
+                      readingTime: { type: ["string", "null"] },
+                      captions: { type: ["boolean", "null"] },
+                      transcript: { type: ["boolean", "null"] },
+                      audience: { type: ["string", "null"] },
+                      keywords: {
+                        type: "array",
+                        items: { type: "string" },
+                      },
+                    },
+                  },
                   trustLevel: {
                     type: "string",
                     enum: ["high", "medium", "low", "unknown"],
@@ -398,9 +539,24 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
         return;
       }
 
-      await cacheReview(canonicalUrl, mode, validated.data);
+      const rawProfile =
+        parsed &&
+        typeof parsed === "object" &&
+        "resourceProfile" in parsed
+          ? (parsed as { resourceProfile?: unknown }).resourceProfile
+          : undefined;
+      const responseData = {
+        ...validated.data,
+        resourceProfile: resourceProfile(
+          rawProfile,
+          resource,
+          validated.data.sourceName,
+          stats,
+        ),
+      };
+      await cacheReview(canonicalUrl, mode, responseData);
       res.setHeader("X-Source-Review-Cache", "MISS");
-      res.json(validated.data);
+      res.json(responseData);
     } catch (err) {
       console.error("Source review AI error:", err);
       res.status(502).json({ error: "Failed to fetch source review" });
