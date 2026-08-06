@@ -129,12 +129,17 @@ function contrastingForeground(hex: string) {
   return whiteContrast >= darkContrast ? "0 0% 100%" : "225 21.1% 7.5%";
 }
 
+function contrastingMutedForeground(hex: string) {
+  return relativeLuminance(hex) <= 0.179 ? "0 0% 82%" : "225 10% 36%";
+}
+
 function applyColors(colors: InterfaceColors) {
   const root = document.documentElement;
   const background = hexToHsl(colors.background);
   const backgroundForeground = contrastingForeground(colors.background);
   const surface = hexToHsl(colors.surface);
   const surfaceForeground = contrastingForeground(colors.surface);
+  const surfaceMutedForeground = contrastingMutedForeground(colors.surface);
   const primary = hexToHsl(colors.primary);
   const primaryForeground = contrastingForeground(colors.primary);
   const accent = hexToHsl(colors.accent);
@@ -145,6 +150,7 @@ function applyColors(colors: InterfaceColors) {
     "--foreground": backgroundForeground,
     "--card": surface,
     "--card-foreground": surfaceForeground,
+    "--surface-muted-foreground": surfaceMutedForeground,
     "--popover": surface,
     "--popover-foreground": surfaceForeground,
     "--secondary": surface,
