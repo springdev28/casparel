@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearch as useRouteSearch } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   BriefcaseBusiness,
   ChevronDown,
@@ -22,6 +23,7 @@ import {
   SearchUsersRole,
   SearchUsersScope,
   getDiscoverResourcesQueryKey,
+  getGetMyUsageQueryKey,
   getSearchUsersQueryKey,
   useDiscoverResources,
   useSearchUsers,
@@ -145,6 +147,7 @@ function profilePlatform(url: string) {
 }
 
 function PublicProfileCard({ person }: { person: PublicPersonGroup }) {
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const deepQuery = `exact-person: ${person.name}; affiliation: ${person.source}`;
   const deepParams = {
@@ -160,6 +163,11 @@ function PublicProfileCard({ person }: { person: PublicPersonGroup }) {
       retry: false,
     },
   });
+  useEffect(() => {
+    if (!expanded || isFetching) return;
+    void queryClient.invalidateQueries({ queryKey: getGetMyUsageQueryKey() });
+  }, [data, expanded, isError, isFetching, queryClient]);
+
   const links = [...person.links];
   for (const link of data ?? [])
     if (!links.some((current) => current.url === link.url)) links.push(link);
@@ -263,6 +271,7 @@ function PublicProfileCard({ person }: { person: PublicPersonGroup }) {
 
 export default function PeoplePage() {
   const routeSearch = useRouteSearch();
+  const queryClient = useQueryClient();
   const [inputValue, setInputValue] = useState("");
   const [query, setQuery] = useState("");
   const [subject, setSubject] = useState("");
@@ -276,6 +285,7 @@ export default function PeoplePage() {
     [],
   );
   const [goalContext, setGoalContext] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
 
   const params = {
     scope: SearchUsersScope.all,
@@ -288,10 +298,12 @@ export default function PeoplePage() {
   const {
     data: people,
     isLoading,
+    isFetching: peopleFetching,
     isError,
+    error: peopleError,
   } = useSearchUsers(params, {
     query: {
-      enabled: profileSource === "schoolar",
+      enabled: profileSource === "schoolar" && hasSearched,
       queryKey: getSearchUsersQueryKey(params),
       staleTime: 60_000,
     },
@@ -314,6 +326,7 @@ export default function PeoplePage() {
     data: socialPeople,
     isFetching: socialLoading,
     isError: socialError,
+    error: socialErrorObj,
   } = useDiscoverResources(
     {
       q: socialQuery || "students educators professionals",
@@ -322,7 +335,7 @@ export default function PeoplePage() {
     },
     {
       query: {
-        enabled: profileSource === "social",
+        enabled: profileSource === "social" && hasSearched,
         queryKey: getDiscoverResourcesQueryKey({
           q: socialQuery || "students educators professionals",
           resultType: DiscoverResourcesResultType.people,
@@ -340,12 +353,11 @@ export default function PeoplePage() {
     const subjectParam = params.get("subject");
     setGoalContext(goal ?? "");
     setSubject(subjectParam ?? "");
-  }, [routeSearch]);
-  useEffect(() => {
+    setHasSearched(false);
     setAccountLimit(24);
     setSocialPage(1);
     setAllSocialPeople([]);
-  }, [query, subject, role, profileSource, associatedTopic]);
+  }, [routeSearch]);
   useEffect(() => {
     if (!socialPeople) return;
     setAllSocialPeople((current) =>
@@ -360,36 +372,36 @@ export default function PeoplePage() {
     );
   }, [socialPeople, socialPage]);
 
+  useEffect(() => {
+    if (!hasSearched || socialLoading) return;
+    void queryClient.invalidateQueries({ queryKey: getGetMyUsageQueryKey() });
+  }, [hasSearched, queryClient, socialError, socialLoading, socialPeople]);
+
+  useEffect(() => {
+    if (!hasSearched || profileSource !== "schoolar" || peopleFetching) return;
+    void queryClient.invalidateQueries({ queryKey: getGetMyUsageQueryKey() });
+  }, [hasSearched, isError, people, peopleFetching, profileSource, queryClient]);
+
   const groupedSocialPeople = useMemo(
     () => groupPublicPeople(allSocialPeople),
     [allSocialPeople],
   );
 
-  useEffect(() => {
-    if (
-      profileSource === "social" &&
-      !socialLoading &&
-      !socialError &&
-      socialPeople &&
-      groupedSocialPeople.length < PUBLIC_PEOPLE_PAGE_SIZE &&
-      socialPage < PUBLIC_PEOPLE_AUTO_SEARCH_PAGES
-    ) {
-      setSocialPage((page) => page + 1);
-    }
-  }, [
-    groupedSocialPeople.length,
-    profileSource,
-    socialError,
-    socialLoading,
-    socialPage,
-    socialPeople,
-  ]);
+  const socialRateLimited =
+    socialError &&
+    (socialErrorObj as { status?: number } | null)?.status === 429;
+  const peopleRateLimited =
+    isError && (peopleError as { status?: number } | null)?.status === 429;
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
     setGoalContext("");
     window.history.replaceState(null, "", window.location.pathname);
     setQuery(inputValue.trim().replace(/\s+/g, " "));
+    setAccountLimit(24);
+    setSocialPage(1);
+    setAllSocialPeople([]);
+    setHasSearched(true);
   }
 
   function clearSearch() {
@@ -401,6 +413,7 @@ export default function PeoplePage() {
     setAccountLimit(24);
     setSocialPage(1);
     setAllSocialPeople([]);
+    setHasSearched(false);
     window.history.replaceState(null, "", window.location.pathname);
   }
 
@@ -448,9 +461,13 @@ export default function PeoplePage() {
         <div className="flex flex-wrap gap-2">
           <Select
             value={profileSource}
-            onValueChange={(value) =>
-              setProfileSource(value as "schoolar" | "social")
-            }
+            onValueChange={(value) => {
+              setProfileSource(value as "schoolar" | "social");
+              setAccountLimit(24);
+              setSocialPage(1);
+              setAllSocialPeople([]);
+              setHasSearched(false);
+            }}
           >
             <SelectTrigger
               className="h-9 w-48"
@@ -467,14 +484,26 @@ export default function PeoplePage() {
           </Select>
           <Input
             value={subject}
-            onChange={(event) => setSubject(event.target.value)}
+            onChange={(event) => {
+              setSubject(event.target.value);
+              setAccountLimit(24);
+              setSocialPage(1);
+              setAllSocialPeople([]);
+              setHasSearched(false);
+            }}
             className="h-9 w-52 text-sm"
             placeholder="Subject or interest…"
             data-testid="people-subject-filter"
           />
           <Select
             value={role}
-            onValueChange={(value) => setRole(value as "all" | SearchUsersRole)}
+            onValueChange={(value) => {
+              setRole(value as "all" | SearchUsersRole);
+              setAccountLimit(24);
+              setSocialPage(1);
+              setAllSocialPeople([]);
+              setHasSearched(false);
+            }}
           >
             <SelectTrigger
               className="h-9 w-56"
@@ -494,7 +523,15 @@ export default function PeoplePage() {
       </form>
 
       {profileSource === "social" ? (
-        socialLoading && allSocialPeople.length === 0 ? (
+        !hasSearched ? (
+          <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground">
+            <Search className="mx-auto mb-3 size-9 opacity-40" />
+            <p className="font-medium text-foreground">Search public profiles</p>
+            <p className="mt-1 text-sm">
+              Enter a name, subject, department, or profession, then press Search people.
+            </p>
+          </div>
+        ) : socialLoading && allSocialPeople.length === 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} className="h-52 rounded-xl" />
@@ -502,8 +539,9 @@ export default function PeoplePage() {
           </div>
         ) : socialError && allSocialPeople.length === 0 ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
-            Public profile search could not be loaded. Try a more specific name
-            or subject.
+            {socialRateLimited
+              ? "Your daily search limit has been reached. It resets daily."
+              : "Public profile search could not be loaded. Try a more specific name or subject."}
           </div>
         ) : !allSocialPeople.length ? (
           <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground">
@@ -553,9 +591,17 @@ export default function PeoplePage() {
             <Skeleton key={index} className="h-56 rounded-xl" />
           ))}
         </div>
+      ) : !hasSearched ? (
+        <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground">
+          <Search className="mx-auto mb-3 size-9 opacity-40" />
+          <p className="font-medium text-foreground">Search Schoolar accounts</p>
+          <p className="mt-1 text-sm">Choose filters and press Search people.</p>
+        </div>
       ) : isError ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
-          People search could not be loaded. Please try again.
+          {peopleRateLimited
+            ? "Your daily search limit has been reached. It resets daily."
+            : "People search could not be loaded. Please try again."}
         </div>
       ) : !people?.length ? (
         <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground">
