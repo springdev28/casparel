@@ -55,6 +55,8 @@ export type StudyActivityCard = {
   id: string;
   term: string;
   answer: string;
+  imageData?: string | null;
+  imageAlt?: string | null;
 };
 
 export const studyActivitiesTable = pgTable("study_activities", {
