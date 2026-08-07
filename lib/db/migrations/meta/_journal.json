@@ -176,6 +176,13 @@
       "when": 1787857140675,
       "tag": "0024_education_forum",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787943540675,
+      "tag": "0025_community_goal_paths",
+      "breakpoints": true
     }
   ]
 }
