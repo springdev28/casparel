@@ -1831,7 +1831,7 @@ export default function ResourcesPage() {
       />
 
       <div
-        className="inline-flex w-full overflow-hidden rounded-lg border bg-background p-1 sm:w-auto"
+        className="inline-flex w-full overflow-hidden rounded-lg border bg-card p-1 text-card-foreground sm:w-auto"
         role="tablist"
         aria-label="Resource views"
       >
@@ -1840,7 +1840,7 @@ export default function ResourcesPage() {
           role="tab"
           aria-selected={resourceView === "search"}
           onClick={() => setResourceView("search")}
-          className={`flex min-h-9 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium sm:flex-none ${resourceView === "search" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`flex min-h-9 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium sm:flex-none ${resourceView === "search" ? "bg-primary text-primary-foreground" : "text-card-foreground/70 hover:text-card-foreground"}`}
         >
           <Search size={15} /> Search
         </button>
@@ -1849,7 +1849,7 @@ export default function ResourcesPage() {
           role="tab"
           aria-selected={resourceView === "library"}
           onClick={() => setResourceView("library")}
-          className={`flex min-h-9 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium sm:flex-none ${resourceView === "library" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`flex min-h-9 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium sm:flex-none ${resourceView === "library" ? "bg-primary text-primary-foreground" : "text-card-foreground/70 hover:text-card-foreground"}`}
         >
           <BookOpen size={15} /> Library
         </button>
