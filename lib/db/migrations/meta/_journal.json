@@ -183,6 +183,13 @@
       "when": 1787943540675,
       "tag": "0025_community_goal_paths",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788029940675,
+      "tag": "0026_study_activities",
+      "breakpoints": true
     }
   ]
 }
