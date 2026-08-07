@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -19,6 +19,7 @@ import {
   TextCursorInput,
   Trash2,
   X,
+  FileUp,
 } from "lucide-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -190,6 +191,7 @@ function emptyCard(): ActivityCard {
 }
 
 export default function ActivitiesPage() {
+  const importRef = useRef<HTMLInputElement>(null);
   const [activities, setActivities] = useState<StudyActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -481,6 +483,32 @@ export default function ActivitiesPage() {
     }
   }
 
+  async function duplicateSet(activity: StudyActivity) {
+    try {
+      const copy = (await activityRequest("/study-activities", { method: "POST", body: JSON.stringify({ title: `${activity.title} (copy)`, subject: activity.subject ?? "", cards: activity.cards.map((card) => ({ ...card, id: crypto.randomUUID() })) }) })) as unknown as StudyActivity;
+      await loadActivities();
+      setSelectedId(copy.id);
+      toast({ title: "Activity duplicated", description: "The copy is ready to edit or assign." });
+    } catch (error) { toast({ title: "Could not duplicate activity", description: error instanceof Error ? error.message : "Please try again", variant: "destructive" }); }
+  }
+
+  async function importSet(file?: File) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      const delimiter = lines.some((line) => line.includes("\t")) ? "\t" : ",";
+      const rows = lines.map((line) => line.split(delimiter).map((cell) => cell.trim().replace(/^"|"$/g, "")));
+      const first = rows[0]?.map((cell) => cell.toLowerCase()) ?? [];
+      const hasHeader = first.some((cell) => ["term", "question", "front"].includes(cell)) && first.some((cell) => ["answer", "definition", "back"].includes(cell));
+      const cards = rows.slice(hasHeader ? 1 : 0).filter((row) => row[0] && row[1]).slice(0, 100).map((row) => ({ id: crypto.randomUUID(), term: row[0], answer: row.slice(1).join(delimiter) }));
+      if (cards.length < 2) throw new Error("The file needs at least two rows with a term and answer.");
+      setEditingId(null); setFormTitle(file.name.replace(/\.(csv|tsv|txt)$/i, "")); setFormSubject(""); setFormCards(cards); setEditorOpen(true);
+      toast({ title: `${cards.length} cards imported`, description: "Review them, then create the activity." });
+    } catch (error) { toast({ title: "Could not import activity", description: error instanceof Error ? error.message : "Use a CSV or Quizlet tab-separated export", variant: "destructive" }); }
+    finally { if (importRef.current) importRef.current.value = ""; }
+  }
+
   function moveFlashcard(direction: -1 | 1) {
     if (!cardOrder.length) return;
     setCardIndex(
@@ -750,9 +778,11 @@ export default function ActivitiesPage() {
             Create, edit, and study your own term-and-answer sets.
           </p>
         </div>
-        <Button onClick={openNewSet}>
-          <Plus className="mr-2 size-4" /> New activity
-        </Button>
+        <div className="flex gap-2">
+          <input ref={importRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" className="hidden" onChange={(event) => void importSet(event.target.files?.[0])} />
+          <Button variant="outline" onClick={() => importRef.current?.click()}><FileUp className="mr-2 size-4" /> Import CSV / Quizlet</Button>
+          <Button onClick={openNewSet}><Plus className="mr-2 size-4" /> New activity</Button>
+        </div>
       </header>
 
       {loading ? (
@@ -809,6 +839,7 @@ export default function ActivitiesPage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
+                  <Button variant="outline" size="icon" onClick={() => void duplicateSet(selected)} aria-label="Duplicate activity" title="Duplicate activity"><CopyPlus className="size-4" /></Button>
                   <Button
                     variant="outline"
                     size="icon"

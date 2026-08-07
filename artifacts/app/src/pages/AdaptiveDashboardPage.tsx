@@ -37,6 +37,7 @@ import { cn } from "@workspace/edu-ds/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { getDashboardGoalId, pendingCheckInKey } from "../lib/dashboardGoal";
+import { TodayAssignments } from "../components/TodayAssignments";
 
 const path = [
   {
@@ -279,6 +280,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
           mastery evidence · {activeGoal?.subject ?? "No active goal"}
         </Badge>
       </header>
+      <TodayAssignments />
       <section className="grid gap-5 lg:grid-cols-[1.5fr_.7fr]">
         <Card className="overflow-hidden border-primary/20">
           <div className="h-1.5 bg-primary" />

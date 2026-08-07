@@ -74,12 +74,12 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Classes", href: "/classes", icon: Users },
   { label: "Goals", href: "/goals", icon: Target },
   { label: "Activities", href: "/activities", icon: LibraryBig },
   { label: "Resources", href: "/resources", icon: BookOpen },
-  { label: "Forum", href: "/forum", icon: MessagesSquare },
   { label: "People", href: "/people", icon: Users },
-  { label: "Classes", href: "/classes", icon: Users },
+  { label: "Forum", href: "/forum", icon: MessagesSquare },
   { label: "Lists", href: "/lists", icon: List },
   { label: "Schedule", href: "/schedule", icon: Calendar },
 ];

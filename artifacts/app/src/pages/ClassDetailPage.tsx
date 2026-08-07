@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare, ShieldCheck } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -14,6 +14,7 @@ import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { SeatingChartEditor } from '../components/SeatingChartEditor';
+import { ClassAssignments } from '../components/ClassAssignments';
 import {
   useGetClass,
   useAddClassMember,
@@ -446,6 +447,14 @@ export default function ClassDetailPage() {
         </section>
       )}
 
+      <ClassAssignments
+        classId={classId}
+        isTeacher={isTeacher}
+        resources={resourceItems.map((item) => ({ id: item.resource.id, title: item.resource.title, url: item.resource.url }))}
+      />
+
+      <Separator />
+
       {/* Class Resources */}
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -494,6 +503,7 @@ export default function ClassDetailPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
                           {item.resource.format}
                         </span>
+                        <Badge variant="outline" className="text-[10px]"><ShieldCheck size={11} className="mr-1" /> Teacher assigned</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
                     </div>

@@ -1,0 +1,405 @@
+import { randomBytes } from "node:crypto";
+import { Router, type IRouter } from "express";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import {
+  assignmentCompletionsTable,
+  classAssignmentsTable,
+  classMembersTable,
+  classesTable,
+  db,
+  resourcesTable,
+  studyActivitiesTable,
+} from "@workspace/db";
+import { contentLimiter } from "../lib/limiters";
+import { isClassMember, isClassTeacher } from "../lib/authz";
+import {
+  requireAuth,
+  type AuthenticatedRequest,
+} from "../middlewares/requireAuth";
+
+const router: IRouter = Router();
+
+function parseId(value: string | string[] | undefined) {
+  const id = Number(Array.isArray(value) ? value[0] : value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function createJoinCode() {
+  return randomBytes(4).toString("hex").toUpperCase();
+}
+
+async function assignmentRows(classId: number, userId: number) {
+  const rows = await db
+    .select({
+      id: classAssignmentsTable.id,
+      classId: classAssignmentsTable.classId,
+      title: classAssignmentsTable.title,
+      instructions: classAssignmentsTable.instructions,
+      resourceId: classAssignmentsTable.resourceId,
+      activityId: classAssignmentsTable.activityId,
+      dueAt: classAssignmentsTable.dueAt,
+      createdAt: classAssignmentsTable.createdAt,
+      resourceTitle: resourcesTable.title,
+      resourceUrl: resourcesTable.url,
+      activityTitle: studyActivitiesTable.title,
+      completedAt: assignmentCompletionsTable.completedAt,
+    })
+    .from(classAssignmentsTable)
+    .leftJoin(
+      resourcesTable,
+      eq(resourcesTable.id, classAssignmentsTable.resourceId),
+    )
+    .leftJoin(
+      studyActivitiesTable,
+      eq(studyActivitiesTable.id, classAssignmentsTable.activityId),
+    )
+    .leftJoin(
+      assignmentCompletionsTable,
+      and(
+        eq(assignmentCompletionsTable.assignmentId, classAssignmentsTable.id),
+        eq(assignmentCompletionsTable.userId, userId),
+      ),
+    )
+    .where(eq(classAssignmentsTable.classId, classId))
+    .orderBy(
+      asc(classAssignmentsTable.dueAt),
+      asc(classAssignmentsTable.createdAt),
+    );
+  return rows.map((row) => ({ ...row, completed: Boolean(row.completedAt) }));
+}
+
+router.post(
+  "/classes/join",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const code =
+      typeof req.body?.code === "string"
+        ? req.body.code.trim().toUpperCase()
+        : "";
+    if (!/^[A-F0-9]{8}$/.test(code)) {
+      res.status(400).json({ error: "Enter a valid 8-character class code" });
+      return;
+    }
+    const [cls] = await db
+      .select()
+      .from(classesTable)
+      .where(eq(classesTable.joinCode, code));
+    if (!cls) {
+      res.status(404).json({ error: "Class code not found" });
+      return;
+    }
+    await db
+      .insert(classMembersTable)
+      .values({ classId: cls.id, userId, role: "student" })
+      .onConflictDoNothing();
+    res.json({ id: cls.id, name: cls.name });
+  },
+);
+
+router.post(
+  "/classes/:id/join-code",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const classId = parseId(req.params.id);
+    if (!classId || !(await isClassTeacher(classId, userId))) {
+      res
+        .status(403)
+        .json({ error: "Only the class teacher can create a join code" });
+      return;
+    }
+    let joinCode = createJoinCode();
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const [existing] = await db
+        .select({ id: classesTable.id })
+        .from(classesTable)
+        .where(eq(classesTable.joinCode, joinCode));
+      if (!existing) break;
+      joinCode = createJoinCode();
+    }
+    await db
+      .update(classesTable)
+      .set({ joinCode })
+      .where(eq(classesTable.id, classId));
+    res.json({ joinCode });
+  },
+);
+
+router.get(
+  "/classes/:id/join-code",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const classId = parseId(req.params.id);
+    if (!classId || !(await isClassTeacher(classId, userId))) {
+      res
+        .status(403)
+        .json({ error: "Only the class teacher can view the join code" });
+      return;
+    }
+    const [cls] = await db
+      .select({ joinCode: classesTable.joinCode })
+      .from(classesTable)
+      .where(eq(classesTable.id, classId));
+    res.json({ joinCode: cls?.joinCode ?? null });
+  },
+);
+
+router.get(
+  "/classes/:id/assignments",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const classId = parseId(req.params.id);
+    if (
+      !classId ||
+      (!(await isClassMember(classId, userId)) &&
+        !(await isClassTeacher(classId, userId)))
+    ) {
+      res.status(403).json({ error: "Class access required" });
+      return;
+    }
+    res.json(await assignmentRows(classId, userId));
+  },
+);
+
+router.post(
+  "/classes/:id/assignments",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const classId = parseId(req.params.id);
+    if (!classId || !(await isClassTeacher(classId, userId))) {
+      res.status(403).json({ error: "Only the class teacher can assign work" });
+      return;
+    }
+    const title =
+      typeof req.body?.title === "string" ? req.body.title.trim() : "";
+    const instructions =
+      typeof req.body?.instructions === "string"
+        ? req.body.instructions.trim().slice(0, 2000)
+        : "";
+    const resourceId = parseId(String(req.body?.resourceId ?? ""));
+    const activityId = parseId(String(req.body?.activityId ?? ""));
+    const dueAt =
+      typeof req.body?.dueAt === "string" &&
+      !Number.isNaN(Date.parse(req.body.dueAt))
+        ? new Date(req.body.dueAt).toISOString()
+        : null;
+    if (title.length < 2 || title.length > 180 || (resourceId && activityId)) {
+      res
+        .status(400)
+        .json({ error: "Add a title and choose at most one linked item" });
+      return;
+    }
+    if (resourceId) {
+      const [resource] = await db
+        .select({ id: resourcesTable.id })
+        .from(resourcesTable)
+        .where(eq(resourcesTable.id, resourceId));
+      if (!resource) {
+        res.status(400).json({ error: "Resource not found" });
+        return;
+      }
+    }
+    if (activityId) {
+      const [activity] = await db
+        .select({ id: studyActivitiesTable.id })
+        .from(studyActivitiesTable)
+        .where(
+          and(
+            eq(studyActivitiesTable.id, activityId),
+            eq(studyActivitiesTable.ownerId, userId),
+          ),
+        );
+      if (!activity) {
+        res.status(400).json({ error: "Activity not found" });
+        return;
+      }
+    }
+    const [created] = await db
+      .insert(classAssignmentsTable)
+      .values({
+        classId,
+        createdById: userId,
+        title,
+        instructions: instructions || null,
+        resourceId,
+        activityId,
+        dueAt,
+      })
+      .returning();
+    res.status(201).json(created);
+  },
+);
+
+router.delete(
+  "/classes/:classId/assignments/:assignmentId",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const classId = parseId(req.params.classId);
+    const assignmentId = parseId(req.params.assignmentId);
+    if (!classId || !assignmentId || !(await isClassTeacher(classId, userId))) {
+      res
+        .status(403)
+        .json({ error: "Only the class teacher can delete assignments" });
+      return;
+    }
+    const removed = await db
+      .delete(classAssignmentsTable)
+      .where(
+        and(
+          eq(classAssignmentsTable.id, assignmentId),
+          eq(classAssignmentsTable.classId, classId),
+        ),
+      )
+      .returning({ id: classAssignmentsTable.id });
+    if (!removed.length) {
+      res.status(404).json({ error: "Assignment not found" });
+      return;
+    }
+    res.sendStatus(204);
+  },
+);
+
+router.patch(
+  "/assignments/:id/completion",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const assignmentId = parseId(req.params.id);
+    const [assignment] = assignmentId
+      ? await db
+          .select()
+          .from(classAssignmentsTable)
+          .where(eq(classAssignmentsTable.id, assignmentId))
+      : [];
+    if (!assignment || !(await isClassMember(assignment.classId, userId))) {
+      res.status(403).json({ error: "Assignment access required" });
+      return;
+    }
+    const completed = req.body?.completed !== false;
+    if (completed) {
+      await db
+        .insert(assignmentCompletionsTable)
+        .values({ assignmentId: assignment.id, userId })
+        .onConflictDoNothing();
+    } else {
+      await db
+        .delete(assignmentCompletionsTable)
+        .where(
+          and(
+            eq(assignmentCompletionsTable.assignmentId, assignment.id),
+            eq(assignmentCompletionsTable.userId, userId),
+          ),
+        );
+    }
+    res.json({ completed });
+  },
+);
+
+router.get(
+  "/assignments/today",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const memberships = await db
+      .select({ classId: classMembersTable.classId })
+      .from(classMembersTable)
+      .where(eq(classMembersTable.userId, userId));
+    if (!memberships.length) {
+      res.json([]);
+      return;
+    }
+    const classIds = memberships.map((row) => row.classId);
+    const assignments = await db
+      .select({
+        id: classAssignmentsTable.id,
+        classId: classAssignmentsTable.classId,
+        className: classesTable.name,
+        title: classAssignmentsTable.title,
+        instructions: classAssignmentsTable.instructions,
+        resourceId: classAssignmentsTable.resourceId,
+        activityId: classAssignmentsTable.activityId,
+        dueAt: classAssignmentsTable.dueAt,
+        completedAt: assignmentCompletionsTable.completedAt,
+      })
+      .from(classAssignmentsTable)
+      .innerJoin(
+        classesTable,
+        eq(classesTable.id, classAssignmentsTable.classId),
+      )
+      .leftJoin(
+        assignmentCompletionsTable,
+        and(
+          eq(assignmentCompletionsTable.assignmentId, classAssignmentsTable.id),
+          eq(assignmentCompletionsTable.userId, userId),
+        ),
+      )
+      .where(inArray(classAssignmentsTable.classId, classIds))
+      .orderBy(
+        asc(classAssignmentsTable.dueAt),
+        asc(classAssignmentsTable.createdAt),
+      );
+    res.json(
+      assignments.map((row) => ({
+        ...row,
+        completed: Boolean(row.completedAt),
+      })),
+    );
+  },
+);
+
+router.get(
+  "/classes/:id/analytics",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const classId = parseId(req.params.id);
+    if (!classId || !(await isClassTeacher(classId, userId))) {
+      res
+        .status(403)
+        .json({ error: "Only the class teacher can view analytics" });
+      return;
+    }
+    const [{ studentCount }] = await db
+      .select({ studentCount: sql<number>`cast(count(*) as int)` })
+      .from(classMembersTable)
+      .where(
+        and(
+          eq(classMembersTable.classId, classId),
+          eq(classMembersTable.role, "student"),
+        ),
+      );
+    const assignments = await db
+      .select({
+        id: classAssignmentsTable.id,
+        title: classAssignmentsTable.title,
+        dueAt: classAssignmentsTable.dueAt,
+        completions: sql<number>`cast(count(${assignmentCompletionsTable.userId}) as int)`,
+      })
+      .from(classAssignmentsTable)
+      .leftJoin(
+        assignmentCompletionsTable,
+        eq(assignmentCompletionsTable.assignmentId, classAssignmentsTable.id),
+      )
+      .where(eq(classAssignmentsTable.classId, classId))
+      .groupBy(classAssignmentsTable.id)
+      .orderBy(asc(classAssignmentsTable.dueAt));
+    res.json({
+      studentCount,
+      assignments: assignments.map((item) => ({
+        ...item,
+        completionRate: studentCount
+          ? Math.round((item.completions / studentCount) * 100)
+          : 0,
+      })),
+    });
+  },
+);
+
+export default router;

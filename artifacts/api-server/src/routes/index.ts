@@ -16,6 +16,7 @@ import learningEvidenceRouter from "./learningEvidence";
 import adminRouter from "./admin";
 import forumRouter from "./forum";
 import studyActivitiesRouter from "./studyActivities";
+import learningWorkflowRouter from "./learningWorkflow";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(learningEvidenceRouter);
 router.use(adminRouter);
 router.use(forumRouter);
 router.use(studyActivitiesRouter);
+router.use(learningWorkflowRouter);
 
 export default router;

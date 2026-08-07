@@ -25,6 +25,7 @@ import {
   Target,
   SlidersHorizontal,
   RotateCcw,
+  Quote,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
@@ -88,6 +89,7 @@ import {
 } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
 import { AUTH_LANGUAGES, useAuthLanguage } from "../lib/auth-locale";
+import { CitationDialog, type CitationResource } from "../components/CitationDialog";
 import {
   addSearchHistory,
   deleteSearchHistory,
@@ -304,6 +306,7 @@ function LibraryCard({
   onClick,
   onRemove,
   onAssign,
+  onCitation,
 }: {
   resource: {
     id: number;
@@ -320,6 +323,7 @@ function LibraryCard({
   onClick: () => void;
   onRemove?: () => void;
   onAssign?: () => void;
+  onCitation: () => void;
 }) {
   const [failedThumb, setFailedThumb] = useState<string | null>(null);
   const evidenceScore = getResourceEvidenceScore(
@@ -392,6 +396,16 @@ function LibraryCard({
           <span className="text-xs text-muted-foreground">
             {resource.reviewCount} review{resource.reviewCount !== 1 ? "s" : ""}
           </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={(event) => { event.stopPropagation(); onCitation(); }}
+            title="Get citation"
+            className="h-8 px-2"
+          >
+            <Quote size={13} className="mr-1" /> Cite
+          </Button>
           {onAssign && (
             <button
               type="button"
@@ -429,10 +443,12 @@ function WebCard({
   resource,
   onAdd,
   adding,
+  onCitation,
 }: {
   resource: DiscoveredResource;
   onAdd: (r: DiscoveredResource) => void;
   adding: boolean;
+  onCitation: () => void;
 }) {
   const [failedThumb, setFailedThumb] = useState<string | null>(null);
   const ytId = getYouTubeId(resource.url);
@@ -503,6 +519,9 @@ function WebCard({
               <Plus size={12} className="mr-1.5" /> Save
             </>
           )}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCitation} title="Get citation">
+          <Quote size={12} className="mr-1.5" /> Cite
         </Button>
       </CardFooter>
     </Card>
@@ -646,6 +665,13 @@ export default function ResourcesPage() {
   const [sourceQualityFilter, setSourceQualityFilter] = useState("");
   const [captionsRequired, setCaptionsRequired] = useState(false);
   const [transcriptRequired, setTranscriptRequired] = useState(false);
+  const [citationResource, setCitationResource] = useState<CitationResource | null>(null);
+  const [citationOpen, setCitationOpen] = useState(false);
+
+  function openCitation(resource?: CitationResource) {
+    setCitationResource(resource ?? null);
+    setCitationOpen(true);
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(routeSearch);
@@ -1200,6 +1226,10 @@ export default function ResourcesPage() {
                 : "Top-rated resources to get you started"}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => openCitation()} data-testid="citation-maker-button">
+            <Quote size={15} className="mr-1.5" /> Citation maker
+          </Button>
         {isLoggedIn ? (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -1334,7 +1364,10 @@ export default function ResourcesPage() {
             </Link>
           </Button>
         )}
+        </div>
       </div>
+
+      <CitationDialog open={citationOpen} onOpenChange={setCitationOpen} resource={citationResource} />
 
       {/* Search bar */}
       <form onSubmit={handleSearchSubmit} className="space-y-2">
@@ -1914,6 +1947,7 @@ export default function ResourcesPage() {
                       key={resource.id}
                       resource={resource}
                       onClick={() => setLocation(`/resources/${resource.id}`)}
+                      onCitation={() => openCitation(resource)}
                     />
                   ))}
                 </div>
@@ -1957,6 +1991,7 @@ export default function ResourcesPage() {
                         key={r.id}
                         resource={r}
                         onClick={() => setLocation(`/resources/${r.id}`)}
+                        onCitation={() => openCitation(r)}
                         onRemove={
                           me ? () => handleRemoveCard(r.id, r.title) : undefined
                         }
@@ -2081,6 +2116,7 @@ export default function ResourcesPage() {
                         resource={r}
                         onAdd={handleAddWeb}
                         adding={addingUrl === r.url}
+                        onCitation={() => openCitation(r)}
                       />
                     ),
                   )}

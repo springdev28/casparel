@@ -15,3 +15,4 @@ export * from "./learningEvidence";
 export * from "./sourceReviewCache";
 export * from "./classResourceRecommendations";
 export * from "./forum";
+export * from "./assignments";

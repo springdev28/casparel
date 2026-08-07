@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
-import { Plus, Users, BookOpen, RefreshCw, LogOut, ExternalLink, Download, AlertCircle } from 'lucide-react';
+import { Plus, Users, BookOpen, RefreshCw, LogOut, ExternalLink, Download, AlertCircle, KeyRound } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -39,6 +39,9 @@ export default function ClassesPage() {
   const [newSubject, setNewSubject] = useState('');
   const [newGrade, setNewGrade] = useState('');
   const [newDesc, setNewDesc] = useState('');
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joining, setJoining] = useState(false);
 
   // GC dialog
   const [gcDialogOpen, setGcDialogOpen] = useState(false);
@@ -164,6 +167,21 @@ export default function ClassesPage() {
     }
   }
 
+  async function handleJoin(e: React.FormEvent) {
+    e.preventDefault();
+    setJoining(true);
+    try {
+      const response = await fetch('/api/classes/join', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('schoolar_token')}` }, body: JSON.stringify({ code: joinCode }) });
+      const payload = await response.json().catch(() => ({})) as { id?: number; name?: string; error?: string };
+      if (!response.ok || !payload.id) throw new Error(payload.error ?? 'Could not join class');
+      await queryClient.invalidateQueries({ queryKey: getListClassesQueryKey() });
+      setJoinDialogOpen(false); setJoinCode('');
+      toast({ title: 'Class joined', description: `Welcome to ${payload.name ?? 'your new class'}.` });
+      setLocation(`/classes/${payload.id}`);
+    } catch (error) { toast({ title: 'Could not join class', description: error instanceof Error ? error.message : 'Check the code and try again', variant: 'destructive' }); }
+    finally { setJoining(false); }
+  }
+
   async function handleConnectGoogle() {
     try {
       await fetchAuthUrl();
@@ -238,6 +256,11 @@ export default function ClassesPage() {
           <p className="text-muted-foreground text-sm mt-1">Manage and join your classes</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+
+          <Dialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen}>
+            <DialogTrigger asChild><Button variant="outline" size="sm"><KeyRound size={15} className="mr-1.5" /> Join with code</Button></DialogTrigger>
+            <DialogContent><DialogHeader><DialogTitle>Join a class</DialogTitle><DialogDescription>Enter the 8-character code your teacher shared.</DialogDescription></DialogHeader><form onSubmit={handleJoin} className="space-y-4"><div className="space-y-1.5"><Label htmlFor="join-code">Class code</Label><Input id="join-code" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, '').slice(0, 8))} className="font-mono text-lg uppercase tracking-widest" placeholder="A1B2C3D4" autoComplete="off" /></div><DialogFooter><Button type="submit" disabled={joining || joinCode.length !== 8}>{joining ? 'Joining…' : 'Join class'}</Button></DialogFooter></form></DialogContent>
+          </Dialog>
 
           {/* Google Classroom — teachers only */}
           {isTeacher && (
