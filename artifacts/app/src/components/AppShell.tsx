@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useState, type CSSProperties } from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
+  LibraryBig,
   Target,
   BookOpen,
   Users,
@@ -74,6 +75,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Goals", href: "/goals", icon: Target },
+  { label: "Activities", href: "/activities", icon: LibraryBig },
   { label: "Resources", href: "/resources", icon: BookOpen },
   { label: "Forum", href: "/forum", icon: MessagesSquare },
   { label: "People", href: "/people", icon: Users },
@@ -737,6 +739,7 @@ export default function AppShell({ children }: AppShellProps) {
 const NAV_LABELS_TR: Record<string, string> = {
   Dashboard: "Ana Sayfa",
   Goals: "Hedefler",
+  Activities: "Etkinlikler",
   Resources: "Kaynaklar",
   People: "Kişiler",
   Classes: "Sınıflar",
