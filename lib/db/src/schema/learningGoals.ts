@@ -54,3 +54,32 @@ export const learningGoalsTable = pgTable("learning_goals", {
 });
 
 export type LearningGoal = typeof learningGoalsTable.$inferSelect;
+
+export const goalPathTemplatesTable = pgTable("goal_path_templates", {
+  id: serial("id").primaryKey(),
+  creatorId: integer("creator_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  creatorName: text("creator_name").notNull(),
+  title: text("title").notNull(),
+  subject: text("subject").notNull(),
+  description: text("description"),
+  level: learningGoalLevelEnum("level").notNull().default("beginner"),
+  pathSteps: jsonb("path_steps")
+    .$type<
+      Array<{
+        id: string;
+        title: string;
+        query: string;
+        completed: boolean;
+      }>
+    >()
+    .notNull()
+    .default([]),
+  useCount: integer("use_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+    .notNull()
+    .defaultNow(),
+});
+
+export type GoalPathTemplate = typeof goalPathTemplatesTable.$inferSelect;
