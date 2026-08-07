@@ -9,6 +9,7 @@ import {
   Dices,
   Layers3,
   ListChecks,
+  ImagePlus,
   Pencil,
   Plus,
   RotateCcw,
@@ -45,6 +46,8 @@ type ActivityCard = {
   id: string;
   term: string;
   answer: string;
+  imageData?: string | null;
+  imageAlt?: string | null;
 };
 
 type StudyActivity = {
@@ -75,6 +78,53 @@ type MatchItem = {
 };
 
 const TOKEN_KEY = "schoolar_token";
+const MAX_ACTIVITY_IMAGES = 6;
+const MAX_CARD_IMAGE_BYTES = 135 * 1024;
+
+function dataUrlBytes(value: string) {
+  const encoded = value.split(",", 2)[1] ?? "";
+  return Math.ceil(encoded.length * 0.75);
+}
+
+async function compressCardImage(file: File) {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Choose a PNG, JPEG, or WebP image.");
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error("The source image must be smaller than 8 MB.");
+  }
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await image.decode();
+    const scale = Math.min(1, 960 / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("This browser could not process the image.");
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.82, 0.7, 0.58, 0.46]) {
+      const result = canvas.toDataURL("image/webp", quality);
+      if (dataUrlBytes(result) <= MAX_CARD_IMAGE_BYTES) return result;
+    }
+    throw new Error("This image is too detailed. Try a smaller crop.");
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function ActivityImage({ card, className = "" }: { card: ActivityCard; className?: string }) {
+  if (!card.imageData) return null;
+  return (
+    <img
+      src={card.imageData}
+      alt={card.imageAlt || card.term}
+      className={cn("max-w-full rounded-md object-contain", className)}
+    />
+  );
+}
 
 function shuffled<T>(items: T[]) {
   const copy = [...items];
@@ -147,6 +197,7 @@ export default function ActivitiesPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [processingImageId, setProcessingImageId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formSubject, setFormSubject] = useState("");
   const [formCards, setFormCards] = useState<ActivityCard[]>([
@@ -335,12 +386,40 @@ export default function ActivitiesPage() {
 
   function updateFormCard(
     id: string,
-    field: "term" | "answer",
+    field: "term" | "answer" | "imageAlt",
     value: string,
   ) {
     setFormCards((cards) =>
       cards.map((card) => (card.id === id ? { ...card, [field]: value } : card)),
     );
+  }
+
+  async function attachImage(cardId: string, file?: File) {
+    if (!file) return;
+    const imageCount = formCards.filter((card) => card.imageData && card.id !== cardId).length;
+    if (imageCount >= MAX_ACTIVITY_IMAGES) {
+      toast({ title: "Image limit reached", description: "Each activity can contain up to six images.", variant: "destructive" });
+      return;
+    }
+    setProcessingImageId(cardId);
+    try {
+      const imageData = await compressCardImage(file);
+      setFormCards((cards) =>
+        cards.map((card) =>
+          card.id === cardId
+            ? { ...card, imageData, imageAlt: card.imageAlt || card.term.slice(0, 160) }
+            : card,
+        ),
+      );
+    } catch (error) {
+      toast({
+        title: "Could not attach image",
+        description: error instanceof Error ? error.message : "Please try another image.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingImageId(null);
+    }
   }
 
   async function saveSet(event: React.FormEvent) {
@@ -777,7 +856,8 @@ export default function ActivitiesPage() {
                     onClick={() => setFlipped((value) => !value)}
                     data-testid="activity-flashcard"
                   >
-                    <span>
+                    <span className="block w-full">
+                      <ActivityImage card={currentFlashcard} className="mx-auto mb-5 max-h-40" />
                       <span className="mb-4 block text-xs font-bold uppercase text-muted-foreground">
                         {flipped ? "Answer" : "Term"}
                       </span>
@@ -833,6 +913,7 @@ export default function ActivitiesPage() {
                         <p className="text-xs font-bold uppercase text-muted-foreground">
                           {practiceIndex + 1} of {practiceOrder.length}
                         </p>
+                        <ActivityImage card={currentPractice} className="mb-4 mt-3 max-h-56" />
                         <h3 className="mt-3 text-2xl font-semibold">
                           {currentPractice.term}
                         </h3>
@@ -911,6 +992,7 @@ export default function ActivitiesPage() {
                         <p className="text-xs font-bold uppercase text-muted-foreground">
                           {quizIndex + 1} of {quizOrder.length}
                         </p>
+                        <ActivityImage card={currentQuiz} className="mb-4 mt-3 max-h-56" />
                         <h3 className="mt-3 text-2xl font-semibold">
                           {currentQuiz.term}
                         </h3>
@@ -969,6 +1051,7 @@ export default function ActivitiesPage() {
                       <p className="text-xs font-bold uppercase text-muted-foreground">
                         {trueFalseIndex + 1} of {trueFalseOrder.length}
                       </p>
+                      <ActivityImage card={currentTrueFalse} className="mx-auto max-h-56" />
                       <h3 className="text-xl font-semibold">
                         {currentTrueFalse.term}
                       </h3>
@@ -1027,6 +1110,7 @@ export default function ActivitiesPage() {
                       <p className="text-xs font-bold uppercase text-muted-foreground">
                         {scrambleIndex + 1} of {scrambleOrder.length}
                       </p>
+                      <ActivityImage card={currentScramble} className="max-h-56" />
                       <p className="text-sm text-muted-foreground">
                         {currentScramble.term}
                       </p>
@@ -1093,6 +1177,7 @@ export default function ActivitiesPage() {
                       <p className="text-xs font-bold uppercase text-muted-foreground">
                         {missingIndex + 1} of {missingOrder.length}
                       </p>
+                      <ActivityImage card={currentMissing} className="max-h-56" />
                       <p className="text-sm text-muted-foreground">
                         {currentMissing.term}
                       </p>
@@ -1159,6 +1244,7 @@ export default function ActivitiesPage() {
                   </Button>
                   {randomCard && !randomPicking && (
                     <div className="mx-auto max-w-2xl rounded-md border bg-card p-8">
+                      <ActivityImage card={randomCard} className="mx-auto mb-5 max-h-56" />
                       <p className="text-2xl font-semibold">{randomCard.term}</p>
                       {randomAnswerVisible ? (
                         <p className="mt-5 border-t pt-5 text-lg text-muted-foreground">
@@ -1256,35 +1342,36 @@ export default function ActivitiesPage() {
               {formCards.map((card, index) => (
                 <div
                   key={card.id}
-                  className="grid grid-cols-[1.5rem_minmax(0,1fr)_2rem] gap-2 border-b pb-3 sm:grid-cols-[2rem_1fr_1fr_2rem]"
+                  className="grid grid-cols-[1.5rem_minmax(0,1fr)_2rem] gap-2 border-b pb-4"
                 >
-                  <span className="row-span-2 pt-2 text-sm text-muted-foreground sm:row-span-1">
+                  <span className="row-span-3 pt-2 text-sm text-muted-foreground">
                     {index + 1}
                   </span>
-                  <Input
-                    value={card.term}
-                    onChange={(event) =>
-                      updateFormCard(card.id, "term", event.target.value)
-                    }
-                    placeholder="Term or question"
-                    aria-label={`Card ${index + 1} term`}
-                    maxLength={500}
-                  />
-                  <Input
-                    value={card.answer}
-                    onChange={(event) =>
-                      updateFormCard(card.id, "answer", event.target.value)
-                    }
-                    placeholder="Answer"
-                    className="col-start-2 sm:col-start-auto"
-                    aria-label={`Card ${index + 1} answer`}
-                    maxLength={1000}
-                  />
+                  <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+                    <Input
+                      value={card.term}
+                      onChange={(event) =>
+                        updateFormCard(card.id, "term", event.target.value)
+                      }
+                      placeholder="Term or question"
+                      aria-label={`Card ${index + 1} term`}
+                      maxLength={500}
+                    />
+                    <Input
+                      value={card.answer}
+                      onChange={(event) =>
+                        updateFormCard(card.id, "answer", event.target.value)
+                      }
+                      placeholder="Answer"
+                      aria-label={`Card ${index + 1} answer`}
+                      maxLength={1000}
+                    />
+                  </div>
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="row-span-2 sm:row-span-1"
+                    className="row-span-3"
                     disabled={formCards.length <= 2}
                     onClick={() =>
                       setFormCards((cards) =>
@@ -1295,6 +1382,56 @@ export default function ActivitiesPage() {
                   >
                     <Trash2 className="size-4" />
                   </Button>
+                  <div className="col-start-2">
+                    {card.imageData ? (
+                      <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/30 p-2">
+                        <ActivityImage card={card} className="h-20 w-28 bg-background" />
+                        <Input
+                          value={card.imageAlt ?? ""}
+                          onChange={(event) =>
+                            updateFormCard(card.id, "imageAlt", event.target.value)
+                          }
+                          placeholder="Image description"
+                          aria-label={`Card ${index + 1} image description`}
+                          className="min-w-40 flex-1"
+                          maxLength={160}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setFormCards((cards) =>
+                              cards.map((item) =>
+                                item.id === card.id
+                                  ? { ...item, imageData: null, imageAlt: null }
+                                  : item,
+                              ),
+                            )
+                          }
+                        >
+                          <X className="mr-1 size-4" /> Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button type="button" size="sm" variant="outline" asChild>
+                        <label className="cursor-pointer">
+                          <ImagePlus className="mr-2 size-4" />
+                          {processingImageId === card.id ? "Processing..." : "Attach image"}
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp"
+                            className="hidden"
+                            disabled={processingImageId !== null}
+                            onChange={(event) => {
+                              void attachImage(card.id, event.target.files?.[0]);
+                              event.currentTarget.value = "";
+                            }}
+                          />
+                        </label>
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
               <Button
