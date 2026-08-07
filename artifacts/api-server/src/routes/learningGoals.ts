@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq } from "drizzle-orm";
-import { db, learningGoalsTable, classMembersTable, usersTable, activityLogTable } from "@workspace/db";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { db, learningGoalsTable, goalPathTemplatesTable, classMembersTable, usersTable, activityLogTable } from "@workspace/db";
 import {
   CreateLearningGoalBody,
   CreateLearningGoalResponse,
@@ -119,6 +119,114 @@ router.patch("/classes/:id/student-goals/:goalId", contentLimiter, requireAuth, 
   });
   res.json(UpdateClassStudentGoalResponse.parse({ ...goal, studentName: existing.studentName, classId }));
 });
+
+router.get("/learning-goal-templates", requireAuth, async (_req, res): Promise<void> => {
+  const templates = await db
+    .select()
+    .from(goalPathTemplatesTable)
+    .orderBy(desc(goalPathTemplatesTable.useCount), desc(goalPathTemplatesTable.createdAt))
+    .limit(50);
+  res.json(templates);
+});
+
+router.post(
+  "/learning-goal-templates",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const goalId = Number(req.body?.goalId);
+    if (!Number.isInteger(goalId) || goalId <= 0) {
+      res.status(400).json({ error: "A valid goal is required" });
+      return;
+    }
+    const [goal] = await db
+      .select()
+      .from(learningGoalsTable)
+      .where(
+        and(
+          eq(learningGoalsTable.id, goalId),
+          eq(learningGoalsTable.userId, userId),
+          eq(
+            learningGoalsTable.workspaceRole,
+            userRole === "teacher" ? "teacher" : "student",
+          ),
+        ),
+      );
+    if (!goal) {
+      res.status(404).json({ error: "Learning goal not found" });
+      return;
+    }
+    if (!goal.pathSteps.length) {
+      res.status(400).json({ error: "Add at least one path step before sharing" });
+      return;
+    }
+    const [creator] = await db
+      .select({ name: usersTable.name })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+    const [template] = await db
+      .insert(goalPathTemplatesTable)
+      .values({
+        creatorId: userId,
+        creatorName: creator?.name ?? "Schoolar member",
+        title: goal.title,
+        subject: goal.subject,
+        description: goal.description,
+        level: goal.level,
+        pathSteps: goal.pathSteps.map((step) => ({
+          ...step,
+          completed: false,
+        })),
+      })
+      .returning();
+    res.status(201).json(template);
+  },
+);
+
+router.post(
+  "/learning-goal-templates/:id/clone",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const templateId = Number(req.params.id);
+    if (!Number.isInteger(templateId) || templateId <= 0) {
+      res.status(400).json({ error: "Invalid community path" });
+      return;
+    }
+    const [template] = await db
+      .select()
+      .from(goalPathTemplatesTable)
+      .where(eq(goalPathTemplatesTable.id, templateId));
+    if (!template) {
+      res.status(404).json({ error: "Community path not found" });
+      return;
+    }
+    const [goal] = await db
+      .insert(learningGoalsTable)
+      .values({
+        userId,
+        workspaceRole: userRole === "teacher" ? "teacher" : "student",
+        title: template.title,
+        subject: template.subject,
+        description: template.description,
+        level: template.level,
+        preferredFormats: null,
+        pathSteps: template.pathSteps.map((step) => ({
+          ...step,
+          id: crypto.randomUUID(),
+          completed: false,
+        })),
+      })
+      .returning();
+    await db
+      .update(goalPathTemplatesTable)
+      .set({ useCount: sql`${goalPathTemplatesTable.useCount} + 1` })
+      .where(eq(goalPathTemplatesTable.id, templateId));
+    res.status(201).json(goal);
+  },
+);
 
 router.get("/learning-goals", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
