@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -238,6 +238,9 @@ export default function ClassDetailPage() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary">{cls.members.length} member{cls.members.length !== 1 ? 's' : ''}</Badge>
+              <Button size="sm" onClick={() => setLocation('/forum?classId=' + classId)} data-testid="class-forum-button">
+                <MessagesSquare size={14} className="mr-1.5" /> Class Forum
+              </Button>
 
               {/* Sync Roster — visible to all teachers; state varies by GC connection */}
               <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
