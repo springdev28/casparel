@@ -136,6 +136,15 @@ function roleLabel(role: string) {
   return role === "teacher" ? "Teacher" : role === "admin" ? "Admin" : "Student";
 }
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "?";
+}
+
 function csv(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean) : [];
 }
@@ -339,6 +348,11 @@ export default function ForumPage() {
   }
 
   const materialById = useMemo(() => new Map(materials.map((item) => [item.id, item])), [materials]);
+  const popularTopics = useMemo(() => {
+    const counts = new Map<string, number>();
+    posts.forEach((post) => post.tags.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1)));
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [posts]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
@@ -349,10 +363,10 @@ export default function ForumPage() {
         </div>
       </header>
 
-      <Tabs defaultValue="materials">
-        <TabsList>
+      <Tabs defaultValue="posts">
+        <TabsList className={access.isAdmin ? "grid w-full grid-cols-3 sm:w-auto" : "grid w-full grid-cols-2 sm:w-auto"}>
+          <TabsTrigger value="posts"><MessagesSquare className="mr-2 size-4" />Feed</TabsTrigger>
           <TabsTrigger value="materials"><FilePlus2 className="mr-2 size-4" />Materials</TabsTrigger>
-          <TabsTrigger value="posts"><MessagesSquare className="mr-2 size-4" />Posts</TabsTrigger>
           {access.isAdmin && <TabsTrigger value="moderation"><ShieldCheck className="mr-2 size-4" />Moderation</TabsTrigger>}
         </TabsList>
 
@@ -421,51 +435,156 @@ export default function ForumPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="posts" className="space-y-5">
-          <section className="flex flex-wrap gap-2 rounded-md border bg-background/90 p-4 shadow-sm">
-            <div className="relative min-w-[220px] flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={postQuery} onChange={(event) => setPostQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadPosts()} placeholder="Search forum posts..." className="pl-9" /></div>
-            <Select value={postKind} onValueChange={setPostKind}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Posts & surveys</SelectItem><SelectItem value="post">Posts</SelectItem><SelectItem value="survey">Surveys</SelectItem></SelectContent></Select>
-            <Select value={postTag} onValueChange={setPostTag}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All tags</SelectItem>{POST_TAGS.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}</SelectContent></Select>
-            <Button variant="outline" onClick={loadPosts}><Search className="mr-2 size-4" />Search</Button>
-            <Dialog open={postDialog} onOpenChange={setPostDialog}>
-              <DialogTrigger asChild><Button><Plus className="mr-2 size-4" />New post</Button></DialogTrigger>
-              <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
-                <DialogHeader><DialogTitle>Create forum post</DialogTitle><DialogDescription>Share a post or ask the community with a survey.</DialogDescription></DialogHeader>
-                <form onSubmit={createPost} className="space-y-4">
-                  <Tabs value={postMode} onValueChange={(value) => setPostMode(value as "post" | "survey")}><TabsList><TabsTrigger value="post">Post</TabsTrigger><TabsTrigger value="survey">Survey</TabsTrigger></TabsList></Tabs>
-                  <div className="space-y-1.5"><Label>Title</Label><Input name="title" maxLength={180} /></div>
-                  <div className="space-y-1.5"><Label>{postMode === "survey" ? "Question and context" : "Post"}</Label><Textarea name="body" rows={6} maxLength={5000} required /></div>
-                  <div className="space-y-1.5"><Label>Tags</Label><Input name="tags" placeholder={POST_TAGS.join(", ")} /></div>
-                  {postMode === "survey" && <div className="space-y-2"><Label>Survey options</Label>{surveyOptions.map((option, index) => <div key={index} className="flex gap-2"><Input value={option} onChange={(event) => setSurveyOptions((items) => items.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={"Option " + (index + 1)} required={index < 2} />{surveyOptions.length > 2 && <Button type="button" size="icon" variant="ghost" onClick={() => setSurveyOptions((items) => items.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="size-4" /></Button>}</div>)}<Button type="button" size="sm" variant="outline" onClick={() => setSurveyOptions((items) => items.length < 8 ? [...items, ""] : items)}><Plus className="mr-1 size-3.5" />Add option</Button></div>}
-                  <div className="space-y-1.5"><Label>Attach a material</Label><Select name="attachmentMaterialId"><SelectTrigger><SelectValue placeholder="No attachment" /></SelectTrigger><SelectContent>{materials.map((material) => <SelectItem key={material.id} value={String(material.id)}>{material.title}</SelectItem>)}</SelectContent></Select></div>
-                  <Button className="w-full" disabled={submitting}>{submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}Publish</Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </section>
+        <TabsContent value="posts" className="mt-5">
+          <div className="mx-auto grid max-w-5xl items-start gap-5 lg:grid-cols-[minmax(0,1fr)_16rem]">
+            <div className="min-w-0 space-y-4">
+              <Card className="overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                      {initials(me?.name || "You")}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPostMode("post");
+                        setPostDialog(true);
+                      }}
+                      className="min-h-10 flex-1 rounded-full border bg-muted/50 px-4 text-left text-sm text-muted-foreground transition-colors hover:bg-muted"
+                    >
+                      Share a question, idea, or update...
+                    </button>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 border-t pt-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="justify-center"
+                      onClick={() => {
+                        setPostMode("post");
+                        setPostDialog(true);
+                      }}
+                    >
+                      <MessageCircle className="mr-2 size-4" /> Post
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="justify-center"
+                      onClick={() => {
+                        setPostMode("survey");
+                        setPostDialog(true);
+                      }}
+                    >
+                      <BarChart3 className="mr-2 size-4" /> Survey
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {loadingPosts ? <div className="py-12 text-center text-muted-foreground"><Loader2 className="mx-auto mb-2 size-5 animate-spin" />Loading posts...</div> : posts.length === 0 ? <div className="py-12 text-center text-muted-foreground">No posts match these filters.</div> : (
-            <div className="space-y-4">
-              {posts.map((post) => {
-                const attached = post.attachmentMaterialId ? materialById.get(post.attachmentMaterialId) : null;
-                const totalVotes = post.votes.reduce((sum, item) => sum + item.count, 0);
-                return <Card key={post.id} data-testid="forum-post">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-3"><div><CardTitle className="text-base">{post.title || (post.kind === "survey" ? "Community survey" : "Community post")}</CardTitle><p className="mt-1 text-xs text-muted-foreground">{roleLabel(post.authorRole)} · {post.authorName} · {new Date(post.createdAt).toLocaleString()}</p></div>{post.kind === "survey" && <Badge><BarChart3 className="mr-1 size-3" />Survey</Badge>}</div>
-                    <div className="flex flex-wrap gap-1">{post.tags.map((tag) => <Badge key={tag} variant="outline">{tag}</Badge>)}</div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <p className="whitespace-pre-wrap text-sm">{post.body}</p>
-                    {attached && <button type="button" className="flex w-full items-center gap-2 border-y py-3 text-left text-sm hover:text-primary" onClick={() => downloadMaterial(attached)}><Paperclip className="size-4" /><span className="font-medium">{attached.title}</span><span className="text-muted-foreground">· {attached.materialType}</span></button>}
-                    {post.kind === "survey" && <div className="space-y-2">{post.surveyOptions.map((option) => { const count = post.votes.find((item) => item.optionId === option.id)?.count ?? 0; const percent = totalVotes ? Math.round(count / totalVotes * 100) : 0; return <button key={option.id} type="button" onClick={() => vote(post, option.id)} className={"relative flex w-full overflow-hidden rounded-md border px-3 py-2 text-left text-sm " + (post.myVote === option.id ? "border-primary" : "")}><span className="absolute inset-y-0 left-0 bg-primary/10" style={{ width: percent + "%" }} /><span className="relative flex-1">{option.text}</span><span className="relative text-xs text-muted-foreground">{count} · {percent}%</span></button>; })}<p className="text-xs text-muted-foreground">{totalVotes} vote{totalVotes === 1 ? "" : "s"}</p></div>}
-                    <div className="flex flex-wrap items-center gap-3 border-y py-2 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Eye className="size-3.5" />{post.viewCount}</span><span className="flex items-center gap-1"><Heart className="size-3.5" />{post.likeCount}</span><span className="flex items-center gap-1"><MessageCircle className="size-3.5" />{post.commentCount}</span></div>
-                    <div className="flex gap-2"><Button size="sm" variant={post.likedByMe ? "default" : "outline"} onClick={() => toggleLike("post", post.id)}><Heart className="mr-1 size-3.5" />Like</Button><Button size="icon" variant="ghost" title="Report post" onClick={() => report("post", post.id)}><Flag className="size-4" /></Button>{(post.authorId === me?.id || access.isAdmin) && <Button size="icon" variant="ghost" title="Delete post" onClick={() => remove("post", post.id)}><Trash2 className="size-4 text-destructive" /></Button>}</div>
-                    <Discussion targetType="post" targetId={post.id} meId={me?.id} isAdmin={access.isAdmin} onReport={report} onDelete={remove} onChanged={loadPosts} />
-                  </CardContent>
-                </Card>;
-              })}
+              <Dialog open={postDialog} onOpenChange={setPostDialog}>
+                <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Create forum post</DialogTitle>
+                    <DialogDescription>Share a post or ask the community with a survey.</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={createPost} className="space-y-4">
+                    <Tabs value={postMode} onValueChange={(value) => setPostMode(value as "post" | "survey")}>
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="post">Post</TabsTrigger>
+                        <TabsTrigger value="survey">Survey</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    <div className="space-y-1.5"><Label>Title</Label><Input name="title" maxLength={180} placeholder="Give people a reason to stop scrolling" /></div>
+                    <div className="space-y-1.5"><Label>{postMode === "survey" ? "Question and context" : "Post"}</Label><Textarea name="body" rows={6} maxLength={5000} required placeholder="What would you like to share?" /></div>
+                    <div className="space-y-1.5"><Label>Tags</Label><Input name="tags" placeholder={POST_TAGS.join(", ")} /></div>
+                    {postMode === "survey" && <div className="space-y-2"><Label>Survey options</Label>{surveyOptions.map((option, index) => <div key={index} className="flex gap-2"><Input value={option} onChange={(event) => setSurveyOptions((items) => items.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={"Option " + (index + 1)} required={index < 2} />{surveyOptions.length > 2 && <Button type="button" size="icon" variant="ghost" onClick={() => setSurveyOptions((items) => items.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="size-4" /></Button>}</div>)}<Button type="button" size="sm" variant="outline" onClick={() => setSurveyOptions((items) => items.length < 8 ? [...items, ""] : items)}><Plus className="mr-1 size-3.5" />Add option</Button></div>}
+                    <div className="space-y-1.5"><Label>Attach a material</Label><Select name="attachmentMaterialId"><SelectTrigger><SelectValue placeholder="No attachment" /></SelectTrigger><SelectContent>{materials.map((material) => <SelectItem key={material.id} value={String(material.id)}>{material.title}</SelectItem>)}</SelectContent></Select></div>
+                    <Button className="w-full" disabled={submitting}>{submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}Publish</Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              <section className="flex flex-wrap gap-2 border-y bg-background/70 py-3">
+                <div className="relative min-w-0 flex-1 basis-56">
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={postQuery} onChange={(event) => setPostQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadPosts()} placeholder="Search the feed..." className="pl-9" />
+                </div>
+                <Select value={postKind} onValueChange={setPostKind}><SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Everything</SelectItem><SelectItem value="post">Posts</SelectItem><SelectItem value="survey">Surveys</SelectItem></SelectContent></Select>
+                <Select value={postTag} onValueChange={setPostTag}><SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-36"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All topics</SelectItem>{POST_TAGS.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}</SelectContent></Select>
+                <Button size="icon" onClick={loadPosts} disabled={loadingPosts} aria-label="Search posts" title="Search posts">
+                  {loadingPosts ? <Loader2 className="size-4 animate-spin" /> : <Search className="size-4" />}
+                </Button>
+              </section>
+
+              {loadingPosts ? <div className="py-12 text-center text-muted-foreground"><Loader2 className="mx-auto mb-2 size-5 animate-spin" />Loading posts...</div> : posts.length === 0 ? <div className="border-y py-12 text-center text-muted-foreground">No posts match these filters.</div> : (
+                <div className="space-y-4">
+                  {posts.map((post) => {
+                    const attached = post.attachmentMaterialId ? materialById.get(post.attachmentMaterialId) : null;
+                    const totalVotes = post.votes.reduce((sum, item) => sum + item.count, 0);
+                    return <Card key={post.id} className="overflow-hidden" data-testid="forum-post">
+                      <CardHeader className="p-4 pb-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
+                            {initials(post.authorName)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className="font-semibold">{post.authorName}</span>
+                              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{roleLabel(post.authorRole)}</Badge>
+                              {post.kind === "survey" && <Badge className="h-5 px-1.5 text-[10px]"><BarChart3 className="mr-1 size-3" />Survey</Badge>}
+                            </div>
+                            <p className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleString()}</p>
+                          </div>
+                          <div className="flex shrink-0">
+                            <Button size="icon" variant="ghost" title="Report post" aria-label="Report post" onClick={() => report("post", post.id)}><Flag className="size-4" /></Button>
+                            {(post.authorId === me?.id || access.isAdmin) && <Button size="icon" variant="ghost" title="Delete post" aria-label="Delete post" onClick={() => remove("post", post.id)}><Trash2 className="size-4 text-destructive" /></Button>}
+                          </div>
+                        </div>
+                        {post.tags.length > 0 && <div className="flex flex-wrap gap-1.5">{post.tags.map((tag) => <button key={tag} type="button" onClick={() => setPostTag(tag)} className="text-xs font-medium text-primary hover:underline">#{tag}</button>)}</div>}
+                      </CardHeader>
+                      <CardContent className="space-y-3 p-4 pt-0">
+                        {post.title && <h2 className="text-lg font-bold leading-snug">{post.title}</h2>}
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">{post.body}</p>
+                        {attached && <button type="button" className="flex w-full items-center gap-3 rounded-md border bg-muted/40 p-3 text-left text-sm transition-colors hover:bg-muted" onClick={() => downloadMaterial(attached)}><span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background"><Paperclip className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate font-medium">{attached.title}</span><span className="text-xs text-muted-foreground">{attached.materialType} · Open material</span></span></button>}
+                        {post.kind === "survey" && <div className="space-y-2">{post.surveyOptions.map((option) => { const count = post.votes.find((item) => item.optionId === option.id)?.count ?? 0; const percent = totalVotes ? Math.round(count / totalVotes * 100) : 0; return <button key={option.id} type="button" onClick={() => vote(post, option.id)} className={"relative flex min-h-11 w-full overflow-hidden rounded-md border px-3 py-2 text-left text-sm transition-colors hover:border-primary " + (post.myVote === option.id ? "border-primary" : "")}><span className="absolute inset-y-0 left-0 bg-primary/10" style={{ width: percent + "%" }} /><span className="relative flex-1">{option.text}</span><span className="relative text-xs text-muted-foreground">{count} · {percent}%</span></button>; })}<p className="text-xs text-muted-foreground">{totalVotes} vote{totalVotes === 1 ? "" : "s"}</p></div>}
+                        <div className="flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><Eye className="size-3.5" />{post.viewCount} views</span>
+                          <div className="flex items-center gap-3"><span>{post.likeCount} likes</span><span>{post.commentCount} comments</span></div>
+                        </div>
+                        <div className="grid grid-cols-2 border-y">
+                          <Button className="rounded-none" size="sm" variant="ghost" onClick={() => toggleLike("post", post.id)}><Heart className={"mr-2 size-4 " + (post.likedByMe ? "fill-current" : "")} />{post.likedByMe ? "Liked" : "Like"}</Button>
+                          <div className="flex items-center justify-center text-sm text-muted-foreground"><MessageCircle className="mr-2 size-4" />Discuss below</div>
+                        </div>
+                        <Discussion targetType="post" targetId={post.id} meId={me?.id} isAdmin={access.isAdmin} onReport={report} onDelete={remove} onChanged={loadPosts} />
+                      </CardContent>
+                    </Card>;
+                  })}
+                </div>
+              )}
             </div>
-          )}
+
+            <aside className="hidden space-y-6 lg:sticky lg:top-16 lg:block">
+              <section className="border-y py-4">
+                <h2 className="text-sm font-bold">Popular topics</h2>
+                <div className="mt-3 space-y-1">
+                  {(popularTopics.length ? popularTopics : POST_TAGS.slice(0, 6).map((tag) => [tag, 0] as [string, number])).map(([tag, count]) => (
+                    <button key={tag} type="button" onClick={() => setPostTag(tag)} className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-muted">
+                      <span className="font-medium">#{tag}</span>
+                      {count > 0 && <span className="text-xs text-muted-foreground">{count}</span>}
+                    </button>
+                  ))}
+                </div>
+              </section>
+              <section className="border-y py-4">
+                <h2 className="text-sm font-bold">Community snapshot</h2>
+                <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div><dt className="text-xs text-muted-foreground">Posts</dt><dd className="text-lg font-bold">{posts.length}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">Discussions</dt><dd className="text-lg font-bold">{posts.reduce((sum, post) => sum + post.commentCount, 0)}</dd></div>
+                </dl>
+              </section>
+            </aside>
+          </div>
         </TabsContent>
 
         {access.isAdmin && <TabsContent value="moderation" className="space-y-3">
@@ -523,16 +642,16 @@ function Discussion({ targetType, targetId, meId, isAdmin, onReport, onDelete, o
   }
 
   const roots = comments.filter((item) => !item.parentId);
-  return <div className="border-t pt-3">
-    <Button size="sm" variant="ghost" onClick={toggle}><MessageCircle className="mr-1 size-3.5" />{open ? "Hide discussion" : "Open discussion"}</Button>
-    {open && <div className="mt-3 space-y-3">
-      {roots.map((comment) => <div key={comment.id} className="space-y-2">
+  return <div>
+    <Button className="w-full justify-center" size="sm" variant="ghost" onClick={toggle}><MessageCircle className="mr-2 size-4" />{open ? "Hide comments" : "View comments"}</Button>
+    {open && <div className="mt-3 space-y-3 border-t pt-3">
+      {roots.map((comment) => <div key={comment.id} className="space-y-2 rounded-md bg-muted/40 p-3">
         <CommentRow comment={comment} meId={meId} isAdmin={isAdmin} onReply={setReplyTo} onReport={onReport} onDelete={async (type, id) => { await onDelete(type, id); await load(); }} />
         {comments.filter((item) => item.parentId === comment.id).map((reply) => <div key={reply.id} className="ml-6 border-l pl-3"><CommentRow comment={reply} meId={meId} isAdmin={isAdmin} onReply={setReplyTo} onReport={onReport} onDelete={async (type, id) => { await onDelete(type, id); await load(); }} /></div>)}
       </div>)}
       {comments.length === 0 && <p className="text-sm text-muted-foreground">No comments yet.</p>}
       {replyTo && <div className="flex items-center justify-between bg-muted px-3 py-2 text-xs"><span>Replying to {replyTo.authorName}</span><Button size="sm" variant="ghost" onClick={() => setReplyTo(null)}>Cancel</Button></div>}
-      <div className="flex gap-2"><Input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); } }} placeholder="Write a comment or reply..." maxLength={2000} /><Button size="icon" onClick={submit} disabled={sending || !body.trim()}>{sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}</Button></div>
+      <div className="flex gap-2 border-t pt-3"><Input value={body} onChange={(event) => setBody(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); } }} placeholder="Write a comment or reply..." maxLength={2000} /><Button size="icon" onClick={submit} disabled={sending || !body.trim()}>{sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}</Button></div>
     </div>}
   </div>;
 }
