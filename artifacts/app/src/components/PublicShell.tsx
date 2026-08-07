@@ -12,24 +12,26 @@ export default function PublicShell({ children }: PublicShellProps) {
     <div className="flex flex-col min-h-[100dvh] bg-background">
       {/* Top nav */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-4">
           {/* Logo */}
           <Link
             href="/resources"
-            className="flex items-center gap-2 text-primary hover:opacity-80 transition-opacity"
+            className="flex min-w-0 items-center text-primary transition-opacity hover:opacity-80"
           >
-            <BrandIcon className="h-14 w-28" label="Schoolar" />
-            <span className="font-bold text-lg tracking-tight">Schoolar</span>
+            <BrandIcon className="h-11 w-20 shrink-0 sm:h-14 sm:w-28" label="Schoolar" />
+            <span className="hidden font-bold text-lg tracking-tight sm:inline">Schoolar</span>
           </Link>
 
           {/* Auth actions */}
-          <div className="flex items-center gap-2">
-            {" "}
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/auth/login">Sign in</Link>
             </Button>
             <Button size="sm" asChild>
-              <Link href="/auth/register">Create account</Link>
+              <Link href="/auth/register">
+                <span className="sm:hidden">Join</span>
+                <span className="hidden sm:inline">Create account</span>
+              </Link>
             </Button>
           </div>
         </div>
