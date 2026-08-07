@@ -115,6 +115,13 @@ function getContinueStudyingResourceIds(userId: number, goalId: number) {
   }
 }
 
+function getResourceEvidenceScore(avgRating: number, reviewCount: number) {
+  if (reviewCount <= 0) return null;
+  const ratingSignal = Math.max(0, Math.min(1, avgRating / 5));
+  const confidenceSignal = Math.min(reviewCount, 10) / 10;
+  return Math.round((ratingSignal * 0.7 + confidenceSignal * 0.3) * 100);
+}
+
 const SEARCH_LANGUAGE_OPTIONS = [
   { code: DiscoverResourcesLanguage.any, label: "Any language" },
   ...AUTH_LANGUAGES,
@@ -315,6 +322,10 @@ function LibraryCard({
   onAssign?: () => void;
 }) {
   const [failedThumb, setFailedThumb] = useState<string | null>(null);
+  const evidenceScore = getResourceEvidenceScore(
+    resource.avgRating,
+    resource.reviewCount,
+  );
   const ytId = getYouTubeId(resource.url);
   const needsOembed =
     !ytId && (isVimeoUrl(resource.url) || isLoomUrl(resource.url));
@@ -365,9 +376,19 @@ function LibraryCard({
           </p>
         </CardContent>
       )}
-      <CardFooter className="flex items-center justify-between pt-2">
-        <StarRating value={resource.avgRating} size="sm" />
-        <div className="flex items-center gap-2">
+      <CardFooter className="flex items-center justify-between gap-3 pt-2">
+        <div className="min-w-0">
+          <StarRating value={resource.avgRating} size="sm" />
+          <p
+            className="mt-1 text-xs font-medium text-primary"
+            title="Evidence score: 70% average rating and 30% review confidence"
+          >
+            {evidenceScore === null
+              ? "New resource · gathering evidence"
+              : `${evidenceScore}% evidence score`}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
           <span className="text-xs text-muted-foreground">
             {resource.reviewCount} review{resource.reviewCount !== 1 ? "s" : ""}
           </span>
