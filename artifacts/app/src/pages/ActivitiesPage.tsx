@@ -3,14 +3,19 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  CircleHelp,
   Clock3,
   CopyPlus,
+  Dices,
   Layers3,
+  ListChecks,
   Pencil,
   Plus,
   RotateCcw,
   Shuffle,
   Sparkles,
+  SpellCheck2,
+  TextCursorInput,
   Trash2,
   X,
 } from "lucide-react";
@@ -51,7 +56,15 @@ type StudyActivity = {
   updatedAt: string;
 };
 
-type ActivityMode = "flashcards" | "practice" | "match";
+type ActivityMode =
+  | "flashcards"
+  | "practice"
+  | "quiz"
+  | "true-false"
+  | "match"
+  | "scramble"
+  | "missing-word"
+  | "random";
 
 type MatchItem = {
   key: string;
@@ -91,6 +104,37 @@ async function activityRequest(path: string, init?: RequestInit) {
   return payload;
 }
 
+function quizChoices(card: ActivityCard, cards: ActivityCard[]) {
+  return shuffled([
+    card.answer,
+    ...shuffled(
+      cards
+        .filter((candidate) => candidate.id !== card.id)
+        .map((candidate) => candidate.answer),
+    ).slice(0, 3),
+  ]);
+}
+
+function scrambleAnswer(value: string) {
+  const characters = value.split("");
+  let scrambled = shuffled(characters).join("");
+  if (scrambled === value && characters.length > 1) {
+    scrambled = characters.slice(1).join("") + characters[0];
+  }
+  return scrambled;
+}
+
+function missingWordPrompt(value: string) {
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return { prompt: "____", answer: value };
+  const answer = [...words].sort((a, b) => b.length - a.length)[0];
+  const index = words.indexOf(answer);
+  return {
+    prompt: words.map((word, wordIndex) => (wordIndex === index ? "____" : word)).join(" "),
+    answer,
+  };
+}
+
 function emptyCard(): ActivityCard {
   return { id: crypto.randomUUID(), term: "", answer: "" };
 }
@@ -124,6 +168,36 @@ export default function ActivitiesPage() {
     "correct" | "incorrect" | null
   >(null);
   const [practiceCorrect, setPracticeCorrect] = useState(0);
+
+  const [quizOrder, setQuizOrder] = useState<ActivityCard[]>([]);
+  const [quizIndex, setQuizIndex] = useState(0);
+  const [quizOptions, setQuizOptions] = useState<string[]>([]);
+  const [quizSelection, setQuizSelection] = useState<string | null>(null);
+  const [quizCorrect, setQuizCorrect] = useState(0);
+
+  const [trueFalseOrder, setTrueFalseOrder] = useState<ActivityCard[]>([]);
+  const [trueFalseIndex, setTrueFalseIndex] = useState(0);
+  const [trueFalseSelection, setTrueFalseSelection] = useState<boolean | null>(
+    null,
+  );
+  const [trueFalseCorrect, setTrueFalseCorrect] = useState(0);
+
+  const [scrambleOrder, setScrambleOrder] = useState<ActivityCard[]>([]);
+  const [scrambleIndex, setScrambleIndex] = useState(0);
+  const [scrambleValue, setScrambleValue] = useState("");
+  const [scrambleInput, setScrambleInput] = useState("");
+  const [scrambleResult, setScrambleResult] = useState<boolean | null>(null);
+  const [scrambleCorrect, setScrambleCorrect] = useState(0);
+
+  const [missingOrder, setMissingOrder] = useState<ActivityCard[]>([]);
+  const [missingIndex, setMissingIndex] = useState(0);
+  const [missingInput, setMissingInput] = useState("");
+  const [missingResult, setMissingResult] = useState<boolean | null>(null);
+  const [missingCorrect, setMissingCorrect] = useState(0);
+
+  const [randomCard, setRandomCard] = useState<ActivityCard | null>(null);
+  const [randomAnswerVisible, setRandomAnswerVisible] = useState(false);
+  const [randomPicking, setRandomPicking] = useState(false);
 
   const [matchItems, setMatchItems] = useState<MatchItem[]>([]);
   const [firstMatchKey, setFirstMatchKey] = useState<string | null>(null);
@@ -169,6 +243,35 @@ export default function ActivitiesPage() {
     setPracticeAnswer("");
     setPracticeResult(null);
     setPracticeCorrect(0);
+    const nextQuizOrder = shuffled(cards);
+    setQuizOrder(nextQuizOrder);
+    setQuizIndex(0);
+    setQuizOptions(
+      nextQuizOrder[0] ? quizChoices(nextQuizOrder[0], cards) : [],
+    );
+    setQuizSelection(null);
+    setQuizCorrect(0);
+    setTrueFalseOrder(shuffled(cards));
+    setTrueFalseIndex(0);
+    setTrueFalseSelection(null);
+    setTrueFalseCorrect(0);
+    const nextScrambleOrder = shuffled(cards);
+    setScrambleOrder(nextScrambleOrder);
+    setScrambleIndex(0);
+    setScrambleValue(
+      nextScrambleOrder[0] ? scrambleAnswer(nextScrambleOrder[0].answer) : "",
+    );
+    setScrambleInput("");
+    setScrambleResult(null);
+    setScrambleCorrect(0);
+    setMissingOrder(shuffled(cards));
+    setMissingIndex(0);
+    setMissingInput("");
+    setMissingResult(null);
+    setMissingCorrect(0);
+    setRandomCard(null);
+    setRandomAnswerVisible(false);
+    setRandomPicking(false);
     setMatchItems(
       shuffled(
         cards.flatMap((card) => [
@@ -373,6 +476,124 @@ export default function ActivitiesPage() {
     }, 650);
   }
 
+  function chooseQuizAnswer(answer: string) {
+    if (quizSelection !== null) return;
+    setQuizSelection(answer);
+    if (answer === quizOrder[quizIndex]?.answer) {
+      setQuizCorrect((score) => score + 1);
+    }
+  }
+
+  function nextQuizQuestion() {
+    const nextIndex = quizIndex + 1;
+    setQuizIndex(nextIndex);
+    setQuizSelection(null);
+    setQuizOptions(
+      quizOrder[nextIndex]
+        ? quizChoices(quizOrder[nextIndex], selected?.cards ?? [])
+        : [],
+    );
+  }
+
+  function restartQuiz() {
+    const order = shuffled(selected?.cards ?? []);
+    setQuizOrder(order);
+    setQuizIndex(0);
+    setQuizOptions(order[0] ? quizChoices(order[0], order) : []);
+    setQuizSelection(null);
+    setQuizCorrect(0);
+  }
+
+  function answerTrueFalse(answer: boolean) {
+    if (trueFalseSelection !== null) return;
+    setTrueFalseSelection(answer);
+    const isTrue = trueFalseIndex % 2 === 0 || trueFalseOrder.length < 2;
+    if (answer === isTrue) setTrueFalseCorrect((score) => score + 1);
+  }
+
+  function nextTrueFalse() {
+    setTrueFalseIndex((index) => index + 1);
+    setTrueFalseSelection(null);
+  }
+
+  function restartTrueFalse() {
+    setTrueFalseOrder(shuffled(selected?.cards ?? []));
+    setTrueFalseIndex(0);
+    setTrueFalseSelection(null);
+    setTrueFalseCorrect(0);
+  }
+
+  function checkScramble() {
+    const card = scrambleOrder[scrambleIndex];
+    if (!card || scrambleResult !== null) return;
+    const correct =
+      scrambleInput.trim().toLocaleLowerCase() ===
+      card.answer.trim().toLocaleLowerCase();
+    setScrambleResult(correct);
+    if (correct) setScrambleCorrect((score) => score + 1);
+  }
+
+  function nextScramble() {
+    const nextIndex = scrambleIndex + 1;
+    setScrambleIndex(nextIndex);
+    setScrambleInput("");
+    setScrambleResult(null);
+    setScrambleValue(
+      scrambleOrder[nextIndex]
+        ? scrambleAnswer(scrambleOrder[nextIndex].answer)
+        : "",
+    );
+  }
+
+  function restartScramble() {
+    const order = shuffled(selected?.cards ?? []);
+    setScrambleOrder(order);
+    setScrambleIndex(0);
+    setScrambleValue(order[0] ? scrambleAnswer(order[0].answer) : "");
+    setScrambleInput("");
+    setScrambleResult(null);
+    setScrambleCorrect(0);
+  }
+
+  function checkMissingWord() {
+    const card = missingOrder[missingIndex];
+    if (!card || missingResult !== null) return;
+    const expected = missingWordPrompt(card.answer).answer;
+    const correct =
+      missingInput.trim().toLocaleLowerCase() ===
+      expected.trim().toLocaleLowerCase();
+    setMissingResult(correct);
+    if (correct) setMissingCorrect((score) => score + 1);
+  }
+
+  function nextMissingWord() {
+    setMissingIndex((index) => index + 1);
+    setMissingInput("");
+    setMissingResult(null);
+  }
+
+  function restartMissingWord() {
+    setMissingOrder(shuffled(selected?.cards ?? []));
+    setMissingIndex(0);
+    setMissingInput("");
+    setMissingResult(null);
+    setMissingCorrect(0);
+  }
+
+  function pickRandomCard() {
+    if (!selected?.cards.length || randomPicking) return;
+    setRandomPicking(true);
+    setRandomAnswerVisible(false);
+    window.setTimeout(() => {
+      const choices = selected.cards.filter(
+        (card) => card.id !== randomCard?.id,
+      );
+      const pool = choices.length ? choices : selected.cards;
+      setRandomCard(pool[Math.floor(Math.random() * pool.length)]);
+      setRandomPicking(false);
+    }, 500);
+  }
+
   function restartMatch() {
     if (!selected) return;
     setMatchItems(
@@ -403,6 +624,27 @@ export default function ActivitiesPage() {
 
   const currentFlashcard = cardOrder[cardIndex];
   const currentPractice = practiceOrder[practiceIndex];
+  const currentQuiz = quizOrder[quizIndex];
+  const quizComplete = quizOrder.length > 0 && quizIndex >= quizOrder.length;
+  const currentTrueFalse = trueFalseOrder[trueFalseIndex];
+  const trueFalseComplete =
+    trueFalseOrder.length > 0 && trueFalseIndex >= trueFalseOrder.length;
+  const trueFalseIsTrue =
+    trueFalseIndex % 2 === 0 || trueFalseOrder.length < 2;
+  const trueFalseShownAnswer = currentTrueFalse
+    ? trueFalseIsTrue
+      ? currentTrueFalse.answer
+      : trueFalseOrder[(trueFalseIndex + 1) % trueFalseOrder.length]?.answer
+    : "";
+  const currentScramble = scrambleOrder[scrambleIndex];
+  const scrambleComplete =
+    scrambleOrder.length > 0 && scrambleIndex >= scrambleOrder.length;
+  const currentMissing = missingOrder[missingIndex];
+  const missingComplete =
+    missingOrder.length > 0 && missingIndex >= missingOrder.length;
+  const currentMissingPrompt = currentMissing
+    ? missingWordPrompt(currentMissing.answer)
+    : null;
   const practiceComplete =
     practiceOrder.length > 0 && practiceIndex >= practiceOrder.length;
   const modeOptions = useMemo(
@@ -410,7 +652,12 @@ export default function ActivitiesPage() {
       [
         ["flashcards", Layers3, "Flashcards"],
         ["practice", Sparkles, "Practice"],
+        ["quiz", ListChecks, "Quiz"],
+        ["true-false", CircleHelp, "True / false"],
         ["match", Clock3, "Match"],
+        ["scramble", SpellCheck2, "Scramble"],
+        ["missing-word", TextCursorInput, "Missing word"],
+        ["random", Dices, "Random picker"],
       ] as const,
     [],
   );
@@ -643,6 +890,291 @@ export default function ActivitiesPage() {
                       </div>
                     </div>
                   ) : null}
+                </section>
+              )}
+
+              {mode === "quiz" && (
+                <section className="border-y py-6">
+                  {quizComplete ? (
+                    <div className="py-10 text-center">
+                      <p className="text-4xl font-bold text-primary">
+                        {quizCorrect} / {quizOrder.length}
+                      </p>
+                      <p className="mt-2 font-medium">Quiz complete</p>
+                      <Button className="mt-5" onClick={restartQuiz}>
+                        <RotateCcw className="mr-2 size-4" /> Try again
+                      </Button>
+                    </div>
+                  ) : currentQuiz ? (
+                    <div className="mx-auto max-w-2xl space-y-5">
+                      <div>
+                        <p className="text-xs font-bold uppercase text-muted-foreground">
+                          {quizIndex + 1} of {quizOrder.length}
+                        </p>
+                        <h3 className="mt-3 text-2xl font-semibold">
+                          {currentQuiz.term}
+                        </h3>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {quizOptions.map((answer) => {
+                          const selectedAnswer = quizSelection === answer;
+                          const correctAnswer = answer === currentQuiz.answer;
+                          return (
+                            <button
+                              key={answer}
+                              type="button"
+                              disabled={quizSelection !== null}
+                              onClick={() => chooseQuizAnswer(answer)}
+                              className={cn(
+                                "min-h-16 rounded-md border bg-card p-3 text-left text-sm font-medium",
+                                quizSelection !== null &&
+                                  correctAnswer &&
+                                  "border-emerald-500 bg-emerald-500/10",
+                                selectedAnswer &&
+                                  !correctAnswer &&
+                                  "border-destructive bg-destructive/10",
+                              )}
+                            >
+                              {answer}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {quizSelection !== null && (
+                        <div className="flex justify-end">
+                          <Button onClick={nextQuizQuestion}>
+                            Next <ArrowRight className="ml-2 size-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </section>
+              )}
+
+              {mode === "true-false" && (
+                <section className="border-y py-6">
+                  {trueFalseComplete ? (
+                    <div className="py-10 text-center">
+                      <p className="text-4xl font-bold text-primary">
+                        {trueFalseCorrect} / {trueFalseOrder.length}
+                      </p>
+                      <p className="mt-2 font-medium">Round complete</p>
+                      <Button className="mt-5" onClick={restartTrueFalse}>
+                        <RotateCcw className="mr-2 size-4" /> Try again
+                      </Button>
+                    </div>
+                  ) : currentTrueFalse ? (
+                    <div className="mx-auto max-w-2xl space-y-5 text-center">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">
+                        {trueFalseIndex + 1} of {trueFalseOrder.length}
+                      </p>
+                      <h3 className="text-xl font-semibold">
+                        {currentTrueFalse.term}
+                      </h3>
+                      <p className="rounded-md border bg-card p-5 text-lg">
+                        {trueFalseShownAnswer}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[true, false].map((answer) => {
+                          const isCorrect = answer === trueFalseIsTrue;
+                          const selectedAnswer = answer === trueFalseSelection;
+                          return (
+                            <Button
+                              key={String(answer)}
+                              variant="outline"
+                              className={cn(
+                                "h-14",
+                                trueFalseSelection !== null &&
+                                  isCorrect &&
+                                  "border-emerald-500 bg-emerald-500/10",
+                                selectedAnswer &&
+                                  !isCorrect &&
+                                  "border-destructive bg-destructive/10",
+                              )}
+                              disabled={trueFalseSelection !== null}
+                              onClick={() => answerTrueFalse(answer)}
+                            >
+                              {answer ? "True" : "False"}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      {trueFalseSelection !== null && (
+                        <Button onClick={nextTrueFalse}>
+                          Next <ArrowRight className="ml-2 size-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ) : null}
+                </section>
+              )}
+
+              {mode === "scramble" && (
+                <section className="border-y py-6">
+                  {scrambleComplete ? (
+                    <div className="py-10 text-center">
+                      <p className="text-4xl font-bold text-primary">
+                        {scrambleCorrect} / {scrambleOrder.length}
+                      </p>
+                      <p className="mt-2 font-medium">Scramble complete</p>
+                      <Button className="mt-5" onClick={restartScramble}>
+                        <RotateCcw className="mr-2 size-4" /> Try again
+                      </Button>
+                    </div>
+                  ) : currentScramble ? (
+                    <div className="mx-auto max-w-2xl space-y-5">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">
+                        {scrambleIndex + 1} of {scrambleOrder.length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {currentScramble.term}
+                      </p>
+                      <p className="break-all rounded-md border bg-card p-5 text-center text-2xl font-semibold tracking-widest">
+                        {scrambleValue}
+                      </p>
+                      <Input
+                        value={scrambleInput}
+                        disabled={scrambleResult !== null}
+                        onChange={(event) => setScrambleInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") checkScramble();
+                        }}
+                        aria-label="Unscrambled answer"
+                        autoComplete="off"
+                      />
+                      {scrambleResult !== null && (
+                        <p
+                          className={cn(
+                            "rounded-md border p-3 text-sm font-medium",
+                            scrambleResult
+                              ? "border-emerald-500 bg-emerald-500/10"
+                              : "border-amber-500 bg-amber-500/10",
+                          )}
+                        >
+                          {scrambleResult
+                            ? "Correct"
+                            : `Answer: ${currentScramble.answer}`}
+                        </p>
+                      )}
+                      <div className="flex justify-end">
+                        {scrambleResult !== null ? (
+                          <Button onClick={nextScramble}>
+                            Next <ArrowRight className="ml-2 size-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={checkScramble}
+                            disabled={!scrambleInput.trim()}
+                          >
+                            Check answer
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              )}
+
+              {mode === "missing-word" && (
+                <section className="border-y py-6">
+                  {missingComplete ? (
+                    <div className="py-10 text-center">
+                      <p className="text-4xl font-bold text-primary">
+                        {missingCorrect} / {missingOrder.length}
+                      </p>
+                      <p className="mt-2 font-medium">Activity complete</p>
+                      <Button className="mt-5" onClick={restartMissingWord}>
+                        <RotateCcw className="mr-2 size-4" /> Try again
+                      </Button>
+                    </div>
+                  ) : currentMissing && currentMissingPrompt ? (
+                    <div className="mx-auto max-w-2xl space-y-5">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">
+                        {missingIndex + 1} of {missingOrder.length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {currentMissing.term}
+                      </p>
+                      <p className="rounded-md border bg-card p-5 text-center text-xl font-semibold">
+                        {currentMissingPrompt.prompt}
+                      </p>
+                      <Input
+                        value={missingInput}
+                        disabled={missingResult !== null}
+                        onChange={(event) => setMissingInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") checkMissingWord();
+                        }}
+                        aria-label="Missing word"
+                        autoComplete="off"
+                      />
+                      {missingResult !== null && (
+                        <p
+                          className={cn(
+                            "rounded-md border p-3 text-sm font-medium",
+                            missingResult
+                              ? "border-emerald-500 bg-emerald-500/10"
+                              : "border-amber-500 bg-amber-500/10",
+                          )}
+                        >
+                          {missingResult
+                            ? "Correct"
+                            : `Missing word: ${currentMissingPrompt.answer}`}
+                        </p>
+                      )}
+                      <div className="flex justify-end">
+                        {missingResult !== null ? (
+                          <Button onClick={nextMissingWord}>
+                            Next <ArrowRight className="ml-2 size-4" />
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={checkMissingWord}
+                            disabled={!missingInput.trim()}
+                          >
+                            Check word
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </section>
+              )}
+
+              {mode === "random" && (
+                <section className="space-y-5 border-y py-8 text-center">
+                  <Button
+                    size="lg"
+                    onClick={pickRandomCard}
+                    disabled={randomPicking}
+                  >
+                    <Dices
+                      className={cn(
+                        "mr-2 size-5",
+                        randomPicking && "animate-spin",
+                      )}
+                    />
+                    {randomPicking ? "Picking…" : "Pick a card"}
+                  </Button>
+                  {randomCard && !randomPicking && (
+                    <div className="mx-auto max-w-2xl rounded-md border bg-card p-8">
+                      <p className="text-2xl font-semibold">{randomCard.term}</p>
+                      {randomAnswerVisible ? (
+                        <p className="mt-5 border-t pt-5 text-lg text-muted-foreground">
+                          {randomCard.answer}
+                        </p>
+                      ) : (
+                        <Button
+                          className="mt-5"
+                          variant="outline"
+                          onClick={() => setRandomAnswerVisible(true)}
+                        >
+                          Reveal answer
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </section>
               )}
 
