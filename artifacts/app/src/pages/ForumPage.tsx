@@ -145,6 +145,11 @@ function initials(name: string) {
     .join("") || "?";
 }
 
+function profileHandle(name: string) {
+  const handle = name.toLocaleLowerCase("en-US").replace(/[^a-z0-9]+/g, "").slice(0, 24);
+  return "@" + (handle || "member");
+}
+
 function csv(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean) : [];
 }
@@ -518,11 +523,11 @@ export default function ForumPage() {
               </section>
 
               {loadingPosts ? <div className="py-12 text-center text-muted-foreground"><Loader2 className="mx-auto mb-2 size-5 animate-spin" />Loading posts...</div> : posts.length === 0 ? <div className="border-y py-12 text-center text-muted-foreground">No posts match these filters.</div> : (
-                <div className="space-y-4">
+                <div className="overflow-hidden rounded-md border bg-background/85">
                   {posts.map((post) => {
                     const attached = post.attachmentMaterialId ? materialById.get(post.attachmentMaterialId) : null;
                     const totalVotes = post.votes.reduce((sum, item) => sum + item.count, 0);
-                    return <Card key={post.id} className="overflow-hidden" data-testid="forum-post">
+                    return <Card key={post.id} className="rounded-none border-x-0 border-t-0 shadow-none last:border-b-0" data-testid="forum-post">
                       <CardHeader className="p-4 pb-3">
                         <div className="flex items-start gap-3">
                           <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
@@ -531,21 +536,23 @@ export default function ForumPage() {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="font-semibold">{post.authorName}</span>
+                              <span className="text-sm text-muted-foreground">{profileHandle(post.authorName)}</span>
+                              <span className="text-muted-foreground">·</span>
+                              <span className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleString()}</span>
                               <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{roleLabel(post.authorRole)}</Badge>
                               {post.kind === "survey" && <Badge className="h-5 px-1.5 text-[10px]"><BarChart3 className="mr-1 size-3" />Survey</Badge>}
                             </div>
-                            <p className="text-xs text-muted-foreground">{new Date(post.createdAt).toLocaleString()}</p>
                           </div>
                           <div className="flex shrink-0">
                             <Button size="icon" variant="ghost" title="Report post" aria-label="Report post" onClick={() => report("post", post.id)}><Flag className="size-4" /></Button>
                             {(post.authorId === me?.id || access.isAdmin) && <Button size="icon" variant="ghost" title="Delete post" aria-label="Delete post" onClick={() => remove("post", post.id)}><Trash2 className="size-4 text-destructive" /></Button>}
                           </div>
                         </div>
-                        {post.tags.length > 0 && <div className="flex flex-wrap gap-1.5">{post.tags.map((tag) => <button key={tag} type="button" onClick={() => setPostTag(tag)} className="text-xs font-medium text-primary hover:underline">#{tag}</button>)}</div>}
                       </CardHeader>
-                      <CardContent className="space-y-3 p-4 pt-0">
-                        {post.title && <h2 className="text-lg font-bold leading-snug">{post.title}</h2>}
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed">{post.body}</p>
+                      <CardContent className="space-y-3 p-4 pt-0 sm:pl-[4.25rem]">
+                        {post.title && <h2 className="text-base font-bold leading-snug">{post.title}</h2>}
+                        <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{post.body}</p>
+                        {post.tags.length > 0 && <div className="flex flex-wrap gap-2">{post.tags.map((tag) => <button key={tag} type="button" onClick={() => setPostTag(tag)} className="text-sm text-primary hover:underline">#{tag}</button>)}</div>
                         {attached && <button type="button" className="flex w-full items-center gap-3 rounded-md border bg-muted/40 p-3 text-left text-sm transition-colors hover:bg-muted" onClick={() => downloadMaterial(attached)}><span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background"><Paperclip className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate font-medium">{attached.title}</span><span className="text-xs text-muted-foreground">{attached.materialType} · Open material</span></span></button>}
                         {post.kind === "survey" && <div className="space-y-2">{post.surveyOptions.map((option) => { const count = post.votes.find((item) => item.optionId === option.id)?.count ?? 0; const percent = totalVotes ? Math.round(count / totalVotes * 100) : 0; return <button key={option.id} type="button" onClick={() => vote(post, option.id)} className={"relative flex min-h-11 w-full overflow-hidden rounded-md border px-3 py-2 text-left text-sm transition-colors hover:border-primary " + (post.myVote === option.id ? "border-primary" : "")}><span className="absolute inset-y-0 left-0 bg-primary/10" style={{ width: percent + "%" }} /><span className="relative flex-1">{option.text}</span><span className="relative text-xs text-muted-foreground">{count} · {percent}%</span></button>; })}<p className="text-xs text-muted-foreground">{totalVotes} vote{totalVotes === 1 ? "" : "s"}</p></div>}
                         <div className="flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
@@ -553,10 +560,9 @@ export default function ForumPage() {
                           <div className="flex items-center gap-3"><span>{post.likeCount} likes</span><span>{post.commentCount} comments</span></div>
                         </div>
                         <div className="grid grid-cols-2 border-y">
-                          <Button className="rounded-none" size="sm" variant="ghost" onClick={() => toggleLike("post", post.id)}><Heart className={"mr-2 size-4 " + (post.likedByMe ? "fill-current" : "")} />{post.likedByMe ? "Liked" : "Like"}</Button>
-                          <div className="flex items-center justify-center text-sm text-muted-foreground"><MessageCircle className="mr-2 size-4" />Discuss below</div>
+                          <Button className="rounded-none" size="sm" variant="ghost" onClick={() => toggleLike("post", post.id)}><Heart className={"mr-2 size-4 " + (post.likedByMe ? "fill-current" : "")} />{post.likeCount}</Button>
+                          <Discussion compact count={post.commentCount} targetType="post" targetId={post.id} meId={me?.id} isAdmin={access.isAdmin} onReport={report} onDelete={remove} onChanged={loadPosts} />
                         </div>
-                        <Discussion targetType="post" targetId={post.id} meId={me?.id} isAdmin={access.isAdmin} onReport={report} onDelete={remove} onChanged={loadPosts} />
                       </CardContent>
                     </Card>;
                   })}
@@ -600,11 +606,13 @@ function validSource(value: string) {
   try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; }
 }
 
-function Discussion({ targetType, targetId, meId, isAdmin, onReport, onDelete, onChanged }: {
+function Discussion({ targetType, targetId, meId, isAdmin, onReport, onDelete, onChanged, compact = false, count }: {
   targetType: "material" | "post";
   targetId: number;
   meId?: number;
   isAdmin: boolean;
+  compact?: boolean;
+  count?: number;
   onReport: (type: "material" | "post" | "comment", id: number) => Promise<void>;
   onDelete: (type: "material" | "post" | "comment", id: number) => Promise<void>;
   onChanged: () => Promise<void>;
@@ -642,9 +650,9 @@ function Discussion({ targetType, targetId, meId, isAdmin, onReport, onDelete, o
   }
 
   const roots = comments.filter((item) => !item.parentId);
-  return <div>
-    <Button className="w-full justify-center" size="sm" variant="ghost" onClick={toggle}><MessageCircle className="mr-2 size-4" />{open ? "Hide comments" : "View comments"}</Button>
-    {open && <div className="mt-3 space-y-3 border-t pt-3">
+  return <div className={compact ? "contents" : undefined}>
+    <Button className={compact ? "rounded-none" : "w-full justify-center"} size="sm" variant="ghost" onClick={toggle}><MessageCircle className="mr-2 size-4" />{open ? "Hide" : compact ? count ?? 0 : "View comments"}</Button>
+    {open && <div className={(compact ? "col-span-2 px-3 pb-3 " : "") + "mt-3 space-y-3 border-t pt-3"}>
       {roots.map((comment) => <div key={comment.id} className="space-y-2 rounded-md bg-muted/40 p-3">
         <CommentRow comment={comment} meId={meId} isAdmin={isAdmin} onReply={setReplyTo} onReport={onReport} onDelete={async (type, id) => { await onDelete(type, id); await load(); }} />
         {comments.filter((item) => item.parentId === comment.id).map((reply) => <div key={reply.id} className="ml-6 border-l pl-3"><CommentRow comment={reply} meId={meId} isAdmin={isAdmin} onReply={setReplyTo} onReport={onReport} onDelete={async (type, id) => { await onDelete(type, id); await load(); }} /></div>)}
