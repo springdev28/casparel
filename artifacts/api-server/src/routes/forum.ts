@@ -1,8 +1,10 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import {
   db,
+  classesTable,
+  classMembersTable,
   forumCommentsTable,
   forumLikesTable,
   forumMaterialApprovalsTable,
@@ -23,6 +25,10 @@ const router: IRouter = Router();
 const materialUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+});
+const postUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 20 },
 });
 const MATERIAL_TYPES = new Set([
   "video",
@@ -115,6 +121,33 @@ async function currentUser(userId: number) {
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   return user;
+}
+
+async function canAccessClass(
+  auth: AuthenticatedRequest,
+  classId: number,
+) {
+  if (auth.accountRole === "admin") return true;
+  const [[owned], [membership]] = await Promise.all([
+    db.select({ id: classesTable.id }).from(classesTable).where(
+      and(eq(classesTable.id, classId), eq(classesTable.teacherId, auth.userId)),
+    ).limit(1),
+    db.select({ classId: classMembersTable.classId }).from(classMembersTable).where(
+      and(
+        eq(classMembersTable.classId, classId),
+        eq(classMembersTable.userId, auth.userId),
+      ),
+    ).limit(1),
+  ]);
+  return Boolean(owned || membership);
+}
+
+async function canAccessPost(auth: AuthenticatedRequest, postId: number) {
+  const [post] = await db.select({ classId: forumPostsTable.classId })
+    .from(forumPostsTable)
+    .where(eq(forumPostsTable.id, postId));
+  if (!post) return false;
+  return post.classId ? canAccessClass(auth, post.classId) : true;
 }
 
 type ModerationResult = {
@@ -428,6 +461,7 @@ router.post("/forum/materials/:id/approve", requireAuth, async (req, res): Promi
 async function postResult(id: number, userId: number) {
   const [post] = await db.select({
     id: forumPostsTable.id,
+    classId: forumPostsTable.classId,
     authorId: forumPostsTable.authorId,
     authorName: forumPostsTable.authorName,
     authorRole: forumPostsTable.authorRole,
@@ -437,6 +471,8 @@ async function postResult(id: number, userId: number) {
     tags: forumPostsTable.tags,
     surveyOptions: forumPostsTable.surveyOptions,
     attachmentMaterialId: forumPostsTable.attachmentMaterialId,
+    attachmentFileName: forumPostsTable.attachmentFileName,
+    attachmentMimeType: forumPostsTable.attachmentMimeType,
     moderationStatus: forumPostsTable.moderationStatus,
     moderationNote: forumPostsTable.moderationNote,
     viewCount: forumPostsTable.viewCount,
@@ -462,10 +498,19 @@ async function postResult(id: number, userId: number) {
 
 router.get("/forum/posts", requireAuth, async (req, res): Promise<void> => {
   const auth = req as AuthenticatedRequest;
+  const classId = Number(req.query.classId) || null;
+  if (classId && !(await canAccessClass(auth, classId))) {
+    res.status(403).json({ error: "You are not a member of this class" });
+    return;
+  }
   const q = cleanText(req.query.q, 160);
   const tag = cleanText(req.query.tag, 40);
   const kind = cleanText(req.query.kind, 20);
-  const conditions = [];
+  const conditions = [
+    classId
+      ? eq(forumPostsTable.classId, classId)
+      : isNull(forumPostsTable.classId),
+  ];
   if (auth.accountRole !== "admin")
     conditions.push(eq(forumPostsTable.moderationStatus, "approved"));
   if (q) {
@@ -487,39 +532,116 @@ router.get("/forum/posts", requireAuth, async (req, res): Promise<void> => {
   res.json(posts.filter(Boolean));
 });
 
-router.post("/forum/posts", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+router.post(
+  "/forum/posts",
+  contentLimiter,
+  requireAuth,
+  postUpload.single("file"),
+  async (req, res): Promise<void> => {
+    const auth = req as AuthenticatedRequest;
+    const user = await currentUser(auth.userId);
+    if (!user) {
+      res.status(401).json({ error: "Account not found" });
+      return;
+    }
+    const classId = Number(req.body?.classId) || null;
+    if (classId && !(await canAccessClass(auth, classId))) {
+      res.status(403).json({ error: "You are not a member of this class" });
+      return;
+    }
+    const kind = req.body?.kind === "survey" ? "survey" : "post";
+    const title = cleanText(req.body?.title, 180);
+    const body = cleanText(req.body?.body, 5000);
+    const tags = cleanList(req.body?.tags, 8).filter((tag) => POST_TAGS.has(tag));
+    const attachmentMaterialId = Number(req.body?.attachmentMaterialId) || null;
+    const options = cleanList(req.body?.surveyOptions, 8)
+      .map((text, index) => ({ id: `option-${index + 1}`, text }));
+    if (!body || (kind === "survey" && options.length < 2)) {
+      res.status(400).json({
+        error:
+          kind === "survey"
+            ? "Surveys need a question and at least two options"
+            : "Post text is required",
+      });
+      return;
+    }
+
+    let attachmentMimeType: string | null = null;
+    let attachmentFileName: string | null = null;
+    let attachmentFileBase64: string | null = null;
+    if (req.file) {
+      attachmentMimeType = fileKind(req.file);
+      if (!attachmentMimeType) {
+        res.status(415).json({
+          error: "Attach a valid PDF, DOCX, JPG, PNG, MOV, or MP4 file",
+        });
+        return;
+      }
+      attachmentFileName = req.file.originalname
+        .replace(/[^a-zA-Z0-9._() -]/g, "_")
+        .slice(0, 180);
+      attachmentFileBase64 = req.file.buffer.toString("base64");
+    }
+
+    const moderation = await moderateForumText(
+      [title, body, ...tags, attachmentFileName].filter(Boolean).join("\n"),
+      true,
+    );
+    if (moderation.flagged) {
+      res.status(422).json({
+        error: "This post needs changes before publishing",
+        moderation: moderation.assessment,
+      });
+      return;
+    }
+    const [created] = await db.insert(forumPostsTable).values({
+      classId,
+      authorId: user.id,
+      authorName: user.name,
+      authorRole:
+        auth.accountRole === "admin"
+          ? "admin"
+          : auth.userRole === "teacher"
+            ? "teacher"
+            : "student",
+      kind,
+      title: title || null,
+      body,
+      tags,
+      surveyOptions: options,
+      attachmentMaterialId,
+      attachmentFileName,
+      attachmentMimeType,
+      attachmentFileBase64,
+      moderationNote: moderation.assessment,
+    }).returning({ id: forumPostsTable.id });
+    res.status(201).json(await postResult(created.id, auth.userId));
+  },
+);
+
+router.get("/forum/posts/:id/file", requireAuth, async (req, res): Promise<void> => {
   const auth = req as AuthenticatedRequest;
-  const user = await currentUser(auth.userId);
-  if (!user) { res.status(401).json({ error: "Account not found" }); return; }
-  const kind = req.body?.kind === "survey" ? "survey" : "post";
-  const title = cleanText(req.body?.title, 180);
-  const body = cleanText(req.body?.body, 5000);
-  const tags = cleanList(req.body?.tags, 8).filter((tag) => POST_TAGS.has(tag));
-  const attachmentMaterialId = Number(req.body?.attachmentMaterialId) || null;
-  const options = cleanList(req.body?.surveyOptions, 8)
-    .map((text, index) => ({ id: `option-${index + 1}`, text }));
-  if (!body || (kind === "survey" && options.length < 2)) {
-    res.status(400).json({ error: kind === "survey" ? "Surveys need a question and at least two options" : "Post text is required" });
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || !(await canAccessPost(auth, id))) {
+    res.status(404).json({ error: "Post attachment not found" });
     return;
   }
-  const moderation = await moderateForumText([title, body, ...tags].filter(Boolean).join("\n"), true);
-  if (moderation.flagged) {
-    res.status(422).json({ error: "This post needs changes before publishing", moderation: moderation.assessment });
+  const [post] = await db.select({
+    fileName: forumPostsTable.attachmentFileName,
+    mimeType: forumPostsTable.attachmentMimeType,
+    fileBase64: forumPostsTable.attachmentFileBase64,
+  }).from(forumPostsTable).where(eq(forumPostsTable.id, id));
+  if (!post?.fileName || !post.mimeType || !post.fileBase64) {
+    res.status(404).json({ error: "Post attachment not found" });
     return;
   }
-  const [created] = await db.insert(forumPostsTable).values({
-    authorId: user.id,
-    authorName: user.name,
-    authorRole: (auth.accountRole === "admin" ? "admin" : auth.userRole === "teacher" ? "teacher" : "student"),
-    kind,
-    title: title || null,
-    body,
-    tags,
-    surveyOptions: options,
-    attachmentMaterialId,
-    moderationNote: moderation.assessment,
-  }).returning({ id: forumPostsTable.id });
-  res.status(201).json(await postResult(created.id, auth.userId));
+  res.setHeader("Content-Type", post.mimeType);
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename*=UTF-8''${encodeURIComponent(post.fileName)}`,
+  );
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.send(Buffer.from(post.fileBase64, "base64"));
 });
 
 router.delete("/forum/posts/:id", requireAuth, async (req, res): Promise<void> => {
@@ -539,6 +661,10 @@ router.delete("/forum/posts/:id", requireAuth, async (req, res): Promise<void> =
 router.post("/forum/posts/:id/vote", requireAuth, async (req, res): Promise<void> => {
   const auth = req as AuthenticatedRequest;
   const id = Number(req.params.id);
+  if (!(await canAccessPost(auth, id))) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
   const optionId = cleanText(req.body?.optionId, 80);
   const [post] = await db.select({ kind: forumPostsTable.kind, options: forumPostsTable.surveyOptions })
     .from(forumPostsTable).where(eq(forumPostsTable.id, id));
@@ -563,6 +689,10 @@ router.post("/forum/:targetType/:id/like", requireAuth, async (req, res): Promis
     return;
   }
   const typedTarget = targetType as "material" | "post";
+  if (typedTarget === "post" && !(await canAccessPost(auth, targetId))) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
   const [existing] = await db.select({ id: forumLikesTable.id }).from(forumLikesTable)
     .where(and(eq(forumLikesTable.userId, auth.userId), eq(forumLikesTable.targetType, typedTarget), eq(forumLikesTable.targetId, targetId)));
   if (existing) {
@@ -575,10 +705,15 @@ router.post("/forum/:targetType/:id/like", requireAuth, async (req, res): Promis
 });
 
 router.get("/forum/:targetType/:id/comments", requireAuth, async (req, res): Promise<void> => {
+  const auth = req as AuthenticatedRequest;
   const targetType = cleanText(req.params.targetType, 20);
   const targetId = Number(req.params.id);
   if (!TARGET_TYPES.has(targetType) || !targetId) {
     res.status(400).json({ error: "Invalid comment target" });
+    return;
+  }
+  if (targetType === "post" && !(await canAccessPost(auth, targetId))) {
+    res.status(404).json({ error: "Post not found" });
     return;
   }
   const rows = await db.select().from(forumCommentsTable)
@@ -598,6 +733,10 @@ router.post("/forum/:targetType/:id/comments", contentLimiter, requireAuth, asyn
   const parentId = Number(req.body?.parentId) || null;
   if (!TARGET_TYPES.has(targetType) || !targetId || !body) {
     res.status(400).json({ error: "Comment text is required" });
+    return;
+  }
+  if (targetType === "post" && !(await canAccessPost(auth, targetId))) {
+    res.status(404).json({ error: "Post not found" });
     return;
   }
   const user = await currentUser(auth.userId);
