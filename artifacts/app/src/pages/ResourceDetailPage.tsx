@@ -1019,7 +1019,7 @@ export default function ResourceDetailPage() {
                 {resource.subject} · {resource.gradeLevel}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
               <Badge variant="secondary" className="capitalize">
                 {resource.format}
               </Badge>
