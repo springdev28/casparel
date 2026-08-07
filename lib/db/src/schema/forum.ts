@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -9,6 +10,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
+import { classesTable } from "./classes";
 
 export type MaterialType =
   | "video"
@@ -82,6 +84,9 @@ export const forumMaterialApprovalsTable = pgTable(
 
 export const forumPostsTable = pgTable("forum_posts", {
   id: serial("id").primaryKey(),
+  classId: integer("class_id").references(() => classesTable.id, {
+    onDelete: "cascade",
+  }),
   authorId: integer("author_id").references(() => usersTable.id, {
     onDelete: "set null",
   }),
@@ -99,6 +104,9 @@ export const forumPostsTable = pgTable("forum_posts", {
     () => forumMaterialsTable.id,
     { onDelete: "set null" },
   ),
+  attachmentFileName: text("attachment_file_name"),
+  attachmentMimeType: text("attachment_mime_type"),
+  attachmentFileBase64: text("attachment_file_base64"),
   moderationStatus: text("moderation_status")
     .$type<"approved" | "review" | "hidden">()
     .notNull()
@@ -111,7 +119,9 @@ export const forumPostsTable = pgTable("forum_posts", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()
     .defaultNow(),
-});
+}, (table) => [
+  index("forum_posts_class_id_idx").on(table.classId),
+]);
 
 export const forumCommentsTable = pgTable("forum_comments", {
   id: serial("id").primaryKey(),
