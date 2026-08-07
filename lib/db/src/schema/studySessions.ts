@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, pgEnum, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, pgEnum, primaryKey, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -50,3 +50,31 @@ export const insertStudySessionSchema = createInsertSchema(studySessionsTable).o
 export type InsertStudySession = z.infer<typeof insertStudySessionSchema>;
 export type StudySession = typeof studySessionsTable.$inferSelect;
 export type StudySessionParticipant = typeof studySessionParticipantsTable.$inferSelect;
+
+export type StudyActivityCard = {
+  id: string;
+  term: string;
+  answer: string;
+};
+
+export const studyActivitiesTable = pgTable("study_activities", {
+  id: serial("id").primaryKey(),
+  ownerId: integer("owner_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  workspaceRole: text("workspace_role")
+    .$type<"student" | "teacher">()
+    .notNull()
+    .default("student"),
+  title: text("title").notNull(),
+  subject: text("subject"),
+  cards: jsonb("cards").$type<StudyActivityCard[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+    .notNull()
+    .defaultNow(),
+});
+
+export type StudyActivity = typeof studyActivitiesTable.$inferSelect;
