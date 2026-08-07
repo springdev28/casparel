@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Link, useSearch } from "wouter";
 import {
+  ArrowLeft,
   BarChart3,
   CheckCircle2,
   Download,
@@ -69,6 +71,9 @@ type ForumPost = {
   tags: string[];
   surveyOptions: SurveyOption[];
   attachmentMaterialId: number | null;
+  attachmentFileName: string | null;
+  attachmentMimeType: string | null;
+  classId: number | null;
   moderationStatus: string;
   moderationNote: string | null;
   viewCount: number;
@@ -154,7 +159,94 @@ function csv(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean) : [];
 }
 
+function inlineMarkdown(text: string, keyPrefix: string) {
+  const tokens = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g);
+  return tokens.map((token, index): ReactNode => {
+    const key = keyPrefix + "-" + index;
+    if (token.startsWith("**") && token.endsWith("**")) {
+      return <strong key={key}>{token.slice(2, -2)}</strong>;
+    }
+    if (token.startsWith("*") && token.endsWith("*")) {
+      return <em key={key}>{token.slice(1, -1)}</em>;
+    }
+    if (token.startsWith("`") && token.endsWith("`")) {
+      return <code key={key} className="rounded bg-muted px-1 py-0.5 text-[0.9em]">{token.slice(1, -1)}</code>;
+    }
+    const link = /^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/.exec(token);
+    if (link) {
+      return <a key={key} href={link[2]} target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">{link[1]}</a>;
+    }
+    return token;
+  });
+}
+
+function MarkdownText({ value }: { value: string }) {
+  const lines = value.replace(/\r\n/g, "\n").split("\n");
+  const blocks: ReactNode[] = [];
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+    if (line.trim().startsWith("```")) {
+      const language = line.trim().slice(3).trim();
+      const code: string[] = [];
+      index += 1;
+      while (index < lines.length && !lines[index].trim().startsWith("```")) {
+        code.push(lines[index]);
+        index += 1;
+      }
+      index += 1;
+      blocks.push(<pre key={"code-" + index} className="overflow-x-auto rounded-md bg-muted p-3 text-xs"><code data-language={language || undefined}>{code.join("\n")}</code></pre>);
+      continue;
+    }
+    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+    if (heading) {
+      const level = heading[1].length;
+      const content = inlineMarkdown(heading[2], "heading-" + index);
+      blocks.push(level === 1 ? <h2 key={index} className="text-xl font-bold">{content}</h2> : level === 2 ? <h3 key={index} className="text-lg font-bold">{content}</h3> : <h4 key={index} className="font-bold">{content}</h4>);
+      index += 1;
+      continue;
+    }
+    if (/^>\s?/.test(line)) {
+      const quote: string[] = [];
+      while (index < lines.length && /^>\s?/.test(lines[index])) {
+        quote.push(lines[index].replace(/^>\s?/, ""));
+        index += 1;
+      }
+      blocks.push(<blockquote key={"quote-" + index} className="border-l-2 border-primary pl-3 text-muted-foreground">{inlineMarkdown(quote.join(" "), "quote-" + index)}</blockquote>);
+      continue;
+    }
+    const unordered = /^[-*]\s+/.test(line);
+    const ordered = /^\d+\.\s+/.test(line);
+    if (unordered || ordered) {
+      const items: string[] = [];
+      const matcher = unordered ? /^[-*]\s+/ : /^\d+\.\s+/;
+      while (index < lines.length && matcher.test(lines[index])) {
+        items.push(lines[index].replace(matcher, ""));
+        index += 1;
+      }
+      const children = items.map((item, itemIndex) => <li key={itemIndex}>{inlineMarkdown(item, "item-" + index + "-" + itemIndex)}</li>);
+      blocks.push(unordered ? <ul key={"list-" + index} className="list-disc space-y-1 pl-5">{children}</ul> : <ol key={"list-" + index} className="list-decimal space-y-1 pl-5">{children}</ol>);
+      continue;
+    }
+    const paragraph: string[] = [line];
+    index += 1;
+    while (index < lines.length && lines[index].trim() && !/^(#{1,3})\s+|^>\s?|^[-*]\s+|^\d+\.\s+|^```/.test(lines[index])) {
+      paragraph.push(lines[index]);
+      index += 1;
+    }
+    blocks.push(<p key={"paragraph-" + index}>{inlineMarkdown(paragraph.join(" "), "paragraph-" + index)}</p>);
+  }
+  return <div className="space-y-3 break-words text-[15px] leading-relaxed">{blocks}</div>;
+}
+
 export default function ForumPage() {
+  const routeSearch = useSearch();
+  const requestedClassId = Number(new URLSearchParams(routeSearch).get("classId"));
+  const classId = Number.isInteger(requestedClassId) && requestedClassId > 0 ? requestedClassId : null;
   const { data: me } = useGetMe();
   const [access, setAccess] = useState<ForumAccess>({ isAdmin: false, teacherVerified: false, canApprove: false });
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -212,6 +304,7 @@ export default function ForumPage() {
       if (postQuery.trim()) params.set("q", postQuery.trim());
       if (postKind !== "all") params.set("kind", postKind);
       if (postTag !== "all") params.set("tag", postTag);
+      if (classId) params.set("classId", String(classId));
       setPosts(await forumRequest<ForumPost[]>("/forum/posts?" + params));
     } catch (error) {
       toast({ title: "Could not load posts", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
@@ -254,21 +347,34 @@ export default function ForumPage() {
 
   async function createPost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setSubmitting(true);
     try {
-      const data = new FormData(event.currentTarget);
+      const values = new FormData(form);
+      const payload = new FormData();
+      payload.set("kind", postMode);
+      payload.set("title", String(values.get("title") ?? ""));
+      payload.set("body", String(values.get("body") ?? ""));
+      payload.set("tags", csv(values.get("tags")).join("\n"));
+      payload.set(
+        "surveyOptions",
+        postMode === "survey"
+          ? surveyOptions.filter((item) => item.trim()).join("\n")
+          : "",
+      );
+      const materialId = values.get("attachmentMaterialId");
+      if (materialId && materialId !== "none") {
+        payload.set("attachmentMaterialId", String(materialId));
+      }
+      const file = values.get("file");
+      if (file instanceof File && file.size > 0) payload.set("file", file);
+      if (classId) payload.set("classId", String(classId));
+
       await forumRequest<ForumPost>("/forum/posts", {
         method: "POST",
-        body: JSON.stringify({
-          kind: postMode,
-          title: data.get("title"),
-          body: data.get("body"),
-          tags: csv(data.get("tags")),
-          surveyOptions: postMode === "survey" ? surveyOptions.filter((item) => item.trim()) : [],
-          attachmentMaterialId: data.get("attachmentMaterialId") || null,
-        }),
+        body: payload,
       });
-      event.currentTarget.reset();
+      form.reset();
       setSurveyOptions(["", ""]);
       setPostDialog(false);
       await loadPosts();
@@ -332,6 +438,23 @@ export default function ForumPage() {
     await loadMaterials();
   }
 
+  async function downloadPostFile(post: ForumPost) {
+    const response = await fetch(apiUrl("/forum/posts/" + post.id + "/file"), {
+      headers: { Authorization: "Bearer " + localStorage.getItem("schoolar_token") },
+    });
+    if (!response.ok) {
+      toast({ title: "Download failed", variant: "destructive" });
+      return;
+    }
+    const blob = await response.blob();
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = post.attachmentFileName || "attachment";
+    anchor.click();
+    URL.revokeObjectURL(href);
+  }
+
   async function approve(material: Material) {
     try {
       await forumRequest("/forum/materials/" + material.id + "/approve", { method: "POST" });
@@ -363,16 +486,17 @@ export default function ForumPage() {
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2"><MessagesSquare className="size-6 text-primary" /><h1 className="text-2xl font-bold">Education forum</h1></div>
-          <p className="mt-1 text-sm text-muted-foreground">Materials, classroom ideas, questions, surveys, and peer discussion.</p>
+          {classId && <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2"><Link href={"/classes/" + classId}><ArrowLeft className="mr-1 size-4" />Back to class</Link></Button>}
+          <div className="flex items-center gap-2"><MessagesSquare className="size-6 text-primary" /><h1 className="text-2xl font-bold">{classId ? "Class forum" : "Education forum"}</h1></div>
+          <p className="mt-1 text-sm text-muted-foreground">{classId ? "A private feed for members of this class." : "Materials, classroom ideas, questions, surveys, and peer discussion."}</p>
         </div>
       </header>
 
       <Tabs defaultValue="posts">
-        <TabsList className={access.isAdmin ? "grid w-full grid-cols-3 sm:w-auto" : "grid w-full grid-cols-2 sm:w-auto"}>
+        <TabsList className={classId ? "grid w-full grid-cols-1 sm:w-auto" : access.isAdmin ? "grid w-full grid-cols-3 sm:w-auto" : "grid w-full grid-cols-2 sm:w-auto"}>
           <TabsTrigger value="posts"><MessagesSquare className="mr-2 size-4" />Feed</TabsTrigger>
-          <TabsTrigger value="materials"><FilePlus2 className="mr-2 size-4" />Materials</TabsTrigger>
-          {access.isAdmin && <TabsTrigger value="moderation"><ShieldCheck className="mr-2 size-4" />Moderation</TabsTrigger>}
+          {!classId && <TabsTrigger value="materials"><FilePlus2 className="mr-2 size-4" />Materials</TabsTrigger>}
+          {!classId && access.isAdmin && <TabsTrigger value="moderation"><ShieldCheck className="mr-2 size-4" />Moderation</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="materials" className="space-y-5">
@@ -501,10 +625,13 @@ export default function ForumPage() {
                       </TabsList>
                     </Tabs>
                     <div className="space-y-1.5"><Label>Title</Label><Input name="title" maxLength={180} placeholder="Give people a reason to stop scrolling" /></div>
-                    <div className="space-y-1.5"><Label>{postMode === "survey" ? "Question and context" : "Post"}</Label><Textarea name="body" rows={6} maxLength={5000} required placeholder="What would you like to share?" /></div>
+                    <div className="space-y-1.5"><Label>{postMode === "survey" ? "Question and context" : "Post"}</Label><Textarea name="body" rows={6} maxLength={5000} required placeholder="What would you like to share? Markdown is supported." /><p className="text-xs text-muted-foreground">Use **bold**, *italic*, lists, links, quotes, headings, inline code, or fenced code blocks.</p></div>
                     <div className="space-y-1.5"><Label>Tags</Label><Input name="tags" placeholder={POST_TAGS.join(", ")} /></div>
                     {postMode === "survey" && <div className="space-y-2"><Label>Survey options</Label>{surveyOptions.map((option, index) => <div key={index} className="flex gap-2"><Input value={option} onChange={(event) => setSurveyOptions((items) => items.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={"Option " + (index + 1)} required={index < 2} />{surveyOptions.length > 2 && <Button type="button" size="icon" variant="ghost" onClick={() => setSurveyOptions((items) => items.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="size-4" /></Button>}</div>)}<Button type="button" size="sm" variant="outline" onClick={() => setSurveyOptions((items) => items.length < 8 ? [...items, ""] : items)}><Plus className="mr-1 size-3.5" />Add option</Button></div>}
-                    <div className="space-y-1.5"><Label>Attach a material</Label><Select name="attachmentMaterialId"><SelectTrigger><SelectValue placeholder="No attachment" /></SelectTrigger><SelectContent>{materials.map((material) => <SelectItem key={material.id} value={String(material.id)}>{material.title}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5"><Label>Attach a file</Label><Input name="file" type="file" accept=".pdf,.docx,.jpg,.jpeg,.png,.mov,.mp4" /><p className="text-xs text-muted-foreground">PDF, DOCX, image, or video up to 10 MB.</p></div>
+                      <div className="space-y-1.5"><Label>Or attach a library material</Label><Select name="attachmentMaterialId" defaultValue="none"><SelectTrigger><SelectValue placeholder="No material" /></SelectTrigger><SelectContent><SelectItem value="none">No material</SelectItem>{materials.map((material) => <SelectItem key={material.id} value={String(material.id)}>{material.title}</SelectItem>)}</SelectContent></Select></div>
+                    </div>
                     <Button className="w-full" disabled={submitting}>{submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}Publish</Button>
                   </form>
                 </DialogContent>
@@ -551,9 +678,10 @@ export default function ForumPage() {
                       </CardHeader>
                       <CardContent className="space-y-3 p-4 pt-0 sm:pl-[4.25rem]">
                         {post.title && <h2 className="text-base font-bold leading-snug">{post.title}</h2>}
-                        <p className="whitespace-pre-wrap text-[15px] leading-relaxed">{post.body}</p>
+                        <MarkdownText value={post.body} />
                         {post.tags.length > 0 && <div className="flex flex-wrap gap-2">{post.tags.map((tag) => <button key={tag} type="button" onClick={() => setPostTag(tag)} className="text-sm text-primary hover:underline">#{tag}</button>)}</div>}
                         {attached && <button type="button" className="flex w-full items-center gap-3 rounded-md border bg-muted/40 p-3 text-left text-sm transition-colors hover:bg-muted" onClick={() => downloadMaterial(attached)}><span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background"><Paperclip className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate font-medium">{attached.title}</span><span className="text-xs text-muted-foreground">{attached.materialType} · Open material</span></span></button>}
+                        {post.attachmentFileName && <button type="button" className="flex w-full items-center gap-3 rounded-md border bg-muted/40 p-3 text-left text-sm transition-colors hover:bg-muted" onClick={() => downloadPostFile(post)}><span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background"><Download className="size-4" /></span><span className="min-w-0 flex-1"><span className="block truncate font-medium">{post.attachmentFileName}</span><span className="text-xs text-muted-foreground">{post.attachmentMimeType || "File"} · Download</span></span></button>}
                         {post.kind === "survey" && <div className="space-y-2">{post.surveyOptions.map((option) => { const count = post.votes.find((item) => item.optionId === option.id)?.count ?? 0; const percent = totalVotes ? Math.round(count / totalVotes * 100) : 0; return <button key={option.id} type="button" onClick={() => vote(post, option.id)} className={"relative flex min-h-11 w-full overflow-hidden rounded-md border px-3 py-2 text-left text-sm transition-colors hover:border-primary " + (post.myVote === option.id ? "border-primary" : "")}><span className="absolute inset-y-0 left-0 bg-primary/10" style={{ width: percent + "%" }} /><span className="relative flex-1">{option.text}</span><span className="relative text-xs text-muted-foreground">{count} · {percent}%</span></button>; })}<p className="text-xs text-muted-foreground">{totalVotes} vote{totalVotes === 1 ? "" : "s"}</p></div>}
                         <div className="flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1"><Eye className="size-3.5" />{post.viewCount} views</span>
