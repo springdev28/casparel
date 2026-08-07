@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, learningGoalsTable, goalPathTemplatesTable, classMembersTable, usersTable, activityLogTable } from "@workspace/db";
@@ -215,7 +216,7 @@ router.post(
         preferredFormats: null,
         pathSteps: template.pathSteps.map((step) => ({
           ...step,
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           completed: false,
         })),
       })
