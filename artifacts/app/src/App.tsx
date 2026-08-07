@@ -25,6 +25,7 @@ import PeoplePage from "./pages/PeoplePage";
 import GoalsPage from "./pages/GoalsPage";
 import AdminPage from "./pages/AdminPage";
 import ForumPage from "./pages/ForumPage";
+import ActivitiesPage from "./pages/ActivitiesPage";
 import AppShell from "./components/AppShell";
 import PublicShell from "./components/PublicShell";
 import UiTranslationBridge from "./components/UiTranslationBridge";
@@ -245,6 +246,9 @@ function Router() {
       {/* Requires account */}
       <Route path="/forum">
         {() => <PrivateRoute component={ForumPage} />}
+      </Route>
+      <Route path="/activities">
+        {() => <PrivateRoute component={ActivitiesPage} />}
       </Route>
       <Route path="/goals">
         {() => <PrivateRoute component={GoalsPage} />}
