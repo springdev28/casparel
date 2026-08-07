@@ -61,6 +61,7 @@ export const goalPathTemplatesTable = pgTable("goal_path_templates", {
     .notNull()
     .references(() => usersTable.id, { onDelete: "cascade" }),
   creatorName: text("creator_name").notNull(),
+  sourceGoalId: integer("source_goal_id").notNull(),
   title: text("title").notNull(),
   subject: text("subject").notNull(),
   description: text("description"),
