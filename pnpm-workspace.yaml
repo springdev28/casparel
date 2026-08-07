@@ -37,9 +37,13 @@ minimumReleaseAgeExclude:
   - stripe-replit-sync
 
 packages:
-  - artifacts/*
-  - lib/*
-  - lib/integrations/*
+  - artifacts/api-server
+  - artifacts/app
+  - artifacts/schoolar-edu
+  - lib/api-client-react
+  - lib/api-zod
+  - lib/db
+  - lib/integrations-openai-ai-server
   - scripts
 
 catalog:
