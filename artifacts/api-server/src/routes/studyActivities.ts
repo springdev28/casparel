@@ -9,6 +9,20 @@ import {
 } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
+const IMAGE_DATA_PATTERN = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
+const MAX_IMAGE_BYTES = 140 * 1024;
+const MAX_IMAGES_PER_ACTIVITY = 6;
+const MAX_ACTIVITY_IMAGE_BYTES = 700 * 1024;
+
+function parseImageData(value: unknown) {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") return undefined;
+  const match = IMAGE_DATA_PATTERN.exec(value);
+  if (!match) return undefined;
+  const bytes = Buffer.from(match[2], "base64").byteLength;
+  if (!bytes || bytes > MAX_IMAGE_BYTES) return undefined;
+  return { value, bytes };
+}
 
 function activeWorkspaceRole(userRole: string) {
   return userRole === "teacher" ? "teacher" : "student";
@@ -28,12 +42,16 @@ function parseActivityInput(value: unknown) {
     return null;
   }
   const cards: StudyActivityCard[] = [];
+  let imageCount = 0;
+  let imageBytes = 0;
   for (const item of input.cards.slice(0, 100)) {
     if (!item || typeof item !== "object") return null;
     const candidate = item as {
       id?: unknown;
       term?: unknown;
       answer?: unknown;
+      imageData?: unknown;
+      imageAlt?: unknown;
     };
     const term = typeof candidate.term === "string" ? candidate.term.trim() : "";
     const answer =
@@ -41,6 +59,22 @@ function parseActivityInput(value: unknown) {
     if (!term || !answer || term.length > 500 || answer.length > 1000) {
       return null;
     }
+    const image = parseImageData(candidate.imageData);
+    if (image === undefined) return null;
+    if (image) {
+      imageCount += 1;
+      imageBytes += image.bytes;
+      if (
+        imageCount > MAX_IMAGES_PER_ACTIVITY ||
+        imageBytes > MAX_ACTIVITY_IMAGE_BYTES
+      ) {
+        return null;
+      }
+    }
+    const imageAlt =
+      typeof candidate.imageAlt === "string"
+        ? candidate.imageAlt.trim().slice(0, 160)
+        : "";
     cards.push({
       id:
         typeof candidate.id === "string" && candidate.id.length <= 80
@@ -48,6 +82,9 @@ function parseActivityInput(value: unknown) {
           : randomUUID(),
       term,
       answer,
+      ...(image
+        ? { imageData: image.value, imageAlt: imageAlt || term.slice(0, 160) }
+        : {}),
     });
   }
   if (cards.length < 2) return null;
@@ -78,7 +115,7 @@ router.post(
     const input = parseActivityInput(req.body);
     if (!input) {
       res.status(400).json({
-        error: "Add a title and at least two complete term-and-answer pairs",
+        error: "Add a title and at least two complete cards. Images must be PNG, JPEG, or WebP and within the upload limits.",
       });
       return;
     }
