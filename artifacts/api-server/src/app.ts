@@ -10,6 +10,22 @@ import { logger } from "./lib/logger";
 import { globalLimiter } from "./lib/limiters";
 
 const app: Express = express();
+const configuredOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS ?? process.env.APP_URL ?? "")
+    .split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean),
+);
+
+function originMatchesHost(origin: string, host?: string) {
+  try {
+    return Boolean(host) && new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
+
+app.disable("x-powered-by");
 
 // Trust the Replit / reverse-proxy HTTPS termination layer so that
 // req.protocol correctly returns "https" and req.ip reflects the real client.
@@ -34,9 +50,48 @@ app.use(
     },
   }),
 );
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(
+  cors((req, callback) => {
+    const origin = req.headers.origin;
+    const allowed =
+      !origin ||
+      originMatchesHost(origin, req.headers.host) ||
+      configuredOrigins.has(origin.replace(/\/$/, ""));
+    callback(null, {
+      origin: allowed ? origin ?? false : false,
+      methods: ["GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Authorization", "Content-Type"],
+      maxAge: 86_400,
+    });
+  }),
+);
+app.use((_req, res, next) => {
+  res.setHeader("Content-Security-Policy", [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "connect-src 'self'",
+    "font-src 'self' data:",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: https:",
+    "object-src 'none'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+  ].join("; "));
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+app.use(express.json({ limit: "2mb", strict: true }));
+app.use(express.urlencoded({ extended: true, limit: "256kb", parameterLimit: 100 }));
 
 app.use("/api", globalLimiter);
 app.use("/api", loginCompatRouter);
@@ -53,7 +108,15 @@ if (process.env.NODE_ENV === "production") {
     logger.error({ publicDir, indexFile }, "Production frontend index.html is missing");
   }
 
-  app.use(express.static(publicDir));
+  app.use(express.static(publicDir, {
+    setHeaders(res, filePath) {
+      if (filePath.includes(path.sep + "assets" + path.sep)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else {
+        res.setHeader("Cache-Control", "no-cache");
+      }
+    },
+  }));
   app.get("/{*path}", (req, res, next) => {
     if (req.path.startsWith("/api")) {
       next();
