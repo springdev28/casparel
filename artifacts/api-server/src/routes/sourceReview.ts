@@ -155,17 +155,11 @@ function requireAccountForDeep(
   next();
 }
 
-// GET /resources/:id/source-review — public (no auth required)
+// GET /resources/:id/source-review or /source-review — quick is public; deep requires auth.
 router.get(
-  "/resources/:id/source-review",
+  ["/resources/:id/source-review", "/source-review"],
   requireAccountForDeep,
   async (req, res): Promise<void> => {
-    const params = GetResourceSourceReviewParams.safeParse(req.params);
-    if (!params.success) {
-      res.status(400).json({ error: params.error.message });
-      return;
-    }
-
     const query = GetResourceSourceReviewQueryParams.safeParse(req.query);
     if (!query.success) {
       res
@@ -175,24 +169,85 @@ router.get(
     }
     const mode = query.data.mode;
 
-    const [resource] = await db
-      .select()
-      .from(resourcesTable)
-      .where(eq(resourcesTable.id, params.data.id));
-
-    if (!resource) {
-      res.status(404).json({ error: "Resource not found" });
-      return;
+    const hasResourceId = typeof req.params.id === "string";
+    let resource: {
+      id: number | null;
+      title: string;
+      url: string;
+      subject: string;
+      gradeLevel: string;
+      format: string;
+      thumbnailUrl: string | null;
+      createdAt: string;
+    };
+    if (hasResourceId) {
+      const params = GetResourceSourceReviewParams.safeParse(req.params);
+      if (!params.success) {
+        res.status(400).json({ error: params.error.message });
+        return;
+      }
+      const [savedResource] = await db
+        .select()
+        .from(resourcesTable)
+        .where(eq(resourcesTable.id, params.data.id));
+      if (!savedResource) {
+        res.status(404).json({ error: "Resource not found" });
+        return;
+      }
+      resource = savedResource;
+    } else {
+      const title =
+        typeof req.query.title === "string" ? req.query.title.trim() : "";
+      const url = typeof req.query.url === "string" ? req.query.url.trim() : "";
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        res.status(400).json({ error: "A valid source URL is required" });
+        return;
+      }
+      if (
+        !title ||
+        title.length > 300 ||
+        !["http:", "https:"].includes(parsedUrl.protocol)
+      ) {
+        res
+          .status(400)
+          .json({ error: "A title and HTTP or HTTPS source URL are required" });
+        return;
+      }
+      resource = {
+        id: null,
+        title,
+        url: parsedUrl.toString(),
+        subject:
+          typeof req.query.subject === "string"
+            ? req.query.subject.slice(0, 120)
+            : "Not specified",
+        gradeLevel:
+          typeof req.query.gradeLevel === "string"
+            ? req.query.gradeLevel.slice(0, 80)
+            : "Not specified",
+        format:
+          typeof req.query.format === "string"
+            ? req.query.format.slice(0, 40)
+            : "other",
+        thumbnailUrl: null,
+        createdAt: new Date().toISOString(),
+      };
     }
 
-    const [reviewStats] = await db
-      .select({
-        avgRating: sql<number>`round(coalesce(avg(${reviewsTable.rating}), 0)::numeric, 1)::float`,
-        reviewCount: sql<number>`cast(count(${reviewsTable.id}) as int)`,
-      })
-      .from(reviewsTable)
-      .where(eq(reviewsTable.resourceId, resource.id));
-    const stats = reviewStats ?? { avgRating: 0, reviewCount: 0 };
+    let stats = { avgRating: 0, reviewCount: 0 };
+    if (resource.id !== null) {
+      const [reviewStats] = await db
+        .select({
+          avgRating: sql<number>`round(coalesce(avg(${reviewsTable.rating}), 0)::numeric, 1)::float`,
+          reviewCount: sql<number>`cast(count(${reviewsTable.id}) as int)`,
+        })
+        .from(reviewsTable)
+        .where(eq(reviewsTable.resourceId, resource.id));
+      stats = reviewStats ?? stats;
+    }
 
     const { title, url } = resource;
     const canonicalUrl = canonicalResourceUrl(url);
@@ -543,9 +598,7 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
       }
 
       const rawProfile =
-        parsed &&
-        typeof parsed === "object" &&
-        "resourceProfile" in parsed
+        parsed && typeof parsed === "object" && "resourceProfile" in parsed
           ? (parsed as { resourceProfile?: unknown }).resourceProfile
           : undefined;
       const responseData = {

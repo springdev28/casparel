@@ -26,6 +26,7 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Quote,
+  Microscope,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
@@ -55,6 +56,7 @@ import {
   SelectValue,
 } from "@workspace/edu-ds/components/ui/select";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
+import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { Checkbox } from "@workspace/edu-ds/components/ui/checkbox";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
@@ -86,10 +88,14 @@ import {
   DiscoverResourcesResultType,
   UserRole,
   type DiscoveredResource,
+  type SourceReview,
 } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
 import { AUTH_LANGUAGES, useAuthLanguage } from "../lib/auth-locale";
-import { CitationDialog, type CitationResource } from "../components/CitationDialog";
+import {
+  CitationDialog,
+  type CitationResource,
+} from "../components/CitationDialog";
 import {
   addSearchHistory,
   deleteSearchHistory,
@@ -98,6 +104,116 @@ import {
 } from "../lib/searchHistory";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
+const RESOURCE_SEARCH_STATE_KEY = "schoolar_resource_search_state";
+
+function canonicalSearchUrl(value: string) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    for (const key of [...url.searchParams.keys()]) {
+      if (key.startsWith("utm_") || ["si", "fbclid", "gclid"].includes(key))
+        url.searchParams.delete(key);
+    }
+    return url.toString().replace(/\/$/, "").toLocaleLowerCase();
+  } catch {
+    return value.trim().replace(/\/$/, "").toLocaleLowerCase();
+  }
+}
+
+function titleWords(value: string) {
+  const ignored = new Set([
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "of",
+    "to",
+    "for",
+    "in",
+    "with",
+    "lesson",
+    "video",
+  ]);
+  return value
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word.length > 1 && !ignored.has(word));
+}
+
+function dedupeDiscoveredResources(items: DiscoveredResource[]) {
+  const kept: DiscoveredResource[] = [];
+  for (const item of items) {
+    const url = canonicalSearchUrl(item.url);
+    let domain = "";
+    try {
+      domain = new URL(item.url).hostname.replace(/^www\./, "");
+    } catch {
+      /* use URL-only matching */
+    }
+    const words = titleWords(item.title);
+    const collection =
+      /\b(course|curriculum|playlist|series|syllabus|learning path)\b/i.test(
+        item.title,
+      );
+    const duplicateIndex = kept.findIndex((candidate) => {
+      if (canonicalSearchUrl(candidate.url) === url) return true;
+      let candidateDomain = "";
+      try {
+        candidateDomain = new URL(candidate.url).hostname.replace(/^www\./, "");
+      } catch {
+        return false;
+      }
+      if (!domain || candidateDomain !== domain) return false;
+      const candidateWords = titleWords(candidate.title);
+      const overlap = words.filter((word) =>
+        candidateWords.includes(word),
+      ).length;
+      const similarity =
+        overlap / Math.max(1, Math.min(words.length, candidateWords.length));
+      const candidateCollection =
+        /\b(course|curriculum|playlist|series|syllabus|learning path)\b/i.test(
+          candidate.title,
+        );
+      return (
+        similarity >= 0.8 ||
+        ((collection || candidateCollection) && overlap >= 2)
+      );
+    });
+    if (duplicateIndex < 0) kept.push(item);
+    else if (
+      collection &&
+      !/\b(course|curriculum|playlist|series|syllabus|learning path)\b/i.test(
+        kept[duplicateIndex].title,
+      )
+    )
+      kept[duplicateIndex] = item;
+  }
+  return kept;
+}
+
+function storedResourceSearch() {
+  try {
+    const value = JSON.parse(
+      sessionStorage.getItem(RESOURCE_SEARCH_STATE_KEY) ?? "{}",
+    ) as { inputValue?: unknown; activeQuery?: unknown; results?: unknown };
+    return {
+      inputValue: typeof value.inputValue === "string" ? value.inputValue : "",
+      activeQuery:
+        typeof value.activeQuery === "string" ? value.activeQuery : "",
+      results: Array.isArray(value.results)
+        ? (value.results as DiscoveredResource[])
+        : [],
+    };
+  } catch {
+    return {
+      inputValue: "",
+      activeQuery: "",
+      results: [] as DiscoveredResource[],
+    };
+  }
+}
 function continueStudyingStorageKey(userId: number, goalId: number) {
   return `schoolar_continue_studying:${userId}:${goalId}`;
 }
@@ -400,7 +516,10 @@ function LibraryCard({
             type="button"
             size="sm"
             variant="ghost"
-            onClick={(event) => { event.stopPropagation(); onCitation(); }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onCitation();
+            }}
             title="Get citation"
             className="h-8 px-2"
           >
@@ -438,17 +557,255 @@ function LibraryCard({
   );
 }
 
+type UnsavedResearch = SourceReview & {
+  resourceProfile?: {
+    author?: string | null;
+    uploadTime?: string | null;
+    lastEdited?: string | null;
+    subject?: string | null;
+    gradeLevel?: string | null;
+    format?: string | null;
+    language?: string | null;
+    difficulty?: string | null;
+    accessType?: string | null;
+    license?: string | null;
+    duration?: string | null;
+    audience?: string | null;
+  };
+};
+
+function UnsavedSourceResearchDialog({
+  resource,
+  open,
+  onOpenChange,
+  isLoggedIn,
+  onRequireLogin,
+}: {
+  resource: DiscoveredResource | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  isLoggedIn: boolean;
+  onRequireLogin: () => void;
+}) {
+  const [mode, setMode] = useState<"quick" | "deep" | null>(null);
+  const [data, setData] = useState<UnsavedResearch | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setMode(null);
+    setData(null);
+    setError("");
+  }, [resource?.url, open]);
+
+  async function research(nextMode: "quick" | "deep") {
+    if (!resource) return;
+    if (nextMode === "deep" && !isLoggedIn) {
+      onRequireLogin();
+      return;
+    }
+    setMode(nextMode);
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({
+        mode: nextMode,
+        title: resource.title,
+        url: resource.url,
+        subject: resource.subject ?? "",
+        gradeLevel: resource.gradeLevel ?? "",
+        format: resource.format,
+      });
+      const response = await fetch(`/api/source-review?${params}`, {
+        headers:
+          nextMode === "deep"
+            ? {
+                Authorization: `Bearer ${localStorage.getItem("schoolar_token")}`,
+              }
+            : undefined,
+      });
+      const payload = (await response
+        .json()
+        .catch(() => ({}))) as UnsavedResearch & { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Research failed");
+      setData(payload);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Research failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const profile = data?.resourceProfile;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Microscope size={18} /> Research this source
+          </DialogTitle>
+          <DialogDescription>
+            {resource?.title}. Researching does not save it to your library.
+          </DialogDescription>
+        </DialogHeader>
+        {!mode && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => void research("quick")}
+              className="border p-4 text-left transition-colors hover:border-primary"
+            >
+              <p className="font-semibold">Quick research</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                A concise live lookup of the page, publisher, trust, and key
+                metadata.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => void research("deep")}
+              className="border p-4 text-left transition-colors hover:border-primary"
+            >
+              <p className="font-semibold">Deep research</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Broader evidence across reputation, discussion, quality,
+                currency, and limitations. Limited usage.
+              </p>
+            </button>
+          </div>
+        )}
+        {loading && (
+          <div className="py-14 text-center text-muted-foreground">
+            <Loader2 className="mx-auto mb-3 size-6 animate-spin" />
+            Researching the live source…
+          </div>
+        )}
+        {error && (
+          <div className="border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+            {error}
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3 block"
+              onClick={() => setMode(null)}
+            >
+              Choose another mode
+            </Button>
+          </div>
+        )}
+        {data && !loading && (
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge>
+                {data.mode === "deep" ? "Deep research" : "Quick research"}
+              </Badge>
+              <Badge variant="outline" className="capitalize">
+                {data.trustLevel} trust
+              </Badge>
+              <span className="font-semibold">{data.sourceName}</span>
+            </div>
+            {profile && (
+              <dl className="grid gap-3 border-y py-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ["Author", profile.author],
+                  ["Uploaded", profile.uploadTime],
+                  ["Last edited", profile.lastEdited],
+                  ["Subject", profile.subject],
+                  ["Grade", profile.gradeLevel],
+                  ["Format", profile.format],
+                  ["Difficulty", profile.difficulty],
+                  ["Access", profile.accessType],
+                  ["License", profile.license],
+                  ["Duration", profile.duration],
+                  ["Language", profile.language],
+                  ["Audience", profile.audience],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-[11px] font-medium uppercase text-muted-foreground">
+                      {label}
+                    </dt>
+                    <dd className="mt-1 text-sm">{value || "Not available"}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            <div>
+              <h3 className="mb-1 text-sm font-semibold">Assessment</h3>
+              <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                {data.summary}
+              </p>
+            </div>
+            {data.trustReason && (
+              <p className="border-l-2 border-primary pl-3 text-sm text-muted-foreground">
+                {data.trustReason}
+              </p>
+            )}
+            {data.mode === "deep" &&
+              [
+                ["Reputation and independence", data.reputationAnalysis],
+                ["Audience sentiment", data.audienceSentiment],
+                ["Educational quality", data.contentQuality],
+                ["Currency", data.currencyAssessment],
+              ].map(([title, body]) =>
+                body ? (
+                  <section key={title} className="border p-4">
+                    <h3 className="mb-2 font-semibold">{title}</h3>
+                    <p className="whitespace-pre-line text-sm leading-6 text-muted-foreground">
+                      {body}
+                    </p>
+                  </section>
+                ) : null,
+              )}
+            {data.strengths?.length || data.concerns?.length ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <section className="border p-4">
+                  <h3 className="mb-2 font-semibold">Strengths</h3>
+                  <ul className="space-y-1 text-sm">
+                    {data.strengths?.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                </section>
+                <section className="border p-4">
+                  <h3 className="mb-2 font-semibold">Concerns</h3>
+                  <ul className="space-y-1 text-sm">
+                    {data.concerns?.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setMode(null);
+                setData(null);
+              }}
+            >
+              Switch mode
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Web result card ───────────────────────────────────────────────────────────
 function WebCard({
   resource,
   onAdd,
   adding,
   onCitation,
+  onResearch,
 }: {
   resource: DiscoveredResource;
   onAdd: (r: DiscoveredResource) => void;
   adding: boolean;
   onCitation: () => void;
+  onResearch: () => void;
 }) {
   const [failedThumb, setFailedThumb] = useState<string | null>(null);
   const ytId = getYouTubeId(resource.url);
@@ -520,8 +877,21 @@ function WebCard({
             </>
           )}
         </Button>
-        <Button size="sm" variant="ghost" onClick={onCitation} title="Get citation">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onCitation}
+          title="Get citation"
+        >
           <Quote size={12} className="mr-1.5" /> Cite
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onResearch}
+          title="Research without saving"
+        >
+          <Microscope size={12} className="mr-1.5" /> Research
         </Button>
       </CardFooter>
     </Card>
@@ -532,10 +902,12 @@ function SourceCard({
   resource,
   onSave,
   saving,
+  onResearch,
 }: {
   resource: DiscoveredResource;
   onSave: (resource: DiscoveredResource) => void;
   saving: boolean;
+  onResearch: () => void;
 }) {
   let hostname = resource.source;
   try {
@@ -591,6 +963,14 @@ function SourceCard({
           )}
           {saving ? "Saving…" : "Save source"}
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onResearch}
+          title="Research without saving"
+        >
+          <Microscope size={15} />
+        </Button>
       </CardFooter>
     </Card>
   );
@@ -627,8 +1007,12 @@ export default function ResourcesPage() {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [inputValue, setInputValue] = useState("");
-  const [activeQuery, setActiveQuery] = useState("");
+  const initialSearch = useRef(storedResourceSearch()).current;
+  const [resourceView, setResourceView] = useState<"search" | "library">(
+    "search",
+  );
+  const [inputValue, setInputValue] = useState(initialSearch.inputValue);
+  const [activeQuery, setActiveQuery] = useState(initialSearch.activeQuery);
   const [formatFilter, setFormatFilter] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
   const [gradeLevelFilter, setGradeLevelFilter] = useState("");
@@ -642,7 +1026,9 @@ export default function ResourcesPage() {
   const [minRatingFilter, setMinRatingFilter] = useState<number | "">("");
   const [libraryLimit, setLibraryLimit] = useState(12);
   const [webPage, setWebPage] = useState(1);
-  const [allWebResults, setAllWebResults] = useState<DiscoveredResource[]>([]);
+  const [allWebResults, setAllWebResults] = useState<DiscoveredResource[]>(
+    initialSearch.results,
+  );
   const [hiddenSourceUrls, setHiddenSourceUrls] = useState<string[]>([]);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const [continueGoalId, setContinueGoalId] = useState("");
@@ -665,13 +1051,35 @@ export default function ResourcesPage() {
   const [sourceQualityFilter, setSourceQualityFilter] = useState("");
   const [captionsRequired, setCaptionsRequired] = useState(false);
   const [transcriptRequired, setTranscriptRequired] = useState(false);
-  const [citationResource, setCitationResource] = useState<CitationResource | null>(null);
+  const [citationResource, setCitationResource] =
+    useState<CitationResource | null>(null);
   const [citationOpen, setCitationOpen] = useState(false);
+  const [researchResource, setResearchResource] =
+    useState<DiscoveredResource | null>(null);
+  const [researchOpen, setResearchOpen] = useState(false);
+  const previousActiveQueryRef = useRef(activeQuery);
+  const filtersInitializedRef = useRef(false);
 
   function openCitation(resource?: CitationResource) {
     setCitationResource(resource ?? null);
     setCitationOpen(true);
   }
+
+  function openResearch(resource: DiscoveredResource) {
+    setResearchResource(resource);
+    setResearchOpen(true);
+  }
+
+  useEffect(() => {
+    sessionStorage.setItem(
+      RESOURCE_SEARCH_STATE_KEY,
+      JSON.stringify({
+        inputValue,
+        activeQuery,
+        results: allWebResults.slice(0, 60),
+      }),
+    );
+  }, [inputValue, activeQuery, allWebResults]);
 
   useEffect(() => {
     const params = new URLSearchParams(routeSearch);
@@ -683,7 +1091,8 @@ export default function ResourcesPage() {
       setLibraryLimit(12);
     }
     if (subject) setSubjectFilter(subject);
-    if (mode === "source") setResultTypeFilter(DiscoverResourcesResultType.source);
+    if (mode === "source")
+      setResultTypeFilter(DiscoverResourcesResultType.source);
   }, [routeSearch]);
 
   const isSearching = activeQuery.trim().length > 0;
@@ -719,14 +1128,10 @@ export default function ResourcesPage() {
     ...(excludedWordsFilter.trim()
       ? { exclude: excludedWordsFilter.trim() }
       : {}),
-    ...(sourceDomainFilter.trim()
-      ? { source: sourceDomainFilter.trim() }
-      : {}),
+    ...(sourceDomainFilter.trim() ? { source: sourceDomainFilter.trim() } : {}),
     ...(dateAddedFilter ? { dateAdded: dateAddedFilter } : {}),
     ...(minReviewsFilter ? { minReviews: Number(minReviewsFilter) } : {}),
-    ...(thumbnailFilter
-      ? { hasThumbnail: thumbnailFilter === "with" }
-      : {}),
+    ...(thumbnailFilter ? { hasThumbnail: thumbnailFilter === "with" } : {}),
     ...(librarySortFilter ? { librarySort: librarySortFilter } : {}),
     limit: libraryLimit,
     offset: 0,
@@ -750,10 +1155,31 @@ export default function ResourcesPage() {
       queryKey: getListResourcesQueryKey(libraryCatalogParams),
     },
   });
+  const uniqueLibraryCatalog = (libraryCatalog ?? []).filter(
+    (resource, index, items) =>
+      items.findIndex(
+        (candidate) =>
+          canonicalSearchUrl(candidate.url) ===
+          canonicalSearchUrl(resource.url),
+      ) === index,
+  );
+  const uniqueLibraryResults = (libraryResults ?? []).filter(
+    (resource, index, items) =>
+      items.findIndex(
+        (candidate) =>
+          canonicalSearchUrl(candidate.url) ===
+          canonicalSearchUrl(resource.url),
+      ) === index,
+  );
   const savedLibraryUrls = new Set(
     (libraryCatalog ?? [])
       .filter((resource) => resource.submittedById === me?.id)
-      .map((resource) => resource.url),
+      .map((resource) => canonicalSearchUrl(resource.url)),
+  );
+  const visibleWebResults = dedupeDiscoveredResources(allWebResults).filter(
+    (resource) =>
+      !hiddenSourceUrls.includes(resource.url) &&
+      !savedLibraryUrls.has(canonicalSearchUrl(resource.url)),
   );
 
   const activeLearningGoals = (learningGoals ?? []).filter(
@@ -777,7 +1203,8 @@ export default function ResourcesPage() {
     const routeGoal = new URLSearchParams(routeSearch).get("goal");
     const requestedGoal = routeGoal
       ? activeLearningGoals.find(
-          (goal) => goal.title.toLocaleLowerCase() === routeGoal.toLocaleLowerCase(),
+          (goal) =>
+            goal.title.toLocaleLowerCase() === routeGoal.toLocaleLowerCase(),
         )
       : undefined;
     const currentGoalExists = activeLearningGoals.some(
@@ -836,9 +1263,7 @@ export default function ResourcesPage() {
     ...(excludedWordsFilter.trim()
       ? { exclude: excludedWordsFilter.trim() }
       : {}),
-    ...(sourceDomainFilter.trim()
-      ? { source: sourceDomainFilter.trim() }
-      : {}),
+    ...(sourceDomainFilter.trim() ? { source: sourceDomainFilter.trim() } : {}),
     ...(freshnessFilter ? { freshness: freshnessFilter } : {}),
     ...(sourceQualityFilter ? { sourceQuality: sourceQualityFilter } : {}),
     ...(resultTypeFilter === DiscoverResourcesResultType.content &&
@@ -873,8 +1298,12 @@ export default function ResourcesPage() {
     refetch: retryWebSearch,
   } = useDiscoverResources(discoverParams, {
     query: {
-      enabled: isSearching,
-      staleTime: 1000 * 60 * 5,
+      enabled: isSearching && resourceView === "search",
+      staleTime: Number.POSITIVE_INFINITY,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retryOnMount: false,
       queryKey: getDiscoverResourcesQueryKey(discoverParams),
       retry: false,
     },
@@ -897,6 +1326,8 @@ export default function ResourcesPage() {
 
   // Reset accumulated results when query changes; append on page increment
   useEffect(() => {
+    if (previousActiveQueryRef.current === activeQuery) return;
+    previousActiveQueryRef.current = activeQuery;
     setWebPage(1);
     setAllWebResults([]);
     setHiddenSourceUrls([]);
@@ -904,6 +1335,10 @@ export default function ResourcesPage() {
 
   // Reset accumulated results when any filter changes
   useEffect(() => {
+    if (!filtersInitializedRef.current) {
+      filtersInitializedRef.current = true;
+      return;
+    }
     setWebPage(1);
     setAllWebResults([]);
   }, [
@@ -934,7 +1369,9 @@ export default function ResourcesPage() {
   useEffect(() => {
     if (!webResults || webResults.length === 0) return;
     setAllWebResults((prev) =>
-      webPage === 1 ? webResults : [...prev, ...webResults],
+      dedupeDiscoveredResources(
+        webPage === 1 ? webResults : [...prev, ...webResults],
+      ),
     );
   }, [webResults, webPage]);
 
@@ -1066,6 +1503,9 @@ export default function ResourcesPage() {
   function clearSearch() {
     setInputValue("");
     setActiveQuery("");
+    setAllWebResults([]);
+    setWebPage(1);
+    sessionStorage.removeItem(RESOURCE_SEARCH_STATE_KEY);
     inputRef.current?.focus();
   }
 
@@ -1219,569 +1659,722 @@ export default function ResourcesPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Resources</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {isSearching
-              ? `Showing library results and web results for "${activeQuery}"`
-              : isLoggedIn
-                ? "Your personalised library — based on what you've been learning"
-                : "Top-rated resources to get you started"}
+            {resourceView === "library"
+              ? "Saved learning resources and goal collections"
+              : isSearching
+                ? `Showing library results and web results for "${activeQuery}"`
+                : isLoggedIn
+                  ? "Your personalised library — based on what you've been learning"
+                  : "Top-rated resources to get you started"}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => openCitation()} data-testid="citation-maker-button">
+          <Button
+            variant="outline"
+            onClick={() => openCitation()}
+            data-testid="citation-maker-button"
+          >
             <Quote size={15} className="mr-1.5" /> Citation maker
           </Button>
-        {isLoggedIn ? (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="submit-resource-button">
-                <Plus size={16} className="mr-1.5" /> Submit Resource
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Submit a Resource</DialogTitle>
-                <DialogDescription>
-                  Share a learning resource with the community
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreate} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="res-title">Title</Label>
-                  <Input
-                    id="res-title"
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    required
-                    data-testid="resource-title-input"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="res-url"
-                    className="flex items-center gap-1.5"
-                  >
-                    URL
-                    {prefetching && (
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Loader2 size={10} className="animate-spin" />{" "}
-                        auto-filling…
-                      </span>
-                    )}
-                    {!prefetching && newTitle && newUrl && (
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Wand2 size={10} /> auto-filled
-                      </span>
-                    )}
-                  </Label>
-                  <Input
-                    id="res-url"
-                    type="url"
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    onBlur={handleUrlBlur}
-                    required
-                    data-testid="resource-url-input"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="res-desc">Description (optional)</Label>
-                  <Textarea
-                    id="res-desc"
-                    value={newDesc}
-                    onChange={(e) => setNewDesc(e.target.value)}
-                    rows={2}
-                    data-testid="resource-desc-input"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+          {isLoggedIn ? (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="submit-resource-button">
+                  <Plus size={16} className="mr-1.5" /> Submit Resource
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Submit a Resource</DialogTitle>
+                  <DialogDescription>
+                    Share a learning resource with the community
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreate} className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label>Format</Label>
-                    <Select
-                      value={newFormat}
-                      onValueChange={(v) =>
-                        setNewFormat(v as ResourceInputFormat)
-                      }
-                    >
-                      <SelectTrigger data-testid="resource-format-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(ResourceInputFormat).map((f) => (
-                          <SelectItem key={f} value={f} className="capitalize">
-                            {f}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="res-subject">Subject</Label>
+                    <Label htmlFor="res-title">Title</Label>
                     <Input
-                      id="res-subject"
-                      value={newSubject}
-                      onChange={(e) => setNewSubject(e.target.value)}
+                      id="res-title"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
                       required
-                      data-testid="resource-subject-input"
+                      data-testid="resource-title-input"
                     />
                   </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="res-grade">Grade Level</Label>
-                  <Input
-                    id="res-grade"
-                    value={newGrade}
-                    onChange={(e) => setNewGrade(e.target.value)}
-                    required
-                    data-testid="resource-grade-input"
-                  />
-                </div>
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setDialogOpen(false);
-                      resetForm();
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={createResource.isPending}
-                    data-testid="submit-resource-confirm"
-                  >
-                    {createResource.isPending ? "Submitting…" : "Submit"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        ) : (
-          <Button variant="outline" asChild data-testid="sign-in-to-submit">
-            <Link href="/auth/login">
-              <LogIn size={15} className="mr-1.5" /> Sign in
-            </Link>
-          </Button>
-        )}
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="res-url"
+                      className="flex items-center gap-1.5"
+                    >
+                      URL
+                      {prefetching && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Loader2 size={10} className="animate-spin" />{" "}
+                          auto-filling…
+                        </span>
+                      )}
+                      {!prefetching && newTitle && newUrl && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Wand2 size={10} /> auto-filled
+                        </span>
+                      )}
+                    </Label>
+                    <Input
+                      id="res-url"
+                      type="url"
+                      value={newUrl}
+                      onChange={(e) => setNewUrl(e.target.value)}
+                      onBlur={handleUrlBlur}
+                      required
+                      data-testid="resource-url-input"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="res-desc">Description (optional)</Label>
+                    <Textarea
+                      id="res-desc"
+                      value={newDesc}
+                      onChange={(e) => setNewDesc(e.target.value)}
+                      rows={2}
+                      data-testid="resource-desc-input"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Format</Label>
+                      <Select
+                        value={newFormat}
+                        onValueChange={(v) =>
+                          setNewFormat(v as ResourceInputFormat)
+                        }
+                      >
+                        <SelectTrigger data-testid="resource-format-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.values(ResourceInputFormat).map((f) => (
+                            <SelectItem
+                              key={f}
+                              value={f}
+                              className="capitalize"
+                            >
+                              {f}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="res-subject">Subject</Label>
+                      <Input
+                        id="res-subject"
+                        value={newSubject}
+                        onChange={(e) => setNewSubject(e.target.value)}
+                        required
+                        data-testid="resource-subject-input"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="res-grade">Grade Level</Label>
+                    <Input
+                      id="res-grade"
+                      value={newGrade}
+                      onChange={(e) => setNewGrade(e.target.value)}
+                      required
+                      data-testid="resource-grade-input"
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setDialogOpen(false);
+                        resetForm();
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={createResource.isPending}
+                      data-testid="submit-resource-confirm"
+                    >
+                      {createResource.isPending ? "Submitting…" : "Submit"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Button variant="outline" asChild data-testid="sign-in-to-submit">
+              <Link href="/auth/login">
+                <LogIn size={15} className="mr-1.5" /> Sign in
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
-      <CitationDialog open={citationOpen} onOpenChange={setCitationOpen} resource={citationResource} />
+      <CitationDialog
+        open={citationOpen}
+        onOpenChange={setCitationOpen}
+        resource={citationResource}
+      />
+      <UnsavedSourceResearchDialog
+        resource={researchResource}
+        open={researchOpen}
+        onOpenChange={setResearchOpen}
+        isLoggedIn={isLoggedIn}
+        onRequireLogin={() => setLocation("/auth/login")}
+      />
+
+      <div
+        className="inline-flex w-full border bg-background p-1 sm:w-auto"
+        role="tablist"
+        aria-label="Resource views"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={resourceView === "search"}
+          onClick={() => setResourceView("search")}
+          className={`flex min-h-9 flex-1 items-center justify-center gap-2 px-4 text-sm font-medium sm:flex-none ${resourceView === "search" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <Search size={15} /> Search
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={resourceView === "library"}
+          onClick={() => setResourceView("library")}
+          className={`flex min-h-9 flex-1 items-center justify-center gap-2 px-4 text-sm font-medium sm:flex-none ${resourceView === "library" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          <BookOpen size={15} /> Library
+        </button>
+      </div>
 
       {/* Search bar */}
-      <form onSubmit={handleSearchSubmit} className="space-y-2">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              ref={inputRef}
-              className="pl-9 pr-9 h-11 text-base"
-              placeholder={
-                'Search anything — "photosynthesis", "MIT calculus", "Python for beginners"…'
+      {resourceView === "search" && (
+        <form onSubmit={handleSearchSubmit} className="space-y-2">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                ref={inputRef}
+                className="pl-9 pr-9 h-11 text-base"
+                placeholder={
+                  'Search anything — "photosynthesis", "MIT calculus", "Python for beginners"…'
+                }
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                data-testid="search-input"
+              />
+              {inputValue && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+            <Button
+              type="submit"
+              size="lg"
+              className="shrink-0"
+              disabled={!inputValue.trim()}
+            >
+              <Search size={15} className="mr-1.5" /> Search
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Select
+              value={resultTypeFilter}
+              onValueChange={(value) =>
+                setResultTypeFilter(value as DiscoverResourcesResultType)
               }
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              data-testid="search-input"
-            />
-            {inputValue && (
-              <button
-                type="button"
-                onClick={() => {
-                  setInputValue("");
-                  setActiveQuery("");
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <SelectTrigger
+                className="w-44 h-8 text-xs"
+                data-testid="source-filter"
               >
-                <X size={15} />
-              </button>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DiscoverResourcesResultType.content}>
+                  Source: specific content
+                </SelectItem>
+                <SelectItem value={DiscoverResourcesResultType.source}>
+                  Source: websites & channels
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={searchLanguage}
+              onValueChange={(value) =>
+                setSearchLanguage(value as SearchLanguage)
+              }
+            >
+              <SelectTrigger
+                className="w-36 h-8 text-xs"
+                data-testid="search-language-filter"
+              >
+                <SelectValue placeholder="Language" />
+              </SelectTrigger>
+              <SelectContent>
+                {SEARCH_LANGUAGE_OPTIONS.map((language) => (
+                  <SelectItem key={language.code} value={language.code}>
+                    {language.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!isSourceMode && (
+              <>
+                <Select
+                  value={formatFilter || "all"}
+                  onValueChange={(v) => setFormatFilter(v === "all" ? "" : v)}
+                >
+                  <SelectTrigger
+                    className="w-36 h-8 text-xs"
+                    data-testid="format-filter"
+                  >
+                    <SelectValue placeholder="All formats" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All formats</SelectItem>
+                    {FORMAT_OPTIONS.map((f) => (
+                      <SelectItem key={f} value={f} className="capitalize">
+                        {f}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  className="w-36 h-8 text-xs"
+                  placeholder="Subject…"
+                  value={subjectFilter}
+                  onChange={(e) => setSubjectFilter(e.target.value)}
+                  data-testid="subject-filter"
+                />
+                <Select
+                  value={gradeLevelFilter || "all"}
+                  onValueChange={(v) =>
+                    setGradeLevelFilter(v === "all" ? "" : v)
+                  }
+                >
+                  <SelectTrigger
+                    className="w-36 h-8 text-xs"
+                    data-testid="grade-filter"
+                  >
+                    <SelectValue placeholder="All grades" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All grades</SelectItem>
+                    {["K–5", "6–8", "9–12", "College", "Adult", "All Ages"].map(
+                      (g) => (
+                        <SelectItem key={g} value={g}>
+                          {g}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={
+                    minRatingFilter === "" ? "any" : String(minRatingFilter)
+                  }
+                  onValueChange={(v) =>
+                    setMinRatingFilter(v === "any" ? "" : Number(v))
+                  }
+                >
+                  <SelectTrigger
+                    className="w-36 h-8 text-xs"
+                    data-testid="rating-filter"
+                  >
+                    <SelectValue placeholder="Any rating" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any rating</SelectItem>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {"★".repeat(n)} & up
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={librarySortFilter || sortByFilter || "newest"}
+                  onValueChange={(v) => {
+                    if (
+                      v === ListResourcesSortBy.top_rated ||
+                      v === ListResourcesSortBy.most_reviewed
+                    ) {
+                      setSortByFilter(v as ListResourcesSortBy);
+                      setLibrarySortFilter("");
+                    } else {
+                      setSortByFilter("");
+                      setLibrarySortFilter(v === "newest" ? "" : v);
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    className="w-36 h-8 text-xs"
+                    data-testid="sort-filter"
+                  >
+                    <SelectValue placeholder="Newest first" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Newest first</SelectItem>
+                    <SelectItem value="oldest">Oldest first</SelectItem>
+                    <SelectItem value="title_asc">Title A–Z</SelectItem>
+                    <SelectItem value="title_desc">Title Z–A</SelectItem>
+                    <SelectItem value={ListResourcesSortBy.top_rated}>
+                      Top rated
+                    </SelectItem>
+                    <SelectItem value={ListResourcesSortBy.most_reviewed}>
+                      Most reviewed
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
             )}
           </div>
-          <Button
-            type="submit"
-            size="lg"
-            className="shrink-0"
-            disabled={!inputValue.trim()}
-          >
-            <Search size={15} className="mr-1.5" /> Search
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Select
-            value={resultTypeFilter}
-            onValueChange={(value) =>
-              setResultTypeFilter(value as DiscoverResourcesResultType)
-            }
-          >
-            <SelectTrigger
-              className="w-44 h-8 text-xs"
-              data-testid="source-filter"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={DiscoverResourcesResultType.content}>
-                Source: specific content
-              </SelectItem>
-              <SelectItem value={DiscoverResourcesResultType.source}>
-                Source: websites & channels
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={searchLanguage}
-            onValueChange={(value) =>
-              setSearchLanguage(value as SearchLanguage)
-            }
-          >
-            <SelectTrigger
-              className="w-36 h-8 text-xs"
-              data-testid="search-language-filter"
-            >
-              <SelectValue placeholder="Language" />
-            </SelectTrigger>
-            <SelectContent>
-              {SEARCH_LANGUAGE_OPTIONS.map((language) => (
-                <SelectItem key={language.code} value={language.code}>
-                  {language.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!isSourceMode && (
-            <>
-              <Select
-                value={formatFilter || "all"}
-                onValueChange={(v) => setFormatFilter(v === "all" ? "" : v)}
-              >
-                <SelectTrigger
-                  className="w-36 h-8 text-xs"
-                  data-testid="format-filter"
-                >
-                  <SelectValue placeholder="All formats" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All formats</SelectItem>
-                  {FORMAT_OPTIONS.map((f) => (
-                    <SelectItem key={f} value={f} className="capitalize">
-                      {f}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                className="w-36 h-8 text-xs"
-                placeholder="Subject…"
-                value={subjectFilter}
-                onChange={(e) => setSubjectFilter(e.target.value)}
-                data-testid="subject-filter"
-              />
-              <Select
-                value={gradeLevelFilter || "all"}
-                onValueChange={(v) => setGradeLevelFilter(v === "all" ? "" : v)}
-              >
-                <SelectTrigger
-                  className="w-36 h-8 text-xs"
-                  data-testid="grade-filter"
-                >
-                  <SelectValue placeholder="All grades" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All grades</SelectItem>
-                  {["K–5", "6–8", "9–12", "College", "Adult", "All Ages"].map(
-                    (g) => (
-                      <SelectItem key={g} value={g}>
-                        {g}
-                      </SelectItem>
-                    ),
-                  )}
-                </SelectContent>
-              </Select>
-              <Select
-                value={minRatingFilter === "" ? "any" : String(minRatingFilter)}
-                onValueChange={(v) =>
-                  setMinRatingFilter(v === "any" ? "" : Number(v))
-                }
-              >
-                <SelectTrigger
-                  className="w-36 h-8 text-xs"
-                  data-testid="rating-filter"
-                >
-                  <SelectValue placeholder="Any rating" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any">Any rating</SelectItem>
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {"★".repeat(n)} & up
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={librarySortFilter || sortByFilter || "newest"}
-                onValueChange={(v) => {
-                  if (
-                    v === ListResourcesSortBy.top_rated ||
-                    v === ListResourcesSortBy.most_reviewed
-                  ) {
-                    setSortByFilter(v as ListResourcesSortBy);
-                    setLibrarySortFilter("");
-                  } else {
-                    setSortByFilter("");
-                    setLibrarySortFilter(v === "newest" ? "" : v);
-                  }
-                }}
-              >
-                <SelectTrigger
-                  className="w-36 h-8 text-xs"
-                  data-testid="sort-filter"
-                >
-                  <SelectValue placeholder="Newest first" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Newest first</SelectItem>
-                  <SelectItem value="oldest">Oldest first</SelectItem>
-                  <SelectItem value="title_asc">Title A–Z</SelectItem>
-                  <SelectItem value="title_desc">Title Z–A</SelectItem>
-                  <SelectItem value={ListResourcesSortBy.top_rated}>
-                    Top rated
-                  </SelectItem>
-                  <SelectItem value={ListResourcesSortBy.most_reviewed}>
-                    Most reviewed
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </>
-          )}
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAdvancedFilters((current) => !current)}
-            aria-expanded={showAdvancedFilters}
-            data-testid="advanced-filters-toggle"
-          >
-            <SlidersHorizontal size={14} className="mr-1.5" />
-            More filters
-            {activeAdvancedFilterCount > 0 && (
-              <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
-                {activeAdvancedFilterCount}
-              </span>
-            )}
-          </Button>
-          {activeAdvancedFilterCount > 0 && (
+          <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={resetAdvancedFilters}
-              className="text-muted-foreground"
+              onClick={() => setShowAdvancedFilters((current) => !current)}
+              aria-expanded={showAdvancedFilters}
+              data-testid="advanced-filters-toggle"
             >
-              <RotateCcw size={13} className="mr-1.5" /> Reset
+              <SlidersHorizontal size={14} className="mr-1.5" />
+              More filters
+              {activeAdvancedFilterCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                  {activeAdvancedFilterCount}
+                </span>
+              )}
             </Button>
-          )}
-        </div>
+            {activeAdvancedFilterCount > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={resetAdvancedFilters}
+                className="text-muted-foreground"
+              >
+                <RotateCcw size={13} className="mr-1.5" /> Reset
+              </Button>
+            )}
+          </div>
 
-        {showAdvancedFilters && (
-          <div className="space-y-4 border-t pt-4" data-testid="advanced-filters">
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Match
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="exact-phrase-filter" className="text-xs">
-                    Exact phrase
-                  </Label>
-                  <Input
-                    id="exact-phrase-filter"
-                    className="h-9 text-sm"
-                    value={exactPhraseFilter}
-                    onChange={(event) => setExactPhraseFilter(event.target.value)}
-                    placeholder="e.g. cellular respiration"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="exclude-filter" className="text-xs">
-                    Exclude words
-                  </Label>
-                  <Input
-                    id="exclude-filter"
-                    className="h-9 text-sm"
-                    value={excludedWordsFilter}
-                    onChange={(event) =>
-                      setExcludedWordsFilter(event.target.value)
-                    }
-                    placeholder="comma or space separated"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="source-domain-filter" className="text-xs">
-                    Website, publisher, or creator
-                  </Label>
-                  <Input
-                    id="source-domain-filter"
-                    className="h-9 text-sm"
-                    value={sourceDomainFilter}
-                    onChange={(event) =>
-                      setSourceDomainFilter(event.target.value)
-                    }
-                    placeholder="e.g. mit.edu"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {!isSourceMode && (
+          {showAdvancedFilters && (
+            <div
+              className="space-y-4 border-t pt-4"
+              data-testid="advanced-filters"
+            >
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Saved library
+                  Match
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="exact-phrase-filter" className="text-xs">
+                      Exact phrase
+                    </Label>
+                    <Input
+                      id="exact-phrase-filter"
+                      className="h-9 text-sm"
+                      value={exactPhraseFilter}
+                      onChange={(event) =>
+                        setExactPhraseFilter(event.target.value)
+                      }
+                      placeholder="e.g. cellular respiration"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="exclude-filter" className="text-xs">
+                      Exclude words
+                    </Label>
+                    <Input
+                      id="exclude-filter"
+                      className="h-9 text-sm"
+                      value={excludedWordsFilter}
+                      onChange={(event) =>
+                        setExcludedWordsFilter(event.target.value)
+                      }
+                      placeholder="comma or space separated"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="source-domain-filter" className="text-xs">
+                      Website, publisher, or creator
+                    </Label>
+                    <Input
+                      id="source-domain-filter"
+                      className="h-9 text-sm"
+                      value={sourceDomainFilter}
+                      onChange={(event) =>
+                        setSourceDomainFilter(event.target.value)
+                      }
+                      placeholder="e.g. mit.edu"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {!isSourceMode && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Saved library
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Date added</Label>
+                      <Select
+                        value={dateAddedFilter || "any"}
+                        onValueChange={(value) =>
+                          setDateAddedFilter(value === "any" ? "" : value)
+                        }
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any time</SelectItem>
+                          <SelectItem value="day">Past 24 hours</SelectItem>
+                          <SelectItem value="week">Past week</SelectItem>
+                          <SelectItem value="month">Past month</SelectItem>
+                          <SelectItem value="year">Past year</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Minimum reviews</Label>
+                      <Select
+                        value={minReviewsFilter || "any"}
+                        onValueChange={(value) =>
+                          setMinReviewsFilter(value === "any" ? "" : value)
+                        }
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">Any review count</SelectItem>
+                          <SelectItem value="1">1 or more</SelectItem>
+                          <SelectItem value="3">3 or more</SelectItem>
+                          <SelectItem value="5">5 or more</SelectItem>
+                          <SelectItem value="10">10 or more</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Preview image</Label>
+                      <Select
+                        value={thumbnailFilter || "any"}
+                        onValueChange={(value) =>
+                          setThumbnailFilter(value === "any" ? "" : value)
+                        }
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="any">With or without</SelectItem>
+                          <SelectItem value="with">
+                            Has preview image
+                          </SelectItem>
+                          <SelectItem value="without">
+                            No preview image
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Web discovery
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Date added</Label>
-                    <Select value={dateAddedFilter || "any"} onValueChange={(value) => setDateAddedFilter(value === "any" ? "" : value)}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <Label className="text-xs">Published or updated</Label>
+                    <Select
+                      value={freshnessFilter || "any"}
+                      onValueChange={(value) =>
+                        setFreshnessFilter(value === "any" ? "" : value)
+                      }
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="any">Any time</SelectItem>
-                        <SelectItem value="day">Past 24 hours</SelectItem>
                         <SelectItem value="week">Past week</SelectItem>
                         <SelectItem value="month">Past month</SelectItem>
                         <SelectItem value="year">Past year</SelectItem>
+                        <SelectItem value="three_years">
+                          Past 3 years
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Minimum reviews</Label>
-                    <Select value={minReviewsFilter || "any"} onValueChange={(value) => setMinReviewsFilter(value === "any" ? "" : value)}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <Label className="text-xs">Source quality</Label>
+                    <Select
+                      value={sourceQualityFilter || "any"}
+                      onValueChange={(value) =>
+                        setSourceQualityFilter(value === "any" ? "" : value)
+                      }
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="any">Any review count</SelectItem>
-                        <SelectItem value="1">1 or more</SelectItem>
-                        <SelectItem value="3">3 or more</SelectItem>
-                        <SelectItem value="5">5 or more</SelectItem>
-                        <SelectItem value="10">10 or more</SelectItem>
+                        <SelectItem value="any">Any source</SelectItem>
+                        <SelectItem value="institutional">
+                          Institutional only
+                        </SelectItem>
+                        <SelectItem value="established">
+                          Established sources
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Preview image</Label>
-                    <Select value={thumbnailFilter || "any"} onValueChange={(value) => setThumbnailFilter(value === "any" ? "" : value)}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="any">With or without</SelectItem>
-                        <SelectItem value="with">Has preview image</SelectItem>
-                        <SelectItem value="without">No preview image</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {!isSourceMode && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Difficulty</Label>
+                        <Select
+                          value={difficultyFilter || "any"}
+                          onValueChange={(value) =>
+                            setDifficultyFilter(value === "any" ? "" : value)
+                          }
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="any">Any difficulty</SelectItem>
+                            <SelectItem value="beginner">Beginner</SelectItem>
+                            <SelectItem value="intermediate">
+                              Intermediate
+                            </SelectItem>
+                            <SelectItem value="advanced">Advanced</SelectItem>
+                            <SelectItem value="mixed">Mixed levels</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Access</Label>
+                        <Select
+                          value={accessFilter || "any"}
+                          onValueChange={(value) =>
+                            setAccessFilter(value === "any" ? "" : value)
+                          }
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="any">Any access</SelectItem>
+                            <SelectItem value="free">Free</SelectItem>
+                            <SelectItem value="no_account">
+                              No account required
+                            </SelectItem>
+                            <SelectItem value="open">
+                              Open access preferred
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Usage rights</Label>
+                        <Select
+                          value={licenseFilter || "any"}
+                          onValueChange={(value) =>
+                            setLicenseFilter(value === "any" ? "" : value)
+                          }
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="any">Any license</SelectItem>
+                            <SelectItem value="reusable">
+                              Reusable or open
+                            </SelectItem>
+                            <SelectItem value="known">
+                              License stated
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Learning length</Label>
+                        <Select
+                          value={contentLengthFilter || "any"}
+                          onValueChange={(value) =>
+                            setContentLengthFilter(value === "any" ? "" : value)
+                          }
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="any">Any length</SelectItem>
+                            <SelectItem value="short">
+                              Up to 15 minutes
+                            </SelectItem>
+                            <SelectItem value="medium">
+                              15–45 minutes
+                            </SelectItem>
+                            <SelectItem value="long">
+                              More than 45 minutes
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <label className="flex min-h-9 items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={captionsRequired}
+                          onCheckedChange={(checked) =>
+                            setCaptionsRequired(checked === true)
+                          }
+                        />
+                        Captions available
+                      </label>
+                      <label className="flex min-h-9 items-center gap-2 text-sm">
+                        <Checkbox
+                          checked={transcriptRequired}
+                          onCheckedChange={(checked) =>
+                            setTranscriptRequired(checked === true)
+                          }
+                        />
+                        Transcript available
+                      </label>
+                    </>
+                  )}
                 </div>
-              </div>
-            )}
-
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Web discovery
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Published or updated</Label>
-                  <Select value={freshnessFilter || "any"} onValueChange={(value) => setFreshnessFilter(value === "any" ? "" : value)}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="any">Any time</SelectItem>
-                      <SelectItem value="week">Past week</SelectItem>
-                      <SelectItem value="month">Past month</SelectItem>
-                      <SelectItem value="year">Past year</SelectItem>
-                      <SelectItem value="three_years">Past 3 years</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Source quality</Label>
-                  <Select value={sourceQualityFilter || "any"} onValueChange={(value) => setSourceQualityFilter(value === "any" ? "" : value)}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="any">Any source</SelectItem>
-                      <SelectItem value="institutional">Institutional only</SelectItem>
-                      <SelectItem value="established">Established sources</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {!isSourceMode && (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Difficulty</Label>
-                      <Select value={difficultyFilter || "any"} onValueChange={(value) => setDifficultyFilter(value === "any" ? "" : value)}>
-                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="any">Any difficulty</SelectItem>
-                          <SelectItem value="beginner">Beginner</SelectItem>
-                          <SelectItem value="intermediate">Intermediate</SelectItem>
-                          <SelectItem value="advanced">Advanced</SelectItem>
-                          <SelectItem value="mixed">Mixed levels</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Access</Label>
-                      <Select value={accessFilter || "any"} onValueChange={(value) => setAccessFilter(value === "any" ? "" : value)}>
-                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="any">Any access</SelectItem>
-                          <SelectItem value="free">Free</SelectItem>
-                          <SelectItem value="no_account">No account required</SelectItem>
-                          <SelectItem value="open">Open access preferred</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Usage rights</Label>
-                      <Select value={licenseFilter || "any"} onValueChange={(value) => setLicenseFilter(value === "any" ? "" : value)}>
-                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="any">Any license</SelectItem>
-                          <SelectItem value="reusable">Reusable or open</SelectItem>
-                          <SelectItem value="known">License stated</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Learning length</Label>
-                      <Select value={contentLengthFilter || "any"} onValueChange={(value) => setContentLengthFilter(value === "any" ? "" : value)}>
-                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="any">Any length</SelectItem>
-                          <SelectItem value="short">Up to 15 minutes</SelectItem>
-                          <SelectItem value="medium">15–45 minutes</SelectItem>
-                          <SelectItem value="long">More than 45 minutes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <label className="flex min-h-9 items-center gap-2 text-sm">
-                      <Checkbox checked={captionsRequired} onCheckedChange={(checked) => setCaptionsRequired(checked === true)} />
-                      Captions available
-                    </label>
-                    <label className="flex min-h-9 items-center gap-2 text-sm">
-                      <Checkbox checked={transcriptRequired} onCheckedChange={(checked) => setTranscriptRequired(checked === true)} />
-                      Transcript available
-                    </label>
-                  </>
-                )}
               </div>
             </div>
-          </div>
-        )}
-      </form>
+          )}
+        </form>
+      )}
 
-      {isLoggedIn && searchHistory.length > 0 && (
+      {resourceView === "search" && isLoggedIn && searchHistory.length > 0 && (
         <section aria-label="Recent searches" className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Recent searches
@@ -1820,7 +2413,7 @@ export default function ResourcesPage() {
       )}
 
       {/* ── CONTINUE STUDYING ─────────────────────────────────────── */}
-      {!isSearching && isLoggedIn && (
+      {resourceView === "library" && isLoggedIn && (
         <section id="continue-studying" className="scroll-mt-16 space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -1828,7 +2421,8 @@ export default function ResourcesPage() {
                 <Target size={14} /> Continue studying
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Keep the library resources you use for each active goal together.
+                Keep the library resources you use for each active goal
+                together.
               </p>
             </div>
             {activeLearningGoals.length > 0 && (
@@ -1836,7 +2430,10 @@ export default function ResourcesPage() {
                 <Label htmlFor="continue-goal" className="sr-only">
                   Learning goal
                 </Label>
-                <Select value={continueGoalId} onValueChange={setContinueGoalId}>
+                <Select
+                  value={continueGoalId}
+                  onValueChange={setContinueGoalId}
+                >
                   <SelectTrigger id="continue-goal">
                     <SelectValue placeholder="Choose a learning goal" />
                   </SelectTrigger>
@@ -1893,7 +2490,9 @@ export default function ResourcesPage() {
                     <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
                       {(libraryCatalog ?? []).length ? (
                         (libraryCatalog ?? []).map((resource) => {
-                          const checked = continueResourceIds.includes(resource.id);
+                          const checked = continueResourceIds.includes(
+                            resource.id,
+                          );
                           const disabled =
                             !checked && continueResourceIds.length >= 6;
                           return (
@@ -1958,7 +2557,8 @@ export default function ResourcesPage() {
                     Choose resources for this goal
                   </p>
                   <p className="mt-1 text-sm">
-                    They will stay here whenever you return to continue studying.
+                    They will stay here whenever you return to continue
+                    studying.
                   </p>
                 </div>
               )}
@@ -1967,9 +2567,60 @@ export default function ResourcesPage() {
         </section>
       )}
 
+      {resourceView === "library" && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Library</h2>
+            <p className="text-sm text-muted-foreground">
+              Resources saved in Schoolar. Open, cite, assign, or remove them
+              here.
+            </p>
+          </div>
+          {!uniqueLibraryCatalog.length ? (
+            <div className="border-y py-12 text-center">
+              <BookOpen className="mx-auto mb-3 size-8 text-muted-foreground" />
+              <p className="font-medium">Your library is empty</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={() => setResourceView("search")}
+              >
+                <Search size={14} className="mr-1.5" />
+                Find resources
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {uniqueLibraryCatalog.map((resource) => (
+                <LibraryCard
+                  key={resource.id}
+                  resource={resource}
+                  onClick={() => setLocation(`/resources/${resource.id}`)}
+                  onCitation={() => openCitation(resource)}
+                  onRemove={
+                    me && resource.submittedById === me.id
+                      ? () => handleRemoveCard(resource.id, resource.title)
+                      : undefined
+                  }
+                  onAssign={
+                    isTeacher
+                      ? () =>
+                          setAssignTarget({
+                            id: resource.id,
+                            title: resource.title,
+                          })
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ── SEARCH RESULTS ────────────────────────────────────────────── */}
-      {isSearching && (
+      {resourceView === "search" && isSearching && (
         <>
           {/* Library search results */}
           {!isSourceMode && (
@@ -1979,14 +2630,14 @@ export default function ResourcesPage() {
               </h2>
               {libraryLoading ? (
                 <CardSkeletons count={3} />
-              ) : !libraryResults || libraryResults.length === 0 ? (
+              ) : uniqueLibraryResults.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
                   No library results for "{activeQuery}".
                 </p>
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {libraryResults.map((r) => (
+                    {uniqueLibraryResults.map((r) => (
                       <LibraryCard
                         key={r.id}
                         resource={r}
@@ -2004,7 +2655,7 @@ export default function ResourcesPage() {
                       />
                     ))}
                   </div>
-                  {libraryResults.length >= libraryLimit && (
+                  {uniqueLibraryResults.length >= libraryLimit && (
                     <div className="mt-4 text-center">
                       <Button
                         variant="outline"
@@ -2048,7 +2699,9 @@ export default function ResourcesPage() {
                     : "Too many searches were started at once."}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {webDailyLimited ? "Your allowance resets daily." : (
+                  {webDailyLimited ? (
+                    "Your allowance resets daily."
+                  ) : (
                     <>
                       Try again in {webRateLimitRetryAfter} second
                       {webRateLimitRetryAfter !== 1 ? "s" : ""}.
@@ -2083,7 +2736,7 @@ export default function ResourcesPage() {
               </div>
             )}
 
-            {!webError && allWebResults.length > 0 && (
+            {!webError && visibleWebResults.length > 0 && (
               <>
                 {!isSourceMode && !isLoggedIn && (
                   <p className="text-xs text-muted-foreground mb-3">
@@ -2094,21 +2747,14 @@ export default function ResourcesPage() {
                   </p>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {(isSourceMode
-                    ? allWebResults
-                        .filter(
-                          (resource) =>
-                            !hiddenSourceUrls.includes(resource.url) &&
-                            !savedLibraryUrls.has(resource.url),
-                        )
-                    : allWebResults
-                  ).map((r, i) =>
+                  {visibleWebResults.map((r, i) =>
                     isSourceMode ? (
                       <SourceCard
                         key={r.url}
                         resource={r}
                         onSave={handleSaveSource}
                         saving={addingUrl === r.url}
+                        onResearch={() => openResearch(r)}
                       />
                     ) : (
                       <WebCard
@@ -2117,6 +2763,7 @@ export default function ResourcesPage() {
                         onAdd={handleAddWeb}
                         adding={addingUrl === r.url}
                         onCitation={() => openCitation(r)}
+                        onResearch={() => openResearch(r)}
                       />
                     ),
                   )}
