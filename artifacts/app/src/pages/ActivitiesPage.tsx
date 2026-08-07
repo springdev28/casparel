@@ -691,12 +691,12 @@ export default function ActivitiesPage() {
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
-          <aside className="space-y-2">
+          <aside className="flex gap-2 overflow-x-auto pb-2 lg:block lg:space-y-2 lg:overflow-visible lg:pb-0">
             {activities.map((activity) => (
               <Card
                 key={activity.id}
                 className={cn(
-                  "cursor-pointer",
+                  "min-w-56 cursor-pointer lg:min-w-0",
                   selected?.id === activity.id && "border-primary",
                 )}
                 onClick={() => setSelectedId(activity.id)}
@@ -751,14 +751,14 @@ export default function ActivitiesPage() {
                 </div>
               </div>
 
-              <div className="inline-flex rounded-md border bg-card p-1">
+              <div className="grid w-full grid-cols-2 gap-1 rounded-md border bg-card p-1 sm:flex sm:w-auto sm:flex-wrap">
                 {modeOptions.map(([value, Icon, label]) => (
                   <button
                     key={value}
                     type="button"
                     onClick={() => setMode(value)}
                     className={cn(
-                      "flex items-center gap-2 rounded px-3 py-2 text-sm font-medium",
+                      "flex items-center justify-center gap-2 rounded px-3 py-2 text-sm font-medium",
                       mode === value
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:text-foreground",
@@ -1256,9 +1256,9 @@ export default function ActivitiesPage() {
               {formCards.map((card, index) => (
                 <div
                   key={card.id}
-                  className="grid gap-2 border-b pb-3 sm:grid-cols-[2rem_1fr_1fr_2rem]"
+                  className="grid grid-cols-[1.5rem_minmax(0,1fr)_2rem] gap-2 border-b pb-3 sm:grid-cols-[2rem_1fr_1fr_2rem]"
                 >
-                  <span className="pt-2 text-sm text-muted-foreground">
+                  <span className="row-span-2 pt-2 text-sm text-muted-foreground sm:row-span-1">
                     {index + 1}
                   </span>
                   <Input
@@ -1276,6 +1276,7 @@ export default function ActivitiesPage() {
                       updateFormCard(card.id, "answer", event.target.value)
                     }
                     placeholder="Answer"
+                    className="col-start-2 sm:col-start-auto"
                     aria-label={`Card ${index + 1} answer`}
                     maxLength={1000}
                   />
@@ -1283,6 +1284,7 @@ export default function ActivitiesPage() {
                     type="button"
                     size="icon"
                     variant="ghost"
+                    className="row-span-2 sm:row-span-1"
                     disabled={formCards.length <= 2}
                     onClick={() =>
                       setFormCards((cards) =>
