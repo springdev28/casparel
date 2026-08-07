@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS "goal_path_templates" (
   "id" serial PRIMARY KEY NOT NULL,
   "creator_id" integer NOT NULL,
   "creator_name" text NOT NULL,
+  "source_goal_id" integer NOT NULL,
   "title" text NOT NULL,
   "subject" text NOT NULL,
   "description" text,
@@ -16,5 +17,7 @@ DO $$ BEGIN
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "goal_path_templates_creator_goal_idx" ON "goal_path_templates" USING btree ("creator_id", "source_goal_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "goal_path_templates_subject_idx" ON "goal_path_templates" USING btree ("subject");
