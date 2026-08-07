@@ -505,7 +505,7 @@ export default function ForumPage() {
                 </DialogContent>
               </Dialog>
 
-              <section className="flex flex-wrap gap-2 border-y bg-background/70 py-3">
+              <section className="flex flex-wrap gap-2 rounded-md border bg-background/70 p-3 shadow-sm">
                 <div className="relative min-w-0 flex-1 basis-56">
                   <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input value={postQuery} onChange={(event) => setPostQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadPosts()} placeholder="Search the feed..." className="pl-9" />
