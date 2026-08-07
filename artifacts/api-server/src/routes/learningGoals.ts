@@ -166,19 +166,36 @@ router.post(
       .select({ name: usersTable.name })
       .from(usersTable)
       .where(eq(usersTable.id, userId));
+    const pathSteps = goal.pathSteps.map((step) => ({
+      ...step,
+      completed: false,
+    }));
     const [template] = await db
       .insert(goalPathTemplatesTable)
       .values({
         creatorId: userId,
         creatorName: creator?.name ?? "Schoolar member",
+        sourceGoalId: goal.id,
         title: goal.title,
         subject: goal.subject,
         description: goal.description,
         level: goal.level,
-        pathSteps: goal.pathSteps.map((step) => ({
-          ...step,
-          completed: false,
-        })),
+        pathSteps,
+      })
+      .onConflictDoUpdate({
+        target: [
+          goalPathTemplatesTable.creatorId,
+          goalPathTemplatesTable.sourceGoalId,
+        ],
+        set: {
+          creatorName: creator?.name ?? "Schoolar member",
+          title: goal.title,
+          subject: goal.subject,
+          description: goal.description,
+          level: goal.level,
+          pathSteps,
+          createdAt: new Date().toISOString(),
+        },
       })
       .returning();
     res.status(201).json(template);
