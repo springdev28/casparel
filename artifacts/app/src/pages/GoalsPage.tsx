@@ -7,11 +7,13 @@ import {
   CalendarPlus,
   Check,
   CheckCircle2,
+  Copy,
   Pause,
   Pencil,
   LayoutDashboard,
   Download,
   Plus,
+  Share2,
   Target,
   Trash2,
   Users,
@@ -71,6 +73,25 @@ import {
 
 import { getDashboardGoalId, setDashboardGoalId } from "../lib/dashboardGoal";
 
+type CommunityPath = {
+  id: number;
+  creatorId: number;
+  creatorName: string;
+  sourceGoalId: number;
+  title: string;
+  subject: string;
+  description: string | null;
+  level: string;
+  pathSteps: Array<{
+    id: string;
+    title: string;
+    query: string;
+    completed: boolean;
+  }>;
+  useCount: number;
+  createdAt: string;
+};
+
 function escapeStudyPackHtml(value: string) {
   return value.replace(
     /[&<>"']/g,
@@ -108,6 +129,10 @@ export default function GoalsPage() {
   const { data: goals, isLoading } = useListLearningGoals({
     query: { queryKey: getListLearningGoalsQueryKey() },
   });
+  const [communityPaths, setCommunityPaths] = useState<CommunityPath[]>([]);
+  const [communityPathsLoading, setCommunityPathsLoading] = useState(false);
+  const [sharingGoalId, setSharingGoalId] = useState<number | null>(null);
+  const [cloningPathId, setCloningPathId] = useState<number | null>(null);
   const libraryParams = { limit: 50, offset: 0 };
   const { data: libraryResources } = useListResources(libraryParams, {
     query: {
@@ -119,6 +144,29 @@ export default function GoalsPage() {
   const updateGoal = useUpdateLearningGoal();
   const deleteGoal = useDeleteLearningGoal();
   const [open, setOpen] = useState(false);
+
+  async function refreshCommunityPaths() {
+    if (!me?.id) return;
+    setCommunityPathsLoading(true);
+    try {
+      const response = await fetch("/api/learning-goal-templates");
+      if (!response.ok) throw new Error("Could not load community paths");
+      setCommunityPaths((await response.json()) as CommunityPath[]);
+    } catch (error) {
+      toast({
+        title: "Could not load community paths",
+        description:
+          error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setCommunityPathsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (me?.id) void refreshCommunityPaths();
+  }, [me?.id]);
   const [newStepTitles, setNewStepTitles] = useState<Record<number, string>>({});
   const [form, setForm] = useState({
     title: "",
@@ -255,6 +303,67 @@ export default function GoalsPage() {
     if (!confirm("Delete this learning goal?")) return;
     await deleteGoal.mutateAsync({ id });
     await refresh();
+  }
+
+  async function shareGoalPath(goal: LearningGoal) {
+    setSharingGoalId(goal.id);
+    try {
+      const response = await fetch("/api/learning-goal-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goalId: goal.id }),
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(result.error ?? "Could not share this path");
+      }
+      await refreshCommunityPaths();
+      toast({
+        title: "Community path shared",
+        description: "Other learners can now clone this checklist.",
+      });
+    } catch (error) {
+      toast({
+        title: "Could not share path",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSharingGoalId(null);
+    }
+  }
+
+  async function cloneCommunityPath(path: CommunityPath) {
+    setCloningPathId(path.id);
+    try {
+      const response = await fetch(
+        `/api/learning-goal-templates/${path.id}/clone`,
+        { method: "POST" },
+      );
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(result.error ?? "Could not clone this path");
+      }
+      await Promise.all([refresh(), refreshCommunityPaths()]);
+      toast({
+        title: "Path added to your goals",
+        description: `You can now personalize “${path.title}”.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Could not use community path",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCloningPathId(null);
+    }
   }
 
   function downloadStudyPack(goal: LearningGoal) {
@@ -507,6 +616,75 @@ export default function GoalsPage() {
           )}
         </section>
       )}
+      <section className="space-y-4 border-y py-5" data-testid="community-study-paths">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <Share2 className="size-5 text-primary" /> Community study paths
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Reuse checklists shared by students and teachers, then personalize
+            your own copy.
+          </p>
+        </div>
+        {communityPathsLoading ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            {[1, 2, 3].map((item) => (
+              <Skeleton key={item} className="h-48" />
+            ))}
+          </div>
+        ) : communityPaths.length ? (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {communityPaths.slice(0, 9).map((path) => (
+              <Card key={path.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">{path.subject}</Badge>
+                    <Badge variant="outline" className="capitalize">
+                      {path.level}
+                    </Badge>
+                  </div>
+                  <CardTitle className="mt-2 text-base">{path.title}</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Shared by {path.creatorName} · Used {path.useCount} times
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {path.description && (
+                    <p className="line-clamp-2 text-sm text-muted-foreground">
+                      {path.description}
+                    </p>
+                  )}
+                  <ol className="space-y-1 text-sm">
+                    {path.pathSteps.slice(0, 4).map((step, index) => (
+                      <li key={step.id} className="flex gap-2">
+                        <span className="text-muted-foreground">{index + 1}.</span>
+                        <span className="line-clamp-1">{step.title}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    disabled={cloningPathId === path.id}
+                    onClick={() => cloneCommunityPath(path)}
+                  >
+                    <Copy className="mr-2 size-4" />
+                    {cloningPathId === path.id ? "Adding…" : "Use this path"}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="border-y py-8 text-center">
+            <p className="font-medium">No community paths yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Share one of your goals to start the community library.
+            </p>
+          </div>
+        )}
+      </section>
+
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {[1, 2, 3, 4].map((item) => (
@@ -576,6 +754,24 @@ export default function GoalsPage() {
                     <Button type="button" size="sm" variant={dashboardGoalId === goal.id ? "default" : "outline"} onClick={() => { if (!me?.id || !workspaceRole) return; setDashboardGoalId(me.id, workspaceRole, goal.id); setDashboardGoal(goal.id); toast({ title: "Dashboard goal updated", description: goal.title + " will drive your dashboard and check-ins." }); }}><LayoutDashboard className="mr-2 size-4" />{dashboardGoalId === goal.id ? "Displayed on dashboard" : "Display on dashboard"}</Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => downloadStudyPack(goal)}>
                       <Download className="mr-2 size-4" /> Download study pack
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={sharingGoalId === goal.id}
+                      onClick={() => shareGoalPath(goal)}
+                    >
+                      <Share2 className="mr-2 size-4" />
+                      {sharingGoalId === goal.id
+                        ? "Sharing…"
+                        : communityPaths.some(
+                              (path) =>
+                                path.creatorId === me?.id &&
+                                path.sourceGoalId === goal.id,
+                            )
+                          ? "Update shared path"
+                          : "Share path"}
                     </Button>
                   </div>
                   {goal.description && (
