@@ -69,6 +69,27 @@ function resourceSearch(query: string) {
   return `/resources?goal=${encodeURIComponent(query)}&subject=Mathematics`;
 }
 
+function reviewIntervalDays(confidence: number, understanding: number) {
+  if (confidence <= 1 || understanding <= 1) return 1;
+  if (confidence === 2 || understanding === 2) return 3;
+  if (understanding === 3) return 7;
+  return 14;
+}
+
+function formatReviewTiming(dueAt: number, now: number) {
+  const days = Math.ceil((dueAt - now) / 86_400_000);
+  if (days <= 0) return "Review due";
+  if (days === 1) return "Review tomorrow";
+  return `Review in ${days} days`;
+}
+
+function resourceEffectiveness(avgRating: number, reviewCount: number) {
+  if (reviewCount <= 0) return null;
+  const ratingSignal = Math.max(0, Math.min(1, avgRating / 5));
+  const confidenceSignal = Math.min(reviewCount, 10) / 10;
+  return Math.round((ratingSignal * 0.7 + confidenceSignal * 0.3) * 100);
+}
+
 const checkIns = [
   {
     concept: "Equivalent fractions",
@@ -175,13 +196,54 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
         resource !== undefined,
     );
   const goalEvidence = evidence?.filter((item) => item.learningGoalId === activeGoal?.id) ?? [];
+  const reviewSchedule = useMemo(() => {
+    const now = Date.now();
+    return path.map((step) => {
+      const latestEvidence = goalEvidence
+        .filter((item) => item.concept === step.title)
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        )[0];
+      if (!latestEvidence) {
+        return {
+          step,
+          latestEvidence: undefined,
+          dueAt: now,
+          dueNow: true,
+          label: "Check in now",
+        };
+      }
+      const dueAt =
+        new Date(latestEvidence.createdAt).getTime() +
+        reviewIntervalDays(
+          latestEvidence.confidence,
+          latestEvidence.understanding,
+        ) *
+          86_400_000;
+      return {
+        step,
+        latestEvidence,
+        dueAt,
+        dueNow: dueAt <= now,
+        label: formatReviewTiming(dueAt, now),
+      };
+    });
+  }, [goalEvidence, path]);
   const answeredCount = goalEvidence.length;
   const [checkIn, setCheckIn] = useState<{ concept: string; prompt: string } | null>(null);
   const [needsContinuation, setNeedsContinuation] = useState(false);
   const [answeredThisVisit, setAnsweredThisVisit] = useState(false);
   function createNextCheckIn() {
     if (!activeGoal || !userId || !workspaceRole) return;
-    const step = activeGoal.pathSteps[answeredCount % Math.max(activeGoal.pathSteps.length, 1)];
+    const dueStep = reviewSchedule
+      .filter((item) => item.dueNow)
+      .sort((a, b) => a.dueAt - b.dueAt)[0]?.step;
+    const step =
+      dueStep ??
+      activeGoal.pathSteps[
+        answeredCount % Math.max(activeGoal.pathSteps.length, 1)
+      ];
     const next = step ? { concept: step.title, prompt: `How confident are you with “${step.title}”?` } : { concept: activeGoal.title, prompt: `How confident are you that you achieved “${activeGoal.title}”?` };
     localStorage.setItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id), JSON.stringify(next));
     setCheckIn(next);
@@ -264,6 +326,12 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                       <p className="truncate font-semibold">{resource.title}</p>
                       <p className="text-sm text-muted-foreground">
                         {resource.subject} · {resource.format}
+                        {resourceEffectiveness(
+                          resource.avgRating,
+                          resource.reviewCount,
+                        ) === null
+                          ? " · New resource"
+                          : ` · ${resourceEffectiveness(resource.avgRating, resource.reviewCount)}% evidence score`}
                       </p>
                     </div>
                     <Button
@@ -382,6 +450,9 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
             {path.map((step, i) => {
               const isComplete = completedSteps.has(step.concept);
               const isNext = !isComplete && i === nextStepIndex;
+              const review = reviewSchedule.find(
+                (item) => item.step.id === step.id,
+              );
               return (
                 <button
                   key={step.title}
@@ -403,7 +474,9 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                   </div>
                   <div className="flex-1">
                     <b className="text-sm">{step.title}</b>
-                    <p className="text-xs text-muted-foreground">{step.type}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {step.type} · {review?.label ?? "Check in now"}
+                    </p>
                   </div>
                   {isComplete ? (
                     <Badge variant="outline">Complete</Badge>
@@ -422,29 +495,72 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
             <div className="flex gap-3">
               <Network className="text-primary" />
               <div>
-                <b>Class knowledge map</b>
+                <b>Learning evidence map</b>
                 <p className="text-xs text-muted-foreground">
-                  Connect ideas, resources, and questions.
+                  Your goal, concepts, check-ins, and study resources.
                 </p>
               </div>
             </div>
-            <div className="relative my-5 h-44 rounded-xl border bg-muted/30">
-              <span className="absolute left-[34%] top-[38%] rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground">
-                Fractions
-              </span>
-              <span className="absolute left-3 top-4 rounded-full border bg-card px-3 py-2 text-xs">
-                Parts of a whole
-              </span>
-              <span className="absolute bottom-4 right-3 rounded-full border bg-card px-3 py-2 text-xs">
-                Equivalent values
-              </span>
+            <div className="my-5 space-y-3">
+              <div className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-bold text-primary-foreground">
+                {activeGoal?.title ?? "No active goal"}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {reviewSchedule.slice(0, 6).map(({ step, latestEvidence, label }) => {
+                  const status =
+                    !latestEvidence
+                      ? "Needs evidence"
+                      : latestEvidence.understanding >= 3
+                        ? "Strong evidence"
+                        : "Building";
+                  return (
+                    <div
+                      key={step.id}
+                      className="flex min-w-0 items-start gap-2 border-b py-2"
+                    >
+                      <span
+                        className={cn(
+                          "mt-1.5 size-2.5 shrink-0 rounded-full",
+                          !latestEvidence
+                            ? "bg-muted-foreground"
+                            : latestEvidence.understanding >= 3
+                              ? "bg-emerald-500"
+                              : "bg-amber-500",
+                        )}
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {step.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {status} · {label}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {!reviewSchedule.length && (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  Add path steps to begin collecting learning evidence.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {goalEvidence.length} check-ins · {continueResources.length} selected resources
+              </p>
             </div>
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => setLocation("/classes")}
+              onClick={() =>
+                setLocation(
+                  activeGoal
+                    ? `/resources?goal=${encodeURIComponent(activeGoal.title)}#continue-studying`
+                    : "/goals",
+                )
+              }
             >
-              Explore class map
+              {activeGoal ? "Manage study resources" : "Create a learning goal"}
             </Button>
           </CardContent>
         </Card>
