@@ -10,6 +10,7 @@ import {
   Pause,
   Pencil,
   LayoutDashboard,
+  Download,
   Plus,
   Target,
   Trash2,
@@ -49,6 +50,7 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import {
   getListLearningGoalsQueryKey,
+  getListResourcesQueryKey,
   LearningGoalInputLevel,
   LearningGoalStatus,
   UserRole,
@@ -56,6 +58,7 @@ import {
   useDeleteLearningGoal,
   useGetMe,
   useListLearningGoals,
+  useListResources,
   useUpdateLearningGoal,
   useListClasses,
   useListClassStudentGoals,
@@ -67,6 +70,21 @@ import {
 } from "@workspace/api-client-react";
 
 import { getDashboardGoalId, setDashboardGoalId } from "../lib/dashboardGoal";
+
+function escapeStudyPackHtml(value: string) {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[character] ?? character,
+  );
+}
+
 export default function GoalsPage() {
   const client = useQueryClient();
   const { data: me } = useGetMe();
@@ -89,6 +107,13 @@ export default function GoalsPage() {
   }, [me?.id, workspaceRole]);
   const { data: goals, isLoading } = useListLearningGoals({
     query: { queryKey: getListLearningGoalsQueryKey() },
+  });
+  const libraryParams = { limit: 50, offset: 0 };
+  const { data: libraryResources } = useListResources(libraryParams, {
+    query: {
+      enabled: Boolean(me?.id),
+      queryKey: getListResourcesQueryKey(libraryParams),
+    },
   });
   const createGoal = useCreateLearningGoal();
   const updateGoal = useUpdateLearningGoal();
@@ -230,6 +255,58 @@ export default function GoalsPage() {
     if (!confirm("Delete this learning goal?")) return;
     await deleteGoal.mutateAsync({ id });
     await refresh();
+  }
+
+  function downloadStudyPack(goal: LearningGoal) {
+    const selectedIds = (() => {
+      if (!me?.id) return [] as number[];
+      try {
+        const parsed = JSON.parse(
+          localStorage.getItem(
+            `schoolar_continue_studying:${me.id}:${goal.id}`,
+          ) ?? "[]",
+        ) as unknown;
+        return Array.isArray(parsed)
+          ? parsed.filter((id): id is number => Number.isInteger(id))
+          : [];
+      } catch {
+        return [] as number[];
+      }
+    })();
+    const resources = selectedIds
+      .map((id) => libraryResources?.find((resource) => resource.id === id))
+      .filter(
+        (resource): resource is NonNullable<typeof resource> =>
+          resource !== undefined,
+      );
+    const steps = goal.pathSteps
+      .map(
+        (step) =>
+          `<li><span class="box">${step.completed ? "✓" : ""}</span> ${escapeStudyPackHtml(step.title)}</li>`,
+      )
+      .join("");
+    const resourceLinks = resources.length
+      ? resources
+          .map(
+            (resource) =>
+              `<li><a href="${escapeStudyPackHtml(resource.url)}">${escapeStudyPackHtml(resource.title)}</a><small>${escapeStudyPackHtml(resource.subject)} · ${escapeStudyPackHtml(resource.format)}</small></li>`,
+          )
+          .join("")
+      : "<li>No library resources selected yet.</li>";
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeStudyPackHtml(goal.title)} study pack</title><style>body{font:16px system-ui;max-width:760px;margin:40px auto;padding:0 20px;color:#172033}h1{color:#006f7a}section{margin:28px 0}li{margin:12px 0}.box{display:inline-flex;width:20px;height:20px;border:2px solid #0b8793;align-items:center;justify-content:center}a{color:#006f7a;font-weight:600}small{display:block;color:#596273;margin-left:28px}@media print{body{margin:0}}</style></head><body><p>Schoolar offline study pack</p><h1>${escapeStudyPackHtml(goal.title)}</h1><p><strong>${escapeStudyPackHtml(goal.subject)}</strong> · ${escapeStudyPackHtml(goal.level)}</p>${goal.description ? `<p>${escapeStudyPackHtml(goal.description)}</p>` : ""}<section><h2>Learning path</h2><ol>${steps}</ol></section><section><h2>Selected resources</h2><ul>${resourceLinks}</ul></section><p><small>Generated from Schoolar. Links require an internet connection; the learning path remains available offline.</small></p></body></html>`;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download =
+      goal.title.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") +
+      "-study-pack.html";
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast({
+      title: "Offline study pack downloaded",
+      description: `${goal.pathSteps.length} steps and ${resources.length} selected resources included.`,
+    });
   }
 
   return (
@@ -495,7 +572,12 @@ export default function GoalsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Button type="button" size="sm" variant={dashboardGoalId === goal.id ? "default" : "outline"} onClick={() => { if (!me?.id || !workspaceRole) return; setDashboardGoalId(me.id, workspaceRole, goal.id); setDashboardGoal(goal.id); toast({ title: "Dashboard goal updated", description: goal.title + " will drive your dashboard and check-ins." }); }}><LayoutDashboard className="mr-2 size-4" />{dashboardGoalId === goal.id ? "Displayed on dashboard" : "Display on dashboard"}</Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" size="sm" variant={dashboardGoalId === goal.id ? "default" : "outline"} onClick={() => { if (!me?.id || !workspaceRole) return; setDashboardGoalId(me.id, workspaceRole, goal.id); setDashboardGoal(goal.id); toast({ title: "Dashboard goal updated", description: goal.title + " will drive your dashboard and check-ins." }); }}><LayoutDashboard className="mr-2 size-4" />{dashboardGoalId === goal.id ? "Displayed on dashboard" : "Display on dashboard"}</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => downloadStudyPack(goal)}>
+                      <Download className="mr-2 size-4" /> Download study pack
+                    </Button>
+                  </div>
                   {goal.description && (
                     <p className="text-sm text-muted-foreground">
                       {goal.description}
