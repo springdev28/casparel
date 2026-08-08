@@ -105,6 +105,15 @@ import {
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
 const RESOURCE_SEARCH_STATE_KEY = "schoolar_resource_search_state";
+const MULTIPART_SOURCE_SUFFIXES = new Set([
+  "ac.uk",
+  "co.uk",
+  "gov.uk",
+  "com.tr",
+  "edu.tr",
+  "gov.tr",
+  "org.tr",
+]);
 
 function canonicalSearchUrl(value: string) {
   try {
@@ -134,63 +143,80 @@ function titleWords(value: string) {
     "with",
     "lesson",
     "video",
+    "pdf",
+    "ebook",
   ]);
   return value
     .toLocaleLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter((word) => word.length > 1 && !ignored.has(word));
+    .filter(
+      (word) =>
+        (word.length > 1 || /^\d+$/.test(word)) && !ignored.has(word),
+    );
 }
 
-function dedupeDiscoveredResources(items: DiscoveredResource[]) {
-  const kept: DiscoveredResource[] = [];
+function sourceFamily(value: string) {
+  try {
+    const host = new URL(value).hostname.replace(/^www\./, "").toLowerCase();
+    const parts = host.split(".");
+    const suffix = parts.slice(-2).join(".");
+    const size = MULTIPART_SOURCE_SUFFIXES.has(suffix) ? 3 : 2;
+    return parts.length > size ? parts.slice(-size).join(".") : host;
+  } catch {
+    return "";
+  }
+}
+
+function isResourceCollection(title: string) {
+  return /\b(course|curriculum|playlist|series|syllabus|learning path)\b/i.test(
+    title,
+  );
+}
+
+function isSameResourceWork(
+  first: { title: string; url: string },
+  second: { title: string; url: string },
+) {
+  if (canonicalSearchUrl(first.url) === canonicalSearchUrl(second.url))
+    return true;
+  const firstDomain = sourceFamily(first.url);
+  if (!firstDomain || firstDomain !== sourceFamily(second.url)) return false;
+  const firstWords = titleWords(first.title);
+  const secondWords = titleWords(second.title);
+  const overlap = firstWords.filter((word) =>
+    secondWords.includes(word),
+  ).length;
+  const similarity =
+    overlap / Math.max(1, Math.min(firstWords.length, secondWords.length));
+  return (
+    similarity >= 0.8 ||
+    ((isResourceCollection(first.title) ||
+      isResourceCollection(second.title)) &&
+      overlap >= 2)
+  );
+}
+
+function dedupeResourcesByWork<T extends { title: string; url: string }>(
+  items: T[],
+) {
+  const kept: T[] = [];
   for (const item of items) {
-    const url = canonicalSearchUrl(item.url);
-    let domain = "";
-    try {
-      domain = new URL(item.url).hostname.replace(/^www\./, "");
-    } catch {
-      /* use URL-only matching */
-    }
-    const words = titleWords(item.title);
-    const collection =
-      /\b(course|curriculum|playlist|series|syllabus|learning path)\b/i.test(
-        item.title,
-      );
-    const duplicateIndex = kept.findIndex((candidate) => {
-      if (canonicalSearchUrl(candidate.url) === url) return true;
-      let candidateDomain = "";
-      try {
-        candidateDomain = new URL(candidate.url).hostname.replace(/^www\./, "");
-      } catch {
-        return false;
-      }
-      if (!domain || candidateDomain !== domain) return false;
-      const candidateWords = titleWords(candidate.title);
-      const overlap = words.filter((word) =>
-        candidateWords.includes(word),
-      ).length;
-      const similarity =
-        overlap / Math.max(1, Math.min(words.length, candidateWords.length));
-      const candidateCollection =
-        /\b(course|curriculum|playlist|series|syllabus|learning path)\b/i.test(
-          candidate.title,
-        );
-      return (
-        similarity >= 0.8 ||
-        ((collection || candidateCollection) && overlap >= 2)
-      );
-    });
+    const duplicateIndex = kept.findIndex((candidate) =>
+      isSameResourceWork(candidate, item),
+    );
     if (duplicateIndex < 0) kept.push(item);
     else if (
-      collection &&
-      !/\b(course|curriculum|playlist|series|syllabus|learning path)\b/i.test(
-        kept[duplicateIndex].title,
-      )
+      isResourceCollection(item.title) &&
+      !isResourceCollection(kept[duplicateIndex].title)
     )
       kept[duplicateIndex] = item;
   }
   return kept;
+}
+
+function dedupeDiscoveredResources(items: DiscoveredResource[]) {
+  return dedupeResourcesByWork(items);
 }
 
 function storedResourceSearch() {
@@ -1211,22 +1237,8 @@ export default function ResourcesPage() {
       queryKey: getListResourcesQueryKey(libraryCatalogParams),
     },
   });
-  const uniqueLibraryCatalog = (libraryCatalog ?? []).filter(
-    (resource, index, items) =>
-      items.findIndex(
-        (candidate) =>
-          canonicalSearchUrl(candidate.url) ===
-          canonicalSearchUrl(resource.url),
-      ) === index,
-  );
-  const uniqueLibraryResults = (libraryResults ?? []).filter(
-    (resource, index, items) =>
-      items.findIndex(
-        (candidate) =>
-          canonicalSearchUrl(candidate.url) ===
-          canonicalSearchUrl(resource.url),
-      ) === index,
-  );
+  const uniqueLibraryCatalog = dedupeResourcesByWork(libraryCatalog ?? []);
+  const uniqueLibraryResults = dedupeResourcesByWork(libraryResults ?? []);
   const savedLibraryUrls = new Set(
     (libraryCatalog ?? [])
       .filter((resource) => resource.submittedById === me?.id)
@@ -1235,7 +1247,10 @@ export default function ResourcesPage() {
   const visibleWebResults = dedupeDiscoveredResources(allWebResults).filter(
     (resource) =>
       !hiddenSourceUrls.includes(resource.url) &&
-      !savedLibraryUrls.has(canonicalSearchUrl(resource.url)),
+      !savedLibraryUrls.has(canonicalSearchUrl(resource.url)) &&
+      !uniqueLibraryResults.some((libraryResource) =>
+        isSameResourceWork(libraryResource, resource),
+      ),
   );
 
   const activeLearningGoals = (learningGoals ?? []).filter(
