@@ -75,7 +75,10 @@ export const tokens = {
   },
   "fontFamily": {
     "sans": [
-      "Plus Jakarta Sans",
+      "Space Grotesk",
+      "Inter",
+      "ui-sans-serif",
+      "system-ui",
       "sans-serif"
     ],
     "serif": [

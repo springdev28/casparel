@@ -147,7 +147,7 @@
   --chart-4: 262 83.3% 57.8%;
   --chart-5: 161 93.5% 30.4%;
 
-  --app-font-sans: Plus Jakarta Sans, sans-serif;
+  --app-font-sans: Space Grotesk, Inter, ui-sans-serif, system-ui, sans-serif;
   --app-font-serif: Source Serif 4, serif;
   --app-font-mono: JetBrains Mono, monospace;
   --radius: 0.5rem;
