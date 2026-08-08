@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useGetAdminOverview, useGetMe } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -10,16 +10,37 @@ import {
 import { Input } from "@workspace/edu-ds/components/ui/input";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/edu-ds/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@workspace/edu-ds/components/ui/tabs";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import {
   Activity,
   Ban,
   BarChart3,
   BookOpen,
+  CalendarDays,
   DollarSign,
+  ExternalLink,
+  FileText,
+  GraduationCap,
+  Layers3,
+  Loader2,
   RotateCcw,
+  School,
   Search,
   SearchCheck,
+  Settings2,
   ShieldCheck,
   Sparkles,
   Target,
@@ -49,6 +70,85 @@ type AdminUser = {
   bannedReason: string | null;
   createdAt: string;
 };
+
+type AdminWorkItem = {
+  id: number;
+  title?: string | null;
+  name?: string | null;
+  concept?: string | null;
+  body?: string | null;
+  description?: string | null;
+  instructions?: string | null;
+  reflection?: string | null;
+  notes?: string | null;
+  subject?: string | null;
+  status?: string | null;
+  moderationStatus?: string | null;
+  format?: string | null;
+  kind?: string | null;
+  url?: string | null;
+  classId?: number | null;
+  cards?: Array<{ id: string; term: string; answer: string; imageAlt?: string | null; hasImage: boolean }>;
+  nodes?: Array<{ kind: string; title: string; text?: string; url?: string }>;
+  connectionCount?: number;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  startsAt?: string | null;
+  dueAt?: string | null;
+  date?: string | null;
+};
+
+type AdminUserDetails = {
+  user: AdminUser;
+  affiliations: {
+    ownedClasses: Array<{ id: number; name: string; subject: string; gradeLevel: string; createdAt: string }>;
+    classMemberships: Array<{ classId: number; name: string; subject: string; gradeLevel: string; role: string; teacherNote: string | null; joinedAt: string }>;
+    canvasCollaborations: Array<{ canvasId: number; title: string; role: string; addedAt: string }>;
+  };
+  work: Record<AdminWorkCategory, AdminWorkItem[]>;
+};
+
+type AdminWorkCategory =
+  | "goals"
+  | "resources"
+  | "materials"
+  | "posts"
+  | "comments"
+  | "activities"
+  | "canvases"
+  | "lists"
+  | "assignments"
+  | "schedule"
+  | "studySessions"
+  | "learningEvidence";
+
+const workCategories: Array<{ key: AdminWorkCategory; label: string }> = [
+  { key: "goals", label: "Goals" },
+  { key: "resources", label: "Resources" },
+  { key: "materials", label: "Forum materials" },
+  { key: "posts", label: "Posts" },
+  { key: "comments", label: "Comments" },
+  { key: "activities", label: "Activities" },
+  { key: "canvases", label: "Canvases" },
+  { key: "lists", label: "Lists" },
+  { key: "assignments", label: "Assignments" },
+  { key: "schedule", label: "Schedule" },
+  { key: "studySessions", label: "Study sessions" },
+  { key: "learningEvidence", label: "Learning evidence" },
+];
+
+function workItemName(item: AdminWorkItem) {
+  return item.title || item.name || item.concept || item.body || "Untitled item";
+}
+
+function workItemDescription(item: AdminWorkItem) {
+  return item.description || item.instructions || item.reflection || item.notes || item.body || "";
+}
+
+function workItemDate(item: AdminWorkItem) {
+  const value = item.updatedAt || item.createdAt || item.startsAt || item.dueAt || item.date;
+  return value ? new Date(value).toLocaleString() : null;
+}
 
 const metrics = [
   { key: "users", label: "Total accounts", icon: Users },
@@ -88,6 +188,9 @@ export default function AdminPage() {
   const [query, setQuery] = useState("");
   const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
+  const [managedUser, setManagedUser] = useState<AdminUser | null>(null);
+  const [managedDetails, setManagedDetails] = useState<AdminUserDetails | null>(null);
+  const [managedDetailsLoading, setManagedDetailsLoading] = useState(false);
 
   async function loadUsers() {
     setUsersLoading(true);
@@ -118,6 +221,29 @@ export default function AdminPage() {
     );
   }, [query, users]);
 
+  async function manageAccount(user: AdminUser) {
+    setManagedUser(user);
+    setManagedDetails(null);
+    setManagedDetailsLoading(true);
+    try {
+      setManagedDetails((await adminRequest("/admin/users/" + user.id + "/details")) as AdminUserDetails);
+    } catch (loadError) {
+      toast({
+        title: "Could not load account work",
+        description: loadError instanceof Error ? loadError.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setManagedDetailsLoading(false);
+    }
+  }
+
+  function applyUpdatedUser(updated: AdminUser) {
+    setUsers((current) => current.map((item) => item.id === updated.id ? updated : item));
+    setManagedUser((current) => current?.id === updated.id ? updated : current);
+    setManagedDetails((current) => current?.user.id === updated.id ? { ...current, user: updated } : current);
+  }
+
   async function banUser(user: AdminUser) {
     const reason = window.prompt("Reason for banning this account:", user.bannedReason ?? "");
     if (reason === null) return;
@@ -127,7 +253,7 @@ export default function AdminPage() {
         method: "PATCH",
         body: JSON.stringify({ reason }),
       })) as AdminUser;
-      setUsers((current) => current.map((item) => item.id === user.id ? updated : item));
+      applyUpdatedUser(updated);
       toast({ title: user.name + " was banned" });
     } catch (actionError) {
       toast({
@@ -146,7 +272,7 @@ export default function AdminPage() {
       const updated = (await adminRequest("/admin/users/" + user.id + "/ban", {
         method: "DELETE",
       })) as AdminUser;
-      setUsers((current) => current.map((item) => item.id === user.id ? updated : item));
+      applyUpdatedUser(updated);
       toast({ title: user.name + " was unbanned" });
     } catch (actionError) {
       toast({
@@ -166,7 +292,7 @@ export default function AdminPage() {
         method: "PATCH",
         body: JSON.stringify({ verified }),
       })) as AdminUser;
-      setUsers((current) => current.map((item) => item.id === user.id ? updated : item));
+      applyUpdatedUser(updated);
       toast({ title: user.name + (verified ? " is now a verified teacher" : " is no longer verified") });
     } catch (actionError) {
       toast({
@@ -245,8 +371,8 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {filteredUsers.map((user) => (
-                  <>
-                    <tr key={user.id} className="border-b last:border-0">
+                  <Fragment key={user.id}>
+                    <tr className="border-b last:border-0">
                       <td className="py-3">
                         <button type="button" className="text-left" onClick={() => setExpandedUserId((id) => id === user.id ? null : user.id)}>
                           <p className="font-medium hover:underline">{user.name}</p>
@@ -259,6 +385,9 @@ export default function AdminPage() {
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Badge variant={user.bannedAt ? "destructive" : "secondary"}>{user.bannedAt ? "Banned" : "Active"}</Badge>
+                          <Button size="sm" variant="outline" onClick={() => void manageAccount(user)}>
+                            <Settings2 className="mr-1 size-3.5" /> Manage account
+                          </Button>
                           {user.role === "teacher" && (
                             <Button size="sm" variant="outline" onClick={() => setTeacherVerification(user, !user.teacherVerified)} disabled={busyUserId === user.id}>
                               <ShieldCheck className="mr-1 size-3.5" /> {user.teacherVerified ? "Remove verification" : "Verify teacher"}
@@ -279,7 +408,7 @@ export default function AdminPage() {
                       </td>
                     </tr>
                     {expandedUserId === user.id && (
-                      <tr key={user.id + "-details"} className="border-b bg-muted/30">
+                      <tr className="border-b bg-muted/30">
                         <td colSpan={5} className="p-4">
                           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                             <div><p className="text-xs font-medium text-muted-foreground">Bio</p><p>{user.bio || "Not set"}</p></div>
@@ -295,7 +424,7 @@ export default function AdminPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -303,6 +432,190 @@ export default function AdminPage() {
           {!usersLoading && filteredUsers.length === 0 && <p className="py-8 text-center text-muted-foreground">No matching accounts.</p>}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={managedUser !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setManagedUser(null);
+            setManagedDetails(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92dvh] max-w-6xl overflow-hidden p-0">
+          <DialogHeader className="border-b px-5 py-4 pr-12">
+            <DialogTitle className="flex flex-wrap items-center gap-2">
+              <span>{managedUser?.name ?? "Manage account"}</span>
+              {managedUser ? <Badge variant={managedUser.bannedAt ? "destructive" : "secondary"}>{managedUser.bannedAt ? "Banned" : "Active"}</Badge> : null}
+            </DialogTitle>
+            <DialogDescription>{managedUser?.email} · Full administrator view</DialogDescription>
+          </DialogHeader>
+
+          {managedDetailsLoading ? (
+            <div className="flex min-h-72 items-center justify-center">
+              <Loader2 className="size-6 animate-spin text-primary" />
+            </div>
+          ) : managedDetails ? (
+            <Tabs defaultValue="profile" className="min-h-0 px-5 pb-5">
+              <TabsList className="mt-4 grid h-auto w-full grid-cols-2 sm:grid-cols-4">
+                <TabsTrigger value="profile"><FileText className="mr-2 size-4" />Profile</TabsTrigger>
+                <TabsTrigger value="affiliations"><School className="mr-2 size-4" />Affiliations</TabsTrigger>
+                <TabsTrigger value="work"><Layers3 className="mr-2 size-4" />Work</TabsTrigger>
+                <TabsTrigger value="account"><Settings2 className="mr-2 size-4" />Account</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="profile" className="max-h-[65dvh] overflow-y-auto pt-4">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    ["Role", `${managedDetails.user.role} (${managedDetails.user.activeRole})`],
+                    ["Bio", managedDetails.user.bio || "Not set"],
+                    ["Subjects", managedDetails.user.subjects?.join(", ") || "Not set"],
+                    ["Grade / department", managedDetails.user.gradeOrDept || "Not set"],
+                    ["Timezone", managedDetails.user.timezone || "Not set"],
+                    ["Website", managedDetails.user.websiteUrl || "Not set"],
+                    ["Profile visibility", managedDetails.user.profileVisibility],
+                    ["Library visibility", managedDetails.user.libraryVisibility],
+                    ["Joined", new Date(managedDetails.user.createdAt).toLocaleString()],
+                  ].map(([label, value]) => (
+                    <section key={label} className="min-w-0 border p-4" style={{ borderRadius: 8 }}>
+                      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                      <p className="mt-1 break-words text-sm capitalize">{value}</p>
+                    </section>
+                  ))}
+                </div>
+                <section className="mt-4 border p-4" style={{ borderRadius: 8 }}>
+                  <p className="text-xs font-medium text-muted-foreground">Privacy field settings</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Badge variant="outline">Bio: {managedDetails.user.showBio ? "visible" : "hidden"}</Badge>
+                    <Badge variant="outline">Subjects: {managedDetails.user.showSubjects ? "visible" : "hidden"}</Badge>
+                    <Badge variant="outline">Grade: {managedDetails.user.showGradeOrDept ? "visible" : "hidden"}</Badge>
+                    <Badge variant="outline">Website: {managedDetails.user.showWebsite ? "visible" : "hidden"}</Badge>
+                  </div>
+                </section>
+              </TabsContent>
+
+              <TabsContent value="affiliations" className="max-h-[65dvh] space-y-5 overflow-y-auto pt-4">
+                <section>
+                  <div className="mb-2 flex items-center gap-2"><GraduationCap className="size-4 text-primary" /><h3 className="font-semibold">Classes owned ({managedDetails.affiliations.ownedClasses.length})</h3></div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {managedDetails.affiliations.ownedClasses.map((item) => (
+                      <div key={item.id} className="border p-3" style={{ borderRadius: 8 }}>
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-muted-foreground">{item.subject} · {item.gradeLevel}</p>
+                      </div>
+                    ))}
+                    {!managedDetails.affiliations.ownedClasses.length ? <p className="text-sm text-muted-foreground">No owned classes.</p> : null}
+                  </div>
+                </section>
+                <section>
+                  <div className="mb-2 flex items-center gap-2"><Users className="size-4 text-primary" /><h3 className="font-semibold">Class memberships ({managedDetails.affiliations.classMemberships.length})</h3></div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {managedDetails.affiliations.classMemberships.map((item) => (
+                      <div key={item.classId} className="border p-3" style={{ borderRadius: 8 }}>
+                        <div className="flex items-start justify-between gap-2"><p className="font-medium">{item.name}</p><Badge variant="outline" className="capitalize">{item.role}</Badge></div>
+                        <p className="text-sm text-muted-foreground">{item.subject} · {item.gradeLevel}</p>
+                        <p className="mt-2 text-xs"><span className="font-medium text-muted-foreground">Private member note:</span> {item.teacherNote || "None"}</p>
+                      </div>
+                    ))}
+                    {!managedDetails.affiliations.classMemberships.length ? <p className="text-sm text-muted-foreground">No class memberships.</p> : null}
+                  </div>
+                </section>
+                <section>
+                  <div className="mb-2 flex items-center gap-2"><Layers3 className="size-4 text-primary" /><h3 className="font-semibold">Canvas collaborations ({managedDetails.affiliations.canvasCollaborations.length})</h3></div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {managedDetails.affiliations.canvasCollaborations.map((item) => (
+                      <div key={item.canvasId} className="flex items-center justify-between gap-3 border p-3" style={{ borderRadius: 8 }}>
+                        <p className="min-w-0 truncate font-medium">{item.title}</p><Badge variant="outline" className="capitalize">{item.role}</Badge>
+                      </div>
+                    ))}
+                    {!managedDetails.affiliations.canvasCollaborations.length ? <p className="text-sm text-muted-foreground">No canvas collaborations.</p> : null}
+                  </div>
+                </section>
+              </TabsContent>
+
+              <TabsContent value="work" className="max-h-[65dvh] space-y-5 overflow-y-auto pt-4">
+                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                  {workCategories.map(({ key, label }) => (
+                    <div key={key} className="border p-3 text-center" style={{ borderRadius: 8 }}>
+                      <p className="text-xl font-bold">{managedDetails.work[key].length}</p><p className="text-xs text-muted-foreground">{label}</p>
+                    </div>
+                  ))}
+                </div>
+                {workCategories.map(({ key, label }) => {
+                  const items = managedDetails.work[key];
+                  if (!items.length) return null;
+                  return (
+                    <section key={key}>
+                      <div className="mb-2 flex items-center gap-2"><BookOpen className="size-4 text-primary" /><h3 className="font-semibold">{label} ({items.length})</h3></div>
+                      <div className="space-y-2">
+                        {items.map((item) => {
+                          const description = workItemDescription(item);
+                          const date = workItemDate(item);
+                          return (
+                            <div key={item.id} className="border p-3" style={{ borderRadius: 8 }}>
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="break-words font-medium">{workItemName(item)}</p>
+                                  <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+                                    {item.subject ? <span>{item.subject}</span> : null}
+                                    {item.status || item.moderationStatus ? <Badge variant="outline" className="capitalize">{item.status || item.moderationStatus}</Badge> : null}
+                                    {item.format || item.kind ? <Badge variant="outline" className="capitalize">{item.format || item.kind}</Badge> : null}
+                                    {item.classId ? <span>Class #{item.classId}</span> : null}
+                                    {item.cards ? <span>{item.cards.length} cards</span> : null}
+                                    {item.nodes ? <span>{item.nodes.length} nodes · {item.connectionCount ?? 0} connections</span> : null}
+                                  </div>
+                                </div>
+                                {date ? <span className="shrink-0 text-xs text-muted-foreground">{date}</span> : null}
+                              </div>
+                              {description && description !== workItemName(item) ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{description}</p> : null}
+                              {item.cards?.length ? <div className="mt-2 space-y-1 border-t pt-2 text-xs">{item.cards.map((card) => <p key={card.id}><strong>{card.term}</strong>: {card.answer}{card.hasImage ? " · image attached" : ""}</p>)}</div> : null}
+                              {item.nodes?.length ? <div className="mt-2 space-y-1 border-t pt-2 text-xs">{item.nodes.map((node, index) => <p key={`${node.kind}-${index}`}><strong>{node.title}</strong>{node.text ? `: ${node.text}` : ""}</p>)}</div> : null}
+                              {item.url ? <a className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary underline" href={item.url} target="_blank" rel="noreferrer">Open source <ExternalLink className="size-3" /></a> : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                })}
+                {!workCategories.some(({ key }) => managedDetails.work[key].length) ? <p className="py-10 text-center text-sm text-muted-foreground">This account has not created any work yet.</p> : null}
+              </TabsContent>
+
+              <TabsContent value="account" className="max-h-[65dvh] space-y-4 overflow-y-auto pt-4">
+                <section className="border p-4" style={{ borderRadius: 8 }}>
+                  <h3 className="font-semibold">Account status</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{managedDetails.user.bannedAt ? `Banned ${new Date(managedDetails.user.bannedAt).toLocaleString()}. ${managedDetails.user.bannedReason || "No reason recorded."}` : "This account is active."}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {managedDetails.user.id !== me?.id ? (
+                      managedDetails.user.bannedAt ? (
+                        <Button variant="outline" onClick={() => void unbanUser(managedDetails.user)} disabled={busyUserId === managedDetails.user.id}><RotateCcw className="mr-2 size-4" />Unban account</Button>
+                      ) : (
+                        <Button variant="destructive" onClick={() => void banUser(managedDetails.user)} disabled={busyUserId === managedDetails.user.id}><Ban className="mr-2 size-4" />Ban account</Button>
+                      )
+                    ) : <p className="text-sm text-muted-foreground">You cannot ban your own administrator account.</p>}
+                  </div>
+                </section>
+                {managedDetails.user.role === "teacher" ? (
+                  <section className="border p-4" style={{ borderRadius: 8 }}>
+                    <h3 className="font-semibold">Teacher verification</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">Current status: {managedDetails.user.teacherVerified ? "Verified" : "Not verified"}</p>
+                    <Button className="mt-4" variant="outline" onClick={() => void setTeacherVerification(managedDetails.user, !managedDetails.user.teacherVerified)} disabled={busyUserId === managedDetails.user.id}>
+                      <ShieldCheck className="mr-2 size-4" />{managedDetails.user.teacherVerified ? "Remove verification" : "Verify teacher"}
+                    </Button>
+                  </section>
+                ) : null}
+                <section className="border p-4" style={{ borderRadius: 8 }}>
+                  <div className="flex items-center gap-2"><CalendarDays className="size-4 text-primary" /><h3 className="font-semibold">Account record</h3></div>
+                  <p className="mt-2 text-sm">User ID: {managedDetails.user.id}</p>
+                  <p className="text-sm">Created: {new Date(managedDetails.user.createdAt).toLocaleString()}</p>
+                </section>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div className="min-h-72 p-6 text-center text-sm text-muted-foreground">Account details could not be loaded.</div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

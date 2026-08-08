@@ -4,8 +4,21 @@ import {
   db,
   pool,
   usersTable,
+  classesTable,
+  classMembersTable,
   learningGoalsTable,
   resourcesTable,
+  forumMaterialsTable,
+  forumPostsTable,
+  forumCommentsTable,
+  studyActivitiesTable,
+  canvasesTable,
+  canvasCollaboratorsTable,
+  resourceListsTable,
+  classAssignmentsTable,
+  scheduleBlocksTable,
+  studySessionsTable,
+  learningEvidenceTable,
   sourceReviewCacheTable,
 } from "@workspace/db";
 import { GetAdminOverviewResponse } from "@workspace/api-zod";
@@ -206,6 +219,272 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
     .from(usersTable)
     .orderBy(sql`${usersTable.createdAt} desc`);
   res.json(users);
+});
+
+router.get("/admin/users/:id/details", requireAdmin, async (req, res): Promise<void> => {
+  const targetId = Number(req.params.id);
+  if (!targetId) {
+    res.status(400).json({ error: "Invalid user ID" });
+    return;
+  }
+
+  const [user] = await db
+    .select(adminUserSelection)
+    .from(usersTable)
+    .where(eq(usersTable.id, targetId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const [
+    ownedClasses,
+    classMemberships,
+    canvasCollaborations,
+    goals,
+    resources,
+    materials,
+    posts,
+    comments,
+    activities,
+    canvases,
+    lists,
+    assignments,
+    schedule,
+    studySessions,
+    learningEvidence,
+  ] = await Promise.all([
+    db
+      .select({
+        id: classesTable.id,
+        name: classesTable.name,
+        subject: classesTable.subject,
+        gradeLevel: classesTable.gradeLevel,
+        createdAt: classesTable.createdAt,
+      })
+      .from(classesTable)
+      .where(eq(classesTable.teacherId, targetId))
+      .orderBy(sql`${classesTable.createdAt} desc`),
+    db
+      .select({
+        classId: classesTable.id,
+        name: classesTable.name,
+        subject: classesTable.subject,
+        gradeLevel: classesTable.gradeLevel,
+        role: classMembersTable.role,
+        teacherNote: classMembersTable.teacherNote,
+        joinedAt: classMembersTable.joinedAt,
+      })
+      .from(classMembersTable)
+      .innerJoin(classesTable, eq(classMembersTable.classId, classesTable.id))
+      .where(eq(classMembersTable.userId, targetId))
+      .orderBy(sql`${classMembersTable.joinedAt} desc`),
+    db
+      .select({
+        canvasId: canvasesTable.id,
+        title: canvasesTable.title,
+        role: canvasCollaboratorsTable.role,
+        addedAt: canvasCollaboratorsTable.createdAt,
+      })
+      .from(canvasCollaboratorsTable)
+      .innerJoin(canvasesTable, eq(canvasCollaboratorsTable.canvasId, canvasesTable.id))
+      .where(eq(canvasCollaboratorsTable.userId, targetId))
+      .orderBy(sql`${canvasCollaboratorsTable.createdAt} desc`),
+    db
+      .select({
+        id: learningGoalsTable.id,
+        title: learningGoalsTable.title,
+        subject: learningGoalsTable.subject,
+        description: learningGoalsTable.description,
+        level: learningGoalsTable.level,
+        status: learningGoalsTable.status,
+        targetDate: learningGoalsTable.targetDate,
+        pathSteps: learningGoalsTable.pathSteps,
+        updatedAt: learningGoalsTable.updatedAt,
+      })
+      .from(learningGoalsTable)
+      .where(eq(learningGoalsTable.userId, targetId))
+      .orderBy(sql`${learningGoalsTable.updatedAt} desc`),
+    db
+      .select({
+        id: resourcesTable.id,
+        title: resourcesTable.title,
+        url: resourcesTable.url,
+        description: resourcesTable.description,
+        format: resourcesTable.format,
+        subject: resourcesTable.subject,
+        gradeLevel: resourcesTable.gradeLevel,
+        createdAt: resourcesTable.createdAt,
+      })
+      .from(resourcesTable)
+      .where(eq(resourcesTable.submittedById, targetId))
+      .orderBy(sql`${resourcesTable.createdAt} desc`),
+    db
+      .select({
+        id: forumMaterialsTable.id,
+        title: forumMaterialsTable.title,
+        description: forumMaterialsTable.description,
+        unit: forumMaterialsTable.unit,
+        topic: forumMaterialsTable.topic,
+        materialType: forumMaterialsTable.materialType,
+        tags: forumMaterialsTable.tags,
+        moderationStatus: forumMaterialsTable.moderationStatus,
+        fileName: forumMaterialsTable.fileName,
+        linkUrl: forumMaterialsTable.linkUrl,
+        createdAt: forumMaterialsTable.createdAt,
+      })
+      .from(forumMaterialsTable)
+      .where(eq(forumMaterialsTable.uploaderId, targetId))
+      .orderBy(sql`${forumMaterialsTable.createdAt} desc`),
+    db
+      .select({
+        id: forumPostsTable.id,
+        classId: forumPostsTable.classId,
+        kind: forumPostsTable.kind,
+        title: forumPostsTable.title,
+        body: forumPostsTable.body,
+        tags: forumPostsTable.tags,
+        moderationStatus: forumPostsTable.moderationStatus,
+        createdAt: forumPostsTable.createdAt,
+        updatedAt: forumPostsTable.updatedAt,
+      })
+      .from(forumPostsTable)
+      .where(eq(forumPostsTable.authorId, targetId))
+      .orderBy(sql`${forumPostsTable.updatedAt} desc`),
+    db
+      .select({
+        id: forumCommentsTable.id,
+        targetType: forumCommentsTable.targetType,
+        targetId: forumCommentsTable.targetId,
+        body: forumCommentsTable.body,
+        moderationStatus: forumCommentsTable.moderationStatus,
+        createdAt: forumCommentsTable.createdAt,
+      })
+      .from(forumCommentsTable)
+      .where(eq(forumCommentsTable.authorId, targetId))
+      .orderBy(sql`${forumCommentsTable.createdAt} desc`),
+    db
+      .select({
+        id: studyActivitiesTable.id,
+        classId: studyActivitiesTable.classId,
+        title: studyActivitiesTable.title,
+        subject: studyActivitiesTable.subject,
+        cards: studyActivitiesTable.cards,
+        updatedAt: studyActivitiesTable.updatedAt,
+      })
+      .from(studyActivitiesTable)
+      .where(eq(studyActivitiesTable.ownerId, targetId))
+      .orderBy(sql`${studyActivitiesTable.updatedAt} desc`),
+    db
+      .select({
+        id: canvasesTable.id,
+        classId: canvasesTable.classId,
+        title: canvasesTable.title,
+        description: canvasesTable.description,
+        visibility: canvasesTable.visibility,
+        document: canvasesTable.document,
+        updatedAt: canvasesTable.updatedAt,
+      })
+      .from(canvasesTable)
+      .where(eq(canvasesTable.ownerId, targetId))
+      .orderBy(sql`${canvasesTable.updatedAt} desc`),
+    db
+      .select({
+        id: resourceListsTable.id,
+        classId: resourceListsTable.classId,
+        name: resourceListsTable.name,
+        description: resourceListsTable.description,
+        createdAt: resourceListsTable.createdAt,
+      })
+      .from(resourceListsTable)
+      .where(eq(resourceListsTable.ownerId, targetId))
+      .orderBy(sql`${resourceListsTable.createdAt} desc`),
+    db
+      .select({
+        id: classAssignmentsTable.id,
+        classId: classAssignmentsTable.classId,
+        title: classAssignmentsTable.title,
+        instructions: classAssignmentsTable.instructions,
+        dueAt: classAssignmentsTable.dueAt,
+        createdAt: classAssignmentsTable.createdAt,
+      })
+      .from(classAssignmentsTable)
+      .where(eq(classAssignmentsTable.createdById, targetId))
+      .orderBy(sql`${classAssignmentsTable.createdAt} desc`),
+    db
+      .select({
+        id: scheduleBlocksTable.id,
+        classId: scheduleBlocksTable.classId,
+        title: scheduleBlocksTable.title,
+        date: scheduleBlocksTable.date,
+        startTime: scheduleBlocksTable.startTime,
+        endTime: scheduleBlocksTable.endTime,
+        notes: scheduleBlocksTable.notes,
+      })
+      .from(scheduleBlocksTable)
+      .where(eq(scheduleBlocksTable.userId, targetId))
+      .orderBy(sql`${scheduleBlocksTable.date} desc`),
+    db
+      .select({
+        id: studySessionsTable.id,
+        title: studySessionsTable.title,
+        topic: studySessionsTable.topic,
+        startsAt: studySessionsTable.startsAt,
+        durationMinutes: studySessionsTable.durationMinutes,
+        meetingUrl: studySessionsTable.meetingUrl,
+      })
+      .from(studySessionsTable)
+      .where(eq(studySessionsTable.organizerId, targetId))
+      .orderBy(sql`${studySessionsTable.startsAt} desc`),
+    db
+      .select({
+        id: learningEvidenceTable.id,
+        concept: learningEvidenceTable.concept,
+        confidence: learningEvidenceTable.confidence,
+        understanding: learningEvidenceTable.understanding,
+        reflection: learningEvidenceTable.reflection,
+        misconception: learningEvidenceTable.misconception,
+        createdAt: learningEvidenceTable.createdAt,
+      })
+      .from(learningEvidenceTable)
+      .where(eq(learningEvidenceTable.userId, targetId))
+      .orderBy(sql`${learningEvidenceTable.createdAt} desc`),
+  ]);
+
+  res.json({
+    user,
+    affiliations: { ownedClasses, classMemberships, canvasCollaborations },
+    work: {
+      goals,
+      resources,
+      materials,
+      posts,
+      comments,
+      activities: activities.map(({ cards, ...activity }) => ({
+        ...activity,
+        cards: cards.map(({ imageData: _imageData, ...card }) => ({
+          ...card,
+          hasImage: Boolean(_imageData),
+        })),
+      })),
+      canvases: canvases.map(({ document, ...canvas }) => ({
+        ...canvas,
+        nodes: document.nodes.map((node) => ({
+          kind: node.data.kind,
+          title: node.data.title,
+          text: node.data.text,
+          url: node.data.url,
+          resourceId: node.data.resourceId,
+        })),
+        connectionCount: document.edges.length,
+      })),
+      lists,
+      assignments,
+      schedule,
+      studySessions,
+      learningEvidence,
+    },
+  });
 });
 
 router.patch("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<void> => {
