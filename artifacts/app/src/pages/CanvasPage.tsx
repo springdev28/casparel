@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, useSearch } from "wouter";
 import {
   BaseEdge,
   Background,
@@ -380,6 +380,7 @@ function saveLabel(status: "saved" | "saving" | "unsaved" | "conflict") {
 
 export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   const params = useParams<{ id?: string; token?: string }>();
+  const routeSearch = useSearch();
   const [, setLocation] = useLocation();
   const [canvas, setCanvas] = useState<SchoolarCanvas | null>(null);
   const [loading, setLoading] = useState(true);
@@ -639,6 +640,13 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
     await canvasRequest(`/canvases/${canvas.id}`, { method: "DELETE" });
     setLocation("/canvases");
   }
+
+  useEffect(() => {
+    if (!canvas || shared) return;
+    const panel = new URLSearchParams(routeSearch).get("panel");
+    if (panel === "details" && canManage) setDetailsOpen(true);
+    if (panel === "share" && canManage) void openSharing();
+  }, [canvas?.id, canManage, routeSearch, shared]);
 
   if (loading) return <div className={`flex ${pageHeight} items-center justify-center`}><Loader2 className="size-7 animate-spin text-primary" /></div>;
   if (!canvas || loadError) return <div className={`flex ${pageHeight} flex-col items-center justify-center gap-3 p-6 text-center`}><h1 className="text-xl font-bold">Canvas unavailable</h1><p className="text-sm text-muted-foreground">{loadError}</p>{!shared ? <Button variant="outline" onClick={() => setLocation("/canvases")}><ArrowLeft className="mr-2 size-4" />Back to canvases</Button> : null}</div>;

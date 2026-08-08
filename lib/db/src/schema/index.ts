@@ -1,6 +1,7 @@
 export * from "./users";
 export * from "./classes";
 export * from "./classMembers";
+export * from "./classInvitations";
 export * from "./resources";
 export * from "./reviews";
 export * from "./resourceLists";

@@ -14,8 +14,8 @@ export default function BrandIcon({ className = "", title, label }: BrandIconPro
     maskPosition: "center",
     WebkitMaskRepeat: "no-repeat",
     maskRepeat: "no-repeat",
-    WebkitMaskSize: "contain",
-    maskSize: "contain",
+    WebkitMaskSize: "88% auto",
+    maskSize: "88% auto",
   };
 
   return <span aria-hidden={title || label ? undefined : true} aria-label={title || label} role={title || label ? "img" : undefined} className={`inline-block h-14 w-28 shrink-0 bg-current ${className}`} style={style} />;

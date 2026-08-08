@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare, ShieldCheck, Workflow } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare, ShieldCheck, Workflow, Pencil, StickyNote, LayoutDashboard, ClipboardList, LibraryBig, KeyRound } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
+import { Textarea } from '@workspace/edu-ds/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
-import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@workspace/edu-ds/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
@@ -17,7 +17,6 @@ import { SeatingChartEditor } from '../components/SeatingChartEditor';
 import { ClassAssignments } from '../components/ClassAssignments';
 import {
   useGetClass,
-  useAddClassMember,
   useBulkInviteClassMembers,
   useGetGCCourseStudents,
   useGetGCStatus,
@@ -29,6 +28,9 @@ import {
   useLeaveClass,
   useListClassResourceRecommendations,
   useReviewClassResourceRecommendation,
+  useUpdateClass,
+  useGetSeatingChart,
+  useUpdateStudentNote,
   getListClassResourceRecommendationsQueryKey,
   ClassResourceRecommendationStatus,
   type ClassResourceRecommendation,
@@ -36,10 +38,14 @@ import {
   getGetClassQueryKey,
   getGetGCStatusQueryKey,
   getGetClassResourcesListQueryKey,
+  getGetSeatingChartQueryKey,
   ClassMemberInputRole,
   UserRole,
   type GCRosterStudent,
 } from '@workspace/api-client-react';
+import { classRequest, type ClassInvitation } from '../lib/class-api';
+
+type ClassTab = 'members' | 'notes' | 'forum' | 'designer' | 'assignments' | 'activities' | 'resources' | 'canvas';
 
 const FORMAT_COLORS: Record<string, string> = {
   article: 'bg-blue-100 text-blue-700',
@@ -65,6 +71,15 @@ export default function ClassDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<{ userId: number; name: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<ClassTab>('members');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editSubject, setEditSubject] = useState('');
+  const [editGrade, setEditGrade] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [joinCode, setJoinCode] = useState<string | null>(null);
+  const [pendingInvitations, setPendingInvitations] = useState<ClassInvitation[]>([]);
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
 
   const { data: cls, isLoading } = useGetClass(classId, {
     query: { enabled: !!classId, queryKey: getGetClassQueryKey(classId) },
@@ -87,11 +102,15 @@ export default function ClassDetailPage() {
     query: { enabled: !!classId, queryKey: getListClassResourceRecommendationsQueryKey(classId) },
   });
 
-  const addMember = useAddClassMember();
   const bulkInvite = useBulkInviteClassMembers();
+  const updateClass = useUpdateClass();
 
   // Class-specific teacher check: only the teacher of THIS class can manage it
   const isTeacher = isTeacherRole && me?.id != null && cls?.teacherId === me.id;
+  const { data: seatingChart } = useGetSeatingChart(classId, {
+    query: { enabled: isTeacher && !!classId, queryKey: getGetSeatingChartQueryKey(classId) },
+  });
+  const updateStudentNote = useUpdateStudentNote();
   const gcConnected = gcStatus?.connected === true;
   const gcConfigured = gcStatus?.configured === true;
 
@@ -101,12 +120,39 @@ export default function ClassDetailPage() {
     { query: { enabled: rosterEnabled, queryKey: ['getGCCourseStudents', selectedCourseId ?? ''] } },
   );
 
+  useEffect(() => {
+    if (!cls) return;
+    setEditName(cls.name);
+    setEditSubject(cls.subject);
+    setEditGrade(cls.gradeLevel);
+    setEditDescription(cls.description ?? '');
+  }, [cls]);
+
+  useEffect(() => {
+    if (!isTeacher || !classId) return;
+    void Promise.all([
+      classRequest<{ joinCode: string | null }>(`/classes/${classId}/join-code`),
+      classRequest<ClassInvitation[]>(`/classes/${classId}/invitations`),
+    ]).then(([code, invitations]) => {
+      setJoinCode(code.joinCode);
+      setPendingInvitations(invitations);
+    }).catch(() => undefined);
+  }, [classId, isTeacher]);
+
+  useEffect(() => {
+    if (!seatingChart) return;
+    setNoteDrafts(Object.fromEntries(seatingChart.students.map((student) => [student.userId, student.teacherNote ?? ''])));
+  }, [seatingChart]);
+
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await addMember.mutateAsync({ id: classId, data: { email: memberEmail, role: memberRole } });
-      queryClient.invalidateQueries({ queryKey: getGetClassQueryKey(classId) });
-      toast({ title: 'Member added!', description: `${memberEmail} has been added.` });
+      const invitation = await classRequest<ClassInvitation>(`/classes/${classId}/invitations`, {
+        method: 'POST',
+        body: JSON.stringify({ email: memberEmail, role: memberRole }),
+      });
+      setPendingInvitations((current) => [invitation, ...current.filter((item) => item.id !== invitation.id)]);
+      toast({ title: 'Invitation sent', description: `${memberEmail} can accept or decline it from notifications.` });
       setMemberEmail('');
       setMemberRole(ClassMemberInputRole.student);
       setMemberDialogOpen(false);
@@ -190,6 +236,47 @@ export default function ClassDetailPage() {
     }
   }
 
+  async function handleUpdateClass(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await updateClass.mutateAsync({
+        id: classId,
+        data: {
+          name: editName.trim(),
+          subject: editSubject.trim(),
+          gradeLevel: editGrade.trim(),
+          description: editDescription.trim() || undefined,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: getGetClassQueryKey(classId) });
+      setEditDialogOpen(false);
+      toast({ title: 'Class information updated' });
+    } catch (error) {
+      toast({ title: 'Could not update class', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
+    }
+  }
+
+  async function refreshJoinCode() {
+    try {
+      const result = await classRequest<{ joinCode: string }>(`/classes/${classId}/join-code`, { method: 'POST' });
+      setJoinCode(result.joinCode);
+      await navigator.clipboard.writeText(result.joinCode).catch(() => undefined);
+      toast({ title: joinCode ? 'New class code created' : 'Class code created', description: 'The code was copied to your clipboard.' });
+    } catch (error) {
+      toast({ title: 'Could not create class code', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
+    }
+  }
+
+  async function saveMemberNote(userId: number) {
+    try {
+      await updateStudentNote.mutateAsync({ id: classId, userId, data: { note: noteDrafts[userId]?.trim() || null } });
+      await queryClient.invalidateQueries({ queryKey: getGetSeatingChartQueryKey(classId) });
+      toast({ title: 'Private student note saved' });
+    } catch (error) {
+      toast({ title: 'Could not save note', description: error instanceof Error ? error.message : 'Please try again', variant: 'destructive' });
+    }
+  }
+
   function handleSyncDialogOpenChange(open: boolean) {
     setSyncDialogOpen(open);
     if (!open) { setSelectedCourseId(null); setRosterConfirmed(false); }
@@ -222,29 +309,36 @@ export default function ClassDetailPage() {
   const unlinked = roster?.filter((s: GCRosterStudent) => !s.linkedUserId) ?? [];
   const resourceItems = classResList?.items ?? [];
   const ownMembership = cls.members.find((member) => member.userId === me?.id);
+  const classTabs: Array<{ id: ClassTab; label: string; icon: typeof Users }> = [
+    { id: 'members', label: 'Members', icon: Users },
+    ...(isTeacher ? [{ id: 'notes' as const, label: 'Member notes', icon: StickyNote }] : []),
+    { id: 'forum', label: 'Class forum', icon: MessagesSquare },
+    { id: 'designer', label: 'Classroom Designer', icon: LayoutDashboard },
+    { id: 'assignments', label: 'Assignments', icon: ClipboardList },
+    { id: 'activities', label: 'Class activities', icon: LibraryBig },
+    { id: 'resources', label: 'Class resources', icon: BookOpen },
+    { id: 'canvas', label: 'Class canvas', icon: Workflow },
+  ];
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="mx-auto max-w-7xl min-w-0 space-y-4 p-3 sm:space-y-6 sm:p-6">
       <Button variant="ghost" size="sm" onClick={() => setLocation('/classes')} data-testid="back-button">
         <ArrowLeft size={16} className="mr-1.5" /> Classes
       </Button>
 
       {/* Class Info */}
-      <Card>
-        <CardHeader>
+      <Card className="overflow-hidden">
+        <CardHeader className="p-4 sm:p-6">
           <div className="flex items-start justify-between gap-3 flex-wrap">
-            <div>
+            <div className="min-w-0">
               <CardTitle className="text-xl">{cls.name}</CardTitle>
               <CardDescription>{cls.subject} · {cls.gradeLevel}</CardDescription>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <Badge variant="secondary">{cls.members.length} member{cls.members.length !== 1 ? 's' : ''}</Badge>
-              <Button size="sm" onClick={() => setLocation('/forum?classId=' + classId)} data-testid="class-forum-button">
-                <MessagesSquare size={14} className="mr-1.5" /> Class Forum
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setLocation('/canvases?classId=' + classId)} data-testid="class-canvas-button">
-                <Workflow size={14} className="mr-1.5" /> Class Canvas
-              </Button>
+              {isTeacher && <Button size="sm" variant="outline" onClick={() => setEditDialogOpen(true)}><Pencil size={14} className="mr-1.5" />Edit info</Button>}
+              {isTeacher && <Button size="sm" variant="outline" onClick={() => joinCode ? void navigator.clipboard.writeText(joinCode).then(() => toast({ title: 'Class code copied' })) : void refreshJoinCode()}><KeyRound size={14} className="mr-1.5" />{joinCode ?? 'Create class code'}</Button>}
+              {isTeacher && joinCode && <Button size="icon" variant="ghost" className="size-8" title="Create a new class code" onClick={() => void refreshJoinCode()}><RefreshCw size={14} /></Button>}
 
               {/* Sync Roster — visible to all teachers; state varies by GC connection */}
               <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
@@ -347,7 +441,7 @@ export default function ClassDetailPage() {
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Add a Member</DialogTitle>
-                      <DialogDescription>Add a student or teacher to this class by email</DialogDescription>
+                      <DialogDescription>Send a student or teacher an invitation they can accept or decline.</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAddMember} className="space-y-4">
                       <div className="space-y-1.5">
@@ -366,8 +460,8 @@ export default function ClassDetailPage() {
                       </div>
                       <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setMemberDialogOpen(false)}>Cancel</Button>
-                        <Button type="submit" disabled={addMember.isPending} data-testid="add-member-confirm">
-                          {addMember.isPending ? 'Adding…' : 'Add Member'}
+                        <Button type="submit" data-testid="add-member-confirm">
+                          Send invitation
                         </Button>
                       </DialogFooter>
                     </form>
@@ -385,8 +479,30 @@ export default function ClassDetailPage() {
         </CardHeader>
       </Card>
 
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit class information</DialogTitle><DialogDescription>Update the details shown to everyone in this class.</DialogDescription></DialogHeader>
+          <form onSubmit={handleUpdateClass} className="space-y-4">
+            <div className="space-y-1.5"><Label htmlFor="edit-class-name">Name</Label><Input id="edit-class-name" value={editName} onChange={(event) => setEditName(event.target.value)} required maxLength={120} /></div>
+            <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-1.5"><Label htmlFor="edit-class-subject">Subject</Label><Input id="edit-class-subject" value={editSubject} onChange={(event) => setEditSubject(event.target.value)} required maxLength={120} /></div><div className="space-y-1.5"><Label htmlFor="edit-class-grade">Grade or level</Label><Input id="edit-class-grade" value={editGrade} onChange={(event) => setEditGrade(event.target.value)} required maxLength={120} /></div></div>
+            <div className="space-y-1.5"><Label htmlFor="edit-class-description">Description</Label><Textarea id="edit-class-description" value={editDescription} onChange={(event) => setEditDescription(event.target.value)} maxLength={1000} /></div>
+            <DialogFooter><Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button><Button type="submit" disabled={updateClass.isPending || !editName.trim() || !editSubject.trim() || !editGrade.trim()}>{updateClass.isPending ? 'Saving…' : 'Save changes'}</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <nav className="-mx-3 overflow-x-auto border-y bg-background/80 px-3 py-2 sm:mx-0 sm:border sm:p-2" aria-label="Class workspace sections" style={{ borderRadius: 8 }}>
+        <div className="flex w-max min-w-full gap-1">
+          {classTabs.map(({ id: tabId, label, icon: Icon }) => (
+            <button key={tabId} type="button" onClick={() => setActiveTab(tabId)} className={`flex h-10 shrink-0 items-center gap-2 px-3 text-sm font-medium transition-colors ${activeTab === tabId ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`} style={{ borderRadius: 6 }}>
+              <Icon size={15} />{label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
       {/* Members */}
-      <section>
+      {activeTab === 'members' && <section>
         <h2 className="text-lg font-semibold text-foreground mb-4">Members</h2>
         {cls.members.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -397,8 +513,8 @@ export default function ClassDetailPage() {
           <Card>
             <CardContent className="py-2 divide-y divide-border">
               {cls.members.map((member) => (
-                <div key={member.userId} className="flex items-center justify-between py-3 gap-3" data-testid="member-item">
-                  <div className="flex items-center gap-3">
+                <div key={member.userId} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between" data-testid="member-item">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
                       {member.user.avatarUrl ? <img src={member.user.avatarUrl} alt={member.user.name + " profile"} className="h-full w-full object-cover" /> : <span className="text-xs font-semibold text-muted-foreground uppercase">{member.user.name.charAt(0)}</span>}
                     </div>
@@ -409,34 +525,37 @@ export default function ClassDetailPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
                     <Badge variant={member.role === 'teacher' ? 'default' : 'secondary'} className="capitalize">{member.role}</Badge>
                     <span className="text-xs text-muted-foreground hidden sm:inline">
                       Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true })}
                     </span>
-                    {isTeacher && member.userId !== cls.teacherId && <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setMemberToRemove({ userId: member.userId, name: member.user.name })} aria-label={"Remove " + member.user.name} data-testid="remove-class-member"><Trash2 size={14} /></Button>}
+                    {isTeacher && member.role === 'student' && <Button size="sm" variant="outline" onClick={() => setActiveTab('notes')}><StickyNote size={14} className="mr-1.5" />Note</Button>}
+                    {isTeacher && member.userId !== cls.teacherId && <Button size="icon" variant="ghost" className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setMemberToRemove({ userId: member.userId, name: member.user.name })} aria-label={"Remove " + member.user.name} data-testid="remove-class-member"><Trash2 size={14} /></Button>}
                   </div>
                 </div>
               ))}
             </CardContent>
           </Card>
         )}
-      </section>
+        {isTeacher && pendingInvitations.length > 0 && <div className="mt-5 space-y-2"><h3 className="text-sm font-semibold">Pending invitations</h3>{pendingInvitations.map((invitation) => <div key={invitation.id} className="flex flex-col gap-2 border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderRadius: 8 }}><div className="min-w-0"><p className="truncate text-sm font-medium">{invitation.invitee.name}</p><p className="truncate text-xs text-muted-foreground">{invitation.invitee.email} · invited as {invitation.role}</p></div><Badge variant="outline">Awaiting response</Badge></div>)}</div>}
+      </section>}
 
       <Dialog open={memberToRemove !== null} onOpenChange={(open) => { if (!open) setMemberToRemove(null); }}>
         <DialogContent><DialogHeader><DialogTitle>Remove {memberToRemove?.name}?</DialogTitle><DialogDescription>They will lose access to this class and its shared resources. You can add them again later.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setMemberToRemove(null)}>Cancel</Button><Button variant="destructive" onClick={handleRemoveMember} disabled={removeClassMember.isPending} data-testid="remove-class-member-confirm">{removeClassMember.isPending ? "Removing…" : "Remove Member"}</Button></DialogFooter></DialogContent>
       </Dialog>
 
-      {(isTeacher || ownMembership?.role === "student") && (
-        <>
-          <Separator />
-          <SeatingChartEditor classId={classId} readOnly={!isTeacher} />
-        </>
-      )}
+      {activeTab === 'notes' && isTeacher && <section className="space-y-4"><div><h2 className="text-lg font-semibold">Member notes</h2><p className="text-sm text-muted-foreground">Private teacher notes for planning support, seating, and follow-up.</p></div><div className="grid gap-3 lg:grid-cols-2">{(seatingChart?.students ?? []).map((student) => <Card key={student.userId}><CardHeader className="pb-2"><CardTitle className="text-sm">{student.name}</CardTitle>{student.gradeOrDept && <CardDescription>{student.gradeOrDept}</CardDescription>}</CardHeader><CardContent className="space-y-3"><Textarea value={noteDrafts[student.userId] ?? ''} onChange={(event) => setNoteDrafts((current) => ({ ...current, [student.userId]: event.target.value }))} rows={5} maxLength={2000} placeholder="Private note about learning needs, collaboration, or classroom placement…" /><div className="flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setLocation(`/profile/${student.userId}?classId=${classId}`)}>Open profile</Button><Button size="sm" onClick={() => void saveMemberNote(student.userId)} disabled={updateStudentNote.isPending}>Save note</Button></div></CardContent></Card>)}</div>{!seatingChart?.students.length && <p className="border-y py-10 text-center text-sm text-muted-foreground">No students are enrolled yet.</p>}</section>}
 
-      <Separator />
+      {activeTab === 'designer' && (isTeacher || ownMembership?.role === "student") && <SeatingChartEditor classId={classId} readOnly={!isTeacher} />}
 
-      {isTeacher && (classRecommendations as ClassResourceRecommendation[] | undefined)?.some((item) => item.status === ClassResourceRecommendationStatus.pending) && (
+      {activeTab === 'forum' && <WorkspaceLaunchPanel icon={MessagesSquare} title="Class forum" description="Discuss lessons, ask questions, run surveys, and share attachments with this class." action="Open class forum" onOpen={() => setLocation('/forum?classId=' + classId)} />}
+
+      {activeTab === 'activities' && <WorkspaceLaunchPanel icon={LibraryBig} title="Class activities" description="Create flashcards, quizzes, matching games, and other practice activities, then attach them to class assignments." action="Open activities" onOpen={() => setLocation('/activities?classId=' + classId)} />}
+
+      {activeTab === 'canvas' && <WorkspaceLaunchPanel icon={Workflow} title="Class canvas" description="Open collaborative visual spaces owned by this class or create a new one for the lesson." action="Open class canvases" onOpen={() => setLocation('/canvases?classId=' + classId)} />}
+
+      {activeTab === 'resources' && isTeacher && (classRecommendations as ClassResourceRecommendation[] | undefined)?.some((item) => item.status === ClassResourceRecommendationStatus.pending) && (
         <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" data-testid="student-recommendations-bar">
           <div className="mb-3"><h2 className="font-semibold">Student recommendations</h2><p className="text-xs text-muted-foreground">Review student suggestions before they become class resources.</p></div>
           <div className="space-y-2">
@@ -450,17 +569,15 @@ export default function ClassDetailPage() {
         </section>
       )}
 
-      <ClassAssignments
+      {activeTab === 'assignments' && <ClassAssignments
         classId={classId}
         isTeacher={isTeacher}
         resources={resourceItems.map((item) => ({ id: item.resource.id, title: item.resource.title, url: item.resource.url }))}
-      />
-
-      <Separator />
+      />}
 
       {/* Class Resources */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
+      {activeTab === 'resources' && <section>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Class Resources</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -499,7 +616,7 @@ export default function ClassDetailPage() {
             {resourceItems.map((item) => (
               <Card key={item.id} className="hover:shadow-sm transition-shadow" data-testid="class-resource-item">
                 <CardContent className="py-3">
-                  <div className="flex items-start gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-foreground line-clamp-1">{item.resource.title}</p>
@@ -510,7 +627,7 @@ export default function ClassDetailPage() {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
                       <Button size="sm" variant="outline" asChild>
                         <a href={item.resource.url} target="_blank" rel="noopener noreferrer">
                           <ExternalLink size={12} />
@@ -541,9 +658,13 @@ export default function ClassDetailPage() {
             ))}
           </div>
         )}
-      </section>
+      </section>}
     </div>
   );
+}
+
+function WorkspaceLaunchPanel({ icon: Icon, title, description, action, onOpen }: { icon: typeof Users; title: string; description: string; action: string; onOpen: () => void }) {
+  return <section className="flex min-h-72 flex-col items-center justify-center border-y px-4 py-12 text-center"><span className="mb-4 flex size-12 items-center justify-center bg-primary/10 text-primary" style={{ borderRadius: 8 }}><Icon size={24} /></span><h2 className="text-lg font-semibold">{title}</h2><p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p><Button className="mt-5" onClick={onOpen}>{action}</Button></section>;
 }
 
 function SyncCourseIdStep({ onConfirm }: { onConfirm: (courseId: string) => void }) {

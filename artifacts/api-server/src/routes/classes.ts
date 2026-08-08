@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and, max, asc, desc } from "drizzle-orm";
-import { db, classesTable, classMembersTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable } from "@workspace/db";
+import { db, classesTable, classMembersTable, classInvitationsTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable } from "@workspace/db";
 import {
   ListClassesResponse,
   CreateClassBody,
@@ -68,6 +68,107 @@ async function getOrCreateClassList(classId: number, ownerId: number) {
 }
 
 const router: IRouter = Router();
+
+async function invitationView(id: number) {
+  const [invitation] = await db
+    .select()
+    .from(classInvitationsTable)
+    .where(eq(classInvitationsTable.id, id));
+  if (!invitation) return null;
+  const [[cls], [inviter], [invitee]] = await Promise.all([
+    db
+      .select({ id: classesTable.id, name: classesTable.name })
+      .from(classesTable)
+      .where(eq(classesTable.id, invitation.classId)),
+    db
+      .select({ id: usersTable.id, name: usersTable.name })
+      .from(usersTable)
+      .where(eq(usersTable.id, invitation.invitedById)),
+    db
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, invitation.userId)),
+  ]);
+  return cls && inviter && invitee
+    ? { ...invitation, class: cls, inviter, invitee }
+    : null;
+}
+
+router.get("/class-invitations", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const rows = await db
+    .select({ id: classInvitationsTable.id })
+    .from(classInvitationsTable)
+    .where(
+      and(
+        eq(classInvitationsTable.userId, userId),
+        eq(classInvitationsTable.status, "pending"),
+      ),
+    )
+    .orderBy(desc(classInvitationsTable.createdAt));
+  const invitations = await Promise.all(rows.map((row) => invitationView(row.id)));
+  res.json(invitations.filter(Boolean));
+});
+
+router.patch(
+  "/class-invitations/:id",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const invitationId = Number(req.params.id);
+    const action = req.body?.action;
+    if (!Number.isInteger(invitationId) || !["accept", "decline"].includes(action)) {
+      res.status(400).json({ error: "Choose whether to accept or decline the invitation" });
+      return;
+    }
+    const [invitation] = await db
+      .select()
+      .from(classInvitationsTable)
+      .where(
+        and(
+          eq(classInvitationsTable.id, invitationId),
+          eq(classInvitationsTable.userId, userId),
+          eq(classInvitationsTable.status, "pending"),
+        ),
+      );
+    if (!invitation) {
+      res.status(404).json({ error: "Pending invitation not found" });
+      return;
+    }
+    const accepted = action === "accept";
+    await db.transaction(async (tx) => {
+      await tx
+        .update(classInvitationsTable)
+        .set({
+          status: accepted ? "accepted" : "declined",
+          respondedAt: new Date().toISOString(),
+        })
+        .where(eq(classInvitationsTable.id, invitation.id));
+      if (accepted) {
+        await tx
+          .insert(classMembersTable)
+          .values({
+            classId: invitation.classId,
+            userId,
+            role: invitation.role,
+          })
+          .onConflictDoNothing();
+      }
+    });
+    const [cls] = await db
+      .select({ name: classesTable.name })
+      .from(classesTable)
+      .where(eq(classesTable.id, invitation.classId));
+    await db.insert(activityLogTable).values({
+      userId: invitation.invitedById,
+      type: "class",
+      workspaceRole: "teacher",
+      message: `${accepted ? "Accepted" : "Declined"} class invitation: ${cls?.name ?? "Class"}.`,
+    });
+    res.json({ accepted, classId: invitation.classId });
+  },
+);
 
 async function classWithCount(id: number) {
   const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, id));
@@ -295,6 +396,93 @@ router.get("/classes/:id/members", requireAuth, async (req, res): Promise<void> 
   res.json(ListClassMembersResponse.parse(members));
 });
 
+router.get("/classes/:id/invitations", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const classId = Number(req.params.id);
+  if (!Number.isInteger(classId) || !(await isClassTeacher(classId, userId))) {
+    res.status(403).json({ error: "Only the class teacher can view invitations" });
+    return;
+  }
+  const rows = await db
+    .select({ id: classInvitationsTable.id })
+    .from(classInvitationsTable)
+    .where(
+      and(
+        eq(classInvitationsTable.classId, classId),
+        eq(classInvitationsTable.status, "pending"),
+      ),
+    )
+    .orderBy(desc(classInvitationsTable.createdAt));
+  const invitations = await Promise.all(rows.map((row) => invitationView(row.id)));
+  res.json(invitations.filter(Boolean));
+});
+
+router.post(
+  "/classes/:id/invitations",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const classId = Number(req.params.id);
+    if (!Number.isInteger(classId) || !(await isClassTeacher(classId, userId))) {
+      res.status(403).json({ error: "Only the class teacher can invite members" });
+      return;
+    }
+    const parsed = AddClassMemberBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [invitee] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, parsed.data.email));
+    if (!invitee) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const [membership] = await db
+      .select({ userId: classMembersTable.userId })
+      .from(classMembersTable)
+      .where(
+        and(
+          eq(classMembersTable.classId, classId),
+          eq(classMembersTable.userId, invitee.id),
+        ),
+      );
+    if (membership) {
+      res.status(409).json({ error: "This user is already a class member" });
+      return;
+    }
+    const role = invitee.role === "teacher" ? "teacher" : "student";
+    const [invitation] = await db
+      .insert(classInvitationsTable)
+      .values({ classId, userId: invitee.id, invitedById: userId, role })
+      .onConflictDoUpdate({
+        target: [classInvitationsTable.classId, classInvitationsTable.userId],
+        set: {
+          invitedById: userId,
+          role,
+          status: "pending",
+          respondedAt: null,
+          createdAt: new Date().toISOString(),
+        },
+      })
+      .returning();
+    const [cls] = await db
+      .select({ name: classesTable.name })
+      .from(classesTable)
+      .where(eq(classesTable.id, classId));
+    await db.insert(activityLogTable).values({
+      userId: invitee.id,
+      type: "class",
+      workspaceRole: role,
+      message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it from notifications.`,
+    });
+    res.status(201).json(await invitationView(invitation.id));
+  },
+);
+
 // POST /classes/:id/members — class teacher only
 // The membership role always mirrors the target user's account role to avoid contradictions.
 router.post("/classes/:id/members", contentLimiter, requireAuth, async (req, res): Promise<void> => {
@@ -399,8 +587,40 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
   }
 
   if (toInsert.length > 0) {
-    await db.insert(classMembersTable).values(toInsert).onConflictDoNothing();
-    await db.insert(activityLogTable).values(toInsert.map((member) => ({ userId: member.userId, type: "class" as const, workspaceRole: member.role, message: "You were added to a class." })));
+    const [cls] = await db
+      .select({ name: classesTable.name })
+      .from(classesTable)
+      .where(eq(classesTable.id, params.data.id));
+    await db.transaction(async (tx) => {
+      for (const member of toInsert) {
+        await tx
+          .insert(classInvitationsTable)
+          .values({
+            classId: member.classId,
+            userId: member.userId,
+            invitedById: userId,
+            role: member.role,
+          })
+          .onConflictDoUpdate({
+            target: [classInvitationsTable.classId, classInvitationsTable.userId],
+            set: {
+              invitedById: userId,
+              role: member.role,
+              status: "pending",
+              respondedAt: null,
+              createdAt: new Date().toISOString(),
+            },
+          });
+      }
+      await tx.insert(activityLogTable).values(
+        toInsert.map((member) => ({
+          userId: member.userId,
+          type: "class" as const,
+          workspaceRole: member.role,
+          message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it from notifications.`,
+        })),
+      );
+    });
   }
 
   const added = results.filter((r) => r.status === "added").length;

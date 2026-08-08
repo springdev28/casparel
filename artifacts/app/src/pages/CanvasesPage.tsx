@@ -7,8 +7,12 @@ import {
   LayoutDashboard,
   Link2,
   Loader2,
+  MoreHorizontal,
+  Pencil,
   Plus,
   School,
+  Share2,
+  Trash2,
   Users,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -17,6 +21,12 @@ import { Input } from "@workspace/edu-ds/components/ui/input";
 import { Label } from "@workspace/edu-ds/components/ui/label";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/edu-ds/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -98,6 +108,21 @@ export default function CanvasesPage() {
     }
   }
 
+  async function deleteCanvasFromCard(canvas: SchoolarCanvas) {
+    if (!window.confirm(`Delete “${canvas.title}”? This cannot be undone.`)) return;
+    try {
+      await canvasRequest(`/canvases/${canvas.id}`, { method: "DELETE" });
+      setCanvases((current) => current.filter((item) => item.id !== canvas.id));
+      toast({ title: "Canvas deleted" });
+    } catch (error) {
+      toast({
+        title: "Could not delete canvas",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
   const personal = canvases.filter((canvas) => canvas.classId == null);
   const classCanvases = canvases.filter((canvas) => canvas.classId != null && (!requestedClassId || String(canvas.classId) === requestedClassId));
 
@@ -110,9 +135,12 @@ export default function CanvasesPage() {
             <span className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Icon size={18} />
             </span>
-            <Badge variant="outline" className="capitalize">
-              {canvas.permissions.role.replace("-", " ")}
-            </Badge>
+            <div className="flex items-center gap-1">
+              <Badge variant="outline" className="capitalize">
+                {canvas.permissions.role.replace("-", " ")}
+              </Badge>
+              {canvas.permissions.canManage ? <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="size-8" aria-label={`Manage ${canvas.title}`} title="Canvas menu"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48"><DropdownMenuItem onClick={() => setLocation(`/canvases/${canvas.id}?panel=details`)}><Pencil className="mr-2 size-4" />Edit details</DropdownMenuItem><DropdownMenuItem onClick={() => setLocation(`/canvases/${canvas.id}?panel=share`)}><Share2 className="mr-2 size-4" />Sharing and access</DropdownMenuItem><DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => void deleteCanvasFromCard(canvas)}><Trash2 className="mr-2 size-4" />Delete canvas</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}
+            </div>
           </div>
           <CardTitle className="line-clamp-2 text-base">{canvas.title}</CardTitle>
           <p className="line-clamp-2 text-sm text-muted-foreground">

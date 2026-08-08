@@ -37,6 +37,7 @@ vi.mock("@workspace/db", () => {
     usersTable: stub("users"),
     classesTable: stub("classes"),
     classMembersTable: stub("class_members"),
+    classInvitationsTable: stub("class_invitations"),
     resourceListsTable: stub("resource_lists"),
     listItemsTable: stub("list_items"),
     scheduleBlocksTable: stub("schedule_blocks"),
@@ -47,6 +48,17 @@ vi.mock("@workspace/db", () => {
     classResourceRecommendationsTable: stub("class_recommendations"),
   };
 });
+
+// Authentication has its own middleware tests. Keep these route tests focused on
+// the live-role and ownership checks performed by isClassTeacher.
+vi.mock("../middlewares/requireAuth", () => ({
+  requireAuth: (req: { userId?: number; userRole?: string; accountRole?: string }, _res: unknown, next: () => void) => {
+    req.userId = 10;
+    req.userRole = "teacher";
+    req.accountRole = "teacher";
+    next();
+  },
+}));
 
 // ── Import subjects AFTER mock declarations ────────────────────────────────────
 import { db } from "@workspace/db";

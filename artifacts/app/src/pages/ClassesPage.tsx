@@ -225,7 +225,7 @@ export default function ClassesPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="mx-auto max-w-6xl space-y-4 p-3 sm:space-y-6 sm:p-6">
 
       {/* Google Classroom reconnect banner */}
       {gcReconnectNeeded && gcStatus?.connected && (
@@ -343,7 +343,7 @@ export default function ClassesPage() {
                       data-testid="class-name-input"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="class-subject">Subject</Label>
                       <Input

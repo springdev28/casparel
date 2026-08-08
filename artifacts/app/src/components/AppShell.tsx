@@ -23,6 +23,7 @@ import {
   Waves,
   MessagesSquare,
   Workflow,
+  X,
 } from "lucide-react";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -51,6 +52,7 @@ import {
   getListLearningGoalsQueryKey,
   useListLearningGoals,
   useUpdateLearningGoal,
+  getListClassesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
@@ -64,6 +66,10 @@ import {
 } from "@workspace/edu-ds/components/ui/popover";
 import BrandIcon from "./BrandIcon";
 import VantaBackground, { type VantaStyle } from "./VantaBackground";
+import {
+  classRequest,
+  type ClassInvitation,
+} from "../lib/class-api";
 
 const TOKEN_KEY = "schoolar_token";
 
@@ -153,6 +159,7 @@ export default function AppShell({ children }: AppShellProps) {
   const { data: me, isLoading: meLoading } = useGetMe();
   const { language, setLanguage, copy } = useAuthLanguage();
   const { data: notifications } = useGetRecentActivity();
+  const [classInvitations, setClassInvitations] = useState<ClassInvitation[]>([]);
   const { data: accountUsage } = useGetMyUsage({
     query: { enabled: Boolean(me), refetchInterval: 30_000, queryKey: getGetMyUsageQueryKey() },
   });
@@ -171,6 +178,50 @@ export default function AppShell({ children }: AppShellProps) {
   const unreadNotifications = (notifications ?? []).filter(
     (item) => !readNotificationIds.includes(item.id),
   );
+  useEffect(() => {
+    if (!me) {
+      setClassInvitations([]);
+      return;
+    }
+    let active = true;
+    const loadInvitations = () =>
+      classRequest<ClassInvitation[]>("/class-invitations")
+        .then((rows) => {
+          if (active) setClassInvitations(rows);
+        })
+        .catch(() => undefined);
+    void loadInvitations();
+    const interval = window.setInterval(loadInvitations, 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [me?.id]);
+  async function respondToClassInvitation(
+    invitation: ClassInvitation,
+    action: "accept" | "decline",
+  ) {
+    try {
+      await classRequest(`/class-invitations/${invitation.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action }),
+      });
+      setClassInvitations((current) =>
+        current.filter((item) => item.id !== invitation.id),
+      );
+      await queryClient.invalidateQueries({ queryKey: getListClassesQueryKey() });
+      toast({
+        title: action === "accept" ? "Class joined" : "Invitation declined",
+        description: invitation.class.name,
+      });
+    } catch (error) {
+      toast({
+        title: "Could not update invitation",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
   function markNotificationRead(id: number) {
     setReadNotificationIds((current) => {
       const next = current.includes(id) ? current : [...current, id];
@@ -678,7 +729,7 @@ export default function AppShell({ children }: AppShellProps) {
                   data-testid="notifications-button"
                 >
                   <Bell size={18} />
-                  {unreadNotifications.length > 0 && (
+                  {unreadNotifications.length + classInvitations.length > 0 && (
                     <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive" />
                   )}
                 </Button>
@@ -695,14 +746,31 @@ export default function AppShell({ children }: AppShellProps) {
                   </p>
                 </div>
                 <div className="max-h-80 overflow-y-auto p-2">
-                  {!notifications?.length ? (
+                  {!notifications?.length && !classInvitations.length ? (
                     <p className="p-4 text-center text-sm text-muted-foreground">
                       {language === "tr"
                         ? "Yeni bildirim yok"
                         : "No updates yet"}
                     </p>
                   ) : (
-                    notifications.map((item) => (
+                    <>
+                    {classInvitations.map((invitation) => (
+                      <div key={`invite-${invitation.id}`} className="mb-2 border bg-muted/30 p-3" style={{ borderRadius: 8 }}>
+                        <p className="text-sm font-semibold">{invitation.class.name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {invitation.inviter.name} invited you as a {invitation.role}.
+                        </p>
+                        <div className="mt-3 flex gap-2">
+                          <Button size="sm" className="flex-1" onClick={() => void respondToClassInvitation(invitation, "accept")}>
+                            <Check className="mr-1.5 size-3.5" />Accept
+                          </Button>
+                          <Button size="sm" variant="outline" className="flex-1" onClick={() => void respondToClassInvitation(invitation, "decline")}>
+                            <X className="mr-1.5 size-3.5" />Decline
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    {notifications?.map((item) => (
                       <Link
                         key={item.id}
                         href={
@@ -718,7 +786,8 @@ export default function AppShell({ children }: AppShellProps) {
                           )}
                         </p>
                       </Link>
-                    ))
+                    ))}
+                    </>
                   )}
                 </div>
               </PopoverContent>
