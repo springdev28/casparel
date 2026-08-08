@@ -180,14 +180,14 @@ function StudyNodeCard({ id, data, selected }: NodeProps<StudyFlowNode>) {
         <Icon className="mt-0.5 size-4 shrink-0" />
         {actions.editable ? (
           <Input
-            className={`nodrag h-auto min-w-0 border-0 !bg-transparent px-1 py-0 !text-slate-950 shadow-none focus-visible:ring-0 ${isHeading ? "text-base font-bold" : "text-sm font-semibold"}`}
+            className={`nodrag h-auto min-w-0 border-0 !bg-transparent px-1 py-0 !text-slate-950 shadow-none focus-visible:ring-0 ${isHeading ? "!text-xl font-bold leading-tight" : "text-sm font-semibold"}`}
             value={data.title}
             maxLength={240}
             aria-label="Card title"
             onChange={(event) => actions.update(id, { title: event.target.value })}
           />
         ) : (
-          <h3 className={`${isHeading ? "text-base" : "text-sm"} min-w-0 flex-1 break-words font-bold`}>{data.title}</h3>
+          <h3 className={`${isHeading ? "text-xl leading-tight" : "text-sm"} min-w-0 flex-1 break-words font-bold`}>{data.title}</h3>
         )}
         {actions.editable ? (
           <DropdownMenu>
@@ -405,6 +405,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   const lastSavedRef = useRef("");
   const savingRef = useRef(false);
   const queuedSaveRef = useRef(false);
+  const newerCanvasToastShownRef = useRef(false);
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canEdit = canvas?.permissions.canEdit === true && !shared;
   const canManage = canvas?.permissions.canManage === true && !shared;
@@ -493,7 +494,10 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
       if (current) {
         applyCanvas(current);
         setStatus("conflict");
-        toast({ title: "A newer canvas was loaded", description: "Another collaborator saved first, so their latest version replaced this unsaved view." });
+        if (!newerCanvasToastShownRef.current) {
+          newerCanvasToastShownRef.current = true;
+          toast({ title: "A newer canvas was loaded", description: "Another collaborator saved first, so their latest version replaced this unsaved view." });
+        }
       } else {
         setStatus("unsaved");
         toast({ title: "Canvas was not saved", description: error instanceof Error ? error.message : "Try again", variant: "destructive" });
