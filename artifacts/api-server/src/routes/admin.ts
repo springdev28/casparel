@@ -35,6 +35,17 @@ async function count(
   return row?.value ?? 0;
 }
 
+async function readUsageRows(statement: string, values?: unknown[]) {
+  try {
+    const result = await pool.query<{ key: string; hits: number }>(statement, values);
+    return result.rows;
+  } catch {
+    // The app starts listening before asynchronous database preparation finishes.
+    // Admin account data should remain available while the usage store initializes.
+    return [];
+  }
+}
+
 router.get(
   "/admin/overview",
   requireAdmin,
@@ -70,12 +81,12 @@ router.get(
       count(learningGoalsTable),
       count(resourcesTable),
       count(sourceReviewCacheTable),
-      pool.query<{ key: string; hits: number }>(
+      readUsageRows(
         `SELECT key, CASE WHEN reset_time > NOW() THEN hits ELSE 0 END AS hits
          FROM rate_limit_hits WHERE key = ANY($1::text[])`,
         [["ai-search-daily:all-ai-searches", "deep-global-day:all"]],
       ),
-      pool.query<{ key: string; hits: number }>(
+      readUsageRows(
         `SELECT key, CASE WHEN reset_time > NOW() THEN hits ELSE 0 END AS hits
          FROM rate_limit_hits
          WHERE key LIKE 'usage-total:%' OR key LIKE 'usage-month:%' OR key LIKE 'usage-user-total:%'`,
@@ -89,10 +100,10 @@ router.get(
         .from(usersTable),
     ]);
     const usageByKey = new Map(
-      usageResult.rows.map((row) => [row.key, Number(row.hits)]),
+      usageResult.map((row) => [row.key, Number(row.hits)]),
     );
     const counters = new Map(
-      allUsageResult.rows.map((row) => [row.key, Number(row.hits)]),
+      allUsageResult.map((row) => [row.key, Number(row.hits)]),
     );
     const featureCosts = {
       search: 0.012,

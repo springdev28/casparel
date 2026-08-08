@@ -181,7 +181,7 @@ async function adminRequest(path: string, init?: RequestInit) {
 }
 
 export default function AdminPage() {
-  const { data, isLoading, error } = useGetAdminOverview();
+  const { data, isLoading, isFetching, error, refetch } = useGetAdminOverview();
   const { data: me } = useGetMe();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -319,8 +319,14 @@ export default function AdminPage() {
 
       {error ? (
         <Card className="border-destructive">
-          <CardContent className="pt-6 text-destructive">
-            Administrator data could not be loaded. Confirm this account is listed in ADMIN_EMAILS and sign in again.
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6 text-destructive">
+            <div>
+              <p className="font-medium">Administrator data could not be loaded.</p>
+              <p className="mt-1 text-sm">{error instanceof Error ? error.message : "The server did not return administrator data."}</p>
+            </div>
+            <Button variant="outline" onClick={() => void refetch()} disabled={isFetching}>
+              <RotateCcw className={"mr-2 size-4 " + (isFetching ? "animate-spin" : "")} />Retry
+            </Button>
           </CardContent>
         </Card>
       ) : null}
