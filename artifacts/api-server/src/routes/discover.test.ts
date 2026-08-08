@@ -226,7 +226,7 @@ describe("GET /api/resources/discover — filtering", () => {
     const academicResults = [
       {
         ...makeItem(),
-        sourceCredibility: "academic",
+        sourceCredibility: "academic" as const,
       },
     ];
     vi.mocked(searchCatalog)
