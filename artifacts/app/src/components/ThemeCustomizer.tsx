@@ -10,6 +10,10 @@ import {
   DialogTitle,
 } from "@workspace/edu-ds/components/ui/dialog";
 import { Label } from "@workspace/edu-ds/components/ui/label";
+import {
+  useUpdateUserPreferences,
+  useUserPreferences,
+} from "../lib/user-preferences";
 
 const STORAGE_KEY_PREFIX = "schoolar_interface_colors";
 const LAST_COLORS_KEY = "schoolar_interface_colors:last";
@@ -212,12 +216,23 @@ export default function ThemeCustomizer({
 }) {
   const [open, setOpen] = useState(false);
   const [colors, setColors] = useState<InterfaceColors>(DEFAULT_COLORS);
+  const { data: accountPreferences } = useUserPreferences(Boolean(accountId));
+  const updateAccountPreferences = useUpdateUserPreferences();
 
   useLayoutEffect(() => {
-    const next = loadColors(accountId);
+    const next = accountPreferences?.interfaceColors ?? loadColors(accountId);
     setColors(next);
     applyColors(next);
-  }, [accountId]);
+    if (accountId && accountPreferences?.interfaceColors) {
+      saveColors(accountId, accountPreferences.interfaceColors);
+    } else if (
+      accountId &&
+      accountPreferences &&
+      JSON.stringify(next) !== JSON.stringify(DEFAULT_COLORS)
+    ) {
+      updateAccountPreferences.mutate({ interfaceColors: next });
+    }
+  }, [accountId, accountPreferences?.interfaceColors]);
 
   useLayoutEffect(() => {
     applyColors(colors);
@@ -249,7 +264,10 @@ export default function ThemeCustomizer({
 
   function updateColors(next: InterfaceColors) {
     setColors(next);
-    if (accountId) saveColors(accountId, next);
+    if (accountId) {
+      saveColors(accountId, next);
+      updateAccountPreferences.mutate({ interfaceColors: next });
+    }
   }
 
   function resetColors() {

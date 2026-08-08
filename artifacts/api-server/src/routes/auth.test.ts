@@ -39,8 +39,37 @@ vi.mock("@workspace/db", () => {
     resourceListsTable: stub("resource_lists"),
     listItemsTable: stub("list_items"),
     scheduleBlocksTable: stub("schedule_blocks"),
+    userPreferencesTable: stub("user_preferences"),
   };
 });
+
+// Authentication middleware has its own live-user checks. These route tests
+// focus on auth route behavior, so decode the test JWT without consuming the
+// database fixtures intended for the route itself.
+vi.mock("../middlewares/requireAuth", () => ({
+  requireAuth: (
+    req: { headers: { authorization?: string }; userId?: number; userRole?: string; accountRole?: string },
+    res: { status: (code: number) => { json: (value: unknown) => void } },
+    next: () => void,
+  ) => {
+    const header = req.headers.authorization;
+    if (!header?.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    try {
+      const payload = JSON.parse(
+        Buffer.from(header.slice(7).split(".")[1], "base64url").toString("utf8"),
+      ) as { userId: number; role: string };
+      req.userId = payload.userId;
+      req.userRole = payload.role;
+      req.accountRole = payload.role;
+      next();
+    } catch {
+      res.status(401).json({ error: "Invalid or expired token" });
+    }
+  },
+}));
 
 // ── Import subjects AFTER mock declarations ────────────────────────────────────
 import { db } from "@workspace/db";

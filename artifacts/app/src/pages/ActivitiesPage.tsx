@@ -53,6 +53,7 @@ type ActivityCard = {
 
 type StudyActivity = {
   id: number;
+  classId: number | null;
   title: string;
   subject: string | null;
   cards: ActivityCard[];
@@ -190,7 +191,15 @@ function emptyCard(): ActivityCard {
   return { id: crypto.randomUUID(), term: "", answer: "" };
 }
 
-export default function ActivitiesPage() {
+export default function ActivitiesPage({
+  embedded = false,
+  classIdOverride,
+  readOnly = false,
+}: {
+  embedded?: boolean;
+  classIdOverride?: number;
+  readOnly?: boolean;
+} = {}) {
   const importRef = useRef<HTMLInputElement>(null);
   const [activities, setActivities] = useState<StudyActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,7 +271,7 @@ export default function ActivitiesPage() {
     setLoading(true);
     try {
       const result = (await activityRequest(
-        "/study-activities",
+        `/study-activities${classIdOverride ? `?classId=${classIdOverride}` : ""}`,
       )) as unknown as StudyActivity[];
       setActivities(result);
       setSelectedId((current) =>
@@ -284,7 +293,7 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     void loadActivities();
-  }, []);
+  }, [classIdOverride]);
 
   function resetStudy(activity: StudyActivity | undefined) {
     const cards = activity?.cards ?? [];
@@ -446,6 +455,7 @@ export default function ActivitiesPage() {
             title: formTitle,
             subject: formSubject,
             cards: completeCards,
+            classId: classIdOverride ?? null,
           }),
         },
       )) as unknown as StudyActivity;
@@ -485,7 +495,7 @@ export default function ActivitiesPage() {
 
   async function duplicateSet(activity: StudyActivity) {
     try {
-      const copy = (await activityRequest("/study-activities", { method: "POST", body: JSON.stringify({ title: `${activity.title} (copy)`, subject: activity.subject ?? "", cards: activity.cards.map((card) => ({ ...card, id: crypto.randomUUID() })) }) })) as unknown as StudyActivity;
+      const copy = (await activityRequest("/study-activities", { method: "POST", body: JSON.stringify({ title: `${activity.title} (copy)`, subject: activity.subject ?? "", cards: activity.cards.map((card) => ({ ...card, id: crypto.randomUUID() })), classId: classIdOverride ?? null }) })) as unknown as StudyActivity;
       await loadActivities();
       setSelectedId(copy.id);
       toast({ title: "Activity duplicated", description: "The copy is ready to edit or assign." });
@@ -770,19 +780,21 @@ export default function ActivitiesPage() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className={embedded ? "space-y-6" : "mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8"}>
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Study activities</h1>
+          <h1 className="text-2xl font-bold">{classIdOverride ? "Class activities" : "Study activities"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Create, edit, and study your own term-and-answer sets.
+            {classIdOverride
+              ? "Practice with activity sets shared in this class."
+              : "Create, edit, and study your own term-and-answer sets."}
           </p>
         </div>
-        <div className="flex gap-2">
+        {!readOnly && <div className="flex gap-2">
           <input ref={importRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" className="hidden" onChange={(event) => void importSet(event.target.files?.[0])} />
           <Button variant="outline" onClick={() => importRef.current?.click()}><FileUp className="mr-2 size-4" /> Import CSV / Quizlet</Button>
           <Button onClick={openNewSet}><Plus className="mr-2 size-4" /> New activity</Button>
-        </div>
+        </div>}
       </header>
 
       {loading ? (
@@ -794,9 +806,9 @@ export default function ActivitiesPage() {
         <div className="border-y py-16 text-center">
           <Layers3 className="mx-auto mb-3 size-10 text-muted-foreground" />
           <p className="font-semibold">No study activities yet</p>
-          <Button className="mt-4" onClick={openNewSet}>
+          {!readOnly && <Button className="mt-4" onClick={openNewSet}>
             <Plus className="mr-2 size-4" /> Create the first set
-          </Button>
+          </Button>}
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
@@ -838,7 +850,7 @@ export default function ActivitiesPage() {
                     {selected.subject ?? "General"} · {selected.cards.length} cards
                   </p>
                 </div>
-                <div className="flex gap-2">
+                {!readOnly && <div className="flex gap-2">
                   <Button variant="outline" size="icon" onClick={() => void duplicateSet(selected)} aria-label="Duplicate activity" title="Duplicate activity"><CopyPlus className="size-4" /></Button>
                   <Button
                     variant="outline"
@@ -858,7 +870,7 @@ export default function ActivitiesPage() {
                   >
                     <Trash2 className="size-4" />
                   </Button>
-                </div>
+                </div>}
               </div>
 
               <div className="grid w-full grid-cols-2 gap-1 rounded-md border bg-card p-1 sm:flex sm:w-auto sm:flex-wrap">

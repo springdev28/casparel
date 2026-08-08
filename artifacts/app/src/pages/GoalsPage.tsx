@@ -72,6 +72,10 @@ import {
 } from "@workspace/api-client-react";
 
 import { getDashboardGoalId, setDashboardGoalId } from "../lib/dashboardGoal";
+import {
+  useUpdateUserPreferences,
+  useUserPreferences,
+} from "../lib/user-preferences";
 
 type CommunityPath = {
   id: number;
@@ -110,6 +114,8 @@ export default function GoalsPage() {
   const client = useQueryClient();
   const { data: me } = useGetMe();
   const workspaceRole = me?.activeRole ?? me?.role;
+  const { data: accountPreferences } = useUserPreferences(Boolean(me));
+  const updateAccountPreferences = useUpdateUserPreferences();
   const [dashboardGoalId, setDashboardGoal] = useState<number | null>(null);
   const isTeacher = workspaceRole === UserRole.teacher;
   const { data: classes } = useListClasses({ query: { enabled: isTeacher, queryKey: getListClassesQueryKey() } });
@@ -124,8 +130,19 @@ export default function GoalsPage() {
     toast({ title: "Student goal updated" });
   }
   useEffect(() => {
-    setDashboardGoal(getDashboardGoalId(me?.id, workspaceRole));
-  }, [me?.id, workspaceRole]);
+    const localGoal = getDashboardGoalId(me?.id, workspaceRole);
+    const savedForRole = workspaceRole
+      ? accountPreferences?.dashboardGoalIds[workspaceRole]
+      : undefined;
+    setDashboardGoal(savedForRole ?? localGoal);
+    if (accountPreferences && workspaceRole && !savedForRole && localGoal)
+      updateAccountPreferences.mutate({
+        dashboardGoalIds: {
+          ...accountPreferences.dashboardGoalIds,
+          [workspaceRole]: localGoal,
+        },
+      });
+  }, [accountPreferences, me?.id, workspaceRole]);
   const { data: goals, isLoading } = useListLearningGoals({
     query: { queryKey: getListLearningGoalsQueryKey() },
   });
@@ -751,7 +768,7 @@ export default function GoalsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant={dashboardGoalId === goal.id ? "default" : "outline"} onClick={() => { if (!me?.id || !workspaceRole) return; setDashboardGoalId(me.id, workspaceRole, goal.id); setDashboardGoal(goal.id); toast({ title: "Dashboard goal updated", description: goal.title + " will drive your dashboard and check-ins." }); }}><LayoutDashboard className="mr-2 size-4" />{dashboardGoalId === goal.id ? "Displayed on dashboard" : "Display on dashboard"}</Button>
+                    <Button type="button" size="sm" variant={dashboardGoalId === goal.id ? "default" : "outline"} onClick={() => { if (!me?.id || !workspaceRole) return; setDashboardGoalId(me.id, workspaceRole, goal.id); setDashboardGoal(goal.id); updateAccountPreferences.mutate({ dashboardGoalIds: { ...(accountPreferences?.dashboardGoalIds ?? {}), [workspaceRole]: goal.id } }); toast({ title: "Dashboard goal updated", description: goal.title + " will drive your dashboard and check-ins." }); }}><LayoutDashboard className="mr-2 size-4" />{dashboardGoalId === goal.id ? "Displayed on dashboard" : "Display on dashboard"}</Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => downloadStudyPack(goal)}>
                       <Download className="mr-2 size-4" /> Download study pack
                     </Button>

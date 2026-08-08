@@ -376,15 +376,21 @@ function MarkdownText({ value }: { value: string }) {
   );
 }
 
-export default function ForumPage() {
+export default function ForumPage({
+  classIdOverride,
+  embedded = false,
+}: {
+  classIdOverride?: number;
+  embedded?: boolean;
+} = {}) {
   const routeSearch = useSearch();
   const requestedClassId = Number(
     new URLSearchParams(routeSearch).get("classId"),
   );
-  const classId =
+  const classId = classIdOverride ?? (
     Number.isInteger(requestedClassId) && requestedClassId > 0
       ? requestedClassId
-      : null;
+      : null);
   const { data: me } = useGetMe();
   const { data: joinedClasses } = useListClasses();
   const [access, setAccess] = useState<ForumAccess>({
@@ -715,10 +721,10 @@ export default function ForumPage() {
   }, [posts]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className={embedded ? "space-y-6" : "mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8"}>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          {classId && (
+          {classId && !embedded && (
             <Button variant="ghost" size="sm" asChild className="mb-2 -ml-2">
               <Link href={"/classes/" + classId}>
                 <ArrowLeft className="mr-1 size-4" />

@@ -27,9 +27,14 @@ export async function isClassTeacher(classId: number, userId: number): Promise<b
     .select({ role: usersTable.role, activeRole: usersTable.activeRole })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
-  // Require effective active role of "teacher".  A teacher or admin who has
-  // switched to student mode cannot perform teacher actions, even on their own classes.
-  if (!user || !["teacher", "admin"].includes(user.role) || (user.activeRole ?? user.role) !== "teacher") return false;
+  if (!user) return false;
+  const effectiveRole = user.activeRole ?? user.role;
+  // Administrators can inspect and manage every class, including private
+  // member notes, while they are using the administrator workspace.
+  if (user.role === "admin" && effectiveRole === "admin") return true;
+  // Teachers retain management access only to classes they own and only while
+  // using the teacher workspace.
+  if (user.role !== "teacher" || effectiveRole !== "teacher") return false;
 
   const [cls] = await db
     .select()

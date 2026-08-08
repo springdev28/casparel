@@ -46,10 +46,19 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useGetMe, useListClasses, UserRole } from "@workspace/api-client-react";
 import { canvasRequest, type SchoolarCanvas } from "../lib/canvas-api";
 
-export default function CanvasesPage() {
+export default function CanvasesPage({
+  classIdOverride,
+  embedded = false,
+}: {
+  classIdOverride?: number;
+  embedded?: boolean;
+} = {}) {
   const [, setLocation] = useLocation();
   const routeSearch = useSearch();
-  const requestedClassId = new URLSearchParams(routeSearch).get("classId");
+  const requestedClassId =
+    classIdOverride != null
+      ? String(classIdOverride)
+      : new URLSearchParams(routeSearch).get("classId");
   const [canvases, setCanvases] = useState<SchoolarCanvas[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -60,8 +69,12 @@ export default function CanvasesPage() {
   const [classAccess, setClassAccess] = useState<"view" | "edit">("view");
   const { data: me } = useGetMe();
   const { data: classes } = useListClasses();
-  const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
-  const ownedClasses = (classes ?? []).filter((item) => item.teacherId === me?.id);
+  const isTeacher =
+    (me?.activeRole ?? me?.role) === UserRole.teacher ||
+    me?.role === UserRole.admin;
+  const ownedClasses = (classes ?? []).filter(
+    (item) => item.teacherId === me?.id || me?.role === UserRole.admin,
+  );
 
   async function load() {
     try {
@@ -125,6 +138,9 @@ export default function CanvasesPage() {
 
   const personal = canvases.filter((canvas) => canvas.classId == null);
   const classCanvases = canvases.filter((canvas) => canvas.classId != null && (!requestedClassId || String(canvas.classId) === requestedClassId));
+  const hasVisibleCanvases = requestedClassId
+    ? classCanvases.length > 0
+    : canvases.length > 0;
 
   function CanvasCard({ canvas }: { canvas: SchoolarCanvas }) {
     const Icon = canvas.classId ? School : LayoutDashboard;
@@ -165,13 +181,13 @@ export default function CanvasesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 p-4 sm:p-6 lg:p-8">
+    <div className={embedded ? "space-y-6" : "mx-auto max-w-7xl space-y-8 p-4 sm:p-6 lg:p-8"}>
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary">
             <BookOpenCheck size={16} /> Visual study spaces
           </div>
-          <h1 className="text-2xl font-bold">Canvas</h1>
+          <h1 className="text-2xl font-bold">{requestedClassId ? "Class canvas" : "Canvas"}</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Connect notes, links, and Schoolar resources in a flexible workspace.
           </p>
@@ -181,16 +197,16 @@ export default function CanvasesPage() {
 
       {loading ? (
         <div className="flex min-h-52 items-center justify-center"><Loader2 className="size-6 animate-spin text-primary" /></div>
-      ) : !canvases.length ? (
+      ) : !hasVisibleCanvases ? (
         <section className="border-y py-16 text-center">
           <LayoutDashboard className="mx-auto mb-4 size-10 text-muted-foreground" />
-          <h2 className="font-semibold">Start with a blank canvas</h2>
+          <h2 className="font-semibold">{requestedClassId ? "No class canvases yet" : "Start with a blank canvas"}</h2>
           <p className="mt-1 text-sm text-muted-foreground">Map a topic, plan a project, or create a shared class board.</p>
           <Button className="mt-5" onClick={() => setCreateOpen(true)}><Plus className="mr-2 size-4" /> Create canvas</Button>
         </section>
       ) : (
         <>
-          {personal.length ? <section className="space-y-3"><h2 className="text-sm font-semibold uppercase text-muted-foreground">Personal and shared</h2><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{personal.map((canvas) => <CanvasCard key={canvas.id} canvas={canvas} />)}</div></section> : null}
+          {!requestedClassId && personal.length ? <section className="space-y-3"><h2 className="text-sm font-semibold uppercase text-muted-foreground">Personal and shared</h2><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{personal.map((canvas) => <CanvasCard key={canvas.id} canvas={canvas} />)}</div></section> : null}
           {classCanvases.length ? <section className="space-y-3"><h2 className="text-sm font-semibold uppercase text-muted-foreground">Class canvases</h2><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{classCanvases.map((canvas) => <CanvasCard key={canvas.id} canvas={canvas} />)}</div></section> : null}
         </>
       )}
@@ -202,7 +218,7 @@ export default function CanvasesPage() {
             <div className="space-y-4 py-5">
               <div className="space-y-2"><Label htmlFor="canvas-title">Title</Label><Input id="canvas-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} autoFocus /></div>
               <div className="space-y-2"><Label htmlFor="canvas-description">Description</Label><Textarea id="canvas-description" value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} /></div>
-              <div className="space-y-2"><Label>Workspace</Label><Select value={classId} onValueChange={setClassId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="personal">Personal canvas</SelectItem>{isTeacher && ownedClasses.map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select></div>
+              {!classIdOverride && <div className="space-y-2"><Label>Workspace</Label><Select value={classId} onValueChange={setClassId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="personal">Personal canvas</SelectItem>{isTeacher && ownedClasses.map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent></Select></div>}
               {classId !== "personal" ? <div className="space-y-2"><Label>Student access</Label><Select value={classAccess} onValueChange={(value) => setClassAccess(value as "view" | "edit")}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="view">View and suggest</SelectItem><SelectItem value="edit">Collaborative editing</SelectItem></SelectContent></Select></div> : null}
             </div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button><Button type="submit" disabled={creating || !title.trim()}>{creating && <Loader2 className="mr-2 size-4 animate-spin" />}Create</Button></DialogFooter>

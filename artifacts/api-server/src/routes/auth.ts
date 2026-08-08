@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, or, ilike, inArray, ne, sql, desc } from "drizzle-orm";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
+import { z } from "zod/v4";
 import {
   db,
   pool,
@@ -11,6 +12,7 @@ import {
   userReportsTable,
   resourcesTable,
   resourceListsTable,
+  userPreferencesTable,
 } from "@workspace/db";
 import {
   RegisterBody,
@@ -136,6 +138,103 @@ function detectRasterImageMime(
 }
 
 const router: IRouter = Router();
+
+const hexColor = z.string().regex(/^#[0-9a-f]{6}$/i);
+const userPreferencesPatch = z
+  .object({
+    language: z.enum(["en", "es", "fr", "de", "pt", "tr"]).optional(),
+    interfaceColors: z
+      .object({
+        background: hexColor,
+        surface: hexColor,
+        primary: hexColor,
+        accent: hexColor,
+      })
+      .nullable()
+      .optional(),
+    ambientStyle: z
+      .enum(["off", "net", "globe", "halo", "cells", "rings", "topology"])
+      .optional(),
+    ambientIntensity: z.number().min(0.5).max(2).optional(),
+    readNotificationIds: z.array(z.number().int().positive()).max(500).optional(),
+    dashboardGoalIds: z.record(z.string(), z.number().int().positive()).optional(),
+    continueStudying: z
+      .record(z.string(), z.array(z.number().int().positive()).max(6))
+      .optional(),
+    pendingCheckIns: z
+      .record(
+        z.string(),
+        z.object({
+          concept: z.string().trim().min(1).max(300),
+          prompt: z.string().trim().min(1).max(600),
+        }),
+      )
+      .optional(),
+    searchHistory: z
+      .array(
+        z.object({
+          query: z.string().trim().min(1).max(300),
+          searchedAt: z.iso.datetime(),
+        }),
+      )
+      .max(12)
+      .optional(),
+    resourceSearchState: z.record(z.string(), z.unknown()).nullable().optional(),
+  })
+  .strict();
+
+function defaultUserPreferences(userId: number) {
+  return {
+    userId,
+    language: null,
+    interfaceColors: null,
+    ambientStyle: null,
+    ambientIntensity: null,
+    readNotificationIds: [] as number[],
+    dashboardGoalIds: {} as Record<string, number>,
+    continueStudying: {} as Record<string, number[]>,
+    pendingCheckIns: {} as Record<string, { concept: string; prompt: string }>,
+    searchHistory: [] as Array<{ query: string; searchedAt: string }>,
+    resourceSearchState: null as Record<string, unknown> | null,
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
+router.get("/users/me/preferences", requireAuth, async (req, res): Promise<void> => {
+  const { userId } = req as AuthenticatedRequest;
+  const [preferences] = await db
+    .select()
+    .from(userPreferencesTable)
+    .where(eq(userPreferencesTable.userId, userId));
+  res.json(preferences ?? defaultUserPreferences(userId));
+});
+
+router.patch(
+  "/users/me/preferences",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    if (Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8") > 250_000) {
+      res.status(413).json({ error: "Preferences payload is too large" });
+      return;
+    }
+    const parsed = userPreferencesPatch.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const [preferences] = await db
+      .insert(userPreferencesTable)
+      .values({ userId, ...parsed.data, updatedAt: new Date().toISOString() })
+      .onConflictDoUpdate({
+        target: userPreferencesTable.userId,
+        set: { ...parsed.data, updatedAt: new Date().toISOString() },
+      })
+      .returning();
+    res.json(preferences);
+  },
+);
 
 // 20 attempts per IP per 15 minutes on auth endpoints.
 // 5 was too restrictive — a user whose session expires and retries a couple

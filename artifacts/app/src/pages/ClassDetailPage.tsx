@@ -44,6 +44,9 @@ import {
   type GCRosterStudent,
 } from '@workspace/api-client-react';
 import { classRequest, type ClassInvitation } from '../lib/class-api';
+import ForumPage from './ForumPage';
+import ActivitiesPage from './ActivitiesPage';
+import CanvasesPage from './CanvasesPage';
 
 type ClassTab = 'members' | 'notes' | 'forum' | 'designer' | 'assignments' | 'activities' | 'resources' | 'canvas';
 
@@ -86,7 +89,9 @@ export default function ClassDetailPage() {
   });
   const { data: me } = useGetMe();
   // GC status: fetch for any teacher-role user (not class-specific)
-  const isTeacherRole = (me?.activeRole ?? me?.role) === UserRole.teacher;
+  const isAdministrator = me?.role === UserRole.admin;
+  const isTeacherRole =
+    (me?.activeRole ?? me?.role) === UserRole.teacher || isAdministrator;
   const { data: gcStatus } = useGetGCStatus({
     query: { enabled: isTeacherRole, queryKey: getGetGCStatusQueryKey() },
   });
@@ -106,7 +111,9 @@ export default function ClassDetailPage() {
   const updateClass = useUpdateClass();
 
   // Class-specific teacher check: only the teacher of THIS class can manage it
-  const isTeacher = isTeacherRole && me?.id != null && cls?.teacherId === me.id;
+  const isTeacher =
+    isAdministrator ||
+    (isTeacherRole && me?.id != null && cls?.teacherId === me.id);
   const { data: seatingChart } = useGetSeatingChart(classId, {
     query: { enabled: isTeacher && !!classId, queryKey: getGetSeatingChartQueryKey(classId) },
   });
@@ -491,10 +498,10 @@ export default function ClassDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <nav className="-mx-3 overflow-x-auto border-y bg-background/80 px-3 py-2 sm:mx-0 sm:border sm:p-2" aria-label="Class workspace sections" style={{ borderRadius: 8 }}>
+      <nav className="-mx-3 overflow-x-auto border-y bg-card px-3 py-2 text-card-foreground sm:mx-0 sm:border sm:p-2" aria-label="Class workspace sections" style={{ borderRadius: 8 }}>
         <div className="flex w-max min-w-full gap-1">
           {classTabs.map(({ id: tabId, label, icon: Icon }) => (
-            <button key={tabId} type="button" onClick={() => setActiveTab(tabId)} className={`flex h-10 shrink-0 items-center gap-2 px-3 text-sm font-medium transition-colors ${activeTab === tabId ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`} style={{ borderRadius: 6 }}>
+            <button key={tabId} type="button" onClick={() => setActiveTab(tabId)} className={`flex h-10 shrink-0 items-center gap-2 px-3 text-sm font-medium transition-colors ${activeTab === tabId ? 'bg-primary text-primary-foreground' : 'text-card-foreground/80 hover:bg-accent hover:text-card-foreground'}`} style={{ borderRadius: 6 }}>
               <Icon size={15} />{label}
             </button>
           ))}
@@ -549,11 +556,11 @@ export default function ClassDetailPage() {
 
       {activeTab === 'designer' && (isTeacher || ownMembership?.role === "student") && <SeatingChartEditor classId={classId} readOnly={!isTeacher} />}
 
-      {activeTab === 'forum' && <WorkspaceLaunchPanel icon={MessagesSquare} title="Class forum" description="Discuss lessons, ask questions, run surveys, and share attachments with this class." action="Open class forum" onOpen={() => setLocation('/forum?classId=' + classId)} />}
+      {activeTab === 'forum' && <ForumPage classIdOverride={classId} embedded />}
 
-      {activeTab === 'activities' && <WorkspaceLaunchPanel icon={LibraryBig} title="Class activities" description="Create flashcards, quizzes, matching games, and other practice activities, then attach them to class assignments." action="Open activities" onOpen={() => setLocation('/activities?classId=' + classId)} />}
+      {activeTab === 'activities' && <ActivitiesPage classIdOverride={classId} embedded readOnly={!isTeacher} />}
 
-      {activeTab === 'canvas' && <WorkspaceLaunchPanel icon={Workflow} title="Class canvas" description="Open collaborative visual spaces owned by this class or create a new one for the lesson." action="Open class canvases" onOpen={() => setLocation('/canvases?classId=' + classId)} />}
+      {activeTab === 'canvas' && <CanvasesPage classIdOverride={classId} embedded />}
 
       {activeTab === 'resources' && isTeacher && (classRecommendations as ClassResourceRecommendation[] | undefined)?.some((item) => item.status === ClassResourceRecommendationStatus.pending) && (
         <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" data-testid="student-recommendations-bar">
@@ -661,10 +668,6 @@ export default function ClassDetailPage() {
       </section>}
     </div>
   );
-}
-
-function WorkspaceLaunchPanel({ icon: Icon, title, description, action, onOpen }: { icon: typeof Users; title: string; description: string; action: string; onOpen: () => void }) {
-  return <section className="flex min-h-72 flex-col items-center justify-center border-y px-4 py-12 text-center"><span className="mb-4 flex size-12 items-center justify-center bg-primary/10 text-primary" style={{ borderRadius: 8 }}><Icon size={24} /></span><h2 className="text-lg font-semibold">{title}</h2><p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p><Button className="mt-5" onClick={onOpen}>{action}</Button></section>;
 }
 
 function SyncCourseIdStep({ onConfirm }: { onConfirm: (courseId: string) => void }) {

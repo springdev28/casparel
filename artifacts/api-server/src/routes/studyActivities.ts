@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { db, studyActivitiesTable, type StudyActivityCard } from "@workspace/db";
 import { contentLimiter } from "../lib/limiters";
 import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
+import { isClassMember, isClassTeacher } from "../lib/authz";
 
 const router: IRouter = Router();
 const IMAGE_DATA_PATTERN = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
@@ -93,14 +94,27 @@ function parseActivityInput(value: unknown) {
 
 router.get("/study-activities", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
+  const classId = Number(req.query.classId);
+  const hasClassId = Number.isInteger(classId) && classId > 0;
+  if (
+    hasClassId &&
+    !(await isClassMember(classId, userId)) &&
+    !(await isClassTeacher(classId, userId))
+  ) {
+    res.status(403).json({ error: "Not a member of this class" });
+    return;
+  }
   const activities = await db
     .select()
     .from(studyActivitiesTable)
     .where(
-      and(
-        eq(studyActivitiesTable.ownerId, userId),
-        eq(studyActivitiesTable.workspaceRole, activeWorkspaceRole(userRole)),
-      ),
+      hasClassId
+        ? eq(studyActivitiesTable.classId, classId)
+        : and(
+            eq(studyActivitiesTable.ownerId, userId),
+            eq(studyActivitiesTable.workspaceRole, activeWorkspaceRole(userRole)),
+            isNull(studyActivitiesTable.classId),
+          ),
     )
     .orderBy(desc(studyActivitiesTable.updatedAt));
   res.json(activities);
@@ -112,6 +126,14 @@ router.post(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId, userRole } = req as AuthenticatedRequest;
+    const classId = Number(req.body?.classId);
+    const hasClassId = Number.isInteger(classId) && classId > 0;
+    if (hasClassId && !(await isClassTeacher(classId, userId))) {
+      res.status(403).json({
+        error: "Only the class teacher can create class activities",
+      });
+      return;
+    }
     const input = parseActivityInput(req.body);
     if (!input) {
       res.status(400).json({
@@ -124,6 +146,7 @@ router.post(
       .values({
         ownerId: userId,
         workspaceRole: activeWorkspaceRole(userRole),
+        classId: hasClassId ? classId : null,
         ...input,
       })
       .returning();
@@ -143,16 +166,24 @@ router.patch(
       res.status(400).json({ error: "Invalid study activity" });
       return;
     }
+    const [existing] = await db
+      .select()
+      .from(studyActivitiesTable)
+      .where(eq(studyActivitiesTable.id, id));
+    const ownsActivity =
+      existing?.ownerId === userId &&
+      existing.workspaceRole === activeWorkspaceRole(userRole);
+    const managesClass =
+      existing?.classId != null &&
+      (await isClassTeacher(existing.classId, userId));
+    if (!existing || (!ownsActivity && !managesClass)) {
+      res.status(404).json({ error: "Study activity not found" });
+      return;
+    }
     const [activity] = await db
       .update(studyActivitiesTable)
       .set({ ...input, updatedAt: new Date().toISOString() })
-      .where(
-        and(
-          eq(studyActivitiesTable.id, id),
-          eq(studyActivitiesTable.ownerId, userId),
-          eq(studyActivitiesTable.workspaceRole, activeWorkspaceRole(userRole)),
-        ),
-      )
+      .where(eq(studyActivitiesTable.id, id))
       .returning();
     if (!activity) {
       res.status(404).json({ error: "Study activity not found" });
@@ -172,15 +203,23 @@ router.delete(
       res.status(400).json({ error: "Invalid study activity" });
       return;
     }
+    const [existing] = await db
+      .select()
+      .from(studyActivitiesTable)
+      .where(eq(studyActivitiesTable.id, id));
+    const ownsActivity =
+      existing?.ownerId === userId &&
+      existing.workspaceRole === activeWorkspaceRole(userRole);
+    const managesClass =
+      existing?.classId != null &&
+      (await isClassTeacher(existing.classId, userId));
+    if (!existing || (!ownsActivity && !managesClass)) {
+      res.status(404).json({ error: "Study activity not found" });
+      return;
+    }
     const removed = await db
       .delete(studyActivitiesTable)
-      .where(
-        and(
-          eq(studyActivitiesTable.id, id),
-          eq(studyActivitiesTable.ownerId, userId),
-          eq(studyActivitiesTable.workspaceRole, activeWorkspaceRole(userRole)),
-        ),
-      )
+      .where(eq(studyActivitiesTable.id, id))
       .returning({ id: studyActivitiesTable.id });
     if (!removed.length) {
       res.status(404).json({ error: "Study activity not found" });

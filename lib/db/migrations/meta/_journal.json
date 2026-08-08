@@ -232,6 +232,13 @@
       "when": 1788508800000,
       "tag": "0032_class_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788595200000,
+      "tag": "0033_user_preferences",
+      "breakpoints": true
     }
   ]
 }

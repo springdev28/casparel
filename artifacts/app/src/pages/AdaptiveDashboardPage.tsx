@@ -38,6 +38,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { getDashboardGoalId, pendingCheckInKey } from "../lib/dashboardGoal";
 import { TodayAssignments } from "../components/TodayAssignments";
+import {
+  useUpdateUserPreferences,
+  useUserPreferences,
+} from "../lib/user-preferences";
 
 const path = [
   {
@@ -113,6 +117,8 @@ const checkIns = [
 function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: number; workspaceRole?: string }) {
   const [confidence, setConfidence] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  const { data: accountPreferences } = useUserPreferences(Boolean(userId));
+  const updateAccountPreferences = useUpdateUserPreferences();
   const [, setLocation] = useLocation();
   const { data: evidence, isLoading: evidenceLoading } =
     useListLearningEvidence();
@@ -123,11 +129,15 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
   const updateGoal = useUpdateLearningGoal();
   const [selectedGoalId, setSelectedGoalId] = useState(() => getDashboardGoalId(userId, workspaceRole));
   useEffect(() => {
-    setSelectedGoalId(getDashboardGoalId(userId, workspaceRole));
+    setSelectedGoalId(
+      (workspaceRole
+        ? accountPreferences?.dashboardGoalIds[workspaceRole]
+        : undefined) ?? getDashboardGoalId(userId, workspaceRole),
+    );
     const syncGoal = (event: Event) => setSelectedGoalId((event as CustomEvent<number>).detail);
     window.addEventListener("schoolar-dashboard-goal", syncGoal);
     return () => window.removeEventListener("schoolar-dashboard-goal", syncGoal);
-  }, [userId, workspaceRole]);
+  }, [accountPreferences, userId, workspaceRole]);
   const activeGoal =
     goals?.find((goal) => goal.id === selectedGoalId) ??
     goals?.find((goal) => goal.status === "active") ??
@@ -173,6 +183,12 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
       setContinueResourceIds([]);
       return;
     }
+    const accountSelection =
+      accountPreferences?.continueStudying[String(activeGoal.id)];
+    if (accountSelection) {
+      setContinueResourceIds(accountSelection);
+      return;
+    }
     try {
       const stored = JSON.parse(
         localStorage.getItem(
@@ -189,7 +205,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
     } catch {
       setContinueResourceIds([]);
     }
-  }, [userId, activeGoal?.id]);
+  }, [accountPreferences, userId, activeGoal?.id]);
   const continueResources = continueResourceIds
     .map((id) => (libraryCatalog ?? []).find((resource) => resource.id === id))
     .filter(
@@ -247,16 +263,24 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
       ];
     const next = step ? { concept: step.title, prompt: `How confident are you with “${step.title}”?` } : { concept: activeGoal.title, prompt: `How confident are you that you achieved “${activeGoal.title}”?` };
     localStorage.setItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id), JSON.stringify(next));
+    updateAccountPreferences.mutate({
+      pendingCheckIns: {
+        ...(accountPreferences?.pendingCheckIns ?? {}),
+        [`${workspaceRole}:${activeGoal.id}`]: next,
+      },
+    });
     setCheckIn(next);
     setNeedsContinuation(false);
   }
   useEffect(() => {
     setConfidence(null); setAnsweredThisVisit(false); setCheckIn(null); setNeedsContinuation(false);
     if (!activeGoal || !userId || !workspaceRole || evidence === undefined) return;
+    const accountCheckIn = accountPreferences?.pendingCheckIns[`${workspaceRole}:${activeGoal.id}`];
+    if (accountCheckIn) { setCheckIn(accountCheckIn); return; }
     const saved = localStorage.getItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id));
-    if (saved) { try { setCheckIn(JSON.parse(saved)); return; } catch { localStorage.removeItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id)); } }
+    if (saved) { try { const parsed = JSON.parse(saved); setCheckIn(parsed); updateAccountPreferences.mutate({ pendingCheckIns: { ...(accountPreferences?.pendingCheckIns ?? {}), [`${workspaceRole}:${activeGoal.id}`]: parsed } }); return; } catch { localStorage.removeItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id)); } }
     if (answeredCount > 0 && answeredCount % 5 === 0) setNeedsContinuation(true); else createNextCheckIn();
-  }, [activeGoal?.id, evidence === undefined]);
+  }, [activeGoal?.id, evidence === undefined, accountPreferences === undefined]);
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -394,6 +418,9 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                         try {
                           await createEvidence.mutateAsync({ data: { learningGoalId: activeGoal.id, concept: checkIn.concept, confidence: i + 1, understanding: i === 0 ? 1 : i === 1 ? 2 : 4, reflection: x } });
                           localStorage.removeItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id));
+                          const nextPending = { ...(accountPreferences?.pendingCheckIns ?? {}) };
+                          delete nextPending[`${workspaceRole}:${activeGoal.id}`];
+                          updateAccountPreferences.mutate({ pendingCheckIns: nextPending });
                           setConfidence(i);
                           setAnsweredThisVisit(true);
                           await queryClient.invalidateQueries({ queryKey: getListLearningEvidenceQueryKey() });

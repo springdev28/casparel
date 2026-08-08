@@ -102,6 +102,10 @@ import {
   getSearchHistory,
   type SearchHistoryItem,
 } from "../lib/searchHistory";
+import {
+  useUpdateUserPreferences,
+  useUserPreferences,
+} from "../lib/user-preferences";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
 const RESOURCE_SEARCH_STATE_KEY = "schoolar_resource_search_state";
@@ -1064,6 +1068,10 @@ export default function ResourcesPage() {
   const routeSearch = useRouteSearch();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
+  const { data: accountPreferences } = useUserPreferences(
+    Boolean(localStorage.getItem("schoolar_token")),
+  );
+  const updateAccountPreferences = useUpdateUserPreferences();
 
   const initialSearch = useRef(storedResourceSearch()).current;
   const initialResourceView = useRef<"search" | "library">(
@@ -1123,6 +1131,7 @@ export default function ResourcesPage() {
     useState<DiscoveredResource | null>(null);
   const [researchOpen, setResearchOpen] = useState(false);
   const previousActiveQueryRef = useRef(activeQuery);
+  const hydratedAccountSearchRef = useRef(false);
 
   function openCitation(resource?: CitationResource) {
     setCitationResource(resource ?? null);
@@ -1135,15 +1144,36 @@ export default function ResourcesPage() {
   }
 
   useEffect(() => {
-    sessionStorage.setItem(
-      RESOURCE_SEARCH_STATE_KEY,
-      JSON.stringify({
-        inputValue,
-        activeQuery,
-        results: allWebResults.slice(0, 60),
-      }),
+    const state = {
+      inputValue,
+      activeQuery,
+      results: allWebResults.slice(0, 60),
+    };
+    sessionStorage.setItem(RESOURCE_SEARCH_STATE_KEY, JSON.stringify(state));
+    if (!accountPreferences) return;
+    const timer = window.setTimeout(
+      () => updateAccountPreferences.mutate({ resourceSearchState: state }),
+      700,
     );
-  }, [inputValue, activeQuery, allWebResults]);
+    return () => window.clearTimeout(timer);
+  }, [accountPreferences?.userId, inputValue, activeQuery, allWebResults]);
+
+  useEffect(() => {
+    if (!accountPreferences || hydratedAccountSearchRef.current) return;
+    hydratedAccountSearchRef.current = true;
+    if (
+      initialSearch.inputValue ||
+      initialSearch.activeQuery ||
+      initialSearch.results.length
+    )
+      return;
+    const saved = accountPreferences.resourceSearchState;
+    if (!saved) return;
+    if (typeof saved.inputValue === "string") setInputValue(saved.inputValue);
+    if (typeof saved.activeQuery === "string") setActiveQuery(saved.activeQuery);
+    if (Array.isArray(saved.results))
+      setAllWebResults(saved.results as DiscoveredResource[]);
+  }, [accountPreferences]);
 
   useEffect(() => {
     const params = new URLSearchParams(routeSearch);
@@ -1174,8 +1204,17 @@ export default function ResourcesPage() {
   const isAdmin = me?.role === "admin";
 
   useEffect(() => {
-    setSearchHistory(getSearchHistory(me?.id));
-  }, [me?.id]);
+    if (!me?.id) {
+      setSearchHistory([]);
+      return;
+    }
+    const localHistory = getSearchHistory(me.id);
+    const savedHistory = accountPreferences?.searchHistory ?? [];
+    const next = savedHistory.length ? savedHistory : localHistory;
+    setSearchHistory(next);
+    if (accountPreferences && !savedHistory.length && localHistory.length)
+      updateAccountPreferences.mutate({ searchHistory: localHistory });
+  }, [accountPreferences, me?.id]);
 
   const { data: learningGoals } = useListLearningGoals({
     query: { enabled: isLoggedIn, queryKey: getListLearningGoalsQueryKey() },
@@ -1291,10 +1330,21 @@ export default function ResourcesPage() {
       setContinueResourceIds([]);
       return;
     }
-    setContinueResourceIds(
-      getContinueStudyingResourceIds(me.id, selectedContinueGoal.id),
+    const saved =
+      accountPreferences?.continueStudying[String(selectedContinueGoal.id)];
+    const local = getContinueStudyingResourceIds(
+      me.id,
+      selectedContinueGoal.id,
     );
-  }, [me?.id, selectedContinueGoal?.id]);
+    setContinueResourceIds(saved ?? local);
+    if (accountPreferences && !saved && local.length)
+      updateAccountPreferences.mutate({
+        continueStudying: {
+          ...accountPreferences.continueStudying,
+          [String(selectedContinueGoal.id)]: local,
+        },
+      });
+  }, [accountPreferences, me?.id, selectedContinueGoal?.id]);
 
   function setContinueResource(resourceId: number, selected: boolean) {
     if (!me?.id || !selectedContinueGoal) return;
@@ -1308,6 +1358,12 @@ export default function ResourcesPage() {
         continueStudyingStorageKey(me.id, selectedContinueGoal.id),
         JSON.stringify(next),
       );
+      updateAccountPreferences.mutate({
+        continueStudying: {
+          ...(accountPreferences?.continueStudying ?? {}),
+          [String(selectedContinueGoal.id)]: next,
+        },
+      });
       return next;
     });
   }
@@ -1553,6 +1609,7 @@ export default function ResourcesPage() {
     setAllWebResults([]);
     setWebPage(1);
     sessionStorage.removeItem(RESOURCE_SEARCH_STATE_KEY);
+    updateAccountPreferences.mutate({ resourceSearchState: null });
     inputRef.current?.focus();
   }
 
@@ -1626,7 +1683,11 @@ export default function ResourcesPage() {
       setAllWebResults([]);
       setHiddenSourceUrls([]);
       setLibraryLimit(12); // reset pagination on new search
-      if (me?.id) setSearchHistory(addSearchHistory(me.id, q));
+      if (me?.id) {
+        const nextHistory = addSearchHistory(me.id, q);
+        setSearchHistory(nextHistory);
+        updateAccountPreferences.mutate({ searchHistory: nextHistory });
+      }
     }
   }
 
@@ -2483,10 +2544,12 @@ export default function ResourcesPage() {
                   type="button"
                   className="border-l px-2 py-1.5 text-muted-foreground hover:text-destructive"
                   aria-label={`Delete ${item.query} from search history`}
-                  onClick={() =>
-                    me?.id &&
-                    setSearchHistory(deleteSearchHistory(me.id, item.query))
-                  }
+                  onClick={() => {
+                    if (!me?.id) return;
+                    const nextHistory = deleteSearchHistory(me.id, item.query);
+                    setSearchHistory(nextHistory);
+                    updateAccountPreferences.mutate({ searchHistory: nextHistory });
+                  }}
                 >
                   <X size={13} />
                 </button>

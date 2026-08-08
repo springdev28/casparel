@@ -70,6 +70,11 @@ import {
   classRequest,
   type ClassInvitation,
 } from "../lib/class-api";
+import {
+  useUpdateUserPreferences,
+  useUserPreferences,
+  type UserPreferencesPatch,
+} from "../lib/user-preferences";
 
 const TOKEN_KEY = "schoolar_token";
 
@@ -158,6 +163,8 @@ export default function AppShell({ children }: AppShellProps) {
   const queryClient = useQueryClient();
   const { data: me, isLoading: meLoading } = useGetMe();
   const { language, setLanguage, copy } = useAuthLanguage();
+  const { data: accountPreferences } = useUserPreferences(Boolean(me));
+  const updateAccountPreferences = useUpdateUserPreferences();
   const { data: notifications } = useGetRecentActivity();
   const [classInvitations, setClassInvitations] = useState<ClassInvitation[]>([]);
   const { data: accountUsage } = useGetMyUsage({
@@ -167,6 +174,23 @@ export default function AppShell({ children }: AppShellProps) {
   const notificationReadKey = `schoolar_read_notifications:${me?.id ?? "guest"}:${activeNotificationRole}`;
   const [readNotificationIds, setReadNotificationIds] = useState<number[]>([]);
   useEffect(() => {
+    if (accountPreferences && accountPreferences.userId === me?.id) {
+      let locallyRead: number[] = [];
+      try {
+        locallyRead = JSON.parse(
+          localStorage.getItem(notificationReadKey) ?? "[]",
+        );
+      } catch {
+        locallyRead = [];
+      }
+      const next = accountPreferences.readNotificationIds.length
+        ? accountPreferences.readNotificationIds
+        : locallyRead;
+      setReadNotificationIds(next);
+      if (!accountPreferences.readNotificationIds.length && locallyRead.length)
+        updateAccountPreferences.mutate({ readNotificationIds: locallyRead });
+      return;
+    }
     try {
       setReadNotificationIds(
         JSON.parse(localStorage.getItem(notificationReadKey) ?? "[]"),
@@ -174,7 +198,7 @@ export default function AppShell({ children }: AppShellProps) {
     } catch {
       setReadNotificationIds([]);
     }
-  }, [notificationReadKey]);
+  }, [accountPreferences, me?.id, notificationReadKey]);
   const unreadNotifications = (notifications ?? []).filter(
     (item) => !readNotificationIds.includes(item.id),
   );
@@ -226,6 +250,7 @@ export default function AppShell({ children }: AppShellProps) {
     setReadNotificationIds((current) => {
       const next = current.includes(id) ? current : [...current, id];
       localStorage.setItem(notificationReadKey, JSON.stringify(next));
+      updateAccountPreferences.mutate({ readNotificationIds: next });
       return next;
     });
   }
@@ -248,6 +273,40 @@ export default function AppShell({ children }: AppShellProps) {
     shouldUseLightPageText(ambientStyle, ambientIntensity),
   );
   useEffect(() => {
+    if (!accountPreferences) return;
+    const migrationPatch: UserPreferencesPatch = {};
+    if (accountPreferences.language && accountPreferences.language !== language)
+      setLanguage(accountPreferences.language);
+    else if (!accountPreferences.language)
+      migrationPatch.language = language;
+    if (accountPreferences.ambientStyle) {
+      setAmbientStyle(accountPreferences.ambientStyle);
+      localStorage.setItem("schoolar_ambient_style", accountPreferences.ambientStyle);
+    }
+    if (accountPreferences.ambientIntensity != null) {
+      setAmbientIntensity(accountPreferences.ambientIntensity);
+      localStorage.setItem(
+        "schoolar_ambient_intensity",
+        String(accountPreferences.ambientIntensity),
+      );
+    }
+    const localStyle = localStorage.getItem("schoolar_ambient_style") as VantaStyle | null;
+    if (!accountPreferences.ambientStyle && localStyle)
+      migrationPatch.ambientStyle = localStyle;
+    const localIntensity = Number(
+      localStorage.getItem("schoolar_ambient_intensity"),
+    );
+    if (
+      accountPreferences.ambientIntensity == null &&
+      Number.isFinite(localIntensity) &&
+      localIntensity >= 0.5 &&
+      localIntensity <= 2
+    )
+      migrationPatch.ambientIntensity = localIntensity;
+    if (Object.keys(migrationPatch).length)
+      updateAccountPreferences.mutate(migrationPatch);
+  }, [accountPreferences]);
+  useEffect(() => {
     const updateContrast = () => {
       setLightToolbarText(shouldUseLightToolbarText());
       setLightPageText(shouldUseLightPageText(ambientStyle, ambientIntensity));
@@ -266,12 +325,14 @@ export default function AppShell({ children }: AppShellProps) {
     const saved = String(value);
     localStorage.setItem("schoolar_ambient_intensity", saved);
     sessionStorage.setItem("schoolar_ambient_intensity", saved);
+    updateAccountPreferences.mutate({ ambientIntensity: value });
   }
   function chooseAmbientStyle(value: string) {
     const next = value as VantaStyle;
     setAmbientStyle(next);
     localStorage.setItem("schoolar_ambient_style", next);
     sessionStorage.setItem("schoolar_ambient_style", next);
+    updateAccountPreferences.mutate({ ambientStyle: next });
   }
   async function updatePath(goal: NonNullable<typeof sidebarGoals>[number], pathSteps: typeof goal.pathSteps) {
     await updateSidebarGoal.mutateAsync({ id: goal.id, data: { pathSteps } });
@@ -593,7 +654,9 @@ export default function AppShell({ children }: AppShellProps) {
                 label={copy.language}
                 onChange={(next) => {
                   setLanguage(next);
-                  window.location.reload();
+                  void updateAccountPreferences
+                    .mutateAsync({ language: next })
+                    .finally(() => window.location.reload());
                 }}
               />
             </div>

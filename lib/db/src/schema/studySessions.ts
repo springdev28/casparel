@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
 import { resourcesTable } from "./resources";
+import { classesTable } from "./classes";
 
 export const sessionParticipantStatusEnum = pgEnum("session_participant_status", [
   "pending",
@@ -68,6 +69,9 @@ export const studyActivitiesTable = pgTable("study_activities", {
     .$type<"student" | "teacher">()
     .notNull()
     .default("student"),
+  classId: integer("class_id").references(() => classesTable.id, {
+    onDelete: "cascade",
+  }),
   title: text("title").notNull(),
   subject: text("subject"),
   cards: jsonb("cards").$type<StudyActivityCard[]>().notNull().default([]),
