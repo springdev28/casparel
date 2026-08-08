@@ -8,6 +8,9 @@ import {
 import { meaningfulSearchTerms } from "./searchTerms";
 
 type ResourceFormat = InsertCatalogResource["format"];
+export type SourceCredibility =
+  "academic" | "institutional" | "established" | "independent";
+
 export type CatalogSearchOptions = {
   query: string;
   format?: ResourceFormat;
@@ -23,6 +26,7 @@ export type CatalogSearchOptions = {
   freshness?: string;
   accessType?: string;
   license?: string;
+  sourceQuality?: string;
 };
 
 export type CatalogSearchItem = {
@@ -34,6 +38,7 @@ export type CatalogSearchItem = {
   thumbnailUrl: string | null;
   subject: string | null;
   gradeLevel: string | null;
+  sourceCredibility?: SourceCredibility;
 };
 
 export function canonicalCatalogUrl(rawUrl: string) {
@@ -44,6 +49,41 @@ export function canonicalCatalogUrl(rawUrl: string) {
     if (key.startsWith("utm_") || ["fbclid", "gclid", "si"].includes(key))
       url.searchParams.delete(key);
   }
+  const host = url.hostname;
+  const path = url.pathname;
+
+  const openStaxBook = path.match(
+    /^\/(?:details\/books|books)\/([^/]+)(?:\/.*)?$/i,
+  );
+  if (host === "openstax.org" && openStaxBook) {
+    url.pathname = `/details/books/${openStaxBook[1]}`;
+    url.search = "";
+  }
+
+  const mitCourse = path.match(/^\/courses\/([^/]+)(?:\/.*)?$/i);
+  if (host === "ocw.mit.edu" && mitCourse) {
+    url.pathname = `/courses/${mitCourse[1]}`;
+    url.search = "";
+  }
+
+  const wikibook = path.match(/^\/wiki\/([^/]+)(?:\/.*)?$/i);
+  if (host.endsWith(".wikibooks.org") && wikibook) {
+    url.pathname = `/wiki/${wikibook[1]}`;
+    url.search = "";
+  }
+
+  const openLibraryWork = path.match(/^\/works\/([^/]+)(?:\/.*)?$/i);
+  if (host === "openlibrary.org" && openLibraryWork) {
+    url.pathname = `/works/${openLibraryWork[1]}`;
+    url.search = "";
+  }
+
+  const ncbiBook = path.match(/^\/books\/(NBK\d+)(?:\/.*)?$/i);
+  if (host === "ncbi.nlm.nih.gov" && ncbiBook) {
+    url.pathname = `/books/${ncbiBook[1]}`;
+    url.search = "";
+  }
+
   if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, "");
   return url.toString();
 }
@@ -56,6 +96,28 @@ type CuratedResource = Omit<
   externalId?: string;
 };
 
+const ACADEMIC_PROVIDERS = new Set([
+  "Harvard CS50",
+  "MIT OpenCourseWare",
+  "OpenStax",
+  "Open Yale Courses",
+  "Purdue OWL",
+  "Stanford Encyclopedia of Philosophy",
+  "University of Helsinki",
+]);
+
+const INSTITUTIONAL_PROVIDERS = new Set([
+  "Library of Congress",
+  "NASA",
+  "Smithsonian Learning Lab",
+]);
+
+function defaultCredibility(provider: string): SourceCredibility {
+  if (ACADEMIC_PROVIDERS.has(provider)) return "academic";
+  if (INSTITUTIONAL_PROVIDERS.has(provider)) return "institutional";
+  return "established";
+}
+
 const curated = (
   provider: string,
   providerUrl: string,
@@ -67,6 +129,8 @@ const curated = (
   gradeLevel: string,
   license: string,
   author = provider,
+  credibility: SourceCredibility = defaultCredibility(provider),
+  language = "en",
 ): CuratedResource => ({
   provider,
   providerUrl,
@@ -76,11 +140,15 @@ const curated = (
   format,
   subject,
   gradeLevel,
-  language: "en",
+  language,
   license,
   author,
   sourceKind: "curated",
-  metadata: { accessType: "free" },
+  metadata: {
+    accessType: "free",
+    credibility,
+    contentScope: "whole-work",
+  },
 });
 
 const CURATED_RESOURCES: CuratedResource[] = [
@@ -325,6 +393,502 @@ const CURATED_RESOURCES: CuratedResource[] = [
     "CC BY 4.0 for documentation",
     "Microsoft and TypeScript contributors",
   ),
+  curated(
+    "DOAJ",
+    "https://doaj.org/",
+    "Directory of Open Access Journals",
+    "https://doaj.org/",
+    "A quality-screened directory of peer-reviewed, fully open-access journals and articles across disciplines and languages.",
+    "article",
+    "Interdisciplinary Research",
+    "Higher education",
+    "Open-access licenses vary by journal",
+    "DOAJ Foundation",
+    "academic",
+  ),
+  curated(
+    "CORE",
+    "https://core.ac.uk/",
+    "CORE Open Access Research",
+    "https://core.ac.uk/",
+    "A not-for-profit scholarly index aggregating research papers from repositories and journals around the world.",
+    "article",
+    "Interdisciplinary Research",
+    "Higher education",
+    "Open-access rights vary by paper",
+    "The Open University and CORE community",
+    "academic",
+  ),
+  curated(
+    "ERIC",
+    "https://eric.ed.gov/",
+    "ERIC Education Research",
+    "https://eric.ed.gov/",
+    "The U.S. Department of Education database for journal articles, reports, and other education research.",
+    "article",
+    "Education",
+    "Higher education",
+    "Public database; document rights vary",
+    "Institute of Education Sciences",
+    "institutional",
+  ),
+  curated(
+    "PubMed",
+    "https://pubmed.ncbi.nlm.nih.gov/",
+    "PubMed Biomedical Literature",
+    "https://pubmed.ncbi.nlm.nih.gov/",
+    "A National Library of Medicine index of biomedical and life-sciences literature with links to full text when available.",
+    "article",
+    "Biology and Health Sciences",
+    "Higher education",
+    "Citation database; article rights vary",
+    "U.S. National Library of Medicine",
+    "institutional",
+  ),
+  curated(
+    "Europe PMC",
+    "https://europepmc.org/",
+    "Europe PMC Life Sciences Research",
+    "https://europepmc.org/",
+    "A free life-sciences literature service linking publications to data, reviews, protocols, and legal full-text copies.",
+    "article",
+    "Biology and Health Sciences",
+    "Higher education",
+    "Open-content rights vary by publication",
+    "EMBL-EBI and Europe PMC funders",
+    "academic",
+  ),
+  curated(
+    "NCBI Bookshelf",
+    "https://www.ncbi.nlm.nih.gov/books/",
+    "NCBI Bookshelf",
+    "https://www.ncbi.nlm.nih.gov/books/",
+    "Complete biomedical books, reports, and reference works made searchable by the National Library of Medicine.",
+    "other",
+    "Biology and Health Sciences",
+    "Higher education",
+    "Free to read; work rights vary",
+    "U.S. National Library of Medicine",
+    "institutional",
+  ),
+  curated(
+    "National Academies Press",
+    "https://nap.nationalacademies.org/",
+    "National Academies Press Open Books",
+    "https://nap.nationalacademies.org/",
+    "Consensus reports and full books in science, engineering, medicine, and public policy from the U.S. National Academies.",
+    "pdf",
+    "Science and Public Policy",
+    "Higher education",
+    "Free PDF access; publication rights vary",
+    "National Academies of Sciences, Engineering, and Medicine",
+    "academic",
+  ),
+  curated(
+    "arXiv",
+    "https://arxiv.org/",
+    "arXiv Research Preprints",
+    "https://arxiv.org/",
+    "Open research preprints in physics, mathematics, computer science, quantitative biology, and related fields; items may not be peer reviewed.",
+    "article",
+    "STEM Research",
+    "Higher education",
+    "Open-access licenses vary by paper",
+    "Cornell University",
+    "academic",
+  ),
+  curated(
+    "OpenAlex",
+    "https://openalex.org/",
+    "OpenAlex Scholarly Catalogue",
+    "https://openalex.org/",
+    "An open catalogue connecting scholarly works, authors, institutions, topics, venues, and citations.",
+    "article",
+    "Interdisciplinary Research",
+    "Higher education",
+    "CC0 metadata; linked work rights vary",
+    "OurResearch",
+    "academic",
+  ),
+  curated(
+    "OpenLearn",
+    "https://www.open.edu/openlearn/",
+    "OpenLearn Free Courses",
+    "https://www.open.edu/openlearn/free-courses",
+    "Hundreds of complete free courses from The Open University across nine broad subject areas.",
+    "interactive",
+    "Interdisciplinary",
+    "Secondary and higher education",
+    "Free to access; item licenses vary",
+    "The Open University",
+    "academic",
+  ),
+  curated(
+    "OER Commons",
+    "https://oercommons.org/",
+    "OER Commons",
+    "https://oercommons.org/",
+    "A curated public library for discovering, evaluating, adapting, and sharing openly licensed teaching and learning materials.",
+    "interactive",
+    "Interdisciplinary",
+    "All levels",
+    "Open licenses vary by resource",
+    "ISKME",
+    "established",
+  ),
+  curated(
+    "MERLOT",
+    "https://www.merlot.org/merlot/",
+    "MERLOT Learning Materials",
+    "https://www.merlot.org/merlot/index.htm",
+    "A higher-education community collection of curated online learning materials, including peer-reviewed resources.",
+    "interactive",
+    "Interdisciplinary",
+    "Higher education",
+    "Resource rights vary",
+    "California State University",
+    "academic",
+  ),
+  curated(
+    "Carnegie Mellon Open Learning Initiative",
+    "https://oli.cmu.edu/",
+    "Open Learning Initiative Courses",
+    "https://oli.cmu.edu/courses/independent-learner-courses/",
+    "Research-informed complete courses with interactive practice and immediate feedback for independent learners.",
+    "interactive",
+    "Interdisciplinary",
+    "Secondary and higher education",
+    "Free and paid options; course terms vary",
+    "Carnegie Mellon University",
+    "academic",
+  ),
+  curated(
+    "Saylor Academy",
+    "https://learn.saylor.org/",
+    "Saylor Academy Free Courses",
+    "https://learn.saylor.org/",
+    "Self-paced, tuition-free courses in computing, business, mathematics, science, and the humanities.",
+    "interactive",
+    "Interdisciplinary",
+    "Higher education",
+    "Open licenses vary by course",
+    "Saylor Academy",
+    "established",
+  ),
+  curated(
+    "NPTEL",
+    "https://nptel.ac.in/",
+    "NPTEL Courses",
+    "https://nptel.ac.in/courses",
+    "Complete engineering, science, humanities, and management courses produced by the IITs and IISc.",
+    "video",
+    "Interdisciplinary",
+    "Higher education",
+    "Free to access; provider terms apply",
+    "Indian Institutes of Technology and IISc",
+    "academic",
+  ),
+  curated(
+    "METU OpenCourseWare",
+    "https://ocw.metu.edu.tr/",
+    "ODTU OpenCourseWare",
+    "https://ocw.metu.edu.tr/",
+    "Open course materials from Middle East Technical University across engineering, science, and the humanities.",
+    "article",
+    "Interdisciplinary",
+    "Higher education",
+    "Course licenses vary",
+    "Middle East Technical University",
+    "academic",
+    "tr",
+  ),
+  curated(
+    "CK-12",
+    "https://www.ck12.org/",
+    "CK-12 FlexBooks and Practice",
+    "https://www.ck12.org/student/",
+    "Customizable digital textbooks, simulations, and adaptive practice for K-12 mathematics and science.",
+    "interactive",
+    "Mathematics and Science",
+    "Primary and secondary education",
+    "CK-12 terms and licenses apply",
+    "CK-12 Foundation",
+    "established",
+  ),
+  curated(
+    "Project Gutenberg",
+    "https://www.gutenberg.org/",
+    "Project Gutenberg Free Ebooks",
+    "https://www.gutenberg.org/",
+    "Complete public-domain books available in browser-friendly and downloadable formats, with one record per work.",
+    "other",
+    "Literature",
+    "All levels",
+    "Public domain in the United States; check local law",
+    "Project Gutenberg Literary Archive Foundation",
+    "established",
+  ),
+  curated(
+    "Internet Encyclopedia of Philosophy",
+    "https://iep.utm.edu/",
+    "Internet Encyclopedia of Philosophy",
+    "https://iep.utm.edu/",
+    "Peer-reviewed, expert-authored philosophy reference articles maintained by academic editors.",
+    "article",
+    "Philosophy",
+    "Higher education",
+    "Free to access; copyright held by authors and editors",
+    "University of Tennessee at Martin",
+    "academic",
+  ),
+  curated(
+    "Our World in Data",
+    "https://ourworldindata.org/",
+    "Our World in Data",
+    "https://ourworldindata.org/",
+    "Research-backed articles and reusable charts on global health, education, energy, poverty, population, and the environment.",
+    "interactive",
+    "Social Science and Data",
+    "Secondary and higher education",
+    "CC BY 4.0 unless otherwise noted",
+    "Global Change Data Lab and University of Oxford researchers",
+    "independent",
+  ),
+  curated(
+    "Seeing Theory",
+    "https://seeing-theory.brown.edu/",
+    "Seeing Theory",
+    "https://seeing-theory.brown.edu/",
+    "A complete visual introduction to probability and statistics using interactive demonstrations.",
+    "interactive",
+    "Statistics",
+    "Secondary and higher education",
+    "MIT License for source code; site content rights apply",
+    "Brown University",
+    "academic",
+  ),
+  curated(
+    "TeachEngineering",
+    "https://www.teachengineering.org/",
+    "TeachEngineering STEM Curriculum",
+    "https://www.teachengineering.org/",
+    "Standards-aligned engineering lessons, activities, and maker challenges developed by university partners.",
+    "interactive",
+    "Engineering",
+    "Primary and secondary education",
+    "Free to access; item licenses vary",
+    "University of Colorado Boulder and partners",
+    "academic",
+  ),
+  curated(
+    "TED-Ed",
+    "https://ed.ted.com/",
+    "TED-Ed Lessons",
+    "https://ed.ted.com/lessons",
+    "Short animated lessons with discussion prompts and supporting materials across a broad range of subjects.",
+    "video",
+    "Interdisciplinary",
+    "Primary and secondary education",
+    "Free to access; TED terms apply",
+    "TED-Ed",
+    "established",
+  ),
+  curated(
+    "3Blue1Brown",
+    "https://www.youtube.com/@3blue1brown",
+    "3Blue1Brown Mathematics",
+    "https://www.youtube.com/@3blue1brown",
+    "Visual mathematics series covering calculus, linear algebra, probability, neural networks, and mathematical intuition.",
+    "video",
+    "Mathematics",
+    "Secondary and higher education",
+    "Free to watch; creator and YouTube terms apply",
+    "Grant Sanderson",
+    "independent",
+  ),
+  curated(
+    "Numberphile",
+    "https://www.youtube.com/@numberphile",
+    "Numberphile",
+    "https://www.youtube.com/@numberphile",
+    "Mathematicians explain number theory, geometry, probability, and unusual mathematical ideas through accessible videos.",
+    "video",
+    "Mathematics",
+    "Secondary and higher education",
+    "Free to watch; creator and YouTube terms apply",
+    "Brady Haran and contributing mathematicians",
+    "independent",
+  ),
+  curated(
+    "Computerphile",
+    "https://www.youtube.com/@Computerphile",
+    "Computerphile",
+    "https://www.youtube.com/@Computerphile",
+    "Computer scientists explain programming, algorithms, security, networking, and computing history.",
+    "video",
+    "Computer Science",
+    "Secondary and higher education",
+    "Free to watch; creator and YouTube terms apply",
+    "Brady Haran and contributing computer scientists",
+    "independent",
+  ),
+  curated(
+    "Crash Course",
+    "https://www.youtube.com/@crashcourse",
+    "Crash Course",
+    "https://www.youtube.com/@crashcourse",
+    "Structured educational video series spanning sciences, humanities, economics, computing, and study skills.",
+    "video",
+    "Interdisciplinary",
+    "Secondary and higher education",
+    "Free to watch; creator and YouTube terms apply",
+    "Complexly",
+    "established",
+  ),
+  curated(
+    "PBS Space Time",
+    "https://www.youtube.com/@pbsspacetime",
+    "PBS Space Time",
+    "https://www.youtube.com/@pbsspacetime",
+    "Research-informed explanations of astrophysics, cosmology, quantum mechanics, and frontier physics.",
+    "video",
+    "Physics",
+    "Secondary and higher education",
+    "Free to watch; PBS and YouTube terms apply",
+    "PBS Digital Studios",
+    "institutional",
+  ),
+  curated(
+    "StatQuest",
+    "https://www.youtube.com/@statquest",
+    "StatQuest with Josh Starmer",
+    "https://www.youtube.com/@statquest",
+    "Clear, topic-organized explanations of statistics, machine learning, and data science concepts.",
+    "video",
+    "Statistics and Data Science",
+    "Secondary and higher education",
+    "Free to watch; creator and YouTube terms apply",
+    "Josh Starmer",
+    "independent",
+  ),
+  curated(
+    "freeCodeCamp",
+    "https://www.freecodecamp.org/",
+    "freeCodeCamp Full Courses",
+    "https://www.youtube.com/@freecodecamp",
+    "Long-form, complete programming and computer-science courses published by an education nonprofit.",
+    "video",
+    "Computer Science",
+    "Secondary and higher education",
+    "Free to access; content licenses vary",
+    "freeCodeCamp.org",
+    "established",
+  ),
+  curated(
+    "Professor Leonard",
+    "https://www.youtube.com/@ProfessorLeonard",
+    "Professor Leonard Mathematics Courses",
+    "https://www.youtube.com/@ProfessorLeonard",
+    "Complete classroom-style courses in algebra, precalculus, calculus, differential equations, and statistics.",
+    "video",
+    "Mathematics",
+    "Secondary and higher education",
+    "Free to watch; creator and YouTube terms apply",
+    "Professor Leonard",
+    "independent",
+  ),
+  curated(
+    "The Odin Project",
+    "https://www.theodinproject.com/",
+    "The Odin Project Full-Stack Curriculum",
+    "https://www.theodinproject.com/paths",
+    "A free, open-source project-based curriculum for complete JavaScript and Ruby full-stack learning paths.",
+    "interactive",
+    "Full-Stack Web Development",
+    "Secondary and higher education",
+    "CC BY-NC-SA 4.0",
+    "The Odin Project community",
+    "independent",
+  ),
+  curated(
+    "Eloquent JavaScript",
+    "https://eloquentjavascript.net/",
+    "Eloquent JavaScript",
+    "https://eloquentjavascript.net/",
+    "The complete online edition of Marijn Haverbeke's book on JavaScript, programming, browsers, and Node.js.",
+    "other",
+    "Computer Science",
+    "Secondary and higher education",
+    "CC BY-NC 3.0 for the book; code under MIT",
+    "Marijn Haverbeke",
+    "independent",
+  ),
+  curated(
+    "BetterExplained",
+    "https://betterexplained.com/",
+    "BetterExplained Mathematics Guides",
+    "https://betterexplained.com/archives/",
+    "Intuition-first guides to arithmetic, algebra, calculus, linear algebra, probability, and mathematical reasoning.",
+    "article",
+    "Mathematics",
+    "Secondary and higher education",
+    "Free to access; author terms apply",
+    "Kalid Azad",
+    "independent",
+  ),
+  curated(
+    "The Physics Classroom",
+    "https://www.physicsclassroom.com/",
+    "The Physics Classroom",
+    "https://www.physicsclassroom.com/",
+    "A complete conceptual physics tutorial with interactives, multimedia, problem sets, and teacher resources.",
+    "interactive",
+    "Physics",
+    "Secondary education",
+    "Free to access; site terms apply",
+    "The Physics Classroom",
+    "independent",
+  ),
+  curated(
+    "World History Encyclopedia",
+    "https://www.worldhistory.org/",
+    "World History Encyclopedia",
+    "https://www.worldhistory.org/",
+    "Editorially reviewed articles, maps, timelines, images, and teaching resources from an education nonprofit.",
+    "article",
+    "History",
+    "Secondary and higher education",
+    "CC BY-NC-SA 4.0 unless otherwise noted",
+    "World History Encyclopedia",
+    "established",
+  ),
+  curated(
+    "TUBITAK Bilim Genc",
+    "https://bilimgenc.tubitak.gov.tr/",
+    "TUBITAK Bilim Genc",
+    "https://bilimgenc.tubitak.gov.tr/",
+    "Turkish-language science articles, experiments, puzzles, projects, and current research explainers for young learners.",
+    "article",
+    "Science",
+    "Primary and secondary education",
+    "Free to access; TUBITAK terms apply",
+    "TUBITAK",
+    "institutional",
+    "tr",
+  ),
+  curated(
+    "Mathigon",
+    "https://mathigon.org/",
+    "Mathigon Interactive Mathematics",
+    "https://mathigon.org/",
+    "Interactive courses, manipulatives, and activities that teach mathematics through exploration and visual reasoning.",
+    "interactive",
+    "Mathematics",
+    "Primary and secondary education",
+    "Free to access; provider terms apply",
+    "Mathigon",
+    "established",
+  ),
 ];
 
 function prepared(resource: CuratedResource): InsertCatalogResource {
@@ -340,11 +904,19 @@ function prepared(resource: CuratedResource): InsertCatalogResource {
 
 export async function upsertCatalogResources(items: InsertCatalogResource[]) {
   if (!items.length) return 0;
+  const uniqueItems = [
+    ...new Map(
+      items.map((item) => {
+        const canonicalUrl = canonicalCatalogUrl(item.canonicalUrl);
+        return [canonicalUrl, { ...item, canonicalUrl }];
+      }),
+    ).values(),
+  ];
   const now = new Date().toISOString();
-  for (let offset = 0; offset < items.length; offset += 50) {
+  for (let offset = 0; offset < uniqueItems.length; offset += 50) {
     await db
       .insert(catalogResourcesTable)
-      .values(items.slice(offset, offset + 50))
+      .values(uniqueItems.slice(offset, offset + 50))
       .onConflictDoUpdate({
         target: catalogResourcesTable.canonicalUrl,
         set: {
@@ -367,7 +939,7 @@ export async function upsertCatalogResources(items: InsertCatalogResource[]) {
         },
       });
   }
-  return items.length;
+  return uniqueItems.length;
 }
 
 export async function ensureCuratedCatalog() {
@@ -450,6 +1022,14 @@ export async function searchCatalog(
         ilike(catalogResourcesTable.license, "%public domain%"),
       )!,
     );
+  if (
+    ["academic", "institutional", "established", "independent"].includes(
+      options.sourceQuality ?? "",
+    )
+  )
+    conditions.push(
+      sql`coalesce(${catalogResourcesTable.metadata}->>'credibility', '') = ${options.sourceQuality}`,
+    );
   if (options.freshness === "year")
     conditions.push(
       sql`coalesce(${catalogResourcesTable.publishedAt}, ${catalogResourcesTable.lastSyncedAt}) >= now() - interval '1 year'`,
@@ -489,6 +1069,7 @@ export async function searchCatalog(
         thumbnailUrl: null,
         subject: row.subject,
         gradeLevel: row.gradeLevel,
+        sourceCredibility: readSourceCredibility(row.metadata),
       }));
   }
   return rows.map((row) => ({
@@ -501,7 +1082,19 @@ export async function searchCatalog(
     thumbnailUrl: row.thumbnailUrl,
     subject: row.subject,
     gradeLevel: row.gradeLevel,
+    sourceCredibility: readSourceCredibility(row.metadata),
   }));
+}
+
+function readSourceCredibility(
+  metadata: Record<string, unknown>,
+): SourceCredibility | undefined {
+  const value = metadata.credibility;
+  return ["academic", "institutional", "established", "independent"].includes(
+    typeof value === "string" ? value : "",
+  )
+    ? (value as SourceCredibility)
+    : undefined;
 }
 
 type OpenLibraryDocument = {
@@ -570,7 +1163,10 @@ function catalogUserAgent() {
 
 export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
   if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false") return 0;
-  const query = [meaningfulSearchTerms(options.query).join(" "), options.subject]
+  const query = [
+    meaningfulSearchTerms(options.query).join(" "),
+    options.subject,
+  ]
     .filter(Boolean)
     .join(" ")
     .trim();
@@ -652,6 +1248,8 @@ export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
             sourceKind: "open-library",
             metadata: {
               accessType: "free",
+              credibility: "established",
+              contentScope: "whole-work",
               openLibraryKey: doc.key,
               subjects: doc.subject?.slice(0, 20) ?? [],
             },
@@ -710,7 +1308,10 @@ type WikibooksPage = {
 
 export async function searchWikibooksAndStore(options: CatalogSearchOptions) {
   if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false") return 0;
-  const query = [meaningfulSearchTerms(options.query).join(" "), options.subject]
+  const query = [
+    meaningfulSearchTerms(options.query).join(" "),
+    options.subject,
+  ]
     .filter(Boolean)
     .join(" ")
     .trim();
@@ -734,9 +1335,7 @@ export async function searchWikibooksAndStore(options: CatalogSearchOptions) {
       if (!remainingCapacity) return 0;
 
       await waitForWikibooksSlot();
-      const endpoint = new URL(
-        `https://${language}.wikibooks.org/w/api.php`,
-      );
+      const endpoint = new URL(`https://${language}.wikibooks.org/w/api.php`);
       const params = {
         action: "query",
         generator: "search",
@@ -774,7 +1373,9 @@ export async function searchWikibooksAndStore(options: CatalogSearchOptions) {
       const now = new Date().toISOString();
       const items = (payload.query?.pages ?? [])
         .filter(
-          (page): page is Required<
+          (
+            page,
+          ): page is Required<
             Pick<WikibooksPage, "pageid" | "title" | "fullurl">
           > &
             WikibooksPage =>
@@ -783,34 +1384,44 @@ export async function searchWikibooksAndStore(options: CatalogSearchOptions) {
             Boolean(page.fullurl),
         )
         .slice(0, Math.min(8, remainingCapacity))
-        .map((page): InsertCatalogResource => ({
-          provider: "Wikibooks",
-          providerUrl: `https://${language}.wikibooks.org/`,
-          externalId: `${language}:${page.pageid}`,
-          canonicalUrl: canonicalCatalogUrl(page.fullurl),
-          title: page.title,
-          description:
-            page.extract?.replace(/\s+/g, " ").trim().slice(0, 600) ||
-            `An open educational book from ${language}.wikibooks.org.`,
-          format: "article",
-          subject: (
-            options.subject ||
-            meaningfulSearchTerms(options.query)[0] ||
-            "Interdisciplinary"
-          ).slice(0, 160),
-          gradeLevel: options.gradeLevel || "All levels",
-          language,
-          license: "CC BY-SA and GFDL; see page history for attribution",
-          author: "Wikibooks contributors",
-          thumbnailUrl: null,
-          publishedAt: null,
-          sourceKind: "wikibooks",
-          metadata: {
-            accessType: "free",
-            pageId: page.pageid,
-          },
-          lastSyncedAt: now,
-        }));
+        .map((page): InsertCatalogResource => {
+          const rootTitle = page.title.split("/")[0]?.trim() || page.title;
+          const rootUrl = new URL(page.fullurl);
+          rootUrl.pathname = `/wiki/${rootTitle.replace(/ /g, "_")}`;
+          rootUrl.search = "";
+          return {
+            provider: "Wikibooks",
+            providerUrl: `https://${language}.wikibooks.org/`,
+            externalId: `${language}:${rootTitle.toLocaleLowerCase()}`,
+            canonicalUrl: canonicalCatalogUrl(rootUrl.toString()),
+            title: rootTitle,
+            description:
+              page.title === rootTitle && page.extract
+                ? page.extract.replace(/\s+/g, " ").trim().slice(0, 600)
+                : `A complete open educational book from ${language}.wikibooks.org.`,
+            format: "article",
+            subject: (
+              options.subject ||
+              meaningfulSearchTerms(options.query)[0] ||
+              "Interdisciplinary"
+            ).slice(0, 160),
+            gradeLevel: options.gradeLevel || "All levels",
+            language,
+            license: "CC BY-SA and GFDL; see page history for attribution",
+            author: "Wikibooks contributors",
+            thumbnailUrl: null,
+            publishedAt: null,
+            sourceKind: "wikibooks",
+            metadata: {
+              accessType: "free",
+              credibility: "established",
+              contentScope: "whole-work",
+              pageId: page.pageid,
+              matchedPage: page.title,
+            },
+            lastSyncedAt: now,
+          };
+        });
       const count = await upsertCatalogResources(items);
       await db
         .insert(catalogSyncStateTable)

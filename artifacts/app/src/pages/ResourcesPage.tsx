@@ -284,8 +284,11 @@ const FORMAT_COLORS: Record<string, string> = {
 };
 function ProvenanceBadge({ resource }: { resource: DiscoveredResource }) {
   if (!resource.provenanceLevel) return null;
+  const isAcademic = resource.provenanceSignals?.some((signal) =>
+    signal.startsWith("Academic, scholarly"),
+  );
   const labels = {
-    institutional: "Institutional source",
+    institutional: isAcademic ? "Academic source" : "Institutional source",
     established: "Established platform",
     independent: "Independent source",
     unknown: "Unknown source",
@@ -2289,23 +2292,32 @@ export default function ResourcesPage() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Source quality</Label>
+                    <Label className="text-xs">Source credibility</Label>
                     <Select
                       value={sourceQualityFilter || "any"}
                       onValueChange={(value) =>
                         setSourceQualityFilter(value === "any" ? "" : value)
                       }
                     >
-                      <SelectTrigger className="h-9">
+                      <SelectTrigger
+                        className="h-9"
+                        data-testid="source-credibility-filter"
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="any">Any source</SelectItem>
+                        <SelectItem value="any">Any credibility</SelectItem>
+                        <SelectItem value="academic">
+                          Academic and peer-reviewed
+                        </SelectItem>
                         <SelectItem value="institutional">
-                          Institutional only
+                          Universities and institutions
                         </SelectItem>
                         <SelectItem value="established">
-                          Established sources
+                          Established learning platforms
+                        </SelectItem>
+                        <SelectItem value="independent">
+                          Vetted independent sources
                         </SelectItem>
                       </SelectContent>
                     </Select>

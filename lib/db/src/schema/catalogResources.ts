@@ -8,6 +8,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { resourceFormatEnum } from "./resources";
 
 export type CatalogResourceMetadata = Record<string, unknown>;
@@ -58,6 +59,9 @@ export const catalogResourcesTable = pgTable(
     uniqueIndex("catalog_resources_canonical_url_idx").on(table.canonicalUrl),
     index("catalog_resources_subject_idx").on(table.subject),
     index("catalog_resources_language_idx").on(table.language),
+    index("catalog_resources_credibility_idx").on(
+      sql`(${table.metadata}->>'credibility')`,
+    ),
     index("catalog_resources_synced_idx").on(table.lastSyncedAt),
   ],
 );

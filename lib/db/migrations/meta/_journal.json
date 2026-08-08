@@ -218,6 +218,13 @@
       "when": 1788336000000,
       "tag": "0030_collaborative_canvases",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788422400000,
+      "tag": "0031_source_credibility_catalog",
+      "breakpoints": true
     }
   ]
 }

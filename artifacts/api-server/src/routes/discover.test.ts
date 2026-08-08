@@ -89,6 +89,7 @@ vi.mock("../lib/check-url-reachable", () => ({
 
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { filterReachableUrls } from "../lib/check-url-reachable";
+import { searchCatalog } from "../lib/catalog";
 import resourcesRouter, { isDirectPeopleProfileUrl } from "./resources.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -221,6 +222,30 @@ describe("exact-person platform coverage", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("GET /api/resources/discover — filtering", () => {
+  it("passes the selected source credibility to the stored catalog", async () => {
+    const academicResults = [
+      {
+        ...makeItem(),
+        sourceCredibility: "academic",
+      },
+    ];
+    vi.mocked(searchCatalog)
+      .mockResolvedValueOnce(academicResults)
+      .mockResolvedValueOnce(academicResults);
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "calculus", sourceQuality: "academic" });
+
+    expect(res.status).toBe(200);
+    expect(searchCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceQuality: "academic" }),
+    );
+    expect(res.body[0].provenanceSignals).toContain(
+      "Academic, scholarly, or editorially reviewed source",
+    );
+  });
+
   it("returns all results when every URL is reachable", async () => {
     const items = Array.from({ length: 8 }, (_, index) =>
       makeItem({ url: `https://khanacademy.org/${index + 1}` }),

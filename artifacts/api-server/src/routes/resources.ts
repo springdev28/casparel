@@ -43,9 +43,11 @@ import {
   recordAiUsage,
 } from "../lib/aiCostControls";
 import {
+  canonicalCatalogUrl,
   searchCatalog,
   searchOpenLibraryAndStore,
   searchWikibooksAndStore,
+  type SourceCredibility,
 } from "../lib/catalog";
 import { meaningfulSearchTerms } from "../lib/searchTerms";
 
@@ -75,10 +77,7 @@ async function resourceWithRating(id: number) {
 
 function canonicalResourceUrl(raw: string) {
   try {
-    const url = new URL(raw);
-    const host = url.hostname.toLocaleLowerCase().replace(/^www\./, "");
-    const path = url.pathname.replace(/\/$/, "") || "/";
-    return (host + path + url.search).toLocaleLowerCase();
+    return canonicalCatalogUrl(raw).toLocaleLowerCase();
   } catch {
     return raw.trim().replace(/\/$/, "").toLocaleLowerCase();
   }
@@ -770,10 +769,10 @@ export function isDirectPeopleProfileUrl(rawUrl: string): boolean {
   }
 }
 
-function addProvenance<T extends { url: string }>(
-  item: T,
-  linkChecked: boolean,
-) {
+function addProvenance<
+  T extends { url: string; sourceCredibility?: SourceCredibility },
+>(item: T, linkChecked: boolean) {
+  const { sourceCredibility, ...publicItem } = item;
   try {
     const url = new URL(item.url);
     const host = url.hostname.replace(/^www\./, "").toLowerCase();
@@ -798,17 +797,28 @@ function addProvenance<T extends { url: string }>(
     const established = establishedHosts.some(
       (known) => host === known || host.endsWith(`.${known}`),
     );
-    const provenanceLevel = institutional
-      ? ("institutional" as const)
-      : established
-        ? ("established" as const)
-        : ("independent" as const);
-    const provenanceSignals = [
+    const provenanceLevel =
+      sourceCredibility === "academic" ||
+      sourceCredibility === "institutional" ||
       institutional
-        ? "Academic or government domain"
-        : established
-          ? "Established publishing platform"
-          : "Independent website",
+        ? ("institutional" as const)
+        : sourceCredibility === "established" || established
+          ? ("established" as const)
+          : ("independent" as const);
+    const provenanceSignals = [
+      sourceCredibility === "academic"
+        ? "Academic, scholarly, or editorially reviewed source"
+        : sourceCredibility === "institutional"
+          ? "Government, library, museum, or public institution"
+          : sourceCredibility === "established"
+            ? "Established educational publisher or platform"
+            : sourceCredibility === "independent"
+              ? "Independently published source reviewed for this catalogue"
+              : institutional
+                ? "Academic or government domain"
+                : established
+                  ? "Established publishing platform"
+                  : "Independent website",
       url.protocol === "https:"
         ? "Encrypted HTTPS link"
         : "Unencrypted HTTP link",
@@ -817,7 +827,7 @@ function addProvenance<T extends { url: string }>(
         : "Link was not availability-checked",
     ];
     return {
-      ...item,
+      ...publicItem,
       provenanceLevel,
       provenanceSignals,
       linkChecked,
@@ -825,7 +835,7 @@ function addProvenance<T extends { url: string }>(
     };
   } catch {
     return {
-      ...item,
+      ...publicItem,
       provenanceLevel: "unknown" as const,
       provenanceSignals: ["Domain could not be classified"],
       linkChecked: false,
@@ -900,9 +910,17 @@ router.get(
       freshness,
       accessType,
       license,
+      sourceQuality,
     } as const;
     let catalogItems = await searchCatalog(catalogOptions);
-    if (resultType === "content" && page === 1 && catalogItems.length < 8) {
+    const remoteCatalogMatchesCredibility =
+      !sourceQuality || sourceQuality === "established";
+    if (
+      resultType === "content" &&
+      page === 1 &&
+      catalogItems.length < 8 &&
+      remoteCatalogMatchesCredibility
+    ) {
       await searchOpenLibraryAndStore(catalogOptions);
       await searchWikibooksAndStore(catalogOptions);
       catalogItems = await searchCatalog(catalogOptions);
@@ -1059,11 +1077,15 @@ router.get(
           : contentLength === "long"
             ? "Prefer substantial resources requiring more than 45 minutes."
             : "",
-      sourceQuality === "institutional"
-        ? "Only return academic, government, museum, library, or established nonprofit sources."
-        : sourceQuality === "established"
-          ? "Prefer well-established publishers and educational platforms."
-          : "",
+      sourceQuality === "academic"
+        ? "Only return scholarly, peer-reviewed, university-press, or academically edited sources. Clearly disclose preprints."
+        : sourceQuality === "institutional"
+          ? "Only return government, university, library, museum, or public-institution sources."
+          : sourceQuality === "established"
+            ? "Only return well-established educational publishers and learning platforms."
+            : sourceQuality === "independent"
+              ? "Only return reputable independent educational creators with transparent authorship, HTTPS, and no unsafe downloads."
+              : "",
       captions === true
         ? "For video or audio, captions must be available."
         : "",
