@@ -46,6 +46,9 @@ const documentSchema = z.object({
         id: z.string().min(1).max(160),
         source: z.string().min(1).max(120),
         target: z.string().min(1).max(120),
+        sourceHandle: z.enum(["top", "right", "bottom", "left"]).optional(),
+        targetHandle: z.enum(["top", "right", "bottom", "left"]).optional(),
+        direction: z.enum(["one-way", "two-way", "line"]).optional(),
         label: z.string().max(200).optional(),
       }),
     )

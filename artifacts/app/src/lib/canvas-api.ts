@@ -18,6 +18,9 @@ export type StoredCanvasEdge = {
   id: string;
   source: string;
   target: string;
+  sourceHandle?: "top" | "right" | "bottom" | "left";
+  targetHandle?: "top" | "right" | "bottom" | "left";
+  direction?: "one-way" | "two-way" | "line";
   label?: string;
 };
 

@@ -9,19 +9,24 @@ import {
 } from "react";
 import { useLocation, useParams } from "wouter";
 import {
+  BaseEdge,
   Background,
   BackgroundVariant,
+  ConnectionMode,
   Controls,
+  EdgeLabelRenderer,
   Handle,
   MarkerType,
   MiniMap,
   Position,
   ReactFlow,
   addEdge,
+  getSmoothStepPath,
   useEdgesState,
   useNodesState,
   type Connection,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
   type ReactFlowInstance,
@@ -30,6 +35,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft,
+  ArrowLeftRight,
+  ArrowRight,
   BookOpen,
   Check,
   ChevronDown,
@@ -39,6 +46,7 @@ import {
   Heading,
   Link2,
   Loader2,
+  Minus,
   MoreHorizontal,
   Plus,
   Save,
@@ -47,6 +55,7 @@ import {
   Trash2,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import {
   useListResources,
@@ -89,7 +98,9 @@ import {
 } from "../lib/canvas-api";
 
 type StudyFlowNode = Node<StudyNodeData, "study">;
-type StudyFlowEdge = Edge;
+type EdgeDirection = "one-way" | "two-way" | "line";
+type HandleSide = "top" | "right" | "bottom" | "left";
+type StudyFlowEdge = Edge<{ direction: EdgeDirection }, "study">;
 
 type NodeActions = {
   editable: boolean;
@@ -100,6 +111,18 @@ type NodeActions = {
 const NodeActionsContext = createContext<NodeActions>({
   editable: false,
   update: () => undefined,
+  remove: () => undefined,
+});
+
+type EdgeActions = {
+  editable: boolean;
+  updateDirection: (id: string, direction: EdgeDirection) => void;
+  remove: (id: string) => void;
+};
+
+const EdgeActionsContext = createContext<EdgeActions>({
+  editable: false,
+  updateDirection: () => undefined,
   remove: () => undefined,
 });
 
@@ -119,15 +142,45 @@ function StudyNodeCard({ id, data, selected }: NodeProps<StudyFlowNode>) {
 
   return (
     <article
-      className={`group relative w-[260px] border shadow-sm ${color.className} ${selected ? "ring-2 ring-primary ring-offset-2" : ""}`}
+      className={`group relative w-[260px] border shadow-sm ${color.className} ${selected ? "ring-2 ring-primary" : ""}`}
       style={{ borderRadius: 8 }}
     >
-      <Handle type="target" position={Position.Left} className="!size-3 !border-2 !border-white !bg-primary" />
-      <header className="flex items-start gap-2 border-b border-black/10 px-3 py-2">
+      {([
+        ["top", Position.Top],
+        ["right", Position.Right],
+        ["bottom", Position.Bottom],
+        ["left", Position.Left],
+      ] as const).map(([side, position]) => (
+        <Handle
+          key={side}
+          id={side}
+          type="source"
+          position={position}
+          isConnectable={actions.editable}
+          isConnectableStart={actions.editable}
+          isConnectableEnd={actions.editable}
+          className="!size-3 !border-2 !border-slate-50 !bg-primary transition-transform hover:!scale-125"
+        />
+      ))}
+      {actions.editable ? (
+        <button
+          type="button"
+          className={`nodrag absolute -right-2 -top-2 z-10 flex size-5 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 shadow-sm transition-opacity hover:bg-red-50 hover:text-red-600 ${selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+          aria-label="Delete card"
+          title="Delete card"
+          onClick={(event) => {
+            event.stopPropagation();
+            actions.remove(id);
+          }}
+        >
+          <X className="size-3" />
+        </button>
+      ) : null}
+      <header className="flex items-start gap-3 border-b border-black/10 px-4 py-3">
         <Icon className="mt-0.5 size-4 shrink-0" />
         {actions.editable ? (
           <Input
-            className={`nodrag h-auto min-w-0 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 ${isHeading ? "text-base font-bold" : "text-sm font-semibold"}`}
+            className={`nodrag h-auto min-w-0 border-0 !bg-transparent px-1 py-0 !text-slate-950 shadow-none focus-visible:ring-0 ${isHeading ? "text-base font-bold" : "text-sm font-semibold"}`}
             value={data.title}
             maxLength={240}
             aria-label="Card title"
@@ -148,7 +201,7 @@ function StudyNodeCard({ id, data, selected }: NodeProps<StudyFlowNode>) {
           </DropdownMenu>
         ) : null}
       </header>
-      <div className="p-3">
+      <div className="p-4">
         {data.kind === "link" ? (
           actions.editable ? <Input className="nodrag h-8 bg-white/70 text-xs" value={data.url ?? ""} placeholder="https://..." onChange={(event) => actions.update(id, { url: event.target.value })} /> : data.url ? <a className="nodrag flex items-center gap-1 break-all text-xs underline" href={data.url} target="_blank" rel="noreferrer">{data.url}<ExternalLink className="size-3 shrink-0" /></a> : null
         ) : data.kind === "resource" ? (
@@ -157,20 +210,159 @@ function StudyNodeCard({ id, data, selected }: NodeProps<StudyFlowNode>) {
             {data.resourceId ? <a className="nodrag inline-flex items-center gap-1 text-xs font-semibold underline" href={`${import.meta.env.BASE_URL}resources/${data.resourceId}`}>Open resource <ExternalLink className="size-3" /></a> : null}
           </div>
         ) : actions.editable ? (
-          <Textarea className={`nodrag min-h-24 resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 ${isHeading ? "min-h-12 font-medium" : ""}`} value={data.text ?? ""} placeholder={isHeading ? "Add context..." : "Write a note..."} maxLength={10_000} onChange={(event) => actions.update(id, { text: event.target.value })} />
+          <Textarea className={`nodrag min-h-24 resize-none border-0 !bg-transparent px-1 py-1 text-sm !text-slate-950 shadow-none placeholder:!text-slate-500 focus-visible:ring-0 ${isHeading ? "min-h-12 font-medium" : ""}`} value={data.text ?? ""} placeholder={isHeading ? "Add context..." : "Write a note..."} maxLength={10_000} onChange={(event) => actions.update(id, { text: event.target.value })} />
         ) : data.text ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{data.text}</p> : null}
       </div>
-      <Handle type="source" position={Position.Right} className="!size-3 !border-2 !border-white !bg-primary" />
     </article>
   );
 }
 
 const nodeTypes = { study: StudyNodeCard };
 
+function StudyEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  markerStart,
+  markerEnd,
+  selected,
+  style,
+  data,
+}: EdgeProps<StudyFlowEdge>) {
+  const actions = useContext(EdgeActionsContext);
+  const [path, labelX, labelY] = getSmoothStepPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+    borderRadius: 12,
+  });
+  const direction = data?.direction ?? "one-way";
+
+  return (
+    <>
+      <BaseEdge
+        path={path}
+        markerStart={markerStart}
+        markerEnd={markerEnd}
+        interactionWidth={24}
+        style={{ strokeWidth: selected ? 3 : 2, ...style }}
+      />
+      {selected && actions.editable ? (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan flex items-center gap-0.5 border border-white/20 bg-slate-950 p-1 text-white shadow-xl"
+            style={{
+              borderRadius: 8,
+              pointerEvents: "all",
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            }}
+          >
+            {([
+              ["one-way", ArrowRight, "One-way arrow"],
+              ["two-way", ArrowLeftRight, "Two-way arrow"],
+              ["line", Minus, "Line without arrows"],
+            ] as const).map(([value, Icon, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`flex size-7 items-center justify-center rounded-md hover:bg-white/15 ${direction === value ? "bg-white/20" : ""}`}
+                aria-label={label}
+                title={label}
+                onClick={() => actions.updateDirection(id, value)}
+              >
+                <Icon className="size-3.5" />
+              </button>
+            ))}
+            <span className="mx-0.5 h-5 w-px bg-white/20" />
+            <button
+              type="button"
+              className="flex size-7 items-center justify-center rounded-md text-red-300 hover:bg-red-500/15 hover:text-red-200"
+              aria-label="Delete connection"
+              title="Delete connection"
+              onClick={() => actions.remove(id)}
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
+    </>
+  );
+}
+
+const edgeTypes = { study: StudyEdge };
+
+function edgeMarkers(direction: EdgeDirection) {
+  const arrow = { type: MarkerType.ArrowClosed } as const;
+  return {
+    markerStart: direction === "two-way" ? arrow : undefined,
+    markerEnd: direction === "line" ? undefined : arrow,
+  };
+}
+
+function routeEdge(edge: StudyFlowEdge, nodes: StudyFlowNode[]): StudyFlowEdge {
+  const source = nodes.find((node) => node.id === edge.source);
+  const target = nodes.find((node) => node.id === edge.target);
+  if (!source || !target) return edge;
+  const sourceWidth = source.measured?.width ?? source.width ?? 260;
+  const sourceHeight = source.measured?.height ?? source.height ?? 160;
+  const targetWidth = target.measured?.width ?? target.width ?? 260;
+  const targetHeight = target.measured?.height ?? target.height ?? 160;
+  const sourceCenter = {
+    x: source.position.x + sourceWidth / 2,
+    y: source.position.y + sourceHeight / 2,
+  };
+  const targetCenter = {
+    x: target.position.x + targetWidth / 2,
+    y: target.position.y + targetHeight / 2,
+  };
+  const dx = targetCenter.x - sourceCenter.x;
+  const dy = targetCenter.y - sourceCenter.y;
+  let sourceHandle: HandleSide;
+  let targetHandle: HandleSide;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    sourceHandle = dx >= 0 ? "right" : "left";
+    targetHandle = dx >= 0 ? "left" : "right";
+  } else {
+    sourceHandle = dy >= 0 ? "bottom" : "top";
+    targetHandle = dy >= 0 ? "top" : "bottom";
+  }
+  if (edge.sourceHandle === sourceHandle && edge.targetHandle === targetHandle) return edge;
+  return { ...edge, sourceHandle, targetHandle };
+}
+
+function flowEdges(document: CanvasDocument): StudyFlowEdge[] {
+  return document.edges.map((edge) => {
+    const direction = edge.direction ?? "one-way";
+    return {
+      ...edge,
+      type: "study",
+      data: { direction },
+      ...edgeMarkers(direction),
+    };
+  });
+}
+
 function cleanDocument(nodes: StudyFlowNode[], edges: StudyFlowEdge[], viewport: Viewport): CanvasDocument {
   return {
     nodes: nodes.map(({ id, position, data }) => ({ id, type: "study", position, data })),
-    edges: edges.map(({ id, source, target, label }) => ({ id, source, target, ...(typeof label === "string" ? { label } : {}) })),
+    edges: edges.map(({ id, source, target, sourceHandle, targetHandle, label, data }) => ({
+      id,
+      source,
+      target,
+      ...(sourceHandle ? { sourceHandle: sourceHandle as HandleSide } : {}),
+      ...(targetHandle ? { targetHandle: targetHandle as HandleSide } : {}),
+      direction: data?.direction ?? "one-way",
+      ...(typeof label === "string" ? { label } : {}),
+    })),
     viewport,
   };
 }
@@ -236,7 +428,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
     setNewDescription(next.description ?? "");
     versionRef.current = next.version;
     const nextNodes = flowNodes(next.document);
-    const nextEdges = next.document.edges.map((edge) => ({ ...edge }));
+    const nextEdges = flowEdges(next.document).map((edge) => routeEdge(edge, nextNodes));
     const nextViewport = next.document.viewport ?? { x: 0, y: 0, zoom: 1 };
     setNodes(nextNodes);
     setEdges(nextEdges);
@@ -343,6 +535,34 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
     setEdges((current) => current.filter((edge) => edge.source !== id && edge.target !== id));
   }, [setEdges, setNodes]);
   const nodeActions = useMemo(() => ({ editable: canEdit, update: updateNode, remove: removeNode }), [canEdit, removeNode, updateNode]);
+  const updateEdgeDirection = useCallback((id: string, direction: EdgeDirection) => {
+    setEdges((current) => current.map((edge) => edge.id === id ? {
+      ...edge,
+      data: { direction },
+      ...edgeMarkers(direction),
+    } : edge));
+  }, [setEdges]);
+  const removeEdge = useCallback((id: string) => {
+    setEdges((current) => current.filter((edge) => edge.id !== id));
+  }, [setEdges]);
+  const edgeActions = useMemo(() => ({
+    editable: canEdit,
+    updateDirection: updateEdgeDirection,
+    remove: removeEdge,
+  }), [canEdit, removeEdge, updateEdgeDirection]);
+
+  useEffect(() => {
+    if (!nodes.length || !edges.length) return;
+    setEdges((current) => {
+      let changed = false;
+      const routed = current.map((edge) => {
+        const next = routeEdge(edge, nodes);
+        if (next !== edge) changed = true;
+        return next;
+      });
+      return changed ? routed : current;
+    });
+  }, [edges.length, nodes, setEdges]);
 
   function addNode(kind: StudyNodeData["kind"], resource?: Resource) {
     if (!canEdit) return;
@@ -368,7 +588,14 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
 
   const connect = useCallback((connection: Connection) => {
     if (!canEdit) return;
-    setEdges((current) => addEdge({ ...connection, id: crypto.randomUUID(), markerEnd: { type: MarkerType.ArrowClosed } }, current));
+    const direction: EdgeDirection = "one-way";
+    setEdges((current) => addEdge({
+      ...connection,
+      id: crypto.randomUUID(),
+      type: "study",
+      data: { direction },
+      ...edgeMarkers(direction),
+    }, current));
   }, [canEdit, setEdges]);
 
   async function patchCanvas(changes: Partial<Pick<SchoolarCanvas, "title" | "description" | "visibility" | "classAccess">>) {
@@ -420,11 +647,13 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
 
   return (
     <NodeActionsContext.Provider value={nodeActions}>
+      <EdgeActionsContext.Provider value={edgeActions}>
       <div className={`relative ${pageHeight} min-h-[560px] overflow-hidden bg-slate-950`}>
         <ReactFlow<StudyFlowNode, StudyFlowEdge>
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           onNodesChange={canEdit ? onNodesChange : undefined}
           onEdgesChange={canEdit ? onEdgesChange : undefined}
           onConnect={connect}
@@ -434,7 +663,9 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
           nodesConnectable={canEdit}
           elementsSelectable={canEdit}
           deleteKeyCode={canEdit ? ["Backspace", "Delete"] : null}
-          defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed }, style: { strokeWidth: 2 } }}
+          connectionMode={ConnectionMode.Loose}
+          connectionRadius={28}
+          defaultEdgeOptions={{ type: "study", markerEnd: { type: MarkerType.ArrowClosed }, style: { strokeWidth: 2 } }}
           fitView={!canvas.document.viewport}
           minZoom={0.2}
           maxZoom={2.5}
@@ -448,11 +679,29 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
         <header className="absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-3 sm:inset-x-5">
           <div className="flex min-w-0 items-center gap-2 border border-white/15 bg-slate-950/90 p-2 text-white shadow-lg backdrop-blur" style={{ borderRadius: 8 }}>
             {!shared ? <Button size="icon" variant="ghost" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => setLocation("/canvases")} title="Back to canvases"><ArrowLeft className="size-4" /></Button> : null}
-            <button type="button" className="min-w-0 px-1 text-left" onClick={() => canManage && setDetailsOpen(true)} disabled={!canManage}>
-              <span className="block truncate text-sm font-semibold">{canvas.title}</span>
-              <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ?? `${canvas.owner?.name ?? "Schoolar"} canvas`}</span>
-            </button>
-            {canManage ? <ChevronDown className="size-3.5 shrink-0 text-slate-400" /> : null}
+            {canManage ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className="flex min-w-0 flex-1 items-center gap-2 px-1 text-left">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{canvas.title}</span>
+                      <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ?? `${canvas.owner?.name ?? "Schoolar"} canvas`}</span>
+                    </span>
+                    <ChevronDown className="size-3.5 shrink-0 text-slate-400" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52">
+                  <DropdownMenuItem onClick={() => setDetailsOpen(true)}><FileText className="mr-2 size-4" />Edit canvas details</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => void openSharing()}><Share2 className="mr-2 size-4" />Sharing and access</DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => void deleteCanvas()}><Trash2 className="mr-2 size-4" />Delete canvas</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="min-w-0 px-1 text-left">
+                <span className="block truncate text-sm font-semibold">{canvas.title}</span>
+                <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ?? `${canvas.owner?.name ?? "Schoolar"} canvas`}</span>
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {!shared ? <div className="hidden items-center gap-1.5 border border-white/15 bg-slate-950/90 px-3 py-2 text-xs text-slate-300 backdrop-blur sm:flex" style={{ borderRadius: 8 }}>{status === "saving" ? <Loader2 className="size-3.5 animate-spin" /> : status === "saved" ? <Check className="size-3.5 text-emerald-400" /> : <Save className="size-3.5 text-amber-400" />}{saveLabel(status)}</div> : <Badge className="bg-slate-900 text-white">View only</Badge>}
@@ -493,14 +742,15 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>Share canvas</DialogTitle><DialogDescription>Choose who can open or edit this workspace.</DialogDescription></DialogHeader>
-          <div className="max-h-[65dvh] space-y-5 overflow-y-auto pr-1">
-            {canvas.classId ? <div className="space-y-2"><Label>Class access</Label><Select value={canvas.classAccess} onValueChange={(value) => void patchCanvas({ classAccess: value as "view" | "edit" })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="view">Students can view</SelectItem><SelectItem value="edit">Students can edit</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Teachers who own the class can always manage the canvas.</p></div> : <div className="space-y-2"><Label>General access</Label><Select value={canvas.visibility} onValueChange={(value) => void patchCanvas({ visibility: value as "private" | "people" | "link" })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="private">Private</SelectItem><SelectItem value="people">Invited people</SelectItem><SelectItem value="link">Anyone with the link can view</SelectItem></SelectContent></Select></div>}
+          <div className="max-h-[65dvh] space-y-5 overflow-x-hidden overflow-y-auto px-1 pb-1">
+            {canvas.classId ? <div className="space-y-2"><Label>Class access</Label><Select value={canvas.classAccess} onValueChange={(value) => void patchCanvas({ classAccess: value as "view" | "edit" })}><SelectTrigger className="w-full focus:ring-offset-0"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="view">Students can view</SelectItem><SelectItem value="edit">Students can edit</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Teachers who own the class can always manage the canvas.</p></div> : <div className="space-y-2"><Label>General access</Label><Select value={canvas.visibility} onValueChange={(value) => void patchCanvas({ visibility: value as "private" | "people" | "link" })}><SelectTrigger className="w-full focus:ring-offset-0"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="private">Private</SelectItem><SelectItem value="people">Invited people</SelectItem><SelectItem value="link">Anyone with the link can view</SelectItem></SelectContent></Select></div>}
             {canvas.visibility === "link" && shareUrl ? <div className="flex gap-2"><Input readOnly value={shareUrl} /><Button size="icon" variant="outline" title="Copy sharing link" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => toast({ title: "Link copied" }))}><Copy className="size-4" /></Button></div> : null}
-            <div className="space-y-2"><Label htmlFor="canvas-person-search">Invite people</Label><div className="relative"><UserPlus className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input id="canvas-person-search" className="pl-9" value={personQuery} onChange={(event) => setPersonQuery(event.target.value)} placeholder="Search Schoolar users..." /></div>{peopleLoading ? <Loader2 className="mx-auto size-4 animate-spin" /> : personQuery.trim().length >= 2 && people?.length ? <div className="space-y-1 border p-1" style={{ borderRadius: 8 }}>{people.filter((person) => person.id !== canvas.ownerId && !collaborators.some((item) => item.userId === person.id)).slice(0, 6).map((person) => <button type="button" key={person.id} className="flex w-full items-center justify-between gap-3 p-2 text-left hover:bg-muted" style={{ borderRadius: 6 }} onClick={() => void addCollaborator(person.id)}><span><strong className="block text-sm">{person.name}</strong><span className="text-xs capitalize text-muted-foreground">{person.role}</span></span><Plus className="size-4" /></button>)}</div> : null}</div>
+            <div className="space-y-2"><Label htmlFor="canvas-person-search">Invite people</Label><div className="relative"><UserPlus className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input id="canvas-person-search" className="w-full pl-9 focus-visible:ring-offset-0" value={personQuery} onChange={(event) => setPersonQuery(event.target.value)} placeholder="Search Schoolar users..." /></div>{peopleLoading ? <Loader2 className="mx-auto size-4 animate-spin" /> : personQuery.trim().length >= 2 && people?.length ? <div className="space-y-1 border p-1" style={{ borderRadius: 8 }}>{people.filter((person) => person.id !== canvas.ownerId && !collaborators.some((item) => item.userId === person.id)).slice(0, 6).map((person) => <button type="button" key={person.id} className="flex w-full items-center justify-between gap-3 p-2 text-left hover:bg-muted" style={{ borderRadius: 6 }} onClick={() => void addCollaborator(person.id)}><span><strong className="block text-sm">{person.name}</strong><span className="text-xs capitalize text-muted-foreground">{person.role}</span></span><Plus className="size-4" /></button>)}</div> : null}</div>
             <div className="space-y-2"><Label className="flex items-center gap-2"><Users className="size-4" />People with access</Label><div className="space-y-2"><div className="flex items-center justify-between gap-3 border-b py-2"><span><strong className="block text-sm">{canvas.owner?.name ?? "Owner"}</strong><span className="text-xs text-muted-foreground">Canvas owner</span></span><Badge variant="outline">Owner</Badge></div>{collaborators.map((person) => <div key={person.userId} className="flex items-center justify-between gap-3 border-b py-2"><span className="min-w-0"><strong className="block truncate text-sm">{person.name}</strong><span className="block truncate text-xs text-muted-foreground">{person.email}</span></span><div className="flex items-center gap-1"><Select value={person.role} onValueChange={(value) => void changeCollaborator(person.userId, value as "viewer" | "editor")}><SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="viewer">Viewer</SelectItem><SelectItem value="editor">Editor</SelectItem></SelectContent></Select><Button size="icon" variant="ghost" title="Remove collaborator" onClick={() => void removeCollaborator(person.userId)}><Trash2 className="size-4" /></Button></div></div>)}</div></div>
           </div>
         </DialogContent>
       </Dialog>
+      </EdgeActionsContext.Provider>
     </NodeActionsContext.Provider>
   );
 }
