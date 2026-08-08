@@ -36,6 +36,17 @@ function mlaDate(value?: string) {
   return `${date.getDate()} ${date.toLocaleString("en", { month: "short" })}. ${date.getFullYear()}`;
 }
 
+function citationYear(value?: string) {
+  if (!value) return "n.d.";
+  const date = new Date(value + (value.length === 10 ? "T00:00:00" : ""));
+  return Number.isNaN(date.getTime()) ? "n.d." : String(date.getFullYear());
+}
+
+function shortenedTitle(value: string) {
+  const words = (value.trim() || "Untitled page").split(/\s+/);
+  return `${words.slice(0, 4).join(" ")}${words.length > 4 ? "…" : ""}`;
+}
+
 export function makeCitation(input: CitationInput, style: CitationStyle) {
   const title = input.title.trim() || "Untitled page";
   const site = input.publisher?.trim() || hostname(input.url);
@@ -50,4 +61,16 @@ export function makeCitation(input: CitationInput, style: CitationStyle) {
     return `${author ? `${author}. ` : ""}“${title}.” ${site}. ${input.publishedAt ? `${readableDate(input.publishedAt)}. ` : ""}Accessed ${readableDate(accessed)}. ${input.url}.`;
   }
   return `${author ? `${author}. ` : ""}(${input.publishedAt ? new Date(input.publishedAt).getFullYear() : "n.d."}). ${title}. ${site}. ${input.url}`;
+}
+
+export function makeInTextCitation(
+  input: CitationInput,
+  style: CitationStyle,
+) {
+  const author = input.author?.trim();
+  const creator = author || `“${shortenedTitle(input.title)}”`;
+  if (style === "mla") return `(${creator})`;
+  if (style === "chicago")
+    return `(${creator} ${citationYear(input.publishedAt)})`;
+  return `(${creator}, ${citationYear(input.publishedAt)})`;
 }

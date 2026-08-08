@@ -1,4 +1,8 @@
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
+
+const workspacePath = (relativePath: string) =>
+  fileURLToPath(new URL(relativePath, import.meta.url));
 
 export default defineConfig({
   test: {
@@ -11,12 +15,11 @@ export default defineConfig({
   resolve: {
     // Mirror the workspace alias so @workspace/* resolves without building
     alias: {
-      "@workspace/db": new URL("../../lib/db/src/index.ts", import.meta.url).pathname,
-      "@workspace/api-zod": new URL("../../lib/api-zod/src/index.ts", import.meta.url).pathname,
-      "@workspace/integrations-openai-ai-server": new URL(
+      "@workspace/db": workspacePath("../../lib/db/src/index.ts"),
+      "@workspace/api-zod": workspacePath("../../lib/api-zod/src/index.ts"),
+      "@workspace/integrations-openai-ai-server": workspacePath(
         "../../lib/integrations-openai-ai-server/src/index.ts",
-        import.meta.url,
-      ).pathname,
+      ),
     },
   },
 });

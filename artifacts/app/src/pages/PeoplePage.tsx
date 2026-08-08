@@ -276,7 +276,7 @@ export default function PeoplePage() {
   const [subject, setSubject] = useState("");
   const [role, setRole] = useState<"all" | SearchUsersRole>("all");
   const [profileSource, setProfileSource] = useState<"schoolar" | "social">(
-    "social",
+    "schoolar",
   );
   const [accountLimit, setAccountLimit] = useState(24);
   const [socialPage, setSocialPage] = useState(1);
@@ -477,7 +477,7 @@ export default function PeoplePage() {
             <SelectContent>
               <SelectItem value="schoolar">Schoolar accounts</SelectItem>
               <SelectItem value="social">
-                Public web & scholar profiles
+                Public profiles (optional AI)
               </SelectItem>
             </SelectContent>
           </Select>

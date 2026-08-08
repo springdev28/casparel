@@ -32,15 +32,22 @@ import {
 import { isResourceOwner } from "../lib/authz";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { contentLimiter, discoverLimiter } from "../lib/limiters";
-import { filterReachableUrls } from "../lib/check-url-reachable";
+import {
+  fetchPublicText,
+  filterReachableUrls,
+} from "../lib/check-url-reachable";
 import { isAdminRequest } from "../lib/adminAccess";
 import {
-  aiSearchDailyBudget,
-  aiSearchDailyUserLimiter,
+  consumeAiQuota,
   paidRetryAllowed,
   recordAiUsage,
-  requireAiSearchEnabled,
 } from "../lib/aiCostControls";
+import {
+  searchCatalog,
+  searchOpenLibraryAndStore,
+  searchWikibooksAndStore,
+} from "../lib/catalog";
+import { meaningfulSearchTerms } from "../lib/searchTerms";
 
 const router: IRouter = Router();
 
@@ -140,9 +147,9 @@ router.get("/resources", async (req, res): Promise<void> => {
   const searchTerm = q?.trim().replace(/\s+/g, " ");
   const conditions = [];
   if (searchTerm) {
-    const tokens = searchTerm.split(" ").filter(Boolean).slice(0, 8);
+    const tokens = meaningfulSearchTerms(searchTerm);
     conditions.push(
-      and(
+      or(
         ...tokens.map((token) => {
           const pattern = "%" + token + "%";
           return or(
@@ -150,6 +157,7 @@ router.get("/resources", async (req, res): Promise<void> => {
             ilike(resourcesTable.description, pattern),
             ilike(resourcesTable.subject, pattern),
             ilike(resourcesTable.gradeLevel, pattern),
+            ilike(resourcesTable.url, pattern),
           )!;
         }),
       )!,
@@ -178,7 +186,10 @@ router.get("/resources", async (req, res): Promise<void> => {
     );
   }
   if (excludedWords) {
-    const tokens = excludedWords.split(/[\s,]+/).filter(Boolean).slice(0, 8);
+    const tokens = excludedWords
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .slice(0, 8);
     for (const token of tokens) {
       const pattern = `%${token}%`;
       conditions.push(
@@ -199,13 +210,21 @@ router.get("/resources", async (req, res): Promise<void> => {
       sql`${resourcesTable.thumbnailUrl} is null or trim(${resourcesTable.thumbnailUrl}) = ''`,
     );
   if (dateAdded === "day")
-    conditions.push(sql`${resourcesTable.createdAt} >= now() - interval '1 day'`);
+    conditions.push(
+      sql`${resourcesTable.createdAt} >= now() - interval '1 day'`,
+    );
   if (dateAdded === "week")
-    conditions.push(sql`${resourcesTable.createdAt} >= now() - interval '7 days'`);
+    conditions.push(
+      sql`${resourcesTable.createdAt} >= now() - interval '7 days'`,
+    );
   if (dateAdded === "month")
-    conditions.push(sql`${resourcesTable.createdAt} >= now() - interval '30 days'`);
+    conditions.push(
+      sql`${resourcesTable.createdAt} >= now() - interval '30 days'`,
+    );
   if (dateAdded === "year")
-    conditions.push(sql`${resourcesTable.createdAt} >= now() - interval '1 year'`);
+    conditions.push(
+      sql`${resourcesTable.createdAt} >= now() - interval '1 year'`,
+    );
 
   const avgRating = sql<number>`round(coalesce(avg(${reviewsTable.rating}), 0)::numeric, 1)::float`;
   const reviewCount = sql<number>`cast(count(${reviewsTable.id}) as int)`;
@@ -443,7 +462,9 @@ router.post(
     const resourceId = Number(req.params.id);
     const recipientId = Number(req.body?.recipientId);
     const note =
-      typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 500) : "";
+      typeof req.body?.note === "string"
+        ? req.body.note.trim().slice(0, 500)
+        : "";
 
     if (
       !Number.isInteger(resourceId) ||
@@ -451,11 +472,15 @@ router.post(
       !Number.isInteger(recipientId) ||
       recipientId <= 0
     ) {
-      res.status(400).json({ error: "A valid resource and recipient are required" });
+      res
+        .status(400)
+        .json({ error: "A valid resource and recipient are required" });
       return;
     }
     if (recipientId === auth.userId) {
-      res.status(400).json({ error: "Choose another person to receive this recommendation" });
+      res.status(400).json({
+        error: "Choose another person to receive this recommendation",
+      });
       return;
     }
 
@@ -497,8 +522,7 @@ router.post(
     await db.insert(activityLogTable).values({
       userId: recipient.id,
       type: "resource",
-      workspaceRole:
-        recipient.activeRole === "teacher" ? "teacher" : "student",
+      workspaceRole: recipient.activeRole === "teacher" ? "teacher" : "student",
       message,
     });
 
@@ -506,7 +530,7 @@ router.post(
   },
 );
 
-// ── GET /resources/discover — public, AI knowledge-based search ──────────────
+// ── GET /resources/discover — public, stored open-catalog search ─────────────
 // NOTE: must stay above /resources/:id
 
 /** Extract and validate resource items from a raw AI text response. */
@@ -812,10 +836,7 @@ function addProvenance<T extends { url: string }>(
 
 router.get(
   "/resources/discover",
-  requireAiSearchEnabled,
   discoverLimiter,
-  aiSearchDailyUserLimiter,
-  aiSearchDailyBudget,
   async (req, res): Promise<void> => {
     const params = DiscoverResourcesQueryParams.safeParse(req.query);
     if (!params.success) {
@@ -863,6 +884,81 @@ router.get(
     );
     const isUnsavedResult = (item: { url: string }) =>
       !savedUrlKeys.has(canonicalResourceUrl(item.url));
+
+    const catalogOptions = {
+      query: q,
+      format,
+      subject,
+      gradeLevel,
+      language,
+      page,
+      limit: resultType === "people" ? 18 : resultType === "source" ? 12 : 16,
+      resultType,
+      exactPhrase,
+      excludedWords,
+      source: sourceFilter,
+      freshness,
+      accessType,
+      license,
+    } as const;
+    let catalogItems = await searchCatalog(catalogOptions);
+    if (resultType === "content" && page === 1 && catalogItems.length < 8) {
+      await searchOpenLibraryAndStore(catalogOptions);
+      await searchWikibooksAndStore(catalogOptions);
+      catalogItems = await searchCatalog(catalogOptions);
+    }
+    const availableCatalogItems = catalogItems
+      .filter(isUnsavedResult)
+      .map((item) => addProvenance(item, true));
+    const aiFallbackEnabled =
+      resultType === "people"
+        ? process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED === "true"
+        : process.env.AI_RESOURCE_SEARCH_ENABLED === "true";
+    if (availableCatalogItems.length > 0 || !aiFallbackEnabled) {
+      res.setHeader("X-Search-Provider", "stored-catalog");
+      res.setHeader("X-Search-Cache", "DATABASE");
+      res.json(availableCatalogItems);
+      return;
+    }
+
+    // Paid discovery is an explicit opt-in fallback; normal catalog searches
+    // do not consume a user's AI allowance.
+    if (!isAdminRequest(req)) {
+      const configuredLimit = (value: string | undefined, fallback: number) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) && parsed > 0
+          ? Math.floor(parsed)
+          : fallback;
+      };
+      const userBudget = await consumeAiQuota(
+        "discover-ai-user-day",
+        discoverUserId ? `user:${discoverUserId}` : `ip:${req.ip ?? "unknown"}`,
+        24 * 60 * 60 * 1000,
+        configuredLimit(process.env.AI_SEARCH_DAILY_USER_LIMIT, 3),
+      );
+      if (!userBudget.allowed) {
+        res.setHeader("Retry-After", userBudget.retryAfter);
+        res.status(429).json({
+          error: "Daily AI search limit reached.",
+          retryAfter: userBudget.retryAfter,
+        });
+        return;
+      }
+      const globalBudget = await consumeAiQuota(
+        "discover-ai-global-day",
+        "all",
+        24 * 60 * 60 * 1000,
+        configuredLimit(process.env.AI_SEARCH_DAILY_LIMIT, 20),
+      );
+      if (!globalBudget.allowed) {
+        res.setHeader("Retry-After", globalBudget.retryAfter);
+        res.status(429).json({
+          error: "Daily AI search budget reached.",
+          retryAfter: globalBudget.retryAfter,
+        });
+        return;
+      }
+    }
 
     const exactPersonSearch =
       resultType === "people" &&
@@ -968,7 +1064,9 @@ router.get(
         : sourceQuality === "established"
           ? "Prefer well-established publishers and educational platforms."
           : "",
-      captions === true ? "For video or audio, captions must be available." : "",
+      captions === true
+        ? "For video or audio, captions must be available."
+        : "",
       transcript === true
         ? "For video or audio, a transcript must be available."
         : "",
@@ -1162,14 +1260,14 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
         typeof err === "object" && err !== null && "status" in err
           ? Number((err as { status?: unknown }).status)
           : null;
-      const upstreamMessage =
-        err instanceof Error ? err.message : String(err);
+      const upstreamMessage = err instanceof Error ? err.message : String(err);
       if (
         upstreamStatus === 429 &&
         /no credits remaining|billing/i.test(upstreamMessage)
       ) {
         res.status(503).json({
-          error: "Web search is temporarily unavailable because the AI service has no credits.",
+          error:
+            "Web search is temporarily unavailable because the AI service has no credits.",
           code: "AI_CREDITS_EXHAUSTED",
         });
         return;
@@ -1186,9 +1284,6 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
 router.post(
   "/resources/prefetch",
   requireAuth,
-  requireAiSearchEnabled,
-  aiSearchDailyUserLimiter,
-  aiSearchDailyBudget,
   async (req, res): Promise<void> => {
     const parsed = PrefetchResourceMetadataBody.safeParse(req.body);
     if (!parsed.success) {
@@ -1279,88 +1374,106 @@ router.post(
       ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
       : null;
 
-    // ── 3. Use AI with web-fetch to extract page metadata ────────────────────
-    const prompt = `Analyse this URL based on your training knowledge: ${url}
-
-Return ONLY a JSON object with these fields (no markdown fences, no extra text):
-{
-  "title": "<concise page/video/document title, max 100 chars>",
-  "description": "<1–2 sentence description of what this resource covers, max 200 chars>",
-  "format": "<one of: article | video | pdf | podcast | interactive | other>",
-  "thumbnailUrl": "<direct image URL for a thumbnail, or null>"
-}
-
-Rules:
-- For YouTube/Vimeo URLs, format must be "video"
-- For .pdf URLs, format must be "pdf"
-- thumbnailUrl: for YouTube use https://img.youtube.com/vi/{videoId}/hqdefault.jpg; for others use null
-- Keep title and description concise and factual`;
-
-    try {
-      const response = await openai.responses.create({
-        model: "gpt-5-nano",
-        max_output_tokens: 500,
-        reasoning: { effort: "minimal" },
-        input: prompt,
-      });
-      await recordAiUsage("metadata", (req as AuthenticatedRequest).userId);
-
-      const textOutput = response.output_text ?? "";
-
-      const cleaned = textOutput
-        .replace(/^```(?:json)?\s*/i, "")
-        .replace(/\s*```$/i, "")
+    // ── 3. Read publisher metadata directly — no AI credits ─────────────────
+    const decodeEntities = (value: string) =>
+      value
+        .replace(/&amp;/gi, "&")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;|&apos;/gi, "'")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/\s+/g, " ")
         .trim();
-
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch {
-        // Fall back to heuristic-only result
+    const metaContent = (html: string, key: string) => {
+      const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const patterns = [
+        new RegExp(
+          `<meta[^>]+(?:name|property)=["']${escaped}["'][^>]+content=["']([^"']*)["'][^>]*>`,
+          "i",
+        ),
+        new RegExp(
+          `<meta[^>]+content=["']([^"']*)["'][^>]+(?:name|property)=["']${escaped}["'][^>]*>`,
+          "i",
+        ),
+      ];
+      for (const pattern of patterns) {
+        const match = html.match(pattern);
+        if (match?.[1]) return decodeEntities(match[1]);
+      }
+      return "";
+    };
+    try {
+      if (ytId) {
+        const oembed = new URL("https://www.youtube.com/oembed");
+        oembed.searchParams.set("url", url);
+        oembed.searchParams.set("format", "json");
+        const response = await fetch(oembed, {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (response.ok) {
+          const metadata = (await response.json()) as {
+            title?: unknown;
+            author_name?: unknown;
+            thumbnail_url?: unknown;
+          };
+          const author =
+            typeof metadata.author_name === "string"
+              ? metadata.author_name.trim()
+              : "";
+          res.json({
+            title:
+              typeof metadata.title === "string"
+                ? metadata.title.trim().slice(0, 160)
+                : "",
+            description: author ? `Video by ${author}.` : "",
+            format: "video",
+            thumbnailUrl:
+              typeof metadata.thumbnail_url === "string"
+                ? metadata.thumbnail_url
+                : ytThumbnail,
+          });
+          return;
+        }
+      }
+      if (heuristicFormat === "pdf") {
+        const fileName = decodeURIComponent(
+          new URL(url).pathname.split("/").pop() ?? "",
+        )
+          .replace(/\.pdf$/i, "")
+          .replace(/[-_]+/g, " ");
         res.json({
-          title: "",
+          title: fileName.slice(0, 160),
           description: "",
-          format: heuristicFormat,
-          thumbnailUrl: ytThumbnail,
+          format: "pdf",
+          thumbnailUrl: null,
         });
         return;
       }
-
-      if (typeof parsed === "object" && parsed !== null) {
-        const p = parsed as Record<string, unknown>;
-        const title = typeof p.title === "string" ? p.title : "";
-        const description =
-          typeof p.description === "string" ? p.description : "";
-        const rawFormat =
-          typeof p.format === "string" ? p.format : heuristicFormat;
-        const validFormats = [
-          "article",
-          "video",
-          "pdf",
-          "podcast",
-          "interactive",
-          "other",
-        ] as const;
-        const format = validFormats.includes(
-          rawFormat as (typeof validFormats)[number],
-        )
-          ? (rawFormat as (typeof validFormats)[number])
-          : heuristicFormat;
-        const thumbnailUrl =
-          typeof p.thumbnailUrl === "string" ? p.thumbnailUrl : ytThumbnail;
-        res.json({ title, description, format, thumbnailUrl });
-        return;
+      const page = await fetchPublicText(url);
+      const titleMatch = page.text.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      const title = decodeEntities(
+        metaContent(page.text, "og:title") || titleMatch?.[1] || "",
+      ).slice(0, 160);
+      const description = decodeEntities(
+        metaContent(page.text, "og:description") ||
+          metaContent(page.text, "description"),
+      ).slice(0, 300);
+      const rawImage = metaContent(page.text, "og:image");
+      let thumbnailUrl = ytThumbnail;
+      if (rawImage) {
+        try {
+          const candidate = new URL(rawImage, page.url);
+          thumbnailUrl = ["http:", "https:"].includes(candidate.protocol)
+            ? candidate.toString()
+            : ytThumbnail;
+        } catch {
+          /* keep heuristic */
+        }
       }
-
-      res.json({
-        title: "",
-        description: "",
-        format: heuristicFormat,
-        thumbnailUrl: ytThumbnail,
-      });
+      res.json({ title, description, format: heuristicFormat, thumbnailUrl });
     } catch (err) {
-      console.error("Prefetch AI error:", err);
-      // Graceful degradation — return heuristic-only result so the form still partially fills
+      console.warn("Resource metadata prefetch failed:", err);
       res.json({
         title: "",
         description: "",

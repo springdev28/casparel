@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { useParams, useLocation, Link } from "wouter";
+import {
+  useParams,
+  useLocation,
+  useSearch as useRouteSearch,
+  Link,
+} from "wouter";
 import {
   ArrowLeft,
   ExternalLink,
@@ -733,8 +738,13 @@ async function authenticatedRequest(path: string, init?: RequestInit) {
 export default function ResourceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
+  const routeSearch = useRouteSearch();
   const queryClient = useQueryClient();
   const resourceId = Number(id);
+  const returnToResources =
+    new URLSearchParams(routeSearch).get("from") === "library"
+      ? "/resources?view=library"
+      : "/resources";
 
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState("");
@@ -937,7 +947,7 @@ export default function ResourceDetailPage() {
         queryKey: getGetDashboardSummaryQueryKey(),
       });
       toast({ title: "Resource removed from library." });
-      setLocation("/resources");
+      setLocation(returnToResources);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Failed to remove resource";
@@ -989,7 +999,7 @@ export default function ResourceDetailPage() {
         <Button
           variant="outline"
           className="mt-4"
-          onClick={() => setLocation("/resources")}
+          onClick={() => setLocation(returnToResources)}
         >
           Back to Resources
         </Button>
@@ -1003,7 +1013,7 @@ export default function ResourceDetailPage() {
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => setLocation("/resources")}
+        onClick={() => setLocation(returnToResources)}
         data-testid="back-button"
       >
         <ArrowLeft size={16} className="mr-1.5" /> Resources

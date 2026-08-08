@@ -2,7 +2,7 @@
  * Unit tests for GET /resources/:id/source-review
  *
  * The OpenAI client and DB are fully mocked. Tests assert:
- *  - Quick mode: openai.chat.completions.create is called (no tools)
+ *  - Quick mode: no OpenAI API is called
  *  - Deep mode: openai.responses.create is called with web search and a detailed prompt
  *  - Default (no mode param) behaves like quick
  *  - Response body always includes the resolved `mode` field
@@ -145,32 +145,18 @@ beforeEach(() => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("GET /api/resources/:id/source-review — mode contract", () => {
-  it("quick mode: uses chat.completions.create with no tools", async () => {
+  it("quick mode: uses the free provenance registry without OpenAI", async () => {
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review?mode=quick",
     );
 
     expect(res.status).toBe(200);
-    expect(lastCreateCall).not.toBeNull();
-    // Chat Completions API — no tools field
-    expect(lastCreateCall!.tools).toBeUndefined();
+    expect(lastCreateCall).toBeNull();
+    expect(openai.responses.create).not.toHaveBeenCalled();
+    expect(res.headers["x-source-review-provider"]).toBe("schoolar-registry");
   });
 
   it("deep mode: uses Responses API with web search and a detailed prompt", async () => {
-    let quickPrompt = "";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (openai.chat.completions.create as any).mockImplementation(
-      async (args: Record<string, unknown>) => {
-        const messages = args.messages as Array<{
-          role: string;
-          content: string;
-        }>;
-        quickPrompt = messages[0]?.content ?? "";
-        return fakeOpenAIResponse(mockResponsePayload);
-      },
-    );
-    await request(buildApp()).get("/api/resources/42/source-review?mode=quick");
-
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review?mode=deep",
     );
@@ -181,17 +167,35 @@ describe("GET /api/resources/:id/source-review — mode contract", () => {
       input: string;
       tools?: unknown[];
     };
-    expect(args.input.length).toBeGreaterThan(quickPrompt.length);
+    expect(args.input).toContain("multi-angle investigation");
     expect(args.tools).toBeDefined();
   });
 
-  it("default (no mode param) behaves like quick — no tools", async () => {
+  it("default (no mode param) behaves like quick without OpenAI", async () => {
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review",
     );
 
     expect(res.status).toBe(200);
-    expect(lastCreateCall!.tools).toBeUndefined();
+    expect(lastCreateCall).toBeNull();
+    expect(openai.responses.create).not.toHaveBeenCalled();
+  });
+
+  it("reviews an unsaved OpenStax source without OpenAI", async () => {
+    const res = await request(buildApp()).get("/api/source-review").query({
+      mode: "quick",
+      title: "Calculus Volume 1 (OpenStax)",
+      url: "https://openstax.org/details/books/calculus-volume-1",
+      subject: "Mathematics",
+      gradeLevel: "Higher education",
+      format: "pdf",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.mode).toBe("quick");
+    expect(res.body.sourceName).toBe("OpenStax");
+    expect(res.headers["x-source-review-provider"]).toBe("schoolar-registry");
+    expect(openai.responses.create).not.toHaveBeenCalled();
   });
 });
 
@@ -262,22 +266,20 @@ describe("GET /api/resources/:id/source-review — edge cases", () => {
     expect(openai.chat.completions.create).not.toHaveBeenCalled();
   });
 
-  it("returns 502 when OpenAI returns unparseable JSON", async () => {
+  it("falls back to the free registry when deep research is unparseable", async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (openai.chat.completions.create as any).mockResolvedValueOnce({
-      choices: [
-        {
-          message: {
-            content: "not json at all",
-          },
-        },
-      ],
+    (openai.responses.create as any).mockResolvedValueOnce({
+      output_text: "not json at all",
     });
 
     const res = await request(buildApp()).get(
-      "/api/resources/42/source-review?mode=quick",
+      "/api/resources/42/source-review?mode=deep",
     );
 
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(200);
+    expect(res.body.mode).toBe("quick");
+    expect(res.headers["x-source-review-fallback"]).toBe(
+      "schoolar-registry",
+    );
   });
 });

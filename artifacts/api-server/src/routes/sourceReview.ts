@@ -23,6 +23,7 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { consumeAiQuota, recordAiUsage } from "../lib/aiCostControls";
+import { buildFreeQuickReview } from "../lib/sourceProvenance";
 
 const router: IRouter = Router();
 const QUICK_CACHE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -153,6 +154,19 @@ function requireAccountForDeep(
     return;
   }
   next();
+}
+
+function deepResearchFallback(
+  resource: Parameters<typeof buildFreeQuickReview>[0],
+  stats: Parameters<typeof buildFreeQuickReview>[1],
+) {
+  return {
+    ...buildFreeQuickReview(resource, stats),
+    limitations: [
+      "Deep research did not return a complete structured report, so Schoolar displayed the free registry check instead.",
+      "Quick checks do not inspect the full resource or current public discussion.",
+    ],
+  };
 }
 
 // GET /resources/:id/source-review or /source-review — quick is public; deep requires auth.
@@ -296,6 +310,15 @@ router.get(
       }
     }
 
+    if (mode === "quick") {
+      const responseData = buildFreeQuickReview(resource, stats);
+      await cacheReview(canonicalUrl, mode, responseData);
+      res.setHeader("X-Source-Review-Cache", "MISS");
+      res.setHeader("X-Source-Review-Provider", "schoolar-registry");
+      res.json(responseData);
+      return;
+    }
+
     let deepUserId: number | null = null;
     if (mode === "deep" && process.env.NODE_ENV !== "test") {
       deepUserId = (req as AuthenticatedRequest).userId;
@@ -339,7 +362,9 @@ router.get(
           "deep-global-day",
           "all",
           24 * 60 * 60 * 1000,
-          200,
+          Number(process.env.AI_DEEP_DAILY_GLOBAL_LIMIT) > 0
+            ? Math.floor(Number(process.env.AI_DEEP_DAILY_GLOBAL_LIMIT))
+            : 20,
         );
         if (!globalDaily.allowed) {
           res.setHeader("Retry-After", globalDaily.retryAfter);
@@ -382,165 +407,159 @@ Please provide a structured JSON response with the following fields:
 
 Respond ONLY with valid JSON matching this structure, no markdown or extra text.`;
 
-    const quickPrompt = `${basePrompt}
-
-Perform a brief live lookup of the exact resource page and its publisher. Prioritize the page's own metadata for publication date, last edit date, author, language, license, duration, captions, and transcript status. Keep the assessment concise, use null for anything the page or reliable search results do not establish, and never guess.`;
-
     const deepPrompt = `${basePrompt}
 
 Conduct a multi-angle investigation of both the publisher/creator and this specific resource. Search the live web broadly, using several targeted queries and triangulating important claims across independent sources. Gather public discussion from forums, Reddit, review sites, social posts, external articles, and—when the resource is a YouTube video or channel—publicly indexed viewer comments or discussions about its videos. Distinguish direct comments from third-party reporting, summarize overall sentiment without overstating a small sample, identify claims that the source is current or outdated, and attach the exact supporting URL to every mention. Never invent a quote, comment, consensus, or URL. If comments are unavailable, say so in limitations rather than guessing. Prefer primary or authoritative sources for factual claims, but include public discussion to assess reception. Treat popularity and credibility as separate questions. Look for both confirming and disconfirming evidence, compare publication dates, flag conflicts between sources, and avoid duplicated mentions from the same underlying story. The final report should be nuanced, detailed, useful to a student deciding whether and how to rely on the resource, and normally 700-1,000 words when enough evidence exists.`;
 
     try {
       let textOutput = "";
-      if (mode === "deep") {
-        const response = await openai.responses.create({
-          model: "gpt-5-mini",
-          max_output_tokens: 2500,
-          text: {
-            format: {
-              type: "json_schema",
-              name: "source_review",
-              strict: true,
-              schema: {
-                type: "object",
-                additionalProperties: false,
-                required: [
-                  "sourceName",
-                  "sourceType",
-                  "description",
-                  "founded",
-                  "headquarters",
-                  "resourceProfile",
-                  "trustLevel",
-                  "trustReason",
-                  "summary",
-                  "reputationAnalysis",
-                  "audienceSentiment",
-                  "contentQuality",
-                  "currencyAssessment",
-                  "researchScope",
-                  "strengths",
-                  "concerns",
-                  "limitations",
-                  "links",
-                  "mentions",
-                ],
-                properties: {
-                  sourceName: { type: "string" },
-                  sourceType: {
-                    type: "string",
-                    enum: [
-                      "university",
-                      "nonprofit",
-                      "government",
-                      "news-outlet",
-                      "youtube-channel",
-                      "individual",
-                      "publisher",
-                      "company",
-                      "open-courseware",
-                      "other",
-                    ],
+      const response = await openai.responses.create({
+        model: "gpt-5-mini",
+        max_output_tokens: 1800,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "source_review",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "sourceName",
+                "sourceType",
+                "description",
+                "founded",
+                "headquarters",
+                "resourceProfile",
+                "trustLevel",
+                "trustReason",
+                "summary",
+                "reputationAnalysis",
+                "audienceSentiment",
+                "contentQuality",
+                "currencyAssessment",
+                "researchScope",
+                "strengths",
+                "concerns",
+                "limitations",
+                "links",
+                "mentions",
+              ],
+              properties: {
+                sourceName: { type: "string" },
+                sourceType: {
+                  type: "string",
+                  enum: [
+                    "university",
+                    "nonprofit",
+                    "government",
+                    "news-outlet",
+                    "youtube-channel",
+                    "individual",
+                    "publisher",
+                    "company",
+                    "open-courseware",
+                    "other",
+                  ],
+                },
+                description: { type: ["string", "null"] },
+                founded: { type: ["string", "null"] },
+                headquarters: { type: ["string", "null"] },
+                resourceProfile: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: [
+                    "provider",
+                    "author",
+                    "uploadTime",
+                    "lastEdited",
+                    "subject",
+                    "gradeLevel",
+                    "format",
+                    "language",
+                    "difficulty",
+                    "accessType",
+                    "license",
+                    "duration",
+                    "readingTime",
+                    "captions",
+                    "transcript",
+                    "audience",
+                    "keywords",
+                  ],
+                  properties: {
+                    provider: { type: ["string", "null"] },
+                    author: { type: ["string", "null"] },
+                    uploadTime: { type: ["string", "null"] },
+                    lastEdited: { type: ["string", "null"] },
+                    subject: { type: ["string", "null"] },
+                    gradeLevel: { type: ["string", "null"] },
+                    format: { type: ["string", "null"] },
+                    language: { type: ["string", "null"] },
+                    difficulty: { type: ["string", "null"] },
+                    accessType: { type: ["string", "null"] },
+                    license: { type: ["string", "null"] },
+                    duration: { type: ["string", "null"] },
+                    readingTime: { type: ["string", "null"] },
+                    captions: { type: ["boolean", "null"] },
+                    transcript: { type: ["boolean", "null"] },
+                    audience: { type: ["string", "null"] },
+                    keywords: {
+                      type: "array",
+                      items: { type: "string" },
+                    },
                   },
-                  description: { type: ["string", "null"] },
-                  founded: { type: ["string", "null"] },
-                  headquarters: { type: ["string", "null"] },
-                  resourceProfile: {
+                },
+                trustLevel: {
+                  type: "string",
+                  enum: ["high", "medium", "low", "unknown"],
+                },
+                trustReason: { type: ["string", "null"] },
+                summary: { type: "string" },
+                reputationAnalysis: { type: ["string", "null"] },
+                audienceSentiment: { type: ["string", "null"] },
+                contentQuality: { type: ["string", "null"] },
+                currencyAssessment: { type: ["string", "null"] },
+                researchScope: { type: ["string", "null"] },
+                strengths: { type: "array", items: { type: "string" } },
+                concerns: { type: "array", items: { type: "string" } },
+                limitations: { type: "array", items: { type: "string" } },
+                links: {
+                  type: "array",
+                  items: {
                     type: "object",
                     additionalProperties: false,
-                    required: [
-                      "provider",
-                      "author",
-                      "uploadTime",
-                      "lastEdited",
-                      "subject",
-                      "gradeLevel",
-                      "format",
-                      "language",
-                      "difficulty",
-                      "accessType",
-                      "license",
-                      "duration",
-                      "readingTime",
-                      "captions",
-                      "transcript",
-                      "audience",
-                      "keywords",
-                    ],
+                    required: ["label", "url"],
                     properties: {
-                      provider: { type: ["string", "null"] },
-                      author: { type: ["string", "null"] },
-                      uploadTime: { type: ["string", "null"] },
-                      lastEdited: { type: ["string", "null"] },
-                      subject: { type: ["string", "null"] },
-                      gradeLevel: { type: ["string", "null"] },
-                      format: { type: ["string", "null"] },
-                      language: { type: ["string", "null"] },
-                      difficulty: { type: ["string", "null"] },
-                      accessType: { type: ["string", "null"] },
-                      license: { type: ["string", "null"] },
-                      duration: { type: ["string", "null"] },
-                      readingTime: { type: ["string", "null"] },
-                      captions: { type: ["boolean", "null"] },
-                      transcript: { type: ["boolean", "null"] },
-                      audience: { type: ["string", "null"] },
-                      keywords: {
-                        type: "array",
-                        items: { type: "string" },
-                      },
+                      label: { type: "string" },
+                      url: { type: "string" },
                     },
                   },
-                  trustLevel: {
-                    type: "string",
-                    enum: ["high", "medium", "low", "unknown"],
-                  },
-                  trustReason: { type: ["string", "null"] },
-                  summary: { type: "string" },
-                  reputationAnalysis: { type: ["string", "null"] },
-                  audienceSentiment: { type: ["string", "null"] },
-                  contentQuality: { type: ["string", "null"] },
-                  currencyAssessment: { type: ["string", "null"] },
-                  researchScope: { type: ["string", "null"] },
-                  strengths: { type: "array", items: { type: "string" } },
-                  concerns: { type: "array", items: { type: "string" } },
-                  limitations: { type: "array", items: { type: "string" } },
-                  links: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      additionalProperties: false,
-                      required: ["label", "url"],
-                      properties: {
-                        label: { type: "string" },
-                        url: { type: "string" },
+                },
+                mentions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["summary", "url", "sourceType", "sentiment"],
+                    properties: {
+                      summary: { type: "string" },
+                      url: { type: "string" },
+                      sourceType: {
+                        type: "string",
+                        enum: [
+                          "forum",
+                          "comments",
+                          "review",
+                          "article",
+                          "social",
+                          "official",
+                          "other",
+                        ],
                       },
-                    },
-                  },
-                  mentions: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      additionalProperties: false,
-                      required: ["summary", "url", "sourceType", "sentiment"],
-                      properties: {
-                        summary: { type: "string" },
-                        url: { type: "string" },
-                        sourceType: {
-                          type: "string",
-                          enum: [
-                            "forum",
-                            "comments",
-                            "review",
-                            "article",
-                            "social",
-                            "official",
-                            "other",
-                          ],
-                        },
-                        sentiment: {
-                          type: "string",
-                          enum: ["positive", "mixed", "negative", "neutral"],
-                        },
+                      sentiment: {
+                        type: "string",
+                        enum: ["positive", "mixed", "negative", "neutral"],
                       },
                     },
                   },
@@ -548,23 +567,13 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
               },
             },
           },
-          tools: [{ type: "web_search", search_context_size: "high" }],
-          reasoning: { effort: "low" },
-          input: deepPrompt,
-        });
-        textOutput = response.output_text ?? "";
-        await recordAiUsage("deep-research", deepUserId);
-      } else {
-        const response = await openai.responses.create({
-          model: "gpt-5-nano",
-          max_output_tokens: 1400,
-          tools: [{ type: "web_search", search_context_size: "low" }],
-          reasoning: { effort: "low" },
-          input: quickPrompt,
-        });
-        textOutput = response.output_text ?? "";
-        await recordAiUsage("quick-review", deepUserId);
-      }
+        },
+        tools: [{ type: "web_search", search_context_size: "low" }],
+        reasoning: { effort: "low" },
+        input: deepPrompt,
+      });
+      textOutput = response.output_text ?? "";
+      await recordAiUsage("deep-research", deepUserId);
 
       // Strip markdown code fences if present
       const withoutFences = textOutput
@@ -581,8 +590,10 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
       let parsed: unknown;
       try {
         parsed = JSON.parse(cleaned);
+        if (typeof parsed === "string") parsed = JSON.parse(parsed);
       } catch {
-        res.status(502).json({ error: "AI returned unparseable response" });
+        res.setHeader("X-Source-Review-Fallback", "schoolar-registry");
+        res.json(deepResearchFallback(resource, stats));
         return;
       }
 
@@ -591,9 +602,8 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
         mode,
       });
       if (!validated.success) {
-        res
-          .status(502)
-          .json({ error: "AI returned a response that failed validation" });
+        res.setHeader("X-Source-Review-Fallback", "schoolar-registry");
+        res.json(deepResearchFallback(resource, stats));
         return;
       }
 

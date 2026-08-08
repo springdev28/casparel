@@ -19,7 +19,11 @@ import {
   SelectValue,
 } from "@workspace/edu-ds/components/ui/select";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
-import { makeCitation, type CitationStyle } from "../lib/citations";
+import {
+  makeCitation,
+  makeInTextCitation,
+  type CitationStyle,
+} from "../lib/citations";
 
 export type CitationResource = { title: string; url: string };
 
@@ -38,7 +42,9 @@ export function CitationDialog({
   const [author, setAuthor] = useState("");
   const [publisher, setPublisher] = useState("");
   const [publishedAt, setPublishedAt] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"bibliography" | "in-text" | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -47,18 +53,29 @@ export function CitationDialog({
     setAuthor("");
     setPublisher("");
     setPublishedAt("");
-    setCopied(false);
+    setCopied(null);
   }, [open, resource]);
 
   const citation = useMemo(
     () => makeCitation({ title, url, author, publisher, publishedAt }, style),
     [author, publishedAt, publisher, style, title, url],
   );
+  const inTextCitation = useMemo(
+    () =>
+      makeInTextCitation(
+        { title, url, author, publisher, publishedAt },
+        style,
+      ),
+    [author, publishedAt, publisher, style, title, url],
+  );
 
-  async function copyCitation() {
-    await navigator.clipboard.writeText(citation);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+  async function copyCitation(
+    value: string,
+    target: "bibliography" | "in-text",
+  ) {
+    await navigator.clipboard.writeText(value);
+    setCopied(target);
+    window.setTimeout(() => setCopied(null), 1800);
   }
 
   return (
@@ -139,7 +156,7 @@ export function CitationDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="citation-output">Citation</Label>
+            <Label htmlFor="citation-output">Bibliography citation</Label>
             <Textarea
               id="citation-output"
               readOnly
@@ -148,18 +165,39 @@ export function CitationDialog({
               className="font-serif"
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="citation-in-text-output">In-text citation</Label>
+            <Input
+              id="citation-in-text-output"
+              readOnly
+              value={inTextCitation}
+              className="font-serif"
+            />
+          </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0">
           <Button
-            onClick={copyCitation}
-            disabled={!title.trim() || !url.trim()}
+            variant="outline"
+            onClick={() => copyCitation(inTextCitation, "in-text")}
+            disabled={!title.trim()}
           >
-            {copied ? (
+            {copied === "in-text" ? (
               <Check size={15} className="mr-2" />
             ) : (
               <Clipboard size={15} className="mr-2" />
             )}
-            {copied ? "Copied" : "Copy citation"}
+            {copied === "in-text" ? "Copied" : "Copy in-text"}
+          </Button>
+          <Button
+            onClick={() => copyCitation(citation, "bibliography")}
+            disabled={!title.trim() || !url.trim()}
+          >
+            {copied === "bibliography" ? (
+              <Check size={15} className="mr-2" />
+            ) : (
+              <Clipboard size={15} className="mr-2" />
+            )}
+            {copied === "bibliography" ? "Copied" : "Copy bibliography"}
           </Button>
         </DialogFooter>
       </DialogContent>

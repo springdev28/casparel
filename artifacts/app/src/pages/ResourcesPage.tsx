@@ -214,6 +214,33 @@ function storedResourceSearch() {
     };
   }
 }
+
+type SubmittedResourceSearch = {
+  query: string;
+  format: string;
+  subject: string;
+  gradeLevel: string;
+  language: SearchLanguage;
+  resultType: DiscoverResourcesResultType;
+  sortBy: ListResourcesSortBy | "";
+  minRating: number | "";
+  exactPhrase: string;
+  excludedWords: string;
+  sourceDomain: string;
+  dateAdded: string;
+  minReviews: string;
+  thumbnail: string;
+  librarySort: string;
+  freshness: string;
+  difficulty: string;
+  access: string;
+  license: string;
+  contentLength: string;
+  sourceQuality: string;
+  captions: boolean;
+  transcript: boolean;
+};
+
 function continueStudyingStorageKey(userId: number, goalId: number) {
   return `schoolar_continue_studying:${userId}:${goalId}`;
 }
@@ -657,8 +684,8 @@ function UnsavedSourceResearchDialog({
             >
               <p className="font-semibold">Quick research</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                A concise live lookup of the page, publisher, trust, and key
-                metadata.
+                A concise check using stored metadata and Schoolar's source
+                registry. No AI credits.
               </p>
             </button>
             <button
@@ -677,7 +704,9 @@ function UnsavedSourceResearchDialog({
         {loading && (
           <div className="py-14 text-center text-muted-foreground">
             <Loader2 className="mx-auto mb-3 size-6 animate-spin" />
-            Researching the live source…
+            {mode === "deep"
+              ? "Researching the live source…"
+              : "Checking stored source metadata…"}
           </div>
         )}
         {error && (
@@ -1008,8 +1037,13 @@ export default function ResourcesPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const initialSearch = useRef(storedResourceSearch()).current;
+  const initialResourceView = useRef<"search" | "library">(
+    new URLSearchParams(routeSearch).get("view") === "library"
+      ? "library"
+      : "search",
+  ).current;
   const [resourceView, setResourceView] = useState<"search" | "library">(
-    "search",
+    initialResourceView,
   );
   const [inputValue, setInputValue] = useState(initialSearch.inputValue);
   const [activeQuery, setActiveQuery] = useState(initialSearch.activeQuery);
@@ -1051,6 +1085,8 @@ export default function ResourcesPage() {
   const [sourceQualityFilter, setSourceQualityFilter] = useState("");
   const [captionsRequired, setCaptionsRequired] = useState(false);
   const [transcriptRequired, setTranscriptRequired] = useState(false);
+  const [submittedSearch, setSubmittedSearch] =
+    useState<SubmittedResourceSearch | null>(null);
   const [citationResource, setCitationResource] =
     useState<CitationResource | null>(null);
   const [citationOpen, setCitationOpen] = useState(false);
@@ -1058,7 +1094,6 @@ export default function ResourcesPage() {
     useState<DiscoveredResource | null>(null);
   const [researchOpen, setResearchOpen] = useState(false);
   const previousActiveQueryRef = useRef(activeQuery);
-  const filtersInitializedRef = useRef(false);
 
   function openCitation(resource?: CitationResource) {
     setCitationResource(resource ?? null);
@@ -1086,6 +1121,7 @@ export default function ResourcesPage() {
     const goal = params.get("goal");
     const subject = params.get("subject");
     const mode = params.get("mode");
+    const view = params.get("view");
     if (goal) {
       setInputValue(goal);
       setLibraryLimit(12);
@@ -1093,10 +1129,13 @@ export default function ResourcesPage() {
     if (subject) setSubjectFilter(subject);
     if (mode === "source")
       setResultTypeFilter(DiscoverResourcesResultType.source);
+    if (view === "library") setResourceView("library");
   }, [routeSearch]);
 
   const isSearching = activeQuery.trim().length > 0;
   const isSourceMode = resultTypeFilter === DiscoverResourcesResultType.source;
+  const isSubmittedSourceMode =
+    submittedSearch?.resultType === DiscoverResourcesResultType.source;
 
   // Auth
   const { data: me } = useGetMe({
@@ -1114,25 +1153,39 @@ export default function ResourcesPage() {
   });
   // Library search results (shown when searching)
   const libraryParams = {
-    ...(activeQuery ? { q: activeQuery } : {}),
-    ...(formatFilter && formatFilter !== "all"
-      ? { format: formatFilter as ListResourcesFormat }
+    ...(submittedSearch?.query ? { q: submittedSearch.query } : {}),
+    ...(submittedSearch?.format && submittedSearch.format !== "all"
+      ? { format: submittedSearch.format as ListResourcesFormat }
       : {}),
-    ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
-    ...(gradeLevelFilter ? { gradeLevel: gradeLevelFilter } : {}),
-    ...(sortByFilter ? { sortBy: sortByFilter } : {}),
-    ...(minRatingFilter ? { minRating: minRatingFilter as number } : {}),
-    ...(exactPhraseFilter.trim()
-      ? { exactPhrase: exactPhraseFilter.trim() }
+    ...(submittedSearch?.subject ? { subject: submittedSearch.subject } : {}),
+    ...(submittedSearch?.gradeLevel
+      ? { gradeLevel: submittedSearch.gradeLevel }
       : {}),
-    ...(excludedWordsFilter.trim()
-      ? { exclude: excludedWordsFilter.trim() }
+    ...(submittedSearch?.sortBy ? { sortBy: submittedSearch.sortBy } : {}),
+    ...(submittedSearch?.minRating
+      ? { minRating: submittedSearch.minRating as number }
       : {}),
-    ...(sourceDomainFilter.trim() ? { source: sourceDomainFilter.trim() } : {}),
-    ...(dateAddedFilter ? { dateAdded: dateAddedFilter } : {}),
-    ...(minReviewsFilter ? { minReviews: Number(minReviewsFilter) } : {}),
-    ...(thumbnailFilter ? { hasThumbnail: thumbnailFilter === "with" } : {}),
-    ...(librarySortFilter ? { librarySort: librarySortFilter } : {}),
+    ...(submittedSearch?.exactPhrase
+      ? { exactPhrase: submittedSearch.exactPhrase }
+      : {}),
+    ...(submittedSearch?.excludedWords
+      ? { exclude: submittedSearch.excludedWords }
+      : {}),
+    ...(submittedSearch?.sourceDomain
+      ? { source: submittedSearch.sourceDomain }
+      : {}),
+    ...(submittedSearch?.dateAdded
+      ? { dateAdded: submittedSearch.dateAdded }
+      : {}),
+    ...(submittedSearch?.minReviews
+      ? { minReviews: Number(submittedSearch.minReviews) }
+      : {}),
+    ...(submittedSearch?.thumbnail
+      ? { hasThumbnail: submittedSearch.thumbnail === "with" }
+      : {}),
+    ...(submittedSearch?.librarySort
+      ? { librarySort: submittedSearch.librarySort }
+      : {}),
     limit: libraryLimit,
     offset: 0,
   };
@@ -1140,7 +1193,7 @@ export default function ResourcesPage() {
     libraryParams,
     {
       query: {
-        enabled: isSearching && !isSourceMode,
+        enabled: submittedSearch !== null && !isSubmittedSourceMode,
         queryKey: getListResourcesQueryKey(libraryParams),
       },
     },
@@ -1243,50 +1296,58 @@ export default function ResourcesPage() {
 
   // Web discover (shown when searching) — accumulate across pages
   const discoverParams = {
-    q: activeQuery,
-    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
-    formatFilter &&
-    formatFilter !== "all"
-      ? { format: formatFilter as DiscoverResourcesFormat }
+    q: submittedSearch?.query ?? "",
+    ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
+    submittedSearch.format &&
+    submittedSearch.format !== "all"
+      ? { format: submittedSearch.format as DiscoverResourcesFormat }
       : {}),
-    ...(subjectFilter.trim() ? { subject: subjectFilter.trim() } : {}),
-    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
-    gradeLevelFilter
-      ? { gradeLevel: gradeLevelFilter }
+    ...(submittedSearch?.subject ? { subject: submittedSearch.subject } : {}),
+    ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
+    submittedSearch.gradeLevel
+      ? { gradeLevel: submittedSearch.gradeLevel }
       : {}),
-    language: searchLanguage,
+    language: submittedSearch?.language ?? searchLanguage,
     page: webPage,
-    resultType: resultTypeFilter,
-    ...(exactPhraseFilter.trim()
-      ? { exactPhrase: exactPhraseFilter.trim() }
+    resultType:
+      submittedSearch?.resultType ?? DiscoverResourcesResultType.content,
+    ...(submittedSearch?.exactPhrase
+      ? { exactPhrase: submittedSearch.exactPhrase }
       : {}),
-    ...(excludedWordsFilter.trim()
-      ? { exclude: excludedWordsFilter.trim() }
+    ...(submittedSearch?.excludedWords
+      ? { exclude: submittedSearch.excludedWords }
       : {}),
-    ...(sourceDomainFilter.trim() ? { source: sourceDomainFilter.trim() } : {}),
-    ...(freshnessFilter ? { freshness: freshnessFilter } : {}),
-    ...(sourceQualityFilter ? { sourceQuality: sourceQualityFilter } : {}),
-    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
-    difficultyFilter
-      ? { difficulty: difficultyFilter }
+    ...(submittedSearch?.sourceDomain
+      ? { source: submittedSearch.sourceDomain }
       : {}),
-    ...(resultTypeFilter === DiscoverResourcesResultType.content && accessFilter
-      ? { accessType: accessFilter }
+    ...(submittedSearch?.freshness
+      ? { freshness: submittedSearch.freshness }
       : {}),
-    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
-    licenseFilter
-      ? { license: licenseFilter }
+    ...(submittedSearch?.sourceQuality
+      ? { sourceQuality: submittedSearch.sourceQuality }
       : {}),
-    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
-    contentLengthFilter
-      ? { contentLength: contentLengthFilter }
+    ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
+    submittedSearch.difficulty
+      ? { difficulty: submittedSearch.difficulty }
       : {}),
-    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
-    captionsRequired
+    ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
+    submittedSearch.access
+      ? { accessType: submittedSearch.access }
+      : {}),
+    ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
+    submittedSearch.license
+      ? { license: submittedSearch.license }
+      : {}),
+    ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
+    submittedSearch.contentLength
+      ? { contentLength: submittedSearch.contentLength }
+      : {}),
+    ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
+    submittedSearch.captions
       ? { captions: true }
       : {}),
-    ...(resultTypeFilter === DiscoverResourcesResultType.content &&
-    transcriptRequired
+    ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
+    submittedSearch.transcript
       ? { transcript: true }
       : {}),
   };
@@ -1298,7 +1359,7 @@ export default function ResourcesPage() {
     refetch: retryWebSearch,
   } = useDiscoverResources(discoverParams, {
     query: {
-      enabled: isSearching && resourceView === "search",
+      enabled: submittedSearch !== null && resourceView === "search",
       staleTime: Number.POSITIVE_INFINITY,
       refetchOnMount: false,
       refetchOnWindowFocus: false,
@@ -1332,39 +1393,6 @@ export default function ResourcesPage() {
     setAllWebResults([]);
     setHiddenSourceUrls([]);
   }, [activeQuery]);
-
-  // Reset accumulated results when any filter changes
-  useEffect(() => {
-    if (!filtersInitializedRef.current) {
-      filtersInitializedRef.current = true;
-      return;
-    }
-    setWebPage(1);
-    setAllWebResults([]);
-  }, [
-    formatFilter,
-    subjectFilter,
-    gradeLevelFilter,
-    sortByFilter,
-    minRatingFilter,
-    resultTypeFilter,
-    searchLanguage,
-    exactPhraseFilter,
-    excludedWordsFilter,
-    sourceDomainFilter,
-    dateAddedFilter,
-    minReviewsFilter,
-    thumbnailFilter,
-    librarySortFilter,
-    freshnessFilter,
-    difficultyFilter,
-    accessFilter,
-    licenseFilter,
-    contentLengthFilter,
-    sourceQualityFilter,
-    captionsRequired,
-    transcriptRequired,
-  ]);
 
   useEffect(() => {
     if (!webResults || webResults.length === 0) return;
@@ -1503,6 +1531,7 @@ export default function ResourcesPage() {
   function clearSearch() {
     setInputValue("");
     setActiveQuery("");
+    setSubmittedSearch(null);
     setAllWebResults([]);
     setWebPage(1);
     sessionStorage.removeItem(RESOURCE_SEARCH_STATE_KEY);
@@ -1549,7 +1578,35 @@ export default function ResourcesPage() {
     e.preventDefault();
     const q = inputValue.trim();
     if (q) {
+      setSubmittedSearch({
+        query: q,
+        format: formatFilter,
+        subject: subjectFilter.trim(),
+        gradeLevel: gradeLevelFilter,
+        language: searchLanguage,
+        resultType: resultTypeFilter,
+        sortBy: sortByFilter,
+        minRating: minRatingFilter,
+        exactPhrase: exactPhraseFilter.trim(),
+        excludedWords: excludedWordsFilter.trim(),
+        sourceDomain: sourceDomainFilter.trim(),
+        dateAdded: dateAddedFilter,
+        minReviews: minReviewsFilter,
+        thumbnail: thumbnailFilter,
+        librarySort: librarySortFilter,
+        freshness: freshnessFilter,
+        difficulty: difficultyFilter,
+        access: accessFilter,
+        license: licenseFilter,
+        contentLength: contentLengthFilter,
+        sourceQuality: sourceQualityFilter,
+        captions: captionsRequired,
+        transcript: transcriptRequired,
+      });
       setActiveQuery(q);
+      setWebPage(1);
+      setAllWebResults([]);
+      setHiddenSourceUrls([]);
       setLibraryLimit(12); // reset pagination on new search
       if (me?.id) setSearchHistory(addSearchHistory(me.id, q));
     }
@@ -2390,7 +2447,7 @@ export default function ResourcesPage() {
                   className="px-3 py-1.5 text-sm hover:text-primary"
                   onClick={() => {
                     setInputValue(item.query);
-                    setActiveQuery(item.query);
+                    inputRef.current?.focus();
                   }}
                 >
                   {item.query}
@@ -2596,7 +2653,9 @@ export default function ResourcesPage() {
                 <LibraryCard
                   key={resource.id}
                   resource={resource}
-                  onClick={() => setLocation(`/resources/${resource.id}`)}
+                  onClick={() =>
+                    setLocation(`/resources/${resource.id}?from=library`)
+                  }
                   onCitation={() => openCitation(resource)}
                   onRemove={
                     me && resource.submittedById === me.id
@@ -2622,17 +2681,18 @@ export default function ResourcesPage() {
       {/* ── SEARCH RESULTS ────────────────────────────────────────────── */}
       {resourceView === "search" && isSearching && (
         <>
-          {/* Library search results */}
-          {!isSourceMode && (
+          {/* Schoolar library search results */}
+          {!isSubmittedSourceMode && (
             <section>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
-                <BookOpen size={14} /> Library — "{activeQuery}"
+                <BookOpen size={14} /> Schoolar library — "{activeQuery}"
               </h2>
               {libraryLoading ? (
                 <CardSkeletons count={3} />
               ) : uniqueLibraryResults.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  No library results for "{activeQuery}".
+                  No saved Schoolar resources match "{activeQuery}" yet.
+                  Results from the open catalog below can be saved to add them.
                 </p>
               ) : (
                 <>
@@ -2671,13 +2731,13 @@ export default function ResourcesPage() {
             </section>
           )}
 
-          {/* Web results */}
+          {/* Open catalog results */}
           <section>
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
               <Sparkles size={14} />{" "}
-              {resultTypeFilter === DiscoverResourcesResultType.source
+              {submittedSearch?.resultType === DiscoverResourcesResultType.source
                 ? "Sources & channels"
-                : "From the Web"}{" "}
+                : "Open education catalog"}{" "}
               — "{activeQuery}"
             </h2>
 
@@ -2685,7 +2745,7 @@ export default function ResourcesPage() {
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                   <Loader2 size={12} className="animate-spin" /> Searching the
-                  entire web…
+                  education catalog…
                 </p>
                 <CardSkeletons />
               </div>
@@ -2716,9 +2776,9 @@ export default function ResourcesPage() {
                 <p className="text-sm text-destructive font-medium">
                   {webCreditsExhausted
                     ? isAdmin
-                      ? "Web search is unavailable because the OpenAI project has no credits."
-                      : "Web search is temporarily unavailable. Please contact an administrator."
-                    : "Web search failed — please try again."}
+                      ? "Optional AI fallback is unavailable because the OpenAI project has no credits."
+                      : "Optional AI fallback is temporarily unavailable."
+                    : "Catalog search failed — please try again."}
                 </p>
                 {webCreditsExhausted && isAdmin ? (
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -2738,7 +2798,7 @@ export default function ResourcesPage() {
 
             {!webError && visibleWebResults.length > 0 && (
               <>
-                {!isSourceMode && !isLoggedIn && (
+                {!isSubmittedSourceMode && !isLoggedIn && (
                   <p className="text-xs text-muted-foreground mb-3">
                     <Link href="/auth/login" className="text-primary underline">
                       Sign in
@@ -2748,7 +2808,7 @@ export default function ResourcesPage() {
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {visibleWebResults.map((r, i) =>
-                    isSourceMode ? (
+                    isSubmittedSourceMode ? (
                       <SourceCard
                         key={r.url}
                         resource={r}
@@ -2783,7 +2843,7 @@ export default function ResourcesPage() {
                     ) : (
                       <>
                         <Sparkles size={12} className="mr-1.5" /> Search more{" "}
-                        {isSourceMode ? "sources" : "resources"}
+                        {isSubmittedSourceMode ? "sources" : "resources"}
                       </>
                     )}
                   </Button>

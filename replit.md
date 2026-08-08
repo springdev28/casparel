@@ -17,6 +17,16 @@ A full-stack student and teacher productivity platform for discovering, reviewin
 Required env: `DATABASE_URL` — PostgreSQL connection string.
 Optional: `PORT`, `BASE_PATH`, `API_URL`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 
+Catalog and AI cost controls:
+
+- `CATALOG_CONTACT_EMAIL` identifies Schoolar to public metadata providers.
+- `CATALOG_REMOTE_SEARCH_ENABLED=false` disables on-demand Open Library enrichment.
+- `CATALOG_MAX_ITEMS` caps stored external metadata (default: 50,000 records for the free-plan MVP).
+- Normal Schoolar, resource, goal, and people searches use the database and free catalog without AI. `AI_RESOURCE_SEARCH_ENABLED=true` or `AI_PUBLIC_PROFILE_SEARCH_ENABLED=true` separately opt in to paid fallback searches when no stored result exists; both are off by default.
+- Underfilled resource searches can add reusable metadata from Open Library and Wikibooks to the catalog. Set `CATALOG_REMOTE_SEARCH_ENABLED=false` to disable this, `CATALOG_CONTACT_EMAIL` to identify API requests, and `CATALOG_MAX_ITEMS` to cap the catalog (default 50,000).
+- `AI_SEARCH_DAILY_USER_LIMIT` and `AI_SEARCH_DAILY_LIMIT` cap that fallback (defaults: 3 per user and 20 globally).
+- `AI_DEEP_DAILY_GLOBAL_LIMIT` caps paid deep source research globally (default: 20).
+
 ## Stack
 
 - **Monorepo**: pnpm workspaces, Node.js 24, TypeScript 5.9
@@ -53,14 +63,14 @@ Optional: `PORT`, `BASE_PATH`, `API_URL`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, 
 
 ## Product
 
-- **Resources**: Public browsable library of learning resources with ratings, reviews, and AI-powered discovery. Teachers can add and manage resources; students can save them to lists.
+- **Resources**: Public browsable library plus a stored open-education catalog, with ratings and reviews. Teachers can add and manage resources; students can save them to lists.
 - **Classes**: Teachers create classes and invite students. Class resources can be assigned and shared as lists.
 - **Lists**: Users build personal reading lists; teachers can share lists with their classes.
 - **Schedule**: Personal schedule blocks with optional resource attachments. Google Calendar sync (OAuth) and iCal subscription feed.
 - **Study sessions**: Collaborative sessions with meeting links, RSVP, and class association.
 - **Google Classroom**: OAuth-based sync — import courses as classes, push resources to the Classroom stream.
 - **Profiles**: User profiles with bio, subjects, grade/department, avatar, timezone, and website.
-- **AI features**: Deep Research (source review), AI resource discovery, live web search.
+- **AI features**: Optional deep source research and opt-in discovery fallback. Normal catalog search and quick source review do not use AI.
 
 ## User preferences
 

@@ -48,7 +48,6 @@ import {
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { buildRateLimitStore } from "../lib/rateLimitStore";
-import { aiSearchDailyUserLimiter } from "../lib/aiCostControls";
 
 const PRESET_AVATARS: Record<
   string,
@@ -549,7 +548,6 @@ async function blockedIdsFor(userId: number): Promise<Set<number>> {
 router.get(
   "/users/search",
   requireAuth,
-  aiSearchDailyUserLimiter,
   async (req, res): Promise<void> => {
   const { userId, accountRole } = req as AuthenticatedRequest;
   const isAdmin = accountRole === "admin";

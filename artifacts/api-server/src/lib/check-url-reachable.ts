@@ -19,31 +19,31 @@ function isPrivateIP(ip: string): boolean {
   if (ip.includes(":")) {
     const lower = ip.toLowerCase().replace(/^\[|\]$/g, ""); // strip brackets
     return (
-      lower === "::" ||            // unspecified
-      lower === "::1" ||           // loopback
-      lower.startsWith("fe80") ||  // link-local fe80::/10
-      lower.startsWith("fc") ||    // ULA fc00::/7
-      lower.startsWith("fd") ||    // ULA fc00::/7
-      lower.startsWith("::ffff:")  // any remaining IPv4-mapped forms
+      lower === "::" || // unspecified
+      lower === "::1" || // loopback
+      lower.startsWith("fe80") || // link-local fe80::/10
+      lower.startsWith("fc") || // ULA fc00::/7
+      lower.startsWith("fd") || // ULA fc00::/7
+      lower.startsWith("::ffff:") // any remaining IPv4-mapped forms
     );
   }
 
   // IPv4 non-public ranges
   const privateRanges: RegExp[] = [
-    /^0\./,                                       // 0.0.0.0/8
-    /^127\./,                                     // Loopback 127.0.0.0/8
-    /^10\./,                                      // RFC-1918 10.0.0.0/8
-    /^172\.(1[6-9]|2\d|3[01])\./,                // RFC-1918 172.16.0.0/12
-    /^192\.168\./,                                // RFC-1918 192.168.0.0/16
-    /^169\.254\./,                                // Link-local / cloud metadata
+    /^0\./, // 0.0.0.0/8
+    /^127\./, // Loopback 127.0.0.0/8
+    /^10\./, // RFC-1918 10.0.0.0/8
+    /^172\.(1[6-9]|2\d|3[01])\./, // RFC-1918 172.16.0.0/12
+    /^192\.168\./, // RFC-1918 192.168.0.0/16
+    /^169\.254\./, // Link-local / cloud metadata
     /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, // CGNAT 100.64.0.0/10
-    /^192\.0\.[02]\./,                            // IETF protocol assignments
-    /^198\.(1[89])\./,                            // Benchmark testing
-    /^198\.51\.100\./,                            // TEST-NET-2
-    /^203\.0\.113\./,                             // TEST-NET-3
-    /^2(2[4-9]|3\d)\./,                          // Multicast 224.0.0.0/4
-    /^24\d\./,                                    // Reserved 240.0.0.0/4
-    /^255\./,                                     // Broadcast
+    /^192\.0\.[02]\./, // IETF protocol assignments
+    /^198\.(1[89])\./, // Benchmark testing
+    /^198\.51\.100\./, // TEST-NET-2
+    /^203\.0\.113\./, // TEST-NET-3
+    /^2(2[4-9]|3\d)\./, // Multicast 224.0.0.0/4
+    /^24\d\./, // Reserved 240.0.0.0/4
+    /^255\./, // Broadcast
   ];
 
   return privateRanges.some((re) => re.test(ip));
@@ -60,7 +60,7 @@ function isPrivateIP(ip: string): boolean {
  *   - resolves to a private/loopback/link-local IP address
  *   - cannot be resolved via DNS
  */
-async function isSafeUrl(url: string): Promise<boolean> {
+export async function isSafeUrl(url: string): Promise<boolean> {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -90,6 +90,81 @@ async function isSafeUrl(url: string): Promise<boolean> {
   }
 }
 
+/** Fetch a small public document while validating every redirect hop. */
+export async function fetchPublicText(
+  rawUrl: string,
+  options: {
+    timeoutMs?: number;
+    maxBytes?: number;
+    maxRedirects?: number;
+  } = {},
+): Promise<{ url: string; contentType: string; text: string }> {
+  const timeoutMs = options.timeoutMs ?? 5000;
+  const maxBytes = options.maxBytes ?? 256 * 1024;
+  const maxRedirects = options.maxRedirects ?? 3;
+  let currentUrl = rawUrl;
+  for (let redirect = 0; redirect <= maxRedirects; redirect += 1) {
+    if (!(await isSafeUrl(currentUrl))) throw new Error("Unsafe public URL");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(currentUrl, {
+        method: "GET",
+        signal: controller.signal,
+        redirect: "manual",
+        headers: {
+          Accept:
+            "text/html,application/xhtml+xml,application/json;q=0.8,*/*;q=0.1",
+          "User-Agent": "Schoolar-Metadata/1.0",
+        },
+      });
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        if (!location || redirect === maxRedirects)
+          throw new Error("Too many redirects");
+        currentUrl = new URL(location, currentUrl).toString();
+        continue;
+      }
+      if (!response.ok)
+        throw new Error(`Metadata request returned ${response.status}`);
+      const reader = response.body?.getReader();
+      if (!reader)
+        return {
+          url: currentUrl,
+          contentType: response.headers.get("content-type") ?? "",
+          text: "",
+        };
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      while (size < maxBytes) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const remaining = maxBytes - size;
+        const chunk =
+          value.byteLength > remaining ? value.slice(0, remaining) : value;
+        chunks.push(chunk);
+        size += chunk.byteLength;
+        if (chunk.byteLength < value.byteLength) break;
+      }
+      await reader.cancel().catch(() => undefined);
+      const merged = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return {
+        url: currentUrl,
+        contentType: response.headers.get("content-type") ?? "",
+        text: new TextDecoder().decode(merged),
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error("Metadata redirect loop");
+}
+
 // ---------------------------------------------------------------------------
 // Reachability check
 // ---------------------------------------------------------------------------
@@ -104,7 +179,7 @@ async function isSafeUrl(url: string): Promise<boolean> {
  */
 export async function checkUrlReachable(
   url: string,
-  timeoutMs = 3000
+  timeoutMs = 3000,
 ): Promise<boolean> {
   // SSRF guard: block non-HTTP(S) and private-IP targets before any fetch
   const safe = await isSafeUrl(url);
@@ -164,13 +239,13 @@ export async function checkUrlReachable(
  */
 export async function filterReachableUrls<T extends { url: string }>(
   items: T[],
-  timeoutMs = 3000
+  timeoutMs = 3000,
 ): Promise<T[]> {
   const results = await Promise.all(
     items.map(async (item): Promise<T | null> => {
       const reachable = await checkUrlReachable(item.url, timeoutMs);
       return reachable ? item : null;
-    })
+    }),
   );
   return results.filter((item) => item !== null) as T[];
 }

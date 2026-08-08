@@ -36,6 +36,16 @@ vi.mock("../lib/aiCostControls", () => ({
     next(),
   paidRetryAllowed: () => true,
   recordAiUsage: vi.fn(),
+  consumeAiQuota: vi
+    .fn()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfter: 60 }),
+}));
+
+vi.mock("../lib/adminAccess", () => ({ isAdminRequest: () => true }));
+vi.mock("../lib/catalog", () => ({
+  searchCatalog: vi.fn().mockResolvedValue([]),
+  searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
+  searchWikibooksAndStore: vi.fn().mockResolvedValue(0),
 }));
 
 // ── DB mock (not used by discover but required for the module to load) ─────────
@@ -159,6 +169,8 @@ function makeItem(overrides: { url?: string; title?: string } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.AI_RESOURCE_SEARCH_ENABLED = "true";
+  process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED = "true";
 });
 
 describe("exact-person platform coverage", () => {
@@ -185,12 +197,10 @@ describe("exact-person platform coverage", () => {
       .mockResolvedValueOnce(fakeAIResponse(first))
       .mockResolvedValueOnce(fakeAIResponse([linkedIn]));
 
-    const res = await request(buildApp())
-      .get("/api/resources/discover")
-      .query({
-        q: "exact-person: Ada Lovelace; affiliation: Example University",
-        resultType: "people",
-      });
+    const res = await request(buildApp()).get("/api/resources/discover").query({
+      q: "exact-person: Ada Lovelace; affiliation: Example University",
+      resultType: "people",
+    });
 
     expect(res.status).toBe(200);
     expect(openai.responses.create).toHaveBeenCalledTimes(2);
@@ -212,11 +222,9 @@ describe("exact-person platform coverage", () => {
 
 describe("GET /api/resources/discover — filtering", () => {
   it("returns all results when every URL is reachable", async () => {
-    const items = [
-      makeItem({ url: "https://khanacademy.org/a" }),
-      makeItem({ url: "https://khanacademy.org/b" }),
-      makeItem({ url: "https://khanacademy.org/c" }),
-    ];
+    const items = Array.from({ length: 8 }, (_, index) =>
+      makeItem({ url: `https://khanacademy.org/${index + 1}` }),
+    );
 
     vi.mocked(openai.responses.create).mockResolvedValueOnce(
       fakeAIResponse(items),
@@ -229,8 +237,8 @@ describe("GET /api/resources/discover — filtering", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(3);
-    expect(res.body[0].url).toBe("https://khanacademy.org/a");
+    expect(res.body).toHaveLength(8);
+    expect(res.body[0].url).toBe("https://khanacademy.org/1");
     expect(res.body[0].provenanceLevel).toBe("established");
     expect(res.body[0].linkChecked).toBe(true);
     expect(res.body[0].provenanceSignals).toContain(
@@ -243,15 +251,17 @@ describe("GET /api/resources/discover — filtering", () => {
   });
 
   it("silently drops dead URLs from the response", async () => {
-    const live = makeItem({ url: "https://live.example.com/resource" });
+    const live = Array.from({ length: 8 }, (_, index) =>
+      makeItem({ url: `https://live.example.com/resource-${index + 1}` }),
+    );
     const dead = makeItem({ url: "https://dead.example.com/gone" });
-    const items = [live, live, live, dead];
+    const items = [...live, dead];
 
     vi.mocked(openai.responses.create).mockResolvedValueOnce(
       fakeAIResponse(items),
     );
     // Only the live items survive
-    vi.mocked(filterReachableUrls).mockResolvedValueOnce([live, live, live]);
+    vi.mocked(filterReachableUrls).mockResolvedValueOnce(live);
 
     const res = await request(buildApp()).get(
       "/api/resources/discover?q=biology",
