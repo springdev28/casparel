@@ -81,6 +81,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@xyflow/react": "^12.11.2",
     "p5": "^2.3.2",
     "three": "^0.137.0",
     "vanta": "^0.5.24"

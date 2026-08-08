@@ -22,6 +22,7 @@ import {
   Check,
   Waves,
   MessagesSquare,
+  Workflow,
 } from "lucide-react";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -77,6 +78,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Classes", href: "/classes", icon: Users },
   { label: "Goals", href: "/goals", icon: Target },
   { label: "Activities", href: "/activities", icon: LibraryBig },
+  { label: "Canvas", href: "/canvases", icon: Workflow },
   { label: "Resources", href: "/resources", icon: BookOpen },
   { label: "People", href: "/people", icon: Users },
   { label: "Forum", href: "/forum", icon: MessagesSquare },
@@ -490,7 +492,7 @@ export default function AppShell({ children }: AppShellProps) {
                 <div className="space-y-2 text-[11px] text-primary-foreground/75">
                   <div>
                     <div className="flex justify-between">
-                      <span>AI search</span>
+                      <span>AI fallback</span>
                       <span>{hasUnlimitedUsage ? "Unlimited" : `${aiSearchUsed} / ${aiSearchLimit}`}</span>
                     </div>
                     {!hasUnlimitedUsage ? (

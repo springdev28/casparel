@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare, ShieldCheck, Workflow } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -241,6 +241,9 @@ export default function ClassDetailPage() {
               <Badge variant="secondary">{cls.members.length} member{cls.members.length !== 1 ? 's' : ''}</Badge>
               <Button size="sm" onClick={() => setLocation('/forum?classId=' + classId)} data-testid="class-forum-button">
                 <MessagesSquare size={14} className="mr-1.5" /> Class Forum
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setLocation('/canvases?classId=' + classId)} data-testid="class-canvas-button">
+                <Workflow size={14} className="mr-1.5" /> Class Canvas
               </Button>
 
               {/* Sync Roster — visible to all teachers; state varies by GC connection */}

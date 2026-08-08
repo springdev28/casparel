@@ -1,0 +1,481 @@
+import { randomBytes } from "node:crypto";
+import { Router, type IRouter } from "express";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { z } from "zod/v4";
+import {
+  canvasCollaboratorsTable,
+  canvasesTable,
+  classesTable,
+  classMembersTable,
+  db,
+  usersTable,
+  type Canvas,
+  type CanvasDocument,
+} from "@workspace/db";
+import {
+  requireAuth,
+  type AuthenticatedRequest,
+} from "../middlewares/requireAuth";
+import { contentLimiter } from "../lib/limiters";
+
+const router: IRouter = Router();
+
+const nodeDataSchema = z.object({
+  kind: z.enum(["note", "heading", "link", "resource"]),
+  title: z.string().max(240),
+  text: z.string().max(10_000).optional(),
+  url: z.string().url().max(2_000).optional(),
+  resourceId: z.number().int().positive().optional(),
+  color: z.string().max(40).optional(),
+});
+
+const documentSchema = z.object({
+  nodes: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(120),
+        type: z.literal("study"),
+        position: z.object({ x: z.number().finite(), y: z.number().finite() }),
+        data: nodeDataSchema,
+      }),
+    )
+    .max(500),
+  edges: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(160),
+        source: z.string().min(1).max(120),
+        target: z.string().min(1).max(120),
+        label: z.string().max(200).optional(),
+      }),
+    )
+    .max(1_000),
+  viewport: z
+    .object({
+      x: z.number().finite(),
+      y: z.number().finite(),
+      zoom: z.number().min(0.1).max(4),
+    })
+    .optional(),
+});
+
+const createCanvasSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  description: z.string().trim().max(1_000).optional(),
+  classId: z.number().int().positive().nullable().optional(),
+  classAccess: z.enum(["view", "edit"]).optional(),
+});
+
+const updateCanvasSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160).optional(),
+    description: z.string().trim().max(1_000).nullable().optional(),
+    visibility: z.enum(["private", "people", "class", "link"]).optional(),
+    classAccess: z.enum(["view", "edit"]).optional(),
+    document: documentSchema.optional(),
+    expectedVersion: z.number().int().positive().optional(),
+  })
+  .refine((value) => !value.document || value.expectedVersion != null, {
+    message: "expectedVersion is required when saving the canvas",
+  });
+
+type CanvasAccess = {
+  canView: boolean;
+  canEdit: boolean;
+  canManage: boolean;
+  role: "owner" | "editor" | "viewer" | "class-editor" | "class-viewer";
+};
+
+async function getCanvasRow(id: number) {
+  const [canvas] = await db
+    .select()
+    .from(canvasesTable)
+    .where(eq(canvasesTable.id, id));
+  return canvas ?? null;
+}
+
+async function accessForCanvas(
+  canvas: Canvas,
+  userId: number,
+  accountRole: string,
+): Promise<CanvasAccess | null> {
+  if (accountRole === "admin" || canvas.ownerId === userId) {
+    return { canView: true, canEdit: true, canManage: true, role: "owner" };
+  }
+
+  const [collaborator] = await db
+    .select({ role: canvasCollaboratorsTable.role })
+    .from(canvasCollaboratorsTable)
+    .where(
+      and(
+        eq(canvasCollaboratorsTable.canvasId, canvas.id),
+        eq(canvasCollaboratorsTable.userId, userId),
+      ),
+    );
+  if (collaborator) {
+    const canEdit = collaborator.role === "editor";
+    return {
+      canView: true,
+      canEdit,
+      canManage: false,
+      role: canEdit ? "editor" : "viewer",
+    };
+  }
+
+  if (canvas.classId != null) {
+    const [cls] = await db
+      .select({ teacherId: classesTable.teacherId })
+      .from(classesTable)
+      .where(eq(classesTable.id, canvas.classId));
+    if (cls?.teacherId === userId) {
+      return { canView: true, canEdit: true, canManage: true, role: "owner" };
+    }
+    if (canvas.visibility === "class") {
+      const [membership] = await db
+        .select({ role: classMembersTable.role })
+        .from(classMembersTable)
+        .where(
+          and(
+            eq(classMembersTable.classId, canvas.classId),
+            eq(classMembersTable.userId, userId),
+          ),
+        );
+      if (membership) {
+        const canEdit =
+          membership.role === "teacher" || canvas.classAccess === "edit";
+        return {
+          canView: true,
+          canEdit,
+          canManage: membership.role === "teacher",
+          role: canEdit ? "class-editor" : "class-viewer",
+        };
+      }
+    }
+  }
+  return null;
+}
+
+async function decorateCanvas(canvas: Canvas, access: CanvasAccess) {
+  const [[owner], [cls], [{ collaboratorCount }]] = await Promise.all([
+    db
+      .select({ id: usersTable.id, name: usersTable.name })
+      .from(usersTable)
+      .where(eq(usersTable.id, canvas.ownerId)),
+    canvas.classId
+      ? db
+          .select({ id: classesTable.id, name: classesTable.name })
+          .from(classesTable)
+          .where(eq(classesTable.id, canvas.classId))
+      : Promise.resolve([]),
+    db
+      .select({
+        collaboratorCount: sql<number>`cast(count(*) as int)`,
+      })
+      .from(canvasCollaboratorsTable)
+      .where(eq(canvasCollaboratorsTable.canvasId, canvas.id)),
+  ]);
+  return {
+    ...canvas,
+    owner: owner ?? null,
+    class: cls ?? null,
+    collaboratorCount,
+    permissions: access,
+  };
+}
+
+router.get("/canvases", requireAuth, async (req, res): Promise<void> => {
+  const { userId, accountRole } = req as AuthenticatedRequest;
+  const rows = await db
+    .select()
+    .from(canvasesTable)
+    .orderBy(desc(canvasesTable.updatedAt))
+    .limit(250);
+  const visible = await Promise.all(
+    rows.map(async (canvas) => {
+      const access = await accessForCanvas(canvas, userId, accountRole);
+      return access ? decorateCanvas(canvas, access) : null;
+    }),
+  );
+  res.json((await Promise.all(visible)).filter(Boolean));
+});
+
+router.post(
+  "/canvases",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const parsed = createCanvasSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const classId = parsed.data.classId ?? null;
+    if (classId != null) {
+      const [cls] = await db
+        .select({ teacherId: classesTable.teacherId })
+        .from(classesTable)
+        .where(eq(classesTable.id, classId));
+      if (!cls || cls.teacherId !== userId) {
+        res.status(403).json({ error: "Only the class teacher can create a class canvas" });
+        return;
+      }
+    }
+    const [canvas] = await db
+      .insert(canvasesTable)
+      .values({
+        title: parsed.data.title,
+        description: parsed.data.description || null,
+        ownerId: userId,
+        classId,
+        visibility: classId ? "class" : "private",
+        classAccess: parsed.data.classAccess ?? "view",
+      })
+      .returning();
+    const access: CanvasAccess = {
+      canView: true,
+      canEdit: true,
+      canManage: true,
+      role: "owner",
+    };
+    res.status(201).json(await decorateCanvas(canvas, access));
+  },
+);
+
+router.get(
+  "/canvases/shared/:token",
+  async (req, res): Promise<void> => {
+    const [canvas] = await db
+      .select()
+      .from(canvasesTable)
+      .where(eq(canvasesTable.shareToken, req.params.token));
+    if (!canvas || canvas.visibility !== "link") {
+      res.status(404).json({ error: "Shared canvas not found" });
+      return;
+    }
+    res.json({
+      ...(await decorateCanvas(canvas, {
+        canView: true,
+        canEdit: false,
+        canManage: false,
+        role: "viewer",
+      })),
+      shareToken: undefined,
+    });
+  },
+);
+
+router.get("/canvases/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid canvas ID" });
+    return;
+  }
+  const canvas = await getCanvasRow(id);
+  if (!canvas) {
+    res.status(404).json({ error: "Canvas not found" });
+    return;
+  }
+  const { userId, accountRole } = req as AuthenticatedRequest;
+  const access = await accessForCanvas(canvas, userId, accountRole);
+  if (!access) {
+    res.status(403).json({ error: "You do not have access to this canvas" });
+    return;
+  }
+  res.json(await decorateCanvas(canvas, access));
+});
+
+router.patch(
+  "/canvases/:id",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    const parsed = updateCanvasSchema.safeParse(req.body);
+    if (!Number.isInteger(id) || !parsed.success) {
+      res.status(400).json({ error: parsed.success ? "Invalid canvas ID" : parsed.error.message });
+      return;
+    }
+    const canvas = await getCanvasRow(id);
+    if (!canvas) {
+      res.status(404).json({ error: "Canvas not found" });
+      return;
+    }
+    const { userId, accountRole } = req as AuthenticatedRequest;
+    const access = await accessForCanvas(canvas, userId, accountRole);
+    if (!access?.canView || (parsed.data.document && !access.canEdit)) {
+      res.status(403).json({ error: "You cannot edit this canvas" });
+      return;
+    }
+    const changesMetadata =
+      parsed.data.title !== undefined ||
+      parsed.data.description !== undefined ||
+      parsed.data.visibility !== undefined ||
+      parsed.data.classAccess !== undefined;
+    if (changesMetadata && !access.canManage) {
+      res.status(403).json({ error: "Only the canvas owner can change sharing settings" });
+      return;
+    }
+    const values: Partial<typeof canvasesTable.$inferInsert> = {
+      updatedAt: new Date().toISOString(),
+      ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+      ...(parsed.data.description !== undefined
+        ? { description: parsed.data.description }
+        : {}),
+      ...(parsed.data.visibility !== undefined
+        ? { visibility: parsed.data.visibility }
+        : {}),
+      ...(parsed.data.classAccess !== undefined
+        ? { classAccess: parsed.data.classAccess }
+        : {}),
+      ...(parsed.data.document !== undefined
+        ? { document: parsed.data.document as CanvasDocument }
+        : {}),
+    };
+    if (parsed.data.visibility === "link" && !canvas.shareToken) {
+      values.shareToken = randomBytes(24).toString("base64url");
+    }
+    const condition = parsed.data.document
+      ? and(
+          eq(canvasesTable.id, id),
+          eq(canvasesTable.version, parsed.data.expectedVersion!),
+        )
+      : eq(canvasesTable.id, id);
+    const [updated] = await db
+      .update(canvasesTable)
+      .set({ ...values, version: sql`${canvasesTable.version} + 1` })
+      .where(condition)
+      .returning();
+    if (!updated) {
+      const current = await getCanvasRow(id);
+      res.status(409).json({
+        error: "This canvas changed in another session",
+        current: current ? await decorateCanvas(current, access) : null,
+      });
+      return;
+    }
+    res.json(await decorateCanvas(updated, access));
+  },
+);
+
+router.delete("/canvases/:id", requireAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
+  if (!canvas) {
+    res.status(404).json({ error: "Canvas not found" });
+    return;
+  }
+  const { userId, accountRole } = req as AuthenticatedRequest;
+  const access = await accessForCanvas(canvas, userId, accountRole);
+  if (!access?.canManage) {
+    res.status(403).json({ error: "Only the canvas owner can delete it" });
+    return;
+  }
+  await db.delete(canvasesTable).where(eq(canvasesTable.id, id));
+  res.status(204).end();
+});
+
+router.get(
+  "/canvases/:id/collaborators",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
+    if (!canvas) {
+      res.status(404).json({ error: "Canvas not found" });
+      return;
+    }
+    const { userId, accountRole } = req as AuthenticatedRequest;
+    const access = await accessForCanvas(canvas, userId, accountRole);
+    if (!access?.canView) {
+      res.status(403).json({ error: "You do not have access to this canvas" });
+      return;
+    }
+    const collaborators = await db
+      .select({
+        userId: canvasCollaboratorsTable.userId,
+        role: canvasCollaboratorsTable.role,
+        createdAt: canvasCollaboratorsTable.createdAt,
+        name: usersTable.name,
+        email: usersTable.email,
+        avatarUrl: usersTable.avatarUrl,
+      })
+      .from(canvasCollaboratorsTable)
+      .innerJoin(usersTable, eq(usersTable.id, canvasCollaboratorsTable.userId))
+      .where(eq(canvasCollaboratorsTable.canvasId, id));
+    res.json(collaborators);
+  },
+);
+
+router.put(
+  "/canvases/:id/collaborators/:userId",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    const collaboratorUserId = Number(req.params.userId);
+    const role = z.enum(["viewer", "editor"]).safeParse(req.body?.role);
+    const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
+    if (!canvas || !Number.isInteger(collaboratorUserId) || !role.success) {
+      res.status(400).json({ error: "Invalid collaborator request" });
+      return;
+    }
+    const { userId, accountRole } = req as AuthenticatedRequest;
+    const access = await accessForCanvas(canvas, userId, accountRole);
+    if (!access?.canManage) {
+      res.status(403).json({ error: "Only the canvas owner can manage collaborators" });
+      return;
+    }
+    if (collaboratorUserId === canvas.ownerId) {
+      res.status(400).json({ error: "The owner is already an editor" });
+      return;
+    }
+    const [target] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.id, collaboratorUserId));
+    if (!target) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    await db
+      .insert(canvasCollaboratorsTable)
+      .values({ canvasId: id, userId: collaboratorUserId, role: role.data, addedById: userId })
+      .onConflictDoUpdate({
+        target: [canvasCollaboratorsTable.canvasId, canvasCollaboratorsTable.userId],
+        set: { role: role.data, addedById: userId },
+      });
+    res.json({ ok: true });
+  },
+);
+
+router.delete(
+  "/canvases/:id/collaborators/:userId",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    const collaboratorUserId = Number(req.params.userId);
+    const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
+    if (!canvas || !Number.isInteger(collaboratorUserId)) {
+      res.status(400).json({ error: "Invalid collaborator request" });
+      return;
+    }
+    const { userId, accountRole } = req as AuthenticatedRequest;
+    const access = await accessForCanvas(canvas, userId, accountRole);
+    if (!access?.canManage) {
+      res.status(403).json({ error: "Only the canvas owner can manage collaborators" });
+      return;
+    }
+    await db
+      .delete(canvasCollaboratorsTable)
+      .where(
+        and(
+          eq(canvasCollaboratorsTable.canvasId, id),
+          eq(canvasCollaboratorsTable.userId, collaboratorUserId),
+        ),
+      );
+    res.status(204).end();
+  },
+);
+
+export default router;

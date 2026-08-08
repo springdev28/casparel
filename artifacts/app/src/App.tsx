@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@workspace/edu-ds/components/ui/toaster";
 import { TooltipProvider } from "@workspace/edu-ds/components/ui/tooltip";
@@ -29,6 +29,9 @@ import ActivitiesPage from "./pages/ActivitiesPage";
 import AppShell from "./components/AppShell";
 import PublicShell from "./components/PublicShell";
 import UiTranslationBridge from "./components/UiTranslationBridge";
+
+const CanvasesPage = lazy(() => import("./pages/CanvasesPage"));
+const CanvasPage = lazy(() => import("./pages/CanvasPage"));
 
 const TOKEN_KEY = "schoolar_token";
 
@@ -227,6 +230,9 @@ function Router() {
       <Route path="/resources">
         {() => <PublicRoute component={ResourcesPage} />}
       </Route>
+      <Route path="/canvas/shared/:token">
+        {() => <PublicRoute component={() => <CanvasPage shared />} />}
+      </Route>
 
       {/* Profile pages */}
       <Route path="/people">
@@ -249,6 +255,12 @@ function Router() {
       </Route>
       <Route path="/activities">
         {() => <PrivateRoute component={ActivitiesPage} />}
+      </Route>
+      <Route path="/canvases/:id">
+        {() => <PrivateRoute component={CanvasPage} />}
+      </Route>
+      <Route path="/canvases">
+        {() => <PrivateRoute component={CanvasesPage} />}
       </Route>
       <Route path="/goals">
         {() => <PrivateRoute component={GoalsPage} />}
@@ -293,7 +305,9 @@ function App() {
       <UiTranslationBridge />
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AccountAccessGate><Router /></AccountAccessGate>
+          <Suspense fallback={<main className="flex min-h-[100dvh] items-center justify-center bg-background"><Loader2 className="size-6 animate-spin text-primary" /></main>}>
+            <AccountAccessGate><Router /></AccountAccessGate>
+          </Suspense>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
