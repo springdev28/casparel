@@ -74,6 +74,10 @@ export const studyActivitiesTable = pgTable("study_activities", {
   }),
   title: text("title").notNull(),
   subject: text("subject"),
+  mode: text("mode")
+    .$type<"flashcards" | "practice" | "quiz" | "true-false" | "match" | "scramble" | "missing-word" | "random">()
+    .notNull()
+    .default("flashcards"),
   cards: jsonb("cards").$type<StudyActivityCard[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
     .notNull()

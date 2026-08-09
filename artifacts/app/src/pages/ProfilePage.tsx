@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'wouter';
 import {
   User,
@@ -34,6 +34,7 @@ import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { Progress } from '@workspace/edu-ds/components/ui/progress';
 import { Switch } from '@workspace/edu-ds/components/ui/switch';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/edu-ds/components/ui/dialog';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import {
   useGetMe,
@@ -89,6 +90,26 @@ const SUBJECT_SUGGESTIONS = [
   'Literature', 'Philosophy', 'Languages', 'Engineering',
 ];
 
+async function croppedAvatarFile(source: string, zoom: number, offsetX: number, offsetY: number) {
+  const image = new Image();
+  image.src = source;
+  await image.decode();
+  const cropSize = Math.min(image.naturalWidth, image.naturalHeight) / zoom;
+  const availableX = Math.max(0, image.naturalWidth - cropSize);
+  const availableY = Math.max(0, image.naturalHeight - cropSize);
+  const sourceX = availableX / 2 + (offsetX / 100) * (availableX / 2);
+  const sourceY = availableY / 2 + (offsetY / 100) * (availableY / 2);
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('This browser could not crop the image.');
+  context.drawImage(image, sourceX, sourceY, cropSize, cropSize, 0, 0, 512, 512);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.88));
+  if (!blob) throw new Error('This browser could not prepare the image.');
+  return new File([blob], 'avatar.webp', { type: 'image/webp' });
+}
+
 /** Returns number 0–100 representing how complete a profile is */
 function profileCompleteness(user: {
   name?: string;
@@ -121,6 +142,10 @@ export default function ProfilePage() {
 
   const [editing, setEditing] = useState(false);
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
+  const [avatarCropSource, setAvatarCropSource] = useState<string | null>(null);
+  const [avatarZoom, setAvatarZoom] = useState(1);
+  const [avatarOffsetX, setAvatarOffsetX] = useState(0);
+  const [avatarOffsetY, setAvatarOffsetY] = useState(0);
   const [form, setForm] = useState({
     name: '',
     bio: '',
@@ -137,6 +162,10 @@ export default function ProfilePage() {
   });
   const [subjectInput, setSubjectInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => () => {
+    if (avatarCropSource) URL.revokeObjectURL(avatarCropSource);
+  }, [avatarCropSource]);
 
   function startEditing() {
     if (!me) return;
@@ -192,13 +221,28 @@ export default function ProfilePage() {
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      toast({ title: 'Error', description: 'Choose a PNG, JPEG, or WebP image.', variant: 'destructive' });
+      return;
+    }
+    if (avatarCropSource) URL.revokeObjectURL(avatarCropSource);
+    setAvatarCropSource(URL.createObjectURL(file));
+    setAvatarZoom(1);
+    setAvatarOffsetX(0);
+    setAvatarOffsetY(0);
+    e.currentTarget.value = '';
+  }
+
+  async function uploadCroppedAvatar() {
+    if (!avatarCropSource) return;
     try {
-      // Pass the File object directly — the generated client wraps it in FormData
+      const file = await croppedAvatarFile(avatarCropSource, avatarZoom, avatarOffsetX, avatarOffsetY);
       await uploadAvatar.mutateAsync({ data: { file } });
-      queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      setAvatarCropSource(null);
       toast({ title: 'Avatar updated' });
-    } catch {
-      toast({ title: 'Error', description: 'Could not upload avatar', variant: 'destructive' });
+    } catch (error) {
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Could not upload avatar', variant: 'destructive' });
     }
   }
 
@@ -750,6 +794,27 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={!!avatarCropSource} onOpenChange={(open) => !open && setAvatarCropSource(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adjust profile photo</DialogTitle>
+            <DialogDescription>Move and zoom the image until it fits the circle.</DialogDescription>
+          </DialogHeader>
+          {avatarCropSource && <div className="space-y-4">
+            <div className="mx-auto size-64 overflow-hidden rounded-full border-4 border-background bg-muted shadow-sm">
+              <img src={avatarCropSource} alt="Profile photo crop preview" className="size-full object-cover" style={{ transform: `translate(${avatarOffsetX / 2}%, ${avatarOffsetY / 2}%) scale(${avatarZoom})` }} />
+            </div>
+            <label className="block space-y-1 text-sm"><span>Zoom</span><input className="w-full accent-primary" type="range" min="1" max="3" step="0.05" value={avatarZoom} onChange={(event) => setAvatarZoom(Number(event.target.value))} /></label>
+            <label className="block space-y-1 text-sm"><span>Horizontal position</span><input className="w-full accent-primary" type="range" min="-100" max="100" value={avatarOffsetX} onChange={(event) => setAvatarOffsetX(Number(event.target.value))} /></label>
+            <label className="block space-y-1 text-sm"><span>Vertical position</span><input className="w-full accent-primary" type="range" min="-100" max="100" value={avatarOffsetY} onChange={(event) => setAvatarOffsetY(Number(event.target.value))} /></label>
+          </div>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAvatarCropSource(null)}>Cancel</Button>
+            <Button type="button" onClick={() => void uploadCroppedAvatar()} disabled={uploadAvatar.isPending}>{uploadAvatar.isPending ? 'Uploading…' : 'Use photo'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

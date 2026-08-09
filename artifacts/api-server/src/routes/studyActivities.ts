@@ -14,6 +14,9 @@ const IMAGE_DATA_PATTERN = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=
 const MAX_IMAGE_BYTES = 140 * 1024;
 const MAX_IMAGES_PER_ACTIVITY = 6;
 const MAX_ACTIVITY_IMAGE_BYTES = 700 * 1024;
+const ACTIVITY_MODES = new Set([
+  "flashcards", "practice", "quiz", "true-false", "match", "scramble", "missing-word", "random",
+]);
 
 function parseImageData(value: unknown) {
   if (value === undefined || value === null || value === "") return null;
@@ -34,11 +37,15 @@ function parseActivityInput(value: unknown) {
   const input = value as {
     title?: unknown;
     subject?: unknown;
+    mode?: unknown;
     cards?: unknown;
   };
   const title = typeof input.title === "string" ? input.title.trim() : "";
   const subject =
     typeof input.subject === "string" ? input.subject.trim() : "";
+  const mode = typeof input.mode === "string" && ACTIVITY_MODES.has(input.mode)
+    ? input.mode as "flashcards" | "practice" | "quiz" | "true-false" | "match" | "scramble" | "missing-word" | "random"
+    : "flashcards";
   if (title.length < 2 || title.length > 160 || !Array.isArray(input.cards)) {
     return null;
   }
@@ -60,6 +67,8 @@ function parseActivityInput(value: unknown) {
     if (!term || !answer || term.length > 500 || answer.length > 1000) {
       return null;
     }
+    if (mode === "true-false" && !["true", "false", "doğru", "yanlış", "dogru", "yanlis"].includes(answer.toLocaleLowerCase("tr"))) return null;
+    if (mode === "missing-word" && !term.includes("____")) return null;
     const image = parseImageData(candidate.imageData);
     if (image === undefined) return null;
     if (image) {
@@ -89,7 +98,7 @@ function parseActivityInput(value: unknown) {
     });
   }
   if (cards.length < 2) return null;
-  return { title, subject: subject || null, cards };
+  return { title, subject: subject || null, mode, cards };
 }
 
 router.get("/study-activities", requireAuth, async (req, res): Promise<void> => {

@@ -39,6 +39,7 @@ import {
 } from "@workspace/edu-ds/components/ui/dialog";
 import { Input } from "@workspace/edu-ds/components/ui/input";
 import { Label } from "@workspace/edu-ds/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@workspace/edu-ds/components/ui/select";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
@@ -56,6 +57,7 @@ type StudyActivity = {
   classId: number | null;
   title: string;
   subject: string | null;
+  mode: ActivityMode;
   cards: ActivityCard[];
   createdAt: string;
   updatedAt: string;
@@ -137,6 +139,14 @@ function shuffled<T>(items: T[]) {
   return copy;
 }
 
+function shuffledWithDifferentFirst<T extends { id: string }>(items: T[], currentId?: string) {
+  const result = shuffled(items);
+  if (result.length > 1 && result[0]?.id === currentId) {
+    [result[0], result[1]] = [result[1], result[0]];
+  }
+  return result;
+}
+
 async function activityRequest(path: string, init?: RequestInit) {
   const response = await fetch("/api" + path, {
     ...init,
@@ -211,6 +221,7 @@ export default function ActivitiesPage({
   const [processingImageId, setProcessingImageId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formSubject, setFormSubject] = useState("");
+  const [formMode, setFormMode] = useState<ActivityMode>("flashcards");
   const [formCards, setFormCards] = useState<ActivityCard[]>([
     emptyCard(),
     emptyCard(),
@@ -297,6 +308,7 @@ export default function ActivitiesPage({
 
   function resetStudy(activity: StudyActivity | undefined) {
     const cards = activity?.cards ?? [];
+    setMode(activity?.mode ?? "flashcards");
     setCardOrder(cards);
     setCardIndex(0);
     setFlipped(false);
@@ -321,7 +333,7 @@ export default function ActivitiesPage({
     setScrambleOrder(nextScrambleOrder);
     setScrambleIndex(0);
     setScrambleValue(
-      nextScrambleOrder[0] ? scrambleAnswer(nextScrambleOrder[0].answer) : "",
+      nextScrambleOrder[0] ? scrambleAnswer(nextScrambleOrder[0].term) : "",
     );
     setScrambleInput("");
     setScrambleResult(null);
@@ -379,10 +391,11 @@ export default function ActivitiesPage({
     if (matchComplete) setMatchStartedAt(null);
   }, [matchComplete]);
 
-  function openNewSet() {
+  function openNewSet(nextMode: ActivityMode = "flashcards") {
     setEditingId(null);
     setFormTitle("");
     setFormSubject("");
+    setFormMode(nextMode);
     setFormCards([emptyCard(), emptyCard()]);
     setEditorOpen(true);
   }
@@ -391,6 +404,7 @@ export default function ActivitiesPage({
     setEditingId(activity.id);
     setFormTitle(activity.title);
     setFormSubject(activity.subject ?? "");
+    setFormMode(activity.mode ?? "flashcards");
     setFormCards(activity.cards.map((card) => ({ ...card })));
     setEditorOpen(true);
   }
@@ -454,6 +468,7 @@ export default function ActivitiesPage({
           body: JSON.stringify({
             title: formTitle,
             subject: formSubject,
+            mode: formMode,
             cards: completeCards,
             classId: classIdOverride ?? null,
           }),
@@ -495,7 +510,7 @@ export default function ActivitiesPage({
 
   async function duplicateSet(activity: StudyActivity) {
     try {
-      const copy = (await activityRequest("/study-activities", { method: "POST", body: JSON.stringify({ title: `${activity.title} (copy)`, subject: activity.subject ?? "", cards: activity.cards.map((card) => ({ ...card, id: crypto.randomUUID() })), classId: classIdOverride ?? null }) })) as unknown as StudyActivity;
+      const copy = (await activityRequest("/study-activities", { method: "POST", body: JSON.stringify({ title: `${activity.title} (copy)`, subject: activity.subject ?? "", mode: activity.mode, cards: activity.cards.map((card) => ({ ...card, id: crypto.randomUUID() })), classId: classIdOverride ?? null }) })) as unknown as StudyActivity;
       await loadActivities();
       setSelectedId(copy.id);
       toast({ title: "Activity duplicated", description: "The copy is ready to edit or assign." });
@@ -513,7 +528,7 @@ export default function ActivitiesPage({
       const hasHeader = first.some((cell) => ["term", "question", "front"].includes(cell)) && first.some((cell) => ["answer", "definition", "back"].includes(cell));
       const cards = rows.slice(hasHeader ? 1 : 0).filter((row) => row[0] && row[1]).slice(0, 100).map((row) => ({ id: crypto.randomUUID(), term: row[0], answer: row.slice(1).join(delimiter) }));
       if (cards.length < 2) throw new Error("The file needs at least two rows with a term and answer.");
-      setEditingId(null); setFormTitle(file.name.replace(/\.(csv|tsv|txt)$/i, "")); setFormSubject(""); setFormCards(cards); setEditorOpen(true);
+      setEditingId(null); setFormTitle(file.name.replace(/\.(csv|tsv|txt)$/i, "")); setFormSubject(""); setFormMode("flashcards"); setFormCards(cards); setEditorOpen(true);
       toast({ title: `${cards.length} cards imported`, description: "Review them, then create the activity." });
     } catch (error) { toast({ title: "Could not import activity", description: error instanceof Error ? error.message : "Use a CSV or Quizlet tab-separated export", variant: "destructive" }); }
     finally { if (importRef.current) importRef.current.value = ""; }
@@ -528,7 +543,7 @@ export default function ActivitiesPage({
   }
 
   function shuffleFlashcards() {
-    setCardOrder((cards) => shuffled(cards));
+    setCardOrder((cards) => shuffledWithDifferentFirst(cards, cards[cardIndex]?.id));
     setCardIndex(0);
     setFlipped(false);
   }
@@ -624,7 +639,8 @@ export default function ActivitiesPage({
   function answerTrueFalse(answer: boolean) {
     if (trueFalseSelection !== null) return;
     setTrueFalseSelection(answer);
-    const isTrue = trueFalseIndex % 2 === 0 || trueFalseOrder.length < 2;
+    const expected = trueFalseOrder[trueFalseIndex]?.answer.trim().toLocaleLowerCase("tr");
+    const isTrue = ["true", "doğru", "dogru", "yes", "evet"].includes(expected ?? "");
     if (answer === isTrue) setTrueFalseCorrect((score) => score + 1);
   }
 
@@ -645,7 +661,7 @@ export default function ActivitiesPage({
     if (!card || scrambleResult !== null) return;
     const correct =
       scrambleInput.trim().toLocaleLowerCase() ===
-      card.answer.trim().toLocaleLowerCase();
+      card.term.trim().toLocaleLowerCase();
     setScrambleResult(correct);
     if (correct) setScrambleCorrect((score) => score + 1);
   }
@@ -657,7 +673,7 @@ export default function ActivitiesPage({
     setScrambleResult(null);
     setScrambleValue(
       scrambleOrder[nextIndex]
-        ? scrambleAnswer(scrambleOrder[nextIndex].answer)
+        ? scrambleAnswer(scrambleOrder[nextIndex].term)
         : "",
     );
   }
@@ -666,7 +682,7 @@ export default function ActivitiesPage({
     const order = shuffled(selected?.cards ?? []);
     setScrambleOrder(order);
     setScrambleIndex(0);
-    setScrambleValue(order[0] ? scrambleAnswer(order[0].answer) : "");
+    setScrambleValue(order[0] ? scrambleAnswer(order[0].term) : "");
     setScrambleInput("");
     setScrambleResult(null);
     setScrambleCorrect(0);
@@ -675,7 +691,7 @@ export default function ActivitiesPage({
   function checkMissingWord() {
     const card = missingOrder[missingIndex];
     if (!card || missingResult !== null) return;
-    const expected = missingWordPrompt(card.answer).answer;
+    const expected = card.answer;
     const correct =
       missingInput.trim().toLocaleLowerCase() ===
       expected.trim().toLocaleLowerCase();
@@ -746,13 +762,9 @@ export default function ActivitiesPage({
   const currentTrueFalse = trueFalseOrder[trueFalseIndex];
   const trueFalseComplete =
     trueFalseOrder.length > 0 && trueFalseIndex >= trueFalseOrder.length;
-  const trueFalseIsTrue =
-    trueFalseIndex % 2 === 0 || trueFalseOrder.length < 2;
-  const trueFalseShownAnswer = currentTrueFalse
-    ? trueFalseIsTrue
-      ? currentTrueFalse.answer
-      : trueFalseOrder[(trueFalseIndex + 1) % trueFalseOrder.length]?.answer
-    : "";
+  const trueFalseExpected = currentTrueFalse?.answer.trim().toLocaleLowerCase("tr") ?? "";
+  const trueFalseIsTrue = ["true", "doğru", "dogru", "yes", "evet"].includes(trueFalseExpected);
+  const trueFalseShownAnswer = currentTrueFalse?.term ?? "";
   const currentScramble = scrambleOrder[scrambleIndex];
   const scrambleComplete =
     scrambleOrder.length > 0 && scrambleIndex >= scrambleOrder.length;
@@ -760,7 +772,7 @@ export default function ActivitiesPage({
   const missingComplete =
     missingOrder.length > 0 && missingIndex >= missingOrder.length;
   const currentMissingPrompt = currentMissing
-    ? missingWordPrompt(currentMissing.answer)
+    ? { prompt: currentMissing.term, answer: currentMissing.answer }
     : null;
   const practiceComplete =
     practiceOrder.length > 0 && practiceIndex >= practiceOrder.length;
@@ -793,7 +805,7 @@ export default function ActivitiesPage({
         {!readOnly && <div className="flex gap-2">
           <input ref={importRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" className="hidden" onChange={(event) => void importSet(event.target.files?.[0])} />
           <Button variant="outline" onClick={() => importRef.current?.click()}><FileUp className="mr-2 size-4" /> Import CSV / Quizlet</Button>
-          <Button onClick={openNewSet}><Plus className="mr-2 size-4" /> New activity</Button>
+          <Button onClick={() => openNewSet()}><Plus className="mr-2 size-4" /> New activity</Button>
         </div>}
       </header>
 
@@ -806,7 +818,7 @@ export default function ActivitiesPage({
         <div className="border-y py-16 text-center">
           <Layers3 className="mx-auto mb-3 size-10 text-muted-foreground" />
           <p className="font-semibold">No study activities yet</p>
-          {!readOnly && <Button className="mt-4" onClick={openNewSet}>
+          {!readOnly && <Button className="mt-4" onClick={() => openNewSet()}>
             <Plus className="mr-2 size-4" /> Create the first set
           </Button>}
         </div>
@@ -828,7 +840,7 @@ export default function ActivitiesPage({
                   </CardTitle>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">
-                      {activity.cards.length} cards
+                      {modeOptions.find(([value]) => value === activity.mode)?.[2] ?? "Flashcards"} · {activity.cards.length} items
                     </span>
                     {activity.subject && (
                       <Badge variant="secondary" className="max-w-28 truncate">
@@ -873,23 +885,9 @@ export default function ActivitiesPage({
                 </div>}
               </div>
 
-              <div className="grid w-full grid-cols-2 gap-1 rounded-md border bg-card p-1 sm:flex sm:w-auto sm:flex-wrap">
-                {modeOptions.map(([value, Icon, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setMode(value)}
-                    className={cn(
-                      "flex items-center justify-center gap-2 rounded px-3 py-2 text-sm font-medium",
-                      mode === value
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <Icon className="size-4" /> {label}
-                  </button>
-                ))}
-              </div>
+              <Badge variant="secondary" className="w-fit px-3 py-1.5 text-sm">
+                {modeOptions.map(([value, Icon, label]) => value === mode ? <span key={value} className="flex items-center gap-2"><Icon className="size-4" />{label}</span> : null)}
+              </Badge>
 
               {mode === "flashcards" && currentFlashcard && (
                 <section className="space-y-4">
@@ -1155,7 +1153,7 @@ export default function ActivitiesPage({
                       </p>
                       <ActivityImage card={currentScramble} className="max-h-56" />
                       <p className="text-sm text-muted-foreground">
-                        {currentScramble.term}
+                        {currentScramble.answer}
                       </p>
                       <p className="break-all rounded-md border bg-card p-5 text-center text-2xl font-semibold tracking-widest">
                         {scrambleValue}
@@ -1181,7 +1179,7 @@ export default function ActivitiesPage({
                         >
                           {scrambleResult
                             ? "Correct"
-                            : `Answer: ${currentScramble.answer}`}
+                            : `Answer: ${currentScramble.term}`}
                         </p>
                       )}
                       <div className="flex justify-end">
@@ -1360,7 +1358,16 @@ export default function ActivitiesPage({
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={saveSet} className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <Label htmlFor="activity-mode">Activity type</Label>
+                <Select value={formMode} onValueChange={(value) => setFormMode(value as ActivityMode)}>
+                  <SelectTrigger id="activity-mode"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {modeOptions.map(([value, Icon, label]) => <SelectItem key={value} value={value}><span className="flex items-center gap-2"><Icon className="size-4" />{label}</span></SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <Label htmlFor="activity-title">Title</Label>
                 <Input
@@ -1396,19 +1403,24 @@ export default function ActivitiesPage({
                       onChange={(event) =>
                         updateFormCard(card.id, "term", event.target.value)
                       }
-                      placeholder="Term or question"
+                      placeholder={formMode === "true-false" ? "Statement" : formMode === "scramble" ? "Word to scramble" : formMode === "missing-word" ? "Sentence with ____" : "Term or question"}
                       aria-label={`Card ${index + 1} term`}
                       maxLength={500}
                     />
-                    <Input
-                      value={card.answer}
-                      onChange={(event) =>
-                        updateFormCard(card.id, "answer", event.target.value)
-                      }
-                      placeholder="Answer"
-                      aria-label={`Card ${index + 1} answer`}
-                      maxLength={1000}
-                    />
+                    {formMode === "true-false" ? (
+                      <Select value={card.answer || undefined} onValueChange={(value) => updateFormCard(card.id, "answer", value)}>
+                        <SelectTrigger aria-label={`Card ${index + 1} answer`}><SelectValue placeholder="True or false" /></SelectTrigger>
+                        <SelectContent><SelectItem value="true">True</SelectItem><SelectItem value="false">False</SelectItem></SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={card.answer}
+                        onChange={(event) => updateFormCard(card.id, "answer", event.target.value)}
+                        placeholder={formMode === "scramble" ? "Clue" : formMode === "missing-word" ? "Missing word" : "Answer"}
+                        aria-label={`Card ${index + 1} answer`}
+                        maxLength={1000}
+                      />
+                    )}
                   </div>
                   <Button
                     type="button"

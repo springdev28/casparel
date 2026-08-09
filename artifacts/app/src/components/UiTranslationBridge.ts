@@ -4,6 +4,91 @@ import { AUTH_LANGUAGE_KEY, type AuthLanguage } from "../lib/auth-locale";
 const LANGUAGE_EVENT = "schoolar-language-change";
 
 const TR: Record<string, string> = {
+  "Activities": "Etkinlikler",
+  "Activity complete": "Etkinlik tamamlandı",
+  "Activity created": "Etkinlik oluşturuldu",
+  "Activity deleted": "Etkinlik silindi",
+  "Activity type": "Etkinlik türü",
+  "Activity updated": "Etkinlik güncellendi",
+  "Add at least two complete cards": "En az iki tamamlanmış öğe ekleyin",
+  "Add at least two term-and-answer pairs.": "En az iki soru-cevap çifti ekleyin.",
+  "Add card": "Öğe ekle",
+  "All topics": "Tüm konular",
+  "Answer": "Cevap",
+  "Attach file": "Dosya ekle",
+  "Attach image": "Görsel ekle",
+  "Choose a PNG, JPEG, or WebP image.": "PNG, JPEG veya WebP görseli seçin.",
+  "Class activities": "Sınıf etkinlikleri",
+  "Class forum": "Sınıf forumu",
+  "Comment": "Yorum",
+  "Comments": "Yorumlar",
+  "Correct": "Doğru",
+  "Could not load activities": "Etkinlikler yüklenemedi",
+  "Could not load posts": "Gönderiler yüklenemedi",
+  "Could not publish": "Yayınlanamadı",
+  "Could not publish comment": "Yorum yayınlanamadı",
+  "Create activity": "Etkinlik oluştur",
+  "Create study activity": "Çalışma etkinliği oluştur",
+  "Delete activity": "Etkinliği sil",
+  "Delete post": "Gönderiyi sil",
+  "Duplicate activity": "Etkinliği çoğalt",
+  "Edit activity": "Etkinliği düzenle",
+  "Edit study activity": "Çalışma etkinliğini düzenle",
+  "Education forum": "Eğitim forumu",
+  "Everything": "Her şey",
+  "False": "Yanlış",
+  "File": "Dosya",
+  "Flashcards": "Bilgi kartları",
+  "Forum": "Forum",
+  "Hide": "Gizle",
+  "Image description": "Görsel açıklaması",
+  "Import CSV / Quizlet": "CSV / Quizlet içe aktar",
+  "Loading posts...": "Gönderiler yükleniyor...",
+  "Match": "Eşleştirme",
+  "Matched": "Eşleştirildi",
+  "Missing word": "Eksik kelime",
+  "New activity": "Yeni etkinlik",
+  "No comments yet.": "Henüz yorum yok.",
+  "No posts match these filters.": "Bu filtrelerle eşleşen gönderi yok.",
+  "No study activities yet": "Henüz çalışma etkinliği yok",
+  "Open material": "Materyali aç",
+  "Pick a card": "Bir kart seç",
+  "Picking…": "Seçiliyor…",
+  "Popular topics": "Popüler konular",
+  "Post": "Gönderi",
+  "Post published": "Gönderi yayınlandı",
+  "Posts": "Gönderiler",
+  "Practice": "Alıştırma",
+  "Practice again": "Tekrar alıştırma yap",
+  "Practice complete": "Alıştırma tamamlandı",
+  "Practice with activity sets shared in this class.": "Bu sınıfta paylaşılan etkinliklerle pratik yapın.",
+  "Quiz": "Test",
+  "Random picker": "Rastgele seçici",
+  "Remove image": "Görseli kaldır",
+  "Report post": "Gönderiyi bildir",
+  "Restart": "Yeniden başlat",
+  "Reveal answer": "Cevabı göster",
+  "Round complete": "Tur tamamlandı",
+  "Save changes": "Değişiklikleri kaydet",
+  "Scramble": "Harf karıştırma",
+  "Scramble complete": "Harf karıştırma tamamlandı",
+  "Search posts": "Gönderilerde ara",
+  "Search the feed...": "Akışta ara...",
+  "Share a question, idea, or update...": "Bir soru, fikir veya güncelleme paylaş...",
+  "Shuffle": "Karıştır",
+  "Study activities": "Çalışma etkinlikleri",
+  "Survey": "Anket",
+  "Survey published": "Anket yayınlandı",
+  "Surveys": "Anketler",
+  "Term": "Terim",
+  "Term or question": "Terim veya soru",
+  "True": "Doğru",
+  "True / false": "Doğru / yanlış",
+  "Try again": "Tekrar dene",
+  "Unscrambled answer": "Düzeltilmiş cevap",
+  "Use photo": "Fotoğrafı kullan",
+  "View comments": "Yorumları görüntüle",
+  "Write a comment or reply...": "Yorum veya yanıt yaz...",
   "(not set up)": "(kurulmadı)",
   "(optional)": "(isteğe bağlı)",
   "A page error occurred. Reload the app to try again.": "Bir sayfa hatası oluştu. Tekrar denemek için uygulamayı yenileyin.",
@@ -521,7 +606,21 @@ function translateValue(value: string, language: AuthLanguage): string {
   const leading = value.match(/^\s*/)?.[0] ?? "";
   const trailing = value.match(/\s*$/)?.[0] ?? "";
   const key = value.trim();
-  return TR[key] ? leading + TR[key] + trailing : value;
+  if (TR[key]) return leading + TR[key] + trailing;
+  const patterns: Array<[RegExp, (...parts: string[]) => string]> = [
+    [/^(\d+) cards$/, (count) => `${count} kart`],
+    [/^(\d+) items$/, (count) => `${count} öğe`],
+    [/^(\d+) of (\d+)$/, (current, total) => `${current} / ${total}`],
+    [/^(\d+) votes?$/, (count) => `${count} oy`],
+    [/^(\d+) views$/, (count) => `${count} görüntülenme`],
+    [/^(\d+) likes$/, (count) => `${count} beğeni`],
+    [/^(\d+) comments$/, (count) => `${count} yorum`],
+  ];
+  for (const [pattern, replacement] of patterns) {
+    const match = pattern.exec(key);
+    if (match) return leading + replacement(...match.slice(1)) + trailing;
+  }
+  return value;
 }
 
 function translateText(node: Text, language: AuthLanguage) {
@@ -571,15 +670,15 @@ function translateSubtree(root: Node, language: AuthLanguage) {
     return;
   }
   if (!(root instanceof Element)) return;
-  if (root.matches("script, style, textarea, [contenteditable='true']")) return;
   translateAttributes(root, language);
+  if (root.matches("script, style, textarea, [contenteditable='true']")) return;
   const walker = document.createTreeWalker(
     root,
     NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
   );
   let node = walker.nextNode();
   while (node) {
-    if (node instanceof Text) translateText(node, language);
+    if (node instanceof Text && !(node.parentElement?.matches("script, style, textarea, [contenteditable='true']"))) translateText(node, language);
     else if (node instanceof Element) translateAttributes(node, language);
     node = walker.nextNode();
   }

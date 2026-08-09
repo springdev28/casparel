@@ -551,14 +551,14 @@ export default function ForumPage({
       if (file instanceof File && file.size > 0) payload.set("file", file);
       if (classId) payload.set("classId", String(classId));
 
-      await forumRequest<ForumPost>("/forum/posts", {
+      const created = await forumRequest<ForumPost>("/forum/posts", {
         method: "POST",
         body: payload,
       });
       form.reset();
       setSurveyOptions(["", ""]);
       setPostDialog(false);
-      await loadPosts();
+      setPosts((current) => [created, ...current]);
       toast({
         title: postMode === "survey" ? "Survey published" : "Post published",
       });
@@ -575,11 +575,15 @@ export default function ForumPage({
   }
 
   async function toggleLike(type: "material" | "post", id: number) {
-    await forumRequest("/forum/" + type + "/" + id + "/like", {
+    const result = await forumRequest<{ liked: boolean }>("/forum/" + type + "/" + id + "/like", {
       method: "POST",
     });
     if (type === "material") await loadMaterials();
-    else await loadPosts();
+    else setPosts((current) => current.map((post) => post.id === id ? {
+      ...post,
+      likedByMe: result.liked,
+      likeCount: Math.max(0, post.likeCount + (result.liked ? 1 : -1)),
+    } : post));
   }
 
   async function report(type: "material" | "post" | "comment", id: number) {
@@ -596,7 +600,6 @@ export default function ForumPage({
         title: "Report submitted",
         description: "The content was checked and sent to administrators.",
       });
-      await Promise.all([loadMaterials(), loadPosts()]);
       if (access.isAdmin)
         setReports(await forumRequest<Report[]>("/forum/reports"));
     } catch (error) {
@@ -616,7 +619,7 @@ export default function ForumPage({
       { method: "DELETE" },
     );
     if (type === "material") await loadMaterials();
-    if (type === "post") await loadPosts();
+    if (type === "post") setPosts((current) => current.filter((post) => post.id !== id));
   }
 
   async function downloadMaterial(material: Material) {
@@ -690,11 +693,13 @@ export default function ForumPage({
   }
 
   async function vote(post: ForumPost, optionId: string) {
-    await forumRequest("/forum/posts/" + post.id + "/vote", {
+    const updated = await forumRequest<ForumPost>("/forum/posts/" + post.id + "/vote", post.myVote === optionId ? {
+      method: "DELETE",
+    } : {
       method: "POST",
       body: JSON.stringify({ optionId }),
     });
-    await loadPosts();
+    setPosts((current) => current.map((item) => item.id === updated.id ? updated : item));
   }
 
   async function updateReport(
@@ -1397,7 +1402,7 @@ export default function ForumPage({
                 </Button>
               </section>
 
-              {loadingPosts ? (
+              {loadingPosts && posts.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">
                   <Loader2 className="mx-auto mb-2 size-5 animate-spin" />
                   Loading posts...
@@ -1518,11 +1523,13 @@ export default function ForumPage({
                             </button>
                           )}
                           {post.attachmentFileName && (
-                            <button
+                            <div className="space-y-2">
+                              <PostMediaPreview post={post} />
+                              <button
                               type="button"
                               className="flex w-full items-center gap-3 rounded-md border bg-muted/40 p-3 text-left text-sm transition-colors hover:bg-muted"
                               onClick={() => downloadPostFile(post)}
-                            >
+                              >
                               <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-background">
                                 <Download className="size-4" />
                               </span>
@@ -1534,7 +1541,8 @@ export default function ForumPage({
                                   {post.attachmentMimeType || "File"} · Download
                                 </span>
                               </span>
-                            </button>
+                              </button>
+                            </div>
                           )}
                           {post.kind === "survey" && (
                             <div className="space-y-2">
@@ -1610,7 +1618,10 @@ export default function ForumPage({
                               isAdmin={access.isAdmin}
                               onReport={report}
                               onDelete={remove}
-                              onChanged={loadPosts}
+                              onChanged={(delta) => setPosts((current) => current.map((item) => item.id === post.id ? {
+                                ...item,
+                                commentCount: Math.max(0, item.commentCount + delta),
+                              } : item))}
                             />
                           </div>
                         </CardContent>
@@ -1741,6 +1752,38 @@ function validSource(value: string) {
   }
 }
 
+function PostMediaPreview({ post }: { post: ForumPost }) {
+  const [source, setSource] = useState<string | null>(null);
+  const mimeType = post.attachmentMimeType ?? "";
+  const previewable = mimeType.startsWith("image/") || mimeType.startsWith("video/");
+
+  useEffect(() => {
+    if (!previewable) return;
+    let active = true;
+    let objectUrl: string | null = null;
+    void fetch(apiUrl("/forum/posts/" + post.id + "/file"), {
+      headers: { Authorization: "Bearer " + localStorage.getItem("schoolar_token") },
+    }).then((response) => {
+      if (!response.ok) throw new Error("Preview unavailable");
+      return response.blob();
+    }).then((blob) => {
+      if (!active) return;
+      objectUrl = URL.createObjectURL(blob);
+      setSource(objectUrl);
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [post.id, previewable]);
+
+  if (!previewable || !source) return null;
+  if (mimeType.startsWith("video/")) {
+    return <video src={source} controls preload="metadata" className="max-h-[32rem] w-full rounded-md bg-black object-contain" />;
+  }
+  return <img src={source} alt={post.attachmentFileName ?? "Post attachment"} className="max-h-[32rem] w-full rounded-md bg-muted object-contain" />;
+}
+
 function Discussion({
   targetType,
   targetId,
@@ -1766,7 +1809,7 @@ function Discussion({
     type: "material" | "post" | "comment",
     id: number,
   ) => Promise<void>;
-  onChanged: () => Promise<void>;
+  onChanged: (delta: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [comments, setComments] = useState<ForumComment[]>([]);
@@ -1790,7 +1833,7 @@ function Discussion({
     if (!body.trim()) return;
     setSending(true);
     try {
-      await forumRequest(
+      const created = await forumRequest<ForumComment>(
         "/forum/" + targetType + "/" + targetId + "/comments",
         {
           method: "POST",
@@ -1799,7 +1842,8 @@ function Discussion({
       );
       setBody("");
       setReplyTo(null);
-      await Promise.all([load(), onChanged()]);
+      setComments((current) => [...current, created]);
+      onChanged(1);
     } catch (error) {
       toast({
         title: "Could not publish comment",
@@ -1845,6 +1889,7 @@ function Discussion({
                 onDelete={async (type, id) => {
                   await onDelete(type, id);
                   await load();
+                  onChanged(-1);
                 }}
               />
               {comments
@@ -1860,6 +1905,7 @@ function Discussion({
                       onDelete={async (type, id) => {
                         await onDelete(type, id);
                         await load();
+                        onChanged(-1);
                       }}
                     />
                   </div>

@@ -16,13 +16,10 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-async function prepareDatabase() {
+async function prepareDatabaseSchema() {
   logger.info("Running database migrations...");
   await runMigrations();
   logger.info("Migrations complete");
-
-  const catalogItems = await ensureCuratedCatalog();
-  logger.info({ catalogItems }, "Open education catalog ready");
 
   if (process.env.RATE_LIMIT_STORE !== "memory") {
     logger.info("Initialising persistent rate-limit store...");
@@ -31,7 +28,14 @@ async function prepareDatabase() {
   }
 }
 
-function main() {
+async function main() {
+  try {
+    await prepareDatabaseSchema();
+  } catch (err) {
+    logger.error({ err }, "Database setup failed");
+    if (process.env.REQUIRE_DATABASE_READY === "true") process.exit(1);
+  }
+
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");
@@ -40,12 +44,11 @@ function main() {
     logger.info({ port }, "Server listening");
   });
 
-  void prepareDatabase().catch((err) => {
-    logger.error({ err }, "Database setup failed");
-    if (process.env.REQUIRE_DATABASE_READY === "true") {
-      process.exit(1);
-    }
+  void ensureCuratedCatalog().then((catalogItems) => {
+    logger.info({ catalogItems }, "Open education catalog ready");
+  }).catch((err) => {
+    logger.error({ err }, "Open education catalog setup failed");
   });
 }
 
-main();
+void main();

@@ -680,6 +680,20 @@ router.post("/forum/posts/:id/vote", requireAuth, async (req, res): Promise<void
   res.json(await postResult(id, auth.userId));
 });
 
+router.delete("/forum/posts/:id/vote", requireAuth, async (req, res): Promise<void> => {
+  const auth = req as AuthenticatedRequest;
+  const id = Number(req.params.id);
+  if (!(await canAccessPost(auth, id))) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+  await db.delete(forumSurveyVotesTable).where(and(
+    eq(forumSurveyVotesTable.postId, id),
+    eq(forumSurveyVotesTable.userId, auth.userId),
+  ));
+  res.json(await postResult(id, auth.userId));
+});
+
 router.post("/forum/:targetType/:id/like", requireAuth, async (req, res): Promise<void> => {
   const auth = req as AuthenticatedRequest;
   const targetType = cleanText(req.params.targetType, 20);
