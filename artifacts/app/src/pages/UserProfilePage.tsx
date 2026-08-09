@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { User, Globe, Tag, GraduationCap, ExternalLink, ShieldBan, Flag, Loader2, ClipboardPen, BookOpen, List } from 'lucide-react';
+import { User, Globe, Tag, GraduationCap, ExternalLink, ShieldBan, Flag, Loader2, ClipboardPen, BookOpen, List, MessageCircle } from 'lucide-react';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Textarea } from '@workspace/edu-ds/components/ui/textarea';
@@ -110,6 +110,7 @@ export default function UserProfilePage() {
                   {profile.role}
                 </Badge>
               </div>
+              <Button size="sm" className="mt-3" onClick={() => setLocation(`/messages?userId=${profile.id}`)}><MessageCircle className="mr-2 size-4" />Message</Button>
             </div>
           </div>
         </CardContent>

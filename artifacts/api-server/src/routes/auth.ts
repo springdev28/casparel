@@ -180,6 +180,7 @@ const userPreferencesPatch = z
       .max(12)
       .optional(),
     resourceSearchState: z.record(z.string(), z.unknown()).nullable().optional(),
+    allowMessageRequests: z.boolean().optional(),
   })
   .strict();
 
@@ -196,6 +197,7 @@ function defaultUserPreferences(userId: number) {
     pendingCheckIns: {} as Record<string, { concept: string; prompt: string }>,
     searchHistory: [] as Array<{ query: string; searchedAt: string }>,
     resourceSearchState: null as Record<string, unknown> | null,
+    allowMessageRequests: true,
     updatedAt: new Date(0).toISOString(),
   };
 }

@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@workspace/edu-ds/components/ui/card";
 import { Input } from "@workspace/edu-ds/components/ui/input";
+import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import {
@@ -36,6 +37,7 @@ import {
   GraduationCap,
   Layers3,
   Loader2,
+  Pencil,
   RotateCcw,
   School,
   Search,
@@ -45,6 +47,8 @@ import {
   Sparkles,
   Target,
   Users,
+  Save,
+  Trash2,
 } from "lucide-react";
 
 type AdminUser = {
@@ -191,6 +195,8 @@ export default function AdminPage() {
   const [managedUser, setManagedUser] = useState<AdminUser | null>(null);
   const [managedDetails, setManagedDetails] = useState<AdminUserDetails | null>(null);
   const [managedDetailsLoading, setManagedDetailsLoading] = useState(false);
+  const [userDraft, setUserDraft] = useState<AdminUser | null>(null);
+  const [savingAccount, setSavingAccount] = useState(false);
 
   async function loadUsers() {
     setUsersLoading(true);
@@ -226,7 +232,9 @@ export default function AdminPage() {
     setManagedDetails(null);
     setManagedDetailsLoading(true);
     try {
-      setManagedDetails((await adminRequest("/admin/users/" + user.id + "/details")) as AdminUserDetails);
+      const details = (await adminRequest("/admin/users/" + user.id + "/details")) as AdminUserDetails;
+      setManagedDetails(details);
+      setUserDraft(details.user);
     } catch (loadError) {
       toast({
         title: "Could not load account work",
@@ -236,6 +244,90 @@ export default function AdminPage() {
     } finally {
       setManagedDetailsLoading(false);
     }
+  }
+
+  async function saveAccountProfile() {
+    if (!userDraft || !managedDetails) return;
+    setSavingAccount(true);
+    try {
+      const updated = await adminRequest("/admin/users/" + managedDetails.user.id, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: userDraft.name,
+          email: userDraft.email,
+          role: userDraft.role,
+          activeRole: userDraft.activeRole,
+          bio: userDraft.bio,
+          subjects: userDraft.subjects,
+          gradeOrDept: userDraft.gradeOrDept,
+          timezone: userDraft.timezone,
+          websiteUrl: userDraft.websiteUrl,
+          profileVisibility: userDraft.profileVisibility,
+          libraryVisibility: userDraft.libraryVisibility,
+          showBio: userDraft.showBio,
+          showSubjects: userDraft.showSubjects,
+          showGradeOrDept: userDraft.showGradeOrDept,
+          showWebsite: userDraft.showWebsite,
+        }),
+      }) as AdminUser;
+      applyUpdatedUser(updated);
+      setUserDraft(updated);
+      toast({ title: "Account details saved" });
+    } catch (error) {
+      toast({ title: "Could not save account", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setSavingAccount(false);
+    }
+  }
+
+  async function editOwnedClass(item: AdminUserDetails["affiliations"]["ownedClasses"][number]) {
+    if (!managedDetails) return;
+    const name = window.prompt("Class name", item.name);
+    if (name === null) return;
+    const subject = window.prompt("Subject", item.subject);
+    if (subject === null) return;
+    const gradeLevel = window.prompt("Grade level", item.gradeLevel);
+    if (gradeLevel === null) return;
+    try {
+      const updated = await adminRequest(`/admin/users/${managedDetails.user.id}/classes/${item.id}`, { method: "PATCH", body: JSON.stringify({ name, subject, gradeLevel }) }) as typeof item;
+      setManagedDetails((current) => current ? { ...current, affiliations: { ...current.affiliations, ownedClasses: current.affiliations.ownedClasses.map((row) => row.id === item.id ? { ...row, ...updated } : row) } } : current);
+      toast({ title: "Class information updated" });
+    } catch (error) { toast({ title: "Could not update class", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
+  }
+
+  async function editMembership(item: AdminUserDetails["affiliations"]["classMemberships"][number]) {
+    if (!managedDetails) return;
+    const role = window.prompt("Membership role (student or teacher)", item.role);
+    if (role === null) return;
+    const teacherNote = window.prompt("Private teacher/admin note", item.teacherNote ?? "");
+    if (teacherNote === null) return;
+    try {
+      await adminRequest(`/admin/users/${managedDetails.user.id}/classes/${item.classId}/membership`, { method: "PATCH", body: JSON.stringify({ role, teacherNote: teacherNote.trim() || null }) });
+      setManagedDetails((current) => current ? { ...current, affiliations: { ...current.affiliations, classMemberships: current.affiliations.classMemberships.map((row) => row.classId === item.classId ? { ...row, role, teacherNote: teacherNote.trim() || null } : row) } } : current);
+      toast({ title: "Class membership updated" });
+    } catch (error) { toast({ title: "Could not update membership", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
+  }
+
+  async function editWorkItem(category: AdminWorkCategory, item: AdminWorkItem) {
+    if (!managedDetails) return;
+    const primary = window.prompt("Title or primary text", workItemName(item));
+    if (primary === null || !primary.trim()) return;
+    const secondary = window.prompt("Description or supporting text", workItemDescription(item));
+    if (secondary === null) return;
+    try {
+      await adminRequest(`/admin/users/${managedDetails.user.id}/work/${category}/${item.id}`, { method: "PATCH", body: JSON.stringify({ primary, secondary: secondary.trim() || null }) });
+      await manageAccount(managedDetails.user);
+      toast({ title: "User work updated" });
+    } catch (error) { toast({ title: "Could not update work", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
+  }
+
+  async function deleteWorkItem(category: AdminWorkCategory, item: AdminWorkItem) {
+    if (!managedDetails || !window.confirm(`Permanently delete “${workItemName(item)}”?`)) return;
+    try {
+      await adminRequest(`/admin/users/${managedDetails.user.id}/work/${category}/${item.id}`, { method: "DELETE" });
+      setManagedDetails((current) => current ? { ...current, work: { ...current.work, [category]: current.work[category].filter((row) => row.id !== item.id) } } : current);
+      toast({ title: "User work deleted" });
+    } catch (error) { toast({ title: "Could not delete work", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
   }
 
   function applyUpdatedUser(updated: AdminUser) {
@@ -445,6 +537,7 @@ export default function AdminPage() {
           if (!open) {
             setManagedUser(null);
             setManagedDetails(null);
+            setUserDraft(null);
           }
         }}
       >
@@ -471,33 +564,23 @@ export default function AdminPage() {
               </TabsList>
 
               <TabsContent value="profile" className="max-h-[65dvh] overflow-y-auto pt-4">
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {[
-                    ["Role", `${managedDetails.user.role} (${managedDetails.user.activeRole})`],
-                    ["Bio", managedDetails.user.bio || "Not set"],
-                    ["Subjects", managedDetails.user.subjects?.join(", ") || "Not set"],
-                    ["Grade / department", managedDetails.user.gradeOrDept || "Not set"],
-                    ["Timezone", managedDetails.user.timezone || "Not set"],
-                    ["Website", managedDetails.user.websiteUrl || "Not set"],
-                    ["Profile visibility", managedDetails.user.profileVisibility],
-                    ["Library visibility", managedDetails.user.libraryVisibility],
-                    ["Joined", new Date(managedDetails.user.createdAt).toLocaleString()],
-                  ].map(([label, value]) => (
-                    <section key={label} className="min-w-0 border p-4" style={{ borderRadius: 8 }}>
-                      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-                      <p className="mt-1 break-words text-sm capitalize">{value}</p>
-                    </section>
-                  ))}
-                </div>
-                <section className="mt-4 border p-4" style={{ borderRadius: 8 }}>
-                  <p className="text-xs font-medium text-muted-foreground">Privacy field settings</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Badge variant="outline">Bio: {managedDetails.user.showBio ? "visible" : "hidden"}</Badge>
-                    <Badge variant="outline">Subjects: {managedDetails.user.showSubjects ? "visible" : "hidden"}</Badge>
-                    <Badge variant="outline">Grade: {managedDetails.user.showGradeOrDept ? "visible" : "hidden"}</Badge>
-                    <Badge variant="outline">Website: {managedDetails.user.showWebsite ? "visible" : "hidden"}</Badge>
+                {userDraft ? <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <label className="space-y-1 text-sm"><span className="font-medium">Name</span><Input value={userDraft.name} onChange={(e) => setUserDraft({ ...userDraft, name: e.target.value })} /></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Email</span><Input type="email" value={userDraft.email} onChange={(e) => setUserDraft({ ...userDraft, email: e.target.value })} /></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Role</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.role} onChange={(e) => setUserDraft({ ...userDraft, role: e.target.value, activeRole: e.target.value })}><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Administrator</option></select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Active role</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.activeRole} onChange={(e) => setUserDraft({ ...userDraft, activeRole: e.target.value })}><option value="student">Student</option><option value="teacher">Teacher</option>{userDraft.role === "admin" ? <option value="admin">Administrator</option> : null}</select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Grade / department</span><Input value={userDraft.gradeOrDept ?? ""} onChange={(e) => setUserDraft({ ...userDraft, gradeOrDept: e.target.value || null })} /></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Timezone</span><Input value={userDraft.timezone ?? ""} onChange={(e) => setUserDraft({ ...userDraft, timezone: e.target.value || null })} /></label>
+                    <label className="space-y-1 text-sm sm:col-span-2"><span className="font-medium">Subjects</span><Input value={userDraft.subjects?.join(", ") ?? ""} onChange={(e) => setUserDraft({ ...userDraft, subjects: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })} /></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Website</span><Input value={userDraft.websiteUrl ?? ""} onChange={(e) => setUserDraft({ ...userDraft, websiteUrl: e.target.value || null })} /></label>
+                    <label className="space-y-1 text-sm sm:col-span-2 lg:col-span-3"><span className="font-medium">Bio</span><Textarea rows={4} value={userDraft.bio ?? ""} onChange={(e) => setUserDraft({ ...userDraft, bio: e.target.value || null })} /></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Profile visibility</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.profileVisibility} onChange={(e) => setUserDraft({ ...userDraft, profileVisibility: e.target.value })}>{["everyone", "classmates", "private"].map((v) => <option key={v}>{v}</option>)}</select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Library visibility</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.libraryVisibility} onChange={(e) => setUserDraft({ ...userDraft, libraryVisibility: e.target.value })}>{["everyone", "classmates", "private"].map((v) => <option key={v}>{v}</option>)}</select></label>
                   </div>
-                </section>
+                  <div className="flex flex-wrap gap-4 border p-3" style={{ borderRadius: 8 }}>{[["Bio", "showBio"], ["Subjects", "showSubjects"], ["Grade", "showGradeOrDept"], ["Website", "showWebsite"]].map(([label, key]) => <label key={key} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(userDraft[key as keyof AdminUser])} onChange={(e) => setUserDraft({ ...userDraft, [key]: e.target.checked })} />Show {label}</label>)}</div>
+                  <div className="flex justify-end"><Button onClick={() => void saveAccountProfile()} disabled={savingAccount}>{savingAccount ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}Save account changes</Button></div>
+                </div> : null}
               </TabsContent>
 
               <TabsContent value="affiliations" className="max-h-[65dvh] space-y-5 overflow-y-auto pt-4">
@@ -506,7 +589,7 @@ export default function AdminPage() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     {managedDetails.affiliations.ownedClasses.map((item) => (
                       <div key={item.id} className="border p-3" style={{ borderRadius: 8 }}>
-                        <p className="font-medium">{item.name}</p>
+                        <div className="flex items-start justify-between gap-2"><p className="font-medium">{item.name}</p><Button size="icon" variant="ghost" onClick={() => void editOwnedClass(item)} title="Edit class"><Pencil className="size-4" /></Button></div>
                         <p className="text-sm text-muted-foreground">{item.subject} · {item.gradeLevel}</p>
                       </div>
                     ))}
@@ -518,7 +601,7 @@ export default function AdminPage() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     {managedDetails.affiliations.classMemberships.map((item) => (
                       <div key={item.classId} className="border p-3" style={{ borderRadius: 8 }}>
-                        <div className="flex items-start justify-between gap-2"><p className="font-medium">{item.name}</p><Badge variant="outline" className="capitalize">{item.role}</Badge></div>
+                        <div className="flex items-start justify-between gap-2"><p className="font-medium">{item.name}</p><div className="flex items-center gap-1"><Badge variant="outline" className="capitalize">{item.role}</Badge><Button size="icon" variant="ghost" onClick={() => void editMembership(item)} title="Edit membership and private note"><Pencil className="size-4" /></Button></div></div>
                         <p className="text-sm text-muted-foreground">{item.subject} · {item.gradeLevel}</p>
                         <p className="mt-2 text-xs"><span className="font-medium text-muted-foreground">Private member note:</span> {item.teacherNote || "None"}</p>
                       </div>
@@ -571,7 +654,7 @@ export default function AdminPage() {
                                     {item.nodes ? <span>{item.nodes.length} nodes · {item.connectionCount ?? 0} connections</span> : null}
                                   </div>
                                 </div>
-                                {date ? <span className="shrink-0 text-xs text-muted-foreground">{date}</span> : null}
+                                <div className="flex shrink-0 items-center gap-1">{date ? <span className="text-xs text-muted-foreground">{date}</span> : null}<Button size="icon" variant="ghost" title="Edit user work" onClick={() => void editWorkItem(key, item)}><Pencil className="size-4" /></Button><Button size="icon" variant="ghost" title="Delete user work" onClick={() => void deleteWorkItem(key, item)}><Trash2 className="size-4 text-destructive" /></Button></div>
                               </div>
                               {description && description !== workItemName(item) ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{description}</p> : null}
                               {item.cards?.length ? <div className="mt-2 space-y-1 border-t pt-2 text-xs">{item.cards.map((card) => <p key={card.id}><strong>{card.term}</strong>: {card.answer}{card.hasImage ? " · image attached" : ""}</p>)}</div> : null}

@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export type InterfaceColorsPreference = {
@@ -39,6 +39,7 @@ export const userPreferencesTable = pgTable("user_preferences", {
     .notNull()
     .default([]),
   resourceSearchState: jsonb("resource_search_state").$type<Record<string, unknown>>(),
+  allowMessageRequests: boolean("allow_message_requests").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()
     .defaultNow(),

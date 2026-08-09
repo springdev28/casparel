@@ -26,6 +26,7 @@ import GoalsPage from "./pages/GoalsPage";
 import AdminPage from "./pages/AdminPage";
 import ForumPage from "./pages/ForumPage";
 import ActivitiesPage from "./pages/ActivitiesPage";
+import MessagesPage from "./pages/MessagesPage";
 import AppShell from "./components/AppShell";
 import PublicShell from "./components/PublicShell";
 import UiTranslationBridge from "./components/UiTranslationBridge";
@@ -255,6 +256,9 @@ function Router() {
       </Route>
       <Route path="/activities">
         {() => <PrivateRoute component={ActivitiesPage} />}
+      </Route>
+      <Route path="/messages">
+        {() => <PrivateRoute component={MessagesPage} />}
       </Route>
       <Route path="/canvases/:id">
         {() => <PrivateRoute component={CanvasPage} />}

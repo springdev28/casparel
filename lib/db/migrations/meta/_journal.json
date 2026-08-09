@@ -246,6 +246,13 @@
       "when": 1788681600000,
       "tag": "0034_study_activity_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1788768000000,
+      "tag": "0035_private_messaging",
+      "breakpoints": true
     }
   ]
 }

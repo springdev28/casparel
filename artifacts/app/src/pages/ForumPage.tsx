@@ -8,6 +8,7 @@ import {
 import { Link, useSearch } from "wouter";
 import {
   ArrowLeft,
+  ArrowBigUp,
   BarChart3,
   CheckCircle2,
   Download,
@@ -575,15 +576,22 @@ export default function ForumPage({
   }
 
   async function toggleLike(type: "material" | "post", id: number) {
-    const result = await forumRequest<{ liked: boolean }>("/forum/" + type + "/" + id + "/like", {
-      method: "POST",
-    });
-    if (type === "material") await loadMaterials();
-    else setPosts((current) => current.map((post) => post.id === id ? {
-      ...post,
-      likedByMe: result.liked,
-      likeCount: Math.max(0, post.likeCount + (result.liked ? 1 : -1)),
-    } : post));
+    const collection = type === "material" ? materials : posts;
+    const previous = collection.find((item) => item.id === id);
+    if (!previous) return;
+    const optimistic = { ...previous, likedByMe: !previous.likedByMe, likeCount: Math.max(0, previous.likeCount + (previous.likedByMe ? -1 : 1)) };
+    if (type === "material") setMaterials((current) => current.map((item) => item.id === id ? optimistic as Material : item));
+    else setPosts((current) => current.map((item) => item.id === id ? optimistic as ForumPost : item));
+    try {
+      const result = await forumRequest<{ liked: boolean }>("/forum/" + type + "/" + id + "/like", { method: "POST" });
+      const confirmed = { ...optimistic, likedByMe: result.liked, likeCount: result.liked === optimistic.likedByMe ? optimistic.likeCount : Math.max(0, optimistic.likeCount + (result.liked ? 1 : -1)) };
+      if (type === "material") setMaterials((current) => current.map((item) => item.id === id ? confirmed as Material : item));
+      else setPosts((current) => current.map((item) => item.id === id ? confirmed as ForumPost : item));
+    } catch (error) {
+      if (type === "material") setMaterials((current) => current.map((item) => item.id === id ? previous as Material : item));
+      else setPosts((current) => current.map((item) => item.id === id ? previous as ForumPost : item));
+      toast({ title: "Action did not register", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    }
   }
 
   async function report(type: "material" | "post" | "comment", id: number) {
@@ -693,13 +701,20 @@ export default function ForumPage({
   }
 
   async function vote(post: ForumPost, optionId: string) {
-    const updated = await forumRequest<ForumPost>("/forum/posts/" + post.id + "/vote", post.myVote === optionId ? {
-      method: "DELETE",
-    } : {
-      method: "POST",
-      body: JSON.stringify({ optionId }),
-    });
-    setPosts((current) => current.map((item) => item.id === updated.id ? updated : item));
+    const previous = post;
+    const nextVote = post.myVote === optionId ? null : optionId;
+    const counts = new Map(post.votes.map((item) => [item.optionId, item.count]));
+    if (post.myVote) counts.set(post.myVote, Math.max(0, (counts.get(post.myVote) ?? 0) - 1));
+    if (nextVote) counts.set(nextVote, (counts.get(nextVote) ?? 0) + 1);
+    const optimistic = { ...post, myVote: nextVote, votes: post.surveyOptions.map((option) => ({ optionId: option.id, count: counts.get(option.id) ?? 0 })) };
+    setPosts((current) => current.map((item) => item.id === post.id ? optimistic : item));
+    try {
+      const updated = await forumRequest<ForumPost>("/forum/posts/" + post.id + "/vote", nextVote === null ? { method: "DELETE" } : { method: "POST", body: JSON.stringify({ optionId }) });
+      setPosts((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (error) {
+      setPosts((current) => current.map((item) => item.id === post.id ? previous : item));
+      toast({ title: "Vote did not register", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    }
   }
 
   async function updateReport(
@@ -1427,19 +1442,24 @@ export default function ForumPage({
                         className="rounded-none border-x-0 border-t-0 shadow-none last:border-b-0"
                         data-testid="forum-post"
                       >
-                        <CardHeader className="p-4 pb-3">
+                        <div className="grid grid-cols-[3.25rem_1fr]">
+                        <aside className="flex flex-col items-center border-r bg-muted/45 py-3 text-xs font-bold">
+                          <Button size="icon" variant="ghost" className="size-8" onClick={() => toggleLike("post", post.id)} title={post.likedByMe ? "Remove upvote" : "Upvote"}>
+                            <ArrowBigUp className={"size-6 " + (post.likedByMe ? "fill-primary text-primary" : "")} />
+                          </Button>
+                          <span>{post.likeCount}</span>
+                        </aside>
+                        <div className="min-w-0">
+                        <CardHeader className="p-3 pb-2">
                           <div className="flex items-start gap-3">
-                            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
+                            <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
                               {initials(post.authorName)}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="font-semibold">
-                                  {post.authorName}
-                                </span>
-                                <span className="text-sm text-muted-foreground">
-                                  {profileHandle(post.authorName)}
-                                </span>
+                                <span className="text-xs font-bold">{classId ? `c/class-${classId}` : "c/schoolar"}</span>
+                                <span className="text-muted-foreground">·</span>
+                                <span className="text-xs text-muted-foreground">Posted by {profileHandle(post.authorName)}</span>
                                 <span className="text-muted-foreground">·</span>
                                 <span className="text-xs text-muted-foreground">
                                   {new Date(post.createdAt).toLocaleString()}
@@ -1482,7 +1502,7 @@ export default function ForumPage({
                             </div>
                           </div>
                         </CardHeader>
-                        <CardContent className="space-y-3 p-4 pt-0 sm:pl-[4.25rem]">
+                        <CardContent className="space-y-3 p-3 pt-0">
                           {post.title && (
                             <h2 className="text-base font-bold leading-snug">
                               {post.title}
@@ -1594,21 +1614,7 @@ export default function ForumPage({
                               <span>{post.commentCount} comments</span>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 border-y">
-                            <Button
-                              className="rounded-none"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => toggleLike("post", post.id)}
-                            >
-                              <Heart
-                                className={
-                                  "mr-2 size-4 " +
-                                  (post.likedByMe ? "fill-current" : "")
-                                }
-                              />
-                              {post.likeCount}
-                            </Button>
+                          <div className="grid grid-cols-1 border-y sm:grid-cols-2">
                             <Discussion
                               compact
                               count={post.commentCount}
@@ -1625,6 +1631,8 @@ export default function ForumPage({
                             />
                           </div>
                         </CardContent>
+                        </div>
+                        </div>
                       </Card>
                     );
                   })}

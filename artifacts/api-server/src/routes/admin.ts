@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { z } from "zod/v4";
 import {
   db,
   pool,
@@ -230,6 +231,162 @@ router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
     .from(usersTable)
     .orderBy(sql`${usersTable.createdAt} desc`);
   res.json(users);
+});
+
+const adminUserUpdate = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  email: z.string().email().max(320).transform((value) => value.toLowerCase()).optional(),
+  role: z.enum(["student", "teacher", "admin"]).optional(),
+  activeRole: z.enum(["student", "teacher", "admin"]).optional(),
+  bio: z.string().trim().max(1000).nullable().optional(),
+  subjects: z.array(z.string().trim().min(1).max(80)).max(30).nullable().optional(),
+  gradeOrDept: z.string().trim().max(160).nullable().optional(),
+  timezone: z.string().trim().max(100).nullable().optional(),
+  websiteUrl: z.union([z.string().url().max(1000), z.literal(""), z.null()]).optional(),
+  profileVisibility: z.enum(["everyone", "classmates", "private"]).optional(),
+  libraryVisibility: z.enum(["everyone", "classmates", "private"]).optional(),
+  showBio: z.boolean().optional(),
+  showSubjects: z.boolean().optional(),
+  showGradeOrDept: z.boolean().optional(),
+  showWebsite: z.boolean().optional(),
+}).strict();
+
+router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
+  const adminId = (req as import("../middlewares/requireAuth").AuthenticatedRequest).userId;
+  const targetId = Number(req.params.id);
+  const parsed = adminUserUpdate.safeParse(req.body);
+  if (!targetId || !parsed.success) {
+    res.status(400).json({ error: parsed.success ? "Invalid user ID" : parsed.error.message });
+    return;
+  }
+  if (targetId === adminId && parsed.data.role && parsed.data.role !== "admin") {
+    res.status(400).json({ error: "You cannot remove your own administrator access" });
+    return;
+  }
+  const patch = { ...parsed.data };
+  if (patch.websiteUrl === "") patch.websiteUrl = null;
+  if (patch.role === "student") patch.activeRole = "student";
+  if (patch.role === "teacher" && patch.activeRole === "admin") patch.activeRole = "teacher";
+  if (patch.role === "admin") patch.activeRole = "admin";
+  try {
+    const [user] = await db.update(usersTable).set(patch)
+      .where(eq(usersTable.id, targetId)).returning(adminUserSelection);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    res.json(user);
+  } catch (error) {
+    if ((error as { code?: string }).code === "23505") {
+      res.status(409).json({ error: "That email address is already in use" });
+      return;
+    }
+    throw error;
+  }
+});
+
+const affiliationUpdate = z.object({
+  role: z.enum(["student", "teacher"]).optional(),
+  teacherNote: z.string().trim().max(2000).nullable().optional(),
+}).strict();
+
+router.patch("/admin/users/:id/classes/:classId/membership", requireAdmin, async (req, res): Promise<void> => {
+  const targetId = Number(req.params.id);
+  const classId = Number(req.params.classId);
+  const parsed = affiliationUpdate.safeParse(req.body);
+  if (!targetId || !classId || !parsed.success) {
+    res.status(400).json({ error: parsed.success ? "Invalid affiliation" : parsed.error.message });
+    return;
+  }
+  const [membership] = await db.update(classMembersTable).set(parsed.data)
+    .where(and(eq(classMembersTable.userId, targetId), eq(classMembersTable.classId, classId)))
+    .returning();
+  if (!membership) {
+    res.status(404).json({ error: "Class membership not found" });
+    return;
+  }
+  res.json(membership);
+});
+
+const ownedClassUpdate = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  subject: z.string().trim().min(1).max(160).optional(),
+  gradeLevel: z.string().trim().min(1).max(80).optional(),
+}).strict();
+
+router.patch("/admin/users/:id/classes/:classId", requireAdmin, async (req, res): Promise<void> => {
+  const targetId = Number(req.params.id);
+  const classId = Number(req.params.classId);
+  const parsed = ownedClassUpdate.safeParse(req.body);
+  if (!targetId || !classId || !parsed.success) {
+    res.status(400).json({ error: parsed.success ? "Invalid class" : parsed.error.message });
+    return;
+  }
+  const [classroom] = await db.update(classesTable).set(parsed.data)
+    .where(and(eq(classesTable.id, classId), eq(classesTable.teacherId, targetId))).returning();
+  if (!classroom) {
+    res.status(404).json({ error: "Owned class not found" });
+    return;
+  }
+  res.json(classroom);
+});
+
+const workEditBody = z.object({
+  primary: z.string().trim().min(1).max(500),
+  secondary: z.string().trim().max(5000).nullable().optional(),
+}).strict();
+
+router.patch("/admin/users/:id/work/:category/:itemId", requireAdmin, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  const itemId = Number(req.params.itemId);
+  const parsed = workEditBody.safeParse(req.body);
+  if (!userId || !itemId || !parsed.success) {
+    res.status(400).json({ error: parsed.success ? "Invalid work item" : parsed.error.message });
+    return;
+  }
+  const { primary, secondary = null } = parsed.data;
+  let updated: unknown;
+  switch (req.params.category) {
+    case "goals": [updated] = await db.update(learningGoalsTable).set({ title: primary, description: secondary }).where(and(eq(learningGoalsTable.id, itemId), eq(learningGoalsTable.userId, userId))).returning(); break;
+    case "resources": [updated] = await db.update(resourcesTable).set({ title: primary, description: secondary }).where(and(eq(resourcesTable.id, itemId), eq(resourcesTable.submittedById, userId))).returning(); break;
+    case "materials": [updated] = await db.update(forumMaterialsTable).set({ title: primary, description: secondary, updatedAt: new Date().toISOString() }).where(and(eq(forumMaterialsTable.id, itemId), eq(forumMaterialsTable.uploaderId, userId))).returning(); break;
+    case "posts": [updated] = await db.update(forumPostsTable).set({ title: primary, body: secondary || primary, updatedAt: new Date().toISOString() }).where(and(eq(forumPostsTable.id, itemId), eq(forumPostsTable.authorId, userId))).returning(); break;
+    case "comments": [updated] = await db.update(forumCommentsTable).set({ body: primary }).where(and(eq(forumCommentsTable.id, itemId), eq(forumCommentsTable.authorId, userId))).returning(); break;
+    case "activities": [updated] = await db.update(studyActivitiesTable).set({ title: primary, subject: secondary || "General", updatedAt: new Date().toISOString() }).where(and(eq(studyActivitiesTable.id, itemId), eq(studyActivitiesTable.ownerId, userId))).returning(); break;
+    case "canvases": [updated] = await db.update(canvasesTable).set({ title: primary, description: secondary, updatedAt: new Date().toISOString() }).where(and(eq(canvasesTable.id, itemId), eq(canvasesTable.ownerId, userId))).returning(); break;
+    case "lists": [updated] = await db.update(resourceListsTable).set({ name: primary, description: secondary }).where(and(eq(resourceListsTable.id, itemId), eq(resourceListsTable.ownerId, userId))).returning(); break;
+    case "assignments": [updated] = await db.update(classAssignmentsTable).set({ title: primary, instructions: secondary || "" }).where(and(eq(classAssignmentsTable.id, itemId), eq(classAssignmentsTable.createdById, userId))).returning(); break;
+    case "schedule": [updated] = await db.update(scheduleBlocksTable).set({ title: primary, notes: secondary }).where(and(eq(scheduleBlocksTable.id, itemId), eq(scheduleBlocksTable.userId, userId))).returning(); break;
+    case "studySessions": [updated] = await db.update(studySessionsTable).set({ title: primary, topic: secondary || primary }).where(and(eq(studySessionsTable.id, itemId), eq(studySessionsTable.organizerId, userId))).returning(); break;
+    case "learningEvidence": [updated] = await db.update(learningEvidenceTable).set({ concept: primary, reflection: secondary }).where(and(eq(learningEvidenceTable.id, itemId), eq(learningEvidenceTable.userId, userId))).returning(); break;
+    default: res.status(400).json({ error: "Unsupported work category" }); return;
+  }
+  if (!updated) { res.status(404).json({ error: "Work item not found for this account" }); return; }
+  res.json(updated);
+});
+
+router.delete("/admin/users/:id/work/:category/:itemId", requireAdmin, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  const itemId = Number(req.params.itemId);
+  if (!userId || !itemId) { res.status(400).json({ error: "Invalid work item" }); return; }
+  let deleted: unknown;
+  switch (req.params.category) {
+    case "goals": [deleted] = await db.delete(learningGoalsTable).where(and(eq(learningGoalsTable.id, itemId), eq(learningGoalsTable.userId, userId))).returning(); break;
+    case "resources": [deleted] = await db.delete(resourcesTable).where(and(eq(resourcesTable.id, itemId), eq(resourcesTable.submittedById, userId))).returning(); break;
+    case "materials": [deleted] = await db.delete(forumMaterialsTable).where(and(eq(forumMaterialsTable.id, itemId), eq(forumMaterialsTable.uploaderId, userId))).returning(); break;
+    case "posts": [deleted] = await db.delete(forumPostsTable).where(and(eq(forumPostsTable.id, itemId), eq(forumPostsTable.authorId, userId))).returning(); break;
+    case "comments": [deleted] = await db.delete(forumCommentsTable).where(and(eq(forumCommentsTable.id, itemId), eq(forumCommentsTable.authorId, userId))).returning(); break;
+    case "activities": [deleted] = await db.delete(studyActivitiesTable).where(and(eq(studyActivitiesTable.id, itemId), eq(studyActivitiesTable.ownerId, userId))).returning(); break;
+    case "canvases": [deleted] = await db.delete(canvasesTable).where(and(eq(canvasesTable.id, itemId), eq(canvasesTable.ownerId, userId))).returning(); break;
+    case "lists": [deleted] = await db.delete(resourceListsTable).where(and(eq(resourceListsTable.id, itemId), eq(resourceListsTable.ownerId, userId))).returning(); break;
+    case "assignments": [deleted] = await db.delete(classAssignmentsTable).where(and(eq(classAssignmentsTable.id, itemId), eq(classAssignmentsTable.createdById, userId))).returning(); break;
+    case "schedule": [deleted] = await db.delete(scheduleBlocksTable).where(and(eq(scheduleBlocksTable.id, itemId), eq(scheduleBlocksTable.userId, userId))).returning(); break;
+    case "studySessions": [deleted] = await db.delete(studySessionsTable).where(and(eq(studySessionsTable.id, itemId), eq(studySessionsTable.organizerId, userId))).returning(); break;
+    case "learningEvidence": [deleted] = await db.delete(learningEvidenceTable).where(and(eq(learningEvidenceTable.id, itemId), eq(learningEvidenceTable.userId, userId))).returning(); break;
+    default: res.status(400).json({ error: "Unsupported work category" }); return;
+  }
+  if (!deleted) { res.status(404).json({ error: "Work item not found for this account" }); return; }
+  res.status(204).end();
 });
 
 router.get("/admin/users/:id/details", requireAdmin, async (req, res): Promise<void> => {

@@ -18,6 +18,7 @@ import forumRouter from "./forum";
 import studyActivitiesRouter from "./studyActivities";
 import learningWorkflowRouter from "./learningWorkflow";
 import canvasesRouter from "./canvases";
+import directMessagesRouter from "./directMessages";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(forumRouter);
 router.use(studyActivitiesRouter);
 router.use(learningWorkflowRouter);
 router.use(canvasesRouter);
+router.use(directMessagesRouter);
 
 export default router;

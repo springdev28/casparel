@@ -22,6 +22,7 @@ import {
   Check,
   Waves,
   MessagesSquare,
+  MessageCircle,
   Workflow,
   X,
 } from "lucide-react";
@@ -93,6 +94,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Resources", href: "/resources", icon: BookOpen },
   { label: "People", href: "/people", icon: Users },
   { label: "Forum", href: "/forum", icon: MessagesSquare },
+  { label: "Messages", href: "/messages", icon: MessageCircle },
   { label: "Lists", href: "/lists", icon: List },
   { label: "Schedule", href: "/schedule", icon: Calendar },
 ];

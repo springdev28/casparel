@@ -32,6 +32,7 @@ export type UserPreferences = {
   pendingCheckIns: Record<string, { concept: string; prompt: string }>;
   searchHistory: SearchHistoryPreference[];
   resourceSearchState: Record<string, unknown> | null;
+  allowMessageRequests: boolean;
   updatedAt: string;
 };
 
