@@ -267,6 +267,13 @@
       "when": 1788940800000,
       "tag": "0037_forum_reposts_and_quotes",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1789027200000,
+      "tag": "0038_multiple_choice_surveys",
+      "breakpoints": true
     }
   ]
 }

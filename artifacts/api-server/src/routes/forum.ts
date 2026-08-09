@@ -468,6 +468,7 @@ async function postResults(ids: number[], userId: number, accountRole: string) {
     body: forumPostsTable.body,
     tags: forumPostsTable.tags,
     surveyOptions: forumPostsTable.surveyOptions,
+    allowMultipleVotes: forumPostsTable.allowMultipleVotes,
     quotedPostId: forumPostsTable.quotedPostId,
     attachmentMaterialId: forumPostsTable.attachmentMaterialId,
     attachmentFileName: forumPostsTable.attachmentFileName,
@@ -527,15 +528,22 @@ async function postResults(ids: number[], userId: number, accountRole: string) {
     current.push({ optionId: vote.optionId, count: vote.count });
     votesByPost.set(vote.postId, current);
   }
-  const myVoteByPost = new Map(myVoteRows.map((vote) => [vote.postId, vote.optionId]));
+  const myVotesByPost = new Map<number, string[]>();
+  for (const vote of myVoteRows) {
+    const current = myVotesByPost.get(vote.postId) ?? [];
+    current.push(vote.optionId);
+    myVotesByPost.set(vote.postId, current);
+  }
   const quotedById = new Map(quotedRows.map((post) => [post.id, post]));
   const postById = new Map(posts.map((post) => [post.id, post]));
   return ids.flatMap((id) => {
     const post = postById.get(id);
+    const myVotes = post ? (myVotesByPost.get(post.id) ?? []) : [];
     return post ? [{
       ...post,
       votes: votesByPost.get(post.id) ?? [],
-      myVote: myVoteByPost.get(post.id) ?? null,
+      myVote: myVotes[0] ?? null,
+      myVotes,
       quotedPost: post.quotedPostId ? (quotedById.get(post.quotedPostId) ?? null) : null,
     }] : [];
   });
@@ -605,6 +613,8 @@ router.post(
     const attachmentMaterialId = Number(req.body?.attachmentMaterialId) || null;
     const options = cleanList(req.body?.surveyOptions, 8)
       .map((text, index) => ({ id: `option-${index + 1}`, text }));
+    const allowMultipleVotes = kind === "survey" &&
+      ["true", "1", "on"].includes(String(req.body?.allowMultipleVotes).toLocaleLowerCase());
     if (!body || (kind === "survey" && options.length < 2)) {
       res.status(400).json({
         error:
@@ -735,6 +745,7 @@ router.post(
           body,
           tags,
           surveyOptions: options,
+          allowMultipleVotes,
           quotedPostId,
           attachmentMaterialId: resolvedMaterialId,
           attachmentFileName: catalogFile ? null : attachmentFileName,
@@ -825,17 +836,31 @@ router.post("/forum/posts/:id/vote", requireAuth, async (req, res): Promise<void
     return;
   }
   const optionId = cleanText(req.body?.optionId, 80);
-  const [post] = await db.select({ kind: forumPostsTable.kind, options: forumPostsTable.surveyOptions })
+  const [post] = await db.select({
+    kind: forumPostsTable.kind,
+    options: forumPostsTable.surveyOptions,
+    allowMultipleVotes: forumPostsTable.allowMultipleVotes,
+  })
     .from(forumPostsTable).where(eq(forumPostsTable.id, id));
   if (!post || post.kind !== "survey" || !post.options.some((option) => option.id === optionId)) {
     res.status(400).json({ error: "Invalid survey option" });
     return;
   }
-  await db.insert(forumSurveyVotesTable).values({ postId: id, userId: auth.userId, optionId })
-    .onConflictDoUpdate({
-      target: [forumSurveyVotesTable.postId, forumSurveyVotesTable.userId],
-      set: { optionId },
+  if (post.allowMultipleVotes) {
+    await db.insert(forumSurveyVotesTable)
+      .values({ postId: id, userId: auth.userId, optionId })
+      .onConflictDoNothing();
+  } else {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${id}, ${auth.userId})`);
+      await tx.delete(forumSurveyVotesTable).where(and(
+        eq(forumSurveyVotesTable.postId, id),
+        eq(forumSurveyVotesTable.userId, auth.userId),
+      ));
+      await tx.insert(forumSurveyVotesTable)
+        .values({ postId: id, userId: auth.userId, optionId });
     });
+  }
   res.json(await postResult(id, auth.userId, auth.accountRole));
 });
 
@@ -846,10 +871,35 @@ router.delete("/forum/posts/:id/vote", requireAuth, async (req, res): Promise<vo
     res.status(404).json({ error: "Post not found" });
     return;
   }
-  await db.delete(forumSurveyVotesTable).where(and(
-    eq(forumSurveyVotesTable.postId, id),
-    eq(forumSurveyVotesTable.userId, auth.userId),
-  ));
+  const optionId = cleanText(req.body?.optionId, 80);
+  const [post] = await db.select({
+    kind: forumPostsTable.kind,
+    options: forumPostsTable.surveyOptions,
+    allowMultipleVotes: forumPostsTable.allowMultipleVotes,
+  }).from(forumPostsTable).where(eq(forumPostsTable.id, id));
+  if (!post || post.kind !== "survey") {
+    res.status(400).json({ error: "Invalid survey" });
+    return;
+  }
+  if (post.allowMultipleVotes && !post.options.some((option) => option.id === optionId)) {
+    res.status(400).json({ error: "Invalid survey option" });
+    return;
+  }
+  if (post.allowMultipleVotes) {
+    await db.delete(forumSurveyVotesTable).where(and(
+      eq(forumSurveyVotesTable.postId, id),
+      eq(forumSurveyVotesTable.userId, auth.userId),
+      eq(forumSurveyVotesTable.optionId, optionId),
+    ));
+  } else {
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${id}, ${auth.userId})`);
+      await tx.delete(forumSurveyVotesTable).where(and(
+        eq(forumSurveyVotesTable.postId, id),
+        eq(forumSurveyVotesTable.userId, auth.userId),
+      ));
+    });
+  }
   res.json(await postResult(id, auth.userId, auth.accountRole));
 });
 

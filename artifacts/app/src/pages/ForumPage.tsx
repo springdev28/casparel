@@ -63,6 +63,7 @@ import {
   TabsTrigger,
 } from "@workspace/edu-ds/components/ui/tabs";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
+import { Switch } from "@workspace/edu-ds/components/ui/switch";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 
 type Approval = { id: number; teacherName: string; createdAt: string };
@@ -111,6 +112,7 @@ type ForumPost = {
   body: string;
   tags: string[];
   surveyOptions: SurveyOption[];
+  allowMultipleVotes: boolean;
   quotedPostId: number | null;
   quotedPost: QuotedPost | null;
   attachmentMaterialId: number | null;
@@ -127,7 +129,8 @@ type ForumPost = {
   repostedByMe: boolean;
   createdAt: string;
   votes: Array<{ optionId: string; count: number }>;
-  myVote: string | null;
+  myVote?: string | null;
+  myVotes?: string[];
 };
 type ForumComment = {
   id: number;
@@ -439,6 +442,7 @@ export default function ForumPage({
   const [postTag, setPostTag] = useState("all");
   const [postMode, setPostMode] = useState<"post" | "survey">("post");
   const [surveyOptions, setSurveyOptions] = useState(["", ""]);
+  const [surveyAllowMultiple, setSurveyAllowMultiple] = useState(false);
   const [quoteTarget, setQuoteTarget] = useState<ForumPost | null>(null);
   const [repostingIds, setRepostingIds] = useState<number[]>([]);
 
@@ -567,6 +571,7 @@ export default function ForumPage({
           ? surveyOptions.filter((item) => item.trim()).join("\n")
           : "",
       );
+      payload.set("allowMultipleVotes", String(surveyAllowMultiple));
       const materialId = values.get("attachmentMaterialId");
       if (materialId && materialId !== "none") {
         payload.set("attachmentMaterialId", String(materialId));
@@ -581,6 +586,7 @@ export default function ForumPage({
       });
       form.reset();
       setSurveyOptions(["", ""]);
+      setSurveyAllowMultiple(false);
       setQuoteTarget(null);
       setPostDialog(false);
       setPosts((current) => [created, ...current]);
@@ -759,14 +765,28 @@ export default function ForumPage({
 
   async function vote(post: ForumPost, optionId: string) {
     const previous = post;
-    const nextVote = post.myVote === optionId ? null : optionId;
+    const previousVotes = new Set(post.myVotes ?? (post.myVote ? [post.myVote] : []));
+    const removingVote = previousVotes.has(optionId);
+    const nextVotes = post.allowMultipleVotes
+      ? new Set(previousVotes)
+      : new Set<string>();
+    if (removingVote) nextVotes.delete(optionId);
+    else nextVotes.add(optionId);
     const counts = new Map(post.votes.map((item) => [item.optionId, item.count]));
-    if (post.myVote) counts.set(post.myVote, Math.max(0, (counts.get(post.myVote) ?? 0) - 1));
-    if (nextVote) counts.set(nextVote, (counts.get(nextVote) ?? 0) + 1);
-    const optimistic = { ...post, myVote: nextVote, votes: post.surveyOptions.map((option) => ({ optionId: option.id, count: counts.get(option.id) ?? 0 })) };
+    for (const previousVote of previousVotes) {
+      if (!nextVotes.has(previousVote)) {
+        counts.set(previousVote, Math.max(0, (counts.get(previousVote) ?? 0) - 1));
+      }
+    }
+    for (const nextVote of nextVotes) {
+      if (!previousVotes.has(nextVote)) counts.set(nextVote, (counts.get(nextVote) ?? 0) + 1);
+    }
+    const optimistic = { ...post, myVotes: [...nextVotes], votes: post.surveyOptions.map((option) => ({ optionId: option.id, count: counts.get(option.id) ?? 0 })) };
     setPosts((current) => current.map((item) => item.id === post.id ? optimistic : item));
     try {
-      const updated = await forumRequest<ForumPost>("/forum/posts/" + post.id + "/vote", nextVote === null ? { method: "DELETE" } : { method: "POST", body: JSON.stringify({ optionId }) });
+      const updated = await forumRequest<ForumPost>("/forum/posts/" + post.id + "/vote", removingVote
+        ? { method: "DELETE", body: JSON.stringify({ optionId }) }
+        : { method: "POST", body: JSON.stringify({ optionId }) });
       setPosts((current) => current.map((item) => item.id === updated.id ? updated : item));
     } catch (error) {
       setPosts((current) => current.map((item) => item.id === post.id ? previous : item));
@@ -1336,6 +1356,19 @@ export default function ForumPage({
                     {postMode === "survey" && (
                       <div className="space-y-2">
                         <Label>Survey options</Label>
+                        <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/30 p-3">
+                          <div className="min-w-0">
+                            <Label htmlFor="survey-multiple-votes">Allow multiple selections</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Voters can choose one or more options.
+                            </p>
+                          </div>
+                          <Switch
+                            id="survey-multiple-votes"
+                            checked={surveyAllowMultiple}
+                            onCheckedChange={setSurveyAllowMultiple}
+                          />
+                        </div>
                         {surveyOptions.map((option, index) => (
                           <div key={index} className="flex gap-2">
                             <Input
@@ -1628,6 +1661,11 @@ export default function ForumPage({
                           )}
                           {post.kind === "survey" && (
                             <div className="space-y-2">
+                              <p className="text-xs text-muted-foreground">
+                                {post.allowMultipleVotes
+                                  ? "Choose one or more options."
+                                  : "Choose one option."}
+                              </p>
                               {post.surveyOptions.map((option) => {
                                 const count =
                                   post.votes.find(
@@ -1643,7 +1681,7 @@ export default function ForumPage({
                                     onClick={() => vote(post, option.id)}
                                     className={
                                       "relative flex min-h-11 w-full overflow-hidden rounded-md border px-3 py-2 text-left text-sm transition-colors hover:border-primary " +
-                                      (post.myVote === option.id
+                                      ((post.myVotes ?? (post.myVote ? [post.myVote] : [])).includes(option.id)
                                         ? "border-primary"
                                         : "")
                                     }
@@ -1662,7 +1700,9 @@ export default function ForumPage({
                                 );
                               })}
                               <p className="text-xs text-muted-foreground">
-                                {totalVotes} vote{totalVotes === 1 ? "" : "s"}
+                                {totalVotes} {post.allowMultipleVotes
+                                  ? `selection${totalVotes === 1 ? "" : "s"}`
+                                  : `vote${totalVotes === 1 ? "" : "s"}`}
                               </p>
                             </div>
                           )}

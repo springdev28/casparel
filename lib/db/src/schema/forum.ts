@@ -100,6 +100,7 @@ export const forumPostsTable = pgTable("forum_posts", {
     .$type<Array<{ id: string; text: string }>>()
     .notNull()
     .default([]),
+  allowMultipleVotes: boolean("allow_multiple_votes").notNull().default(false),
   quotedPostId: integer("quoted_post_id"),
   attachmentMaterialId: integer("attachment_material_id").references(
     () => forumMaterialsTable.id,
@@ -207,7 +208,11 @@ export const forumSurveyVotesTable = pgTable(
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex("forum_survey_vote_unique").on(table.postId, table.userId),
+    uniqueIndex("forum_survey_vote_option_unique").on(
+      table.postId,
+      table.userId,
+      table.optionId,
+    ),
   ],
 );
 
