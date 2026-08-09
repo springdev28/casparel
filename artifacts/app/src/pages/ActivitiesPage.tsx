@@ -8,11 +8,13 @@ import {
   CopyPlus,
   Dices,
   Layers3,
+  LibraryBig,
   ListChecks,
   ImagePlus,
   Pencil,
   Plus,
   RotateCcw,
+  Share2,
   Shuffle,
   Sparkles,
   SpellCheck2,
@@ -21,6 +23,8 @@ import {
   X,
   FileUp,
 } from "lucide-react";
+import { useParams } from "wouter";
+import { getListClassesQueryKey, useListClasses } from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -48,6 +52,8 @@ type ActivityCard = {
   id: string;
   term: string;
   answer: string;
+  choices?: string[];
+  correctChoiceIndex?: number;
   imageData?: string | null;
   imageAlt?: string | null;
 };
@@ -64,6 +70,7 @@ type StudyActivity = {
 };
 
 type ActivityMode =
+  | "all"
   | "flashcards"
   | "practice"
   | "quiz"
@@ -167,6 +174,7 @@ async function activityRequest(path: string, init?: RequestInit) {
 }
 
 function quizChoices(card: ActivityCard, cards: ActivityCard[]) {
+  if (card.choices && card.choices.length >= 2) return card.choices;
   return shuffled([
     card.answer,
     ...shuffled(
@@ -197,19 +205,48 @@ function missingWordPrompt(value: string) {
   };
 }
 
-function emptyCard(): ActivityCard {
-  return { id: crypto.randomUUID(), term: "", answer: "" };
+function emptyCard(mode: ActivityMode = "flashcards"): ActivityCard {
+  return mode === "quiz"
+    ? {
+        id: crypto.randomUUID(),
+        term: "",
+        answer: "",
+        choices: ["", "", "", ""],
+        correctChoiceIndex: 0,
+      }
+    : { id: crypto.randomUUID(), term: "", answer: "" };
+}
+
+function quizEditorCard(card: ActivityCard): ActivityCard {
+  if (card.choices && card.choices.length >= 2) {
+    const correctChoiceIndex = Number.isInteger(card.correctChoiceIndex)
+      ? card.correctChoiceIndex!
+      : Math.max(0, card.choices.indexOf(card.answer));
+    return { ...card, choices: [...card.choices], correctChoiceIndex };
+  }
+  return {
+    ...card,
+    choices: [card.answer, "", "", ""],
+    correctChoiceIndex: 0,
+  };
 }
 
 export default function ActivitiesPage({
   embedded = false,
   classIdOverride,
   readOnly = false,
+  shared = false,
 }: {
   embedded?: boolean;
   classIdOverride?: number;
   readOnly?: boolean;
+  shared?: boolean;
 } = {}) {
+  const params = useParams<{ token?: string }>();
+  const { data: joinedClasses } = useListClasses({
+    query: { enabled: !shared, queryKey: getListClassesQueryKey() },
+  });
+  const viewOnly = readOnly || shared;
   const importRef = useRef<HTMLInputElement>(null);
   const [activities, setActivities] = useState<StudyActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -218,6 +255,9 @@ export default function ActivitiesPage({
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareClassId, setShareClassId] = useState("");
   const [processingImageId, setProcessingImageId] = useState<string | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formSubject, setFormSubject] = useState("");
@@ -281,9 +321,11 @@ export default function ActivitiesPage({
   async function loadActivities() {
     setLoading(true);
     try {
-      const result = (await activityRequest(
-        `/study-activities${classIdOverride ? `?classId=${classIdOverride}` : ""}`,
-      )) as unknown as StudyActivity[];
+      const result = shared
+        ? [await activityRequest(`/study-activities/shared/${params.token}`) as unknown as StudyActivity]
+        : (await activityRequest(
+            `/study-activities${classIdOverride ? `?classId=${classIdOverride}` : ""}`,
+          )) as unknown as StudyActivity[];
       setActivities(result);
       setSelectedId((current) =>
         result.some((activity) => activity.id === current)
@@ -304,11 +346,11 @@ export default function ActivitiesPage({
 
   useEffect(() => {
     void loadActivities();
-  }, [classIdOverride]);
+  }, [classIdOverride, params.token, shared]);
 
   function resetStudy(activity: StudyActivity | undefined) {
     const cards = activity?.cards ?? [];
-    setMode(activity?.mode ?? "flashcards");
+    setMode(activity?.mode === "all" ? "flashcards" : activity?.mode ?? "flashcards");
     setCardOrder(cards);
     setCardIndex(0);
     setFlipped(false);
@@ -396,7 +438,7 @@ export default function ActivitiesPage({
     setFormTitle("");
     setFormSubject("");
     setFormMode(nextMode);
-    setFormCards([emptyCard(), emptyCard()]);
+    setFormCards([emptyCard(nextMode), emptyCard(nextMode)]);
     setEditorOpen(true);
   }
 
@@ -405,8 +447,42 @@ export default function ActivitiesPage({
     setFormTitle(activity.title);
     setFormSubject(activity.subject ?? "");
     setFormMode(activity.mode ?? "flashcards");
-    setFormCards(activity.cards.map((card) => ({ ...card })));
+    setFormCards(activity.cards.map((card) =>
+      activity.mode === "quiz" ? quizEditorCard(card) : { ...card },
+    ));
     setEditorOpen(true);
+  }
+
+  function changeFormMode(nextMode: ActivityMode) {
+    setFormMode(nextMode);
+    setFormCards((cards) =>
+      nextMode === "quiz"
+        ? cards.map(quizEditorCard)
+        : cards.map(({ choices: _choices, correctChoiceIndex: _correct, ...card }) => card),
+    );
+  }
+
+  function updateQuizChoice(cardId: string, choiceIndex: number, value: string) {
+    setFormCards((cards) => cards.map((card) => {
+      if (card.id !== cardId) return card;
+      const choices = [...(card.choices ?? ["", "", "", ""] )];
+      choices[choiceIndex] = value;
+      return {
+        ...card,
+        choices,
+        answer: card.correctChoiceIndex === choiceIndex ? value : card.answer,
+      };
+    }));
+  }
+
+  function selectQuizCorrectChoice(cardId: string, choiceIndex: number) {
+    setFormCards((cards) => cards.map((card) => card.id === cardId
+      ? {
+          ...card,
+          correctChoiceIndex: choiceIndex,
+          answer: card.choices?.[choiceIndex] ?? "",
+        }
+      : card));
   }
 
   function updateFormCard(
@@ -505,6 +581,50 @@ export default function ActivitiesPage({
           error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
+    }
+  }
+
+  async function shareActivity(destination: "class" | "catalog" | "forum") {
+    if (!selected) return;
+    if (destination === "class" && !shareClassId) {
+      toast({ title: "Choose a class", variant: "destructive" });
+      return;
+    }
+    setSharing(true);
+    try {
+      if (destination === "class") {
+        await activityRequest("/study-activities", {
+          method: "POST",
+          body: JSON.stringify({
+            title: selected.title,
+            subject: selected.subject,
+            mode: selected.mode,
+            cards: selected.cards,
+            classId: Number(shareClassId),
+          }),
+        });
+      } else {
+        await activityRequest(`/study-activities/${selected.id}/publish`, {
+          method: "POST",
+          body: JSON.stringify({ destination }),
+        });
+      }
+      setShareOpen(false);
+      toast({
+        title: destination === "class"
+          ? "Shared with class"
+          : destination === "forum"
+            ? "Posted to forum and catalog"
+            : "Added to catalog",
+      });
+    } catch (error) {
+      toast({
+        title: "Could not share activity",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSharing(false);
     }
   }
 
@@ -763,8 +883,14 @@ export default function ActivitiesPage({
   const trueFalseComplete =
     trueFalseOrder.length > 0 && trueFalseIndex >= trueFalseOrder.length;
   const trueFalseExpected = currentTrueFalse?.answer.trim().toLocaleLowerCase("tr") ?? "";
-  const trueFalseIsTrue = ["true", "doğru", "dogru", "yes", "evet"].includes(trueFalseExpected);
-  const trueFalseShownAnswer = currentTrueFalse?.term ?? "";
+  const allModeTrueFalse = selected?.mode === "all";
+  const trueFalseIsTrue = allModeTrueFalse
+    ? trueFalseIndex % 2 === 0
+    : ["true", "doğru", "dogru", "yes", "evet"].includes(trueFalseExpected);
+  const falsePairAnswer = trueFalseOrder[(trueFalseIndex + 1) % Math.max(1, trueFalseOrder.length)]?.answer;
+  const trueFalseShownAnswer = allModeTrueFalse
+    ? (trueFalseIsTrue ? currentTrueFalse?.answer : falsePairAnswer) ?? ""
+    : "";
   const currentScramble = scrambleOrder[scrambleIndex];
   const scrambleComplete =
     scrambleOrder.length > 0 && scrambleIndex >= scrambleOrder.length;
@@ -772,13 +898,16 @@ export default function ActivitiesPage({
   const missingComplete =
     missingOrder.length > 0 && missingIndex >= missingOrder.length;
   const currentMissingPrompt = currentMissing
-    ? { prompt: currentMissing.term, answer: currentMissing.answer }
+    ? selected?.mode === "all"
+      ? { prompt: `${currentMissing.term} — ____`, answer: currentMissing.answer }
+      : { prompt: currentMissing.term, answer: currentMissing.answer }
     : null;
   const practiceComplete =
     practiceOrder.length > 0 && practiceIndex >= practiceOrder.length;
   const modeOptions = useMemo(
     () =>
       [
+        ["all", LibraryBig, "All"],
         ["flashcards", Layers3, "Flashcards"],
         ["practice", Sparkles, "Practice"],
         ["quiz", ListChecks, "Quiz"],
@@ -802,7 +931,7 @@ export default function ActivitiesPage({
               : "Create, edit, and study your own term-and-answer sets."}
           </p>
         </div>
-        {!readOnly && <div className="flex gap-2">
+        {!viewOnly && <div className="flex gap-2">
           <input ref={importRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" className="hidden" onChange={(event) => void importSet(event.target.files?.[0])} />
           <Button variant="outline" onClick={() => importRef.current?.click()}><FileUp className="mr-2 size-4" /> Import CSV / Quizlet</Button>
           <Button onClick={() => openNewSet()}><Plus className="mr-2 size-4" /> New activity</Button>
@@ -818,7 +947,7 @@ export default function ActivitiesPage({
         <div className="border-y py-16 text-center">
           <Layers3 className="mx-auto mb-3 size-10 text-muted-foreground" />
           <p className="font-semibold">No study activities yet</p>
-          {!readOnly && <Button className="mt-4" onClick={() => openNewSet()}>
+          {!viewOnly && <Button className="mt-4" onClick={() => openNewSet()}>
             <Plus className="mr-2 size-4" /> Create the first set
           </Button>}
         </div>
@@ -862,7 +991,8 @@ export default function ActivitiesPage({
                     {selected.subject ?? "General"} · {selected.cards.length} cards
                   </p>
                 </div>
-                {!readOnly && <div className="flex gap-2">
+                {!viewOnly && <div className="flex gap-2">
+                  <Button variant="outline" size="icon" onClick={() => setShareOpen(true)} aria-label="Share activity" title="Share activity"><Share2 className="size-4" /></Button>
                   <Button variant="outline" size="icon" onClick={() => void duplicateSet(selected)} aria-label="Duplicate activity" title="Duplicate activity"><CopyPlus className="size-4" /></Button>
                   <Button
                     variant="outline"
@@ -885,9 +1015,19 @@ export default function ActivitiesPage({
                 </div>}
               </div>
 
-              <Badge variant="secondary" className="w-fit px-3 py-1.5 text-sm">
-                {modeOptions.map(([value, Icon, label]) => value === mode ? <span key={value} className="flex items-center gap-2"><Icon className="size-4" />{label}</span> : null)}
-              </Badge>
+              {selected.mode === "all" ? (
+                <div className="flex max-w-full gap-1 overflow-x-auto border-b pb-2">
+                  {modeOptions.filter(([value]) => value !== "all").map(([value, Icon, label]) => (
+                    <Button key={value} size="sm" variant={mode === value ? "default" : "ghost"} onClick={() => setMode(value)} className="shrink-0">
+                      <Icon className="mr-1.5 size-4" />{label}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <Badge variant="secondary" className="w-fit px-3 py-1.5 text-sm">
+                  {modeOptions.map(([value, Icon, label]) => value === mode ? <span key={value} className="flex items-center gap-2"><Icon className="size-4" />{label}</span> : null)}
+                </Badge>
+              )}
 
               {mode === "flashcards" && currentFlashcard && (
                 <section className="space-y-4">
@@ -1096,9 +1236,9 @@ export default function ActivitiesPage({
                       <h3 className="text-xl font-semibold">
                         {currentTrueFalse.term}
                       </h3>
-                      <p className="rounded-md border bg-card p-5 text-lg">
+                      {allModeTrueFalse && <p className="rounded-md border bg-card p-5 text-lg">
                         {trueFalseShownAnswer}
-                      </p>
+                      </p>}
                       <div className="grid grid-cols-2 gap-3">
                         {[true, false].map((answer) => {
                           const isCorrect = answer === trueFalseIsTrue;
@@ -1361,7 +1501,7 @@ export default function ActivitiesPage({
             <div className="grid gap-4 sm:grid-cols-3">
               <div>
                 <Label htmlFor="activity-mode">Activity type</Label>
-                <Select value={formMode} onValueChange={(value) => setFormMode(value as ActivityMode)}>
+                <Select value={formMode} onValueChange={(value) => changeFormMode(value as ActivityMode)}>
                   <SelectTrigger id="activity-mode"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {modeOptions.map(([value, Icon, label]) => <SelectItem key={value} value={value}><span className="flex items-center gap-2"><Icon className="size-4" />{label}</span></SelectItem>)}
@@ -1407,7 +1547,31 @@ export default function ActivitiesPage({
                       aria-label={`Card ${index + 1} term`}
                       maxLength={500}
                     />
-                    {formMode === "true-false" ? (
+                    {formMode === "quiz" ? (
+                      <div className="space-y-2 sm:col-span-2">
+                        {(card.choices ?? ["", "", "", ""]).map((choice, choiceIndex) => (
+                          <div key={choiceIndex} className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant={card.correctChoiceIndex === choiceIndex ? "default" : "outline"}
+                              onClick={() => selectQuizCorrectChoice(card.id, choiceIndex)}
+                              aria-label={`Mark option ${choiceIndex + 1} as correct`}
+                              title="Correct answer"
+                            >
+                              <Check className="size-4" />
+                            </Button>
+                            <Input
+                              value={choice}
+                              onChange={(event) => updateQuizChoice(card.id, choiceIndex, event.target.value)}
+                              placeholder={`Option ${choiceIndex + 1}`}
+                              aria-label={`Card ${index + 1} option ${choiceIndex + 1}`}
+                              maxLength={1000}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : formMode === "true-false" ? (
                       <Select value={card.answer || undefined} onValueChange={(value) => updateFormCard(card.id, "answer", value)}>
                         <SelectTrigger aria-label={`Card ${index + 1} answer`}><SelectValue placeholder="True or false" /></SelectTrigger>
                         <SelectContent><SelectItem value="true">True</SelectItem><SelectItem value="false">False</SelectItem></SelectContent>
@@ -1492,7 +1656,7 @@ export default function ActivitiesPage({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setFormCards((cards) => [...cards, emptyCard()])}
+                onClick={() => setFormCards((cards) => [...cards, emptyCard(formMode)])}
               >
                 <CopyPlus className="mr-2 size-4" /> Add card
               </Button>
@@ -1510,6 +1674,39 @@ export default function ActivitiesPage({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Share activity</DialogTitle>
+            <DialogDescription>
+              It stays private until you choose a destination. Forum posts are also listed in the Catalog.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border p-3">
+              <p className="font-medium">Private</p>
+              <p className="text-sm text-muted-foreground">Only you can access the original activity.</p>
+            </div>
+            <div className="space-y-2 rounded-md border p-3">
+              <Label>Share a copy with a class</Label>
+              <div className="flex gap-2">
+                <Select value={shareClassId} onValueChange={setShareClassId}>
+                  <SelectTrigger className="min-w-0 flex-1"><SelectValue placeholder="Choose class" /></SelectTrigger>
+                  <SelectContent>
+                    {(joinedClasses ?? []).map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button type="button" onClick={() => void shareActivity("class")} disabled={sharing}>Share</Button>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button type="button" variant="outline" onClick={() => void shareActivity("catalog")} disabled={sharing}>Add to Catalog</Button>
+              <Button type="button" onClick={() => void shareActivity("forum")} disabled={sharing}>Post to Forum</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

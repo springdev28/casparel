@@ -23,6 +23,7 @@ import {
   Waves,
   MessagesSquare,
   MessageCircle,
+  GalleryVerticalEnd,
   Workflow,
   X,
 } from "lucide-react";
@@ -92,6 +93,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Activities", href: "/activities", icon: LibraryBig },
   { label: "Canvas", href: "/canvases", icon: Workflow },
   { label: "Resources", href: "/resources", icon: BookOpen },
+  { label: "Catalog", href: "/catalog", icon: GalleryVerticalEnd },
   { label: "People", href: "/people", icon: Users },
   { label: "Forum", href: "/forum", icon: MessagesSquare },
   { label: "Messages", href: "/messages", icon: MessageCircle },
@@ -877,6 +879,7 @@ const NAV_LABELS_TR: Record<string, string> = {
   Goals: "Hedefler",
   Activities: "Etkinlikler",
   Resources: "Kaynaklar",
+  Catalog: "Katalog",
   People: "Kişiler",
   Classes: "Sınıflar",
   Lists: "Listeler",

@@ -254,6 +254,12 @@ function Router() {
       <Route path="/forum">
         {() => <PrivateRoute component={ForumPage} />}
       </Route>
+      <Route path="/catalog">
+        {() => <PrivateRoute component={() => <ForumPage catalogOnly />} />}
+      </Route>
+      <Route path="/activities/shared/:token">
+        {() => <PublicRoute component={() => <ActivitiesPage shared />} />}
+      </Route>
       <Route path="/activities">
         {() => <PrivateRoute component={ActivitiesPage} />}
       </Route>

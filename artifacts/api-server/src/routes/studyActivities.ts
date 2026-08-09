@@ -1,7 +1,14 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, desc, eq, isNull } from "drizzle-orm";
-import { db, studyActivitiesTable, type StudyActivityCard } from "@workspace/db";
+import { and, desc, eq, ilike, isNull } from "drizzle-orm";
+import {
+  db,
+  forumMaterialsTable,
+  forumPostsTable,
+  studyActivitiesTable,
+  usersTable,
+  type StudyActivityCard,
+} from "@workspace/db";
 import { contentLimiter } from "../lib/limiters";
 import {
   requireAuth,
@@ -15,7 +22,7 @@ const MAX_IMAGE_BYTES = 140 * 1024;
 const MAX_IMAGES_PER_ACTIVITY = 6;
 const MAX_ACTIVITY_IMAGE_BYTES = 700 * 1024;
 const ACTIVITY_MODES = new Set([
-  "flashcards", "practice", "quiz", "true-false", "match", "scramble", "missing-word", "random",
+  "all", "flashcards", "practice", "quiz", "true-false", "match", "scramble", "missing-word", "random",
 ]);
 
 function parseImageData(value: unknown) {
@@ -44,7 +51,7 @@ function parseActivityInput(value: unknown) {
   const subject =
     typeof input.subject === "string" ? input.subject.trim() : "";
   const mode = typeof input.mode === "string" && ACTIVITY_MODES.has(input.mode)
-    ? input.mode as "flashcards" | "practice" | "quiz" | "true-false" | "match" | "scramble" | "missing-word" | "random"
+    ? input.mode as "all" | "flashcards" | "practice" | "quiz" | "true-false" | "match" | "scramble" | "missing-word" | "random"
     : "flashcards";
   if (title.length < 2 || title.length > 160 || !Array.isArray(input.cards)) {
     return null;
@@ -58,6 +65,8 @@ function parseActivityInput(value: unknown) {
       id?: unknown;
       term?: unknown;
       answer?: unknown;
+      choices?: unknown;
+      correctChoiceIndex?: unknown;
       imageData?: unknown;
       imageAlt?: unknown;
     };
@@ -69,6 +78,23 @@ function parseActivityInput(value: unknown) {
     }
     if (mode === "true-false" && !["true", "false", "doğru", "yanlış", "dogru", "yanlis"].includes(answer.toLocaleLowerCase("tr"))) return null;
     if (mode === "missing-word" && !term.includes("____")) return null;
+    const choices = Array.isArray(candidate.choices)
+      ? candidate.choices
+          .map((choice) => typeof choice === "string" ? choice.trim() : "")
+          .filter(Boolean)
+          .slice(0, 6)
+      : [];
+    const correctChoiceIndex = Number(candidate.correctChoiceIndex);
+    if (mode === "quiz") {
+      if (
+        choices.length < 2 ||
+        new Set(choices.map((choice) => choice.toLocaleLowerCase())).size !== choices.length ||
+        !Number.isInteger(correctChoiceIndex) ||
+        correctChoiceIndex < 0 ||
+        correctChoiceIndex >= choices.length ||
+        choices[correctChoiceIndex] !== answer
+      ) return null;
+    }
     const image = parseImageData(candidate.imageData);
     if (image === undefined) return null;
     if (image) {
@@ -92,6 +118,7 @@ function parseActivityInput(value: unknown) {
           : randomUUID(),
       term,
       answer,
+      ...(choices.length ? { choices, correctChoiceIndex } : {}),
       ...(image
         ? { imageData: image.value, imageAlt: imageAlt || term.slice(0, 160) }
         : {}),
@@ -129,6 +156,26 @@ router.get("/study-activities", requireAuth, async (req, res): Promise<void> => 
   res.json(activities);
 });
 
+router.get("/study-activities/shared/:token", async (req, res): Promise<void> => {
+  const [activity] = await db
+    .select({
+      id: studyActivitiesTable.id,
+      title: studyActivitiesTable.title,
+      subject: studyActivitiesTable.subject,
+      mode: studyActivitiesTable.mode,
+      cards: studyActivitiesTable.cards,
+      createdAt: studyActivitiesTable.createdAt,
+      updatedAt: studyActivitiesTable.updatedAt,
+    })
+    .from(studyActivitiesTable)
+    .where(eq(studyActivitiesTable.shareToken, req.params.token));
+  if (!activity) {
+    res.status(404).json({ error: "Shared activity not found" });
+    return;
+  }
+  res.json({ ...activity, classId: null });
+});
+
 router.post(
   "/study-activities",
   contentLimiter,
@@ -137,9 +184,13 @@ router.post(
     const { userId, userRole } = req as AuthenticatedRequest;
     const classId = Number(req.body?.classId);
     const hasClassId = Number.isInteger(classId) && classId > 0;
-    if (hasClassId && !(await isClassTeacher(classId, userId))) {
+    if (
+      hasClassId &&
+      !(await isClassMember(classId, userId)) &&
+      !(await isClassTeacher(classId, userId))
+    ) {
       res.status(403).json({
-        error: "Only the class teacher can create class activities",
+        error: "Only class members can share activities with this class",
       });
       return;
     }
@@ -160,6 +211,83 @@ router.post(
       })
       .returning();
     res.status(201).json(activity);
+  },
+);
+
+router.post(
+  "/study-activities/:id/publish",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const auth = req as AuthenticatedRequest;
+    const id = Number(req.params.id);
+    const destination = req.body?.destination === "forum" ? "forum" : "catalog";
+    const [activity] = await db
+      .select()
+      .from(studyActivitiesTable)
+      .where(eq(studyActivitiesTable.id, id));
+    if (!activity || activity.ownerId !== auth.userId) {
+      res.status(404).json({ error: "Study activity not found" });
+      return;
+    }
+    const [user] = await db
+      .select({ id: usersTable.id, name: usersTable.name })
+      .from(usersTable)
+      .where(eq(usersTable.id, auth.userId));
+    if (!user) {
+      res.status(401).json({ error: "Account not found" });
+      return;
+    }
+    const shareToken = activity.shareToken ?? randomBytes(24).toString("base64url");
+    if (!activity.shareToken) {
+      await db.update(studyActivitiesTable)
+        .set({ shareToken })
+        .where(eq(studyActivitiesTable.id, activity.id));
+    }
+    const materialTitle = `${activity.title} (Schoolar activity ${activity.id})`;
+    const [existingMaterial] = await db
+      .select({ id: forumMaterialsTable.id })
+      .from(forumMaterialsTable)
+      .where(ilike(forumMaterialsTable.title, materialTitle));
+    let materialId = existingMaterial?.id;
+    if (!materialId) {
+      const [material] = await db.insert(forumMaterialsTable).values({
+        title: materialTitle,
+        description: `Interactive ${activity.mode === "all" ? "multi-mode" : activity.mode} activity with ${activity.cards.length} items.`,
+        unit: activity.subject || "General",
+        topic: activity.subject || activity.title,
+        materialType: "activity",
+        tags: ["activity", activity.mode, ...(activity.subject ? [activity.subject] : [])],
+        sources: [],
+        uploaderId: user.id,
+        uploaderName: user.name,
+        uploaderRole: auth.accountRole === "admin" ? "admin" : auth.userRole === "teacher" ? "teacher" : "student",
+        linkUrl: `/activities/shared/${shareToken}`,
+      }).returning({ id: forumMaterialsTable.id });
+      materialId = material.id;
+    }
+    if (destination === "forum") {
+      const [existingPost] = await db
+        .select({ id: forumPostsTable.id })
+        .from(forumPostsTable)
+        .where(and(
+          eq(forumPostsTable.authorId, auth.userId),
+          eq(forumPostsTable.attachmentMaterialId, materialId),
+        ));
+      if (!existingPost) {
+        await db.insert(forumPostsTable).values({
+          authorId: user.id,
+          authorName: user.name,
+          authorRole: auth.accountRole === "admin" ? "admin" : auth.userRole === "teacher" ? "teacher" : "student",
+          kind: "post",
+          title: activity.title,
+          body: `Try my ${activity.mode === "all" ? "multi-mode" : activity.mode} study activity.`,
+          tags: ["activity", "shared-material"],
+          attachmentMaterialId: materialId,
+        });
+      }
+    }
+    res.status(201).json({ materialId, shareToken, destination });
   },
 );
 

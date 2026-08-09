@@ -64,6 +64,7 @@ vi.mock("../middlewares/requireAuth", () => ({
 import { db } from "@workspace/db";
 import classesRouter from "./classes.js";
 import { issueToken } from "../lib/auth.js";
+import { isClassTeacher } from "../lib/authz.js";
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -516,5 +517,22 @@ describe("isClassTeacher active-role downgrade — role=teacher, activeRole=stud
       .set("Authorization", tokenFor("teacher"));
 
     expect(res.status).toBe(403);
+  });
+});
+
+describe("isClassTeacher administrator workspace switching", () => {
+  it("keeps administrator management access while previewing the teacher workspace", async () => {
+    const chain = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockResolvedValue([
+        { id: TEACHER_ID, role: "admin", activeRole: "teacher" },
+      ]),
+    };
+    vi.mocked(db.select).mockImplementationOnce(
+      () => chain as unknown as ReturnType<typeof db.select>,
+    );
+
+    await expect(isClassTeacher(CLASS_ID, TEACHER_ID)).resolves.toBe(true);
+    expect(chain.from).toHaveBeenCalledTimes(1);
   });
 });

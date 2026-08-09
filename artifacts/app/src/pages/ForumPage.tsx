@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   Download,
   Eye,
-  FilePlus2,
   Flag,
   Heart,
   Link2,
@@ -150,6 +149,10 @@ const MATERIAL_TYPES = [
   ["notes", "Notes"],
 ] as const;
 const POST_TAGS = [
+  "fun",
+  "activity",
+  "canvas",
+  "material",
   "idea",
   "thought",
   "criticism",
@@ -380,9 +383,11 @@ function MarkdownText({ value }: { value: string }) {
 export default function ForumPage({
   classIdOverride,
   embedded = false,
+  catalogOnly = false,
 }: {
   classIdOverride?: number;
   embedded?: boolean;
+  catalogOnly?: boolean;
 } = {}) {
   const routeSearch = useSearch();
   const requestedClassId = Number(
@@ -755,37 +760,33 @@ export default function ForumPage({
           <div className="flex items-center gap-2">
             <MessagesSquare className="size-6 text-primary" />
             <h1 className="text-2xl font-bold">
-              {classId ? "Class forum" : "Education forum"}
+              {catalogOnly ? "Material catalog" : classId ? "Class forum" : "Education forum"}
             </h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {classId
+            {catalogOnly
+              ? "Browse activities, canvases, files, links, and other materials shared by the Schoolar community."
+              : classId
               ? "A private feed for members of this class."
-              : "Materials, classroom ideas, questions, surveys, and peer discussion."}
+              : "Classroom ideas, questions, surveys, and peer discussion."}
           </p>
         </div>
       </header>
 
-      <Tabs defaultValue="posts">
-        <TabsList
+      <Tabs defaultValue={catalogOnly ? "materials" : "posts"}>
+        {!catalogOnly && <TabsList
           className={
             classId
               ? "grid w-full grid-cols-1 sm:w-auto"
               : access.isAdmin
-                ? "grid w-full grid-cols-4 sm:w-auto"
-                : "grid w-full grid-cols-3 sm:w-auto"
+                ? "grid w-full grid-cols-3 sm:w-auto"
+                : "grid w-full grid-cols-2 sm:w-auto"
           }
         >
           <TabsTrigger value="posts">
             <MessagesSquare className="mr-2 size-4" />
             Feed
           </TabsTrigger>
-          {!classId && (
-            <TabsTrigger value="materials">
-              <FilePlus2 className="mr-2 size-4" />
-              Materials
-            </TabsTrigger>
-          )}
           {!classId && (
             <TabsTrigger value="classes">
               <GraduationCap className="mr-2 size-4" />
@@ -798,7 +799,7 @@ export default function ForumPage({
               Moderation
             </TabsTrigger>
           )}
-        </TabsList>
+        </TabsList>}
 
         {!classId && (
           <TabsContent value="classes" className="mt-5 space-y-4">
@@ -844,7 +845,7 @@ export default function ForumPage({
           </TabsContent>
         )}
 
-        <TabsContent value="materials" className="space-y-5">
+        {catalogOnly && <TabsContent value="materials" className="space-y-5">
           <section className="space-y-3 rounded-md border bg-background/90 p-4 shadow-sm">
             <div className="flex flex-wrap gap-2">
               <div className="relative min-w-[220px] flex-1">
@@ -1173,7 +1174,7 @@ export default function ForumPage({
               ))}
             </div>
           )}
-        </TabsContent>
+        </TabsContent>}
 
         <TabsContent value="posts" className="mt-5">
           <div className="mx-auto grid max-w-5xl items-start gap-5 lg:grid-cols-[minmax(0,1fr)_16rem]">

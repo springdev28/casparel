@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   canvasCollaboratorsTable,
@@ -8,6 +8,8 @@ import {
   classesTable,
   classMembersTable,
   db,
+  forumMaterialsTable,
+  forumPostsTable,
   usersTable,
   type Canvas,
   type CanvasDocument,
@@ -358,6 +360,85 @@ router.patch(
       return;
     }
     res.json(await decorateCanvas(updated, access));
+  },
+);
+
+router.post(
+  "/canvases/:id/publish",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const id = Number(req.params.id);
+    const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
+    if (!canvas) {
+      res.status(404).json({ error: "Canvas not found" });
+      return;
+    }
+    const auth = req as AuthenticatedRequest;
+    const access = await accessForCanvas(canvas, auth.userId, auth.accountRole);
+    if (!access?.canManage) {
+      res.status(403).json({ error: "Only the canvas owner can publish it" });
+      return;
+    }
+    const [user] = await db
+      .select({ id: usersTable.id, name: usersTable.name })
+      .from(usersTable)
+      .where(eq(usersTable.id, auth.userId));
+    if (!user) {
+      res.status(401).json({ error: "Account not found" });
+      return;
+    }
+    const shareToken = canvas.shareToken ?? randomBytes(24).toString("base64url");
+    if (!canvas.shareToken || canvas.visibility !== "link") {
+      await db.update(canvasesTable)
+        .set({ shareToken, visibility: "link", updatedAt: new Date().toISOString() })
+        .where(eq(canvasesTable.id, canvas.id));
+    }
+    const materialTitle = `${canvas.title} (Schoolar canvas ${canvas.id})`;
+    const [existingMaterial] = await db
+      .select({ id: forumMaterialsTable.id })
+      .from(forumMaterialsTable)
+      .where(ilike(forumMaterialsTable.title, materialTitle));
+    let materialId = existingMaterial?.id;
+    if (!materialId) {
+      const [material] = await db.insert(forumMaterialsTable).values({
+        title: materialTitle,
+        description: canvas.description || `Collaborative canvas with ${canvas.document.nodes.length} cards.`,
+        unit: canvas.classId ? "Class canvas" : "Community canvas",
+        topic: canvas.title,
+        materialType: "activity",
+        tags: ["canvas", "collaborative", "visual-learning"],
+        sources: [],
+        uploaderId: user.id,
+        uploaderName: user.name,
+        uploaderRole: auth.accountRole === "admin" ? "admin" : auth.userRole === "teacher" ? "teacher" : "student",
+        linkUrl: `/canvas/shared/${shareToken}`,
+      }).returning({ id: forumMaterialsTable.id });
+      materialId = material.id;
+    }
+    const destination = req.body?.destination === "forum" ? "forum" : "catalog";
+    if (destination === "forum") {
+      const [existingPost] = await db
+        .select({ id: forumPostsTable.id })
+        .from(forumPostsTable)
+        .where(and(
+          eq(forumPostsTable.authorId, auth.userId),
+          eq(forumPostsTable.attachmentMaterialId, materialId),
+        ));
+      if (!existingPost) {
+        await db.insert(forumPostsTable).values({
+          authorId: user.id,
+          authorName: user.name,
+          authorRole: auth.accountRole === "admin" ? "admin" : auth.userRole === "teacher" ? "teacher" : "student",
+          kind: "post",
+          title: canvas.title,
+          body: "Explore and collaborate on my Schoolar canvas.",
+          tags: ["canvas", "shared-material"],
+          attachmentMaterialId: materialId,
+        });
+      }
+    }
+    res.status(201).json({ materialId, shareToken, destination });
   },
 );
 

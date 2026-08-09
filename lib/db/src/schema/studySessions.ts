@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, pgEnum, primaryKey, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, pgEnum, primaryKey, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -56,6 +56,8 @@ export type StudyActivityCard = {
   id: string;
   term: string;
   answer: string;
+  choices?: string[];
+  correctChoiceIndex?: number;
   imageData?: string | null;
   imageAlt?: string | null;
 };
@@ -75,9 +77,10 @@ export const studyActivitiesTable = pgTable("study_activities", {
   title: text("title").notNull(),
   subject: text("subject"),
   mode: text("mode")
-    .$type<"flashcards" | "practice" | "quiz" | "true-false" | "match" | "scramble" | "missing-word" | "random">()
+    .$type<"all" | "flashcards" | "practice" | "quiz" | "true-false" | "match" | "scramble" | "missing-word" | "random">()
     .notNull()
     .default("flashcards"),
+  shareToken: text("share_token"),
   cards: jsonb("cards").$type<StudyActivityCard[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
     .notNull()
@@ -85,6 +88,8 @@ export const studyActivitiesTable = pgTable("study_activities", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()
     .defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("study_activities_share_token_idx").on(table.shareToken),
+]);
 
 export type StudyActivity = typeof studyActivitiesTable.$inferSelect;

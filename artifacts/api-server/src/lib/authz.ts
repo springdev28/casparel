@@ -28,10 +28,10 @@ export async function isClassTeacher(classId: number, userId: number): Promise<b
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   if (!user) return false;
-  const effectiveRole = user.activeRole ?? user.role;
   // Administrators can inspect and manage every class, including private
-  // member notes, while they are using the administrator workspace.
-  if (user.role === "admin" && effectiveRole === "admin") return true;
+  // member notes, even when previewing the student or teacher workspace.
+  if (user.role === "admin") return true;
+  const effectiveRole = user.activeRole ?? user.role;
   // Teachers retain management access only to classes they own and only while
   // using the teacher workspace.
   if (user.role !== "teacher" || effectiveRole !== "teacher") return false;

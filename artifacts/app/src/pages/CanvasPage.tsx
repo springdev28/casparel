@@ -50,6 +50,7 @@ import {
   MoreHorizontal,
   Plus,
   Save,
+  Send,
   Share2,
   StickyNote,
   Trash2,
@@ -393,6 +394,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   const [resourceOpen, setResourceOpen] = useState(false);
   const [resourceQuery, setResourceQuery] = useState("");
   const [shareOpen, setShareOpen] = useState(false);
+  const [publishing, setPublishing] = useState<"catalog" | "forum" | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [collaborators, setCollaborators] = useState<CanvasCollaborator[]>([]);
   const [personQuery, setPersonQuery] = useState("");
@@ -614,6 +616,27 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
     toast({ title: "Canvas settings updated" });
   }
 
+  async function publishCanvas(destination: "catalog" | "forum") {
+    if (!canvas) return;
+    setPublishing(destination);
+    try {
+      await canvasRequest(`/canvases/${canvas.id}/publish`, {
+        method: "POST",
+        body: JSON.stringify({ destination }),
+      });
+      await loadCanvas();
+      toast({ title: destination === "forum" ? "Posted to forum and catalog" : "Added to catalog" });
+    } catch (error) {
+      toast({
+        title: "Could not publish canvas",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setPublishing(null);
+    }
+  }
+
   async function openSharing() {
     setShareOpen(true);
     if (!canvas?.permissions.canView || shared) return;
@@ -757,6 +780,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
           <div className="max-h-[65dvh] space-y-5 overflow-x-hidden overflow-y-auto px-1 pb-1">
             {canvas.classId ? <div className="space-y-2"><Label>Class access</Label><Select value={canvas.classAccess} onValueChange={(value) => void patchCanvas({ classAccess: value as "view" | "edit" })}><SelectTrigger className="w-full focus:ring-offset-0"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="view">Students can view</SelectItem><SelectItem value="edit">Students can edit</SelectItem></SelectContent></Select><p className="text-xs text-muted-foreground">Teachers who own the class can always manage the canvas.</p></div> : <div className="space-y-2"><Label>General access</Label><Select value={canvas.visibility} onValueChange={(value) => void patchCanvas({ visibility: value as "private" | "people" | "link" })}><SelectTrigger className="w-full focus:ring-offset-0"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="private">Private</SelectItem><SelectItem value="people">Invited people</SelectItem><SelectItem value="link">Anyone with the link can view</SelectItem></SelectContent></Select></div>}
             {canvas.visibility === "link" && shareUrl ? <div className="flex gap-2"><Input readOnly value={shareUrl} /><Button size="icon" variant="outline" title="Copy sharing link" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => toast({ title: "Link copied" }))}><Copy className="size-4" /></Button></div> : null}
+            <div className="grid gap-2 sm:grid-cols-2"><Button type="button" variant="outline" disabled={publishing !== null} onClick={() => void publishCanvas("catalog")}><BookOpen className="mr-2 size-4" />Add to Catalog</Button><Button type="button" disabled={publishing !== null} onClick={() => void publishCanvas("forum")}><Send className="mr-2 size-4" />Post to Forum</Button></div>
             <div className="space-y-2"><Label htmlFor="canvas-person-search">Invite people</Label><div className="relative"><UserPlus className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" /><Input id="canvas-person-search" className="w-full pl-9 focus-visible:ring-offset-0" value={personQuery} onChange={(event) => setPersonQuery(event.target.value)} placeholder="Search Schoolar users..." /></div>{peopleLoading ? <Loader2 className="mx-auto size-4 animate-spin" /> : personQuery.trim().length >= 2 && people?.length ? <div className="space-y-1 border p-1" style={{ borderRadius: 8 }}>{people.filter((person) => person.id !== canvas.ownerId && !collaborators.some((item) => item.userId === person.id)).slice(0, 6).map((person) => <button type="button" key={person.id} className="flex w-full items-center justify-between gap-3 p-2 text-left hover:bg-muted" style={{ borderRadius: 6 }} onClick={() => void addCollaborator(person.id)}><span><strong className="block text-sm">{person.name}</strong><span className="text-xs capitalize text-muted-foreground">{person.role}</span></span><Plus className="size-4" /></button>)}</div> : null}</div>
             <div className="space-y-2"><Label className="flex items-center gap-2"><Users className="size-4" />People with access</Label><div className="space-y-2"><div className="flex items-center justify-between gap-3 border-b py-2"><span><strong className="block text-sm">{canvas.owner?.name ?? "Owner"}</strong><span className="text-xs text-muted-foreground">Canvas owner</span></span><Badge variant="outline">Owner</Badge></div>{collaborators.map((person) => <div key={person.userId} className="flex items-center justify-between gap-3 border-b py-2"><span className="min-w-0"><strong className="block truncate text-sm">{person.name}</strong><span className="block truncate text-xs text-muted-foreground">{person.email}</span></span><div className="flex items-center gap-1"><Select value={person.role} onValueChange={(value) => void changeCollaborator(person.userId, value as "viewer" | "editor")}><SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="viewer">Viewer</SelectItem><SelectItem value="editor">Editor</SelectItem></SelectContent></Select><Button size="icon" variant="ghost" title="Remove collaborator" onClick={() => void removeCollaborator(person.userId)}><Trash2 className="size-4" /></Button></div></div>)}</div></div>
           </div>
