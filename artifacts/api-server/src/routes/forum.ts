@@ -20,6 +20,11 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import {
+  inferForumMaterialType,
+  normalizeForumPostTags,
+  shouldCatalogForumFile,
+} from "../lib/forum-catalog";
 
 const router: IRouter = Router();
 const materialUpload = multer({
@@ -37,16 +42,6 @@ const MATERIAL_TYPES = new Set([
   "worksheet",
   "activity",
   "notes",
-]);
-const POST_TAGS = new Set([
-  "idea",
-  "thought",
-  "criticism",
-  "fun-fact",
-  "advice",
-  "tactics",
-  "question",
-  "discussion",
 ]);
 const TARGET_TYPES = new Set(["material", "post"]);
 const REPORT_TARGET_TYPES = new Set(["material", "post", "comment"]);
@@ -343,7 +338,7 @@ router.post(
     const topic = cleanText(req.body.topic, 120);
     const materialType = cleanText(req.body.materialType, 40);
     const linkUrl = cleanText(req.body.linkUrl, 2000);
-    const tags = cleanList(req.body.tags);
+    const tags = [...new Set(["material", ...cleanList(req.body.tags)])];
     const sources = cleanList(req.body.sources);
     if (!title || !unit || !topic || !MATERIAL_TYPES.has(materialType)) {
       res.status(400).json({ error: "Title, unit, topic, and material type are required" });
@@ -552,7 +547,7 @@ router.post(
     const kind = req.body?.kind === "survey" ? "survey" : "post";
     const title = cleanText(req.body?.title, 180);
     const body = cleanText(req.body?.body, 5000);
-    const tags = cleanList(req.body?.tags, 8).filter((tag) => POST_TAGS.has(tag));
+    const tags = normalizeForumPostTags(cleanList(req.body?.tags, 8));
     const attachmentMaterialId = Number(req.body?.attachmentMaterialId) || null;
     const options = cleanList(req.body?.surveyOptions, 8)
       .map((text, index) => ({ id: `option-${index + 1}`, text }));
@@ -564,6 +559,16 @@ router.post(
             : "Post text is required",
       });
       return;
+    }
+    if (attachmentMaterialId) {
+      const [material] = await db
+        .select({ id: forumMaterialsTable.id })
+        .from(forumMaterialsTable)
+        .where(eq(forumMaterialsTable.id, attachmentMaterialId));
+      if (!material) {
+        res.status(400).json({ error: "Attached material not found" });
+        return;
+      }
     }
 
     let attachmentMimeType: string | null = null;
@@ -594,27 +599,82 @@ router.post(
       });
       return;
     }
-    const [created] = await db.insert(forumPostsTable).values({
-      classId,
-      authorId: user.id,
-      authorName: user.name,
-      authorRole:
-        auth.accountRole === "admin"
-          ? "admin"
-          : auth.userRole === "teacher"
-            ? "teacher"
-            : "student",
-      kind,
-      title: title || null,
-      body,
-      tags,
-      surveyOptions: options,
-      attachmentMaterialId,
-      attachmentFileName,
-      attachmentMimeType,
-      attachmentFileBase64,
-      moderationNote: moderation.assessment,
-    }).returning({ id: forumPostsTable.id });
+    const created = await db.transaction(async (tx) => {
+      let resolvedMaterialId = attachmentMaterialId;
+      const catalogFile = Boolean(
+        req.file &&
+          !resolvedMaterialId &&
+          shouldCatalogForumFile(tags, classId),
+      );
+      if (catalogFile && req.file && attachmentMimeType) {
+        const fileTitle = req.file.originalname
+          .replace(/\.[^.]+$/, "")
+          .replace(/[_-]+/g, " ")
+          .trim();
+        const baseTitle = cleanText(title || fileTitle || "Forum material", 180);
+        const [duplicate] = await tx
+          .select({ id: forumMaterialsTable.id })
+          .from(forumMaterialsTable)
+          .where(ilike(forumMaterialsTable.title, baseTitle));
+        const catalogTitle = duplicate
+          ? cleanText(
+              `${baseTitle.slice(0, 140)} · ${user.name.slice(0, 24)} ${Date.now().toString(36)}`,
+              180,
+            )
+          : baseTitle;
+        const [material] = await tx
+          .insert(forumMaterialsTable)
+          .values({
+            title: catalogTitle,
+            description: body,
+            unit: "Forum",
+            topic: tags.find((tag) => tag !== "material" && tag !== "fun") || "Community",
+            materialType: inferForumMaterialType(tags, attachmentMimeType),
+            tags: [...new Set(["material", ...tags])],
+            sources: [],
+            uploaderId: user.id,
+            uploaderName: user.name,
+            uploaderRole:
+              auth.accountRole === "admin"
+                ? "admin"
+                : auth.userRole === "teacher"
+                  ? "teacher"
+                  : "student",
+            fileName: attachmentFileName,
+            mimeType: attachmentMimeType,
+            fileBase64: attachmentFileBase64,
+            moderationNote: moderation.assessment,
+          })
+          .returning({ id: forumMaterialsTable.id });
+        resolvedMaterialId = material.id;
+      }
+
+      const [post] = await tx
+        .insert(forumPostsTable)
+        .values({
+          classId,
+          authorId: user.id,
+          authorName: user.name,
+          authorRole:
+            auth.accountRole === "admin"
+              ? "admin"
+              : auth.userRole === "teacher"
+                ? "teacher"
+                : "student",
+          kind,
+          title: title || null,
+          body,
+          tags,
+          surveyOptions: options,
+          attachmentMaterialId: resolvedMaterialId,
+          attachmentFileName: catalogFile ? null : attachmentFileName,
+          attachmentMimeType: catalogFile ? null : attachmentMimeType,
+          attachmentFileBase64: catalogFile ? null : attachmentFileBase64,
+          moderationNote: moderation.assessment,
+        })
+        .returning({ id: forumPostsTable.id });
+      return post;
+    });
     res.status(201).json(await postResult(created.id, auth.userId));
   },
 );

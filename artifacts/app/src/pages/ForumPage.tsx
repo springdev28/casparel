@@ -565,6 +565,7 @@ export default function ForumPage({
       setSurveyOptions(["", ""]);
       setPostDialog(false);
       setPosts((current) => [created, ...current]);
+      if (created.attachmentMaterialId) await loadMaterials();
       toast({
         title: postMode === "survey" ? "Survey published" : "Post published",
       });
