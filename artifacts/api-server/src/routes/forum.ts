@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { and, asc, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   db,
   classesTable,
@@ -9,6 +9,7 @@ import {
   forumLikesTable,
   forumMaterialApprovalsTable,
   forumMaterialsTable,
+  forumPostRepostsTable,
   forumPostsTable,
   forumReportsTable,
   forumSurveyVotesTable,
@@ -453,8 +454,10 @@ router.post("/forum/materials/:id/approve", requireAuth, async (req, res): Promi
   res.json(await materialResult(id, auth.userId));
 });
 
-async function postResult(id: number, userId: number) {
-  const [post] = await db.select({
+async function postResults(ids: number[], userId: number, accountRole: string) {
+  const uniqueIds = [...new Set(ids)];
+  if (!uniqueIds.length) return [];
+  const posts = await db.select({
     id: forumPostsTable.id,
     classId: forumPostsTable.classId,
     authorId: forumPostsTable.authorId,
@@ -465,6 +468,7 @@ async function postResult(id: number, userId: number) {
     body: forumPostsTable.body,
     tags: forumPostsTable.tags,
     surveyOptions: forumPostsTable.surveyOptions,
+    quotedPostId: forumPostsTable.quotedPostId,
     attachmentMaterialId: forumPostsTable.attachmentMaterialId,
     attachmentFileName: forumPostsTable.attachmentFileName,
     attachmentMimeType: forumPostsTable.attachmentMimeType,
@@ -475,20 +479,70 @@ async function postResult(id: number, userId: number) {
     likeCount: sql<number>`cast((select count(*) from forum_likes where target_type = 'post' and target_id = ${forumPostsTable.id}) as int)`,
     commentCount: sql<number>`cast((select count(*) from forum_comments where target_type = 'post' and target_id = ${forumPostsTable.id} and moderation_status = 'approved') as int)`,
     likedByMe: sql<boolean>`exists(select 1 from forum_likes where target_type = 'post' and target_id = ${forumPostsTable.id} and user_id = ${userId})`,
-  }).from(forumPostsTable).where(eq(forumPostsTable.id, id));
-  if (!post) return null;
-  const votes = post.kind === "survey"
-    ? await db.select({ optionId: forumSurveyVotesTable.optionId, count: sql<number>`cast(count(*) as int)` })
-      .from(forumSurveyVotesTable)
-      .where(eq(forumSurveyVotesTable.postId, id))
-      .groupBy(forumSurveyVotesTable.optionId)
-    : [];
-  const [myVote] = post.kind === "survey"
-    ? await db.select({ optionId: forumSurveyVotesTable.optionId })
-      .from(forumSurveyVotesTable)
-      .where(and(eq(forumSurveyVotesTable.postId, id), eq(forumSurveyVotesTable.userId, userId)))
-    : [];
-  return { ...post, votes, myVote: myVote?.optionId ?? null };
+    repostCount: sql<number>`cast((select count(*) from forum_post_reposts where post_id = ${forumPostsTable.id}) as int)`,
+    repostedByMe: sql<boolean>`exists(select 1 from forum_post_reposts where post_id = ${forumPostsTable.id} and user_id = ${userId})`,
+  }).from(forumPostsTable).where(inArray(forumPostsTable.id, uniqueIds));
+
+  const surveyIds = posts.filter((post) => post.kind === "survey").map((post) => post.id);
+  const quotedIds = [...new Set(posts.map((post) => post.quotedPostId)
+    .filter((id): id is number => id != null))];
+  const [voteRows, myVoteRows, quotedRows] = await Promise.all([
+    surveyIds.length
+      ? db.select({
+          postId: forumSurveyVotesTable.postId,
+          optionId: forumSurveyVotesTable.optionId,
+          count: sql<number>`cast(count(*) as int)`,
+        }).from(forumSurveyVotesTable)
+        .where(inArray(forumSurveyVotesTable.postId, surveyIds))
+        .groupBy(forumSurveyVotesTable.postId, forumSurveyVotesTable.optionId)
+      : Promise.resolve([]),
+    surveyIds.length
+      ? db.select({ postId: forumSurveyVotesTable.postId, optionId: forumSurveyVotesTable.optionId })
+        .from(forumSurveyVotesTable)
+        .where(and(
+          inArray(forumSurveyVotesTable.postId, surveyIds),
+          eq(forumSurveyVotesTable.userId, userId),
+        ))
+      : Promise.resolve([]),
+    quotedIds.length
+      ? db.select({
+          id: forumPostsTable.id,
+          authorName: forumPostsTable.authorName,
+          authorRole: forumPostsTable.authorRole,
+          title: forumPostsTable.title,
+          body: forumPostsTable.body,
+          tags: forumPostsTable.tags,
+          createdAt: forumPostsTable.createdAt,
+        }).from(forumPostsTable)
+        .where(and(
+          inArray(forumPostsTable.id, quotedIds),
+          ...(accountRole === "admin" ? [] : [eq(forumPostsTable.moderationStatus, "approved")]),
+        ))
+      : Promise.resolve([]),
+  ]);
+
+  const votesByPost = new Map<number, Array<{ optionId: string; count: number }>>();
+  for (const vote of voteRows) {
+    const current = votesByPost.get(vote.postId) ?? [];
+    current.push({ optionId: vote.optionId, count: vote.count });
+    votesByPost.set(vote.postId, current);
+  }
+  const myVoteByPost = new Map(myVoteRows.map((vote) => [vote.postId, vote.optionId]));
+  const quotedById = new Map(quotedRows.map((post) => [post.id, post]));
+  const postById = new Map(posts.map((post) => [post.id, post]));
+  return ids.flatMap((id) => {
+    const post = postById.get(id);
+    return post ? [{
+      ...post,
+      votes: votesByPost.get(post.id) ?? [],
+      myVote: myVoteByPost.get(post.id) ?? null,
+      quotedPost: post.quotedPostId ? (quotedById.get(post.quotedPostId) ?? null) : null,
+    }] : [];
+  });
+}
+
+async function postResult(id: number, userId: number, accountRole: string) {
+  return (await postResults([id], userId, accountRole))[0] ?? null;
 }
 
 router.get("/forum/posts", requireAuth, async (req, res): Promise<void> => {
@@ -523,8 +577,7 @@ router.get("/forum/posts", requireAuth, async (req, res): Promise<void> => {
   const rows = await db.select({ id: forumPostsTable.id }).from(forumPostsTable)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(forumPostsTable.createdAt)).limit(100);
-  const posts = await Promise.all(rows.map((row) => postResult(row.id, auth.userId)));
-  res.json(posts.filter(Boolean));
+  res.json(await postResults(rows.map((row) => row.id), auth.userId, auth.accountRole));
 });
 
 router.post(
@@ -548,6 +601,7 @@ router.post(
     const title = cleanText(req.body?.title, 180);
     const body = cleanText(req.body?.body, 5000);
     const tags = normalizeForumPostTags(cleanList(req.body?.tags, 8));
+    const quotedPostId = Number(req.body?.quotedPostId) || null;
     const attachmentMaterialId = Number(req.body?.attachmentMaterialId) || null;
     const options = cleanList(req.body?.surveyOptions, 8)
       .map((text, index) => ({ id: `option-${index + 1}`, text }));
@@ -567,6 +621,21 @@ router.post(
         .where(eq(forumMaterialsTable.id, attachmentMaterialId));
       if (!material) {
         res.status(400).json({ error: "Attached material not found" });
+        return;
+      }
+    }
+    if (quotedPostId) {
+      const [quotedPost] = await db.select({
+        id: forumPostsTable.id,
+        classId: forumPostsTable.classId,
+        moderationStatus: forumPostsTable.moderationStatus,
+      }).from(forumPostsTable).where(eq(forumPostsTable.id, quotedPostId));
+      if (
+        !quotedPost ||
+        quotedPost.classId !== classId ||
+        (auth.accountRole !== "admin" && quotedPost.moderationStatus !== "approved")
+      ) {
+        res.status(400).json({ error: "Quoted post is not available in this forum" });
         return;
       }
     }
@@ -666,6 +735,7 @@ router.post(
           body,
           tags,
           surveyOptions: options,
+          quotedPostId,
           attachmentMaterialId: resolvedMaterialId,
           attachmentFileName: catalogFile ? null : attachmentFileName,
           attachmentMimeType: catalogFile ? null : attachmentMimeType,
@@ -675,7 +745,7 @@ router.post(
         .returning({ id: forumPostsTable.id });
       return post;
     });
-    res.status(201).json(await postResult(created.id, auth.userId));
+    res.status(201).json(await postResult(created.id, auth.userId, auth.accountRole));
   },
 );
 
@@ -718,6 +788,35 @@ router.delete("/forum/posts/:id", requireAuth, async (req, res): Promise<void> =
   res.status(204).end();
 });
 
+router.post("/forum/posts/:id/repost", requireAuth, async (req, res): Promise<void> => {
+  const auth = req as AuthenticatedRequest;
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || !(await canAccessPost(auth, id))) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+  const [post] = await db.select({ moderationStatus: forumPostsTable.moderationStatus })
+    .from(forumPostsTable).where(eq(forumPostsTable.id, id));
+  if (!post || (auth.accountRole !== "admin" && post.moderationStatus !== "approved")) {
+    res.status(404).json({ error: "Post not found" });
+    return;
+  }
+  const [existing] = await db.select({ id: forumPostRepostsTable.id })
+    .from(forumPostRepostsTable)
+    .where(and(
+      eq(forumPostRepostsTable.postId, id),
+      eq(forumPostRepostsTable.userId, auth.userId),
+    ));
+  if (existing) {
+    await db.delete(forumPostRepostsTable).where(eq(forumPostRepostsTable.id, existing.id));
+  } else {
+    await db.insert(forumPostRepostsTable).values({ postId: id, userId: auth.userId });
+  }
+  const [count] = await db.select({ value: sql<number>`cast(count(*) as int)` })
+    .from(forumPostRepostsTable).where(eq(forumPostRepostsTable.postId, id));
+  res.json({ reposted: !existing, repostCount: count?.value ?? 0 });
+});
+
 router.post("/forum/posts/:id/vote", requireAuth, async (req, res): Promise<void> => {
   const auth = req as AuthenticatedRequest;
   const id = Number(req.params.id);
@@ -737,7 +836,7 @@ router.post("/forum/posts/:id/vote", requireAuth, async (req, res): Promise<void
       target: [forumSurveyVotesTable.postId, forumSurveyVotesTable.userId],
       set: { optionId },
     });
-  res.json(await postResult(id, auth.userId));
+  res.json(await postResult(id, auth.userId, auth.accountRole));
 });
 
 router.delete("/forum/posts/:id/vote", requireAuth, async (req, res): Promise<void> => {
@@ -751,7 +850,7 @@ router.delete("/forum/posts/:id/vote", requireAuth, async (req, res): Promise<vo
     eq(forumSurveyVotesTable.postId, id),
     eq(forumSurveyVotesTable.userId, auth.userId),
   ));
-  res.json(await postResult(id, auth.userId));
+  res.json(await postResult(id, auth.userId, auth.accountRole));
 });
 
 router.post("/forum/:targetType/:id/like", requireAuth, async (req, res): Promise<void> => {

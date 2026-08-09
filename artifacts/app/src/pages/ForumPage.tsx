@@ -21,6 +21,8 @@ import {
   MessagesSquare,
   Paperclip,
   Plus,
+  Quote,
+  Repeat2,
   Search,
   Send,
   ShieldCheck,
@@ -90,6 +92,15 @@ type Material = {
   approvals: Approval[];
 };
 type SurveyOption = { id: string; text: string };
+type QuotedPost = {
+  id: number;
+  authorName: string;
+  authorRole: string;
+  title: string | null;
+  body: string;
+  tags: string[];
+  createdAt: string;
+};
 type ForumPost = {
   id: number;
   authorId: number | null;
@@ -100,6 +111,8 @@ type ForumPost = {
   body: string;
   tags: string[];
   surveyOptions: SurveyOption[];
+  quotedPostId: number | null;
+  quotedPost: QuotedPost | null;
   attachmentMaterialId: number | null;
   attachmentFileName: string | null;
   attachmentMimeType: string | null;
@@ -110,6 +123,8 @@ type ForumPost = {
   likeCount: number;
   commentCount: number;
   likedByMe: boolean;
+  repostCount: number;
+  repostedByMe: boolean;
   createdAt: string;
   votes: Array<{ optionId: string; count: number }>;
   myVote: string | null;
@@ -424,6 +439,8 @@ export default function ForumPage({
   const [postTag, setPostTag] = useState("all");
   const [postMode, setPostMode] = useState<"post" | "survey">("post");
   const [surveyOptions, setSurveyOptions] = useState(["", ""]);
+  const [quoteTarget, setQuoteTarget] = useState<ForumPost | null>(null);
+  const [repostingIds, setRepostingIds] = useState<number[]>([]);
 
   async function loadAccess() {
     const value = await forumRequest<ForumAccess>("/forum/access");
@@ -543,6 +560,7 @@ export default function ForumPage({
       payload.set("title", String(values.get("title") ?? ""));
       payload.set("body", String(values.get("body") ?? ""));
       payload.set("tags", csv(values.get("tags")).join("\n"));
+      if (quoteTarget) payload.set("quotedPostId", String(quoteTarget.id));
       payload.set(
         "surveyOptions",
         postMode === "survey"
@@ -563,6 +581,7 @@ export default function ForumPage({
       });
       form.reset();
       setSurveyOptions(["", ""]);
+      setQuoteTarget(null);
       setPostDialog(false);
       setPosts((current) => [created, ...current]);
       if (created.attachmentMaterialId) await loadMaterials();
@@ -597,6 +616,38 @@ export default function ForumPage({
       if (type === "material") setMaterials((current) => current.map((item) => item.id === id ? previous as Material : item));
       else setPosts((current) => current.map((item) => item.id === id ? previous as ForumPost : item));
       toast({ title: "Action did not register", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    }
+  }
+
+  async function toggleRepost(post: ForumPost) {
+    if (repostingIds.includes(post.id)) return;
+    const previous = post;
+    const optimistic = {
+      ...post,
+      repostedByMe: !post.repostedByMe,
+      repostCount: Math.max(0, post.repostCount + (post.repostedByMe ? -1 : 1)),
+    };
+    setRepostingIds((current) => [...current, post.id]);
+    setPosts((current) => current.map((item) => item.id === post.id ? optimistic : item));
+    try {
+      const result = await forumRequest<{ reposted: boolean; repostCount: number }>(
+        "/forum/posts/" + post.id + "/repost",
+        { method: "POST" },
+      );
+      setPosts((current) => current.map((item) => item.id === post.id ? {
+        ...item,
+        repostedByMe: result.reposted,
+        repostCount: result.repostCount,
+      } : item));
+    } catch (error) {
+      setPosts((current) => current.map((item) => item.id === post.id ? previous : item));
+      toast({
+        title: "Repost did not register",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRepostingIds((current) => current.filter((id) => id !== post.id));
     }
   }
 
@@ -1189,6 +1240,7 @@ export default function ForumPage({
                     <button
                       type="button"
                       onClick={() => {
+                        setQuoteTarget(null);
                         setPostMode("post");
                         setPostDialog(true);
                       }}
@@ -1203,6 +1255,7 @@ export default function ForumPage({
                       variant="ghost"
                       className="justify-center"
                       onClick={() => {
+                        setQuoteTarget(null);
                         setPostMode("post");
                         setPostDialog(true);
                       }}
@@ -1214,6 +1267,7 @@ export default function ForumPage({
                       variant="ghost"
                       className="justify-center"
                       onClick={() => {
+                        setQuoteTarget(null);
                         setPostMode("survey");
                         setPostDialog(true);
                       }}
@@ -1224,16 +1278,21 @@ export default function ForumPage({
                 </CardContent>
               </Card>
 
-              <Dialog open={postDialog} onOpenChange={setPostDialog}>
+              <Dialog open={postDialog} onOpenChange={(open) => {
+                setPostDialog(open);
+                if (!open) setQuoteTarget(null);
+              }}>
                 <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Create forum post</DialogTitle>
+                    <DialogTitle>{quoteTarget ? "Quote this post" : "Create forum post"}</DialogTitle>
                     <DialogDescription>
-                      Share a post or ask the community with a survey.
+                      {quoteTarget
+                        ? "Add your perspective while keeping the original context."
+                        : "Share a post or ask the community with a survey."}
                     </DialogDescription>
                   </DialogHeader>
                   <form onSubmit={createPost} className="space-y-4">
-                    <Tabs
+                    {quoteTarget ? <QuotedPostPreview post={quoteTarget} /> : <Tabs
                       value={postMode}
                       onValueChange={(value) =>
                         setPostMode(value as "post" | "survey")
@@ -1243,7 +1302,7 @@ export default function ForumPage({
                         <TabsTrigger value="post">Post</TabsTrigger>
                         <TabsTrigger value="survey">Survey</TabsTrigger>
                       </TabsList>
-                    </Tabs>
+                    </Tabs>}
                     <div className="space-y-1.5">
                       <Label>Title</Label>
                       <Input
@@ -1326,7 +1385,7 @@ export default function ForumPage({
                         </Button>
                       </div>
                     )}
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    {!quoteTarget && <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label>Attach a file</Label>
                         <Input
@@ -1357,14 +1416,14 @@ export default function ForumPage({
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
+                    </div>}
                     <Button className="w-full" disabled={submitting}>
                       {submitting ? (
                         <Loader2 className="mr-2 size-4 animate-spin" />
                       ) : (
                         <Send className="mr-2 size-4" />
                       )}
-                      Publish
+                      {quoteTarget ? "Publish quote" : "Publish"}
                     </Button>
                   </form>
                 </DialogContent>
@@ -1511,6 +1570,7 @@ export default function ForumPage({
                             </h2>
                           )}
                           <MarkdownText value={post.body} />
+                          {post.quotedPostId && <QuotedPostPreview post={post.quotedPost} />}
                           {post.tags.length > 0 && (
                             <div className="flex flex-wrap gap-2">
                               {post.tags.map((tag) => (
@@ -1613,10 +1673,11 @@ export default function ForumPage({
                             </span>
                             <div className="flex items-center gap-3">
                               <span>{post.likeCount} likes</span>
+                              <span>{post.repostCount} reposts</span>
                               <span>{post.commentCount} comments</span>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 border-y sm:grid-cols-2">
+                          <div className="grid grid-cols-3 border-y">
                             <Discussion
                               compact
                               count={post.commentCount}
@@ -1631,6 +1692,37 @@ export default function ForumPage({
                                 commentCount: Math.max(0, item.commentCount + delta),
                               } : item))}
                             />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className={"rounded-none transition-colors " + (post.repostedByMe
+                                ? "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-400"
+                                : "")}
+                              disabled={repostingIds.includes(post.id)}
+                              aria-pressed={post.repostedByMe}
+                              onClick={() => toggleRepost(post)}
+                            >
+                              {repostingIds.includes(post.id)
+                                ? <Loader2 className="mr-1.5 size-4 animate-spin" />
+                                : <Repeat2 className="mr-1.5 size-4" />}
+                              <span className="hidden sm:inline">Repost</span>
+                              <span className="ml-1">{post.repostCount}</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="rounded-none transition-colors hover:bg-primary/10 hover:text-primary"
+                              onClick={() => {
+                                setQuoteTarget(post);
+                                setPostMode("post");
+                                setPostDialog(true);
+                              }}
+                            >
+                              <Quote className="mr-1.5 size-4" />
+                              <span className="hidden sm:inline">Quote</span>
+                            </Button>
                           </div>
                         </CardContent>
                         </div>
@@ -1762,6 +1854,27 @@ function validSource(value: string) {
   }
 }
 
+function QuotedPostPreview({ post }: { post: QuotedPost | ForumPost | null }) {
+  if (!post) {
+    return (
+      <div className="rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
+        Original post is unavailable.
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-md border-l-4 border-l-primary bg-muted/35 p-3 transition-colors hover:bg-muted/55">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Quote className="size-3.5 text-primary" />
+        <span className="font-semibold text-foreground">{profileHandle(post.authorName)}</span>
+        <span>{new Date(post.createdAt).toLocaleString()}</span>
+      </div>
+      {post.title && <p className="mt-1.5 line-clamp-1 text-sm font-semibold">{post.title}</p>}
+      <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">{post.body}</p>
+    </div>
+  );
+}
+
 function PostMediaPreview({ post }: { post: ForumPost }) {
   const [source, setSource] = useState<string | null>(null);
   const mimeType = post.attachmentMimeType ?? "";
@@ -1881,7 +1994,7 @@ function Discussion({
       {open && (
         <div
           className={
-            (compact ? "col-span-2 px-3 pb-3 " : "") +
+            (compact ? "col-span-full px-3 pb-3 " : "") +
             "mt-3 space-y-3 border-t pt-3"
           }
         >

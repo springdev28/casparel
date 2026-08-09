@@ -260,6 +260,13 @@
       "when": 1788854400000,
       "tag": "0036_shareable_study_activities",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788940800000,
+      "tag": "0037_forum_reposts_and_quotes",
+      "breakpoints": true
     }
   ]
 }

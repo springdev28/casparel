@@ -100,6 +100,7 @@ export const forumPostsTable = pgTable("forum_posts", {
     .$type<Array<{ id: string; text: string }>>()
     .notNull()
     .default([]),
+  quotedPostId: integer("quoted_post_id"),
   attachmentMaterialId: integer("attachment_material_id").references(
     () => forumMaterialsTable.id,
     { onDelete: "set null" },
@@ -121,7 +122,31 @@ export const forumPostsTable = pgTable("forum_posts", {
     .defaultNow(),
 }, (table) => [
   index("forum_posts_class_id_idx").on(table.classId),
+  index("forum_posts_quoted_post_id_idx").on(table.quotedPostId),
 ]);
+
+export const forumPostRepostsTable = pgTable(
+  "forum_post_reposts",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => forumPostsTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("forum_post_reposts_user_post_unique").on(
+      table.userId,
+      table.postId,
+    ),
+    index("forum_post_reposts_post_id_idx").on(table.postId),
+  ],
+);
 
 export const forumCommentsTable = pgTable("forum_comments", {
   id: serial("id").primaryKey(),
