@@ -143,12 +143,12 @@ export default function MessagesPage() {
     <div className="mx-auto flex h-[calc(100dvh-4rem)] max-w-7xl flex-col p-3 sm:p-5">
       <header className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-2xl font-bold">Messages</h1><p className="text-sm text-muted-foreground">Private conversations and message requests</p></div>
-        <label className="flex items-center gap-2 border bg-background px-3 py-2 text-sm" style={{ borderRadius: 8 }}>
+        <label className="flex items-center gap-2 border bg-card px-3 py-2 text-sm text-card-foreground" style={{ borderRadius: 8 }}>
           <Switch checked={preferences.data?.allowMessageRequests ?? true} onCheckedChange={(checked) => updatePreferences.mutate({ allowMessageRequests: checked })} />
           Allow requests from new people
         </label>
       </header>
-      <div className="grid min-h-0 flex-1 overflow-hidden border bg-background md:grid-cols-[19rem_1fr]" style={{ borderRadius: 8 }}>
+      <div className="grid min-h-0 flex-1 overflow-hidden border bg-card text-card-foreground md:grid-cols-[19rem_1fr]" style={{ borderRadius: 8 }}>
         <aside className={(active ? "hidden md:block " : "") + "overflow-y-auto border-r"}>
           {loading ? <div className="p-6 text-center"><Loader2 className="mx-auto size-5 animate-spin" /></div> : conversations.map((conversation) => (
             <button key={conversation.id} onClick={() => void openConversation(conversation)} className={(active?.id === conversation.id ? "bg-muted " : "") + "flex w-full gap-3 border-b p-3 text-left hover:bg-muted/60"}>
