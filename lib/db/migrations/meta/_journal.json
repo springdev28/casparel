@@ -253,6 +253,13 @@
       "when": 1788768000000,
       "tag": "0035_private_messaging",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788854400000,
+      "tag": "0036_shareable_study_activities",
+      "breakpoints": true
     }
   ]
 }
