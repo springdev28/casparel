@@ -50,6 +50,7 @@ import {
   UserRole,
   RoleSwitchInputRole,
   useGetRecentActivity,
+  getGetRecentActivityQueryKey,
   useGetMyUsage,
   getGetMyUsageQueryKey,
   getListLearningGoalsQueryKey,
@@ -184,7 +185,10 @@ export default function AppShell({ children }: AppShellProps) {
   const { data: accountPreferences } = useUserPreferences(Boolean(me));
   const updateAccountPreferences = useUpdateUserPreferences();
   const { data: notifications } = useGetRecentActivity({
-    query: { enabled: Boolean(me) && secondaryDataReady },
+    query: {
+      enabled: Boolean(me) && secondaryDataReady,
+      queryKey: getGetRecentActivityQueryKey(),
+    },
   });
   const [classInvitations, setClassInvitations] = useState<ClassInvitation[]>([]);
   const { data: accountUsage } = useGetMyUsage({
