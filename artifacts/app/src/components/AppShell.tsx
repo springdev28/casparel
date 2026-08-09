@@ -501,7 +501,7 @@ export default function AppShell({ children }: AppShellProps) {
     <>
       <div className="flex h-[100dvh] w-full overflow-hidden">
         {/* Sidebar */}
-        <aside className="hidden h-[100dvh] w-56 shrink-0 flex-col overflow-y-auto bg-primary text-primary-foreground md:flex">
+        <aside className="hidden h-[100dvh] w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto bg-primary text-primary-foreground md:flex">
           {/* Logo */}
           <div className="flex items-center gap-2 px-5 py-5 border-b border-primary-foreground/20">
             <BrandIcon
@@ -601,9 +601,9 @@ export default function AppShell({ children }: AppShellProps) {
 
             {me ? (
               <div className="rounded-lg border border-primary-foreground/20 bg-primary-foreground/10 p-3" data-testid="sidebar-plan-usage">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-xs font-semibold"><Gauge size={13} /> Current plan</span>
-                  <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-semibold">{accountUsage?.plan ?? (isAdmin ? "Administrator" : "Free")}</span>
+                <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+                  <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-semibold"><Gauge size={13} /> Current plan</span>
+                  <span className="min-w-0 truncate rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-semibold">{accountUsage?.plan ?? (isAdmin ? "Administrator" : "Free")}</span>
                 </div>
                 <div className="space-y-2 text-[11px] text-primary-foreground/75">
                   <div>
