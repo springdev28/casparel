@@ -15,9 +15,10 @@ import {
 } from "@workspace/api-client-react";
 
 import { applyLastSavedColors } from "./components/ThemeCustomizer";
-import UiTranslationBridge from "./components/UiTranslationBridge";
+import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
 
 const AppShell = lazy(() => import("./components/AppShell"));
+const UiTranslationBridge = lazy(() => import("./components/UiTranslationBridge"));
 const PublicShell = lazy(() => import("./components/PublicShell"));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
@@ -41,6 +42,7 @@ const CanvasesPage = lazy(() => import("./pages/CanvasesPage"));
 const CanvasPage = lazy(() => import("./pages/CanvasPage"));
 
 const TOKEN_KEY = "schoolar_token";
+const LANGUAGE_EVENT = "schoolar-language-change";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +77,25 @@ type AccountAccess = {
 function apiUrl(path: string) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   return base + "/api" + path;
+}
+
+function UiTranslationRuntime() {
+  const [enabled, setEnabled] = useState(() => getInitialLanguage() === "tr");
+
+  useEffect(() => {
+    const handleLanguage = (event: Event) => {
+      setEnabled((event as CustomEvent<AuthLanguage>).detail === "tr");
+    };
+    document.addEventListener(LANGUAGE_EVENT, handleLanguage);
+    return () => document.removeEventListener(LANGUAGE_EVENT, handleLanguage);
+  }, []);
+
+  if (!enabled) return null;
+  return (
+    <Suspense fallback={null}>
+      <UiTranslationBridge />
+    </Suspense>
+  );
 }
 
 function BannedAccountPage({ access }: { access: AccountAccess }) {
@@ -323,7 +344,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <UiTranslationBridge />
+      <UiTranslationRuntime />
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Suspense fallback={<main className="flex min-h-[100dvh] items-center justify-center bg-background"><Loader2 className="size-6 animate-spin text-primary" /></main>}>

@@ -692,21 +692,30 @@ function translateSubtree(root: Node, language: AuthLanguage) {
 export default function UiTranslationBridge() {
   useEffect(() => {
     let language = currentLanguage();
+    let frame = 0;
+    const pendingNodes = new Set<Node>();
     const apply = () => {
       if (document.body) translateSubtree(document.body, language);
       document.documentElement.lang = language;
+    };
+    const flush = () => {
+      frame = 0;
+      for (const node of pendingNodes) {
+        if (node.isConnected) translateSubtree(node, language);
+      }
+      pendingNodes.clear();
+    };
+    const schedule = (node: Node) => {
+      pendingNodes.add(node);
+      if (!frame) frame = window.requestAnimationFrame(flush);
     };
     apply();
 
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
-        if (mutation.type === "characterData") {
-          translateText(mutation.target as Text, language);
-        } else if (mutation.type === "attributes") {
-          translateAttributes(mutation.target as Element, language);
-        } else {
-          mutation.addedNodes.forEach((node) => translateSubtree(node, language));
-        }
+        if (mutation.type === "characterData" || mutation.type === "attributes")
+          schedule(mutation.target);
+        else mutation.addedNodes.forEach(schedule);
       }
     });
     observer.observe(document.body, {
@@ -724,6 +733,8 @@ export default function UiTranslationBridge() {
     document.addEventListener(LANGUAGE_EVENT, handleLanguage);
     return () => {
       observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
+      pendingNodes.clear();
       document.removeEventListener(LANGUAGE_EVENT, handleLanguage);
     };
   }, []);

@@ -136,6 +136,8 @@ function ActivityImage({ card, className = "" }: { card: ActivityCard; className
     <img
       src={card.imageData}
       alt={card.imageAlt || card.term}
+      loading="lazy"
+      decoding="async"
       className={cn("max-w-full rounded-md object-contain", className)}
     />
   );

@@ -8,6 +8,7 @@ import { Switch } from "@workspace/edu-ds/components/ui/switch";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { Check, Loader2, MessageCircle, Send, ShieldCheck, X } from "lucide-react";
 import { useUpdateUserPreferences, useUserPreferences } from "../lib/user-preferences";
+import { useDocumentVisibility } from "../lib/use-document-visibility";
 
 type Message = {
   id: number;
@@ -60,6 +61,7 @@ export default function MessagesPage() {
   const [active, setActive] = useState<ConversationDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const documentVisible = useDocumentVisibility();
 
   async function loadConversations(silent = false) {
     if (!silent) setLoading(true);
@@ -102,9 +104,17 @@ export default function MessagesPage() {
       }
       if (selected) await openConversation(selected);
     }).catch((error) => toast({ title: "Could not load messages", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }));
-    const interval = window.setInterval(() => void loadConversations(true).catch(() => undefined), 10_000);
-    return () => { activeEffect = false; window.clearInterval(interval); };
+    return () => { activeEffect = false; };
   }, [targetUserId]);
+
+  useEffect(() => {
+    if (!documentVisible) return;
+    const interval = window.setInterval(
+      () => void loadConversations(true).catch(() => undefined),
+      10_000,
+    );
+    return () => window.clearInterval(interval);
+  }, [documentVisible, targetUserId]);
 
   async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -86,6 +86,7 @@ import {
   useUserPreferences,
   type UserPreferencesPatch,
 } from "../lib/user-preferences";
+import { useDocumentVisibility } from "../lib/use-document-visibility";
 
 const TOKEN_KEY = "schoolar_token";
 const VantaBackground = lazy(() => import("./VantaBackground"));
@@ -179,6 +180,7 @@ export default function AppShell({ children }: AppShellProps) {
     window.matchMedia("(min-width: 768px)").matches,
   );
   const [secondaryDataReady, setSecondaryDataReady] = useState(false);
+  const documentVisible = useDocumentVisibility();
   const queryClient = useQueryClient();
   const { data: me, isLoading: meLoading } = useGetMe();
   const { language, setLanguage, copy } = useAuthLanguage();
@@ -247,7 +249,7 @@ export default function AppShell({ children }: AppShellProps) {
     (item) => !readNotificationIds.includes(item.id),
   );
   useEffect(() => {
-    if (!me || !secondaryDataReady) {
+    if (!me || !secondaryDataReady || !documentVisible) {
       setClassInvitations([]);
       return;
     }
@@ -264,7 +266,7 @@ export default function AppShell({ children }: AppShellProps) {
       active = false;
       window.clearInterval(interval);
     };
-  }, [me?.id, secondaryDataReady]);
+  }, [documentVisible, me?.id, secondaryDataReady]);
   async function respondToClassInvitation(
     invitation: ClassInvitation,
     action: "accept" | "decline",

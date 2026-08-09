@@ -527,6 +527,7 @@ function LibraryCard({
             alt={resource.title}
             className="w-full h-full object-cover"
             loading="lazy"
+            decoding="async"
             onError={() => setFailedThumb(thumb)}
           />
         </div>
@@ -887,6 +888,7 @@ function WebCard({
             alt={resource.title}
             className="w-full h-full object-cover"
             loading="lazy"
+            decoding="async"
             onError={() => setFailedThumb(thumb)}
           />
         </div>

@@ -1944,7 +1944,7 @@ function PostMediaPreview({ post }: { post: ForumPost }) {
   if (mimeType.startsWith("video/")) {
     return <video src={source} controls preload="metadata" className="max-h-[32rem] w-full rounded-md bg-black object-contain" />;
   }
-  return <img src={source} alt={post.attachmentFileName ?? "Post attachment"} className="max-h-[32rem] w-full rounded-md bg-muted object-contain" />;
+  return <img src={source} alt={post.attachmentFileName ?? "Post attachment"} loading="lazy" decoding="async" className="max-h-[32rem] w-full rounded-md bg-muted object-contain" />;
 }
 
 function Discussion({

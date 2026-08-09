@@ -33,6 +33,7 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useDocumentVisibility } from "../lib/use-document-visibility";
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -380,6 +381,7 @@ function saveLabel(status: "saved" | "saving" | "unsaved" | "conflict") {
 }
 
 export default function CanvasPage({ shared = false }: { shared?: boolean }) {
+  const documentVisible = useDocumentVisibility();
   const params = useParams<{ id?: string; token?: string }>();
   const routeSearch = useSearch();
   const [, setLocation] = useLocation();
@@ -524,7 +526,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   }, [canEdit, canvas, edges, nodes, saveNow, viewport]);
 
   useEffect(() => {
-    if (shared || !canvas) return;
+    if (shared || !canvas || !documentVisible) return;
     const interval = window.setInterval(() => {
       if (savingRef.current || status === "unsaved") return;
       void canvasRequest<SchoolarCanvas>(`/canvases/${canvas.id}`).then((remote) => {
@@ -532,7 +534,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
       }).catch(() => undefined);
     }, 5_000);
     return () => window.clearInterval(interval);
-  }, [applyCanvas, canvas, shared, status]);
+  }, [applyCanvas, canvas, documentVisible, shared, status]);
 
   const updateNode = useCallback((id: string, changes: Partial<StudyNodeData>) => {
     setNodes((current) => current.map((node) => node.id === id ? { ...node, data: { ...node.data, ...changes } } : node));

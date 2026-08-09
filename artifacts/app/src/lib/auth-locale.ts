@@ -210,7 +210,7 @@ function browserLanguage(): AuthLanguage {
   return "en";
 }
 
-function initialLanguage(): AuthLanguage {
+export function getInitialLanguage(): AuthLanguage {
   let saved: string | null = null;
   try {
     saved = localStorage.getItem(AUTH_LANGUAGE_KEY);
@@ -223,7 +223,7 @@ function initialLanguage(): AuthLanguage {
 }
 
 export function useAuthLanguage() {
-  const [language, setLanguageState] = useState<AuthLanguage>(initialLanguage);
+  const [language, setLanguageState] = useState<AuthLanguage>(getInitialLanguage);
 
   useEffect(() => {
     document.documentElement.lang = language;
