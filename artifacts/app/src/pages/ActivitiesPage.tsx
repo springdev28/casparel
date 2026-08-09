@@ -11,6 +11,7 @@ import {
   LibraryBig,
   ListChecks,
   ImagePlus,
+  Minus,
   Pencil,
   Plus,
   RotateCcw,
@@ -91,6 +92,9 @@ type MatchItem = {
 const TOKEN_KEY = "schoolar_token";
 const MAX_ACTIVITY_IMAGES = 6;
 const MAX_CARD_IMAGE_BYTES = 135 * 1024;
+const MIN_QUIZ_CHOICES = 2;
+const DEFAULT_QUIZ_CHOICES = 4;
+const MAX_QUIZ_CHOICES = 6;
 
 function dataUrlBytes(value: string) {
   const encoded = value.split(",", 2)[1] ?? "";
@@ -211,7 +215,7 @@ function emptyCard(mode: ActivityMode = "flashcards"): ActivityCard {
         id: crypto.randomUUID(),
         term: "",
         answer: "",
-        choices: ["", "", "", ""],
+        choices: Array.from({ length: DEFAULT_QUIZ_CHOICES }, () => ""),
         correctChoiceIndex: 0,
       }
     : { id: crypto.randomUUID(), term: "", answer: "" };
@@ -219,14 +223,26 @@ function emptyCard(mode: ActivityMode = "flashcards"): ActivityCard {
 
 function quizEditorCard(card: ActivityCard): ActivityCard {
   if (card.choices && card.choices.length >= 2) {
-    const correctChoiceIndex = Number.isInteger(card.correctChoiceIndex)
+    const choices = card.choices.slice(0, MAX_QUIZ_CHOICES);
+    const savedCorrectChoiceIndex = Number.isInteger(card.correctChoiceIndex)
       ? card.correctChoiceIndex!
-      : Math.max(0, card.choices.indexOf(card.answer));
-    return { ...card, choices: [...card.choices], correctChoiceIndex };
+      : choices.indexOf(card.answer);
+    const correctChoiceIndex = savedCorrectChoiceIndex >= 0 && savedCorrectChoiceIndex < choices.length
+      ? savedCorrectChoiceIndex
+      : 0;
+    return {
+      ...card,
+      choices,
+      correctChoiceIndex,
+      answer: choices[correctChoiceIndex] ?? "",
+    };
   }
   return {
     ...card,
-    choices: [card.answer, "", "", ""],
+    choices: [
+      card.answer,
+      ...Array.from({ length: DEFAULT_QUIZ_CHOICES - 1 }, () => ""),
+    ],
     correctChoiceIndex: 0,
   };
 }
@@ -465,12 +481,37 @@ export default function ActivitiesPage({
   function updateQuizChoice(cardId: string, choiceIndex: number, value: string) {
     setFormCards((cards) => cards.map((card) => {
       if (card.id !== cardId) return card;
-      const choices = [...(card.choices ?? ["", "", "", ""] )];
+      const choices = [...(card.choices ?? Array.from({ length: DEFAULT_QUIZ_CHOICES }, () => ""))];
       choices[choiceIndex] = value;
       return {
         ...card,
         choices,
         answer: card.correctChoiceIndex === choiceIndex ? value : card.answer,
+      };
+    }));
+  }
+
+  function setQuizChoiceCount(cardId: string, requestedCount: number) {
+    const nextCount = Math.min(
+      MAX_QUIZ_CHOICES,
+      Math.max(MIN_QUIZ_CHOICES, requestedCount),
+    );
+    setFormCards((cards) => cards.map((card) => {
+      if (card.id !== cardId) return card;
+      const choices = [...(card.choices ?? [])];
+      while (choices.length < nextCount) choices.push("");
+      choices.length = nextCount;
+      const savedCorrectChoiceIndex = Number.isInteger(card.correctChoiceIndex)
+        ? card.correctChoiceIndex!
+        : choices.indexOf(card.answer);
+      const correctChoiceIndex = savedCorrectChoiceIndex >= 0 && savedCorrectChoiceIndex < nextCount
+        ? savedCorrectChoiceIndex
+        : 0;
+      return {
+        ...card,
+        choices,
+        correctChoiceIndex,
+        answer: choices[correctChoiceIndex] ?? "",
       };
     }));
   }
@@ -534,6 +575,27 @@ export default function ActivitiesPage({
         variant: "destructive",
       });
       return;
+    }
+    if (formMode === "quiz") {
+      const invalidQuestion = completeCards.find((card) => {
+        const choices = card.choices ?? [];
+        const normalizedChoices = choices.map((choice) => choice.trim().toLocaleLowerCase());
+        return choices.length < MIN_QUIZ_CHOICES ||
+          choices.length > MAX_QUIZ_CHOICES ||
+          normalizedChoices.some((choice) => !choice) ||
+          new Set(normalizedChoices).size !== normalizedChoices.length ||
+          !Number.isInteger(card.correctChoiceIndex) ||
+          card.correctChoiceIndex! < 0 ||
+          card.correctChoiceIndex! >= choices.length;
+      });
+      if (invalidQuestion) {
+        toast({
+          title: "Check the quiz choices",
+          description: "Each question needs 2-6 filled, unique choices and one correct answer.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -1549,7 +1611,43 @@ export default function ActivitiesPage({
                     />
                     {formMode === "quiz" ? (
                       <div className="space-y-2 sm:col-span-2">
-                        {(card.choices ?? ["", "", "", ""]).map((choice, choiceIndex) => (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium">Choices</span>
+                          <div className="flex h-9 items-center rounded-md border bg-background">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="size-8 rounded-r-none"
+                              disabled={(card.choices?.length ?? DEFAULT_QUIZ_CHOICES) <= MIN_QUIZ_CHOICES}
+                              onClick={() => setQuizChoiceCount(card.id, (card.choices?.length ?? DEFAULT_QUIZ_CHOICES) - 1)}
+                              aria-label={`Remove one choice from question ${index + 1}`}
+                              title="Fewer choices"
+                            >
+                              <Minus className="size-4" />
+                            </Button>
+                            <span
+                              className="w-9 text-center text-sm font-semibold tabular-nums"
+                              aria-live="polite"
+                              aria-label={`${card.choices?.length ?? DEFAULT_QUIZ_CHOICES} choices`}
+                            >
+                              {card.choices?.length ?? DEFAULT_QUIZ_CHOICES}
+                            </span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="size-8 rounded-l-none"
+                              disabled={(card.choices?.length ?? DEFAULT_QUIZ_CHOICES) >= MAX_QUIZ_CHOICES}
+                              onClick={() => setQuizChoiceCount(card.id, (card.choices?.length ?? DEFAULT_QUIZ_CHOICES) + 1)}
+                              aria-label={`Add one choice to question ${index + 1}`}
+                              title="More choices"
+                            >
+                              <Plus className="size-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        {(card.choices ?? Array.from({ length: DEFAULT_QUIZ_CHOICES }, () => "")).map((choice, choiceIndex) => (
                           <div key={choiceIndex} className="flex items-center gap-2">
                             <Button
                               type="button"
