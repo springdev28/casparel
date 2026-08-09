@@ -499,9 +499,9 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <>
-      <div className="flex h-[100dvh] w-full overflow-hidden">
+      <div className="flex h-[100dvh] w-full overflow-hidden bg-primary">
         {/* Sidebar */}
-        <aside className="hidden h-[100dvh] w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto bg-primary text-primary-foreground md:flex">
+        <aside className="sidebar-scrollbar-hidden hidden h-[100dvh] w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex">
           {/* Logo */}
           <div className="flex items-center gap-2 px-5 py-5 border-b border-primary-foreground/20">
             <BrandIcon

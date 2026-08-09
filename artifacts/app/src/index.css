@@ -26,9 +26,19 @@
   color: hsl(var(--foreground));
 }
 
+.sidebar-scrollbar-hidden {
+  scrollbar-width: none;
+}
+
+.sidebar-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .vanta-background {
   position: fixed;
-  inset: 0 0 0 14rem;
+  inset: 0 0 0 16rem;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
