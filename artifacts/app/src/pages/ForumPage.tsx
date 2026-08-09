@@ -1533,7 +1533,7 @@ export default function ForumPage({
                     return (
                       <Card
                         key={post.id}
-                        className="rounded-none border-x-0 border-t-0 shadow-none last:border-b-0"
+                        className="render-later rounded-none border-x-0 border-t-0 shadow-none last:border-b-0"
                         data-testid="forum-post"
                       >
                         <div className="grid grid-cols-[3.25rem_1fr]">

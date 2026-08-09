@@ -6,31 +6,37 @@ import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@workspace/edu-ds/components/ui/card";
 import { Ban, Loader2, Mail, Trash2 } from "lucide-react";
 import { Route, Switch, Router as WouterRouter, Redirect } from "wouter";
-import { setAuthTokenGetter, useGetMe, UserRole } from "@workspace/api-client-react";
+import {
+  getGetMeQueryKey,
+  getMe,
+  setAuthTokenGetter,
+  useGetMe,
+  UserRole,
+} from "@workspace/api-client-react";
 
 import { applyLastSavedColors } from "./components/ThemeCustomizer";
-import LoginPage from "./pages/auth/LoginPage";
-import RegisterPage from "./pages/auth/RegisterPage";
-import DashboardPage from "./pages/AdaptiveDashboardPage";
-import ResourcesPage from "./pages/ResourcesPage";
-import ResourceDetailPage from "./pages/ResourceDetailPage";
-import ClassesPage from "./pages/ClassesPage";
-import ClassDetailPage from "./pages/ClassDetailPage";
-import ListsPage from "./pages/ListsPage";
-import ListDetailPage from "./pages/ListDetailPage";
-import SchedulePage from "./pages/SchedulePage";
-import ProfilePage from "./pages/ProfilePage";
-import UserProfilePage from "./pages/UserProfilePage";
-import PeoplePage from "./pages/PeoplePage";
-import GoalsPage from "./pages/GoalsPage";
-import AdminPage from "./pages/AdminPage";
-import ForumPage from "./pages/ForumPage";
-import ActivitiesPage from "./pages/ActivitiesPage";
-import MessagesPage from "./pages/MessagesPage";
-import AppShell from "./components/AppShell";
-import PublicShell from "./components/PublicShell";
 import UiTranslationBridge from "./components/UiTranslationBridge";
 
+const AppShell = lazy(() => import("./components/AppShell"));
+const PublicShell = lazy(() => import("./components/PublicShell"));
+const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
+const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
+const DashboardPage = lazy(() => import("./pages/AdaptiveDashboardPage"));
+const ResourcesPage = lazy(() => import("./pages/ResourcesPage"));
+const ResourceDetailPage = lazy(() => import("./pages/ResourceDetailPage"));
+const ClassesPage = lazy(() => import("./pages/ClassesPage"));
+const ClassDetailPage = lazy(() => import("./pages/ClassDetailPage"));
+const ListsPage = lazy(() => import("./pages/ListsPage"));
+const ListDetailPage = lazy(() => import("./pages/ListDetailPage"));
+const SchedulePage = lazy(() => import("./pages/SchedulePage"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const UserProfilePage = lazy(() => import("./pages/UserProfilePage"));
+const PeoplePage = lazy(() => import("./pages/PeoplePage"));
+const GoalsPage = lazy(() => import("./pages/GoalsPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const ForumPage = lazy(() => import("./pages/ForumPage"));
+const ActivitiesPage = lazy(() => import("./pages/ActivitiesPage"));
+const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 const CanvasesPage = lazy(() => import("./pages/CanvasesPage"));
 const CanvasPage = lazy(() => import("./pages/CanvasPage"));
 
@@ -137,6 +143,11 @@ function AccountAccessGate({ children }: { children: ReactNode }) {
       return;
     }
     const controller = new AbortController();
+    void queryClient.prefetchQuery({
+      queryKey: getGetMeQueryKey(),
+      queryFn: () => getMe(),
+      staleTime: 30_000,
+    }).catch(() => undefined);
     void fetch(apiUrl("/users/me/access"), {
       headers: { Authorization: "Bearer " + token },
       signal: controller.signal,

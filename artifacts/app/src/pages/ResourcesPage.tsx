@@ -516,7 +516,7 @@ function LibraryCard({
   const showImg = !!thumb && thumb !== failedThumb;
   return (
     <Card
-      className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden"
+      className="render-later cursor-pointer overflow-hidden transition-shadow hover:shadow-md"
       onClick={onClick}
       data-testid="resource-card"
     >
@@ -879,7 +879,7 @@ function WebCard({
     : (oembedThumb ?? resource.thumbnailUrl ?? null);
   const showImg = !!thumb && thumb !== failedThumb;
   return (
-    <Card className="flex flex-col overflow-hidden">
+    <Card className="render-later flex flex-col overflow-hidden">
       {showImg && (
         <div className="w-full h-36 overflow-hidden bg-black shrink-0">
           <img
@@ -981,7 +981,7 @@ function SourceCard({
     resource.url,
   );
   return (
-    <Card className="flex h-full flex-col border-primary/15 bg-gradient-to-br from-card to-primary/5">
+    <Card className="render-later flex h-full flex-col border-primary/15 bg-gradient-to-br from-card to-primary/5">
       <CardHeader className="pb-3">
         <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
           {isChannel ? <Video size={22} /> : <Globe size={22} />}

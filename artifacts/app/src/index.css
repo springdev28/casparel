@@ -36,6 +36,19 @@
   height: 0;
 }
 
+.render-later {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+@media (pointer: coarse) {
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
 .vanta-background {
   position: fixed;
   inset: 0 0 0 16rem;
@@ -47,6 +60,17 @@
 .vanta-background canvas { display: block; }
 @media (max-width: 767px) {
   .vanta-background { inset: 0; }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  .ambient-copy-contrast {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
 }
 .vanta-background--topology canvas {
   animation: topology-canvas-drift var(--vanta-duration, 24s) ease-in-out infinite alternate;
