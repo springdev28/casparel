@@ -352,11 +352,13 @@ export type AdminOverviewWorkflowFunnel = {
   saved: number;
   activityCreated: number;
   classShared: number;
+  assignmentCreated: number;
   completedJourneys: number;
   viewToReviewRate: number;
   reviewToSaveRate: number;
   saveToActivityRate: number;
   activityToClassRate: number;
+  classToAssignmentRate: number;
 };
 
 export type AdminOverviewWorkflowEngagement = {

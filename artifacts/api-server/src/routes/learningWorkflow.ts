@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import {
   assignmentCompletionsTable,
   classAssignmentsTable,
@@ -33,11 +33,15 @@ function createJoinCode() {
   return randomBytes(4).toString("hex").toUpperCase();
 }
 
+function assignmentRequiredForRole(userRole: string, accountRole: string) {
+  return userRole === "teacher" || accountRole === "admin";
+}
+
 router.get(
   "/workflow/resources/:id",
   requireAuth,
   async (req, res): Promise<void> => {
-    const { userId } = req as AuthenticatedRequest;
+    const { userId, userRole, accountRole } = req as AuthenticatedRequest;
     const resourceId = parseId(req.params.id);
     if (!resourceId) {
       res.status(400).json({ error: "Invalid resource" });
@@ -67,6 +71,8 @@ router.get(
           activityTitle: studyActivitiesTable.title,
           classId: workflowEventsTable.classId,
           className: classesTable.name,
+          assignmentId: workflowEventsTable.assignmentId,
+          assignmentTitle: classAssignmentsTable.title,
           createdAt: workflowEventsTable.createdAt,
         })
         .from(workflowEventsTable)
@@ -75,6 +81,10 @@ router.get(
           eq(studyActivitiesTable.id, workflowEventsTable.activityId),
         )
         .leftJoin(classesTable, eq(classesTable.id, workflowEventsTable.classId))
+        .leftJoin(
+          classAssignmentsTable,
+          eq(classAssignmentsTable.id, workflowEventsTable.assignmentId),
+        )
         .where(
           and(
             eq(workflowEventsTable.userId, userId),
@@ -109,6 +119,12 @@ router.get(
     const classShare = events.find(
       (item) => item.event === "class_shared" && item.classId,
     );
+    const assignment = events.find(
+      (item) =>
+        item.event === "assignment_created" &&
+        item.assignmentId &&
+        item.assignmentTitle,
+    );
 
     if (savedRows.length && !events.some((item) => item.event === "resource_saved")) {
       await recordWorkflowEvent({
@@ -124,20 +140,169 @@ router.get(
       saved,
       activityCreated: Boolean(activity),
       classShared: Boolean(classShare),
+      assignmentCreated: Boolean(assignment),
     };
-    const nextAction = nextResourceWorkflowAction(steps);
+    const assignmentRequired = assignmentRequiredForRole(userRole, accountRole);
+    const nextAction = nextResourceWorkflowAction(steps, assignmentRequired);
 
     res.json({
       resourceId,
       steps,
       nextAction,
+      assignmentRequired,
       activity: activity
         ? { id: activity.activityId, title: activity.activityTitle }
         : null,
       classShare: classShare
         ? { id: classShare.classId, name: classShare.className }
         : null,
+      assignment: assignment
+        ? { id: assignment.assignmentId, title: assignment.assignmentTitle }
+        : null,
     });
+  },
+);
+
+router.get(
+  "/workflow/continue",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole, accountRole } = req as AuthenticatedRequest;
+    const assignmentRequired = assignmentRequiredForRole(userRole, accountRole);
+    const rows = await db
+      .select({
+        event: workflowEventsTable.event,
+        resourceId: workflowEventsTable.resourceId,
+        resourceTitle: resourcesTable.title,
+        resourceSubject: resourcesTable.subject,
+        resourceFormat: resourcesTable.format,
+        activityId: workflowEventsTable.activityId,
+        activityTitle: studyActivitiesTable.title,
+        classId: workflowEventsTable.classId,
+        className: classesTable.name,
+        assignmentId: workflowEventsTable.assignmentId,
+        assignmentTitle: classAssignmentsTable.title,
+        createdAt: workflowEventsTable.createdAt,
+      })
+      .from(workflowEventsTable)
+      .innerJoin(resourcesTable, eq(resourcesTable.id, workflowEventsTable.resourceId))
+      .leftJoin(
+        studyActivitiesTable,
+        eq(studyActivitiesTable.id, workflowEventsTable.activityId),
+      )
+      .leftJoin(classesTable, eq(classesTable.id, workflowEventsTable.classId))
+      .leftJoin(
+        classAssignmentsTable,
+        eq(classAssignmentsTable.id, workflowEventsTable.assignmentId),
+      )
+      .where(
+        and(
+          eq(workflowEventsTable.userId, userId),
+          isNotNull(workflowEventsTable.resourceId),
+        ),
+      )
+      .orderBy(desc(workflowEventsTable.createdAt))
+      .limit(300);
+
+    type Journey = {
+      resourceId: number;
+      resourceTitle: string;
+      resourceSubject: string;
+      resourceFormat: string;
+      lastEventAt: string;
+      events: Set<(typeof rows)[number]["event"]>;
+      activity: { id: number; title: string } | null;
+      classShare: { id: number; name: string | null } | null;
+      assignment: { id: number; title: string } | null;
+    };
+    const journeys = new Map<number, Journey>();
+    for (const row of rows) {
+      if (!row.resourceId) continue;
+      let journey = journeys.get(row.resourceId);
+      if (!journey) {
+        journey = {
+          resourceId: row.resourceId,
+          resourceTitle: row.resourceTitle,
+          resourceSubject: row.resourceSubject,
+          resourceFormat: row.resourceFormat,
+          lastEventAt: row.createdAt,
+          events: new Set(),
+          activity: null,
+          classShare: null,
+          assignment: null,
+        };
+        journeys.set(row.resourceId, journey);
+      }
+      journey.events.add(row.event);
+      if (
+        !journey.activity &&
+        ["activity_created", "activity_remixed"].includes(row.event) &&
+        row.activityId &&
+        row.activityTitle
+      ) {
+        journey.activity = { id: row.activityId, title: row.activityTitle };
+      }
+      if (
+        !journey.classShare &&
+        row.event === "class_shared" &&
+        row.classId
+      ) {
+        journey.classShare = { id: row.classId, name: row.className };
+      }
+      if (
+        !journey.assignment &&
+        row.event === "assignment_created" &&
+        row.assignmentId &&
+        row.assignmentTitle
+      ) {
+        journey.assignment = {
+          id: row.assignmentId,
+          title: row.assignmentTitle,
+        };
+      }
+    }
+
+    const result = Array.from(journeys.values())
+      .map((journey) => {
+        const steps = {
+          reviewed: journey.events.has("resource_reviewed"),
+          saved: journey.events.has("resource_saved"),
+          activityCreated:
+            journey.events.has("activity_created") ||
+            journey.events.has("activity_remixed"),
+          classShared: journey.events.has("class_shared"),
+          assignmentCreated: journey.events.has("assignment_created"),
+        };
+        const nextAction = nextResourceWorkflowAction(
+          steps,
+          assignmentRequired,
+        );
+        const completedSteps = [
+          steps.reviewed,
+          steps.saved,
+          steps.activityCreated,
+          steps.classShared,
+          ...(assignmentRequired ? [steps.assignmentCreated] : []),
+        ].filter(Boolean).length;
+        return {
+          resourceId: journey.resourceId,
+          title: journey.resourceTitle,
+          subject: journey.resourceSubject,
+          format: journey.resourceFormat,
+          lastEventAt: journey.lastEventAt,
+          steps,
+          nextAction,
+          completedSteps,
+          totalSteps: assignmentRequired ? 5 : 4,
+          activity: journey.activity,
+          classShare: journey.classShare,
+          assignment: journey.assignment,
+        };
+      })
+      .filter((journey) => journey.nextAction !== "complete")
+      .slice(0, 6);
+
+    res.json(result);
   },
 );
 

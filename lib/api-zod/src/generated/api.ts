@@ -444,11 +444,13 @@ export const GetAdminOverviewResponse = zod.object({
   "saved": zod.int(),
   "activityCreated": zod.int(),
   "classShared": zod.int(),
+  "assignmentCreated": zod.int(),
   "completedJourneys": zod.int(),
   "viewToReviewRate": zod.number(),
   "reviewToSaveRate": zod.number(),
   "saveToActivityRate": zod.number(),
-  "activityToClassRate": zod.number()
+  "activityToClassRate": zod.number(),
+  "classToAssignmentRate": zod.number()
 }),
   "engagement": zod.object({
   "activeUsers7d": zod.int(),

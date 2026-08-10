@@ -2307,11 +2307,13 @@ components:
                   saved,
                   activityCreated,
                   classShared,
+                  assignmentCreated,
                   completedJourneys,
                   viewToReviewRate,
                   reviewToSaveRate,
                   saveToActivityRate,
                   activityToClassRate,
+                  classToAssignmentRate,
                 ]
               properties:
                 viewed: { type: integer }
@@ -2319,11 +2321,13 @@ components:
                 saved: { type: integer }
                 activityCreated: { type: integer }
                 classShared: { type: integer }
+                assignmentCreated: { type: integer }
                 completedJourneys: { type: integer }
                 viewToReviewRate: { type: number }
                 reviewToSaveRate: { type: number }
                 saveToActivityRate: { type: number }
                 activityToClassRate: { type: number }
+                classToAssignmentRate: { type: number }
             engagement:
               type: object
               required:

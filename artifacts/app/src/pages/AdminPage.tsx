@@ -46,6 +46,7 @@ import {
   ShieldCheck,
   Sparkles,
   Target,
+  TrendingDown,
   Users,
   Save,
   Trash2,
@@ -397,6 +398,22 @@ export default function AdminPage() {
     }
   }
 
+  const workflowStages: Array<{
+    label: string;
+    count: number;
+    conversion: number | null;
+  }> = [
+    { label: "Viewed", count: data?.workflow?.funnel.viewed ?? 0, conversion: null },
+    { label: "Verified", count: data?.workflow?.funnel.reviewed ?? 0, conversion: data?.workflow?.funnel.viewToReviewRate ?? 0 },
+    { label: "Saved", count: data?.workflow?.funnel.saved ?? 0, conversion: data?.workflow?.funnel.reviewToSaveRate ?? 0 },
+    { label: "Activity", count: data?.workflow?.funnel.activityCreated ?? 0, conversion: data?.workflow?.funnel.saveToActivityRate ?? 0 },
+    { label: "Class share", count: data?.workflow?.funnel.classShared ?? 0, conversion: data?.workflow?.funnel.activityToClassRate ?? 0 },
+    { label: "Assignment", count: data?.workflow?.funnel.assignmentCreated ?? 0, conversion: data?.workflow?.funnel.classToAssignmentRate ?? 0 },
+  ];
+  const largestDropOff = workflowStages.slice(1).reduce((lowest, stage) =>
+    (stage.conversion ?? 100) < (lowest.conversion ?? 100) ? stage : lowest,
+  );
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <div>
@@ -451,24 +468,18 @@ export default function AdminPage() {
               </p>
             </div>
             <Badge variant="secondary">
-              {data?.workflow?.funnel.completedJourneys ?? 0} complete journeys
+              {data?.workflow?.funnel.completedJourneys ?? 0} assigned journeys
             </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid overflow-hidden rounded-md border sm:grid-cols-5">
-            {[
-              ["Viewed", data?.workflow?.funnel.viewed ?? 0, null],
-              ["Verified", data?.workflow?.funnel.reviewed ?? 0, data?.workflow?.funnel.viewToReviewRate],
-              ["Saved", data?.workflow?.funnel.saved ?? 0, data?.workflow?.funnel.reviewToSaveRate],
-              ["Activity", data?.workflow?.funnel.activityCreated ?? 0, data?.workflow?.funnel.saveToActivityRate],
-              ["Class share", data?.workflow?.funnel.classShared ?? 0, data?.workflow?.funnel.activityToClassRate],
-            ].map(([label, count, conversion], index) => (
-              <div key={String(label)} className="relative border-b p-3 last:border-b-0 sm:border-b-0 sm:border-r sm:p-4 sm:last:border-r-0">
+          <div className="grid grid-cols-2 overflow-hidden rounded-md border sm:grid-cols-3 xl:grid-cols-6">
+            {workflowStages.map(({ label, count, conversion }, index) => (
+              <div key={label} className="relative border-b border-r p-3 sm:p-4 xl:border-b-0 xl:last:border-r-0">
                 <span className="absolute inset-x-0 top-0 h-0.5 bg-primary/60" />
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
-                  <span className="text-xs text-muted-foreground">{index + 1}/5</span>
+                  <span className="text-xs text-muted-foreground">{index + 1}/6</span>
                 </div>
                 <p className="mt-2 text-2xl font-bold">{count}</p>
                 {typeof conversion === "number" ? (
@@ -483,6 +494,23 @@ export default function AdminPage() {
                 ) : <p className="mt-3 text-xs text-muted-foreground">Journey starts</p>}
               </div>
             ))}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-l-amber-500 bg-amber-500/10 p-3">
+            <div className="flex min-w-0 items-start gap-2">
+              <TrendingDown className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
+              <div>
+                <p className="text-sm font-medium">Largest workflow drop-off</p>
+                <p className="text-xs text-muted-foreground">
+                  {workflowStages[0].count > 0
+                    ? `${largestDropOff.label}: ${(largestDropOff.conversion ?? 0).toFixed(1)}% continued from the previous step.`
+                    : "Journey conversion will appear after the first resource workflow begins."}
+                </p>
+              </div>
+            </div>
+            {workflowStages[0].count > 0 ? (
+              <Badge variant="outline">{(100 - (largestDropOff.conversion ?? 0)).toFixed(1)}% drop</Badge>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

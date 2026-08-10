@@ -38,6 +38,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { getDashboardGoalId, pendingCheckInKey } from "../lib/dashboardGoal";
 import { TodayAssignments } from "../components/TodayAssignments";
+import { ContinueWorkflows } from "../components/ContinueWorkflows";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -305,6 +306,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
         </Badge>
       </header>
       <TodayAssignments />
+      <ContinueWorkflows />
       <section className="grid gap-5 lg:grid-cols-[1.5fr_.7fr]">
         <Card className="overflow-hidden border-primary/20">
           <div className="h-1.5 bg-primary" />
@@ -681,6 +683,7 @@ function TeacherView({ name }: { name?: string }) {
           </Card>
         ))}
       </section>
+      <ContinueWorkflows />
       <section className="grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
         <Card>
           <CardContent className="p-6">

@@ -23,6 +23,7 @@ import {
   UserRoundSearch,
   CheckCircle2,
   WandSparkles,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -730,15 +731,19 @@ type ResourceWorkflow = {
     saved: boolean;
     activityCreated: boolean;
     classShared: boolean;
+    assignmentCreated: boolean;
   };
+  assignmentRequired: boolean;
   nextAction:
     | "review"
     | "save"
     | "create_activity"
     | "share_class"
+    | "assign_class"
     | "complete";
   activity: { id: number; title: string } | null;
   classShare: { id: number; name: string | null } | null;
+  assignment: { id: number; title: string } | null;
 };
 
 function apiUrl(path: string) {
@@ -1424,7 +1429,7 @@ export default function ResourceDetailPage() {
                   <WandSparkles className="size-4 text-primary" /> Turn this source into learning
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Verify it, organize it, build an activity, then share it with a class.
+                  Verify it, organize it, build an activity, then put it into use.
                 </CardDescription>
               </div>
               {workflow?.nextAction === "complete" ? (
@@ -1436,12 +1441,15 @@ export default function ResourceDetailPage() {
             {workflowLoading && !workflow ? (
               <Skeleton className="h-20 w-full" />
             ) : (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className={workflow?.assignmentRequired ? "grid grid-cols-2 gap-2 sm:grid-cols-5" : "grid grid-cols-2 gap-2 sm:grid-cols-4"}>
                 {[
                   ["reviewed", "1", "Verify source"],
                   ["saved", "2", "Save to list"],
                   ["activityCreated", "3", "Create activity"],
                   ["classShared", "4", "Share to class"],
+                  ...(workflow?.assignmentRequired
+                    ? [["assignmentCreated", "5", "Create assignment"]]
+                    : []),
                 ].map(([key, number, label]) => {
                   const complete = Boolean(
                     workflow?.steps[key as keyof ResourceWorkflow["steps"]],
@@ -1478,7 +1486,11 @@ export default function ResourceDetailPage() {
                       ? "Use this source as the foundation for a study activity."
                       : workflow?.nextAction === "share_class"
                         ? `Your activity${workflow.activity?.title ? ` “${workflow.activity.title}”` : ""} is ready to share.`
-                        : `Shared${workflow?.classShare?.name ? ` with ${workflow.classShare.name}` : " with a class"}.`}
+                        : workflow?.nextAction === "assign_class"
+                          ? `Shared${workflow?.classShare?.name ? ` with ${workflow.classShare.name}` : " with a class"}. Add instructions and a deadline next.`
+                          : workflow?.assignment?.title
+                            ? `Assigned as “${workflow.assignment.title}”.`
+                            : `Shared${workflow?.classShare?.name ? ` with ${workflow.classShare.name}` : " with a class"}.`}
               </p>
               {workflow?.nextAction === "review" ? (
                 <Button
@@ -1513,6 +1525,17 @@ export default function ResourceDetailPage() {
                   }
                 >
                   <GraduationCap className="mr-2 size-4" /> Share activity
+                </Button>
+              ) : workflow?.nextAction === "assign_class" && workflow.activity && workflow.classShare ? (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    setLocation(
+                      `/classes/${workflow.classShare!.id}?tab=assignments&resource=${resourceId}&activity=${workflow.activity!.id}`,
+                    )
+                  }
+                >
+                  <ClipboardList className="mr-2 size-4" /> Create assignment
                 </Button>
               ) : workflow?.activity ? (
                 <Button

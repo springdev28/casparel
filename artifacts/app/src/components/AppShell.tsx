@@ -550,9 +550,9 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <>
-      <div className="flex h-[100dvh] w-full overflow-hidden bg-primary">
+      <div className="fixed inset-0 flex w-full overflow-hidden bg-primary">
         {/* Sidebar */}
-        <aside className="sidebar-scrollbar-hidden hidden h-[100dvh] w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex">
+        <aside className="sidebar-scrollbar-hidden hidden h-full min-h-0 w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex">
           {/* Logo */}
           <div className="flex items-center gap-2 px-5 py-5 border-b border-primary-foreground/20">
             <BrandIcon
@@ -617,7 +617,7 @@ export default function AppShell({ children }: AppShellProps) {
           </section>
 
           {/* Footer */}
-          <div className="px-4 py-4 border-t border-primary-foreground/20 space-y-2">
+          <div className="shrink-0 space-y-2 border-t border-primary-foreground/20 px-4 py-4">
             {meLoading ? (
               <div className="flex items-center gap-2.5 mb-2">
                 <Skeleton className="w-8 h-8 rounded-full bg-primary-foreground/20" />
@@ -732,6 +732,9 @@ export default function AppShell({ children }: AppShellProps) {
               Logout
             </Button>
           </div>
+          <footer className="mt-auto shrink-0 border-t border-primary-foreground/15 px-5 py-3 text-center text-[10px] text-primary-foreground/55">
+            © 2026 Schoolar
+          </footer>
         </aside>
 
         {/* Mobile top bar */}
@@ -836,6 +839,9 @@ export default function AppShell({ children }: AppShellProps) {
                   >
                     <LogOut size={17} className="mr-2" /> Logout
                   </Button>
+                  <p className="border-t border-primary-foreground/15 pt-3 text-center text-[10px] text-primary-foreground/55">
+                    © 2026 Schoolar
+                  </p>
                 </div>
               </div>
             </SheetContent>

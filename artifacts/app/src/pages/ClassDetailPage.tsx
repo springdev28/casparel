@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useLocation } from 'wouter';
+import { useParams, useLocation, useSearch as useRouteSearch } from 'wouter';
 import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare, ShieldCheck, Workflow, Pencil, StickyNote, LayoutDashboard, ClipboardList, LibraryBig, KeyRound } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
@@ -62,8 +62,16 @@ const FORMAT_COLORS: Record<string, string> = {
 export default function ClassDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
+  const routeSearch = useRouteSearch();
   const queryClient = useQueryClient();
   const classId = Number(id);
+  const workflowParams = new URLSearchParams(routeSearch);
+  const requestedTab = workflowParams.get('tab');
+  const initialTab: ClassTab = requestedTab && ['members', 'notes', 'forum', 'designer', 'assignments', 'activities', 'resources', 'canvas'].includes(requestedTab)
+    ? requestedTab as ClassTab
+    : 'members';
+  const initialActivityId = Number(workflowParams.get('activity')) || null;
+  const initialResourceId = Number(workflowParams.get('resource')) || null;
 
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
@@ -74,7 +82,7 @@ export default function ClassDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<{ userId: number; name: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<ClassTab>('members');
+  const [activeTab, setActiveTab] = useState<ClassTab>(initialTab);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [editSubject, setEditSubject] = useState('');
@@ -580,6 +588,8 @@ export default function ClassDetailPage() {
         classId={classId}
         isTeacher={isTeacher}
         resources={resourceItems.map((item) => ({ id: item.resource.id, title: item.resource.title, url: item.resource.url }))}
+        initialActivityId={initialActivityId}
+        initialResourceId={initialResourceId}
       />}
 
       {/* Class Resources */}

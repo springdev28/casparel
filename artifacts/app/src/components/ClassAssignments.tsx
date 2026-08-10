@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   Bell,
@@ -81,10 +81,14 @@ export function ClassAssignments({
   classId,
   isTeacher,
   resources,
+  initialActivityId,
+  initialResourceId,
 }: {
   classId: number;
   isTeacher: boolean;
   resources: LinkedResource[];
+  initialActivityId?: number | null;
+  initialResourceId?: number | null;
 }) {
   const [, setLocation] = useLocation();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -98,6 +102,7 @@ export function ClassAssignments({
   const [dueAt, setDueAt] = useState("");
   const [linkedType, setLinkedType] = useState("none");
   const [linkedId, setLinkedId] = useState("none");
+  const handledWorkflowHandoff = useRef(false);
 
   async function load() {
     try {
@@ -132,6 +137,29 @@ export function ClassAssignments({
   useEffect(() => {
     void load();
   }, [classId, isTeacher]);
+
+  useEffect(() => {
+    if (!isTeacher || handledWorkflowHandoff.current) return;
+    if (initialActivityId) {
+      const activity = activities.find((item) => item.id === initialActivityId);
+      if (!activity) return;
+      handledWorkflowHandoff.current = true;
+      setLinkedType("activity");
+      setLinkedId(String(activity.id));
+      setTitle(`${activity.title} assignment`);
+      setOpen(true);
+      return;
+    }
+    if (initialResourceId) {
+      const resource = resources.find((item) => item.id === initialResourceId);
+      if (!resource) return;
+      handledWorkflowHandoff.current = true;
+      setLinkedType("resource");
+      setLinkedId(String(resource.id));
+      setTitle(`${resource.title} assignment`);
+      setOpen(true);
+    }
+  }, [activities, initialActivityId, initialResourceId, isTeacher, resources]);
 
   const linkedOptions = linkedType === "resource" ? resources : activities;
   const dueSoon = useMemo(

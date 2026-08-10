@@ -54,11 +54,13 @@ const emptyWorkflowAnalytics = {
     saved: 0,
     activityCreated: 0,
     classShared: 0,
+    assignmentCreated: 0,
     completedJourneys: 0,
     viewToReviewRate: 0,
     reviewToSaveRate: 0,
     saveToActivityRate: 0,
     activityToClassRate: 0,
+    classToAssignmentRate: 0,
   },
   engagement: {
     activeUsers7d: 0,
@@ -90,6 +92,7 @@ async function readWorkflowAnalytics() {
           saved: number;
           activity_created: number;
           class_shared: number;
+          assignment_created: number;
           completed_journeys: number;
           active_users_7d: number;
           active_users_30d: number;
@@ -104,7 +107,8 @@ async function readWorkflowAnalytics() {
               BOOL_OR(event = 'resource_reviewed') AS reviewed,
               BOOL_OR(event = 'resource_saved') AS saved,
               BOOL_OR(event = 'activity_created' OR event = 'activity_remixed') AS activity_created,
-              BOOL_OR(event = 'class_shared') AS class_shared
+              BOOL_OR(event = 'class_shared') AS class_shared,
+              BOOL_OR(event = 'assignment_created') AS assignment_created
             FROM workflow_events
             WHERE resource_id IS NOT NULL
             GROUP BY user_id, resource_id
@@ -115,7 +119,8 @@ async function readWorkflowAnalytics() {
             COUNT(*) FILTER (WHERE saved)::int AS saved,
             COUNT(*) FILTER (WHERE activity_created)::int AS activity_created,
             COUNT(*) FILTER (WHERE class_shared)::int AS class_shared,
-            COUNT(*) FILTER (WHERE reviewed AND saved AND activity_created AND class_shared)::int AS completed_journeys,
+            COUNT(*) FILTER (WHERE assignment_created)::int AS assignment_created,
+            COUNT(*) FILTER (WHERE reviewed AND saved AND activity_created AND class_shared AND assignment_created)::int AS completed_journeys,
             (SELECT COUNT(DISTINCT user_id)::int FROM workflow_events WHERE created_at >= NOW() - INTERVAL '7 days') AS active_users_7d,
             (SELECT COUNT(DISTINCT user_id)::int FROM workflow_events WHERE created_at >= NOW() - INTERVAL '30 days') AS active_users_30d,
             (SELECT COUNT(DISTINCT class_id)::int FROM workflow_events WHERE class_id IS NOT NULL AND created_at >= NOW() - INTERVAL '7 days') AS weekly_active_classes,
@@ -177,11 +182,13 @@ async function readWorkflowAnalytics() {
         saved: Number(workflow.saved),
         activityCreated: Number(workflow.activity_created),
         classShared: Number(workflow.class_shared),
+        assignmentCreated: Number(workflow.assignment_created),
         completedJourneys: Number(workflow.completed_journeys),
         viewToReviewRate: percentage(workflow.reviewed, workflow.viewed),
         reviewToSaveRate: percentage(workflow.saved, workflow.reviewed),
         saveToActivityRate: percentage(workflow.activity_created, workflow.saved),
         activityToClassRate: percentage(workflow.class_shared, workflow.activity_created),
+        classToAssignmentRate: percentage(workflow.assignment_created, workflow.class_shared),
       },
       engagement: {
         activeUsers7d: Number(workflow.active_users_7d),
