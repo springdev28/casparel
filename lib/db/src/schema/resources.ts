@@ -1,4 +1,12 @@
-import { pgTable, serial, text, integer, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import {
+  index,
+  pgTable,
+  serial,
+  text,
+  integer,
+  timestamp,
+  pgEnum,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -12,20 +20,48 @@ export const resourceFormatEnum = pgEnum("resource_format", [
   "other",
 ]);
 
-export const resourcesTable = pgTable("resources", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  url: text("url").notNull(),
-  description: text("description"),
-  format: resourceFormatEnum("format").notNull().default("other"),
-  subject: text("subject").notNull(),
-  gradeLevel: text("grade_level").notNull(),
-  thumbnailUrl: text("thumbnail_url"),
-  workspaceRole: text("workspace_role").$type<"student" | "teacher" | "shared">().notNull().default("student"),
-  submittedById: integer("submitted_by_id").notNull().references(() => usersTable.id),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-});
+export const resourcesTable = pgTable(
+  "resources",
+  {
+    id: serial("id").primaryKey(),
+    title: text("title").notNull(),
+    url: text("url").notNull(),
+    description: text("description"),
+    format: resourceFormatEnum("format").notNull().default("other"),
+    subject: text("subject").notNull(),
+    gradeLevel: text("grade_level").notNull(),
+    thumbnailUrl: text("thumbnail_url"),
+    workspaceRole: text("workspace_role")
+      .$type<"student" | "teacher" | "shared">()
+      .notNull()
+      .default("student"),
+    submittedById: integer("submitted_by_id")
+      .notNull()
+      .references(() => usersTable.id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("resources_created_at_idx").on(table.createdAt),
+    index("resources_title_trgm_idx").using(
+      "gin",
+      table.title.op("gin_trgm_ops"),
+    ),
+    index("resources_description_trgm_idx").using(
+      "gin",
+      table.description.op("gin_trgm_ops"),
+    ),
+    index("resources_subject_trgm_idx").using(
+      "gin",
+      table.subject.op("gin_trgm_ops"),
+    ),
+  ],
+);
 
-export const insertResourceSchema = createInsertSchema(resourcesTable).omit({ id: true, createdAt: true });
+export const insertResourceSchema = createInsertSchema(resourcesTable).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertResource = z.infer<typeof insertResourceSchema>;
 export type Resource = typeof resourcesTable.$inferSelect;

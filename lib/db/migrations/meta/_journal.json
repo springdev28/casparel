@@ -281,6 +281,13 @@
       "when": 1789113600000,
       "tag": "0039_wide_kylun",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786358781304,
+      "tag": "0040_dear_quentin_quire",
+      "breakpoints": true
     }
   ]
 }

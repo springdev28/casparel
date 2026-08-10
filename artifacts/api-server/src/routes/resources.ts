@@ -252,6 +252,53 @@ router.get("/resources", async (req, res): Promise<void> => {
                 ? sql`${relevance}, ${avgRating} desc, ${reviewCount} desc, ${resourcesTable.createdAt} desc`
                 : sql`${resourcesTable.createdAt} desc`;
 
+  const requiresAggregateScan =
+    sortBy === "most_reviewed" ||
+    sortBy === "top_rated" ||
+    Boolean(minRating) ||
+    minReviews !== undefined;
+
+  if (!requiresAggregateScan) {
+    const selectedAvgRating = sql<number>`round(coalesce((select avg(rating) from reviews where resource_id = ${resourcesTable.id}), 0)::numeric, 1)::float`;
+    const selectedReviewCount = sql<number>`cast((select count(*) from reviews where resource_id = ${resourcesTable.id}) as int)`;
+    const fastOrderExpr =
+      librarySort === "oldest"
+        ? sql`${resourcesTable.createdAt} asc`
+        : librarySort === "title_asc"
+          ? sql`lower(${resourcesTable.title}) asc`
+          : librarySort === "title_desc"
+            ? sql`lower(${resourcesTable.title}) desc`
+            : searchTerm
+              ? sql`${relevance}, ${resourcesTable.createdAt} desc`
+              : sql`${resourcesTable.createdAt} desc`;
+
+    // Limit the resource rows before calculating their review summaries. The
+    // common newest/relevance paths should not aggregate the whole catalog.
+    const rows = await db
+      .select({
+        id: resourcesTable.id,
+        title: resourcesTable.title,
+        url: resourcesTable.url,
+        description: resourcesTable.description,
+        format: resourcesTable.format,
+        subject: resourcesTable.subject,
+        gradeLevel: resourcesTable.gradeLevel,
+        thumbnailUrl: resourcesTable.thumbnailUrl,
+        submittedById: resourcesTable.submittedById,
+        createdAt: resourcesTable.createdAt,
+        avgRating: selectedAvgRating,
+        reviewCount: selectedReviewCount,
+      })
+      .from(resourcesTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(fastOrderExpr)
+      .limit(limit)
+      .offset(offset);
+
+    res.json(ListResourcesResponse.parse(rows));
+    return;
+  }
+
   // Return resources and review aggregates in one query. This avoids the old
   // two-query-per-result pattern and keeps response time flat as pages grow.
   const rows = await db

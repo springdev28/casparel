@@ -14,6 +14,9 @@
     "build:all": "node scripts/run-pnpm.mjs run typecheck && node scripts/run-pnpm.mjs -r --if-present run build",
     "dev:app": "bash scripts/run-schoolar.sh",
     "start": "node --enable-source-maps artifacts/api-server/dist/index.mjs",
+    "loadtest:smoke": "k6 run -e PROFILE=smoke load-tests/k6/schoolar.js",
+    "loadtest:public": "k6 run -e PROFILE=public load-tests/k6/schoolar.js",
+    "loadtest:authenticated": "k6 run -e PROFILE=authenticated load-tests/k6/schoolar.js",
     "typecheck:libs": "tsc --build",
     "typecheck": "node scripts/run-pnpm.mjs run typecheck:libs && node scripts/run-pnpm.mjs -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
