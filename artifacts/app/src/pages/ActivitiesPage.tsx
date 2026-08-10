@@ -23,8 +23,9 @@ import {
   Trash2,
   X,
   FileUp,
+  BookCheck,
 } from "lucide-react";
-import { useParams } from "wouter";
+import { useParams, useSearch } from "wouter";
 import { getListClassesQueryKey, useListClasses } from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -68,6 +69,12 @@ type StudyActivity = {
   cards: ActivityCard[];
   createdAt: string;
   updatedAt: string;
+};
+
+type WorkflowSource = {
+  id: number;
+  title: string;
+  subject: string;
 };
 
 type ActivityMode =
@@ -261,11 +268,13 @@ export default function ActivitiesPage({
   shared?: boolean;
 } = {}) {
   const params = useParams<{ token?: string }>();
+  const routeSearch = useSearch();
   const { data: joinedClasses } = useListClasses({
     query: { enabled: !shared, queryKey: getListClassesQueryKey() },
   });
   const viewOnly = readOnly || shared;
   const importRef = useRef<HTMLInputElement>(null);
+  const handledWorkflowSource = useRef<number | null>(null);
   const [activities, setActivities] = useState<StudyActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -284,6 +293,10 @@ export default function ActivitiesPage({
     emptyCard(),
     emptyCard(),
   ]);
+  const [formSourceResourceId, setFormSourceResourceId] = useState<number | null>(null);
+  const [workflowSource, setWorkflowSource] = useState<WorkflowSource | null>(null);
+  const [workflowActivityId, setWorkflowActivityId] = useState<number | null>(null);
+  const [workflowShared, setWorkflowShared] = useState(false);
 
   const selected =
     activities.find((activity) => activity.id === selectedId) ?? activities[0];
@@ -365,6 +378,48 @@ export default function ActivitiesPage({
   useEffect(() => {
     void loadActivities();
   }, [classIdOverride, params.token, shared]);
+
+  useEffect(() => {
+    if (shared || classIdOverride) return;
+    const search = new URLSearchParams(routeSearch);
+    const createFromResource = search.get("fromResource");
+    const resourceId = Number(createFromResource ?? search.get("continueResource"));
+    const existingActivityId = Number(search.get("activity"));
+    if (!Number.isInteger(resourceId) || resourceId <= 0) return;
+    if (handledWorkflowSource.current === resourceId) return;
+    handledWorkflowSource.current = resourceId;
+    void activityRequest(`/resources/${resourceId}`)
+      .then((value) => {
+        const resource = value as WorkflowSource;
+        setWorkflowSource(resource);
+        setWorkflowActivityId(
+          Number.isInteger(existingActivityId) && existingActivityId > 0
+            ? existingActivityId
+            : null,
+        );
+        setWorkflowShared(false);
+        if (!createFromResource) {
+          if (Number.isInteger(existingActivityId) && existingActivityId > 0) {
+            setSelectedId(existingActivityId);
+          }
+          return;
+        }
+        setEditingId(null);
+        setFormSourceResourceId(resource.id);
+        setFormTitle(`${resource.title} study activity`);
+        setFormSubject(resource.subject ?? "");
+        setFormMode("flashcards");
+        setFormCards([emptyCard(), emptyCard()]);
+        setEditorOpen(true);
+      })
+      .catch((error) => {
+        toast({
+          title: "Could not continue the resource workflow",
+          description: error instanceof Error ? error.message : "Please try again.",
+          variant: "destructive",
+        });
+      });
+  }, [classIdOverride, routeSearch, shared]);
 
   function resetStudy(activity: StudyActivity | undefined) {
     const cards = activity?.cards ?? [];
@@ -457,6 +512,7 @@ export default function ActivitiesPage({
     setFormSubject("");
     setFormMode(nextMode);
     setFormCards([emptyCard(nextMode), emptyCard(nextMode)]);
+    setFormSourceResourceId(null);
     setEditorOpen(true);
   }
 
@@ -468,6 +524,7 @@ export default function ActivitiesPage({
     setFormCards(activity.cards.map((card) =>
       activity.mode === "quiz" ? quizEditorCard(card) : { ...card },
     ));
+    setFormSourceResourceId(null);
     setEditorOpen(true);
   }
 
@@ -611,11 +668,15 @@ export default function ActivitiesPage({
             mode: formMode,
             cards: completeCards,
             classId: classIdOverride ?? null,
+            sourceResourceId: formSourceResourceId,
           }),
         },
       )) as unknown as StudyActivity;
       await loadActivities();
       setSelectedId(activity.id);
+      if (!editingId && formSourceResourceId) {
+        setWorkflowActivityId(activity.id);
+      }
       setEditorOpen(false);
       toast({ title: editingId ? "Activity updated" : "Activity created" });
     } catch (error) {
@@ -665,6 +726,7 @@ export default function ActivitiesPage({
             mode: selected.mode,
             cards: selected.cards,
             classId: Number(shareClassId),
+            sourceActivityId: selected.id,
           }),
         });
       } else {
@@ -674,6 +736,9 @@ export default function ActivitiesPage({
         });
       }
       setShareOpen(false);
+      if (destination === "class" && selected.id === workflowActivityId) {
+        setWorkflowShared(true);
+      }
       toast({
         title: destination === "class"
           ? "Shared with class"
@@ -694,7 +759,7 @@ export default function ActivitiesPage({
 
   async function duplicateSet(activity: StudyActivity) {
     try {
-      const copy = (await activityRequest("/study-activities", { method: "POST", body: JSON.stringify({ title: `${activity.title} (copy)`, subject: activity.subject ?? "", mode: activity.mode, cards: activity.cards.map((card) => ({ ...card, id: crypto.randomUUID() })), classId: classIdOverride ?? null }) })) as unknown as StudyActivity;
+      const copy = (await activityRequest("/study-activities", { method: "POST", body: JSON.stringify({ title: `${activity.title} (copy)`, subject: activity.subject ?? "", mode: activity.mode, cards: activity.cards.map((card) => ({ ...card, id: crypto.randomUUID() })), classId: classIdOverride ?? null, remixedFromActivityId: activity.id }) })) as unknown as StudyActivity;
       await loadActivities();
       setSelectedId(copy.id);
       toast({ title: "Activity duplicated", description: "The copy is ready to edit or assign." });
@@ -1001,6 +1066,40 @@ export default function ActivitiesPage({
           <Button onClick={() => openNewSet()}><Plus className="mr-2 size-4" /> New activity</Button>
         </div>}
       </header>
+
+      {workflowSource ? (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                {workflowShared ? <Check className="size-5" /> : <BookCheck className="size-5" />}
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold">
+                  {workflowShared
+                    ? "Resource workflow complete"
+                    : workflowActivityId
+                      ? "Activity ready for your class"
+                      : "Creating from a verified resource"}
+                </p>
+                <p className="truncate text-sm text-muted-foreground">
+                  {workflowSource.title}
+                </p>
+              </div>
+            </div>
+            {workflowActivityId && !workflowShared ? (
+              <Button
+                onClick={() => {
+                  setSelectedId(workflowActivityId);
+                  setShareOpen(true);
+                }}
+              >
+                <Share2 className="mr-2 size-4" /> Share with a class
+              </Button>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {loading ? (
         <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">

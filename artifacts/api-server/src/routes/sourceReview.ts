@@ -24,6 +24,10 @@ import {
 } from "../middlewares/requireAuth";
 import { consumeAiQuota, recordAiUsage } from "../lib/aiCostControls";
 import { buildFreeQuickReview } from "../lib/sourceProvenance";
+import {
+  optionalWorkflowUserId,
+  recordWorkflowEvent,
+} from "../lib/workflowAnalytics";
 
 const router: IRouter = Router();
 const QUICK_CACHE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -264,6 +268,16 @@ router.get(
     }
 
     const { title, url } = resource;
+    const recordReview = async () => {
+      const userId = optionalWorkflowUserId(req);
+      if (!userId || resource.id === null) return;
+      await recordWorkflowEvent({
+        userId,
+        event: "resource_reviewed",
+        resourceId: resource.id,
+        context: { mode },
+      });
+    };
     const canonicalUrl = canonicalResourceUrl(url);
     const reviewKey = mode + ":" + canonicalUrl;
     const now = new Date().toISOString();
@@ -297,6 +311,7 @@ router.get(
         typeof cachedProfile === "object"
       ) {
         res.setHeader("X-Source-Review-Cache", "HIT");
+        await recordReview();
         res.json({
           ...report.data,
           resourceProfile: resourceProfile(
@@ -315,6 +330,7 @@ router.get(
       await cacheReview(canonicalUrl, mode, responseData);
       res.setHeader("X-Source-Review-Cache", "MISS");
       res.setHeader("X-Source-Review-Provider", "schoolar-registry");
+      await recordReview();
       res.json(responseData);
       return;
     }
@@ -593,6 +609,7 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
         if (typeof parsed === "string") parsed = JSON.parse(parsed);
       } catch {
         res.setHeader("X-Source-Review-Fallback", "schoolar-registry");
+        await recordReview();
         res.json(deepResearchFallback(resource, stats));
         return;
       }
@@ -603,6 +620,7 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
       });
       if (!validated.success) {
         res.setHeader("X-Source-Review-Fallback", "schoolar-registry");
+        await recordReview();
         res.json(deepResearchFallback(resource, stats));
         return;
       }
@@ -622,6 +640,7 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
       };
       await cacheReview(canonicalUrl, mode, responseData);
       res.setHeader("X-Source-Review-Cache", "MISS");
+      await recordReview();
       res.json(responseData);
     } catch (err) {
       console.error("Source review AI error:", err);

@@ -1,14 +1,17 @@
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   assignmentCompletionsTable,
   classAssignmentsTable,
   classMembersTable,
   classesTable,
   db,
+  listItemsTable,
+  resourceListsTable,
   resourcesTable,
   studyActivitiesTable,
+  workflowEventsTable,
 } from "@workspace/db";
 import { contentLimiter } from "../lib/limiters";
 import { isClassMember, isClassTeacher } from "../lib/authz";
@@ -16,6 +19,8 @@ import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
+import { recordWorkflowEvent } from "../lib/workflowAnalytics";
+import { nextResourceWorkflowAction } from "../lib/workflowState";
 
 const router: IRouter = Router();
 
@@ -27,6 +32,114 @@ function parseId(value: string | string[] | undefined) {
 function createJoinCode() {
   return randomBytes(4).toString("hex").toUpperCase();
 }
+
+router.get(
+  "/workflow/resources/:id",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const resourceId = parseId(req.params.id);
+    if (!resourceId) {
+      res.status(400).json({ error: "Invalid resource" });
+      return;
+    }
+    const [resource] = await db
+      .select({ id: resourcesTable.id })
+      .from(resourcesTable)
+      .where(eq(resourcesTable.id, resourceId));
+    if (!resource) {
+      res.status(404).json({ error: "Resource not found" });
+      return;
+    }
+
+    await recordWorkflowEvent({
+      userId,
+      event: "resource_viewed",
+      resourceId,
+      oncePerDay: true,
+    });
+
+    const [events, savedRows] = await Promise.all([
+      db
+        .select({
+          event: workflowEventsTable.event,
+          activityId: workflowEventsTable.activityId,
+          activityTitle: studyActivitiesTable.title,
+          classId: workflowEventsTable.classId,
+          className: classesTable.name,
+          createdAt: workflowEventsTable.createdAt,
+        })
+        .from(workflowEventsTable)
+        .leftJoin(
+          studyActivitiesTable,
+          eq(studyActivitiesTable.id, workflowEventsTable.activityId),
+        )
+        .leftJoin(classesTable, eq(classesTable.id, workflowEventsTable.classId))
+        .where(
+          and(
+            eq(workflowEventsTable.userId, userId),
+            eq(workflowEventsTable.resourceId, resourceId),
+          ),
+        )
+        .orderBy(desc(workflowEventsTable.createdAt)),
+      db
+        .select({ id: listItemsTable.id })
+        .from(listItemsTable)
+        .innerJoin(
+          resourceListsTable,
+          eq(resourceListsTable.id, listItemsTable.listId),
+        )
+        .where(
+          and(
+            eq(listItemsTable.resourceId, resourceId),
+            eq(resourceListsTable.ownerId, userId),
+          ),
+        )
+        .limit(1),
+    ]);
+
+    const reviewed = events.some((item) => item.event === "resource_reviewed");
+    const saved = savedRows.length > 0 || events.some((item) => item.event === "resource_saved");
+    const activity = events.find(
+      (item) =>
+        ["activity_created", "activity_remixed"].includes(item.event) &&
+        item.activityId &&
+        item.activityTitle,
+    );
+    const classShare = events.find(
+      (item) => item.event === "class_shared" && item.classId,
+    );
+
+    if (savedRows.length && !events.some((item) => item.event === "resource_saved")) {
+      await recordWorkflowEvent({
+        userId,
+        event: "resource_saved",
+        resourceId,
+        context: { importedFromLibrary: true },
+      });
+    }
+
+    const steps = {
+      reviewed,
+      saved,
+      activityCreated: Boolean(activity),
+      classShared: Boolean(classShare),
+    };
+    const nextAction = nextResourceWorkflowAction(steps);
+
+    res.json({
+      resourceId,
+      steps,
+      nextAction,
+      activity: activity
+        ? { id: activity.activityId, title: activity.activityTitle }
+        : null,
+      classShare: classShare
+        ? { id: classShare.classId, name: classShare.className }
+        : null,
+    });
+  },
+);
 
 async function assignmentRows(classId: number, userId: number) {
   const rows = await db
@@ -66,6 +179,17 @@ async function assignmentRows(classId: number, userId: number) {
       asc(classAssignmentsTable.createdAt),
     );
   return rows.map((row) => ({ ...row, completed: Boolean(row.completedAt) }));
+}
+
+async function workflowResourceForActivity(activityId: number | null) {
+  if (!activityId) return null;
+  const [event] = await db
+    .select({ resourceId: workflowEventsTable.resourceId })
+    .from(workflowEventsTable)
+    .where(eq(workflowEventsTable.activityId, activityId))
+    .orderBy(desc(workflowEventsTable.createdAt))
+    .limit(1);
+  return event?.resourceId ?? null;
 }
 
 router.post(
@@ -232,6 +356,14 @@ router.post(
         dueAt,
       })
       .returning();
+    await recordWorkflowEvent({
+      userId,
+      event: "assignment_created",
+      resourceId: resourceId ?? (await workflowResourceForActivity(activityId)),
+      activityId,
+      classId,
+      assignmentId: created.id,
+    });
     res.status(201).json(created);
   },
 );
@@ -288,6 +420,16 @@ router.patch(
         .insert(assignmentCompletionsTable)
         .values({ assignmentId: assignment.id, userId })
         .onConflictDoNothing();
+      await recordWorkflowEvent({
+        userId,
+        event: "assignment_completed",
+        resourceId:
+          assignment.resourceId ??
+          (await workflowResourceForActivity(assignment.activityId)),
+        activityId: assignment.activityId,
+        classId: assignment.classId,
+        assignmentId: assignment.id,
+      });
     } else {
       await db
         .delete(assignmentCompletionsTable)

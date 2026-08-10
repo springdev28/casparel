@@ -436,6 +436,32 @@ export const GetAdminOverviewResponse = zod.object({
   "total": zod.int(),
   "estimatedCostUsd": zod.number()
 }))
+}),
+  "workflow": zod.object({
+  "funnel": zod.object({
+  "viewed": zod.int(),
+  "reviewed": zod.int(),
+  "saved": zod.int(),
+  "activityCreated": zod.int(),
+  "classShared": zod.int(),
+  "completedJourneys": zod.int(),
+  "viewToReviewRate": zod.number(),
+  "reviewToSaveRate": zod.number(),
+  "saveToActivityRate": zod.number(),
+  "activityToClassRate": zod.number()
+}),
+  "engagement": zod.object({
+  "activeUsers7d": zod.int(),
+  "activeUsers30d": zod.int(),
+  "weeklyActiveClasses": zod.int(),
+  "avgMinutesToFirstActivity": zod.number(),
+  "inviteAcceptanceRate": zod.number(),
+  "assignmentCompletionRate": zod.number(),
+  "remixRate": zod.number(),
+  "teacherApprovalRate": zod.number(),
+  "reportsPerThousand": zod.number(),
+  "estimatedStoredMb": zod.number()
+})
 })
 })
 
@@ -2589,5 +2615,3 @@ export const GetLearningSignalsResponse = zod.object({
   "commonMisconception": zod.string().nullish()
 }))
 })
-
-

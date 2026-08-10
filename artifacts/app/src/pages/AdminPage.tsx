@@ -423,21 +423,91 @@ export default function AdminPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {metrics.map(({ key, label, icon: Icon }) => (
-          <Card key={key}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{label}</CardTitle>
-              <Icon className="size-4 text-muted-foreground" />
+          <Card key={key} className="ui-lift min-w-0 overflow-hidden">
+            <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
+              <CardTitle className="min-w-0 text-xs font-medium leading-snug sm:text-sm">{label}</CardTitle>
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Icon className="size-4" />
+              </span>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
               {isLoading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{data?.[key] ?? 0}</div>}
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Card>
+      <Card className="overflow-hidden">
+        <CardHeader className="gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="size-5 text-primary" /> Learning workflow
+              </CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Resource discovery to verified, reusable classroom learning.
+              </p>
+            </div>
+            <Badge variant="secondary">
+              {data?.workflow?.funnel.completedJourneys ?? 0} complete journeys
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid overflow-hidden rounded-md border sm:grid-cols-5">
+            {[
+              ["Viewed", data?.workflow?.funnel.viewed ?? 0, null],
+              ["Verified", data?.workflow?.funnel.reviewed ?? 0, data?.workflow?.funnel.viewToReviewRate],
+              ["Saved", data?.workflow?.funnel.saved ?? 0, data?.workflow?.funnel.reviewToSaveRate],
+              ["Activity", data?.workflow?.funnel.activityCreated ?? 0, data?.workflow?.funnel.saveToActivityRate],
+              ["Class share", data?.workflow?.funnel.classShared ?? 0, data?.workflow?.funnel.activityToClassRate],
+            ].map(([label, count, conversion], index) => (
+              <div key={String(label)} className="relative border-b p-3 last:border-b-0 sm:border-b-0 sm:border-r sm:p-4 sm:last:border-r-0">
+                <span className="absolute inset-x-0 top-0 h-0.5 bg-primary/60" />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+                  <span className="text-xs text-muted-foreground">{index + 1}/5</span>
+                </div>
+                <p className="mt-2 text-2xl font-bold">{count}</p>
+                {typeof conversion === "number" ? (
+                  <div className="mt-3">
+                    <div className="mb-1 flex justify-between text-xs text-muted-foreground">
+                      <span>From prior step</span><span>{conversion.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full bg-primary" style={{ width: `${Math.min(100, conversion)}%` }} />
+                    </div>
+                  </div>
+                ) : <p className="mt-3 text-xs text-muted-foreground">Journey starts</p>}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {[
+              ["Active users · 7d", data?.workflow?.engagement.activeUsers7d ?? 0],
+              ["Active users · 30d", data?.workflow?.engagement.activeUsers30d ?? 0],
+              ["Active classes · 7d", data?.workflow?.engagement.weeklyActiveClasses ?? 0],
+              ["Minutes to first activity", data?.workflow?.engagement.avgMinutesToFirstActivity ?? 0],
+              ["Invitation acceptance", `${(data?.workflow?.engagement.inviteAcceptanceRate ?? 0).toFixed(1)}%`],
+              ["Assignment completion", `${(data?.workflow?.engagement.assignmentCompletionRate ?? 0).toFixed(1)}%`],
+              ["Activity remix rate", `${(data?.workflow?.engagement.remixRate ?? 0).toFixed(1)}%`],
+              ["Teacher approval rate", `${(data?.workflow?.engagement.teacherApprovalRate ?? 0).toFixed(1)}%`],
+              ["Reports / 1,000 items", data?.workflow?.engagement.reportsPerThousand ?? 0],
+              ["Stored user content", `${(data?.workflow?.engagement.estimatedStoredMb ?? 0).toFixed(2)} MB`],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="ui-lift min-w-0 rounded-md border border-l-2 border-l-primary/40 bg-muted/20 p-3">
+                <p className="text-xs leading-snug text-muted-foreground">{label}</p>
+                <p className="mt-1 text-lg font-semibold">{value}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="render-later">
         <CardHeader className="gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>

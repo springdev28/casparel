@@ -47,6 +47,165 @@ async function readUsageRows(statement: string, values?: unknown[]) {
   }
 }
 
+const emptyWorkflowAnalytics = {
+  funnel: {
+    viewed: 0,
+    reviewed: 0,
+    saved: 0,
+    activityCreated: 0,
+    classShared: 0,
+    completedJourneys: 0,
+    viewToReviewRate: 0,
+    reviewToSaveRate: 0,
+    saveToActivityRate: 0,
+    activityToClassRate: 0,
+  },
+  engagement: {
+    activeUsers7d: 0,
+    activeUsers30d: 0,
+    weeklyActiveClasses: 0,
+    avgMinutesToFirstActivity: 0,
+    inviteAcceptanceRate: 0,
+    assignmentCompletionRate: 0,
+    remixRate: 0,
+    teacherApprovalRate: 0,
+    reportsPerThousand: 0,
+    estimatedStoredMb: 0,
+  },
+};
+
+function percentage(numerator: number, denominator: number) {
+  return denominator
+    ? Number(((numerator / denominator) * 100).toFixed(1))
+    : 0;
+}
+
+async function readWorkflowAnalytics() {
+  try {
+    const [workflowResult, inviteResult, assignmentResult, communityResult, storageResult] =
+      await Promise.all([
+        pool.query<{
+          viewed: number;
+          reviewed: number;
+          saved: number;
+          activity_created: number;
+          class_shared: number;
+          completed_journeys: number;
+          active_users_7d: number;
+          active_users_30d: number;
+          weekly_active_classes: number;
+          remix_events: number;
+          average_minutes: number;
+        }>(`
+          WITH journeys AS (
+            SELECT user_id, resource_id,
+              MIN(created_at) FILTER (WHERE event = 'resource_viewed') AS viewed_at,
+              MIN(created_at) FILTER (WHERE event = 'activity_created' OR event = 'activity_remixed') AS activity_at,
+              BOOL_OR(event = 'resource_reviewed') AS reviewed,
+              BOOL_OR(event = 'resource_saved') AS saved,
+              BOOL_OR(event = 'activity_created' OR event = 'activity_remixed') AS activity_created,
+              BOOL_OR(event = 'class_shared') AS class_shared
+            FROM workflow_events
+            WHERE resource_id IS NOT NULL
+            GROUP BY user_id, resource_id
+          )
+          SELECT
+            COUNT(*) FILTER (WHERE viewed_at IS NOT NULL)::int AS viewed,
+            COUNT(*) FILTER (WHERE reviewed)::int AS reviewed,
+            COUNT(*) FILTER (WHERE saved)::int AS saved,
+            COUNT(*) FILTER (WHERE activity_created)::int AS activity_created,
+            COUNT(*) FILTER (WHERE class_shared)::int AS class_shared,
+            COUNT(*) FILTER (WHERE reviewed AND saved AND activity_created AND class_shared)::int AS completed_journeys,
+            (SELECT COUNT(DISTINCT user_id)::int FROM workflow_events WHERE created_at >= NOW() - INTERVAL '7 days') AS active_users_7d,
+            (SELECT COUNT(DISTINCT user_id)::int FROM workflow_events WHERE created_at >= NOW() - INTERVAL '30 days') AS active_users_30d,
+            (SELECT COUNT(DISTINCT class_id)::int FROM workflow_events WHERE class_id IS NOT NULL AND created_at >= NOW() - INTERVAL '7 days') AS weekly_active_classes,
+            (SELECT COUNT(*)::int FROM workflow_events WHERE event = 'activity_remixed') AS remix_events,
+            COALESCE(AVG(EXTRACT(EPOCH FROM (activity_at - viewed_at)) / 60) FILTER (WHERE activity_at >= viewed_at), 0)::float AS average_minutes
+          FROM journeys
+        `),
+        pool.query<{ total: number; accepted: number }>(`
+          SELECT COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE status = 'accepted')::int AS accepted
+          FROM class_invitations
+        `),
+        pool.query<{ expected: number; completed: number }>(`
+          SELECT
+            COUNT(*)::int AS expected,
+            COUNT(ac.assignment_id)::int AS completed
+          FROM class_assignments ca
+          JOIN class_members cm ON cm.class_id = ca.class_id AND cm.role = 'student'
+          LEFT JOIN assignment_completions ac
+            ON ac.assignment_id = ca.id AND ac.user_id = cm.user_id
+        `),
+        pool.query<{
+          activities: number;
+          student_materials: number;
+          approved_student_materials: number;
+          reports: number;
+          content_items: number;
+        }>(`
+          SELECT
+            (SELECT COUNT(*)::int FROM study_activities) AS activities,
+            (SELECT COUNT(*)::int FROM forum_materials WHERE uploader_role = 'student') AS student_materials,
+            (SELECT COUNT(DISTINCT fm.id)::int FROM forum_materials fm JOIN forum_material_approvals fa ON fa.material_id = fm.id WHERE fm.uploader_role = 'student') AS approved_student_materials,
+            (SELECT COUNT(*)::int FROM forum_reports) AS reports,
+            ((SELECT COUNT(*) FROM forum_materials) + (SELECT COUNT(*) FROM forum_posts) + (SELECT COUNT(*) FROM forum_comments))::int AS content_items
+        `),
+        pool.query<{ bytes: number }>(`
+          SELECT COALESCE(SUM(bytes), 0)::bigint AS bytes FROM (
+            SELECT COALESCE(SUM(pg_column_size(cards)), 0) AS bytes FROM study_activities
+            UNION ALL SELECT COALESCE(SUM(pg_column_size(document)), 0) FROM canvases
+            UNION ALL SELECT COALESCE(SUM(octet_length(COALESCE(file_base64, ''))), 0) FROM forum_materials
+            UNION ALL SELECT COALESCE(SUM(octet_length(COALESCE(attachment_file_base64, ''))), 0) FROM forum_posts
+          ) stored
+        `),
+      ]);
+
+    const workflow = workflowResult.rows[0];
+    const invitations = inviteResult.rows[0];
+    const assignments = assignmentResult.rows[0];
+    const community = communityResult.rows[0];
+    const storage = storageResult.rows[0];
+    if (!workflow || !invitations || !assignments || !community || !storage) {
+      return emptyWorkflowAnalytics;
+    }
+
+    return {
+      funnel: {
+        viewed: Number(workflow.viewed),
+        reviewed: Number(workflow.reviewed),
+        saved: Number(workflow.saved),
+        activityCreated: Number(workflow.activity_created),
+        classShared: Number(workflow.class_shared),
+        completedJourneys: Number(workflow.completed_journeys),
+        viewToReviewRate: percentage(workflow.reviewed, workflow.viewed),
+        reviewToSaveRate: percentage(workflow.saved, workflow.reviewed),
+        saveToActivityRate: percentage(workflow.activity_created, workflow.saved),
+        activityToClassRate: percentage(workflow.class_shared, workflow.activity_created),
+      },
+      engagement: {
+        activeUsers7d: Number(workflow.active_users_7d),
+        activeUsers30d: Number(workflow.active_users_30d),
+        weeklyActiveClasses: Number(workflow.weekly_active_classes),
+        avgMinutesToFirstActivity: Number(Number(workflow.average_minutes).toFixed(1)),
+        inviteAcceptanceRate: percentage(invitations.accepted, invitations.total),
+        assignmentCompletionRate: percentage(assignments.completed, assignments.expected),
+        remixRate: percentage(workflow.remix_events, community.activities),
+        teacherApprovalRate: percentage(
+          community.approved_student_materials,
+          community.student_materials,
+        ),
+        reportsPerThousand: community.content_items
+          ? Number(((community.reports / community.content_items) * 1000).toFixed(1))
+          : 0,
+        estimatedStoredMb: Number((Number(storage.bytes) / 1024 / 1024).toFixed(2)),
+      },
+    };
+  } catch {
+    return emptyWorkflowAnalytics;
+  }
+}
+
 router.get(
   "/admin/overview",
   requireAdmin,
@@ -62,6 +221,7 @@ router.get(
       usageResult,
       allUsageResult,
       userRows,
+      workflow,
     ] = await Promise.all([
       count(usersTable),
       db
@@ -99,6 +259,7 @@ router.get(
           email: usersTable.email,
         })
         .from(usersTable),
+      readWorkflowAnalytics(),
     ]);
     const usageByKey = new Map(
       usageResult.map((row) => [row.key, Number(row.hits)]),
@@ -196,6 +357,7 @@ router.get(
           byFeature: featureUsage,
           byUser: userUsage,
         },
+        workflow,
       }),
     );
   },

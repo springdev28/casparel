@@ -245,7 +245,8 @@ export default function AppShell({ children }: AppShellProps) {
       setReadNotificationIds([]);
     }
   }, [accountPreferences, me?.id, notificationReadKey]);
-  const unreadNotifications = (notifications ?? []).filter(
+  const safeNotifications = Array.isArray(notifications) ? notifications : [];
+  const unreadNotifications = safeNotifications.filter(
     (item) => !readNotificationIds.includes(item.id),
   );
   useEffect(() => {
@@ -257,7 +258,7 @@ export default function AppShell({ children }: AppShellProps) {
     const loadInvitations = () =>
       classRequest<ClassInvitation[]>("/class-invitations")
         .then((rows) => {
-          if (active) setClassInvitations(rows);
+          if (active) setClassInvitations(Array.isArray(rows) ? rows : []);
         })
         .catch(() => undefined);
     void loadInvitations();
@@ -387,10 +388,10 @@ export default function AppShell({ children }: AppShellProps) {
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
   const isAdmin = me?.role === UserRole.admin;
   const hasUnlimitedUsage = isAdmin || accountUsage?.unlimited === true;
-  const aiSearchUsed = accountUsage?.aiSearch.used ?? 0;
-  const aiSearchLimit = accountUsage?.aiSearch.limit ?? 3;
-  const deepResearchUsed = accountUsage?.deepResearch.used ?? 0;
-  const deepResearchLimit = accountUsage?.deepResearch.limit ?? 2;
+  const aiSearchUsed = accountUsage?.aiSearch?.used ?? 0;
+  const aiSearchLimit = accountUsage?.aiSearch?.limit ?? 3;
+  const deepResearchUsed = accountUsage?.deepResearch?.used ?? 0;
+  const deepResearchLimit = accountUsage?.deepResearch?.limit ?? 2;
   const navItems = isAdmin
     ? [...NAV_ITEMS, { label: "Admin", href: "/admin", icon: ShieldCheck }]
     : NAV_ITEMS;
@@ -597,7 +598,7 @@ export default function AppShell({ children }: AppShellProps) {
               <Link href="/goals" className="text-[10px] text-primary-foreground/70 hover:underline">Edit all</Link>
             </div>
             <div className="max-h-56 space-y-1 overflow-y-auto">
-              {sidebarGoals?.filter((goal) => goal.status === "active").map((goal) => {
+              {(Array.isArray(sidebarGoals) ? sidebarGoals : []).filter((goal) => goal.status === "active").map((goal) => {
                 const expanded = expandedPaths.includes(goal.id);
                 return <div key={goal.id} className="rounded-md bg-primary-foreground/10">
                   <button type="button" className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs font-medium" onClick={() => setExpandedPaths((current) => expanded ? current.filter((id) => id !== goal.id) : [...current, goal.id])}>
@@ -611,7 +612,7 @@ export default function AppShell({ children }: AppShellProps) {
                   </div>}
                 </div>;
               })}
-              {sidebarGoals && !sidebarGoals.some((goal) => goal.status === "active") && <Link href="/goals" className="block rounded-md px-2 py-2 text-xs text-primary-foreground/65 hover:bg-primary-foreground/10">Resume a goal to show its path.</Link>}
+              {Array.isArray(sidebarGoals) && !sidebarGoals.some((goal) => goal.status === "active") && <Link href="/goals" className="block rounded-md px-2 py-2 text-xs text-primary-foreground/65 hover:bg-primary-foreground/10">Resume a goal to show its path.</Link>}
             </div>
           </section>
 
@@ -905,7 +906,7 @@ export default function AppShell({ children }: AppShellProps) {
                   </p>
                 </div>
                 <div className="max-h-80 overflow-y-auto p-2">
-                  {!notifications?.length && !classInvitations.length ? (
+                  {!safeNotifications.length && !classInvitations.length ? (
                     <p className="p-4 text-center text-sm text-muted-foreground">
                       {language === "tr"
                         ? "Yeni bildirim yok"
@@ -929,7 +930,7 @@ export default function AppShell({ children }: AppShellProps) {
                         </div>
                       </div>
                     ))}
-                    {notifications?.map((item) => (
+                    {safeNotifications.map((item) => (
                       <Link
                         key={item.id}
                         href={

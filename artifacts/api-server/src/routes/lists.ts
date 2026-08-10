@@ -23,6 +23,7 @@ import {
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { isListOwner, canReadList, isListItemOwner, isClassTeacher } from "../lib/authz";
+import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 
 const router: IRouter = Router();
 
@@ -207,6 +208,12 @@ router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): P
     .insert(listItemsTable)
     .values({ listId: params.data.id, position: nextPosition, ...parsed.data })
     .returning();
+  await recordWorkflowEvent({
+    userId,
+    event: "resource_saved",
+    resourceId: item.resourceId,
+    context: { listId: params.data.id },
+  });
   const resource = await resourceWithRating(item.resourceId);
   res.status(201).json(AddListItemResponse.parse({ ...item, resource }));
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   useParams,
   useLocation,
@@ -21,6 +21,8 @@ import {
   GraduationCap,
   Send,
   UserRoundSearch,
+  CheckCircle2,
+  WandSparkles,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -305,9 +307,11 @@ const TRUST_META: Record<
 function SourceReviewPanel({
   resourceId,
   isLoggedIn,
+  onReviewed,
 }: {
   resourceId: number;
   isLoggedIn: boolean;
+  onReviewed?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"quick" | "deep" | null>(null);
@@ -349,6 +353,10 @@ function SourceReviewPanel({
 
   const data =
     mode === "quick" ? quickData : mode === "deep" ? deepData : undefined;
+
+  useEffect(() => {
+    if (data) onReviewed?.();
+  }, [data, onReviewed]);
   const profile = data
     ? (
         data as SourceReview & {
@@ -715,6 +723,24 @@ type RecommendationPerson = {
   bio: string | null;
 };
 
+type ResourceWorkflow = {
+  resourceId: number;
+  steps: {
+    reviewed: boolean;
+    saved: boolean;
+    activityCreated: boolean;
+    classShared: boolean;
+  };
+  nextAction:
+    | "review"
+    | "save"
+    | "create_activity"
+    | "share_class"
+    | "complete";
+  activity: { id: number; title: string } | null;
+  classShare: { id: number; name: string | null } | null;
+};
+
 function apiUrl(path: string) {
   return import.meta.env.BASE_URL.replace(/\/$/, "") + "/api" + path;
 }
@@ -759,6 +785,8 @@ export default function ResourceDetailPage() {
   const [personRecommendNote, setPersonRecommendNote] = useState("");
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [personSending, setPersonSending] = useState(false);
+  const [workflow, setWorkflow] = useState<ResourceWorkflow | null>(null);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
 
   const { data: resource, isLoading: resourceLoading } = useGetResource(
     resourceId,
@@ -790,6 +818,26 @@ export default function ResourceDetailPage() {
 
   const isLoggedIn = !!me;
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
+
+  const loadWorkflow = useCallback(async () => {
+    if (!isLoggedIn || !resourceId) return;
+    setWorkflowLoading(true);
+    try {
+      setWorkflow(
+        (await authenticatedRequest(
+          `/workflow/resources/${resourceId}`,
+        )) as ResourceWorkflow,
+      );
+    } catch {
+      // The resource remains usable if analytics are temporarily unavailable.
+    } finally {
+      setWorkflowLoading(false);
+    }
+  }, [isLoggedIn, resourceId]);
+
+  useEffect(() => {
+    void loadWorkflow();
+  }, [loadWorkflow]);
 
   // Assign to class
   const { data: classes } = useListClasses({
@@ -964,6 +1012,7 @@ export default function ResourceDetailPage() {
         data: { resourceId, note: listNote || undefined },
       });
       toast({ title: "Added to list!" });
+      await loadWorkflow();
       setAddToListOpen(false);
       setSelectedListId("");
       setListNote("");
@@ -1008,7 +1057,7 @@ export default function ResourceDetailPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="mx-auto max-w-4xl space-y-5 p-4 sm:space-y-6 sm:p-6">
       {/* Back */}
       <Button
         variant="ghost"
@@ -1035,7 +1084,11 @@ export default function ResourceDetailPage() {
               </Badge>
 
               {/* Review the Source */}
-              <SourceReviewPanel resourceId={resourceId} isLoggedIn={!!me} />
+              <SourceReviewPanel
+                resourceId={resourceId}
+                isLoggedIn={!!me}
+                onReviewed={loadWorkflow}
+              />
 
               {/* Add to List — auth-gated */}
               {isLoggedIn ? (
@@ -1361,6 +1414,119 @@ export default function ResourceDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {isLoggedIn ? (
+        <Card className="overflow-hidden border-primary/30" data-testid="resource-workflow">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <WandSparkles className="size-4 text-primary" /> Turn this source into learning
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Verify it, organize it, build an activity, then share it with a class.
+                </CardDescription>
+              </div>
+              {workflow?.nextAction === "complete" ? (
+                <Badge className="bg-emerald-600">Workflow complete</Badge>
+              ) : null}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {workflowLoading && !workflow ? (
+              <Skeleton className="h-20 w-full" />
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  ["reviewed", "1", "Verify source"],
+                  ["saved", "2", "Save to list"],
+                  ["activityCreated", "3", "Create activity"],
+                  ["classShared", "4", "Share to class"],
+                ].map(([key, number, label]) => {
+                  const complete = Boolean(
+                    workflow?.steps[key as keyof ResourceWorkflow["steps"]],
+                  );
+                  return (
+                    <div
+                      key={key}
+                      className={
+                        "flex items-center gap-2 rounded-md border p-3 text-sm " +
+                        (complete ? "border-emerald-500/40 bg-emerald-500/10" : "bg-muted/30")
+                      }
+                    >
+                      {complete ? (
+                        <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                      ) : (
+                        <span className="flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px]">
+                          {number}
+                        </span>
+                      )}
+                      <span className={complete ? "font-medium" : "text-muted-foreground"}>{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+              <p className="text-sm text-muted-foreground">
+                {workflow?.nextAction === "review"
+                  ? "Start with the free source check."
+                  : workflow?.nextAction === "save"
+                    ? "Keep the verified resource in a focused list."
+                    : workflow?.nextAction === "create_activity"
+                      ? "Use this source as the foundation for a study activity."
+                      : workflow?.nextAction === "share_class"
+                        ? `Your activity${workflow.activity?.title ? ` “${workflow.activity.title}”` : ""} is ready to share.`
+                        : `Shared${workflow?.classShare?.name ? ` with ${workflow.classShare.name}` : " with a class"}.`}
+              </p>
+              {workflow?.nextAction === "review" ? (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    (document.querySelector('[data-testid="review-source-button"]') as HTMLButtonElement | null)?.click()
+                  }
+                >
+                  <Search className="mr-2 size-4" /> Verify source
+                </Button>
+              ) : workflow?.nextAction === "save" ? (
+                lists?.length ? (
+                  <Button size="sm" onClick={() => setAddToListOpen(true)}>
+                    <Plus className="mr-2 size-4" /> Save to a list
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => setLocation("/lists")}>
+                    <Plus className="mr-2 size-4" /> Create a list
+                  </Button>
+                )
+              ) : workflow?.nextAction === "create_activity" ? (
+                <Button size="sm" onClick={() => setLocation(`/activities?fromResource=${resourceId}`)}>
+                  <WandSparkles className="mr-2 size-4" /> Create activity
+                </Button>
+              ) : workflow?.nextAction === "share_class" && workflow.activity ? (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    setLocation(
+                      `/activities?continueResource=${resourceId}&activity=${workflow.activity!.id}`,
+                    )
+                  }
+                >
+                  <GraduationCap className="mr-2 size-4" /> Share activity
+                </Button>
+              ) : workflow?.activity ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setLocation(`/activities?continueResource=${resourceId}&activity=${workflow.activity!.id}`)}
+                >
+                  Open activity
+                </Button>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Reviews */}
       <section>

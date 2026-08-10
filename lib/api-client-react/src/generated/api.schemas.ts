@@ -346,6 +346,37 @@ export type AdminOverviewUsage = {
   byUser: AdminUserAiUsage[];
 };
 
+export type AdminOverviewWorkflowFunnel = {
+  viewed: number;
+  reviewed: number;
+  saved: number;
+  activityCreated: number;
+  classShared: number;
+  completedJourneys: number;
+  viewToReviewRate: number;
+  reviewToSaveRate: number;
+  saveToActivityRate: number;
+  activityToClassRate: number;
+};
+
+export type AdminOverviewWorkflowEngagement = {
+  activeUsers7d: number;
+  activeUsers30d: number;
+  weeklyActiveClasses: number;
+  avgMinutesToFirstActivity: number;
+  inviteAcceptanceRate: number;
+  assignmentCompletionRate: number;
+  remixRate: number;
+  teacherApprovalRate: number;
+  reportsPerThousand: number;
+  estimatedStoredMb: number;
+};
+
+export type AdminOverviewWorkflow = {
+  funnel: AdminOverviewWorkflowFunnel;
+  engagement: AdminOverviewWorkflowEngagement;
+};
+
 export interface AdminOverview {
   users: number;
   students: number;
@@ -356,6 +387,7 @@ export interface AdminOverview {
   cachedResearchReports: number;
   plan: AdminOverviewPlan;
   usage: AdminOverviewUsage;
+  workflow: AdminOverviewWorkflow;
 }
 
 export type LearningGoalLevel = typeof LearningGoalLevel[keyof typeof LearningGoalLevel];
@@ -1643,4 +1675,3 @@ export const SearchUsersRole = {
   student: 'student',
   teacher: 'teacher',
 } as const;
-

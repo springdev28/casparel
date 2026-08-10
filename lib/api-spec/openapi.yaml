@@ -1007,7 +1007,7 @@ paths:
     get:
       operationId: discoverResources
       tags: [resources]
-      summary: Search the internet for educational resources matching a query
+      summary: Search the stored open-education catalog
       parameters:
         - name: q
           in: query
@@ -1034,7 +1034,7 @@ paths:
             type: string
             enum: [any, en, es, fr, de, pt, tr]
             default: en
-          description: Preferred language for AI search results, or any to avoid restricting language
+          description: Preferred catalog language, or any to avoid restricting language
         - name: page
           in: query
           schema:
@@ -1051,7 +1051,7 @@ paths:
           description: Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
       responses:
         "200":
-          description: Discovered resources from the web
+          description: Educational resources from the stored catalog
           content:
             application/json:
               schema:
@@ -1169,8 +1169,8 @@ paths:
             enum: [quick, deep]
             default: quick
           description: >
-            quick — use model training knowledge only (fast, no web search);
-            deep — authenticated live web research; cached for 48 hours and subject to daily/monthly usage limits
+            quick — use maintained source provenance without AI;
+            deep — authenticated live web research; cached for 90 days and subject to daily/monthly usage limits
       responses:
         "200":
           description: Source review
@@ -1181,7 +1181,7 @@ paths:
         "404":
           description: Resource not found
         "502":
-          description: AI search failed
+          description: Source research failed
 
   # ── Reviews ───────────────────────────────────────────────────────────────
   /resources/{id}/reviews:
@@ -2247,6 +2247,7 @@ components:
           cachedResearchReports,
           plan,
           usage,
+          workflow,
         ]
       properties:
         users: { type: integer }
@@ -2293,6 +2294,62 @@ components:
             byUser:
               type: array
               items: { $ref: "#/components/schemas/AdminUserAiUsage" }
+        workflow:
+          type: object
+          required: [funnel, engagement]
+          properties:
+            funnel:
+              type: object
+              required:
+                [
+                  viewed,
+                  reviewed,
+                  saved,
+                  activityCreated,
+                  classShared,
+                  completedJourneys,
+                  viewToReviewRate,
+                  reviewToSaveRate,
+                  saveToActivityRate,
+                  activityToClassRate,
+                ]
+              properties:
+                viewed: { type: integer }
+                reviewed: { type: integer }
+                saved: { type: integer }
+                activityCreated: { type: integer }
+                classShared: { type: integer }
+                completedJourneys: { type: integer }
+                viewToReviewRate: { type: number }
+                reviewToSaveRate: { type: number }
+                saveToActivityRate: { type: number }
+                activityToClassRate: { type: number }
+            engagement:
+              type: object
+              required:
+                [
+                  activeUsers7d,
+                  activeUsers30d,
+                  weeklyActiveClasses,
+                  avgMinutesToFirstActivity,
+                  inviteAcceptanceRate,
+                  assignmentCompletionRate,
+                  remixRate,
+                  teacherApprovalRate,
+                  reportsPerThousand,
+                  estimatedStoredMb,
+                ]
+              properties:
+                activeUsers7d: { type: integer }
+                activeUsers30d: { type: integer }
+                weeklyActiveClasses: { type: integer }
+                avgMinutesToFirstActivity: { type: number }
+                inviteAcceptanceRate: { type: number }
+                assignmentCompletionRate: { type: number }
+                remixRate: { type: number }
+                teacherApprovalRate: { type: number }
+                reportsPerThousand: { type: number }
+                estimatedStoredMb: { type: number }
 
     LearningGoal:
       type: object
@@ -2445,7 +2502,16 @@ components:
     MyClassSeat:
       type: object
       required:
-        [assigned, layoutMode, row, column, deskId, deskLabel, deskSeat, relativePosition]
+        [
+          assigned,
+          layoutMode,
+          row,
+          column,
+          deskId,
+          deskLabel,
+          deskSeat,
+          relativePosition,
+        ]
       properties:
         assigned: { type: boolean }
         layoutMode: { type: string, enum: [grid, custom] }

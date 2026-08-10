@@ -41,6 +41,21 @@
   contain-intrinsic-size: auto 320px;
 }
 
+.ui-lift {
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+@media (hover: hover) {
+  .ui-lift:hover {
+    transform: translateY(-2px);
+    border-color: hsl(var(--primary) / 0.32);
+    box-shadow: 0 10px 24px hsl(var(--foreground) / 0.08);
+  }
+}
+
 @media (pointer: coarse) {
   button,
   a,
@@ -79,4 +94,13 @@
 @keyframes topology-canvas-drift {
   from { transform: scale(1.02) translate3d(-0.8%, -0.5%, 0); }
   to { transform: scale(1.08) translate3d(1.5%, 1%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-lift,
+  .vanta-background--topology canvas {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
 }

@@ -16,6 +16,7 @@ import express from "express";
 // Must be declared before any import that transitively loads @workspace/db.
 
 let mockActivityRows: Array<Record<string, unknown>> = [];
+let mockUserRole: "student" | "teacher" = "student";
 
 vi.mock("@workspace/db", () => {
   const stub = (name: string) => ({ _name: name });
@@ -34,6 +35,7 @@ vi.mock("@workspace/db", () => {
     reviewsTable: stub("reviews"),
     resourceListsTable: stub("resource_lists"),
     scheduleBlocksTable: stub("schedule_blocks"),
+    usersTable: stub("users"),
   };
 });
 
@@ -54,7 +56,17 @@ function buildApp() {
 }
 
 function tokenFor(role: "student" | "teacher", id = USER_ID) {
+  mockUserRole = role;
   return `Bearer ${issueToken(id, role)}`;
+}
+
+function authSelectChain(role: "student" | "teacher") {
+  return {
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockResolvedValue([
+      { id: USER_ID, role, activeRole: role, bannedAt: null },
+    ]),
+  } as unknown as ReturnType<typeof db.select>;
 }
 
 /** Minimal valid activity row. */
@@ -74,6 +86,7 @@ function activityRow(workspaceRole: "student" | "teacher" | "shared") {
 beforeEach(() => {
   vi.clearAllMocks();
   mockActivityRows = [];
+  mockUserRole = "student";
 
   vi.mocked(db.select).mockImplementation(() => {
     let tableName = "";
@@ -89,6 +102,12 @@ beforeEach(() => {
         return Promise.resolve([{ count: 0 }]);
       }),
     };
+    chain.where.mockImplementation(() => {
+      if (tableName === "users") {
+        return Promise.resolve([{ id: USER_ID, role: mockUserRole, activeRole: mockUserRole, bannedAt: null }]);
+      }
+      return chain;
+    });
     return chain as unknown as ReturnType<typeof db.select>;
   });
 });
@@ -134,7 +153,9 @@ describe("GET /api/activity/recent — role-scoped filtering", () => {
       orderBy: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue([]),
     };
-    vi.mocked(db.select).mockReturnValueOnce(chain as unknown as ReturnType<typeof db.select>);
+    vi.mocked(db.select)
+      .mockReturnValueOnce(authSelectChain("student"))
+      .mockReturnValueOnce(chain as unknown as ReturnType<typeof db.select>);
 
     const res = await request(buildApp())
       .get("/api/activity/recent")
@@ -154,7 +175,9 @@ describe("GET /api/activity/recent — role-scoped filtering", () => {
       orderBy: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue([]),
     };
-    vi.mocked(db.select).mockReturnValueOnce(chain as unknown as ReturnType<typeof db.select>);
+    vi.mocked(db.select)
+      .mockReturnValueOnce(authSelectChain("teacher"))
+      .mockReturnValueOnce(chain as unknown as ReturnType<typeof db.select>);
 
     const res = await request(buildApp())
       .get("/api/activity/recent")

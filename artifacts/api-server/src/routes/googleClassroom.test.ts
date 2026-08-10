@@ -27,6 +27,7 @@ let lastUpdateSet: Record<string, unknown> | null = null;
 let tokenDeleted = false;
 // Role returned by the users table mock — default "teacher" so all GC routes pass requireTeacher
 let mockUserRole: "student" | "teacher" = "teacher";
+let mockAuthenticatedUserId = 42;
 
 // Minimal chainable Drizzle mock.
 // Chain methods return `this`; terminal `.where()` resolves with the
@@ -82,6 +83,7 @@ function buildApp() {
 
 /** Issue a valid teacher token for user `id` */
 function teacherToken(id: number) {
+  mockAuthenticatedUserId = id;
   return `Bearer ${issueToken(id, "teacher")}`;
 }
 
@@ -103,6 +105,7 @@ beforeEach(() => {
   lastUpdateSet = null;
   tokenDeleted = false;
   mockUserRole = "teacher";
+  mockAuthenticatedUserId = 42;
 
   // Default select: return empty arrays
   vi.mocked(db.select).mockImplementation(() => {
@@ -127,7 +130,12 @@ beforeEach(() => {
         }
         if (tableName === "users") {
           // requireTeacher checks the live DB role; use mockUserRole to control per-test
-          return Promise.resolve([{ role: mockUserRole }]);
+          return Promise.resolve([{
+            id: mockAuthenticatedUserId,
+            role: mockUserRole,
+            activeRole: mockUserRole,
+            bannedAt: null,
+          }]);
         }
         return Promise.resolve([]);
       }),

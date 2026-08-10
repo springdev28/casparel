@@ -40,6 +40,7 @@ vi.mock("@workspace/db", () => {
     classesTable: stub("classes"),
     classMembersTable: stub("class_members"),
     scheduleBlocksTable: stub("schedule_blocks"),
+    usersTable: stub("users"),
   };
 });
 
@@ -80,6 +81,9 @@ beforeEach(() => {
       }),
       innerJoin: vi.fn().mockReturnThis(),
       where: vi.fn().mockImplementation(() => {
+        if (tableName === "users") {
+          return Promise.resolve([{ id: 99, role: "teacher", activeRole: "teacher", bannedAt: null }]);
+        }
         if (tableName === "list_items") {
           // isListItemOwner queries list_items first to get the parent listId
           // Always return a row (ownership is determined by the resource_lists check below)

@@ -5,8 +5,10 @@ import {
   db,
   forumMaterialsTable,
   forumPostsTable,
+  resourcesTable,
   studyActivitiesTable,
   usersTable,
+  workflowEventsTable,
   type StudyActivityCard,
 } from "@workspace/db";
 import { contentLimiter } from "../lib/limiters";
@@ -15,6 +17,7 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { isClassMember, isClassTeacher } from "../lib/authz";
+import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 
 const router: IRouter = Router();
 const IMAGE_DATA_PATTERN = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
@@ -37,6 +40,22 @@ function parseImageData(value: unknown) {
 
 function activeWorkspaceRole(userRole: string) {
   return userRole === "teacher" ? "teacher" : "student";
+}
+
+function positiveId(value: unknown) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function resourceForSourceActivity(activityId: number | null) {
+  if (!activityId) return null;
+  const [event] = await db
+    .select({ resourceId: workflowEventsTable.resourceId })
+    .from(workflowEventsTable)
+    .where(eq(workflowEventsTable.activityId, activityId))
+    .orderBy(desc(workflowEventsTable.createdAt))
+    .limit(1);
+  return event?.resourceId ?? null;
 }
 
 function parseActivityInput(value: unknown) {
@@ -184,6 +203,9 @@ router.post(
     const { userId, userRole } = req as AuthenticatedRequest;
     const classId = Number(req.body?.classId);
     const hasClassId = Number.isInteger(classId) && classId > 0;
+    const requestedResourceId = positiveId(req.body?.sourceResourceId);
+    const sourceActivityId = positiveId(req.body?.sourceActivityId);
+    const remixedFromActivityId = positiveId(req.body?.remixedFromActivityId);
     if (
       hasClassId &&
       !(await isClassMember(classId, userId)) &&
@@ -201,6 +223,16 @@ router.post(
       });
       return;
     }
+    if (requestedResourceId) {
+      const [resource] = await db
+        .select({ id: resourcesTable.id })
+        .from(resourcesTable)
+        .where(eq(resourcesTable.id, requestedResourceId));
+      if (!resource) {
+        res.status(400).json({ error: "Source resource not found" });
+        return;
+      }
+    }
     const [activity] = await db
       .insert(studyActivitiesTable)
       .values({
@@ -210,6 +242,40 @@ router.post(
         ...input,
       })
       .returning();
+    const sourceResourceId =
+      requestedResourceId ??
+      (await resourceForSourceActivity(
+        sourceActivityId ?? remixedFromActivityId,
+      ));
+    if (remixedFromActivityId) {
+      await recordWorkflowEvent({
+        userId,
+        event: "activity_remixed",
+        resourceId: sourceResourceId,
+        activityId: activity.id,
+        classId: hasClassId ? classId : null,
+        context: { remixedFromActivityId },
+      });
+    } else if (sourceResourceId) {
+      await recordWorkflowEvent({
+        userId,
+        event: "activity_created",
+        resourceId: sourceResourceId,
+        activityId: activity.id,
+        classId: hasClassId ? classId : null,
+        context: sourceActivityId ? { sourceActivityId } : {},
+      });
+    }
+    if (hasClassId) {
+      await recordWorkflowEvent({
+        userId,
+        event: "class_shared",
+        resourceId: sourceResourceId,
+        activityId: activity.id,
+        classId,
+        context: sourceActivityId ? { sourceActivityId } : {},
+      });
+    }
     res.status(201).json(activity);
   },
 );
