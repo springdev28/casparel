@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { runMigrations } from "@workspace/db";
+import { pool, runMigrations } from "@workspace/db";
 import { initRateLimitStore } from "./lib/rateLimitStore";
 import { ensureCuratedCatalog } from "./lib/catalog";
 
@@ -20,6 +20,11 @@ async function prepareDatabaseSchema() {
   logger.info("Running database migrations...");
   await runMigrations();
   logger.info("Migrations complete");
+
+  // Keep one application-pool connection warm so the first user request does
+  // not pay the remote database TLS and connection-establishment cost.
+  await pool.query("select 1");
+  logger.info("Database connection pool ready");
 
   if (process.env.RATE_LIMIT_STORE !== "memory") {
     logger.info("Initialising persistent rate-limit store...");
@@ -44,11 +49,13 @@ async function main() {
     logger.info({ port }, "Server listening");
   });
 
-  void ensureCuratedCatalog().then((catalogItems) => {
-    logger.info({ catalogItems }, "Open education catalog ready");
-  }).catch((err) => {
-    logger.error({ err }, "Open education catalog setup failed");
-  });
+  void ensureCuratedCatalog()
+    .then((catalogItems) => {
+      logger.info({ catalogItems }, "Open education catalog ready");
+    })
+    .catch((err) => {
+      logger.error({ err }, "Open education catalog setup failed");
+    });
 }
 
 void main();

@@ -17,6 +17,12 @@ const ssl = sslForConnectionString(connectionString);
 export const pool = new Pool({
   connectionString,
   ...(ssl ? { ssl } : {}),
+  min: 1,
+  max: 10,
+  connectionTimeoutMillis: 5_000,
+  idleTimeoutMillis: 30_000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10_000,
 });
 export const db = drizzle(pool, { schema });
 
