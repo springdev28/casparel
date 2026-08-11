@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://lightgrey-oyster-122608.hostingersite.com/sitemap.xml

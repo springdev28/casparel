@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
+import { Eye, EyeOff } from "lucide-react";
 import BrandIcon from "../../components/BrandIcon";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
@@ -24,6 +25,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const { language, setLanguage, copy } = useAuthLanguage();
 
   const registerMutation = useRegister();
@@ -105,17 +107,36 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="password">{copy.password}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder={copy.newPasswordPlaceholder}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                  autoComplete="new-password"
-                  data-testid="password-input"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    className="pr-10"
+                    placeholder={copy.newPasswordPlaceholder}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    data-testid="password-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={
+                      showPassword ? copy.hidePassword : copy.showPassword
+                    }
+                    aria-pressed={showPassword}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    data-testid="toggle-password-visibility"
+                  >
+                    {showPassword ? (
+                      <EyeOff size={16} />
+                    ) : (
+                      <Eye size={16} />
+                    )}
+                  </button>
+                </div>
               </div>
               <Button
                 type="submit"

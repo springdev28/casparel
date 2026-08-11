@@ -56,6 +56,25 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Consolidate vendor code so the first paint pulls a few well-cached
+        // chunks instead of dozens of sub-2 KB files. Only libraries that are
+        // needed eagerly are grouped here; heavy, route-specific dependencies
+        // (three/vanta, recharts, @xyflow) are deliberately left to Rollup's
+        // default per-dynamic-import splitting so they stay off the critical
+        // path and only load with the lazy page that uses them.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-is)[\\/]/.test(id))
+            return 'react-vendor';
+          if (/[\\/]node_modules[\\/](lucide-react|react-icons)[\\/]/.test(id))
+            return 'icons';
+          if (id.includes('@radix-ui')) return 'radix';
+          if (id.includes('@tanstack')) return 'query';
+        },
+      },
+    },
   },
   server: {
     port,

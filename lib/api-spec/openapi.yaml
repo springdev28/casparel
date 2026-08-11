@@ -2083,7 +2083,7 @@ components:
       required: [email, password, name]
       properties:
         email: { type: string }
-        password: { type: string, minLength: 6 }
+        password: { type: string, minLength: 8 }
         name: { type: string, minLength: 1 }
 
     LoginInput:

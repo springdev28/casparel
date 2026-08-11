@@ -96,7 +96,7 @@ export interface PublicUser {
 
 export interface RegisterInput {
   email: string;
-  /** @minLength 6 */
+  /** @minLength 8 */
   password: string;
   /** @minLength 1 */
   name: string;

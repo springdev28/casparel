@@ -37,6 +37,8 @@ type AuthCopy = {
   createAccount: string;
   registrationFailed: string;
   hasAccount: string;
+  showPassword: string;
+  hidePassword: string;
 };
 
 export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
@@ -59,11 +61,13 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     registerDescription: "Join Schoolar to start learning and teaching",
     fullName: "Full name",
     namePlaceholder: "Jane Smith",
-    newPasswordPlaceholder: "Min. 6 characters",
+    newPasswordPlaceholder: "Min. 8 characters",
     creatingAccount: "Creating account…",
     createAccount: "Create account",
     registrationFailed: "Registration failed",
     hasAccount: "Already have an account?",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
   },
   es: {
     tagline: "Tu plataforma de productividad para estudiantes y docentes",
@@ -84,11 +88,13 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     registerDescription: "Únete a Schoolar para empezar a aprender y enseñar",
     fullName: "Nombre completo",
     namePlaceholder: "Ana García",
-    newPasswordPlaceholder: "Mín. 6 caracteres",
+    newPasswordPlaceholder: "Mín. 8 caracteres",
     creatingAccount: "Creando cuenta…",
     createAccount: "Crear cuenta",
     registrationFailed: "Error al registrarse",
     hasAccount: "¿Ya tienes una cuenta?",
+    showPassword: "Mostrar contraseña",
+    hidePassword: "Ocultar contraseña",
   },
   fr: {
     tagline: "Votre plateforme de productivité pour élèves et enseignants",
@@ -109,11 +115,13 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     registerDescription: "Rejoignez Schoolar pour apprendre et enseigner",
     fullName: "Nom complet",
     namePlaceholder: "Marie Dupont",
-    newPasswordPlaceholder: "6 caractères minimum",
+    newPasswordPlaceholder: "8 caractères minimum",
     creatingAccount: "Création du compte…",
     createAccount: "Créer le compte",
     registrationFailed: "Échec de l’inscription",
     hasAccount: "Vous avez déjà un compte ?",
+    showPassword: "Afficher le mot de passe",
+    hidePassword: "Masquer le mot de passe",
   },
   de: {
     tagline: "Deine Produktivitätsplattform für Lernende und Lehrkräfte",
@@ -135,11 +143,13 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     registerDescription: "Komm zu Schoolar und beginne zu lernen und zu lehren",
     fullName: "Vollständiger Name",
     namePlaceholder: "Anna Schmidt",
-    newPasswordPlaceholder: "Mind. 6 Zeichen",
+    newPasswordPlaceholder: "Mind. 8 Zeichen",
     creatingAccount: "Konto wird erstellt…",
     createAccount: "Konto erstellen",
     registrationFailed: "Registrierung fehlgeschlagen",
     hasAccount: "Du hast bereits ein Konto?",
+    showPassword: "Passwort anzeigen",
+    hidePassword: "Passwort verbergen",
   },
   pt: {
     tagline: "Sua plataforma de produtividade para estudantes e professores",
@@ -160,11 +170,13 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     registerDescription: "Entre no Schoolar para começar a aprender e ensinar",
     fullName: "Nome completo",
     namePlaceholder: "Ana Silva",
-    newPasswordPlaceholder: "Mín. 6 caracteres",
+    newPasswordPlaceholder: "Mín. 8 caracteres",
     creatingAccount: "Criando conta…",
     createAccount: "Criar conta",
     registrationFailed: "Falha no cadastro",
     hasAccount: "Já tem uma conta?",
+    showPassword: "Mostrar senha",
+    hidePassword: "Ocultar senha",
   },
   tr: {
     tagline: "Öğrenciler ve öğretmenler için öğrenme çalışma alanı",
@@ -186,11 +198,13 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
       "Öğrenmeye ve öğretmeye başlamak için Schoolar’a katılın",
     fullName: "Ad soyad",
     namePlaceholder: "Ayşe Yılmaz",
-    newPasswordPlaceholder: "En az 6 karakter",
+    newPasswordPlaceholder: "En az 8 karakter",
     creatingAccount: "Hesap oluşturuluyor…",
     createAccount: "Hesap oluştur",
     registrationFailed: "Kayıt başarısız",
     hasAccount: "Zaten hesabınız var mı?",
+    showPassword: "Şifreyi göster",
+    hidePassword: "Şifreyi gizle",
   },
 };
 

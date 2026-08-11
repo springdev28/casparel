@@ -1995,7 +1995,12 @@ export default function ResourcesPage() {
 
       {/* Search bar */}
       {resourceView === "search" && (
-        <form onSubmit={handleSearchSubmit} className="space-y-2">
+        <form
+          onSubmit={handleSearchSubmit}
+          className="space-y-2"
+          role="search"
+          aria-label="Resource search"
+        >
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search
@@ -2005,6 +2010,7 @@ export default function ResourcesPage() {
               <Input
                 ref={inputRef}
                 className="pl-9 pr-9 h-11 text-base"
+                aria-label="Search resources"
                 placeholder={
                   'Search anything — "photosynthesis", "MIT calculus", "Python for beginners"…'
                 }
@@ -2041,6 +2047,7 @@ export default function ResourcesPage() {
               <SelectTrigger
                 className="w-44 h-8 text-xs"
                 data-testid="source-filter"
+                aria-label="Source type"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -2062,6 +2069,7 @@ export default function ResourcesPage() {
               <SelectTrigger
                 className="w-36 h-8 text-xs"
                 data-testid="search-language-filter"
+                aria-label="Search language"
               >
                 <SelectValue placeholder="Language" />
               </SelectTrigger>
@@ -2082,6 +2090,7 @@ export default function ResourcesPage() {
                   <SelectTrigger
                     className="w-36 h-8 text-xs"
                     data-testid="format-filter"
+                    aria-label="Format"
                   >
                     <SelectValue placeholder="All formats" />
                   </SelectTrigger>
@@ -2096,6 +2105,7 @@ export default function ResourcesPage() {
                 </Select>
                 <Input
                   className="w-36 h-8 text-xs"
+                  aria-label="Subject"
                   placeholder="Subject…"
                   value={subjectFilter}
                   onChange={(e) => setSubjectFilter(e.target.value)}
@@ -2110,6 +2120,7 @@ export default function ResourcesPage() {
                   <SelectTrigger
                     className="w-36 h-8 text-xs"
                     data-testid="grade-filter"
+                    aria-label="Grade level"
                   >
                     <SelectValue placeholder="All grades" />
                   </SelectTrigger>
@@ -2135,6 +2146,7 @@ export default function ResourcesPage() {
                   <SelectTrigger
                     className="w-36 h-8 text-xs"
                     data-testid="rating-filter"
+                    aria-label="Minimum rating"
                   >
                     <SelectValue placeholder="Any rating" />
                   </SelectTrigger>
@@ -2165,6 +2177,7 @@ export default function ResourcesPage() {
                   <SelectTrigger
                     className="w-36 h-8 text-xs"
                     data-testid="sort-filter"
+                    aria-label="Sort order"
                   >
                     <SelectValue placeholder="Newest first" />
                   </SelectTrigger>
