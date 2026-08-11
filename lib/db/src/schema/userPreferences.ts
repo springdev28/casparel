@@ -1,4 +1,12 @@
-import { boolean, integer, jsonb, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgTable,
+  real,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
 export type InterfaceColorsPreference = {
@@ -21,7 +29,10 @@ export const userPreferencesTable = pgTable("user_preferences", {
   interfaceColors: jsonb("interface_colors").$type<InterfaceColorsPreference>(),
   ambientStyle: text("ambient_style"),
   ambientIntensity: real("ambient_intensity"),
-  readNotificationIds: integer("read_notification_ids").array().notNull().default([]),
+  readNotificationIds: integer("read_notification_ids")
+    .array()
+    .notNull()
+    .default([]),
   dashboardGoalIds: jsonb("dashboard_goal_ids")
     .$type<Record<string, number>>()
     .notNull()
@@ -38,8 +49,13 @@ export const userPreferencesTable = pgTable("user_preferences", {
     .$type<SearchHistoryPreference[]>()
     .notNull()
     .default([]),
-  resourceSearchState: jsonb("resource_search_state").$type<Record<string, unknown>>(),
-  allowMessageRequests: boolean("allow_message_requests").notNull().default(true),
+  resourceSearchState: jsonb("resource_search_state").$type<
+    Record<string, unknown>
+  >(),
+  allowMessageRequests: boolean("allow_message_requests")
+    .notNull()
+    .default(true),
+  tutorialSeen: boolean("tutorial_seen").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()
     .defaultNow(),

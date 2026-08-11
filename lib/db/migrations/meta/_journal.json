@@ -295,6 +295,13 @@
       "when": 1789286400000,
       "tag": "0041_index_foreign_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1789372800000,
+      "tag": "0042_tutorial_onboarding",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@workspace/edu-ds/components/ui/toaster";
 import { TooltipProvider } from "@workspace/edu-ds/components/ui/tooltip";
 import { Button } from "@workspace/edu-ds/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@workspace/edu-ds/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@workspace/edu-ds/components/ui/card";
 import { Ban, Loader2, Mail, Trash2 } from "lucide-react";
 import { Route, Switch, Router as WouterRouter, Redirect } from "wouter";
 import {
@@ -18,11 +23,15 @@ import { applyLastSavedColors } from "./components/ThemeCustomizer";
 import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
 
 const AppShell = lazy(() => import("./components/AppShell"));
-const UiTranslationBridge = lazy(() => import("./components/UiTranslationBridge"));
+const UiTranslationBridge = lazy(
+  () => import("./components/UiTranslationBridge"),
+);
 const PublicShell = lazy(() => import("./components/PublicShell"));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const DashboardPage = lazy(() => import("./pages/AdaptiveDashboardPage"));
+const TutorialPage = lazy(() => import("./pages/TutorialPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ResourcesPage = lazy(() => import("./pages/ResourcesPage"));
 const ResourceDetailPage = lazy(() => import("./pages/ResourceDetailPage"));
 const ClassesPage = lazy(() => import("./pages/ClassesPage"));
@@ -102,7 +111,10 @@ function BannedAccountPage({ access }: { access: AccountAccess }) {
   const [deleting, setDeleting] = useState(false);
 
   async function deleteAccount() {
-    if (!window.confirm("Permanently delete your account? This cannot be undone.")) return;
+    if (
+      !window.confirm("Permanently delete your account? This cannot be undone.")
+    )
+      return;
     setDeleting(true);
     try {
       const response = await fetch(apiUrl("/users/me"), {
@@ -127,7 +139,8 @@ function BannedAccountPage({ access }: { access: AccountAccess }) {
           </div>
           <CardTitle>Account banned</CardTitle>
           <p className="text-sm text-muted-foreground">
-            {access.bannedReason || "This account has been restricted by an administrator."}
+            {access.bannedReason ||
+              "This account has been restricted by an administrator."}
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row">
@@ -143,7 +156,11 @@ function BannedAccountPage({ access }: { access: AccountAccess }) {
             onClick={deleteAccount}
             disabled={deleting}
           >
-            {deleting ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Trash2 className="mr-2 size-4" />}
+            {deleting ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 size-4" />
+            )}
             Delete account
           </Button>
         </CardContent>
@@ -164,11 +181,13 @@ function AccountAccessGate({ children }: { children: ReactNode }) {
       return;
     }
     const controller = new AbortController();
-    void queryClient.prefetchQuery({
-      queryKey: getGetMeQueryKey(),
-      queryFn: () => getMe(),
-      staleTime: 30_000,
-    }).catch(() => undefined);
+    void queryClient
+      .prefetchQuery({
+        queryKey: getGetMeQueryKey(),
+        queryFn: () => getMe(),
+        staleTime: 30_000,
+      })
+      .catch(() => undefined);
     void fetch(apiUrl("/users/me/access"), {
       headers: { Authorization: "Bearer " + token },
       signal: controller.signal,
@@ -186,7 +205,8 @@ function AccountAccessGate({ children }: { children: ReactNode }) {
         setChecked(true);
       })
       .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === "AbortError")
+          return;
         setChecked(true);
       });
     return () => controller.abort();
@@ -195,7 +215,10 @@ function AccountAccessGate({ children }: { children: ReactNode }) {
   if (!checked) {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground">
-        <Loader2 className="size-6 animate-spin text-primary" aria-label="Checking account access" />
+        <Loader2
+          className="size-6 animate-spin text-primary"
+          aria-label="Checking account access"
+        />
       </main>
     );
   }
@@ -225,9 +248,18 @@ function PrivateRoute({
  */
 function AdminRoute() {
   const { data: me, isLoading } = useGetMe();
-  if (isLoading) return <AppShell><div className="p-8">Loading administrator panel...</div></AppShell>;
+  if (isLoading)
+    return (
+      <AppShell>
+        <div className="p-8">Loading administrator panel...</div>
+      </AppShell>
+    );
   if (me?.role !== UserRole.admin) return <Redirect to="/dashboard" />;
-  return <AppShell><AdminPage /></AppShell>;
+  return (
+    <AppShell>
+      <AdminPage />
+    </AppShell>
+  );
 }
 
 function PublicRoute({
@@ -278,9 +310,7 @@ function Router() {
         {() => <PrivateRoute component={ProfilePage} />}
       </Route>
 
-      <Route path="/admin">
-        {() => <AdminRoute />}
-      </Route>
+      <Route path="/admin">{() => <AdminRoute />}</Route>
 
       {/* Requires account */}
       <Route path="/forum">
@@ -309,6 +339,12 @@ function Router() {
       </Route>
       <Route path="/dashboard">
         {() => <PrivateRoute component={DashboardPage} />}
+      </Route>
+      <Route path="/tutorial">
+        {() => <PrivateRoute component={TutorialPage} />}
+      </Route>
+      <Route path="/settings">
+        {() => <PrivateRoute component={SettingsPage} />}
       </Route>
       <Route path="/classes/:id">
         {() => <PrivateRoute component={ClassDetailPage} />}
@@ -347,8 +383,16 @@ function App() {
       <UiTranslationRuntime />
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Suspense fallback={<main className="flex min-h-[100dvh] items-center justify-center bg-background"><Loader2 className="size-6 animate-spin text-primary" /></main>}>
-            <AccountAccessGate><Router /></AccountAccessGate>
+          <Suspense
+            fallback={
+              <main className="flex min-h-[100dvh] items-center justify-center bg-background">
+                <Loader2 className="size-6 animate-spin text-primary" />
+              </main>
+            }
+          >
+            <AccountAccessGate>
+              <Router />
+            </AccountAccessGate>
           </Suspense>
         </WouterRouter>
         <Toaster />

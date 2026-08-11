@@ -17,14 +17,7 @@ export type UserPreferences = {
   language: "en" | "es" | "fr" | "de" | "pt" | "tr" | null;
   interfaceColors: InterfaceColorsPreference | null;
   ambientStyle:
-    | "off"
-    | "net"
-    | "globe"
-    | "halo"
-    | "cells"
-    | "rings"
-    | "topology"
-    | null;
+    "off" | "net" | "globe" | "halo" | "cells" | "rings" | "topology" | null;
   ambientIntensity: number | null;
   readNotificationIds: number[];
   dashboardGoalIds: Record<string, number>;
@@ -33,6 +26,7 @@ export type UserPreferences = {
   searchHistory: SearchHistoryPreference[];
   resourceSearchState: Record<string, unknown> | null;
   allowMessageRequests: boolean;
+  tutorialSeen: boolean;
   updatedAt: string;
 };
 
@@ -60,6 +54,13 @@ async function preferencesRequest<T>(init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
+export function saveUserPreferences(patch: UserPreferencesPatch) {
+  return preferencesRequest<UserPreferences>({
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
 export function useUserPreferences(enabled = true) {
   return useQuery({
     queryKey: userPreferencesQueryKey,
@@ -72,11 +73,7 @@ export function useUserPreferences(enabled = true) {
 export function useUpdateUserPreferences() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (patch: UserPreferencesPatch) =>
-      preferencesRequest<UserPreferences>({
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      }),
+    mutationFn: saveUserPreferences,
     onSuccess: (preferences) => {
       client.setQueryData(userPreferencesQueryKey, preferences);
     },

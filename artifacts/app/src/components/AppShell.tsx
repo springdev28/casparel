@@ -1,4 +1,11 @@
-import { lazy, ReactNode, Suspense, useEffect, useState, type CSSProperties } from "react";
+import {
+  lazy,
+  ReactNode,
+  Suspense,
+  useEffect,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
@@ -27,6 +34,8 @@ import {
   Workflow,
   X,
   Menu,
+  Compass,
+  Settings,
 } from "lucide-react";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -77,10 +86,7 @@ import {
 } from "@workspace/edu-ds/components/ui/sheet";
 import BrandIcon from "./BrandIcon";
 import type { VantaStyle } from "./VantaBackground";
-import {
-  classRequest,
-  type ClassInvitation,
-} from "../lib/class-api";
+import { classRequest, type ClassInvitation } from "../lib/class-api";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -99,6 +105,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Tutorial", href: "/tutorial", icon: Compass },
   { label: "Classes", href: "/classes", icon: Users },
   { label: "Goals", href: "/goals", icon: Target },
   { label: "Activities", href: "/activities", icon: LibraryBig },
@@ -110,9 +117,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Messages", href: "/messages", icon: MessageCircle },
   { label: "Lists", href: "/lists", icon: List },
   { label: "Schedule", href: "/schedule", icon: Calendar },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
-
-
 
 function hslChannelsToRgb(value: string): [number, number, number] {
   const match = value.match(/([\d.]+)[,\s]+([\d.]+)%[,\s]+([\d.]+)%/);
@@ -122,7 +128,12 @@ function hslChannelsToRgb(value: string): [number, number, number] {
   const lightness = Number(match[3]) / 100;
   const channel = (offset: number) => {
     const k = (offset + hue * 12) % 12;
-    return lightness - saturation * Math.min(lightness, 1 - lightness) * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return (
+      lightness -
+      saturation *
+        Math.min(lightness, 1 - lightness) *
+        Math.max(-1, Math.min(k - 3, 9 - k, 1))
+    );
   };
   return [channel(0) * 255, channel(8) * 255, channel(4) * 255];
 }
@@ -134,10 +145,7 @@ function usesLightText(rgb: number[]) {
       ? channel / 12.92
       : ((channel + 0.055) / 1.055) ** 2.4;
   });
-  return (
-    0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2] <=
-    0.179
-  );
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2] <= 0.179;
 }
 
 function pageBackgroundRgb() {
@@ -150,7 +158,10 @@ function shouldUseLightToolbarText() {
   return usesLightText(pageBackgroundRgb());
 }
 
-const AMBIENT_BACKGROUND_RGB: Record<Exclude<VantaStyle, "off">, [number, number, number]> = {
+const AMBIENT_BACKGROUND_RGB: Record<
+  Exclude<VantaStyle, "off">,
+  [number, number, number]
+> = {
   net: [7, 17, 11],
   globe: [7, 11, 18],
   halo: [7, 11, 18],
@@ -165,7 +176,9 @@ function shouldUseLightPageText(style: VantaStyle, intensity: number) {
   const effect = AMBIENT_BACKGROUND_RGB[style];
   const opacity = Math.min(1, 0.35 + intensity * 0.25);
   return usesLightText(
-    page.map((channel, index) => channel * (1 - opacity) + effect[index] * opacity),
+    page.map(
+      (channel, index) => channel * (1 - opacity) + effect[index] * opacity,
+    ),
   );
 }
 
@@ -174,10 +187,10 @@ interface AppShellProps {
 }
 
 export default function AppShell({ children }: AppShellProps) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(() =>
-    window.matchMedia("(min-width: 768px)").matches,
+  const [isDesktop, setIsDesktop] = useState(
+    () => window.matchMedia("(min-width: 768px)").matches,
   );
   const [secondaryDataReady, setSecondaryDataReady] = useState(false);
   const documentVisible = useDocumentVisibility();
@@ -186,15 +199,28 @@ export default function AppShell({ children }: AppShellProps) {
   const { language, setLanguage, copy } = useAuthLanguage();
   const { data: accountPreferences } = useUserPreferences(Boolean(me));
   const updateAccountPreferences = useUpdateUserPreferences();
+  useEffect(() => {
+    if (!accountPreferences || accountPreferences.tutorialSeen) return;
+    const sessionKey = `schoolar_tutorial_presented:${accountPreferences.userId}`;
+    if (location === "/tutorial" || sessionStorage.getItem(sessionKey)) return;
+    sessionStorage.setItem(sessionKey, "1");
+    setLocation("/tutorial");
+  }, [accountPreferences, location, setLocation]);
   const { data: notifications } = useGetRecentActivity({
     query: {
       enabled: Boolean(me) && secondaryDataReady,
       queryKey: getGetRecentActivityQueryKey(),
     },
   });
-  const [classInvitations, setClassInvitations] = useState<ClassInvitation[]>([]);
+  const [classInvitations, setClassInvitations] = useState<ClassInvitation[]>(
+    [],
+  );
   const { data: accountUsage } = useGetMyUsage({
-    query: { enabled: Boolean(me) && isDesktop && secondaryDataReady, refetchInterval: 60_000, queryKey: getGetMyUsageQueryKey() },
+    query: {
+      enabled: Boolean(me) && isDesktop && secondaryDataReady,
+      refetchInterval: 60_000,
+      queryKey: getGetMyUsageQueryKey(),
+    },
   });
   useEffect(() => {
     const media = window.matchMedia("(min-width: 768px)");
@@ -280,7 +306,9 @@ export default function AppShell({ children }: AppShellProps) {
       setClassInvitations((current) =>
         current.filter((item) => item.id !== invitation.id),
       );
-      await queryClient.invalidateQueries({ queryKey: getListClassesQueryKey() });
+      await queryClient.invalidateQueries({
+        queryKey: getListClassesQueryKey(),
+      });
       toast({
         title: action === "accept" ? "Class joined" : "Invitation declined",
         description: invitation.class.name,
@@ -288,7 +316,8 @@ export default function AppShell({ children }: AppShellProps) {
     } catch (error) {
       toast({
         title: "Could not update invitation",
-        description: error instanceof Error ? error.message : "Please try again",
+        description:
+          error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
     }
@@ -301,16 +330,38 @@ export default function AppShell({ children }: AppShellProps) {
       return next;
     });
   }
-  const { data: sidebarGoals } = useListLearningGoals({ query: { enabled: Boolean(me) && isDesktop && secondaryDataReady, queryKey: getListLearningGoalsQueryKey() } });
+  const { data: sidebarGoals } = useListLearningGoals({
+    query: {
+      enabled: Boolean(me) && isDesktop && secondaryDataReady,
+      queryKey: getListLearningGoalsQueryKey(),
+    },
+  });
   const updateSidebarGoal = useUpdateLearningGoal();
   const [expandedPaths, setExpandedPaths] = useState<number[]>([]);
   const [ambientStyle, setAmbientStyle] = useState<VantaStyle>(() => {
-    const saved = sessionStorage.getItem("schoolar_ambient_style") ?? localStorage.getItem("schoolar_ambient_style");
-    if (saved === "off" || saved === "net" || saved === "globe" || saved === "halo" || saved === "cells" || saved === "rings" || saved === "topology") return saved;
-    return localStorage.getItem("schoolar_ambient_motion") === "off" ? "off" : "net";
+    const saved =
+      sessionStorage.getItem("schoolar_ambient_style") ??
+      localStorage.getItem("schoolar_ambient_style");
+    if (
+      saved === "off" ||
+      saved === "net" ||
+      saved === "globe" ||
+      saved === "halo" ||
+      saved === "cells" ||
+      saved === "rings" ||
+      saved === "topology"
+    )
+      return saved;
+    return localStorage.getItem("schoolar_ambient_motion") === "off"
+      ? "off"
+      : "net";
   });
   const [ambientIntensity, setAmbientIntensity] = useState(() => {
-    const saved = Number(sessionStorage.getItem("schoolar_ambient_intensity") ?? localStorage.getItem("schoolar_ambient_intensity") ?? "1");
+    const saved = Number(
+      sessionStorage.getItem("schoolar_ambient_intensity") ??
+        localStorage.getItem("schoolar_ambient_intensity") ??
+        "1",
+    );
     return Number.isFinite(saved) ? Math.min(2, Math.max(0.5, saved)) : 1;
   });
   const [lightToolbarText, setLightToolbarText] = useState(() =>
@@ -324,11 +375,13 @@ export default function AppShell({ children }: AppShellProps) {
     const migrationPatch: UserPreferencesPatch = {};
     if (accountPreferences.language && accountPreferences.language !== language)
       setLanguage(accountPreferences.language);
-    else if (!accountPreferences.language)
-      migrationPatch.language = language;
+    else if (!accountPreferences.language) migrationPatch.language = language;
     if (accountPreferences.ambientStyle) {
       setAmbientStyle(accountPreferences.ambientStyle);
-      localStorage.setItem("schoolar_ambient_style", accountPreferences.ambientStyle);
+      localStorage.setItem(
+        "schoolar_ambient_style",
+        accountPreferences.ambientStyle,
+      );
     }
     if (accountPreferences.ambientIntensity != null) {
       setAmbientIntensity(accountPreferences.ambientIntensity);
@@ -337,7 +390,9 @@ export default function AppShell({ children }: AppShellProps) {
         String(accountPreferences.ambientIntensity),
       );
     }
-    const localStyle = localStorage.getItem("schoolar_ambient_style") as VantaStyle | null;
+    const localStyle = localStorage.getItem(
+      "schoolar_ambient_style",
+    ) as VantaStyle | null;
     if (!accountPreferences.ambientStyle && localStyle)
       migrationPatch.ambientStyle = localStyle;
     const localIntensity = Number(
@@ -356,7 +411,12 @@ export default function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     const updateContrast = () => {
       setLightToolbarText(shouldUseLightToolbarText());
-      setLightPageText(shouldUseLightPageText(isDesktop ? ambientStyle : "off", ambientIntensity));
+      setLightPageText(
+        shouldUseLightPageText(
+          isDesktop ? ambientStyle : "off",
+          ambientIntensity,
+        ),
+      );
     };
     updateContrast();
     const observer = new MutationObserver(updateContrast);
@@ -381,9 +441,14 @@ export default function AppShell({ children }: AppShellProps) {
     sessionStorage.setItem("schoolar_ambient_style", next);
     updateAccountPreferences.mutate({ ambientStyle: next });
   }
-  async function updatePath(goal: NonNullable<typeof sidebarGoals>[number], pathSteps: typeof goal.pathSteps) {
+  async function updatePath(
+    goal: NonNullable<typeof sidebarGoals>[number],
+    pathSteps: typeof goal.pathSteps,
+  ) {
     await updateSidebarGoal.mutateAsync({ id: goal.id, data: { pathSteps } });
-    await queryClient.invalidateQueries({ queryKey: getListLearningGoalsQueryKey() });
+    await queryClient.invalidateQueries({
+      queryKey: getListLearningGoalsQueryKey(),
+    });
   }
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
   const isAdmin = me?.role === UserRole.admin;
@@ -406,7 +471,10 @@ export default function AppShell({ children }: AppShellProps) {
 
   // Real Google Classroom status — only fetched for teachers
   const { data: gcStatus, isLoading: gcStatusLoading } = useGetGCStatus({
-    query: { enabled: isTeacher && isDesktop && secondaryDataReady, queryKey: getGetGCStatusQueryKey() },
+    query: {
+      enabled: isTeacher && isDesktop && secondaryDataReady,
+      queryKey: getGetGCStatusQueryKey(),
+    },
   });
 
   // Lazy auth URL fetch — only triggered on demand
@@ -433,7 +501,9 @@ export default function AppShell({ children }: AppShellProps) {
     applyDefaultColors();
     queryClient.clear();
     const configuredBase = import.meta.env.BASE_URL;
-    const basePath = configuredBase.endsWith("/") ? configuredBase.slice(0, -1) : configuredBase;
+    const basePath = configuredBase.endsWith("/")
+      ? configuredBase.slice(0, -1)
+      : configuredBase;
     window.location.assign(basePath + "/resources");
   }
 
@@ -530,7 +600,12 @@ export default function AppShell({ children }: AppShellProps) {
     <div className="flex items-center gap-2 w-full" data-testid="role-switcher">
       <UserCog size={13} className="text-primary-foreground/60 shrink-0" />
       <Select
-        value={me.activeRole ?? (me.role === UserRole.teacher ? RoleSwitchInputRole.teacher : RoleSwitchInputRole.student)}
+        value={
+          me.activeRole ??
+          (me.role === UserRole.teacher
+            ? RoleSwitchInputRole.teacher
+            : RoleSwitchInputRole.student)
+        }
         onValueChange={handleRoleSwitch}
         disabled={switchRoleMutation.isPending}
       >
@@ -592,27 +667,125 @@ export default function AppShell({ children }: AppShellProps) {
               );
             })}
           </nav>
-          <section className="border-t border-primary-foreground/20 px-3 py-3" data-testid="sidebar-paths">
+          <section
+            className="border-t border-primary-foreground/20 px-3 py-3"
+            data-testid="sidebar-paths"
+          >
             <div className="mb-2 flex items-center justify-between px-2">
-              <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"><Target size={14} /> Paths</span>
-              <Link href="/goals" className="text-[10px] text-primary-foreground/70 hover:underline">Edit all</Link>
+              <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide">
+                <Target size={14} /> Paths
+              </span>
+              <Link
+                href="/goals"
+                className="text-[10px] text-primary-foreground/70 hover:underline"
+              >
+                Edit all
+              </Link>
             </div>
             <div className="max-h-56 space-y-1 overflow-y-auto">
-              {(Array.isArray(sidebarGoals) ? sidebarGoals : []).filter((goal) => goal.status === "active").map((goal) => {
-                const expanded = expandedPaths.includes(goal.id);
-                return <div key={goal.id} className="rounded-md bg-primary-foreground/10">
-                  <button type="button" className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs font-medium" onClick={() => setExpandedPaths((current) => expanded ? current.filter((id) => id !== goal.id) : [...current, goal.id])}>
-                    {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}<span className="min-w-0 flex-1 truncate">{goal.title}</span><span className="text-[10px] text-primary-foreground/60">{goal.pathSteps.filter((step) => step.completed).length}/{goal.pathSteps.length}</span>
-                  </button>
-                  {expanded && <div className="space-y-1 px-2 pb-2">
-                    {goal.pathSteps.map((step) => <div key={step.id} className="flex items-center gap-1.5">
-                      <button type="button" aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`} className={cn("flex size-5 shrink-0 items-center justify-center rounded border border-primary-foreground/40", step.completed && "bg-emerald-500 text-white")} onClick={() => updatePath(goal, goal.pathSteps.map((item) => item.id === step.id ? { ...item, completed: !item.completed } : item))}>{step.completed && <Check size={12} />}</button>
-                      <Input defaultValue={step.title} aria-label={`Edit ${step.title}`} className={cn("h-7 border-primary-foreground/25 bg-transparent px-2 text-[11px] text-primary-foreground", step.completed && "line-through opacity-65")} onBlur={(event) => { const title = event.currentTarget.value.trim(); if (title && title !== step.title) updatePath(goal, goal.pathSteps.map((item) => item.id === step.id ? { ...item, title } : item)); }} />
-                    </div>)}
-                  </div>}
-                </div>;
-              })}
-              {Array.isArray(sidebarGoals) && !sidebarGoals.some((goal) => goal.status === "active") && <Link href="/goals" className="block rounded-md px-2 py-2 text-xs text-primary-foreground/65 hover:bg-primary-foreground/10">Resume a goal to show its path.</Link>}
+              {(Array.isArray(sidebarGoals) ? sidebarGoals : [])
+                .filter((goal) => goal.status === "active")
+                .map((goal) => {
+                  const expanded = expandedPaths.includes(goal.id);
+                  return (
+                    <div
+                      key={goal.id}
+                      className="rounded-md bg-primary-foreground/10"
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-2 py-2 text-left text-xs font-medium"
+                        onClick={() =>
+                          setExpandedPaths((current) =>
+                            expanded
+                              ? current.filter((id) => id !== goal.id)
+                              : [...current, goal.id],
+                          )
+                        }
+                      >
+                        {expanded ? (
+                          <ChevronDown size={13} />
+                        ) : (
+                          <ChevronRight size={13} />
+                        )}
+                        <span className="min-w-0 flex-1 truncate">
+                          {goal.title}
+                        </span>
+                        <span className="text-[10px] text-primary-foreground/60">
+                          {
+                            goal.pathSteps.filter((step) => step.completed)
+                              .length
+                          }
+                          /{goal.pathSteps.length}
+                        </span>
+                      </button>
+                      {expanded && (
+                        <div className="space-y-1 px-2 pb-2">
+                          {goal.pathSteps.map((step) => (
+                            <div
+                              key={step.id}
+                              className="flex items-center gap-1.5"
+                            >
+                              <button
+                                type="button"
+                                aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`}
+                                className={cn(
+                                  "flex size-5 shrink-0 items-center justify-center rounded border border-primary-foreground/40",
+                                  step.completed && "bg-emerald-500 text-white",
+                                )}
+                                onClick={() =>
+                                  updatePath(
+                                    goal,
+                                    goal.pathSteps.map((item) =>
+                                      item.id === step.id
+                                        ? {
+                                            ...item,
+                                            completed: !item.completed,
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              >
+                                {step.completed && <Check size={12} />}
+                              </button>
+                              <Input
+                                defaultValue={step.title}
+                                aria-label={`Edit ${step.title}`}
+                                className={cn(
+                                  "h-7 border-primary-foreground/25 bg-transparent px-2 text-[11px] text-primary-foreground",
+                                  step.completed && "line-through opacity-65",
+                                )}
+                                onBlur={(event) => {
+                                  const title =
+                                    event.currentTarget.value.trim();
+                                  if (title && title !== step.title)
+                                    updatePath(
+                                      goal,
+                                      goal.pathSteps.map((item) =>
+                                        item.id === step.id
+                                          ? { ...item, title }
+                                          : item,
+                                      ),
+                                    );
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              {Array.isArray(sidebarGoals) &&
+                !sidebarGoals.some((goal) => goal.status === "active") && (
+                  <Link
+                    href="/goals"
+                    className="block rounded-md px-2 py-2 text-xs text-primary-foreground/65 hover:bg-primary-foreground/10"
+                  >
+                    Resume a goal to show its path.
+                  </Link>
+                )}
             </div>
           </section>
 
@@ -651,22 +824,39 @@ export default function AppShell({ children }: AppShellProps) {
             ) : null}
 
             {me ? (
-              <div className="rounded-lg border border-primary-foreground/20 bg-primary-foreground/10 p-3" data-testid="sidebar-plan-usage">
+              <div
+                className="rounded-lg border border-primary-foreground/20 bg-primary-foreground/10 p-3"
+                data-testid="sidebar-plan-usage"
+              >
                 <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
-                  <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-semibold"><Gauge size={13} /> Current plan</span>
-                  <span className="min-w-0 truncate rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-semibold">{accountUsage?.plan ?? (isAdmin ? "Administrator" : "Free")}</span>
+                  <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-semibold">
+                    <Gauge size={13} /> Current plan
+                  </span>
+                  <span className="min-w-0 truncate rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-semibold">
+                    {accountUsage?.plan ?? (isAdmin ? "Administrator" : "Free")}
+                  </span>
                 </div>
                 <div className="space-y-2 text-[11px] text-primary-foreground/75">
                   <div>
                     <div className="flex justify-between">
                       <span>AI fallback</span>
-                      <span>{hasUnlimitedUsage ? "Unlimited" : `${aiSearchUsed} / ${aiSearchLimit}`}</span>
+                      <span>
+                        {hasUnlimitedUsage
+                          ? "Unlimited"
+                          : `${aiSearchUsed} / ${aiSearchLimit}`}
+                      </span>
                     </div>
                     {!hasUnlimitedUsage ? (
                       <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15">
                         <div
                           className="h-full rounded bg-primary-foreground/70"
-                          style={{ width: Math.min(100, (aiSearchUsed / aiSearchLimit) * 100) + "%" }}
+                          style={{
+                            width:
+                              Math.min(
+                                100,
+                                (aiSearchUsed / aiSearchLimit) * 100,
+                              ) + "%",
+                          }}
                         />
                       </div>
                     ) : null}
@@ -674,13 +864,23 @@ export default function AppShell({ children }: AppShellProps) {
                   <div>
                     <div className="flex justify-between">
                       <span>Deep research</span>
-                      <span>{hasUnlimitedUsage ? "Unlimited" : `${deepResearchUsed} / ${deepResearchLimit}`}</span>
+                      <span>
+                        {hasUnlimitedUsage
+                          ? "Unlimited"
+                          : `${deepResearchUsed} / ${deepResearchLimit}`}
+                      </span>
                     </div>
                     {!hasUnlimitedUsage ? (
                       <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15">
                         <div
                           className="h-full rounded bg-primary-foreground/70"
-                          style={{ width: Math.min(100, (deepResearchUsed / deepResearchLimit) * 100) + "%" }}
+                          style={{
+                            width:
+                              Math.min(
+                                100,
+                                (deepResearchUsed / deepResearchLimit) * 100,
+                              ) + "%",
+                          }}
                         />
                       </div>
                     ) : null}
@@ -762,10 +962,17 @@ export default function AppShell({ children }: AppShellProps) {
                     <span>Schoolar</span>
                   </SheetTitle>
                 </SheetHeader>
-                <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3" aria-label="Mobile navigation">
+                <nav
+                  className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3"
+                  aria-label="Mobile navigation"
+                >
                   {navItems.map(({ label, href, icon: Icon }) => {
-                    const isActive = location === href || location.startsWith(href + "/");
-                    const displayLabel = language === "tr" ? (NAV_LABELS_TR[label] ?? label) : label;
+                    const isActive =
+                      location === href || location.startsWith(href + "/");
+                    const displayLabel =
+                      language === "tr"
+                        ? (NAV_LABELS_TR[label] ?? label)
+                        : label;
                     return (
                       <Link
                         key={href}
@@ -792,14 +999,29 @@ export default function AppShell({ children }: AppShellProps) {
                       className="mb-3 flex items-center gap-3 rounded-md px-2 py-2 hover:bg-primary-foreground/10"
                     >
                       <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary-foreground/20">
-                        {me.avatarUrl ? <img src={me.avatarUrl} alt="" className="size-full object-cover" /> : <User size={17} />}
+                        {me.avatarUrl ? (
+                          <img
+                            src={me.avatarUrl}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <User size={17} />
+                        )}
                       </span>
-                      <span className="min-w-0 truncate text-sm font-semibold">{me.name}</span>
+                      <span className="min-w-0 truncate text-sm font-semibold">
+                        {me.name}
+                      </span>
                     </Link>
                   ) : null}
                   {me ? (
                     <Select
-                      value={me.activeRole ?? (me.role === UserRole.teacher ? RoleSwitchInputRole.teacher : RoleSwitchInputRole.student)}
+                      value={
+                        me.activeRole ??
+                        (me.role === UserRole.teacher
+                          ? RoleSwitchInputRole.teacher
+                          : RoleSwitchInputRole.student)
+                      }
                       onValueChange={handleRoleSwitch}
                       disabled={switchRoleMutation.isPending}
                     >
@@ -811,8 +1033,12 @@ export default function AppShell({ children }: AppShellProps) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={RoleSwitchInputRole.student}>Student</SelectItem>
-                        <SelectItem value={RoleSwitchInputRole.teacher}>Teacher</SelectItem>
+                        <SelectItem value={RoleSwitchInputRole.student}>
+                          Student
+                        </SelectItem>
+                        <SelectItem value={RoleSwitchInputRole.teacher}>
+                          Teacher
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   ) : null}
@@ -822,7 +1048,9 @@ export default function AppShell({ children }: AppShellProps) {
                       label={copy.language}
                       onChange={(next) => {
                         setLanguage(next);
-                        void updateAccountPreferences.mutateAsync({ language: next }).finally(() => window.location.reload());
+                        void updateAccountPreferences
+                          .mutateAsync({ language: next })
+                          .finally(() => window.location.reload());
                       }}
                     />
                   </div>
@@ -847,29 +1075,40 @@ export default function AppShell({ children }: AppShellProps) {
             </SheetContent>
           </Sheet>
           <BrandIcon className="h-9 w-16 shrink-0" label="Schoolar" />
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{currentNavLabel}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+            {currentNavLabel}
+          </span>
         </div>
 
         {/* Main content */}
         <main className="relative flex-1 min-w-0 bg-background text-foreground overflow-auto md:pt-0 pt-14">
           {isDesktop ? (
             <Suspense fallback={null}>
-              <VantaBackground style={ambientStyle} intensity={ambientIntensity} />
+              <VantaBackground
+                style={ambientStyle}
+                intensity={ambientIntensity}
+              />
             </Suspense>
           ) : null}
           <div
             className="sticky top-0 z-40 flex h-11 items-center justify-end gap-1 border-b bg-background/90 px-2 backdrop-blur md:h-12 md:px-4"
-            style={{
-              "--foreground": lightToolbarText ? "0 0% 100%" : "0 0% 0%",
-              "--muted-foreground": lightToolbarText
-                ? "0 0% 82%"
-                : "0 0% 28%",
-            } as CSSProperties}
+            style={
+              {
+                "--foreground": lightToolbarText ? "0 0% 100%" : "0 0% 0%",
+                "--muted-foreground": lightToolbarText
+                  ? "0 0% 82%"
+                  : "0 0% 28%",
+              } as CSSProperties
+            }
             data-testid="notification-bar"
           >
             <Select value={ambientStyle} onValueChange={chooseAmbientStyle}>
-              <SelectTrigger className="hidden h-9 w-36 border-0 bg-transparent md:flex" data-testid="ambient-style-select">
-                <Waves size={16} className="mr-2" /><SelectValue />
+              <SelectTrigger
+                className="hidden h-9 w-36 border-0 bg-transparent md:flex"
+                data-testid="ambient-style-select"
+              >
+                <Waves size={16} className="mr-2" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="off">Off</SelectItem>
@@ -881,9 +1120,24 @@ export default function AppShell({ children }: AppShellProps) {
                 <SelectItem value="topology">Topology</SelectItem>
               </SelectContent>
             </Select>
-            <label className="hidden items-center gap-2 px-2 text-xs text-muted-foreground md:flex" title="Background animation intensity">
+            <label
+              className="hidden items-center gap-2 px-2 text-xs text-muted-foreground md:flex"
+              title="Background animation intensity"
+            >
               <span className="sr-only sm:not-sr-only">Intensity</span>
-              <input type="range" min="0.5" max="2" step="0.25" value={ambientIntensity} onChange={(event) => chooseAmbientIntensity(Number(event.target.value))} className="h-1.5 w-16 cursor-pointer accent-primary sm:w-24" aria-label="Background animation intensity" data-testid="ambient-intensity-slider" />
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.25"
+                value={ambientIntensity}
+                onChange={(event) =>
+                  chooseAmbientIntensity(Number(event.target.value))
+                }
+                className="h-1.5 w-16 cursor-pointer accent-primary sm:w-24"
+                aria-label="Background animation intensity"
+                data-testid="ambient-intensity-slider"
+              />
             </label>
             <Popover>
               <PopoverTrigger asChild>
@@ -920,39 +1174,71 @@ export default function AppShell({ children }: AppShellProps) {
                     </p>
                   ) : (
                     <>
-                    {classInvitations.map((invitation) => (
-                      <div key={`invite-${invitation.id}`} className="mb-2 border bg-muted/30 p-3" style={{ borderRadius: 8 }}>
-                        <p className="text-sm font-semibold">{invitation.class.name}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {invitation.inviter.name} invited you as a {invitation.role}.
-                        </p>
-                        <div className="mt-3 flex gap-2">
-                          <Button size="sm" className="flex-1" onClick={() => void respondToClassInvitation(invitation, "accept")}>
-                            <Check className="mr-1.5 size-3.5" />Accept
-                          </Button>
-                          <Button size="sm" variant="outline" className="flex-1" onClick={() => void respondToClassInvitation(invitation, "decline")}>
-                            <X className="mr-1.5 size-3.5" />Decline
-                          </Button>
+                      {classInvitations.map((invitation) => (
+                        <div
+                          key={`invite-${invitation.id}`}
+                          className="mb-2 border bg-muted/30 p-3"
+                          style={{ borderRadius: 8 }}
+                        >
+                          <p className="text-sm font-semibold">
+                            {invitation.class.name}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {invitation.inviter.name} invited you as a{" "}
+                            {invitation.role}.
+                          </p>
+                          <div className="mt-3 flex gap-2">
+                            <Button
+                              size="sm"
+                              className="flex-1"
+                              onClick={() =>
+                                void respondToClassInvitation(
+                                  invitation,
+                                  "accept",
+                                )
+                              }
+                            >
+                              <Check className="mr-1.5 size-3.5" />
+                              Accept
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1"
+                              onClick={() =>
+                                void respondToClassInvitation(
+                                  invitation,
+                                  "decline",
+                                )
+                              }
+                            >
+                              <X className="mr-1.5 size-3.5" />
+                              Decline
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    {safeNotifications.map((item) => (
-                      <Link
-                        key={item.id}
-                        href={
-                          item.type === "schedule" ? "/schedule" : item.type === "class" ? "/classes" : "/dashboard"
-                        }
-                        onClick={() => markNotificationRead(item.id)}
-                        className="block rounded-lg p-3 hover:bg-muted"
-                      >
-                        <p className="text-sm">{item.message}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {new Date(item.createdAt).toLocaleString(
-                            language === "tr" ? "tr-TR" : undefined,
-                          )}
-                        </p>
-                      </Link>
-                    ))}
+                      ))}
+                      {safeNotifications.map((item) => (
+                        <Link
+                          key={item.id}
+                          href={
+                            item.type === "schedule"
+                              ? "/schedule"
+                              : item.type === "class"
+                                ? "/classes"
+                                : "/dashboard"
+                          }
+                          onClick={() => markNotificationRead(item.id)}
+                          className="block rounded-lg p-3 hover:bg-muted"
+                        >
+                          <p className="text-sm">{item.message}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {new Date(item.createdAt).toLocaleString(
+                              language === "tr" ? "tr-TR" : undefined,
+                            )}
+                          </p>
+                        </Link>
+                      ))}
                     </>
                   )}
                 </div>
@@ -961,10 +1247,12 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
           <div
             className="ambient-copy-contrast relative z-10"
-            style={{
-              "--foreground": lightPageText ? "0 0% 100%" : "225 21.1% 7.5%",
-              "--muted-foreground": lightPageText ? "0 0% 82%" : "0 0% 28%",
-            } as CSSProperties}
+            style={
+              {
+                "--foreground": lightPageText ? "0 0% 100%" : "225 21.1% 7.5%",
+                "--muted-foreground": lightPageText ? "0 0% 82%" : "0 0% 28%",
+              } as CSSProperties
+            }
           >
             {children}
           </div>
@@ -975,6 +1263,7 @@ export default function AppShell({ children }: AppShellProps) {
 }
 const NAV_LABELS_TR: Record<string, string> = {
   Dashboard: "Ana Sayfa",
+  Tutorial: "Öğretici",
   Goals: "Hedefler",
   Activities: "Etkinlikler",
   Resources: "Kaynaklar",
@@ -983,4 +1272,5 @@ const NAV_LABELS_TR: Record<string, string> = {
   Classes: "Sınıflar",
   Lists: "Listeler",
   Schedule: "Takvim",
+  Settings: "Ayarlar",
 };

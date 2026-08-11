@@ -156,8 +156,13 @@ const userPreferencesPatch = z
       .enum(["off", "net", "globe", "halo", "cells", "rings", "topology"])
       .optional(),
     ambientIntensity: z.number().min(0.5).max(2).optional(),
-    readNotificationIds: z.array(z.number().int().positive()).max(500).optional(),
-    dashboardGoalIds: z.record(z.string(), z.number().int().positive()).optional(),
+    readNotificationIds: z
+      .array(z.number().int().positive())
+      .max(500)
+      .optional(),
+    dashboardGoalIds: z
+      .record(z.string(), z.number().int().positive())
+      .optional(),
     continueStudying: z
       .record(z.string(), z.array(z.number().int().positive()).max(6))
       .optional(),
@@ -179,8 +184,12 @@ const userPreferencesPatch = z
       )
       .max(12)
       .optional(),
-    resourceSearchState: z.record(z.string(), z.unknown()).nullable().optional(),
+    resourceSearchState: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .optional(),
     allowMessageRequests: z.boolean().optional(),
+    tutorialSeen: z.boolean().optional(),
   })
   .strict();
 
@@ -198,18 +207,23 @@ function defaultUserPreferences(userId: number) {
     searchHistory: [] as Array<{ query: string; searchedAt: string }>,
     resourceSearchState: null as Record<string, unknown> | null,
     allowMessageRequests: true,
+    tutorialSeen: true,
     updatedAt: new Date(0).toISOString(),
   };
 }
 
-router.get("/users/me/preferences", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
-  const [preferences] = await db
-    .select()
-    .from(userPreferencesTable)
-    .where(eq(userPreferencesTable.userId, userId));
-  res.json(preferences ?? defaultUserPreferences(userId));
-});
+router.get(
+  "/users/me/preferences",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const [preferences] = await db
+      .select()
+      .from(userPreferencesTable)
+      .where(eq(userPreferencesTable.userId, userId));
+    res.json(preferences ?? defaultUserPreferences(userId));
+  },
+);
 
 router.patch(
   "/users/me/preferences",
@@ -359,8 +373,9 @@ router.get("/users/me/access", requireAuth, async (req, res): Promise<void> => {
     return;
   }
   const adminContact =
-    process.env.ADMIN_EMAILS?.split(",").map((email) => email.trim()).find(Boolean) ??
-    "baharyuksel0403@gmail.com";
+    process.env.ADMIN_EMAILS?.split(",")
+      .map((email) => email.trim())
+      .find(Boolean) ?? "baharyuksel0403@gmail.com";
   res.json({
     banned: Boolean(user.bannedAt),
     bannedAt: user.bannedAt,
@@ -646,10 +661,7 @@ async function blockedIdsFor(userId: number): Promise<Set<number>> {
 }
 
 // GET /users/search — shared classmates by default; opt-in profile discovery with scope=all
-router.get(
-  "/users/search",
-  requireAuth,
-  async (req, res): Promise<void> => {
+router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
   const { userId, accountRole } = req as AuthenticatedRequest;
   const isAdmin = accountRole === "admin";
   const parsed = SearchUsersQueryParams.safeParse(req.query);
@@ -776,8 +788,7 @@ router.get(
       .slice(offset, offset + limit)
       .map((user) => maskPublicUser(user, isAdmin)),
   );
-  },
-);
+});
 
 async function usersHaveBlock(
   firstId: number,
@@ -896,14 +907,12 @@ router.post(
       res.status(404).json({ error: "User not found" });
       return;
     }
-    await db
-      .insert(userReportsTable)
-      .values({
-        reporterId: userId,
-        reportedId: target.id,
-        reason: body.data.reason,
-        details: body.data.details?.trim() || null,
-      });
+    await db.insert(userReportsTable).values({
+      reporterId: userId,
+      reportedId: target.id,
+      reason: body.data.reason,
+      details: body.data.details?.trim() || null,
+    });
     res.status(201).json(ReportUserResponse.parse({ received: true }));
   },
 );

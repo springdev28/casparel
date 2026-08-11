@@ -15,6 +15,7 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useRegister } from "@workspace/api-client-react";
 import { AuthLanguageSelect } from "../../components/AuthLanguageSelect";
 import { useAuthLanguage } from "../../lib/auth-locale";
+import { saveUserPreferences } from "../../lib/user-preferences";
 
 const TOKEN_KEY = "schoolar_token";
 
@@ -34,7 +35,12 @@ export default function RegisterPage() {
         data: { name, email, password },
       });
       localStorage.setItem(TOKEN_KEY, result.token);
-      setLocation("/dashboard");
+      try {
+        await saveUserPreferences({ tutorialSeen: false, language });
+      } catch {
+        // Registration still succeeds if preference persistence is temporarily unavailable.
+      }
+      setLocation("/tutorial");
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : copy.registrationFailed;
