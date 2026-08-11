@@ -8,6 +8,9 @@ if (!process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET environment variable must be set");
 }
 const SECRET = process.env.SESSION_SECRET;
+if (Buffer.byteLength(SECRET, "utf8") < 32) {
+  throw new Error("SESSION_SECRET must be at least 32 bytes long");
+}
 
 // ── Password hashing ─────────────────────────────────────────────────────────
 
@@ -21,12 +24,24 @@ export async function hashPassword(password: string): Promise<string> {
   });
 }
 
-export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+export async function verifyPassword(
+  password: string,
+  stored: string,
+): Promise<boolean> {
+  const match = /^([0-9a-f]{32}):([0-9a-f]{128})$/i.exec(stored);
+  if (!match) return false;
+
   return new Promise((resolve, reject) => {
-    const [salt, hash] = stored.split(":");
+    const [, salt, hash] = match;
     crypto.scrypt(password, salt, 64, (err, derived) => {
       if (err) reject(err);
-      else resolve(crypto.timingSafeEqual(Buffer.from(hash, "hex"), derived));
+      else {
+        const expected = Buffer.from(hash, "hex");
+        resolve(
+          expected.length === derived.length &&
+            crypto.timingSafeEqual(expected, derived),
+        );
+      }
     });
   });
 }
@@ -43,8 +58,30 @@ interface TokenPayload {
   exp: number;
 }
 
+const VALID_ROLES = new Set(["student", "teacher", "admin"]);
+
+function isTokenPayload(value: unknown): value is TokenPayload {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Partial<TokenPayload>;
+  return (
+    Number.isSafeInteger(payload.userId) &&
+    Number(payload.userId) > 0 &&
+    typeof payload.role === "string" &&
+    VALID_ROLES.has(payload.role) &&
+    typeof payload.accountRole === "string" &&
+    VALID_ROLES.has(payload.accountRole) &&
+    Number.isSafeInteger(payload.iat) &&
+    Number.isSafeInteger(payload.exp) &&
+    Number(payload.exp) > Number(payload.iat) &&
+    Number(payload.iat) <= Date.now() + 5 * 60 * 1000 &&
+    Number(payload.exp) <= Number(payload.iat) + TOKEN_TTL_MS
+  );
+}
+
 function sign(payload: TokenPayload): string {
-  const header = Buffer.from(JSON.stringify({ alg: "HS256" })).toString("base64url");
+  const header = Buffer.from(
+    JSON.stringify({ alg: "HS256", typ: "JWT" }),
+  ).toString("base64url");
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = crypto
     .createHmac("sha256", SECRET)
@@ -58,22 +95,43 @@ function verify(token: string): TokenPayload | null {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
     const [header, body, sig] = parts;
+    const parsedHeader = JSON.parse(
+      Buffer.from(header, "base64url").toString(),
+    ) as { alg?: unknown; typ?: unknown };
+    if (
+      parsedHeader.alg !== "HS256" ||
+      (parsedHeader.typ !== undefined && parsedHeader.typ !== "JWT")
+    ) {
+      return null;
+    }
     const expected = crypto
       .createHmac("sha256", SECRET)
       .update(`${header}.${body}`)
       .digest("base64url");
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-    const payload = JSON.parse(Buffer.from(body, "base64url").toString()) as TokenPayload;
-    if (payload.exp && payload.exp < Date.now()) return null; // expired
+    const suppliedSignature = Buffer.from(sig);
+    const expectedSignature = Buffer.from(expected);
+    if (
+      suppliedSignature.length !== expectedSignature.length ||
+      !crypto.timingSafeEqual(suppliedSignature, expectedSignature)
+    ) {
+      return null;
+    }
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString());
+    if (!isTokenPayload(payload) || payload.exp < Date.now()) return null;
     return payload;
   } catch {
     return null;
   }
 }
 
-export function issueToken(userId: number, accountRole: string, activeRole?: string): string {
+export function issueToken(
+  userId: number,
+  accountRole: string,
+  activeRole?: string,
+): string {
   const now = Date.now();
-  const role = activeRole ?? (accountRole === "teacher" ? "teacher" : "student");
+  const role =
+    activeRole ?? (accountRole === "teacher" ? "teacher" : "student");
   return sign({ userId, role, accountRole, iat: now, exp: now + TOKEN_TTL_MS });
 }
 

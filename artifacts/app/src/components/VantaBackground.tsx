@@ -1,6 +1,4 @@
 import { useEffect, useRef, type CSSProperties } from "react";
-import * as THREE from "three";
-import p5 from "p5";
 
 export type VantaStyle = "off" | "net" | "globe" | "halo" | "cells" | "rings" | "topology";
 
@@ -28,6 +26,14 @@ async function loadFactory(style: Exclude<VantaStyle, "off">): Promise<VantaFact
     case "rings": return factoryFrom(await import("vanta/dist/vanta.rings.min.js"));
     case "topology": return factoryFrom(await import("vanta/dist/vanta.topology.min.js"));
   }
+}
+
+async function loadRuntime(style: Exclude<VantaStyle, "off">) {
+  if (style === "topology") {
+    const module = await import("p5");
+    return { p5: module.default };
+  }
+  return { THREE: await import("three") };
 }
 
 const EFFECT_OPTIONS: Record<Exclude<VantaStyle, "off">, Record<string, unknown>> = {
@@ -59,32 +65,42 @@ export default function VantaBackground({ style, intensity }: { style: VantaStyl
     if (style === "off" || !elementRef.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let disposed = false;
     let instance: VantaInstance | undefined;
-    void loadFactory(style).then((factory) => {
-      if (disposed || !elementRef.current) return;
-      instance = factory({
-        el: elementRef.current,
-        THREE,
-        p5,
-        ...EFFECT_OPTIONS[style],
-        mouseControls: true,
-        touchControls: true,
-        gyroControls: false,
-        forceAnimate: true,
-        // Keep this after the effect defaults so the user's setting always
-        // wins (the Cells defaults previously forced speed back to 0.75).
-        speed: intensity,
-        minHeight: 200,
-        minWidth: 200,
-        scale: 1,
-        scaleMobile: 0.7,
+    const initialize = () => {
+      void Promise.all([loadFactory(style), loadRuntime(style)]).then(([factory, runtime]) => {
+        if (disposed || !elementRef.current) return;
+        instance = factory({
+          el: elementRef.current,
+          ...runtime,
+          ...EFFECT_OPTIONS[style],
+          mouseControls: true,
+          touchControls: true,
+          gyroControls: false,
+          forceAnimate: true,
+          // Keep this after the effect defaults so the user's setting always
+          // wins (the Cells defaults previously forced speed back to 0.75).
+          speed: intensity,
+          minHeight: 200,
+          minWidth: 200,
+          scale: 1,
+          scaleMobile: 0.7,
+        });
+        instanceRef.current = instance;
+        applyIntensity(instance, style, intensity);
+      }).catch((error: unknown) => {
+        if (!disposed) console.error(`Unable to start the ${style} background`, error);
       });
-      instanceRef.current = instance;
-      applyIntensity(instance, style, intensity);
-    }).catch((error: unknown) => {
-      if (!disposed) console.error(`Unable to start the ${style} background`, error);
-    });
+    };
+    let cancelLoad: () => void;
+    if ("requestIdleCallback" in window) {
+      const requestId = window.requestIdleCallback(initialize, { timeout: 1_200 });
+      cancelLoad = () => window.cancelIdleCallback(requestId);
+    } else {
+      const timer = globalThis.setTimeout(initialize, 300);
+      cancelLoad = () => globalThis.clearTimeout(timer);
+    }
     return () => {
       disposed = true;
+      cancelLoad();
       try {
         instance?.destroy();
       } catch (error) {

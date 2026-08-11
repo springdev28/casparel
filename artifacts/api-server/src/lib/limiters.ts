@@ -7,7 +7,6 @@ import { isAdminRequest } from "./adminAccess";
  * Applied to every /api route.
  */
 export const globalLimiter = rateLimit({
-  skip: isAdminRequest,
   requestPropertyName: "globalRateLimit",
   windowMs: 60 * 1000,
   max: 100,

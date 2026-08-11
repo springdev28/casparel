@@ -41,12 +41,17 @@ async function main() {
     if (process.env.REQUIRE_DATABASE_READY === "true") process.exit(1);
   }
 
-  app.listen(port, (err) => {
-    if (err) {
-      logger.error({ err }, "Error listening on port");
-      process.exit(1);
-    }
+  const server = app.listen(port, () => {
     logger.info({ port }, "Server listening");
+  });
+  server.requestTimeout = 120_000;
+  server.headersTimeout = 15_000;
+  server.keepAliveTimeout = 5_000;
+  server.maxHeadersCount = 100;
+  server.maxRequestsPerSocket = 100;
+  server.on("error", (err) => {
+    logger.error({ err }, "HTTP server error");
+    process.exit(1);
   });
 
   void ensureCuratedCatalog()

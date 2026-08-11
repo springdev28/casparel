@@ -93,6 +93,13 @@ app.use((_req, res, next) => {
 app.use(express.json({ limit: "2mb", strict: true }));
 app.use(express.urlencoded({ extended: true, limit: "256kb", parameterLimit: 100 }));
 
+app.use("/api", (req, res, next) => {
+  if (req.headers.authorization || req.path.startsWith("/auth/")) {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+  }
+  next();
+});
 app.use("/api", globalLimiter);
 app.use("/api", loginCompatRouter);
 app.use("/api", router);
