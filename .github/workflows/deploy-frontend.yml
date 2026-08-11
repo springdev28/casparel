@@ -1,0 +1,74 @@
+name: Deploy frontend to Hostinger
+
+# Builds the web app and uploads the static output to Hostinger over FTP on
+# every push to main. Inert until the FTP_* repository secrets below are set,
+# so it is safe to merge before credentials exist.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   FTP_SERVER    e.g. ftp.yourdomain.com   (Hostinger: hPanel → Files → FTP Accounts)
+#   FTP_USERNAME  the FTP account username
+#   FTP_PASSWORD  the FTP account password
+# Optional repository variables:
+#   SITE_URL        canonical origin baked into robots.txt / sitemap.xml
+#                   (default: the current hostingersite.com domain)
+#   FTP_SERVER_DIR  remote web root, must end with a slash (default: public_html/)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'artifacts/app/**'
+      - 'lib/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web app
+        run: pnpm --filter @workspace/app run build
+        env:
+          NODE_ENV: production
+          SITE_URL: ${{ vars.SITE_URL || 'https://lightgrey-oyster-122608.hostingersite.com' }}
+
+      - name: Guard against a missing build
+        run: test -f artifacts/app/dist/public/index.html
+
+      - name: Deploy to Hostinger over FTP
+        if: ${{ env.FTP_SERVER != '' }}
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./artifacts/app/dist/public/
+          server-dir: ${{ vars.FTP_SERVER_DIR || 'public_html/' }}
+          # Incremental sync (never a clean slate) and an explicit .htaccess
+          # exclusion so the server-side rule that proxies /api to the backend
+          # is never touched by a deploy.
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.htaccess
