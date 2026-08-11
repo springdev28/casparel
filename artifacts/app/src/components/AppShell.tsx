@@ -1,5 +1,7 @@
 import {
+  lazy,
   ReactNode,
+  Suspense,
   useEffect,
   useState,
   type CSSProperties,
@@ -92,6 +94,7 @@ import {
 import { useDocumentVisibility } from "../lib/use-document-visibility";
 
 const TOKEN_KEY = "schoolar_token";
+const VantaBackground = lazy(() => import("./VantaBackground"));
 
 interface NavItem {
   label: string;
@@ -1071,6 +1074,14 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Main content */}
         <main className="relative flex-1 min-w-0 bg-background text-foreground overflow-auto md:pt-0 pt-14">
+          {isDesktop ? (
+            <Suspense fallback={null}>
+              <VantaBackground
+                style={ambientStyle}
+                intensity={ambientIntensity}
+              />
+            </Suspense>
+          ) : null}
           <div
             className="sticky top-0 z-40 flex h-11 items-center justify-end gap-1 border-b bg-background/90 px-2 backdrop-blur md:h-12 md:px-4"
             style={
