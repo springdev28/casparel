@@ -1,7 +1,5 @@
 import {
-  lazy,
   ReactNode,
-  Suspense,
   useEffect,
   useState,
   type CSSProperties,
@@ -34,7 +32,6 @@ import {
   Workflow,
   X,
   Menu,
-  Compass,
   Settings,
 } from "lucide-react";
 import { cn } from "@workspace/edu-ds/lib/utils";
@@ -95,7 +92,6 @@ import {
 import { useDocumentVisibility } from "../lib/use-document-visibility";
 
 const TOKEN_KEY = "schoolar_token";
-const VantaBackground = lazy(() => import("./VantaBackground"));
 
 interface NavItem {
   label: string;
@@ -105,7 +101,6 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Tutorial", href: "/tutorial", icon: Compass },
   { label: "Classes", href: "/classes", icon: Users },
   { label: "Goals", href: "/goals", icon: Target },
   { label: "Activities", href: "/activities", icon: LibraryBig },
@@ -187,7 +182,7 @@ interface AppShellProps {
 }
 
 export default function AppShell({ children }: AppShellProps) {
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(
     () => window.matchMedia("(min-width: 768px)").matches,
@@ -199,13 +194,6 @@ export default function AppShell({ children }: AppShellProps) {
   const { language, setLanguage, copy } = useAuthLanguage();
   const { data: accountPreferences } = useUserPreferences(Boolean(me));
   const updateAccountPreferences = useUpdateUserPreferences();
-  useEffect(() => {
-    if (!accountPreferences || accountPreferences.tutorialSeen) return;
-    const sessionKey = `schoolar_tutorial_presented:${accountPreferences.userId}`;
-    if (location === "/tutorial" || sessionStorage.getItem(sessionKey)) return;
-    sessionStorage.setItem(sessionKey, "1");
-    setLocation("/tutorial");
-  }, [accountPreferences, location, setLocation]);
   const { data: notifications } = useGetRecentActivity({
     query: {
       enabled: Boolean(me) && secondaryDataReady,
@@ -242,6 +230,7 @@ export default function AppShell({ children }: AppShellProps) {
     const timer = globalThis.setTimeout(() => setSecondaryDataReady(true), 500);
     return () => globalThis.clearTimeout(timer);
   }, [me?.id]);
+
   const activeNotificationRole = me?.activeRole ?? me?.role ?? "student";
   const notificationReadKey = `schoolar_read_notifications:${me?.id ?? "guest"}:${activeNotificationRole}`;
   const [readNotificationIds, setReadNotificationIds] = useState<number[]>([]);
@@ -1082,14 +1071,6 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Main content */}
         <main className="relative flex-1 min-w-0 bg-background text-foreground overflow-auto md:pt-0 pt-14">
-          {isDesktop ? (
-            <Suspense fallback={null}>
-              <VantaBackground
-                style={ambientStyle}
-                intensity={ambientIntensity}
-              />
-            </Suspense>
-          ) : null}
           <div
             className="sticky top-0 z-40 flex h-11 items-center justify-end gap-1 border-b bg-background/90 px-2 backdrop-blur md:h-12 md:px-4"
             style={
@@ -1263,7 +1244,6 @@ export default function AppShell({ children }: AppShellProps) {
 }
 const NAV_LABELS_TR: Record<string, string> = {
   Dashboard: "Ana Sayfa",
-  Tutorial: "Öğretici",
   Goals: "Hedefler",
   Activities: "Etkinlikler",
   Resources: "Kaynaklar",

@@ -4,7 +4,6 @@ import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Switch } from "@workspace/edu-ds/components/ui/switch";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import {
-  BookOpenCheck,
   ChevronRight,
   Languages,
   MessageCircle,
@@ -103,23 +102,6 @@ export default function SettingsPage() {
             }
             aria-label="Allow message requests"
           />
-        </section>
-
-        <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div className="flex min-w-0 gap-3">
-            <BookOpenCheck className="mt-0.5 size-5 shrink-0 text-primary" />
-            <div>
-              <h2 className="font-semibold">Schoolar tutorial</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Review the main student and teacher workflows at any time.
-              </p>
-            </div>
-          </div>
-          <Button asChild variant="outline" className="gap-2">
-            <Link href="/tutorial">
-              Open tutorial <ChevronRight className="size-4" />
-            </Link>
-          </Button>
         </section>
 
         <section className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">

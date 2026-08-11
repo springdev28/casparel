@@ -10,7 +10,12 @@ import {
   CardTitle,
 } from "@workspace/edu-ds/components/ui/card";
 import { Ban, Loader2, Mail, Trash2 } from "lucide-react";
-import { Route, Switch, Router as WouterRouter, Redirect } from "wouter";
+import {
+  Route,
+  Switch,
+  Router as WouterRouter,
+  Redirect,
+} from "wouter";
 import {
   getGetMeQueryKey,
   getMe,
@@ -30,7 +35,6 @@ const PublicShell = lazy(() => import("./components/PublicShell"));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const DashboardPage = lazy(() => import("./pages/AdaptiveDashboardPage"));
-const TutorialPage = lazy(() => import("./pages/TutorialPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ResourcesPage = lazy(() => import("./pages/ResourcesPage"));
 const ResourceDetailPage = lazy(() => import("./pages/ResourceDetailPage"));
@@ -339,9 +343,6 @@ function Router() {
       </Route>
       <Route path="/dashboard">
         {() => <PrivateRoute component={DashboardPage} />}
-      </Route>
-      <Route path="/tutorial">
-        {() => <PrivateRoute component={TutorialPage} />}
       </Route>
       <Route path="/settings">
         {() => <PrivateRoute component={SettingsPage} />}
