@@ -1271,14 +1271,22 @@ export default function ResourcesPage() {
 
   // Load the catalogue to identify this user's existing library URLs even
   // while source-only mode hides the library results panel.
-  const libraryCatalogParams = { limit: 50, offset: 0 };
+  const libraryCatalogParams = { limit: 200, offset: 0 };
   const { data: libraryCatalog } = useListResources(libraryCatalogParams, {
     query: {
       enabled: isLoggedIn,
       queryKey: getListResourcesQueryKey(libraryCatalogParams),
     },
   });
-  const uniqueLibraryCatalog = dedupeResourcesByWork(libraryCatalog ?? []);
+  // A user's library is the set of resources they submitted — not the entire
+  // shared catalogue. Scope the grid to the current account so it only shows
+  // (and offers Remove on) resources this user actually owns; browsing the
+  // full catalogue is what the Search view is for.
+  const uniqueLibraryCatalog = dedupeResourcesByWork(
+    (libraryCatalog ?? []).filter(
+      (resource) => resource.submittedById === me?.id,
+    ),
+  );
   const uniqueLibraryResults = dedupeResourcesByWork(libraryResults ?? []);
   const savedLibraryUrls = new Set(
     (libraryCatalog ?? [])

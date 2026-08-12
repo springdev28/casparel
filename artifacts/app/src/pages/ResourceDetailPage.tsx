@@ -1345,7 +1345,7 @@ export default function ResourceDetailPage() {
               )}
 
               {/* Remove from library — only for submitter */}
-              {isLoggedIn && (
+              {isLoggedIn && me?.id === resource.submittedById && (
                 <Dialog
                   open={deleteConfirmOpen}
                   onOpenChange={setDeleteConfirmOpen}
