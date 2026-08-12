@@ -36,6 +36,8 @@ const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const DashboardPage = lazy(() => import("./pages/AdaptiveDashboardPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const TutorialPage = lazy(() => import("./pages/TutorialPage"));
+const GuidePage = lazy(() => import("./pages/GuidePage"));
 const ResourcesPage = lazy(() => import("./pages/ResourcesPage"));
 const ResourceDetailPage = lazy(() => import("./pages/ResourceDetailPage"));
 const ClassesPage = lazy(() => import("./pages/ClassesPage"));
@@ -346,6 +348,12 @@ function Router() {
       </Route>
       <Route path="/settings">
         {() => <PrivateRoute component={SettingsPage} />}
+      </Route>
+      <Route path="/tutorial">
+        {() => <PrivateRoute component={TutorialPage} />}
+      </Route>
+      <Route path="/guide">
+        {() => <PrivateRoute component={GuidePage} />}
       </Route>
       <Route path="/classes/:id">
         {() => <PrivateRoute component={ClassDetailPage} />}

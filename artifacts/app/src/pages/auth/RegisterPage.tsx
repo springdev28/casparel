@@ -36,7 +36,9 @@ export default function RegisterPage() {
         data: { name, email, password },
       });
       localStorage.setItem(TOKEN_KEY, result.token);
-      setLocation("/dashboard");
+      // New accounts land on the guided tour first; it marks tutorialSeen and
+      // moves on to the dashboard when finished or skipped.
+      setLocation("/tutorial");
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : copy.registrationFailed;

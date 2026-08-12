@@ -4,7 +4,9 @@ import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Switch } from "@workspace/edu-ds/components/ui/switch";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import {
+  BookOpen,
   ChevronRight,
+  Compass,
   Languages,
   MessageCircle,
   Palette,
@@ -102,6 +104,42 @@ export default function SettingsPage() {
             }
             aria-label="Allow message requests"
           />
+        </section>
+
+        <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex min-w-0 gap-3">
+            <Compass className="mt-0.5 size-5 shrink-0 text-primary" />
+            <div>
+              <h2 className="font-semibold">Product tour</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Replay the guided first-run walkthrough of Schoolar’s core
+                workflow at any time.
+              </p>
+            </div>
+          </div>
+          <Button asChild variant="outline" className="gap-2">
+            <Link href="/tutorial">
+              Start the tour <ChevronRight className="size-4" />
+            </Link>
+          </Button>
+        </section>
+
+        <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex min-w-0 gap-3">
+            <BookOpen className="mt-0.5 size-5 shrink-0 text-primary" />
+            <div>
+              <h2 className="font-semibold">Complete guide</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                A full reference to every feature, kept up to date with each
+                release — including what’s new.
+              </p>
+            </div>
+          </div>
+          <Button asChild variant="outline" className="gap-2">
+            <Link href="/guide">
+              Open the guide <ChevronRight className="size-4" />
+            </Link>
+          </Button>
         </section>
 
         <section className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
