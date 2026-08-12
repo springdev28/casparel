@@ -1,559 +1,201 @@
-import { useMemo, useState } from "react";
-import { useLocation } from "wouter";
+import { useState } from "react";
+import { useLocation, Link } from "wouter";
 import {
+  ArrowLeft,
   ArrowRight,
   BookOpen,
-  Calendar,
   Check,
-  Circle,
   Compass,
-  GraduationCap,
+  LayoutDashboard,
   LibraryBig,
-  ListChecks,
-  MessageSquareText,
-  MousePointer2,
-  Play,
+  Rocket,
   Search,
+  Sparkles,
   Target,
   Users,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@workspace/edu-ds/components/ui/card";
-import { cn } from "@workspace/edu-ds/lib/utils";
-import {
-  useUpdateUserPreferences,
-  useUserPreferences,
-} from "../lib/user-preferences";
+import { useUpdateUserPreferences } from "../lib/user-preferences";
 
-type TutorialStep = {
-  id: string;
+type Slide = {
+  icon: LucideIcon;
+  eyebrow: string;
   title: string;
-  area: string;
-  minutes: number;
-  href: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  outcome: string;
-  details: string[];
-  practice: string;
+  body: string;
+  points: { icon: LucideIcon; text: string }[];
 };
 
-const STUDENT_STEPS: TutorialStep[] = [
+const SLIDES: Slide[] = [
   {
-    id: "student-goal",
-    title: "Set one learning goal",
-    area: "Goals",
-    minutes: 3,
-    href: "/goals",
-    icon: Target,
-    outcome: "Create a clear target and let Schoolar turn it into a path.",
-    details: [
-      "Name the skill you want to build.",
-      "Choose a level and preferred formats.",
-      "Use path steps to keep the next action visible.",
+    icon: Sparkles,
+    eyebrow: "Welcome",
+    title: "Welcome to Schoolar",
+    body: "Your workspace for discovering great learning resources and turning them into real progress — whether you’re studying or teaching.",
+    points: [
+      { icon: Search, text: "Find and vet high-quality resources fast." },
+      { icon: Target, text: "Turn goals into guided, resourced paths." },
+      { icon: Users, text: "Run classes and share work with people." },
     ],
-    practice:
-      "Create or resume one active goal with at least three path steps.",
   },
   {
-    id: "student-resource",
-    title: "Find a useful resource",
-    area: "Resources",
-    minutes: 4,
-    href: "/resources",
     icon: Search,
-    outcome:
-      "Search the library, inspect source details, and save what is worth using.",
-    details: [
-      "Filter by format when you already know how you want to learn.",
-      "Open a resource before saving it.",
-      "Use reviews and source checks to decide what deserves attention.",
+    eyebrow: "Discover",
+    title: "Find the right resource",
+    body: "Search the shared catalogue or let AI-assisted discovery suggest resources for any topic. Filter by source, format, subject, grade, and rating, and cite anything in a click.",
+    points: [
+      { icon: Search, text: "Keyword search with rich filters." },
+      { icon: Sparkles, text: "AI discovery with provenance signals." },
+      { icon: BookOpen, text: "Built-in citation maker." },
     ],
-    practice: "Save one resource that supports your active goal.",
   },
   {
-    id: "student-list",
-    title: "Build a study list",
-    area: "Lists",
-    minutes: 3,
-    href: "/lists",
-    icon: ListChecks,
-    outcome: "Group resources into a sequence you can return to later.",
-    details: [
-      "Create a focused list instead of a broad collection.",
-      "Put the easiest first step near the top.",
-      "Share the list when it would help a classmate.",
-    ],
-    practice:
-      "Make a list with two resources and a title that names the outcome.",
-  },
-  {
-    id: "student-activity",
-    title: "Practice with an activity",
-    area: "Activities",
-    minutes: 4,
-    href: "/activities",
     icon: LibraryBig,
-    outcome:
-      "Turn study material into focused practice you can repeat or share.",
-    details: [
-      "Choose the activity format that fits the skill.",
-      "Check every answer before starting.",
-      "Share useful activities with a class or the catalog.",
+    eyebrow: "Organise",
+    title: "Keep what matters",
+    body: "Save resources to your library, group them into shareable lists, and attach them to goals so the next study step is always clear.",
+    points: [
+      { icon: LibraryBig, text: "Your library holds the resources you add." },
+      { icon: Target, text: "Goals become step-by-step paths." },
+      { icon: BookOpen, text: "Lists you can share with others." },
     ],
-    practice: "Open one activity and complete a short practice round.",
   },
   {
-    id: "student-collaboration",
-    title: "Work with your learning community",
-    area: "Classes",
-    minutes: 4,
-    href: "/classes",
-    icon: Users,
-    outcome:
-      "Find class work, discussions, shared canvases, and teacher feedback in one place.",
-    details: [
-      "Open a class to see its separate workspaces.",
-      "Use the forum for discussion and suggestions.",
-      "Connect ideas visually in a shared canvas.",
+    icon: LayoutDashboard,
+    eyebrow: "Study & teach",
+    title: "Make progress, together",
+    body: "Your dashboard adapts to your check-ins and points to the best next step. Teachers can create classes, assign work, and track completion.",
+    points: [
+      { icon: LayoutDashboard, text: "An adaptive next-best-step dashboard." },
+      { icon: Users, text: "Classes, assignments, and schedules." },
+      { icon: Check, text: "Quick check-ins that shape what’s next." },
     ],
-    practice: "Open a class and review its assignments or shared materials.",
   },
   {
-    id: "student-schedule",
-    title: "Block study time",
-    area: "Schedule",
-    minutes: 2,
-    href: "/schedule",
-    icon: Calendar,
-    outcome: "Turn intention into a calendar block.",
-    details: [
-      "Pick a short, realistic time window.",
-      "Connect the block to a resource or goal.",
-      "Review upcoming work from the dashboard.",
+    icon: Rocket,
+    eyebrow: "You’re set",
+    title: "Ready when you are",
+    body: "That’s the core loop. You can replay this tour or open the complete guide any time from Settings.",
+    points: [
+      { icon: Compass, text: "Replay this tour from Settings → Product tour." },
+      { icon: BookOpen, text: "Every feature is documented in the guide." },
     ],
-    practice: "Schedule one 25-minute study block for this week.",
   },
 ];
-
-const TEACHER_STEPS: TutorialStep[] = [
-  {
-    id: "teacher-class",
-    title: "Create a class space",
-    area: "Classes",
-    minutes: 4,
-    href: "/classes",
-    icon: Users,
-    outcome: "Set up a class, invite learners, and keep materials together.",
-    details: [
-      "Create a class with a recognizable name.",
-      "Invite students or import from Google Classroom when available.",
-      "Use class detail pages as the home base for assignments.",
-    ],
-    practice: "Create a class and add one starter resource.",
-  },
-  {
-    id: "teacher-resource",
-    title: "Review before assigning",
-    area: "Resources",
-    minutes: 5,
-    href: "/resources",
-    icon: BookOpen,
-    outcome:
-      "Check suitability and source quality before students see a resource.",
-    details: [
-      "Open the resource detail page.",
-      "Look for provenance, reviews, and level fit.",
-      "Assign resources to classes only after the review pass.",
-    ],
-    practice: "Review one resource and decide whether it belongs in a class.",
-  },
-  {
-    id: "teacher-activities",
-    title: "Start a learning activity",
-    area: "Activities",
-    minutes: 4,
-    href: "/activities",
-    icon: LibraryBig,
-    outcome:
-      "Create a shareable activity that guides students through the work.",
-    details: [
-      "Choose a specific objective.",
-      "Keep instructions short and action-oriented.",
-      "Share the activity link where students already check class work.",
-    ],
-    practice: "Draft one activity from a resource you trust.",
-  },
-  {
-    id: "teacher-forum",
-    title: "Use discussion intentionally",
-    area: "Forum",
-    minutes: 3,
-    href: "/forum",
-    icon: MessageSquareText,
-    outcome:
-      "Prompt class discussion without letting it become another noisy feed.",
-    details: [
-      "Ask one question students can answer with evidence.",
-      "Use catalog posts for durable reference material.",
-      "Return to useful posts from class pages or lists.",
-    ],
-    practice: "Post or save one discussion prompt tied to an assignment.",
-  },
-  {
-    id: "teacher-canvas",
-    title: "Map ideas together",
-    area: "Canvas",
-    minutes: 4,
-    href: "/canvases",
-    icon: Compass,
-    outcome:
-      "Build a visual class workspace students can view or edit together.",
-    details: [
-      "Create a canvas around one unit or question.",
-      "Connect notes, headings, links, and resources.",
-      "Choose private, class, or collaborative access.",
-    ],
-    practice: "Create a small canvas with three connected cards.",
-  },
-  {
-    id: "teacher-schedule",
-    title: "Plan the learning sequence",
-    area: "Schedule",
-    minutes: 3,
-    href: "/schedule",
-    icon: Calendar,
-    outcome:
-      "Place activities, resources, and follow-up work into a realistic sequence.",
-    details: [
-      "Keep each block focused on one outcome.",
-      "Use assignments for required work.",
-      "Return to the dashboard to monitor what comes next.",
-    ],
-    practice: "Schedule the first checkpoint for a class activity.",
-  },
-];
-
-const QUICK_WINS = [
-  "Use the sidebar to keep the current workflow in view.",
-  "Open resource details before saving or assigning.",
-  "Keep each goal small enough to finish this week.",
-  "Use lists for sequences, not dumping grounds.",
-];
-
-function stepDuration(steps: TutorialStep[]) {
-  return steps.reduce((total, step) => total + step.minutes, 0);
-}
 
 export default function TutorialPage() {
   const [, setLocation] = useLocation();
-  const [track, setTrack] = useState<"student" | "teacher">("student");
-  const [completed, setCompleted] = useState<string[]>([]);
-  const { data: preferences } = useUserPreferences();
+  const [index, setIndex] = useState(0);
   const updatePreferences = useUpdateUserPreferences();
-  const steps = track === "student" ? STUDENT_STEPS : TEACHER_STEPS;
-  const activeStep =
-    steps.find((step) => !completed.includes(step.id)) ??
-    steps[steps.length - 1];
-  const completeCount = steps.filter((step) =>
-    completed.includes(step.id),
-  ).length;
-  const progress = Math.round((completeCount / steps.length) * 100);
 
-  const nextSteps = useMemo(
-    () => steps.filter((step) => !completed.includes(step.id)).slice(0, 2),
-    [completed, steps],
-  );
+  const slide = SLIDES[index];
+  const isFirst = index === 0;
+  const isLast = index === SLIDES.length - 1;
+  const Icon = slide.icon;
 
-  function toggleStep(id: string) {
-    setCompleted((current) =>
-      current.includes(id)
-        ? current.filter((stepId) => stepId !== id)
-        : [...current, id],
-    );
-  }
-
-  function chooseTrack(next: "student" | "teacher") {
-    setTrack(next);
-    setCompleted([]);
-  }
-
-  function leaveTutorial(destination: string) {
-    if (preferences?.userId) {
-      sessionStorage.setItem(
-        `schoolar_tutorial_presented:${preferences.userId}`,
-        "1",
-      );
-    }
+  function finish() {
+    // Best-effort — the tour should never trap someone if saving is briefly
+    // unavailable, so we navigate regardless of the request outcome.
     updatePreferences.mutate({ tutorialSeen: true });
-    setLocation(destination);
+    setLocation("/dashboard");
   }
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
-      <header className="relative grid gap-4 pr-12 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end">
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="absolute right-0 top-0"
-          onClick={() => leaveTutorial("/dashboard")}
-          aria-label="Close tutorial"
-          title="Close tutorial"
-        >
-          <X className="size-5" />
-        </Button>
-        <div className="space-y-3">
-          <Badge variant="secondary" className="w-fit gap-1.5">
-            <Compass className="size-3.5" />
-            Guided start
-          </Badge>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
-              Learn Schoolar by doing one useful loop
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
+      <div className="w-full max-w-xl">
+        <div className="relative overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="absolute right-2 top-2 z-10"
+            onClick={finish}
+            aria-label="Skip the tour"
+            title="Skip the tour"
+          >
+            <X className="size-5" />
+          </Button>
+
+          <div className="p-6 sm:p-8">
+            <span className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Icon className="size-6" />
+            </span>
+
+            <Badge variant="secondary" className="mt-5 gap-1.5">
+              <Compass className="size-3.5" />
+              {slide.eyebrow}
+            </Badge>
+
+            <h1 className="mt-3 text-2xl font-bold sm:text-3xl">
+              {slide.title}
             </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Pick a role, follow the short path, and jump directly into each
-              workspace when you are ready to try it.
+            <p className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base">
+              {slide.body}
             </p>
+
+            <ul className="mt-5 space-y-2.5">
+              {slide.points.map((point) => {
+                const PointIcon = point.icon;
+                return (
+                  <li key={point.text} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                      <PointIcon className="size-4" />
+                    </span>
+                    <span className="text-sm text-foreground/90">
+                      {point.text}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center justify-end gap-3 border-t bg-background/40 px-6 py-4 sm:px-8">
+            <div className="flex items-center gap-2">
+              {!isFirst && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setIndex((current) => current - 1)}
+                >
+                  <ArrowLeft className="size-4" /> Back
+                </Button>
+              )}
+              {isLast ? (
+                <Button type="button" size="sm" className="gap-1.5" onClick={finish}>
+                  <Rocket className="size-4" /> Get started
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setIndex((current) => current + 1)}
+                >
+                  Next <ArrowRight className="size-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
-        <Card className="border-primary/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between text-sm">
-              Tutorial progress
-              <span className="text-muted-foreground">
-                {completeCount}/{steps.length}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: progress + "%" }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{progress}% complete</span>
-              <span>{stepDuration(steps)} min total</span>
-            </div>
-          </CardContent>
-        </Card>
-      </header>
-
-      <section
-        className="flex flex-wrap gap-2"
-        aria-label="Choose tutorial track"
-      >
-        <Button
-          type="button"
-          variant={track === "student" ? "default" : "outline"}
-          onClick={() => chooseTrack("student")}
-          className="gap-2"
-        >
-          <GraduationCap className="size-4" />
-          Student path
-        </Button>
-        <Button
-          type="button"
-          variant={track === "teacher" ? "default" : "outline"}
-          onClick={() => chooseTrack("teacher")}
-          className="gap-2"
-        >
-          <Users className="size-4" />
-          Teacher path
-        </Button>
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        <section className="space-y-3" aria-label="Tutorial steps">
-          {steps.map((step, index) => {
-            const Icon = step.icon;
-            const done = completed.includes(step.id);
-            const active = step.id === activeStep.id;
-            return (
-              <Card
-                key={step.id}
-                className={cn(
-                  "ui-lift overflow-hidden",
-                  active && "border-primary/45 shadow-sm",
-                  done && "bg-muted/35",
-                )}
-              >
-                <CardContent className="grid gap-4 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-5">
-                  <button
-                    type="button"
-                    onClick={() => toggleStep(step.id)}
-                    className={cn(
-                      "flex size-10 items-center justify-center rounded-md border text-muted-foreground transition-colors",
-                      done
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background hover:border-primary hover:text-primary",
-                    )}
-                    aria-label={`${done ? "Mark incomplete" : "Mark complete"}: ${step.title}`}
-                  >
-                    {done ? (
-                      <Check className="size-5" />
-                    ) : (
-                      <Circle className="size-5" />
-                    )}
-                  </button>
-
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        Step {index + 1}
-                      </span>
-                      <Badge variant="outline" className="gap-1">
-                        <Icon className="size-3" />
-                        {step.area}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {step.minutes} min
-                      </span>
-                    </div>
-                    <h2 className="mt-2 text-lg font-semibold text-foreground">
-                      {step.title}
-                    </h2>
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      {step.outcome}
-                    </p>
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant={active ? "default" : "outline"}
-                    className="gap-2 sm:justify-self-end"
-                    onClick={() => leaveTutorial(step.href)}
-                  >
-                    Open
-                    <ArrowRight className="size-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </section>
-
-        <aside className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Play className="size-4 text-primary" />
-                Current step
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  {activeStep.title}
-                </p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {activeStep.practice}
-                </p>
-              </div>
-              <div className="space-y-2">
-                {activeStep.details.map((detail) => (
-                  <div
-                    key={detail}
-                    className="flex gap-2 text-sm leading-5 text-muted-foreground"
-                  >
-                    <MousePointer2 className="mt-0.5 size-4 shrink-0 text-primary" />
-                    <span>{detail}</span>
-                  </div>
-                ))}
-              </div>
-              <Button
-                type="button"
-                className="w-full gap-2"
-                onClick={() => leaveTutorial(activeStep.href)}
-              >
-                Try this now
-                <ArrowRight className="size-4" />
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Next up</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {nextSteps.length ? (
-                nextSteps.map((step) => (
-                  <div
-                    key={step.id}
-                    className="flex items-start justify-between gap-3 border-b pb-3 last:border-0 last:pb-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {step.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {step.area} · {step.minutes} min
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => toggleStep(step.id)}
-                    >
-                      <Check className="size-4" />
-                    </Button>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Tutorial complete. Use the dashboard to keep momentum going.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Quick habits</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {QUICK_WINS.map((item) => (
-                <div
-                  key={item}
-                  className="flex gap-2 text-sm leading-5 text-muted-foreground"
-                >
-                  <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                  <span>{item}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </aside>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          You can revisit this any time from{" "}
+          <Link href="/settings" className="font-medium text-primary hover:underline">
+            Settings
+          </Link>
+          , or read the{" "}
+          <Link href="/guide" className="font-medium text-primary hover:underline">
+            complete guide
+          </Link>
+          .
+        </p>
       </div>
-
-      <section className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="font-semibold text-page-contrast">Ready to start?</p>
-          <p className="text-sm text-page-contrast-muted">
-            You can reopen this guide any time from Settings.
-          </p>
-        </div>
-        <Button
-          type="button"
-          className="gap-2"
-          onClick={() => leaveTutorial("/dashboard")}
-        >
-          Finish tutorial
-          <ArrowRight className="size-4" />
-        </Button>
-      </section>
     </div>
   );
 }
