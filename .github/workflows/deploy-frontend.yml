@@ -1,23 +1,41 @@
-name: Deploy frontend to Hostinger
+name: Deploy to Hostinger
 
-# Builds the web app and uploads the static output to Hostinger over FTP on
-# every push to main. Inert until the FTP_* repository secrets below are set,
-# so it is safe to merge before credentials exist.
+# Builds the web app + API and deploys them to Hostinger on every push to main
+# (and via manual dispatch).
 #
-# Required repository secrets (Settings → Secrets and variables → Actions):
-#   FTP_SERVER    e.g. ftp.yourdomain.com   (Hostinger: hPanel → Files → FTP Accounts)
-#   FTP_USERNAME  the FTP account username
-#   FTP_PASSWORD  the FTP account password
-# Optional repository variables:
-#   SITE_URL        canonical origin baked into robots.txt / sitemap.xml
-#                   (default: the current hostingersite.com domain)
-#   FTP_SERVER_DIR  remote web root, must end with a slash (default: public_html/)
+# There are two deploy targets, each independently opt-in via secrets/vars:
+#
+#   1. Static frontend  -> public_html/ (LiteSpeed serves it statically).
+#   2. Node API app     -> the Passenger app dir (hbuilds/current/nodejs), which
+#      runs artifacts/api-server/dist/index.mjs and ALSO serves a bundled copy
+#      of the frontend. Because that copy can drift from public_html, the API
+#      deploy keeps both halves in lock-step from a single build.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   FTP_SERVER    FTP host/IP (Hostinger: hPanel -> Files -> FTP Accounts)
+#   FTP_USERNAME  FTP account username
+#   FTP_PASSWORD  FTP account password
+#
+# Repository variables:
+#   SITE_URL         canonical origin for robots.txt/sitemap.xml
+#                    (default: the current hostingersite.com domain)
+#   FTP_SERVER_DIR   frontend web root, trailing slash (default: public_html/)
+#   FTP_API_DIR      OPT-IN. Server dir for the API build output, trailing
+#                    slash, relative to the FTP home — e.g.
+#                    hbuilds/current/nodejs/artifacts/api-server/dist/
+#                    Leave unset to skip the API deploy entirely.
+#   FTP_RESTART_DIR  OPT-IN. Passenger restart dir, trailing slash — e.g.
+#                    hbuilds/current/nodejs/tmp/ . When set, the workflow
+#                    touches <dir>restart.txt so Passenger reloads the new
+#                    build. If unset, the API files upload but you must restart
+#                    the app yourself.
 
 on:
   push:
     branches: [main]
     paths:
       - 'artifacts/app/**'
+      - 'artifacts/api-server/**'
       - 'lib/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -25,7 +43,7 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: deploy-frontend
+  group: deploy-hostinger
   cancel-in-progress: true
 
 jobs:
@@ -44,16 +62,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # ── Build ─────────────────────────────────────────────────────────────
+      # The API build copies artifacts/app/dist/public into its own bundle, so
+      # the web app must be built first.
       - name: Build web app
         run: pnpm --filter @workspace/app run build
         env:
           NODE_ENV: production
           SITE_URL: ${{ vars.SITE_URL || 'https://lightgrey-oyster-122608.hostingersite.com' }}
 
-      - name: Guard against a missing build
+      - name: Guard against a missing web build
         run: test -f artifacts/app/dist/public/index.html
 
-      - name: Deploy to Hostinger over FTP
+      - name: Build API (only when an API deploy target is configured)
+        if: ${{ vars.FTP_API_DIR != '' }}
+        run: pnpm --filter @workspace/api-server run build
+        env:
+          NODE_ENV: production
+          SITE_URL: ${{ vars.SITE_URL || 'https://lightgrey-oyster-122608.hostingersite.com' }}
+
+      - name: Guard against a missing API build
+        if: ${{ vars.FTP_API_DIR != '' }}
+        run: test -f artifacts/api-server/dist/index.mjs
+
+      # ── Deploy frontend -> public_html ────────────────────────────────────
+      - name: Deploy frontend over FTP
         if: ${{ env.FTP_SERVER != '' }}
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
@@ -64,11 +97,45 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./artifacts/app/dist/public/
           server-dir: ${{ vars.FTP_SERVER_DIR || 'public_html/' }}
-          # Incremental sync (never a clean slate) and an explicit .htaccess
-          # exclusion so the server-side rule that proxies /api to the backend
-          # is never touched by a deploy.
           dangerous-clean-slate: false
           exclude: |
             **/.git*
             **/.git*/**
             **/.htaccess
+
+      # ── Deploy API -> Passenger app dir (opt-in) ──────────────────────────
+      # Uploads the self-contained esbuild output (index.mjs + bundled SPA in
+      # public/). node_modules at the app root is left untouched — the build
+      # changes no externalized native deps.
+      - name: Deploy API over FTP
+        if: ${{ env.FTP_SERVER != '' && vars.FTP_API_DIR != '' }}
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./artifacts/api-server/dist/
+          server-dir: ${{ vars.FTP_API_DIR }}
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+
+      # Touch <restart-dir>restart.txt via a single-file FTP upload (curl, not a
+      # sync) so nothing else in the Passenger tmp/ dir is disturbed.
+      - name: Restart Passenger app
+        if: ${{ env.FTP_SERVER != '' && vars.FTP_API_DIR != '' && vars.FTP_RESTART_DIR != '' }}
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_RESTART_DIR: ${{ vars.FTP_RESTART_DIR }}
+        run: |
+          echo "restarted by GitHub Actions at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > restart.txt
+          curl -sS --show-error --fail \
+            --user "$FTP_USERNAME:$FTP_PASSWORD" \
+            -T restart.txt \
+            "ftp://$FTP_SERVER/${FTP_RESTART_DIR}restart.txt"
+          echo "Touched ${FTP_RESTART_DIR}restart.txt — Passenger will reload on the next request."
