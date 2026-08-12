@@ -163,6 +163,31 @@ router.get(
   },
 );
 
+// Remove a resource from the caller's "Continue workflow" list by deleting
+// their workflow events for it. Only the current user's events are touched, so
+// this cannot affect anyone else's dashboard.
+router.delete(
+  "/workflow/continue/:resourceId",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const resourceId = Number(req.params.resourceId);
+    if (!Number.isInteger(resourceId) || resourceId <= 0) {
+      res.status(400).json({ error: "Invalid resource id" });
+      return;
+    }
+    await db
+      .delete(workflowEventsTable)
+      .where(
+        and(
+          eq(workflowEventsTable.userId, userId),
+          eq(workflowEventsTable.resourceId, resourceId),
+        ),
+      );
+    res.status(204).end();
+  },
+);
+
 router.get(
   "/workflow/continue",
   requireAuth,

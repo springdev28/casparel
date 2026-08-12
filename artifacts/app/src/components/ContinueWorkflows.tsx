@@ -7,6 +7,7 @@ import {
   ListPlus,
   SearchCheck,
   WandSparkles,
+  X,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
@@ -65,6 +66,28 @@ const actionDetails: Record<
   },
 };
 
+const DISMISSED_KEY = "schoolar_dismissed_workflows";
+
+function readDismissed(): number[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is number => typeof value === "number")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDismissed(ids: number[]) {
+  try {
+    localStorage.setItem(DISMISSED_KEY, JSON.stringify(ids));
+  } catch {
+    // Storage can be unavailable in private modes; the in-memory removal still
+    // hides the item for this session.
+  }
+}
+
 function workflowHref(item: ContinueWorkflow) {
   if (item.nextAction === "create_activity") {
     return `/activities?fromResource=${item.resourceId}`;
@@ -92,13 +115,37 @@ export function ContinueWorkflows() {
       },
     })
       .then((response) => (response.ok ? response.json() : []))
-      .then((rows) => setItems(Array.isArray(rows) ? rows : []))
+      .then((rows) => {
+        const dismissed = new Set(readDismissed());
+        setItems(
+          Array.isArray(rows)
+            ? (rows as ContinueWorkflow[]).filter(
+                (row) => !dismissed.has(row.resourceId),
+              )
+            : [],
+        );
+      })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setItems([]);
       });
     return () => controller.abort();
   }, []);
+
+  function dismissWorkflow(resourceId: number) {
+    setItems((current) =>
+      current.filter((item) => item.resourceId !== resourceId),
+    );
+    writeDismissed(Array.from(new Set([...readDismissed(), resourceId])));
+    // Best-effort server-side delete so it also clears on other devices; the
+    // local removal above already hides it immediately either way.
+    void fetch(`/api/workflow/continue/${resourceId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("schoolar_token")}`,
+      },
+    }).catch(() => undefined);
+  }
 
   if (!items.length) return null;
 
@@ -146,14 +193,27 @@ export function ContinueWorkflows() {
                   </div>
                   <Progress value={progress} className="h-1.5" />
                 </div>
-                <Button
-                  size="sm"
-                  className="w-full sm:w-auto"
-                  onClick={() => setLocation(workflowHref(item))}
-                >
-                  <Icon className="mr-1.5 size-3.5" /> {action.label}
-                  <ArrowRight className="ml-1.5 size-3.5" />
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    className="flex-1 sm:w-auto sm:flex-none"
+                    onClick={() => setLocation(workflowHref(item))}
+                  >
+                    <Icon className="mr-1.5 size-3.5" /> {action.label}
+                    <ArrowRight className="ml-1.5 size-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => dismissWorkflow(item.resourceId)}
+                    aria-label={`Remove ${item.title} from Continue workflow`}
+                    title="Remove from Continue workflow"
+                    data-testid="dismiss-workflow"
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
               </div>
             );
           })}
