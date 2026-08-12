@@ -51,6 +51,9 @@ export default function RegisterPage() {
   return (
     <div className="min-h-[100dvh] flex items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-md">
+        <h1 className="sr-only">
+          {copy.registerTitle} — Schoolar
+        </h1>
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-2">
             <BrandIcon className="h-20 w-36 text-foreground" label="Schoolar" />
