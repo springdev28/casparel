@@ -1272,7 +1272,7 @@ export default function ResourcesPage() {
 
   // Load the catalogue to identify this user's existing library URLs even
   // while source-only mode hides the library results panel.
-  const libraryCatalogParams = { limit: 200, offset: 0 };
+  const libraryCatalogParams = { limit: 50, offset: 0 };
   const { data: libraryCatalog } = useListResources(libraryCatalogParams, {
     query: {
       enabled: isLoggedIn,
