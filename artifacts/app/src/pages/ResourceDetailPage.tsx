@@ -85,6 +85,7 @@ import {
 } from "@workspace/api-client-react";
 import type { SourceReview } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
+import { metaLine } from "../lib/format-meta";
 
 // ── Media helpers ────────────────────────────────────────────────────────────
 
@@ -1080,7 +1081,7 @@ export default function ResourceDetailPage() {
             <div className="flex-1 min-w-0">
               <CardTitle className="text-xl">{resource.title}</CardTitle>
               <CardDescription className="mt-1">
-                {resource.subject} · {resource.gradeLevel}
+                {metaLine(resource.subject, resource.gradeLevel)}
               </CardDescription>
             </div>
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">

@@ -91,6 +91,7 @@ import {
   type SourceReview,
 } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
+import { metaLine } from "../lib/format-meta";
 import { AUTH_LANGUAGES, useAuthLanguage } from "../lib/auth-locale";
 import {
   CitationDialog,
@@ -547,7 +548,7 @@ function LibraryCard({
           <FormatBadge format={resource.format} />
         </div>
         <CardDescription className="text-xs">
-          {resource.subject} · {resource.gradeLevel}
+          {metaLine(resource.subject, resource.gradeLevel)}
         </CardDescription>
       </CardHeader>
       {resource.description && (
@@ -2686,7 +2687,7 @@ export default function ResourcesPage() {
                                   {resource.title}
                                 </span>
                                 <span className="block text-xs text-muted-foreground">
-                                  {resource.subject} · {resource.format}
+                                  {metaLine(resource.subject, resource.format)}
                                 </span>
                               </span>
                             </label>
