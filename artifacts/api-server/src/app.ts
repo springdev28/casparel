@@ -115,6 +115,21 @@ if (process.env.NODE_ENV === "production") {
     logger.error({ publicDir, indexFile }, "Production frontend index.html is missing");
   }
 
+  // Serve robots.txt from the app itself, ahead of express.static, so search
+  // engines always get the current directive regardless of what static copy
+  // happens to be bundled into this deploy. (A stale bundled robots.txt here
+  // was overriding the correct file on the static host and kept Googlebot
+  // blocked.) SITE_URL controls the canonical origin for the Sitemap line.
+  const siteOrigin = (
+    process.env.SITE_URL ?? "https://lightgrey-oyster-122608.hostingersite.com"
+  ).replace(/\/+$/, "");
+  app.get("/robots.txt", (_req, res) => {
+    res
+      .type("text/plain")
+      .setHeader("Cache-Control", "public, max-age=3600");
+    res.send(`User-agent: *\nAllow: /\n\nSitemap: ${siteOrigin}/sitemap.xml\n`);
+  });
+
   app.use(express.static(publicDir, {
     setHeaders(res, filePath) {
       if (filePath.includes(path.sep + "assets" + path.sep)) {
