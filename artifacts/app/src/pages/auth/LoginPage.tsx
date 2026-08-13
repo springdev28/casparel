@@ -16,6 +16,7 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useLogin } from "@workspace/api-client-react";
 import { AuthLanguageSelect } from "../../components/AuthLanguageSelect";
 import { useAuthLanguage } from "../../lib/auth-locale";
+import { useSystemDark } from "../../hooks/use-system-dark";
 
 const TOKEN_KEY = "schoolar_token";
 const CHECK_IN_INDEX_KEY = "schoolar_check_in_index";
@@ -26,6 +27,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const { language, setLanguage, copy } = useAuthLanguage();
+  const dark = useSystemDark();
 
   const loginMutation = useLogin();
 
@@ -61,7 +63,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-background px-4">
+    <div
+      className={`${dark ? "dark " : ""}min-h-[100dvh] flex items-center justify-center bg-background px-4`}
+      style={{ colorScheme: dark ? "dark" : "light" }}
+    >
       <div className="w-full max-w-md">
         <h1 className="sr-only">
           {copy.loginTitle} — Casparel
@@ -69,7 +74,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-2">
             <BrandIcon className="h-11 w-11" label="Casparel" />
-            <span className="text-2xl font-bold text-primary">Casparel</span>
+            <span className="text-2xl font-bold text-foreground">Casparel</span>
           </div>
           <p className="text-sm text-muted-foreground">{copy.tagline}</p>
           <div className="mt-4">

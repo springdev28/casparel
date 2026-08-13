@@ -1,18 +1,20 @@
-<svg width="512" height="512" viewBox="64 64 384 384" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <title>Casparel</title>
   <defs>
-    <linearGradient id="hex" x1="125.158" y1="125.158" x2="386.79" y2="386.79" gradientUnits="userSpaceOnUse">
+    <linearGradient id="tile" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
       <stop stop-color="#163A8A"/>
       <stop offset="1" stop-color="#38BDF8"/>
     </linearGradient>
   </defs>
-  <path d="M243 78.5056C251.044 73.8611 260.956 73.8611 269 78.5056L403.215 155.994C411.259 160.639 416.215 169.222 416.215 178.511V333.489C416.215 342.778 411.259 351.361 403.215 356.006L269 433.494C260.956 438.139 251.044 438.139 243 433.494L108.785 356.006C100.741 351.361 95.7853 342.778 95.7853 333.489V178.511C95.7853 169.222 100.741 160.639 108.785 155.994L243 78.5056Z" fill="url(#hex)"/>
-  <g fill="#FFFFFF">
-    <path d="M337 144H197L147 194H287L337 144Z"/>
-    <path d="M156.828 326.183L191.398 360.753L240.581 339.225L178.355 277L156.828 326.183Z"/>
-    <path d="M191.398 151.828L156.828 186.398L178.355 235.581L240.581 173.355L191.398 151.828Z"/>
-    <path d="M147 194V319L197 369V144L147 194Z"/>
-    <path d="M197 369H337L287 319H147L197 369Z"/>
+  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
+  <!-- Casparel "C" mark (from its 320 viewBox), scaled 1.25 and centered so it
+       fills the tile and stays legible at favicon sizes. -->
+  <g transform="translate(56 56) scale(1.25)" fill="#FFFFFF">
+    <path d="M295.111 0H96L24.8889 71.1111H224L295.111 0Z"/>
+    <path d="M38.8663 259.105L88.0321 308.271L157.982 277.654L69.4832 189.156L38.8663 259.105Z"/>
+    <path d="M88.032 11.133L38.8663 60.2987L69.4832 130.248L157.981 41.7498L88.032 11.133Z"/>
+    <path d="M24.8889 71.1111V248.889L96 320V0L24.8889 71.1111Z"/>
+    <path d="M96 320H295.111L224 248.889H24.8889L96 320Z"/>
+    <rect x="221.156" y="123.733" width="73.3867" height="73.3867" rx="20.5483"/>
   </g>
-  <rect x="285" y="231" width="51.6" height="51.6" rx="14.448" fill="#FFFFFF"/>
 </svg>
