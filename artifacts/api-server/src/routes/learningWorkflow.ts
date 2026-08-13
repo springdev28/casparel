@@ -324,7 +324,14 @@ router.get(
           assignment: journey.assignment,
         };
       })
-      .filter((journey) => journey.nextAction !== "complete")
+      // Only surface a resource once the user has taken a real workflow
+      // action on it (verify/save/build/share/assign). Merely viewing a
+      // resource logs an event but completes no step, so it should not appear
+      // here as "unfinished work".
+      .filter(
+        (journey) =>
+          journey.nextAction !== "complete" && journey.completedSteps > 0,
+      )
       .slice(0, 6);
 
     res.json(result);
