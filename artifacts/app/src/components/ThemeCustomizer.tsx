@@ -41,10 +41,10 @@ type InterfaceColors = {
 };
 
 const DEFAULT_COLORS: InterfaceColors = {
-  background: "#f8f7f3",
+  background: "#f4f6fb",
   surface: "#ffffff",
-  primary: "#1e429f",
-  accent: "#dff7f1",
+  primary: "#163a8a",
+  accent: "#dbeafe",
 };
 
 /** Restore the signed-out interface without deleting account-specific colors. */
