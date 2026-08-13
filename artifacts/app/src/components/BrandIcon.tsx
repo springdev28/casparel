@@ -2,13 +2,27 @@ interface BrandIconProps {
   className?: string;
   label?: string;
   title?: string;
+  /**
+   * "brand" (default) renders the Deep Indigo → Azure gradient mark for light
+   * surfaces. "onDark" renders a white mark with an Azure cursor for dark
+   * surfaces (e.g. the primary-colored sidebar), where the gradient's dark end
+   * would otherwise disappear into the background.
+   */
+  tone?: "brand" | "onDark";
 }
 
-// Casparel brand mark: a geometric, faceted "C" with a cursor accent, rendered
-// in the Deep Indigo → Azure gradient from the brand palette. Kept as inline
-// SVG so it stays crisp at any size and works on light and dark backgrounds.
-export default function BrandIcon({ className = "", title, label }: BrandIconProps) {
+// Casparel brand mark: a geometric, faceted "C" with a cursor accent. Kept as
+// inline SVG so it stays crisp at any size.
+export default function BrandIcon({
+  className = "",
+  title,
+  label,
+  tone = "brand",
+}: BrandIconProps) {
   const accessibleName = title || label;
+  const onDark = tone === "onDark";
+  const markFill = onDark ? "#FFFFFF" : "url(#casparel-mark-gradient)";
+  const cursorFill = onDark ? "#38BDF8" : "#163A8A";
 
   return (
     <svg
@@ -20,27 +34,29 @@ export default function BrandIcon({ className = "", title, label }: BrandIconPro
       xmlns="http://www.w3.org/2000/svg"
     >
       {accessibleName ? <title>{accessibleName}</title> : null}
-      <defs>
-        <linearGradient
-          id="casparel-mark-gradient"
-          x1="64.442"
-          y1="46.8392"
-          x2="287.522"
-          y2="235.218"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="#163A8A" />
-          <stop offset="1" stopColor="#38BDF8" />
-        </linearGradient>
-      </defs>
-      <g fill="url(#casparel-mark-gradient)">
+      {onDark ? null : (
+        <defs>
+          <linearGradient
+            id="casparel-mark-gradient"
+            x1="64.442"
+            y1="46.8392"
+            x2="287.522"
+            y2="235.218"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop stopColor="#163A8A" />
+            <stop offset="1" stopColor="#38BDF8" />
+          </linearGradient>
+        </defs>
+      )}
+      <g fill={markFill}>
         <path d="M295.111 0H96L24.8889 71.1111H224L295.111 0Z" />
         <path d="M38.8663 259.105L88.0321 308.271L157.982 277.654L69.4832 189.156L38.8663 259.105Z" />
         <path d="M88.032 11.133L38.8663 60.2987L69.4832 130.248L157.981 41.7498L88.032 11.133Z" />
         <path d="M24.8889 71.1111V248.889L96 320V0L24.8889 71.1111Z" />
         <path d="M96 320H295.111L224 248.889H24.8889L96 320Z" />
       </g>
-      <rect x="221.156" y="123.733" width="73.3867" height="73.3867" rx="20.5483" fill="#163A8A" />
+      <rect x="221.156" y="123.733" width="73.3867" height="73.3867" rx="20.5483" fill={cursorFill} />
     </svg>
   );
 }
