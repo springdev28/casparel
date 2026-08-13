@@ -26,10 +26,12 @@
     "express": "^5.2.1"
   },
   "devDependencies": {
-    "@rollup/rollup-darwin-arm64": "4.62.3",
-    "@tailwindcss/oxide-darwin-arm64": "4.3.3",
-    "lightningcss-darwin-arm64": "1.32.0",
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-arm64": "4.62.3",
+    "@tailwindcss/oxide-darwin-arm64": "4.3.3",
+    "lightningcss-darwin-arm64": "1.32.0"
   }
 }
