@@ -124,9 +124,9 @@ if (process.env.NODE_ENV === "production") {
     process.env.SITE_URL ?? "https://lightgrey-oyster-122608.hostingersite.com"
   ).replace(/\/+$/, "");
   app.get("/robots.txt", (_req, res) => {
-    res
-      .type("text/plain")
-      .setHeader("Cache-Control", "public, max-age=3600");
+    // no-cache so a previously cached "Disallow" copy can't keep being served.
+    res.setHeader("Cache-Control", "no-cache");
+    res.type("text/plain");
     res.send(`User-agent: *\nAllow: /\n\nSitemap: ${siteOrigin}/sitemap.xml\n`);
   });
 

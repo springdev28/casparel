@@ -56,16 +56,13 @@ ${urls}
 </urlset>
 `;
 
-const robots = `User-agent: *
-Allow: /
-
-Sitemap: ${origin}/sitemap.xml
-`;
-
+// Note: robots.txt is intentionally NOT emitted as a static file. On the
+// production host a static robots.txt at the web root gets served directly by
+// the CDN/static layer, which shadowed the app and pinned an old
+// "Disallow: /". Instead the API app owns GET /robots.txt (see api-server
+// app.ts), so removing the static file here lets every request reach that
+// route — the same way sitemap.xml is already served by the app.
 await mkdir(publicDir, { recursive: true });
-await Promise.all([
-  writeFile(resolve(publicDir, "sitemap.xml"), sitemap, "utf8"),
-  writeFile(resolve(publicDir, "robots.txt"), robots, "utf8"),
-]);
+await writeFile(resolve(publicDir, "sitemap.xml"), sitemap, "utf8");
 
-console.log(`[seo] wrote robots.txt + sitemap.xml for ${origin}`);
+console.log(`[seo] wrote sitemap.xml for ${origin} (robots.txt is served by the API app)`);
