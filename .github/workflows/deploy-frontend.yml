@@ -93,19 +93,30 @@ jobs:
             **/.git*
             **/.git*/**
 
-      # Touch <restart-dir>restart.txt via a single-file upload (not a sync) so
-      # Passenger reloads the new build without disturbing anything else in tmp/.
+      # Restart Passenger by writing tmp/restart.txt. Use the deploy action
+      # (not curl) because it creates the tmp/ dir if it does not exist and
+      # traverses the `current` symlink the same way the app upload did. The
+      # timestamped body changes every run so the file is always re-uploaded
+      # (fresh mtime), which is what triggers the reload. dangerous-clean-slate
+      # stays false so nothing else in tmp/ is removed.
+      - name: Prepare restart marker
+        if: ${{ env.FTP_SERVER != '' }}
+        run: |
+          mkdir -p .deploy-restart
+          echo "restarted by GitHub Actions at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > .deploy-restart/restart.txt
+
       - name: Restart Passenger app
         if: ${{ env.FTP_SERVER != '' }}
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_RESTART_DIR: ${{ vars.FTP_RESTART_DIR || 'hbuilds/current/nodejs/tmp/' }}
-        run: |
-          echo "restarted by GitHub Actions at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > restart.txt
-          curl -sS --show-error --fail --connect-timeout 60 --max-time 120 \
-            --user "$FTP_USERNAME:$FTP_PASSWORD" \
-            -T restart.txt \
-            "ftp://$FTP_SERVER/${FTP_RESTART_DIR}restart.txt"
-          echo "Touched ${FTP_RESTART_DIR}restart.txt — Passenger will reload on the next request."
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          timeout: 120000
+          local-dir: ./.deploy-restart/
+          server-dir: ${{ vars.FTP_RESTART_DIR || 'hbuilds/current/nodejs/tmp/' }}
+          dangerous-clean-slate: false
