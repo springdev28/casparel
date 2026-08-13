@@ -100,7 +100,6 @@ jobs:
       # (fresh mtime), which is what triggers the reload. dangerous-clean-slate
       # stays false so nothing else in tmp/ is removed.
       - name: Prepare restart marker
-        if: ${{ env.FTP_SERVER != '' }}
         run: |
           mkdir -p .deploy-restart
           echo "restarted by GitHub Actions at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > .deploy-restart/restart.txt
