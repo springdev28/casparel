@@ -622,10 +622,7 @@ export default function AppShell({ children }: AppShellProps) {
         <aside className="sidebar-scrollbar-hidden hidden h-full min-h-0 w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex">
           {/* Logo */}
           <div className="flex items-center gap-2 px-5 py-5 border-b border-primary-foreground/20">
-            <BrandIcon
-              className="h-14 w-28 text-primary-foreground"
-              label="Casparel"
-            />
+            <BrandIcon className="h-10 w-10" label="Casparel" />
             <span className="font-bold text-lg tracking-tight">Casparel</span>
           </div>
 
@@ -950,7 +947,7 @@ export default function AppShell({ children }: AppShellProps) {
               <div className="flex h-full min-h-0 flex-col">
                 <SheetHeader className="shrink-0 border-b border-primary-foreground/20 px-5 py-4 text-left">
                   <SheetTitle className="flex items-center gap-3 text-primary-foreground">
-                    <BrandIcon className="h-11 w-20" label="Casparel" />
+                    <BrandIcon className="h-9 w-9" label="Casparel" />
                     <span>Casparel</span>
                   </SheetTitle>
                 </SheetHeader>
@@ -1066,7 +1063,7 @@ export default function AppShell({ children }: AppShellProps) {
               </div>
             </SheetContent>
           </Sheet>
-          <BrandIcon className="h-9 w-16 shrink-0" label="Casparel" />
+          <BrandIcon className="h-8 w-8 shrink-0" label="Casparel" />
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">
             {currentNavLabel}
           </span>

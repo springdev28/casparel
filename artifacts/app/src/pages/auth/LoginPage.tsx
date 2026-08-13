@@ -68,7 +68,7 @@ export default function LoginPage() {
         </h1>
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-2">
-            <BrandIcon className="h-20 w-36 text-foreground" label="Casparel" />
+            <BrandIcon className="h-11 w-11" label="Casparel" />
             <span className="text-2xl font-bold text-primary">Casparel</span>
           </div>
           <p className="text-sm text-muted-foreground">{copy.tagline}</p>
