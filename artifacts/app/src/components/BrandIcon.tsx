@@ -2,39 +2,14 @@ interface BrandIconProps {
   className?: string;
   label?: string;
   title?: string;
-  /**
-   * "brand" (default) renders the bare Deep Indigo → Azure gradient mark for
-   * light surfaces. "onDark" keeps the full-color gradient mark but sets it on
-   * a white rounded "chip" so it stays legible on dark surfaces (e.g. the
-   * primary-colored sidebar), where the gradient's dark end would otherwise
-   * blend into the background.
-   */
-  tone?: "brand" | "onDark";
 }
 
-// Casparel brand mark: a geometric, faceted "C" with a cursor accent, kept as
-// inline SVG so it stays crisp at any size.
-export default function BrandIcon({
-  className = "",
-  title,
-  label,
-  tone = "brand",
-}: BrandIconProps) {
+// Casparel brand mark: a geometric, faceted "C" with a cursor accent, in the
+// Deep Indigo → Azure gradient. Kept as inline SVG so it stays crisp at any
+// size and pairs with the "Casparel" wordmark as the 02 (light) / 03 (dark)
+// lockup — the wordmark color is supplied by the surrounding surface.
+export default function BrandIcon({ className = "", title, label }: BrandIconProps) {
   const accessibleName = title || label;
-  const onDark = tone === "onDark";
-
-  const mark = (
-    <>
-      <g fill="url(#casparel-mark-gradient)">
-        <path d="M295.111 0H96L24.8889 71.1111H224L295.111 0Z" />
-        <path d="M38.8663 259.105L88.0321 308.271L157.982 277.654L69.4832 189.156L38.8663 259.105Z" />
-        <path d="M88.032 11.133L38.8663 60.2987L69.4832 130.248L157.981 41.7498L88.032 11.133Z" />
-        <path d="M24.8889 71.1111V248.889L96 320V0L24.8889 71.1111Z" />
-        <path d="M96 320H295.111L224 248.889H24.8889L96 320Z" />
-      </g>
-      <rect x="221.156" y="123.733" width="73.3867" height="73.3867" rx="20.5483" fill="#163A8A" />
-    </>
-  );
 
   return (
     <svg
@@ -59,17 +34,14 @@ export default function BrandIcon({
           <stop offset="1" stopColor="#38BDF8" />
         </linearGradient>
       </defs>
-      {onDark ? (
-        <>
-          <rect x="0" y="0" width="320" height="320" rx="72" fill="#FFFFFF" />
-          {/* Inset the mark so the white chip frames it with even padding. */}
-          <g transform="translate(160 160) scale(0.66) translate(-160 -160)">
-            {mark}
-          </g>
-        </>
-      ) : (
-        mark
-      )}
+      <g fill="url(#casparel-mark-gradient)">
+        <path d="M295.111 0H96L24.8889 71.1111H224L295.111 0Z" />
+        <path d="M38.8663 259.105L88.0321 308.271L157.982 277.654L69.4832 189.156L38.8663 259.105Z" />
+        <path d="M88.032 11.133L38.8663 60.2987L69.4832 130.248L157.981 41.7498L88.032 11.133Z" />
+        <path d="M24.8889 71.1111V248.889L96 320V0L24.8889 71.1111Z" />
+        <path d="M96 320H295.111L224 248.889H24.8889L96 320Z" />
+      </g>
+      <rect x="221.156" y="123.733" width="73.3867" height="73.3867" rx="20.5483" fill="#163A8A" />
     </svg>
   );
 }

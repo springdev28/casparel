@@ -490,7 +490,7 @@ const TR: Record<string, string> = {
   "Shared to Google Classroom!": "Google Classroom'da paylaşıldı!",
   "Shared with class!": "Sınıfla paylaşıldı!",
   "Show more results": "Daha fazla sonuç göster",
-  "Sidebar, buttons, and focus rings.": "Kenar çubuğu, düğmeler ve odak halkaları.",
+  "Buttons, links, and focus rings.": "Düğmeler, bağlantılar ve odak halkaları.",
   "Sign in": "Giriş yap",
   "Sign in to write a review and help others find great resources.": "Değerlendirme yazmak ve başkalarının iyi kaynaklar bulmasına yardımcı olmak için giriş yapın.",
   "Source Review": "Kaynak incelemesi",

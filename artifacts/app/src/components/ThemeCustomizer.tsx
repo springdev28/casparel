@@ -71,7 +71,7 @@ const COLOR_FIELDS: Array<{
   {
     key: "primary",
     label: "Brand color",
-    description: "Sidebar, buttons, and focus rings.",
+    description: "Buttons, links, and focus rings.",
   },
   {
     key: "accent",
