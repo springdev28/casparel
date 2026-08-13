@@ -837,7 +837,7 @@ export default function ForumPage({
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {catalogOnly
-              ? "Browse activities, canvases, files, links, and other materials shared by the Schoolar community."
+              ? "Browse activities, canvases, files, links, and other materials shared by the Casparel community."
               : classId
               ? "A private feed for members of this class."
               : "Classroom ideas, questions, surveys, and peer discussion."}

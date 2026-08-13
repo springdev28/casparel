@@ -12,7 +12,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('Schoolar render error', error, info);
+    console.error('Casparel render error', error, info);
   }
 
   render() {
@@ -21,7 +21,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     return (
       <main className="min-h-[100dvh] grid place-items-center bg-background p-6 text-foreground">
         <div className="max-w-md text-center">
-          <h1 className="text-xl font-semibold">Schoolar could not load</h1>
+          <h1 className="text-xl font-semibold">Casparel could not load</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             A page error occurred. Reload the app to try again.
           </p>

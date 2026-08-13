@@ -12,8 +12,8 @@ name: Deploy to Hostinger
 #   FTP_PASSWORD  FTP account password
 #
 # Repository variables (optional — sensible defaults for this host are baked in):
-#   SITE_URL         canonical origin for the sitemap
-#                    (default: the current hostingersite.com domain)
+#   SITE_URL         canonical origin for the sitemap / robots.txt
+#                    (default: https://casparel.com)
 #   FTP_APP_DIR      the app's build dir, relative to the FTP home, trailing
 #                    slash. Default: hbuilds/current/nodejs/artifacts/api-server/dist/
 #   FTP_RESTART_DIR  the Passenger restart dir, trailing slash.
@@ -55,13 +55,13 @@ jobs:
         run: pnpm --filter @workspace/app run build
         env:
           NODE_ENV: production
-          SITE_URL: ${{ vars.SITE_URL || 'https://lightgrey-oyster-122608.hostingersite.com' }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://casparel.com' }}
 
       - name: Build API (bundles the SPA into dist/public)
         run: pnpm --filter @workspace/api-server run build
         env:
           NODE_ENV: production
-          SITE_URL: ${{ vars.SITE_URL || 'https://lightgrey-oyster-122608.hostingersite.com' }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://casparel.com' }}
 
       - name: Guard against a missing build
         run: |

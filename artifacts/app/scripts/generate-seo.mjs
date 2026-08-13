@@ -21,8 +21,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = resolve(here, "..", "public");
 
-const rawSiteUrl =
-  process.env.SITE_URL ?? "https://lightgrey-oyster-122608.hostingersite.com";
+const rawSiteUrl = process.env.SITE_URL ?? "https://casparel.com";
 // Normalise: absolute origin, no trailing slash.
 const origin = rawSiteUrl.replace(/\/+$/, "");
 

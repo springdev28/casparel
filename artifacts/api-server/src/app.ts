@@ -121,7 +121,7 @@ if (process.env.NODE_ENV === "production") {
   // was overriding the correct file on the static host and kept Googlebot
   // blocked.) SITE_URL controls the canonical origin for the Sitemap line.
   const siteOrigin = (
-    process.env.SITE_URL ?? "https://lightgrey-oyster-122608.hostingersite.com"
+    process.env.SITE_URL ?? "https://casparel.com"
   ).replace(/\/+$/, "");
   app.get("/robots.txt", (_req, res) => {
     // no-cache so a previously cached "Disallow" copy can't keep being served.

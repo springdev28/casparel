@@ -1,4 +1,4 @@
-# Schoolar
+# Casparel
 
 A full-stack student and teacher productivity platform for discovering, reviewing, and organising learning resources — with class management, schedules, Google Classroom sync, and a Google Calendar / iCal feed.
 
@@ -19,10 +19,10 @@ Optional: `PORT`, `BASE_PATH`, `API_URL`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, 
 
 Catalog and AI cost controls:
 
-- `CATALOG_CONTACT_EMAIL` identifies Schoolar to public metadata providers.
+- `CATALOG_CONTACT_EMAIL` identifies Casparel to public metadata providers.
 - `CATALOG_REMOTE_SEARCH_ENABLED=false` disables on-demand Open Library enrichment.
 - `CATALOG_MAX_ITEMS` caps stored external metadata (default: 50,000 records for the free-plan MVP).
-- Normal Schoolar, resource, goal, and people searches use the database and free catalog without AI. `AI_RESOURCE_SEARCH_ENABLED=true` or `AI_PUBLIC_PROFILE_SEARCH_ENABLED=true` separately opt in to paid fallback searches when no stored result exists; both are off by default.
+- Normal Casparel, resource, goal, and people searches use the database and free catalog without AI. `AI_RESOURCE_SEARCH_ENABLED=true` or `AI_PUBLIC_PROFILE_SEARCH_ENABLED=true` separately opt in to paid fallback searches when no stored result exists; both are off by default.
 - Underfilled resource searches can add reusable metadata from Open Library and Wikibooks to the catalog. Set `CATALOG_REMOTE_SEARCH_ENABLED=false` to disable this, `CATALOG_CONTACT_EMAIL` to identify API requests, and `CATALOG_MAX_ITEMS` to cap the catalog (default 50,000).
 - `AI_SEARCH_DAILY_USER_LIMIT` and `AI_SEARCH_DAILY_LIMIT` cap that fallback (defaults: 3 per user and 20 globally).
 - `AI_DEEP_DAILY_GLOBAL_LIMIT` caps paid deep source research globally (default: 20).
@@ -74,7 +74,7 @@ Catalog and AI cost controls:
 
 ## User preferences
 
-- App name is **Schoolar** (not Schooler).
+- App name is **Casparel** (formerly Schoolar). Note: the auth/localStorage token key is still `schoolar_token` and must not be renamed — changing it logs every existing user out.
 
 ## Gotchas
 

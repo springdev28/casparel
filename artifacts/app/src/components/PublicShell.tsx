@@ -18,8 +18,8 @@ export default function PublicShell({ children }: PublicShellProps) {
             href="/resources"
             className="flex min-w-0 items-center text-primary transition-opacity hover:opacity-80"
           >
-            <BrandIcon className="h-11 w-20 shrink-0 sm:h-14 sm:w-28" label="Schoolar" />
-            <span className="hidden font-bold text-lg tracking-tight sm:inline">Schoolar</span>
+            <BrandIcon className="h-11 w-20 shrink-0 sm:h-14 sm:w-28" label="Casparel" />
+            <span className="hidden font-bold text-lg tracking-tight sm:inline">Casparel</span>
           </Link>
 
           {/* Auth actions */}

@@ -1,6 +1,6 @@
-# Schoolar load tests
+# Casparel load tests
 
-This suite uses [k6](https://grafana.com/docs/k6/latest/) to measure Schoolar's
+This suite uses [k6](https://grafana.com/docs/k6/latest/) to measure Casparel's
 read-heavy MVP journeys without consuming AI credits or creating user data.
 
 ## Safety
@@ -28,7 +28,7 @@ statistically meaningful latency acceptance.
 
 ## Run locally
 
-Install k6 on macOS with `brew install k6`, then start the Schoolar API with a
+Install k6 on macOS with `brew install k6`, then start the Casparel API with a
 staging `DATABASE_URL`.
 
 ```bash

@@ -174,7 +174,7 @@ router.post(
       .insert(goalPathTemplatesTable)
       .values({
         creatorId: userId,
-        creatorName: creator?.name ?? "Schoolar member",
+        creatorName: creator?.name ?? "Casparel member",
         sourceGoalId: goal.id,
         title: goal.title,
         subject: goal.subject,
@@ -188,7 +188,7 @@ router.post(
           goalPathTemplatesTable.sourceGoalId,
         ],
         set: {
-          creatorName: creator?.name ?? "Schoolar member",
+          creatorName: creator?.name ?? "Casparel member",
           title: goal.title,
           subject: goal.subject,
           description: goal.description,

@@ -408,7 +408,7 @@ export default function ClassesPage() {
             </DialogTitle>
             <DialogDescription>
               Your active Google Classroom courses. Click <strong>Import as Class</strong> to
-              create a Schoolar class from any course — you can then share resource lists to its
+              create a Casparel class from any course — you can then share resource lists to its
               stream.
             </DialogDescription>
           </DialogHeader>

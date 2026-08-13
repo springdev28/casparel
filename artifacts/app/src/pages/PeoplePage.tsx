@@ -475,7 +475,7 @@ export default function PeoplePage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="schoolar">Schoolar accounts</SelectItem>
+              <SelectItem value="schoolar">Casparel accounts</SelectItem>
               <SelectItem value="social">
                 Public profiles (optional AI)
               </SelectItem>
@@ -593,7 +593,7 @@ export default function PeoplePage() {
       ) : !hasSearched ? (
         <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground">
           <Search className="mx-auto mb-3 size-9 opacity-40" />
-          <p className="font-medium text-foreground">Search Schoolar accounts</p>
+          <p className="font-medium text-foreground">Search Casparel accounts</p>
           <p className="mt-1 text-sm">Choose filters and press Search people.</p>
         </div>
       ) : isError ? (

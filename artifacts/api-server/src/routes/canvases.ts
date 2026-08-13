@@ -394,7 +394,7 @@ router.post(
         .set({ shareToken, visibility: "link", updatedAt: new Date().toISOString() })
         .where(eq(canvasesTable.id, canvas.id));
     }
-    const materialTitle = `${canvas.title} (Schoolar canvas ${canvas.id})`;
+    const materialTitle = `${canvas.title} (Casparel canvas ${canvas.id})`;
     const [existingMaterial] = await db
       .select({ id: forumMaterialsTable.id })
       .from(forumMaterialsTable)
@@ -432,7 +432,7 @@ router.post(
           authorRole: auth.accountRole === "admin" ? "admin" : auth.userRole === "teacher" ? "teacher" : "student",
           kind: "post",
           title: canvas.title,
-          body: "Explore and collaborate on my Schoolar canvas.",
+          body: "Explore and collaborate on my Casparel canvas.",
           tags: ["canvas", "shared-material"],
           attachmentMaterialId: materialId,
         });

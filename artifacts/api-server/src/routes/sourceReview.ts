@@ -167,7 +167,7 @@ function deepResearchFallback(
   return {
     ...buildFreeQuickReview(resource, stats),
     limitations: [
-      "Deep research did not return a complete structured report, so Schoolar displayed the free registry check instead.",
+      "Deep research did not return a complete structured report, so Casparel displayed the free registry check instead.",
       "Quick checks do not inspect the full resource or current public discussion.",
     ],
   };

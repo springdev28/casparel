@@ -1157,8 +1157,8 @@ async function waitForWikibooksSlot() {
 
 function catalogUserAgent() {
   return process.env.CATALOG_CONTACT_EMAIL
-    ? `Schoolar/1.0 (${process.env.CATALOG_CONTACT_EMAIL})`
-    : "Schoolar/1.0 (https://github.com/springdev28/schoolar)";
+    ? `Casparel/1.0 (${process.env.CATALOG_CONTACT_EMAIL})`
+    : "Casparel/1.0 (https://github.com/springdev28/schoolar)";
 }
 
 export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {

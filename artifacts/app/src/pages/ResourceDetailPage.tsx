@@ -504,7 +504,7 @@ function SourceReviewPanel({
                   {[
                     ["Uploaded / published", profile.uploadTime],
                     ["Last edited", profile.lastEdited],
-                    ["Added to Schoolar", schoolarDate(profile.addedToSchoolar)],
+                    ["Added to Casparel", schoolarDate(profile.addedToSchoolar)],
                     ["Subject", profile.subject],
                     ["Grade", profile.gradeLevel],
                     ["Format", profile.format],
@@ -522,12 +522,12 @@ function SourceReviewPanel({
                     ["Audience", profile.audience],
                     ["Preview image", profile.hasThumbnail ? "Yes" : "No"],
                     [
-                      "Schoolar rating",
+                      "Casparel rating",
                       profile.avgRating > 0
                         ? `${profile.avgRating.toFixed(1)} / 5`
                         : "Not rated",
                     ],
-                    ["Schoolar reviews", String(profile.reviewCount)],
+                    ["Casparel reviews", String(profile.reviewCount)],
                     [
                       "Keywords",
                       profile.keywords.length > 0
@@ -1279,7 +1279,7 @@ export default function ResourceDetailPage() {
                     <DialogHeader>
                       <DialogTitle>Recommend to a person</DialogTitle>
                       <DialogDescription>
-                        Send this resource to any discoverable Schoolar account. Students, teachers, and administrators can all recommend resources.
+                        Send this resource to any discoverable Casparel account. Students, teachers, and administrators can all recommend resources.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">

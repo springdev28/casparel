@@ -32,7 +32,7 @@ const SLIDES: Slide[] = [
   {
     icon: Sparkles,
     eyebrow: "Welcome",
-    title: "Welcome to Schoolar",
+    title: "Welcome to Casparel",
     body: "Your workspace for discovering great learning resources and turning them into real progress — whether you’re studying or teaching.",
     points: [
       { icon: Search, text: "Find and vet high-quality resources fast." },

@@ -115,7 +115,7 @@ export const options = {
       : {}),
   },
   noConnectionReuse: false,
-  userAgent: "Schoolar-k6-load-test/1.0",
+  userAgent: "Casparel-k6-load-test/1.0",
 };
 
 function headers(token) {

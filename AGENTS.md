@@ -1,4 +1,4 @@
-# Schoolar — Agent Instructions
+# Casparel — Agent Instructions
 
 These instructions apply to every AI agent (Codex, Copilot, etc.) that modifies this repository.
 Read this file before making any change. Violating these rules is the most common cause of app crashes.

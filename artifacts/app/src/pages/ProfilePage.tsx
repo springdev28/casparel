@@ -483,7 +483,7 @@ export default function ProfilePage() {
           {editing ? (
             <>
               <div className="space-y-1.5">
-                <Label htmlFor="profileVisibility">Who can find and open your Schoolar profile?</Label>
+                <Label htmlFor="profileVisibility">Who can find and open your Casparel profile?</Label>
                 <select id="profileVisibility" value={form.profileVisibility} onChange={(event) => setForm((current) => ({ ...current, profileVisibility: event.target.value as UserUpdateProfileVisibility }))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                   <option value={UserUpdateProfileVisibility.everyone}>Everyone — shown in global people search</option>
                   <option value={UserUpdateProfileVisibility.classmates}>Classmates only — shared classes required</option>

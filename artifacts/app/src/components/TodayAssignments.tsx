@@ -47,7 +47,7 @@ export function TodayAssignments() {
     const permission = await Notification.requestPermission();
     setAlertsEnabled(permission === "granted");
     if (permission === "granted" && dueSoon)
-      new Notification("Schoolar assignments", {
+      new Notification("Casparel assignments", {
         body: `${dueSoon} assignment${dueSoon === 1 ? " is" : "s are"} due within 48 hours.`,
       });
   }

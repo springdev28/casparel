@@ -719,7 +719,7 @@ function UnsavedSourceResearchDialog({
             >
               <p className="font-semibold">Quick research</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                A concise check using stored metadata and Schoolar's source
+                A concise check using stored metadata and Casparel's source
                 registry. No AI credits.
               </p>
             </button>
@@ -2743,7 +2743,7 @@ export default function ResourcesPage() {
           <div>
             <h2 className="text-lg font-semibold">Library</h2>
             <p className="text-sm text-muted-foreground">
-              Resources saved in Schoolar. Open, cite, assign, or remove them
+              Resources saved in Casparel. Open, cite, assign, or remove them
               here.
             </p>
           </div>
@@ -2795,17 +2795,17 @@ export default function ResourcesPage() {
       {/* ── SEARCH RESULTS ────────────────────────────────────────────── */}
       {resourceView === "search" && isSearching && (
         <>
-          {/* Schoolar library search results */}
+          {/* Casparel library search results */}
           {!isSubmittedSourceMode && (
             <section>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
-                <BookOpen size={14} /> Schoolar library — "{activeQuery}"
+                <BookOpen size={14} /> Casparel library — "{activeQuery}"
               </h2>
               {libraryLoading ? (
                 <CardSkeletons count={3} />
               ) : uniqueLibraryResults.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  No saved Schoolar resources match "{activeQuery}" yet.
+                  No saved Casparel resources match "{activeQuery}" yet.
                   Results from the open catalog below can be saved to add them.
                 </p>
               ) : (

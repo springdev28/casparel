@@ -189,7 +189,7 @@ export default function CanvasesPage({
           </div>
           <h1 className="text-2xl font-bold">{requestedClassId ? "Class canvas" : "Canvas"}</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Connect notes, links, and Schoolar resources in a flexible workspace.
+            Connect notes, links, and Casparel resources in a flexible workspace.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 size-4" /> New canvas</Button>

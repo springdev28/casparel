@@ -310,7 +310,7 @@ router.post(
         .set({ shareToken })
         .where(eq(studyActivitiesTable.id, activity.id));
     }
-    const materialTitle = `${activity.title} (Schoolar activity ${activity.id})`;
+    const materialTitle = `${activity.title} (Casparel activity ${activity.id})`;
     const [existingMaterial] = await db
       .select({ id: forumMaterialsTable.id })
       .from(forumMaterialsTable)

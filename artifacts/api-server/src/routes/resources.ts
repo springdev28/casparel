@@ -1602,7 +1602,7 @@ async function fetchOembedThumbnail(oembedUrl: string): Promise<string | null> {
   try {
     const res = await fetch(oembedUrl, {
       signal: controller.signal,
-      headers: { "User-Agent": "Schoolar-OEmbed/1.0" },
+      headers: { "User-Agent": "Casparel-OEmbed/1.0" },
     });
     if (!res.ok) return null;
     const data = (await res.json()) as { thumbnail_url?: string };

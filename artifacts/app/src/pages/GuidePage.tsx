@@ -28,7 +28,7 @@ import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
 
 /**
- * The Schoolar guide — a complete, maintained reference to every feature.
+ * The Casparel guide — a complete, maintained reference to every feature.
  *
  * ▸ HOW TO KEEP THIS CURRENT (this is the "updates with every update" part):
  *   1. Bump GUIDE_VERSION and add a CHANGELOG entry describing what changed,
@@ -83,7 +83,7 @@ const SECTIONS: GuideSection[] = [
     title: "Getting started",
     icon: Compass,
     blurb:
-      "Create an account, pick how Schoolar speaks to you, and find your way around.",
+      "Create an account, pick how Casparel speaks to you, and find your way around.",
     items: [
       {
         title: "Accounts & roles",
@@ -140,7 +140,7 @@ const SECTIONS: GuideSection[] = [
       },
       {
         title: "AI-assisted discovery",
-        desc: "Ask for a topic and Schoolar suggests high-quality educational resources, with provenance signals so you can judge the source.",
+        desc: "Ask for a topic and Casparel suggests high-quality educational resources, with provenance signals so you can judge the source.",
       },
       {
         title: "Advanced filters",
@@ -209,7 +209,7 @@ const SECTIONS: GuideSection[] = [
     items: [
       {
         title: "Learning goals",
-        desc: "Name a skill you want to build, set a level and preferred formats, and Schoolar shapes it into a path.",
+        desc: "Name a skill you want to build, set a level and preferred formats, and Casparel shapes it into a path.",
       },
       {
         title: "Paths",
@@ -281,7 +281,7 @@ const SECTIONS: GuideSection[] = [
       },
       {
         title: "Google Calendar sync",
-        desc: "Connect Google Calendar to keep your Schoolar schedule in step with your calendar.",
+        desc: "Connect Google Calendar to keep your Casparel schedule in step with your calendar.",
       },
     ],
   },
@@ -345,7 +345,7 @@ const SECTIONS: GuideSection[] = [
     id: "profile-settings",
     title: "Profile & Settings",
     icon: SettingsIcon,
-    blurb: "Make Schoolar yours and manage how it looks and communicates.",
+    blurb: "Make Casparel yours and manage how it looks and communicates.",
     items: [
       {
         title: "Profile & privacy",
@@ -393,7 +393,7 @@ const SECTIONS: GuideSection[] = [
       },
       {
         title: "Six languages",
-        desc: "Use Schoolar in English, Spanish, French, German, Portuguese, or Turkish.",
+        desc: "Use Casparel in English, Spanish, French, German, Portuguese, or Turkish.",
       },
     ],
   },
@@ -437,14 +437,14 @@ export default function GuidePage() {
       <header className="mb-6">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-page-contrast sm:text-3xl">
-            Schoolar guide
+            Casparel guide
           </h1>
           <Badge variant="secondary" className="gap-1">
             <Sparkles className="size-3.5" /> v{GUIDE_VERSION}
           </Badge>
         </div>
         <p className="mt-2 max-w-2xl text-sm text-page-contrast-muted">
-          A complete reference to every feature in Schoolar, kept up to date
+          A complete reference to every feature in Casparel, kept up to date
           with each release. New here?{" "}
           <Link href="/tutorial" className="font-medium text-primary hover:underline">
             Take the guided tour

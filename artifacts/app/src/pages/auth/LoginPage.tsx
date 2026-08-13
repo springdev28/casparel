@@ -64,12 +64,12 @@ export default function LoginPage() {
     <div className="min-h-[100dvh] flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
         <h1 className="sr-only">
-          {copy.loginTitle} — Schoolar
+          {copy.loginTitle} — Casparel
         </h1>
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-2">
-            <BrandIcon className="h-20 w-36 text-foreground" label="Schoolar" />
-            <span className="text-2xl font-bold text-primary">Schoolar</span>
+            <BrandIcon className="h-20 w-36 text-foreground" label="Casparel" />
+            <span className="text-2xl font-bold text-primary">Casparel</span>
           </div>
           <p className="text-sm text-muted-foreground">{copy.tagline}</p>
           <div className="mt-4">

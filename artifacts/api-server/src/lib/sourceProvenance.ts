@@ -162,23 +162,23 @@ export function buildFreeQuickReview(
     trustLevel: known?.trust ?? ("unknown" as const),
     trustReason:
       known?.reason ??
-      "This domain is not yet in Schoolar's maintained source registry.",
+      "This domain is not yet in Casparel's maintained source registry.",
     summary: known
-      ? `${resource.title} is hosted by ${sourceName}. This quick check uses Schoolar's maintained provenance registry and stored metadata, so it spends no AI credits and avoids unsupported live-research claims.`
-      : `${resource.title} is hosted on ${sourceName}. Schoolar does not yet have enough maintained provenance data to rate this source; verify its author, publication date, evidence, and usage rights before relying on it.`,
+      ? `${resource.title} is hosted by ${sourceName}. This quick check uses Casparel's maintained provenance registry and stored metadata, so it spends no AI credits and avoids unsupported live-research claims.`
+      : `${resource.title} is hosted on ${sourceName}. Casparel does not yet have enough maintained provenance data to rate this source; verify its author, publication date, evidence, and usage rights before relying on it.`,
     reputationAnalysis: null,
     audienceSentiment: null,
     contentQuality: null,
     currencyAssessment: null,
     researchScope:
-      "Stored resource metadata and Schoolar's maintained institutional provenance registry; no AI or live web research.",
+      "Stored resource metadata and Casparel's maintained institutional provenance registry; no AI or live web research.",
     strengths: known ? [known.reason] : [],
     concerns: known
       ? [
           "Publisher reputation does not guarantee that every resource is current or suitable for every curriculum.",
         ]
       : [
-          "Publisher identity and editorial process have not been independently verified by Schoolar.",
+          "Publisher identity and editorial process have not been independently verified by Casparel.",
         ],
     limitations: [
       "Quick checks do not inspect the full resource or current public discussion.",

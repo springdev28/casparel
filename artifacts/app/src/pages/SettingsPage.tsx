@@ -47,7 +47,7 @@ export default function SettingsPage() {
           Settings
         </h1>
         <p className="mt-2 text-sm text-page-contrast-muted">
-          Manage how Schoolar looks, communicates, and guides your work.
+          Manage how Casparel looks, communicates, and guides your work.
         </p>
       </header>
 
@@ -112,7 +112,7 @@ export default function SettingsPage() {
             <div>
               <h2 className="font-semibold">Product tour</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Replay the guided first-run walkthrough of Schoolar’s core
+                Replay the guided first-run walkthrough of Casparel’s core
                 workflow at any time.
               </p>
             </div>

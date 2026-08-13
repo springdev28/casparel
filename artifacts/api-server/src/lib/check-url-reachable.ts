@@ -115,7 +115,7 @@ export async function fetchPublicText(
         headers: {
           Accept:
             "text/html,application/xhtml+xml,application/json;q=0.8,*/*;q=0.1",
-          "User-Agent": "Schoolar-Metadata/1.0",
+          "User-Agent": "Casparel-Metadata/1.0",
         },
       });
       if (response.status >= 300 && response.status < 400) {
@@ -196,7 +196,7 @@ export async function checkUrlReachable(
       method: "HEAD",
       signal: controller.signal,
       redirect: "manual",
-      headers: { "User-Agent": "Schoolar-LinkCheck/1.0" },
+      headers: { "User-Agent": "Casparel-LinkCheck/1.0" },
     });
 
     if (headRes.ok || (headRes.status >= 300 && headRes.status < 400)) {
@@ -209,7 +209,7 @@ export async function checkUrlReachable(
       signal: controller.signal,
       redirect: "manual",
       headers: {
-        "User-Agent": "Schoolar-LinkCheck/1.0",
+        "User-Agent": "Casparel-LinkCheck/1.0",
         Range: "bytes=0-0",
       },
     });

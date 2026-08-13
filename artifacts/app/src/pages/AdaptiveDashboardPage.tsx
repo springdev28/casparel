@@ -660,9 +660,9 @@ function TeacherView({ name }: { name?: string }) {
             Here&apos;s what your learners&apos; evidence suggests doing next.
           </p>
         </div>
-        <Button onClick={() => comingSoon("Ask Schoolar")}>
+        <Button onClick={() => comingSoon("Ask Casparel")}>
           <Sparkles size={16} className="mr-2" />
-          Ask Schoolar
+          Ask Casparel
         </Button>
       </header>
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

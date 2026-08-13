@@ -459,7 +459,7 @@ export default function AppShell({ children }: AppShellProps) {
     ? language === "tr"
       ? (NAV_LABELS_TR[currentNavItem.label] ?? currentNavItem.label)
       : currentNavItem.label
-    : "Schoolar";
+    : "Casparel";
 
   // Real Google Classroom status — only fetched for teachers
   const { data: gcStatus, isLoading: gcStatusLoading } = useGetGCStatus({
@@ -624,9 +624,9 @@ export default function AppShell({ children }: AppShellProps) {
           <div className="flex items-center gap-2 px-5 py-5 border-b border-primary-foreground/20">
             <BrandIcon
               className="h-14 w-28 text-primary-foreground"
-              label="Schoolar"
+              label="Casparel"
             />
-            <span className="font-bold text-lg tracking-tight">Schoolar</span>
+            <span className="font-bold text-lg tracking-tight">Casparel</span>
           </div>
 
           {/* Nav */}
@@ -925,7 +925,7 @@ export default function AppShell({ children }: AppShellProps) {
             </Button>
           </div>
           <footer className="mt-auto shrink-0 border-t border-primary-foreground/15 px-5 py-3 text-center text-[10px] text-primary-foreground/55">
-            © 2026 Schoolar
+            © 2026 Casparel
           </footer>
         </aside>
 
@@ -950,8 +950,8 @@ export default function AppShell({ children }: AppShellProps) {
               <div className="flex h-full min-h-0 flex-col">
                 <SheetHeader className="shrink-0 border-b border-primary-foreground/20 px-5 py-4 text-left">
                   <SheetTitle className="flex items-center gap-3 text-primary-foreground">
-                    <BrandIcon className="h-11 w-20" label="Schoolar" />
-                    <span>Schoolar</span>
+                    <BrandIcon className="h-11 w-20" label="Casparel" />
+                    <span>Casparel</span>
                   </SheetTitle>
                 </SheetHeader>
                 <nav
@@ -1060,13 +1060,13 @@ export default function AppShell({ children }: AppShellProps) {
                     <LogOut size={17} className="mr-2" /> Logout
                   </Button>
                   <p className="border-t border-primary-foreground/15 pt-3 text-center text-[10px] text-primary-foreground/55">
-                    © 2026 Schoolar
+                    © 2026 Casparel
                   </p>
                 </div>
               </div>
             </SheetContent>
           </Sheet>
-          <BrandIcon className="h-9 w-16 shrink-0" label="Schoolar" />
+          <BrandIcon className="h-9 w-16 shrink-0" label="Casparel" />
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">
             {currentNavLabel}
           </span>
