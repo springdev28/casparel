@@ -1,11 +1,9 @@
 // Load a .env file (if present) before any other module initializes. Several
 // imports below — notably @workspace/db — read process.env at import time and
-// throw when DATABASE_URL is missing, so this MUST stay the first import.
-// dotenv never overrides variables the host already injected, so it is a safe
-// no-op in environments (Replit, a correctly-configured Passenger app) that
-// provide env vars directly; it only fills the gap when they are supplied via
-// a .env file at the app root instead.
-import "dotenv/config";
+// throw when a required variable is missing, so this MUST stay the first
+// import. The loader searches cwd and the directories around the bundle, so it
+// works regardless of the host's working directory. See load-env.ts.
+import "./load-env";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { pool, runMigrations } from "@workspace/db";
