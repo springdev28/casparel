@@ -10,7 +10,7 @@
   },
   "scripts": {
     "preinstall": "rm -f package-lock.json yarn.lock",
-    "build": "CI=true node scripts/run-pnpm.mjs install --frozen-lockfile --prefer-offline && node scripts/run-pnpm.mjs run typecheck && node scripts/run-pnpm.mjs --filter @workspace/app run build && node scripts/run-pnpm.mjs --filter @workspace/api-server run build",
+    "build": "CI=true pnpm_config_verify_deps_before_run=false sh -c 'node scripts/run-pnpm.mjs install --frozen-lockfile --prefer-offline && node scripts/run-pnpm.mjs run typecheck && node scripts/run-pnpm.mjs --filter @workspace/app run build && node scripts/run-pnpm.mjs --filter @workspace/api-server run build'",
     "build:all": "node scripts/run-pnpm.mjs run typecheck && node scripts/run-pnpm.mjs -r --if-present run build",
     "dev:app": "bash scripts/run-schoolar.sh",
     "start": "node --enable-source-maps artifacts/api-server/dist/index.mjs",
