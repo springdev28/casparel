@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { ResourceReviewQueue } from "../components/ResourceReviewQueue";
 import { useGetAdminOverview, useGetMe } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -628,6 +629,8 @@ export default function AdminPage() {
           {!usersLoading && filteredUsers.length === 0 && <p className="py-8 text-center text-muted-foreground">No matching accounts.</p>}
         </CardContent>
       </Card>
+
+      <ResourceReviewQueue />
 
       <Dialog
         open={managedUser !== null}

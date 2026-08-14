@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   db,
@@ -915,5 +915,150 @@ router.delete("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<vo
   }
   res.json(user);
 });
+
+// ── Resource verification review queue ──────────────────────────────────────
+// Admin-only, and intentionally not part of the client OpenAPI surface — the
+// admin page talks to these through its own adminRequest() helper, the same
+// way the rest of /admin/* works.
+
+const resourceVerificationBody = z
+  .object({
+    status: z.enum(["verified", "rejected", "unverified"]),
+    note: z.string().trim().max(1000).optional(),
+  })
+  .strict();
+
+// GET /admin/resources/review-queue — oldest first, so submissions cannot be
+// starved by newer ones.
+router.get(
+  "/admin/resources/review-queue",
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const status =
+      typeof req.query.status === "string" &&
+      ["unverified", "verified", "rejected"].includes(req.query.status)
+        ? (req.query.status as "unverified" | "verified" | "rejected")
+        : "unverified";
+    const limit = Math.min(Number(req.query.limit) || 50, 100);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+
+    const rows = await db
+      .select({
+        id: resourcesTable.id,
+        title: resourcesTable.title,
+        url: resourcesTable.url,
+        description: resourcesTable.description,
+        format: resourcesTable.format,
+        subject: resourcesTable.subject,
+        gradeLevel: resourcesTable.gradeLevel,
+        thumbnailUrl: resourcesTable.thumbnailUrl,
+        createdAt: resourcesTable.createdAt,
+        verificationStatus: resourcesTable.verificationStatus,
+        verificationSource: resourcesTable.verificationSource,
+        verificationNote: resourcesTable.verificationNote,
+        submittedById: resourcesTable.submittedById,
+        submittedByName: usersTable.name,
+        submittedByEmail: usersTable.email,
+        submittedByRole: usersTable.role,
+        submitterVerified: usersTable.teacherVerified,
+      })
+      .from(resourcesTable)
+      .leftJoin(usersTable, eq(usersTable.id, resourcesTable.submittedById))
+      .where(eq(resourcesTable.verificationStatus, status))
+      .orderBy(resourcesTable.createdAt)
+      .limit(limit)
+      .offset(offset);
+
+    const [counts] = await db
+      .select({ pending: sql<number>`cast(count(*) as int)` })
+      .from(resourcesTable)
+      .where(eq(resourcesTable.verificationStatus, "unverified"));
+
+    res.json({ items: rows, pendingTotal: counts?.pending ?? 0 });
+  },
+);
+
+// PATCH /admin/resources/:id/verification — approve, reject, or send back.
+router.patch(
+  "/admin/resources/:id/verification",
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const resourceId = Number(req.params.id);
+    if (!resourceId) {
+      res.status(400).json({ error: "Invalid resource ID" });
+      return;
+    }
+    const parsed = resourceVerificationBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: "Expected { status: verified | rejected | unverified, note? }",
+      });
+      return;
+    }
+    const { status, note } = parsed.data;
+    // A rejection has to say why — that reason is the only thing the submitter
+    // can act on.
+    if (status === "rejected" && !note) {
+      res.status(400).json({ error: "A note is required when rejecting" });
+      return;
+    }
+
+    const [resource] = await db
+      .update(resourcesTable)
+      .set({
+        verificationStatus: status,
+        verificationSource: status === "unverified" ? null : "reviewer",
+        verificationNote: note ?? null,
+      })
+      .where(eq(resourcesTable.id, resourceId))
+      .returning({
+        id: resourcesTable.id,
+        title: resourcesTable.title,
+        verificationStatus: resourcesTable.verificationStatus,
+        verificationNote: resourcesTable.verificationNote,
+      });
+    if (!resource) {
+      res.status(404).json({ error: "Resource not found" });
+      return;
+    }
+    res.json(resource);
+  },
+);
+
+// POST /admin/resources/verification/bulk — the difference between a queue and
+// a backlog when one person is reviewing.
+router.post(
+  "/admin/resources/verification/bulk",
+  requireAdmin,
+  async (req, res): Promise<void> => {
+    const parsed = z
+      .object({
+        ids: z.array(z.number().int().positive()).min(1).max(100),
+        status: z.enum(["verified", "rejected", "unverified"]),
+        note: z.string().trim().max(1000).optional(),
+      })
+      .strict()
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Expected { ids: number[], status, note? }" });
+      return;
+    }
+    const { ids, status, note } = parsed.data;
+    if (status === "rejected" && !note) {
+      res.status(400).json({ error: "A note is required when rejecting" });
+      return;
+    }
+    const updated = await db
+      .update(resourcesTable)
+      .set({
+        verificationStatus: status,
+        verificationSource: status === "unverified" ? null : "reviewer",
+        verificationNote: note ?? null,
+      })
+      .where(inArray(resourcesTable.id, ids))
+      .returning({ id: resourcesTable.id });
+    res.json({ updated: updated.length });
+  },
+);
 
 export default router;
