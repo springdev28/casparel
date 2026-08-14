@@ -120,7 +120,11 @@ export function ContinueWorkflows() {
         setItems(
           Array.isArray(rows)
             ? (rows as ContinueWorkflow[]).filter(
-                (row) => !dismissed.has(row.resourceId),
+                (row) =>
+                  // A row without a resourceId cannot be linked or dismissed,
+                  // and every accessor below assumes it is there.
+                  typeof row?.resourceId === "number" &&
+                  !dismissed.has(row.resourceId),
               )
             : [],
         );

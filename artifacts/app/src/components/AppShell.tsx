@@ -294,7 +294,17 @@ export default function AppShell({ children }: AppShellProps) {
     const loadInvitations = () =>
       classRequest<ClassInvitation[]>("/class-invitations")
         .then((rows) => {
-          if (active) setClassInvitations(Array.isArray(rows) ? rows : []);
+          // Rows are rendered as invitation.class.name and
+          // invitation.inviter.name, so a row missing either would throw
+          // during render and, with no boundary below this, blank the app.
+          // Drop anything that cannot be displayed rather than trusting it.
+          if (active) {
+            setClassInvitations(
+              (Array.isArray(rows) ? rows : []).filter(
+                (row) => row?.id != null && row.class?.name && row.inviter?.name,
+              ),
+            );
+          }
         })
         .catch(() => undefined);
     void loadInvitations();
