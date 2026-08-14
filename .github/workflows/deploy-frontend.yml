@@ -38,6 +38,10 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      # Nothing here runs Electron, and the desktop types ship in the package
+      # regardless, so skip the ~100MB runtime download.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -49,6 +53,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # This job used to build and upload with no gate at all, which is how
+      # regressions reached casparel.com. Everything below the build must pass
+      # before a single file is sent to the host.
+      - name: Typecheck every package
+        run: pnpm run typecheck
+
+      - name: API tests
+        run: pnpm --filter @workspace/api-server exec vitest run
+
       # The API build copies artifacts/app/dist/public into its own bundle, so
       # the web app must be built first.
       - name: Build web app
@@ -56,6 +69,21 @@ jobs:
         env:
           NODE_ENV: production
           SITE_URL: ${{ vars.SITE_URL || 'https://casparel.com' }}
+
+      # A real browser catches what types and unit tests cannot: text that
+      # fails contrast against its actual background, content left at opacity 0
+      # by reveal-on-scroll, overflow, and uncaught page errors.
+      - name: Install Playwright
+        run: |
+          npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          mkdir -p artifacts/app/node_modules
+          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
+            artifacts/app/node_modules/playwright-core
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+
+      - name: Audit the public pages in a real browser
+        working-directory: artifacts/app
+        run: node scripts/audit-pages.mjs
 
       - name: Build API (bundles the SPA into dist/public)
         run: pnpm --filter @workspace/api-server run build

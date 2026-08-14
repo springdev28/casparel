@@ -1,0 +1,70 @@
+name: CI
+
+# The checks that must pass before anything reaches production. The deploy
+# workflow runs the same gate itself, so a red build cannot ship, but running
+# it here too means a pull request shows the failure before it is merged.
+#
+# The page audit is here rather than only in the deploy job on purpose: the
+# regressions that actually reached casparel.com (text invisible in dark mode,
+# content stuck at opacity 0 after a fast scroll, a blanked sidebar) were all
+# things type-checking and unit tests cannot see, and only a real browser can.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # The desktop package pulls a ~100MB Electron runtime in postinstall.
+      # Compiling the main process only needs its types, which ship in the
+      # package either way, so skip the download and keep CI quick.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck every package
+        run: pnpm run typecheck
+
+      - name: API tests
+        run: pnpm --filter @workspace/api-server exec vitest run
+
+      - name: Build the web app
+        run: pnpm --filter @workspace/app run build
+        env:
+          NODE_ENV: production
+          SITE_URL: ${{ vars.SITE_URL || 'https://casparel.com' }}
+
+      # playwright-core is deliberately not a dependency of the app: it is a
+      # CI/local tool, not something the bundle needs. Install it out of tree
+      # and link it where Node's resolver will find it from the script.
+      - name: Install Playwright
+        run: |
+          npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          mkdir -p artifacts/app/node_modules
+          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
+            artifacts/app/node_modules/playwright-core
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+
+      - name: Audit the public pages in a real browser
+        working-directory: artifacts/app
+        run: node scripts/audit-pages.mjs
+
+      - name: Compile the desktop main process
+        run: pnpm --filter @workspace/desktop run compile

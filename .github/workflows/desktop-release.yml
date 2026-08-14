@@ -1,0 +1,103 @@
+name: Desktop release
+
+# Builds the Casparel desktop installers. electron-builder can only produce
+# macOS targets on macOS and (reliably) Windows targets on Windows, so this is
+# a matrix with one runner per platform rather than a single job.
+#
+# Triggered by pushing a tag like `desktop-v1.0.0`, or run by hand from the
+# Actions tab to get unsigned installers for testing.
+#
+# Optional repository secrets, all absent by default:
+#   CSC_LINK, CSC_KEY_PASSWORD                  code-signing certificate
+#   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD,
+#   APPLE_TEAM_ID                               macOS notarisation
+#
+# Without them the build still succeeds and produces unsigned installers, which
+# are fine for local testing and for recording a demo. Shipping to real users
+# needs signing: unsigned builds trip Gatekeeper on macOS and SmartScreen on
+# Windows.
+
+on:
+  push:
+    tags: ['desktop-v*']
+  workflow_dispatch: {}
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      # One platform failing should not throw away installers that other
+      # platforms already produced.
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: build:mac
+            artifact: macos
+          - os: windows-latest
+            target: build:win
+            artifact: windows
+          - os: ubuntu-latest
+            target: build:linux
+            artifact: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build installers
+        working-directory: artifacts/desktop
+        run: pnpm run ${{ matrix.target }}
+        env:
+          # electron-builder reads these itself; each is empty unless the
+          # corresponding secret is set, in which case it signs and notarises.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: casparel-desktop-${{ matrix.artifact }}
+          # Only the distributables. The unpacked app directories are build
+          # intermediates and would multiply the upload size for nothing.
+          path: |
+            artifacts/desktop/release/*.dmg
+            artifacts/desktop/release/*.exe
+            artifacts/desktop/release/*.AppImage
+            artifacts/desktop/release/*.deb
+          if-no-files-found: error
+
+  release:
+    # Only a tag push produces a release; a manual run just leaves the
+    # installers attached to the workflow run.
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installers/*
+          generate_release_notes: true
