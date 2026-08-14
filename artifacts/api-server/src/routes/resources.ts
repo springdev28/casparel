@@ -1,5 +1,14 @@
 import { Router, type IRouter } from "express";
-import { eq, ne, sql, ilike, and, or, notInArray } from "drizzle-orm";
+import {
+  eq,
+  ne,
+  sql,
+  ilike,
+  and,
+  or,
+  inArray,
+  notInArray,
+} from "drizzle-orm";
 import {
   db,
   resourcesTable,
@@ -79,6 +88,53 @@ async function resourceWithRating(id: number) {
     avgRating: Math.round(Number(stats.avg) * 10) / 10,
     reviewCount: stats.count,
   };
+}
+
+/**
+ * The same shape as resourceWithRating, for a list of ids, in two queries.
+ *
+ * The callers used to run `Promise.all(ids.map(resourceWithRating))`, which is
+ * one query for the row plus one for its rating summary, per resource: 25
+ * round trips for a 12-item list. The database is a long way from the app
+ * server, so round trips dominate these endpoints, and the pool is only ten
+ * connections wide, so the fan-out also queues behind itself under load.
+ *
+ * Order follows `ids`, since callers have already ranked them.
+ */
+async function resourcesWithRatings(ids: number[]) {
+  if (ids.length === 0) return [];
+
+  const [rows, stats] = await Promise.all([
+    db
+      .select(publicResourceColumns)
+      .from(resourcesTable)
+      .where(inArray(resourcesTable.id, ids)),
+    db
+      .select({
+        resourceId: reviewsTable.resourceId,
+        avg: sql<number>`coalesce(avg(rating), 0)`,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(reviewsTable)
+      .where(inArray(reviewsTable.resourceId, ids))
+      .groupBy(reviewsTable.resourceId),
+  ]);
+
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const ratingById = new Map(stats.map((stat) => [stat.resourceId, stat]));
+
+  return ids.flatMap((id) => {
+    const row = byId.get(id);
+    if (!row) return [];
+    const rating = ratingById.get(id);
+    return [
+      {
+        ...row,
+        avgRating: Math.round(Number(rating?.avg ?? 0) * 10) / 10,
+        reviewCount: rating?.count ?? 0,
+      },
+    ];
+  });
 }
 
 function canonicalResourceUrl(raw: string) {
@@ -165,10 +221,7 @@ async function topRatedResources(limit = 12, viewerId: number | null = null) {
       sql`coalesce((select avg(rating) from reviews where resource_id = resources.id), 0) desc`,
     )
     .limit(limit);
-  const results = await Promise.all(rows.map((r) => resourceWithRating(r.id)));
-  return results.filter(
-    (item): item is NonNullable<typeof item> => item !== null,
-  );
+  return resourcesWithRatings(rows.map((r) => r.id));
 }
 
 // ── GET /resources, public ───────────────────────────────────────────────────
@@ -419,10 +472,8 @@ router.get("/resources/featured", async (_req, res): Promise<void> => {
     .orderBy(sql`avg(rating) desc`)
     .limit(10);
 
-  const resources = await Promise.all(
-    rows.map((r) => resourceWithRating(r.resourceId)),
-  );
-  res.json(ListFeaturedResourcesResponse.parse(resources.filter(Boolean)));
+  const resources = await resourcesWithRatings(rows.map((r) => r.resourceId));
+  res.json(ListFeaturedResourcesResponse.parse(resources));
 });
 
 // ── GET /resources/recommendations, public (personalised if auth header present) ──
@@ -566,9 +617,7 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
     candidates = [...candidates, ...extra.map((r) => r.id)];
   }
 
-  const results = (
-    await Promise.all(candidates.map((id) => resourceWithRating(id)))
-  ).filter((item): item is NonNullable<typeof item> => item !== null);
+  const results = await resourcesWithRatings(candidates);
   res.json(GetResourceRecommendationsResponse.parse(results.slice(0, 12)));
 });
 
