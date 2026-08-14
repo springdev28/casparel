@@ -3,6 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "description": "Casparel for macOS, Windows and Linux",
+  "homepage": "https://casparel.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/springdev28/casparel.git"
+  },
+  "author": {
+    "name": "Casparel",
+    "email": "support@casparel.com"
+  },
   "main": "dist/main.js",
   "scripts": {
     "compile": "tsc -p tsconfig.json",

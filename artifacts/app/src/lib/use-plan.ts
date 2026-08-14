@@ -54,10 +54,10 @@ export function usePlan(enabled = true): PlanState {
 
   // Every field is read defensively, including the nested ones. This hook feeds
   // the sidebar, which renders on every signed-in page, so a usage response
-  // that is served but malformed — an object missing `aiSearch`, an error body
-  // returned with a 200 — must not be able to throw. It did: `usage?.aiSearch`
-  // guarded the response but not the field inside it, and one such response
-  // took down the whole app, not just the plan card.
+  // that is served but malformed (an object missing `aiSearch`, or an error
+  // body returned with a 200) must not be able to throw. It did once:
+  // `usage?.aiSearch` guarded the response but not the field inside it, and
+  // one such response took down the whole app, not just the plan card.
   return {
     label: usage?.plan ?? (isAdmin ? "Administrator" : "Free"),
     unlimited,

@@ -11,6 +11,16 @@ directories:
   output: release
   buildResources: build
 
+# The workspace package is named @workspace/desktop, and electron-builder
+# derives artifact filenames, the Linux executable and the .desktop entry from
+# that name. The scope turns into a path separator, so the .deb build tried to
+# write into a release/@workspace/ directory that does not exist, and the
+# desktop entry came out as "@workspacedesktop". Naming these explicitly keeps
+# the workspace package name (which pnpm resolves by) separate from what users
+# actually see.
+artifactName: ${productName}-${version}-${arch}.${ext}
+executableName: casparel
+
 files:
   - dist/**/*
   - package.json
@@ -48,6 +58,15 @@ linux:
   target:
     - AppImage
     - deb
+
+# Where updates and releases come from. electron-builder needs this even for
+# a local build: the .deb target generates auto-update metadata, and without a
+# provider it has no channel to write and the build fails after producing
+# perfectly good installers. `--publish never` still keeps it from uploading.
+publish:
+  provider: github
+  owner: springdev28
+  repo: casparel
 
 # Deep links: casparel://resources/123 opens that resource in the app.
 protocols:

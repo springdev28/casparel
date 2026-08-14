@@ -155,7 +155,7 @@ while (Date.now() < deadline) {
 
 console.log(`\nSmoke check against ${BASE}`);
 for (const { name, ok, detail } of results) {
-  console.log(`${ok ? "ok  " : "FAIL"} ${name} — ${detail}`);
+  console.log(`${ok ? "ok  " : "FAIL"} ${name}: ${detail}`);
 }
 
 const failed = results.filter((r) => !r.ok);

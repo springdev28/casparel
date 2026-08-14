@@ -3,7 +3,7 @@
  * Renders the built app in a real browser and checks its pages for the failure
  * classes that type-checking and unit tests cannot see:
  *
- *  • text that fails WCAG contrast against its actual background — the bug that
+ *  • text that fails WCAG contrast against its actual background, the bug that
  *    made "Sign in" and "More filters" invisible in dark mode,
  *  • elements left stuck at opacity 0 by reveal-on-scroll, which silently
  *    swallows content,
@@ -19,7 +19,7 @@
  *
  * Requires playwright-core and a Chromium build. In an environment that already
  * ships one, point CHROMIUM_PATH at it; otherwise `npx playwright install
- * chromium` once. Kept out of package.json dependencies deliberately — this is
+ * chromium` once. Kept out of package.json dependencies deliberately: this is
  * a local/CI tool, not something the app bundle needs.
  */
 import http from "node:http";
@@ -256,10 +256,10 @@ for (const {
 } of results) {
   const problems = [
     ...findings.lowContrast.map(
-      (c) => `contrast ${c.ratio} < ${c.min} — "${c.text}"`,
+      (c) => `contrast ${c.ratio} < ${c.min} on "${c.text}"`,
     ),
     ...findings.invisibleAfterScroll.map(
-      (t) => `still invisible after scrolling — "${t}"`,
+      (t) => `still invisible after scrolling: "${t}"`,
     ),
     ...(findings.imagesMissingAlt
       ? [`${findings.imagesMissingAlt} image(s) with no alt`]
@@ -285,7 +285,7 @@ for (const {
 if (unfixtured.size) {
   console.log(
     `\nnote: no fixture for ${[...unfixtured].sort().join(", ")}` +
-      " — answered empty. Add it to scripts/audit-fixtures.mjs.",
+      ". Answered empty; add it to scripts/audit-fixtures.mjs.",
   );
 }
 
