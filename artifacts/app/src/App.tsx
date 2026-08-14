@@ -32,6 +32,7 @@ const UiTranslationBridge = lazy(
   () => import("./components/UiTranslationBridge"),
 );
 const PublicShell = lazy(() => import("./components/PublicShell"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
 const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const DashboardPage = lazy(() => import("./pages/AdaptiveDashboardPage"));
@@ -371,9 +372,11 @@ function Router() {
         {() => <PrivateRoute component={SchedulePage} />}
       </Route>
 
-      {/* Root lands on public resource browse */}
+      {/* Root is the public landing page */}
       <Route path="/">
-        <Redirect to="/resources" />
+        <Suspense fallback={null}>
+          <LandingPage />
+        </Suspense>
       </Route>
       <Route>
         <Redirect to="/resources" />
