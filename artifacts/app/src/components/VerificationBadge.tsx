@@ -5,7 +5,7 @@ type Status = "unverified" | "verified" | "rejected" | undefined | null;
 /**
  * Trust label for a user-submitted resource.
  *
- * Verified resources render nothing on purpose — once most of the library is
+ * Verified resources render nothing on purpose, once most of the library is
  * verified, a badge on every card is noise. Absence is the signal; only the
  * exceptions are called out.
  */

@@ -1,11 +1,11 @@
-# Casparel → RevenueCat Shipaton 2026 — Ship Roadmap
+# Casparel → RevenueCat Shipaton 2026, Ship Roadmap
 
 **Status:** In progress · **Owner:** Bahar Yüksel · **Last updated:** 2026-08-14
 
 This roadmap turns the [Casparel at Shipaton 2026 strategy brief](https://claude.ai/code/artifact/694e1e4a-7925-4000-81ce-8a09e918d091)
 into an ordered, trackable plan. It is the single source of truth for what ships, in what order, and why.
 
-**Related:** [`shipaton-2026-submission.md`](./shipaton-2026-submission.md) — ready-to-paste store + Devpost copy, screenshot plan, and demo shot list.
+**Related:** [`shipaton-2026-submission.md`](./shipaton-2026-submission.md), ready-to-paste store + Devpost copy, screenshot plan, and demo shot list.
 
 ---
 
@@ -15,8 +15,8 @@ Casparel is a mature, multi-surface education platform (Expo mobile · React/Vit
 Its feature depth already maps onto **four to five Shipaton prize categories**. But Shipaton has two hard,
 non-negotiable gates that Casparel does **not** clear today:
 
-1. **RevenueCat SDK + a real paywall** — no monetization exists in the repo.
-2. **A brand-new app, publicly live on a store within Aug 1 – Sep 30 2026** — the mobile app runs in Expo dev only.
+1. **RevenueCat SDK + a real paywall**, no monetization exists in the repo.
+2. **A brand-new app, publicly live on a store within Aug 1 – Sep 30 2026**, the mobile app runs in Expo dev only.
 
 Everything else is polish. The roadmap front-loads these two gates so every downstream category becomes reachable.
 
@@ -30,9 +30,9 @@ Everything else is polish. The roadmap front-loads these two gates so every down
 
 ---
 
-## 1. The two gates (must clear — everything depends on these)
+## 1. The two gates (must clear, everything depends on these)
 
-### Gate A — Monetization via RevenueCat  ⚙️ *code, in progress*
+### Gate A, Monetization via RevenueCat  ⚙️ *code, in progress*
 
 The single non-negotiable requirement: the RevenueCat SDK must power at least one in-app purchase (or ads via
 RevenueCat Ads), and at least one real feature must sit behind a paywall.
@@ -40,7 +40,7 @@ RevenueCat Ads), and at least one real feature must sit behind a paywall.
 **What the codebase gives us for free:** the API already models plans and usage.
 `GET /users/me/usage` returns `plan`, `unlimited`, and daily caps for **AI search (3/day)** and **deep research (2/day)**.
 Today the only "unlimited" plan is `Administrator`. That is the natural thing to sell: a **Premium** entitlement that
-lifts those AI limits. The paywall story writes itself — "unlimited AI deep-research and source discovery."
+lifts those AI limits. The paywall story writes itself, "unlimited AI deep-research and source discovery."
 
 - [x] Add `react-native-purchases` to the mobile app
 - [x] `PurchasesProvider` context: initialize RevenueCat, expose `isPremium`, offerings, `purchase()`, `restore()`
@@ -56,10 +56,10 @@ lifts those AI limits. The paywall story writes itself — "unlimited AI deep-re
 - [ ] **[dashboard]** Point the RevenueCat webhook at `POST /api/webhooks/revenuecat` and set the shared secret
       `REVENUECAT_WEBHOOK_AUTH` (same value in the dashboard's Authorization header and the server env)
 
-### Gate B — Live on a store  📦 *accounts + build*
+### Gate B, Live on a store  📦 *accounts + build*
 
 - [ ] **[dashboard]** Confirm the **"brand-new"** clause: the mobile app must have **no prior public store release**
-      before Aug 1 2026 (a web app on Replit/Hostinger is fine — verify the *mobile* app specifically)
+      before Aug 1 2026 (a web app on Replit/Hostinger is fine, verify the *mobile* app specifically)
 - [x] Add `eas.json` (build + submit profiles) and finalize `app.json` store metadata + RevenueCat plugin
 - [ ] **[accounts]** Apple Developer Program ($99/yr) and/or Google Play Console ($25 one-time)
 - [ ] **[build]** `eas build` for iOS + Android with signing credentials
@@ -74,27 +74,27 @@ lifts those AI limits. The paywall story writes itself — "unlimited AI deep-re
 
 ## 2. Timeline (mirrors the strategy brief)
 
-### Phase 1 · Now → ~Aug 24 — Monetize & harden
+### Phase 1 · Now → ~Aug 24, Monetize & harden
 - [x] Wire RevenueCat entitlements into the mobile app
 - [x] Choose the paywall: unlimited AI deep-research + source discovery, keep the catalog free
 - [x] Design paywall + upgrade entry with `edu-ds`
 - [ ] Confirm no prior public store release of the mobile app
 
-### Phase 2 · ~Aug 25 → Sep 10 — Submit & get live *(critical)*
+### Phase 2 · ~Aug 25 → Sep 10, Submit & get live *(critical)*
 - [ ] Build & submit to App Store / Google Play; budget for review
 - [ ] Store listing assets (icon, screenshots, description)
-- [ ] Begin `#BuildInPublic` posts — the Schoolar → Casparel → shipped story
+- [ ] Begin `#BuildInPublic` posts, the Schoolar → Casparel → shipped story
 - [ ] Judge promo code / free trial for Premium
 
-### Phase 3 · Sep 10 → Sep 23 — Grow & sharpen
-- [ ] Drive real installs — students, teachers, campus communities
+### Phase 3 · Sep 10 → Sep 23, Grow & sharpen
+- [ ] Drive real installs, students, teachers, campus communities
 - [ ] Record the ≤ 2-min demo showing the app + a purchase on device
 - [ ] Polish social-good and design narratives for target categories
 
-### Phase 4 · Sep 23 → Sep 30 — Submit on Devpost
+### Phase 4 · Sep 23 → Sep 30, Submit on Devpost
 - [ ] Finalize the Devpost entry against every targeted category
 - [ ] Verify the live store URL + judge access end-to-end
-- [ ] Submit early — before Sep 30, 11:45 pm PT
+- [ ] Submit early, before Sep 30, 11:45 pm PT
 
 ---
 
@@ -106,8 +106,8 @@ lifts those AI limits. The paywall story writes itself — "unlimited AI deep-re
 | RevenueCat Design Award | **Strong** | `edu-ds` design system + rebrand; invest polish in paywall & onboarding |
 | Next Gen Award (students only) | **Strong** | On-theme, well-engineered; no paid dev account needed if maker is a student |
 | HAMM Award (monetization) | Buildable | Layered premium: AI credits, sync, unlimited lists/sessions |
-| Productivity influencer | Buildable | "Study organizer" framing — lists, schedule, calendar sync |
-| #BuildInPublic | Buildable | Rebrand-and-launch narrative — **start posting now** |
+| Productivity influencer | Buildable | "Study organizer" framing, lists, schedule, calendar sync |
+| #BuildInPublic | Buildable | Rebrand-and-launch narrative, **start posting now** |
 | Grand Prize (Build & Grow) | Stretch | Needs early ship + real acquisition push |
 
 ---
@@ -116,7 +116,7 @@ lifts those AI limits. The paywall story writes itself — "unlimited AI deep-re
 
 - **Three surfaces:** Expo/React Native mobile, React 19 + Vite web, Express + Drizzle + Postgres (OpenAPI-first, typed hooks).
 - **Learning depth:** open-education catalog (Open Library, Wikibooks), reading lists, classes, schedules, study sessions w/ RSVP, forum, DMs, guided learning workflow.
-- **AI & integrations:** cost-gated OpenAI deep-research & discovery, Google Calendar/Classroom sync, iCal feed — the premium-tier candidates.
+- **AI & integrations:** cost-gated OpenAI deep-research & discovery, Google Calendar/Classroom sync, iCal feed, the premium-tier candidates.
 - **Design system:** `edu-ds` (Radix + shadcn + tokens) with native RN components; completed rebrand.
 - **Engineering discipline:** migration-only DB, strict typecheck gates, k6 load tests, real coverage.
 
@@ -129,7 +129,7 @@ AI limits, the entitlement is now reconciled server-side:
 
 1. ✅ `users.plan` (default `free`) + `users.plan_expires_at` added via Drizzle migration `0043_daily_naoko.sql`
    (guarded with `IF NOT EXISTS`).
-2. ✅ `POST /api/webhooks/revenuecat` (`routes/webhooks.ts`) — shared-secret auth via `REVENUECAT_WEBHOOK_AUTH`,
+2. ✅ `POST /api/webhooks/revenuecat` (`routes/webhooks.ts`), shared-secret auth via `REVENUECAT_WEBHOOK_AUTH`,
    flips `users.plan` on grant events (purchase/renewal/uncancellation/…) and clears it on `EXPIRATION`.
 3. ✅ `lib/entitlements.ts#isPremiumAccount` is the single source of truth. `/users/me/usage` reports `Premium`
    and null (unlimited) caps; deep-research per-user limits and the AI-search daily limiter are bypassed for premium.

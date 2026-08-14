@@ -11,7 +11,7 @@ import {
   activityLogTable,
 } from "@workspace/db";
 
-/** Reject any meeting URL that isn't http or https — blocks javascript: etc. */
+/** Reject any meeting URL that isn't http or https, blocks javascript: etc. */
 function isSafeMeetingUrl(url: string): boolean {
   try {
     const { protocol } = new URL(url);
@@ -82,7 +82,7 @@ async function getSessionWithParticipants(sessionId: number, viewerUserId: numbe
   };
 }
 
-// GET /study-sessions — sessions where user is organiser or participant
+// GET /study-sessions, sessions where user is organiser or participant
 router.get("/study-sessions", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
 
@@ -116,7 +116,7 @@ router.get("/study-sessions", requireAuth, async (req, res): Promise<void> => {
   res.json(ListStudySessionsResponse.parse(enriched.filter(Boolean)));
 });
 
-// POST /study-sessions — create and auto-invite participants
+// POST /study-sessions, create and auto-invite participants
 router.post(
   "/study-sessions",
   contentLimiter,
@@ -254,7 +254,7 @@ router.get("/study-sessions/:id", requireAuth, async (req, res): Promise<void> =
   res.json(GetStudySessionResponse.parse(result));
 });
 
-// PATCH /study-sessions/:id — organiser edits
+// PATCH /study-sessions/:id, organiser edits
 router.patch("/study-sessions/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = UpdateStudySessionParams.safeParse({ id: Number(req.params.id) });
@@ -309,7 +309,7 @@ router.patch("/study-sessions/:id", requireAuth, async (req, res): Promise<void>
   if (result) syncSessionToGCal(userId, params.data.id, result).catch(() => {});
 });
 
-// DELETE /study-sessions/:id — organiser cancels
+// DELETE /study-sessions/:id, organiser cancels
 router.delete("/study-sessions/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const parsed = DeleteStudySessionParams.safeParse({ id: Number(req.params.id) });
@@ -331,7 +331,7 @@ router.delete("/study-sessions/:id", requireAuth, async (req, res): Promise<void
     return;
   }
 
-  // `session` (fetched above) already has the Google Calendar event ID —
+  // `session` (fetched above) already has the Google Calendar event ID , 
   // pass it to the helper before deleting the row to avoid a read-after-delete race.
   await db
     .delete(studySessionsTable)
@@ -342,7 +342,7 @@ router.delete("/study-sessions/:id", requireAuth, async (req, res): Promise<void
   deleteSessionFromGCal(userId, parsed.data.id, session.googleCalendarEventId).catch(() => {});
 });
 
-// PATCH /study-sessions/:id/rsvp — participant accepts/declines
+// PATCH /study-sessions/:id/rsvp, participant accepts/declines
 router.patch(
   "/study-sessions/:id/rsvp",
   requireAuth,

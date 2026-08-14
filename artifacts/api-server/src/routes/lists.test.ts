@@ -1,11 +1,11 @@
 /**
  * Integration tests for the reading-list routes.
  *
- * All DB access is fully mocked — no real database required.
+ * All DB access is fully mocked, no real database required.
  * The tests cover:
  *
- *  • DELETE /lists/:id/items/:itemId — idempotent single removal
- *  • DELETE /lists/:id/items/:itemId — concurrent removal race condition:
+ *  • DELETE /lists/:id/items/:itemId, idempotent single removal
+ *  • DELETE /lists/:id/items/:itemId, concurrent removal race condition:
  *      two simultaneous requests for the same item both return 204
  */
 
@@ -98,7 +98,7 @@ beforeEach(() => {
     return chain as unknown as ReturnType<typeof db.select>;
   });
 
-  // delete: unconditional — resolves immediately, tracks call count.
+  // delete: unconditional, resolves immediately, tracks call count.
   vi.mocked(db.delete).mockImplementation(() => {
     const chain = {
       where: vi.fn().mockImplementation(() => {
@@ -148,7 +148,7 @@ describe("DELETE /api/lists/:id/items/:itemId", () => {
   });
 
   it("returns 204 (idempotent) when the item was already removed", async () => {
-    // db.delete affects 0 rows — the route does not check row count, so still 204.
+    // db.delete affects 0 rows, the route does not check row count, so still 204.
     const res = await request(buildApp())
       .delete(`/api/lists/${LIST_ID}/items/${ITEM_ID}`)
       .set("Authorization", ownerToken(OWNER_ID));
@@ -178,7 +178,7 @@ describe("DELETE /api/lists/:id/items/:itemId", () => {
 
   // ── Race-condition test ──────────────────────────────────────────────────────
 
-  it("both concurrent DELETE requests return 204 (race condition — idempotent delete)", async () => {
+  it("both concurrent DELETE requests return 204 (race condition, idempotent delete)", async () => {
     // Fire two simultaneous requests for the same item without awaiting either.
     // This simulates two browser tabs or sessions racing to remove the same item.
     const app = buildApp();
@@ -192,7 +192,7 @@ describe("DELETE /api/lists/:id/items/:itemId", () => {
         .set("Authorization", ownerToken(OWNER_ID)),
     ]);
 
-    // Both requests must succeed — the second must not receive a 4xx even
+    // Both requests must succeed, the second must not receive a 4xx even
     // though the item was (conceptually) already gone after the first.
     expect(res1.status).toBe(204);
     expect(res2.status).toBe(204);

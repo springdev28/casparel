@@ -1028,7 +1028,7 @@ export default function ActivitiesPage({
     missingOrder.length > 0 && missingIndex >= missingOrder.length;
   const currentMissingPrompt = currentMissing
     ? selected?.mode === "all"
-      ? { prompt: `${currentMissing.term} — ____`, answer: currentMissing.answer }
+      ? { prompt: `${currentMissing.term}, ____`, answer: currentMissing.answer }
       : { prompt: currentMissing.term, answer: currentMissing.answer }
     : null;
   const practiceComplete =

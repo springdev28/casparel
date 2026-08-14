@@ -184,7 +184,7 @@ async function classWithCount(id: number) {
   return { ...cls, memberCount: count };
 }
 
-// GET /classes — classes the current user belongs to or teaches
+// GET /classes, classes the current user belongs to or teaches
 router.get("/classes", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const memberships = await db
@@ -203,7 +203,7 @@ router.get("/classes", requireAuth, async (req, res): Promise<void> => {
   res.json(ListClassesResponse.parse(classes.filter(Boolean)));
 });
 
-// POST /classes — teacher role required (verified against live DB, not token claim)
+// POST /classes, teacher role required (verified against live DB, not token claim)
 router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const [currentUser] = await db
@@ -232,7 +232,7 @@ router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<v
   res.status(201).json(CreateClassResponse.parse({ ...cls, memberCount: 1 }));
 });
 
-// GET /classes/:id — class members and teachers only
+// GET /classes/:id, class members and teachers only
 router.get("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetClassParams.safeParse(req.params);
@@ -319,7 +319,7 @@ router.get("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(GetClassResponse.parse({ ...cls, members, mySeat }));
 });
 
-// PATCH /classes/:id — class teacher only
+// PATCH /classes/:id, class teacher only
 router.patch("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = UpdateClassParams.safeParse(req.params);
@@ -349,7 +349,7 @@ router.patch("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(UpdateClassResponse.parse(withCount));
 });
 
-// DELETE /classes/:id — class teacher only
+// DELETE /classes/:id, class teacher only
 router.delete("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = DeleteClassParams.safeParse(req.params);
@@ -372,7 +372,7 @@ router.delete("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-// GET /classes/:id/members — class members only
+// GET /classes/:id/members, class members only
 router.get("/classes/:id/members", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = ListClassMembersParams.safeParse(req.params);
@@ -487,7 +487,7 @@ router.post(
   },
 );
 
-// POST /classes/:id/members — class teacher only
+// POST /classes/:id/members, class teacher only
 // The membership role always mirrors the target user's account role to avoid contradictions.
 router.post("/classes/:id/members", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
@@ -513,7 +513,7 @@ router.post("/classes/:id/members", contentLimiter, requireAuth, async (req, res
     res.status(404).json({ error: "User not found" });
     return;
   }
-  // Use the user's account role as their membership role — prevents assigning
+  // Use the user's account role as their membership role, prevents assigning
   // "teacher" role in the class to a student account (or vice versa).
   const membershipRole = user.role === "admin" ? "student" : user.role;
   await db
@@ -533,7 +533,7 @@ router.post("/classes/:id/members", contentLimiter, requireAuth, async (req, res
   res.status(201).json(AddClassMemberResponse.parse({ ...member, user }));
 });
 
-// POST /classes/:id/members/bulk-invite — class teacher only
+// POST /classes/:id/members/bulk-invite, class teacher only
 // Adds multiple students by email. Students with matching EduHub accounts are
 // auto-enrolled; emails with no account are reported as not_found.
 router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, async (req, res): Promise<void> => {
@@ -634,7 +634,7 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
   res.json(BulkInviteClassMembersResponse.parse({ added, alreadyMember, notFound, results }));
 });
 
-// DELETE /classes/:id/members/:userId — class teacher only
+// DELETE /classes/:id/members/:userId, class teacher only
 // Cannot remove the class creator (teacherId on the class).
 router.delete("/classes/:id/members/:userId", requireAuth, async (req, res): Promise<void> => {
   const { userId: requesterId } = req as AuthenticatedRequest;
@@ -875,7 +875,7 @@ router.put("/classes/:id/students/:userId/note", contentLimiter, requireAuth, as
   res.json(UpdateStudentNoteResponse.parse({ ...student, teacherNote: updated.teacherNote, seatRow: updated.seatRow, seatColumn: updated.seatColumn }));
 });
 
-// GET /classes/:id/resources-list — any class member can view
+// GET /classes/:id/resources-list, any class member can view
 router.get("/classes/:id/resources-list", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetClassParams.safeParse(req.params);
@@ -891,7 +891,7 @@ router.get("/classes/:id/resources-list", requireAuth, async (req, res): Promise
     .where(and(eq(resourceListsTable.classId, params.data.id), eq(resourceListsTable.name, "Class Resources")));
 
   if (!list) {
-    // Class list not created yet — return empty shell
+    // Class list not created yet, return empty shell
     res.json(GetResourceListResponse.parse({ id: 0, name: "Class Resources", description: null, ownerId: 0, classId: params.data.id, itemCount: 0, createdAt: new Date().toISOString(), items: [] }));
     return;
   }
@@ -917,7 +917,7 @@ router.get("/classes/:id/resources-list", requireAuth, async (req, res): Promise
   res.json(GetResourceListResponse.parse({ ...list, itemCount: count, items }));
 });
 
-// POST /classes/:id/assign — teacher only; adds resource to the class list
+// POST /classes/:id/assign, teacher only; adds resource to the class list
 router.post("/classes/:id/assign", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetClassParams.safeParse(req.params);
@@ -959,7 +959,7 @@ router.post("/classes/:id/assign", contentLimiter, requireAuth, async (req, res)
   res.json(AssignResourceToClassResponse.parse({ listId: list.id }));
 });
 
-// DELETE /classes/:id/resources-list/items/:resourceId — teacher removes item from class list
+// DELETE /classes/:id/resources-list/items/:resourceId, teacher removes item from class list
 router.delete("/classes/:id/resources-list/items/:resourceId", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const classId = Number(req.params.id);
@@ -984,8 +984,8 @@ router.delete("/classes/:id/resources-list/items/:resourceId", requireAuth, asyn
   res.sendStatus(204);
 });
 
-// GET /classes/:id/shared-lists — other lists shared with this class (not "Class Resources")
-// DELETE /classes/:id/leave — any member may leave. Transfer ownership first.
+// GET /classes/:id/shared-lists, other lists shared with this class (not "Class Resources")
+// DELETE /classes/:id/leave, any member may leave. Transfer ownership first.
 router.delete("/classes/:id/leave", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const classId = Number(req.params.id);

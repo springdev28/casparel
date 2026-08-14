@@ -8,11 +8,11 @@
  *  4. Server stores tokens in calendar_tokens → redirects to /profile?cal_connected=1
  *
  * iCal feed:
- *  GET /calendar/:icalSecret/feed.ics  — no auth header; secret in URL
+ *  GET /calendar/:icalSecret/feed.ics , no auth header; secret in URL
  *
  * One-off .ics export:
- *  GET /schedule/:blockId/export.ics   — auth required
- *  GET /study-sessions/:sessionId/export.ics — auth required
+ *  GET /schedule/:blockId/export.ics  , auth required
+ *  GET /study-sessions/:sessionId/export.ics, auth required
  */
 import { Router, type IRouter } from "express";
 import crypto from "node:crypto";
@@ -452,7 +452,7 @@ export async function deleteSessionFromGCal(
   }
 }
 
-// ── GET /calendar/status — connection status + iCal secret ────────────────────
+// ── GET /calendar/status, connection status + iCal secret ────────────────────
 
 router.get("/calendar/status", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
@@ -472,7 +472,7 @@ router.get("/calendar/status", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
-// ── GET /calendar/google/connect — return OAuth URL ──────────────────────────
+// ── GET /calendar/google/connect, return OAuth URL ──────────────────────────
 
 router.get("/calendar/google/connect", requireAuth, (req, res): void => {
   if (!CAL_CONFIGURED) {
@@ -499,7 +499,7 @@ router.get("/calendar/google/connect", requireAuth, (req, res): void => {
   res.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` });
 });
 
-// ── GET /calendar/google/callback — handle OAuth callback ────────────────────
+// ── GET /calendar/google/callback, handle OAuth callback ────────────────────
 
 router.get("/calendar/google/callback", async (req, res): Promise<void> => {
   const { code, state, error } = req.query as Record<string, string>;
@@ -593,7 +593,7 @@ router.delete("/calendar/google/disconnect", requireAuth, async (req, res): Prom
   res.status(204).send();
 });
 
-// ── GET /calendar/:icalSecret/feed.ics — iCal subscription feed ──────────────
+// ── GET /calendar/:icalSecret/feed.ics, iCal subscription feed ──────────────
 
 router.get("/calendar/:icalSecret/feed.ics", async (req, res): Promise<void> => {
   const { icalSecret } = req.params;
@@ -678,7 +678,7 @@ router.get("/calendar/:icalSecret/feed.ics", async (req, res): Promise<void> => 
   res.send(icsContent);
 });
 
-// ── GET /schedule/:blockId/export.ics — single block export ──────────────────
+// ── GET /schedule/:blockId/export.ics, single block export ──────────────────
 
 router.get("/schedule/:blockId/export.ics", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
@@ -718,7 +718,7 @@ router.get("/schedule/:blockId/export.ics", requireAuth, async (req, res): Promi
   res.send(icsContent);
 });
 
-// ── GET /study-sessions/:sessionId/export.ics — single session export ─────────
+// ── GET /study-sessions/:sessionId/export.ics, single session export ─────────
 
 router.get("/study-sessions/:sessionId/export.ics", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
@@ -739,7 +739,7 @@ router.get("/study-sessions/:sessionId/export.ics", requireAuth, async (req, res
     return;
   }
 
-  // Must be organiser or participant to export — prevent data leakage
+  // Must be organiser or participant to export, prevent data leakage
   const isOrganizer = session.organizerId === userId;
   if (!isOrganizer) {
     const [participant] = await db
@@ -778,7 +778,7 @@ router.get("/study-sessions/:sessionId/export.ics", requireAuth, async (req, res
   res.send(icsContent);
 });
 
-// ── GET /calendar/ical-url — convenience endpoint returning the feed URL ──────
+// ── GET /calendar/ical-url, convenience endpoint returning the feed URL ──────
 
 router.get("/calendar/ical-url", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;

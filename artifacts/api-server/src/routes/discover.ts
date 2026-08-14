@@ -58,7 +58,7 @@ async function fetchFromAI(prompt: string): Promise<DiscoverList> {
   return validateItems(rawItems);
 }
 
-// GET /resources/discover — public, searches the internet via AI
+// GET /resources/discover, public, searches the internet via AI
 router.get("/resources/discover", async (req, res): Promise<void> => {
   const params = DiscoverResourcesQueryParams.safeParse(req.query);
   if (!params.success) {
@@ -81,14 +81,14 @@ router.get("/resources/discover", async (req, res): Promise<void> => {
     return `You are an educational research assistant. Using your training knowledge, suggest 8–12 high-quality educational resources matching this query: "${q}"${subjectHint}${gradeHint}${formatHint}
 
 Return ONLY a JSON array. Each element must have these fields:
-- title: string — full title of the resource
-- url: string — direct URL to the resource
-- description: string — 1–2 sentence description of what the resource covers
+- title: string, full title of the resource
+- url: string, direct URL to the resource
+- description: string, 1–2 sentence description of what the resource covers
 - format: one of "article" | "video" | "pdf" | "podcast" | "interactive" | "other"
-- source: string — name of the website/publisher/channel (e.g. "Khan Academy", "MIT OpenCourseWare", "YouTube")
-- thumbnailUrl: string or null — a thumbnail/image URL if available (YouTube thumbnails follow the pattern https://img.youtube.com/vi/{videoId}/hqdefault.jpg)
-- subject: string or null — academic subject
-- gradeLevel: string or null — target grade level if apparent (e.g. "9th Grade", "College", "K-8")
+- source: string, name of the website/publisher/channel (e.g. "Khan Academy", "MIT OpenCourseWare", "YouTube")
+- thumbnailUrl: string or null, a thumbnail/image URL if available (YouTube thumbnails follow the pattern https://img.youtube.com/vi/{videoId}/hqdefault.jpg)
+- subject: string or null, academic subject
+- gradeLevel: string or null, target grade level if apparent (e.g. "9th Grade", "College", "K-8")
 
 Rules:
 - Only include real, publicly accessible URLs that actually exist
@@ -107,7 +107,7 @@ Rules:
       return;
     }
 
-    // Reachability check — parallel with 3-second timeout per URL
+    // Reachability check, parallel with 3-second timeout per URL
     const reachable = await filterReachableUrls(firstBatch);
 
     if (reachable.length >= MIN_VALID_RESULTS) {
@@ -115,7 +115,7 @@ Rules:
       return;
     }
 
-    // Too many dead links — request a fresh batch excluding known-dead URLs
+    // Too many dead links, request a fresh batch excluding known-dead URLs
     const reachableUrls = new Set(reachable.map((r) => r.url));
     const deadUrls = firstBatch
       .filter((item) => !reachableUrls.has(item.url))

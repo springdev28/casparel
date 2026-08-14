@@ -86,7 +86,7 @@ function presetAvatarDataUrl(avatarId: string): string | null {
   return "data:image/svg+xml," + encodeURIComponent(svg);
 }
 
-// Multer for avatar upload — 2 MB limit, memory storage.
+// Multer for avatar upload, 2 MB limit, memory storage.
 // fileFilter accepts everything so we can read the buffer first; the real
 // validation is content-based (magic bytes) done AFTER multer reads the file.
 const avatarUpload = multer({
@@ -100,7 +100,7 @@ const avatarUpload = multer({
  * the bytes do not match a supported format.
  *
  * Deliberately excludes SVG (text/xml) and all other non-raster formats even
- * when the client claims an image/* MIME type — MIME is client-controlled and
+ * when the client claims an image/* MIME type, MIME is client-controlled and
  * cannot be trusted.
  */
 function detectRasterImageMime(
@@ -256,7 +256,7 @@ router.patch(
 );
 
 // 20 attempts per IP per 15 minutes on auth endpoints.
-// 5 was too restrictive — a user whose session expires and retries a couple
+// 5 was too restrictive, a user whose session expires and retries a couple
 // of times (or who misremembers their password) would hit the limit and be
 // locked out.  20 still provides meaningful brute-force protection.
 const authRateLimiter = rateLimit({
@@ -285,7 +285,7 @@ router.post(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    // role is always "student" for new accounts — not client-controlled
+    // role is always "student" for new accounts, not client-controlled
     const { email, password, name } = parsed.data;
     const role = "student";
     const existing = await db
@@ -357,7 +357,7 @@ router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
   // Project exactly the fields the contract returns. A bare .select() pulls
   // every column, which (a) selects password_hash for no reason and (b) makes
   // this endpoint fail outright whenever the schema gains a column the deployed
-  // database has not migrated yet — and because the whole sidebar (profile,
+  // database has not migrated yet, and because the whole sidebar (profile,
   // plan, role switcher) is gated on this one call, that failure blanks it.
   const [user] = await db
     .select(publicUserColumns)
@@ -473,7 +473,7 @@ router.patch(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    // Strip avatarUrl from PATCH payload — avatar changes must use POST /users/me/avatar
+    // Strip avatarUrl from PATCH payload, avatar changes must use POST /users/me/avatar
     // (which enforces magic-byte validation). This is defence-in-depth against clients
     // that still send the field after the OpenAPI schema update.
     const { avatarUrl: _dropped, ...safeFields } =
@@ -510,7 +510,7 @@ router.patch(
               gradeOrDept: null,
               // Self-service role changes must drop account verification.
               // Without this, anyone could self-promote to teacher, get
-              // verified, switch back, and keep verification — which would
+              // verified, switch back, and keep verification, which would
               // make every verified submitter's auto-publish trivially
               // forgeable.
               teacherVerified: false,
@@ -525,7 +525,7 @@ router.patch(
   },
 );
 
-// POST /users/me/avatar — multipart upload, stores as base64 data-URL
+// POST /users/me/avatar, multipart upload, stores as base64 data-URL
 router.post(
   "/users/me/avatar",
   requireAuth,
@@ -565,7 +565,7 @@ router.post(
   },
 );
 
-// PUT /users/me/avatar/preset — server-curated SVG avatar, safe for public profiles
+// PUT /users/me/avatar/preset, server-curated SVG avatar, safe for public profiles
 router.put(
   "/users/me/avatar/preset",
   requireAuth,
@@ -681,7 +681,7 @@ async function blockedIdsFor(userId: number): Promise<Set<number>> {
   );
 }
 
-// GET /users/search — shared classmates by default; opt-in profile discovery with scope=all
+// GET /users/search, shared classmates by default; opt-in profile discovery with scope=all
 router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
   const { userId, accountRole } = req as AuthenticatedRequest;
   const isAdmin = accountRole === "admin";
@@ -938,7 +938,7 @@ router.post(
   },
 );
 
-// GET /users/:id/library — independently audience-checked user library
+// GET /users/:id/library, independently audience-checked user library
 router.get(
   "/users/:id/library",
   requireAuth,
@@ -1043,7 +1043,7 @@ router.get(
   },
 );
 
-// GET /users/:id — audience-checked profile with field-level masking
+// GET /users/:id, audience-checked profile with field-level masking
 router.get("/users/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId, accountRole } = req as AuthenticatedRequest;
   const parsed = GetPublicProfileParams.safeParse({

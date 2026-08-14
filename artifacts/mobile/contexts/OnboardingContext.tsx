@@ -41,7 +41,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     try {
       await storage.setItemAsync(ONBOARDED_KEY, 'true');
     } catch {
-      // ignore — state is already updated for this session
+      // ignore, state is already updated for this session
     }
   }, []);
 

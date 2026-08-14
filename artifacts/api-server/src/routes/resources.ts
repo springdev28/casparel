@@ -99,7 +99,7 @@ function canonicalResourceUrl(raw: string) {
  *  • the submitter is an admin or a verified account.
  *
  * Everything else starts "unverified". Host provenance (.edu/.gov) is
- * deliberately NOT a trust signal here — personal pages under those domains are
+ * deliberately NOT a trust signal here, personal pages under those domains are
  * trivially obtainable.
  */
 async function classifySubmission(
@@ -171,7 +171,7 @@ async function topRatedResources(limit = 12, viewerId: number | null = null) {
   );
 }
 
-// ── GET /resources — public ───────────────────────────────────────────────────
+// ── GET /resources, public ───────────────────────────────────────────────────
 
 router.get("/resources", async (req, res): Promise<void> => {
   const params = ListResourcesQueryParams.safeParse(req.query);
@@ -405,7 +405,7 @@ router.get("/resources", async (req, res): Promise<void> => {
 
   res.json(ListResourcesResponse.parse(rows));
 });
-// ── GET /resources/featured — public ─────────────────────────────────────────
+// ── GET /resources/featured, public ─────────────────────────────────────────
 // NOTE: must stay above /resources/:id
 
 router.get("/resources/featured", async (_req, res): Promise<void> => {
@@ -425,11 +425,11 @@ router.get("/resources/featured", async (_req, res): Promise<void> => {
   res.json(ListFeaturedResourcesResponse.parse(resources.filter(Boolean)));
 });
 
-// ── GET /resources/recommendations — public (personalised if auth header present) ──
+// ── GET /resources/recommendations, public (personalised if auth header present) ──
 // NOTE: must stay above /resources/:id
 
 router.get("/resources/recommendations", async (req, res): Promise<void> => {
-  // Try to read userId from auth header (optional — don't reject if missing)
+  // Try to read userId from auth header (optional, don't reject if missing)
   let userId: number | null = null;
   try {
     const { decodeToken } = await import("../lib/auth");
@@ -439,11 +439,11 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
       if (payload) userId = payload.userId;
     }
   } catch {
-    // no-op — treat as unauthenticated
+    // no-op, treat as unauthenticated
   }
 
   if (!userId) {
-    // Resources in the DB are already validated when added — no live URL
+    // Resources in the DB are already validated when added, no live URL
     // reachability check needed here (those checks time out in the sandbox
     // and would silently empty the recommendations list).
     const results = await topRatedResources(12);
@@ -528,7 +528,7 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
       interestMatch,
       ne(resourcesTable.submittedById, userId),
       // Recommendations are other people's resources by definition, so the
-      // author exception never applies here — verified only.
+      // author exception never applies here, verified only.
       eq(resourcesTable.verificationStatus, "verified"),
     ];
     if (reviewedIds.length > 0)
@@ -572,7 +572,7 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
   res.json(GetResourceRecommendationsResponse.parse(results.slice(0, 12)));
 });
 
-// ── POST /resources/:id/recommend — authenticated ────────────────────────────
+// ── POST /resources/:id/recommend, authenticated ────────────────────────────
 
 router.post(
   "/resources/:id/recommend",
@@ -651,7 +651,7 @@ router.post(
   },
 );
 
-// ── GET /resources/discover — public, stored open-catalog search ─────────────
+// ── GET /resources/discover, public, stored open-catalog search ─────────────
 // NOTE: must stay above /resources/:id
 
 /** Extract and validate resource items from a raw AI text response. */
@@ -1156,7 +1156,7 @@ router.get(
       : "";
     const pageHint =
       page > 1
-        ? ` Find a DIFFERENT set of resources from what you would normally return first — skip the most obvious results and surface less commonly known but equally high-quality alternatives.`
+        ? ` Find a DIFFERENT set of resources from what you would normally return first, skip the most obvious results and surface less commonly known but equally high-quality alternatives.`
         : "";
     const extendedFilterHints = [
       exactPhrase
@@ -1310,7 +1310,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
         return;
       }
 
-      // ── Too few live results — retry once, excluding known-dead URLs ──────────
+      // ── Too few live results, retry once, excluding known-dead URLs ──────────
       const reachableSet = new Set(reachable.map((r) => r.url));
       const deadUrls = firstBatch
         .filter((item) => !reachableSet.has(item.url))
@@ -1422,7 +1422,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
   },
 );
 
-// ── POST /resources/prefetch — public ────────────────────────────────────────
+// ── POST /resources/prefetch, public ────────────────────────────────────────
 // Must stay above /resources/:id
 
 router.post(
@@ -1447,7 +1447,7 @@ router.post(
     } catch {
       res
         .status(400)
-        .json({ error: "Invalid URL — must be an absolute http/https URL" });
+        .json({ error: "Invalid URL, must be an absolute http/https URL" });
       return;
     }
 
@@ -1518,7 +1518,7 @@ router.post(
       ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
       : null;
 
-    // ── 3. Read publisher metadata directly — no AI credits ─────────────────
+    // ── 3. Read publisher metadata directly, no AI credits ─────────────────
     const decodeEntities = (value: string) =>
       value
         .replace(/&amp;/gi, "&")
@@ -1641,7 +1641,7 @@ router.post(
       res.status(400).json({ error: parsed.error.message });
       return;
     }
-    // Verification is always computed server-side — it is absent from
+    // Verification is always computed server-side, it is absent from
     // CreateResourceBody, so a client can never assert its own status.
     const verification = await classifySubmission(parsed.data.url, userId, accountRole);
     const [resource] = await db
@@ -1663,7 +1663,7 @@ router.post(
   },
 );
 
-// ── GET /resources/oembed — server-side OEmbed proxy (must stay above /:id) ──
+// ── GET /resources/oembed, server-side OEmbed proxy (must stay above /:id) ──
 // Avoids browser CORS failures when resolving Vimeo / Loom thumbnail URLs.
 
 const OEMBED_TIMEOUT_MS = 4000;
@@ -1713,7 +1713,7 @@ router.get("/resources/oembed", async (req, res): Promise<void> => {
     return;
   }
 
-  // Strict allowlist — only known OEmbed providers, exact hostname match
+  // Strict allowlist, only known OEmbed providers, exact hostname match
   const oembedBase = OEMBED_ALLOWED_HOSTS[parsed.hostname];
   if (!oembedBase) {
     res.json({ thumbnailUrl: null });

@@ -4,7 +4,7 @@ import { pool } from "@workspace/db";
 /**
  * PostgreSQL-backed store for express-rate-limit.
  *
- * Uses the shared `pool` already exported by @workspace/db — no extra
+ * Uses the shared `pool` already exported by @workspace/db, no extra
  * connection needed.  The table is created (if absent) by calling
  * `initRateLimitStore()` once at server startup, before any request is served.
  *

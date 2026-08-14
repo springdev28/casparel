@@ -406,7 +406,7 @@ function SourceReviewPanel({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Mode picker — shown when no mode has been chosen yet */}
+        {/* Mode picker, shown when no mode has been chosen yet */}
         {mode === null && (
           <div className="space-y-3 py-1">
             <p className="text-sm text-muted-foreground">
@@ -1096,7 +1096,7 @@ export default function ResourceDetailPage() {
                 onReviewed={loadWorkflow}
               />
 
-              {/* Add to List — auth-gated */}
+              {/* Add to List, auth-gated */}
               {isLoggedIn ? (
                 <Dialog open={addToListOpen} onOpenChange={setAddToListOpen}>
                   <DialogTrigger asChild>
@@ -1185,7 +1185,7 @@ export default function ResourceDetailPage() {
                 </Button>
               )}
 
-              {/* Assign to Class — teachers only */}
+              {/* Assign to Class, teachers only */}
               {isLoggedIn && isTeacher && (
                 <Dialog
                   open={assignDialogOpen}
@@ -1345,7 +1345,7 @@ export default function ResourceDetailPage() {
                 </Dialog>
               )}
 
-              {/* Remove from library — only for submitter */}
+              {/* Remove from library, only for submitter */}
               {isLoggedIn && me?.id === resource.submittedById && (
                 <Dialog
                   open={deleteConfirmOpen}
@@ -1556,7 +1556,7 @@ export default function ResourceDetailPage() {
       <section>
         <h2 className="text-lg font-semibold text-foreground mb-4">Reviews</h2>
 
-        {/* Write a Review — auth-gated */}
+        {/* Write a Review, auth-gated */}
         {isLoggedIn ? (
           <Card className="mb-4">
             <CardHeader className="pb-2">

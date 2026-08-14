@@ -15,7 +15,7 @@ import { isReviewOwner } from "../lib/authz";
 
 const router: IRouter = Router();
 
-// GET /resources/:id/reviews — public
+// GET /resources/:id/reviews, public
 router.get("/resources/:id/reviews", async (req, res): Promise<void> => {
   const params = ListResourceReviewsParams.safeParse(req.params);
   if (!params.success) {
@@ -38,7 +38,7 @@ router.get("/resources/:id/reviews", async (req, res): Promise<void> => {
   res.json(ListResourceReviewsResponse.parse(reviews));
 });
 
-// POST /resources/:id/reviews — any authenticated user
+// POST /resources/:id/reviews, any authenticated user
 router.post("/resources/:id/reviews", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = CreateResourceReviewParams.safeParse(req.params);
@@ -62,7 +62,7 @@ router.post("/resources/:id/reviews", contentLimiter, requireAuth, async (req, r
   res.status(201).json(CreateResourceReviewResponse.parse({ ...review, user }));
 });
 
-// DELETE /resources/:id/reviews/:reviewId — reviewer only
+// DELETE /resources/:id/reviews/:reviewId, reviewer only
 router.delete("/resources/:id/reviews/:reviewId", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = DeleteResourceReviewParams.safeParse(req.params);

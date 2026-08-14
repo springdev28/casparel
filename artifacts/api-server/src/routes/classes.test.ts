@@ -4,13 +4,13 @@
  * Key contract: `isClassTeacher` checks the live DB role before checking class
  * ownership.  A user who has switched to Student mode must not be able to
  * modify, delete, or manage members of classes they previously owned as teacher
- * — even when presenting a structurally valid but stale teacher JWT.
+ *, even when presenting a structurally valid but stale teacher JWT.
  *
  * Covered routes:
- *  • PATCH  /api/classes/:id               — teacher-only update
- *  • DELETE /api/classes/:id               — teacher-only delete
- *  • POST   /api/classes/:id/members       — teacher-only invite
- *  • DELETE /api/classes/:id/members/:uid  — teacher-only removal
+ *  • PATCH  /api/classes/:id              , teacher-only update
+ *  • DELETE /api/classes/:id              , teacher-only delete
+ *  • POST   /api/classes/:id/members      , teacher-only invite
+ *  • DELETE /api/classes/:id/members/:uid , teacher-only removal
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -83,7 +83,7 @@ function buildApp() {
   return app;
 }
 
-/** Issue a JWT regardless of the role string — simulates a token from a prior session */
+/** Issue a JWT regardless of the role string, simulates a token from a prior session */
 function tokenFor(role: "teacher" | "student", id = TEACHER_ID) {
   return `Bearer ${issueToken(id, role)}`;
 }
@@ -207,7 +207,7 @@ beforeEach(() => {
 // PATCH /api/classes/:id
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("PATCH /api/classes/:id — teacher-only", () => {
+describe("PATCH /api/classes/:id, teacher-only", () => {
   it("returns 200 when caller's current DB role is teacher and they own the class", async () => {
     // After the update, classWithCount does two more selects (classes + class_members).
     // Wire them separately so they don't collide with isClassTeacher's selects.
@@ -298,7 +298,7 @@ describe("PATCH /api/classes/:id — teacher-only", () => {
 // DELETE /api/classes/:id
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("DELETE /api/classes/:id — teacher-only", () => {
+describe("DELETE /api/classes/:id, teacher-only", () => {
   it("returns 204 when caller is teacher and owns the class", async () => {
     vi.mocked(db.select)
       .mockImplementationOnce(() => {
@@ -348,7 +348,7 @@ describe("DELETE /api/classes/:id — teacher-only", () => {
 // POST /api/classes/:id/members
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("POST /api/classes/:id/members — teacher-only", () => {
+describe("POST /api/classes/:id/members, teacher-only", () => {
   it("returns 201 when caller is teacher and owns the class", async () => {
     vi.mocked(db.select)
       .mockImplementationOnce(() => {
@@ -413,7 +413,7 @@ describe("POST /api/classes/:id/members — teacher-only", () => {
 // DELETE /api/classes/:id/members/:userId
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("DELETE /api/classes/:id/members/:userId — teacher-only", () => {
+describe("DELETE /api/classes/:id/members/:userId, teacher-only", () => {
   it("returns 204 when caller is teacher and owns the class", async () => {
     vi.mocked(db.select)
       .mockImplementationOnce(() => {
@@ -460,11 +460,11 @@ describe("DELETE /api/classes/:id/members/:userId — teacher-only", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Active-role downgrade regression — teacher account switched to student mode
+// Active-role downgrade regression, teacher account switched to student mode
 // isClassTeacher must deny access even when role="teacher" but activeRole="student"
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("isClassTeacher active-role downgrade — role=teacher, activeRole=student", () => {
+describe("isClassTeacher active-role downgrade, role=teacher, activeRole=student", () => {
   /** Returns a users-table stub where the account role is "teacher" but the
    *  active role is "student" (i.e. the user has switched to student mode). */
   function stubbedTeacherInStudentMode() {

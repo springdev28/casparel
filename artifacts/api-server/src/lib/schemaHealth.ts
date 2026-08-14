@@ -5,7 +5,7 @@
  * transient database problem does not take the whole app down. The cost is that
  * a failed migration is otherwise invisible: the server looks healthy while the
  * schema is behind the code, and any query touching a not-yet-created column
- * fails — which reads as unrelated, scattered breakage in the UI.
+ * fails, which reads as unrelated, scattered breakage in the UI.
  *
  * This module makes that state observable instead of guessable.
  */

@@ -33,7 +33,7 @@ const SLIDES: Slide[] = [
     icon: Sparkles,
     eyebrow: "Welcome",
     title: "Welcome to Casparel",
-    body: "Your workspace for discovering great learning resources and turning them into real progress — whether you’re studying or teaching.",
+    body: "Your workspace for discovering great learning resources and turning them into real progress, whether you’re studying or teaching.",
     points: [
       { icon: Search, text: "Find and vet high-quality resources fast." },
       { icon: Target, text: "Turn goals into guided, resourced paths." },
@@ -96,7 +96,7 @@ export default function TutorialPage() {
   const Icon = slide.icon;
 
   function finish() {
-    // Best-effort — the tour should never trap someone if saving is briefly
+    // Best-effort, the tour should never trap someone if saving is briefly
     // unavailable, so we navigate regardless of the request outcome.
     updatePreferences.mutate({ tutorialSeen: true });
     setLocation("/dashboard");

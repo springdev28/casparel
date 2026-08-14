@@ -1,7 +1,7 @@
-/* Import EduDS design system — provides Tailwind, tokens, and component themes. */
+/* Import EduDS design system, provides Tailwind, tokens, and component themes. */
 @import "@workspace/edu-ds/styles.css";
 
-/* Self-hosted Space Grotesk (variable, weights 300–700) — removes the
+/* Self-hosted Space Grotesk (variable, weights 300–700), removes the
    render-blocking request to fonts.googleapis.com/fonts.gstatic.com from the
    critical path and keeps the display font on the same origin as everything
    else. Two subsets cover every Latin-script language the app ships in

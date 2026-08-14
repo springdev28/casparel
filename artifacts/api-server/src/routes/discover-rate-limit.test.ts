@@ -65,7 +65,7 @@ beforeEach(() => {
   delete process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED;
 });
 
-describe("GET /api/resources/discover — free catalog path", () => {
+describe("GET /api/resources/discover, free catalog path", () => {
   it("does not call AI or consume an AI quota", async () => {
     const response = await request(buildApp()).get(
       "/api/resources/discover?q=algebra",

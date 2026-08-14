@@ -484,7 +484,7 @@ export default function AppShell({ children }: AppShellProps) {
       : currentNavItem.label
     : "Casparel";
 
-  // Real Google Classroom status — only fetched for teachers
+  // Real Google Classroom status, only fetched for teachers
   const { data: gcStatus, isLoading: gcStatusLoading } = useGetGCStatus({
     query: {
       enabled: isTeacher && isDesktop && secondaryDataReady,
@@ -492,7 +492,7 @@ export default function AppShell({ children }: AppShellProps) {
     },
   });
 
-  // Lazy auth URL fetch — only triggered on demand
+  // Lazy auth URL fetch, only triggered on demand
   const {
     data: gcAuthUrlData,
     refetch: fetchAuthUrl,
@@ -610,7 +610,7 @@ export default function AppShell({ children }: AppShellProps) {
     ) : null
   ) : null;
 
-  // Role switcher — shown when user data is loaded
+  // Role switcher, shown when user data is loaded
   const roleSwitcher = signedIn ? (
     <div className="flex items-center gap-2 w-full" data-testid="role-switcher">
       <UserCog size={13} className="text-primary-foreground/60 shrink-0" />
@@ -648,7 +648,7 @@ export default function AppShell({ children }: AppShellProps) {
             className="flex items-center gap-2 border-b border-primary-foreground/20 px-5 py-5 transition-opacity hover:opacity-80"
             aria-label="Casparel home"
           >
-            <BrandIcon className="h-10 w-10" label="Casparel" />
+            <BrandIcon className="h-10 w-10" />
             <span className="font-bold text-lg tracking-tight">Casparel</span>
           </Link>
 
@@ -815,7 +815,7 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
               </div>
             ) : !me && signedIn ? (
-              // Profile details could not be loaded — still give a way in
+              // Profile details could not be loaded, still give a way in
               // rather than silently dropping the whole block.
               <Link
                 href="/profile"
@@ -936,7 +936,7 @@ export default function AppShell({ children }: AppShellProps) {
             {/* Role switcher */}
             {roleSwitcher}
 
-            {/* Google Classroom connect — real OAuth, teachers only */}
+            {/* Google Classroom connect, real OAuth, teachers only */}
             {gcWidget}
 
             <div
@@ -1003,7 +1003,7 @@ export default function AppShell({ children }: AppShellProps) {
                       className="flex items-center gap-3 transition-opacity hover:opacity-80"
                       aria-label="Casparel home"
                     >
-                      <BrandIcon className="h-9 w-9" label="Casparel" />
+                      <BrandIcon className="h-9 w-9" />
                       <span>Casparel</span>
                     </Link>
                   </SheetTitle>

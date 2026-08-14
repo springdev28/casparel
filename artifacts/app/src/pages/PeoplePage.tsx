@@ -65,7 +65,7 @@ const PUBLIC_PEOPLE_PAGE_SIZE = 12;
 function personName(title: string): string {
   return (
     title
-      .split(/\s+[–—|]\s+|\s+-\s+/)[0]
+      .split(/\s+[–, |]\s+|\s+-\s+/)[0]
       ?.replace(/\s*[([].*?[)\]]\s*$/, "")
       .replace(
         /\s+(?:profile|linkedin|researchgate|orcid|google scholar|github)$/i,

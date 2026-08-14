@@ -62,7 +62,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
 
       if (!Purchases || !purchasesSupported || !RC_API_KEY) {
-        // Web, Expo Go, or missing keys — degrade to a free-only experience.
+        // Web, Expo Go, or missing keys, degrade to a free-only experience.
         setAvailable(false);
         setReady(true);
         return;

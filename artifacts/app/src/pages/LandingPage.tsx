@@ -13,14 +13,17 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
+  UserRound,
 } from "lucide-react";
 import BrandIcon from "../components/BrandIcon";
 import { useSystemDark } from "../hooks/use-system-dark";
 import { readSessionClaims } from "../lib/session";
 import { useReveal } from "../lib/use-reveal";
+import { LetterDrop } from "../components/LetterDrop";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 
 /**
- * Public store listings. Left null until the apps are actually live — a dead
+ * Public store listings. Left null until the apps are actually live, a dead
  * link on the landing page is worse than an honest "coming soon".
  */
 const IOS_APP_URL: string | null = null;
@@ -37,17 +40,17 @@ const CAPABILITIES = [
   {
     icon: CalendarDays,
     title: "Your studies, organised",
-    body: "Classes, reading lists, schedules and study sessions in one place — with Google Calendar sync and an iCal feed so your plan lives where you already work.",
+    body: "Classes, reading lists, schedules and study sessions in one place, with Google Calendar sync and an iCal feed so your plan lives where you already work.",
   },
   {
     icon: ScanSearch,
     title: "Research any source",
-    body: "AI source research tells you who is behind a resource and how much to trust it — a quick check anytime, or deep live-web research on demand.",
+    body: "AI source research tells you who is behind a resource and how much to trust it: a quick check anytime, or deep live-web research on demand.",
   },
 ];
 
 /**
- * Credentials — what earns a learner's trust. Deliberately capability claims
+ * Credentials, what earns a learner's trust. Deliberately capability claims
  * that are true of the product today, not invented usage numbers.
  */
 const CREDENTIALS = [
@@ -106,6 +109,11 @@ export default function LandingPage() {
   const dark = useSystemDark();
   const revealRef = useReveal<HTMLDivElement>();
   const signedIn = Boolean(readSessionClaims());
+  // Only requested when there is a session to describe, so the landing page
+  // stays a zero-request page for logged-out visitors.
+  const { data: me } = useGetMe({
+    query: { enabled: signedIn, queryKey: getGetMeQueryKey() },
+  });
   // Someone already signed in does not need a sales pitch to get back to work.
   const continueHref = signedIn ? "/dashboard" : "/resources";
   const continueLabel = signedIn ? "Back to your dashboard" : "Continue in browser";
@@ -120,7 +128,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
           <Link href="/" className="flex min-w-0 items-center text-primary">
-            <BrandIcon className="mr-2 h-8 w-8 shrink-0" label="Casparel" />
+            <BrandIcon className="mr-2 h-8 w-8 shrink-0" />
             <span className="font-bold text-lg tracking-tight text-foreground">
               Casparel
             </span>
@@ -130,18 +138,30 @@ export default function LandingPage() {
               <Link href="/resources">Browse</Link>
             </Button>
             {signedIn ? (
-              <Button size="sm" asChild>
-                <Link href="/dashboard">Dashboard</Link>
-              </Button>
+              <Link
+                href="/profile"
+                className="flex items-center gap-2 rounded-full border border-border py-1 pl-1 pr-3 transition-colors hover:bg-muted"
+                data-testid="landing-profile"
+              >
+                <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/15">
+                  {me?.avatarUrl ? (
+                    <img
+                      src={me.avatarUrl}
+                      alt=""
+                      className="size-7 rounded-full object-cover"
+                    />
+                  ) : (
+                    <UserRound className="size-4 text-primary" />
+                  )}
+                </span>
+                <span className="max-w-32 truncate text-sm font-medium">
+                  {me?.name ?? "My profile"}
+                </span>
+              </Link>
             ) : (
-              <>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/auth/login">Sign in</Link>
-                </Button>
-                <Button size="sm" asChild>
-                  <Link href="/auth/register">Create account</Link>
-                </Button>
-              </>
+              <Button size="sm" asChild data-testid="landing-login">
+                <Link href="/auth/login">Log in</Link>
+              </Button>
             )}
           </nav>
         </div>
@@ -166,7 +186,7 @@ export default function LandingPage() {
             className="rise mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground"
             style={{ animationDelay: "160ms" }}
           >
-            Casparel is a free, vetted library of open education — with the
+            Casparel is a free, vetted library of open education, with the
             classes, schedules and study tools to actually get through it, and
             AI that tells you who is behind any source before you rely on it.
           </p>
@@ -315,6 +335,12 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
+
+      <section className="border-t border-border">
+        <div className="mx-auto max-w-6xl px-4 py-16">
+          <LetterDrop />
+        </div>
+      </section>
 
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">

@@ -877,7 +877,7 @@ router.patch("/admin/users/:id/teacher-verification", requireAdmin, async (req, 
   }
   // Verification is an ACCOUNT-level trust flag (it lets a submitter's
   // resources publish without review), so students can hold it too. Admins are
-  // trusted implicitly and are excluded — they also can never be role
+  // trusted implicitly and are excluded, they also can never be role
   // "teacher", so the old teacher-only gate made allowlisted admins permanently
   // unverifiable.
   if (target.role === "admin") {
@@ -917,7 +917,7 @@ router.delete("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<vo
 });
 
 // ── Resource verification review queue ──────────────────────────────────────
-// Admin-only, and intentionally not part of the client OpenAPI surface — the
+// Admin-only, and intentionally not part of the client OpenAPI surface, the
 // admin page talks to these through its own adminRequest() helper, the same
 // way the rest of /admin/* works.
 
@@ -928,7 +928,7 @@ const resourceVerificationBody = z
   })
   .strict();
 
-// GET /admin/resources/review-queue — oldest first, so submissions cannot be
+// GET /admin/resources/review-queue, oldest first, so submissions cannot be
 // starved by newer ones.
 router.get(
   "/admin/resources/review-queue",
@@ -978,7 +978,7 @@ router.get(
   },
 );
 
-// PATCH /admin/resources/:id/verification — approve, reject, or send back.
+// PATCH /admin/resources/:id/verification, approve, reject, or send back.
 router.patch(
   "/admin/resources/:id/verification",
   requireAdmin,
@@ -996,7 +996,7 @@ router.patch(
       return;
     }
     const { status, note } = parsed.data;
-    // A rejection has to say why — that reason is the only thing the submitter
+    // A rejection has to say why, that reason is the only thing the submitter
     // can act on.
     if (status === "rejected" && !note) {
       res.status(400).json({ error: "A note is required when rejecting" });
@@ -1025,7 +1025,7 @@ router.patch(
   },
 );
 
-// POST /admin/resources/verification/bulk — the difference between a queue and
+// POST /admin/resources/verification/bulk, the difference between a queue and
 // a backlog when one person is reviewing.
 router.post(
   "/admin/resources/verification/bulk",

@@ -643,7 +643,7 @@ function TeacherView({ name }: { name?: string }) {
 
   function comingSoon(feature: string) {
     toast({
-      title: `${feature} — coming soon`,
+      title: `${feature}, coming soon`,
       description: "This feature is on the roadmap.",
     });
   }
@@ -689,7 +689,7 @@ function TeacherView({ name }: { name?: string }) {
           <CardContent className="p-6">
             <h2 className="text-lg font-bold">Learning signals</h2>
             <p className="mb-5 text-sm text-muted-foreground">
-              Patterns from reflections and comprehension checks—not clicks.
+              Patterns from reflections and comprehension checks, not clicks.
             </p>
             <div className="space-y-3">
               {liveSignals.map(([Icon, title, text]) => (

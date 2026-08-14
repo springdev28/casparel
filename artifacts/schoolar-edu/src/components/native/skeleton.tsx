@@ -1,4 +1,5 @@
-// @ts-nocheck — react-native / reanimated only available in Expo context
+// @ts-nocheck
+// react-native / reanimated only available in Expo context
 import React, { useEffect } from "react";
 import Animated, {
   useAnimatedStyle,

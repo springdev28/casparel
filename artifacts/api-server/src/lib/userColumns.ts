@@ -7,7 +7,7 @@ import { usersTable } from "@workspace/db";
  * usersTable. A bare call asks for every column, which:
  *  • selects password_hash for no reason, and
  *  • fails the whole request whenever the schema has a column the deployed
- *    database has not migrated yet — turning a pending migration into a hard
+ *    database has not migrated yet, turning a pending migration into a hard
  *    500 on core endpoints like /users/me and role switching.
  */
 export const publicUserColumns = {

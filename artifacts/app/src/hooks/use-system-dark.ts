@@ -6,7 +6,7 @@ const QUERY = "(prefers-color-scheme: dark)";
  * Tracks the browser/OS color-scheme preference. Used on the public and auth
  * screens so their logo lockup and surfaces follow the visitor's system theme
  * (the light "02" lockup in light mode, the dark "03" lockup in dark mode).
- * The signed-in workspace does not use this — it keeps its own fixed theme.
+ * The signed-in workspace does not use this, it keeps its own fixed theme.
  */
 export function useSystemDark(): boolean {
   const [dark, setDark] = useState(

@@ -188,7 +188,7 @@ export default function ResourceDetailScreen() {
               >
                 {resource.verificationStatus === 'rejected'
                   ? 'A reviewer did not approve this source.'
-                  : 'Not yet reviewed — check the source before you rely on it.'}
+                  : 'Not yet reviewed, check the source before you rely on it.'}
               </Text>
             </View>
           ) : null}

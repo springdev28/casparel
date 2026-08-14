@@ -1,4 +1,4 @@
-# Casparel — Shipaton 2026 Submission Kit
+# Casparel, Shipaton 2026 Submission Kit
 
 Ready-to-paste copy for the app stores and Devpost, plus a demo shot list.
 Companion to [`shipaton-2026-roadmap.md`](./shipaton-2026-roadmap.md). Fill the
@@ -19,29 +19,29 @@ Companion to [`shipaton-2026-roadmap.md`](./shipaton-2026-roadmap.md). Fill the
 | Marketing URL | `‹https://casparel.app›` |
 | Privacy policy URL | `‹https://casparel.app/privacy›` |
 
-> The store icon must be 1024×1024 (no alpha, no rounded corners — the store
+> The store icon must be 1024×1024 (no alpha, no rounded corners, the store
 > rounds it). Source: `assets/images/icon.png`.
 
 ---
 
 ## 2. App Store / Play full description
 
-> Casparel is where students and teachers find trustworthy learning materials —
+> Casparel is where students and teachers find trustworthy learning materials , 
 > and stay organized while they study.
 >
 > **Discover open education.** Browse a vetted catalog drawn from Open Library,
 > Wikibooks, and other open sources. Every resource is free to open.
 >
 > **Organize everything.** Join classes, build reading lists, plan your schedule,
-> and run study sessions with RSVPs — with an iCal feed and Google Calendar sync
+> and run study sessions with RSVPs, with an iCal feed and Google Calendar sync
 > so your plan lives where you already work.
 >
 > **Research with AI.** Not sure whether a source is credible? Casparel's AI
-> Source Research evaluates who's behind any resource and how much to trust it —
+> Source Research evaluates who's behind any resource and how much to trust it , 
 > a quick check anytime, or deep, live-web research on demand.
 >
 > **Casparel Premium.** Upgrade for unlimited AI source research and discovery.
-> The core library always stays free — Premium funds keeping it open.
+> The core library always stays free, Premium funds keeping it open.
 >
 > Built by students, for students.
 
@@ -52,7 +52,7 @@ discovery.
 **Keywords (iOS, ≤100 chars):** study,learning,education,open textbooks,library,
 classes,schedule,research,students,AI
 
-**What's New (first release):** First public release of Casparel — discover open
+**What's New (first release):** First public release of Casparel, discover open
 education, organize your studies, and research sources with AI. Introducing
 Casparel Premium.
 
@@ -80,13 +80,13 @@ resolved (not loading) state; capture the paywall with the plans loaded.
 ## 4. Devpost submission
 
 **Tagline (≤200 chars):** A free, vetted open-education platform for students and
-teachers — organize your studies and research any source with AI, with Premium
+teachers, organize your studies and research any source with AI, with Premium
 for unlimited research.
 
 **What it does.** Casparel helps students and teachers discover trustworthy,
 free learning materials and stay organized: a vetted open-education catalog,
 classes, reading lists, schedules, study sessions, a forum, and DMs. Its AI
-Source Research evaluates any resource's credibility — quick checks for everyone,
+Source Research evaluates any resource's credibility, quick checks for everyone,
 and unlimited deep, live-web research for Premium subscribers.
 
 **How we built it.** A pnpm monorepo with three surfaces sharing one OpenAPI
@@ -108,7 +108,7 @@ richer premium tooling, and growth toward the Build & Grow track.
 Next Gen (students) · HAMM (monetization) · #BuildInPublic. See the roadmap for
 the fit rationale.
 
-**Judge access:** ‹promo code or free-trial instructions — configure an Offer
+**Judge access:** ‹promo code or free-trial instructions, configure an Offer
 Code / a RevenueCat-granted entitlement so judges can unlock Premium at no cost›.
 
 **Links:** Store URL ‹…› · Repo ‹…› · Demo video ‹…›
@@ -121,11 +121,11 @@ Keep it on-device; show a real purchase.
 
 | Time | Shot | Say |
 |---|---|---|
-| 0:00–0:12 | Cold open: onboarding welcome → dashboard | "Casparel — where students find trustworthy learning materials and stay organized." |
+| 0:00–0:12 | Cold open: onboarding welcome → dashboard | "Casparel, where students find trustworthy learning materials and stay organized." |
 | 0:12–0:35 | Resources list → open a resource | "A free, vetted open-education library." |
 | 0:35–0:55 | Tap **Quick check** → AI Source Research report | "AI tells you who's behind a source and whether to trust it." |
 | 0:55–1:15 | Tap **Deep research** as a free user → paywall opens | "Deep, live-web research is our Premium feature." |
-| 1:15–1:35 | Purchase on the paywall (sandbox) → success | "One tap unlocks unlimited AI research — powered by RevenueCat." |
+| 1:15–1:35 | Purchase on the paywall (sandbox) → success | "One tap unlocks unlimited AI research, powered by RevenueCat." |
 | 1:35–1:50 | Re-run deep research (now unlimited) + Profile → Plan shows Premium | "Now it's unlimited, and enforced server-side." |
 | 1:50–2:00 | Close on schedule / study sessions | "Learn, organize, study. Casparel." |
 

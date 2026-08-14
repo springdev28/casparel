@@ -1,5 +1,5 @@
 // Load a .env file (if present) before any other module initializes. Several
-// imports below — notably @workspace/db — read process.env at import time and
+// imports below, notably @workspace/db, read process.env at import time and
 // throw when a required variable is missing, so this MUST stay the first
 // import. The loader searches cwd and the directories around the bundle, so it
 // works regardless of the host's working directory. See load-env.ts.

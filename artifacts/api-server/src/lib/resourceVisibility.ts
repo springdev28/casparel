@@ -7,15 +7,15 @@ import { isAdminRequest } from "./adminAccess";
 /**
  * Who is allowed to see an unverified resource.
  *
- * Rejected and not-yet-reviewed submissions are hidden from public listings —
+ * Rejected and not-yet-reviewed submissions are hidden from public listings , 
  * that is the point of the review queue. Two exceptions:
  *  • admins see everything, so the queue and moderation views still work, and
  *  • authors keep seeing their own submissions. Without that, a resource a user
  *    just saved would vanish from their library, read as a bug, and get saved
- *    again — creating duplicates instead of protecting anyone.
+ *    again, creating duplicates instead of protecting anyone.
  *
  * Returns `undefined` when no filtering applies, which Drizzle treats as "no
- * condition" — safe to spread into an existing condition list.
+ * condition", safe to spread into an existing condition list.
  */
 export function resourceVisibilityCondition(
   viewerId: number | null,

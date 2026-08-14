@@ -522,7 +522,7 @@ function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps
       <Card data-testid="list-item-card">
         <CardContent className="py-4">
           <div className="flex items-start gap-4">
-            {/* Drag handle — only shown to list owner */}
+            {/* Drag handle, only shown to list owner */}
             {isOwner && (
               <button
                 {...attributes}

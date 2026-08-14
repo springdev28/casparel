@@ -444,7 +444,7 @@ export default function GoalsPage() {
             Learning goals
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Each goal builds a path you can complete—or undo—one step at a time.
+            Each goal builds a path you can complete, or undo, one step at a time.
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>

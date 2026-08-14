@@ -389,7 +389,7 @@ function ResourcePicker({
   );
 }
 
-/** Invitee picker — searches users who share a class with the requester */
+/** Invitee picker, searches users who share a class with the requester */
 function InviteePicker({
   selected,
   onAdd,
@@ -1448,7 +1448,7 @@ export default function SchedulePage() {
                 <div className="space-y-1.5 min-h-24">
                   {dayBlocks.length === 0 && daySessions.length === 0 ? (
                     <div className="text-xs text-muted-foreground text-center py-3">
-                      —
+                      , 
                     </div>
                   ) : (
                     <>

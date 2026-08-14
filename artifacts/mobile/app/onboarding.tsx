@@ -23,7 +23,7 @@ const VALUE_PROPS: { icon: string; title: string; body: string }[] = [
   {
     icon: 'search',
     title: 'AI source research',
-    body: 'Evaluate any resource with AI — go unlimited with Premium.',
+    body: 'Evaluate any resource with AI, and go unlimited with Premium.',
   },
 ];
 
@@ -75,7 +75,7 @@ export default function OnboardingScreen() {
               Welcome to Casparel
             </Text>
             <Text style={[styles.heroSubtitle, { color: colors.primaryForeground + 'DD', fontFamily: colors.fontFamily.sans }]}>
-              Learn, organize, and study — all in one place.
+              Learn, organize, and study, all in one place.
             </Text>
           </LinearGradient>
         </Animated.View>

@@ -355,7 +355,7 @@ export default function ClassDetailPage() {
               {isTeacher && <Button size="sm" variant="outline" onClick={() => joinCode ? void navigator.clipboard.writeText(joinCode).then(() => toast({ title: 'Class code copied' })) : void refreshJoinCode()}><KeyRound size={14} className="mr-1.5" />{joinCode ?? 'Create class code'}</Button>}
               {isTeacher && joinCode && <Button size="icon" variant="ghost" className="size-8" title="Create a new class code" onClick={() => void refreshJoinCode()}><RefreshCw size={14} /></Button>}
 
-              {/* Sync Roster — visible to all teachers; state varies by GC connection */}
+              {/* Sync Roster, visible to all teachers; state varies by GC connection */}
               <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
                 <DialogTrigger asChild><Button size="sm" variant="outline" data-testid="leave-class-button"><LogOut size={14} className="mr-1" /> Leave Class</Button></DialogTrigger>
                 <DialogContent><DialogHeader><DialogTitle>Leave {cls.name}?</DialogTitle><DialogDescription>You will lose access to class resources. Class owners must have another teacher available for ownership transfer.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setLeaveDialogOpen(false)}>Cancel</Button><Button variant="destructive" onClick={handleLeaveClass} disabled={leaveClass.isPending} data-testid="leave-class-confirm">{leaveClass.isPending ? "Leaving…" : "Leave Class"}</Button></DialogFooter></DialogContent>
@@ -576,7 +576,7 @@ export default function ClassDetailPage() {
           <div className="space-y-2">
             {(classRecommendations as ClassResourceRecommendation[]).filter((item) => item.status === ClassResourceRecommendationStatus.pending).map((item) => (
               <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3">
-                <div><p className="text-sm font-medium">{item.resource.title}</p><p className="text-xs text-muted-foreground">Recommended by {item.recommenderName}{item.note ? ` — ${item.note}` : ""}</p></div>
+                <div><p className="text-sm font-medium">{item.resource.title}</p><p className="text-xs text-muted-foreground">Recommended by {item.recommenderName}{item.note ? `, ${item.note}` : ""}</p></div>
                 <div className="flex gap-2"><Button size="sm" onClick={() => handleReviewRecommendation(item.id, "approved")} disabled={reviewRecommendation.isPending}><Check size={14} className="mr-1" /> Approve</Button><Button size="sm" variant="outline" onClick={() => handleReviewRecommendation(item.id, "declined")} disabled={reviewRecommendation.isPending}><X size={14} className="mr-1" /> Decline</Button></div>
               </div>
             ))}

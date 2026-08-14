@@ -1,8 +1,8 @@
 /**
  * Tests for auth routes:
- *  • POST /api/auth/register  — role defaults to "student" when omitted
- *  • POST /api/auth/login     — returns a valid token with the persisted role
- *  • PATCH /api/users/me/role — switches role, re-issues token; stale teacher
+ *  • POST /api/auth/register , role defaults to "student" when omitted
+ *  • POST /api/auth/login    , returns a valid token with the persisted role
+ *  • PATCH /api/users/me/role, switches role, re-issues token; stale teacher
  *                               token is rejected after the user is downgraded
  */
 
@@ -292,7 +292,7 @@ describe("PATCH /api/users/me/role", () => {
 
   it("clears account verification on a self-service role switch", async () => {
     // Verification lets a submitter's resources publish without review, so it
-    // must not survive a self-chosen role change — otherwise anyone could
+    // must not survive a self-chosen role change, otherwise anyone could
     // self-promote to teacher, get verified, switch back, and keep the trust.
     mockUserRow = {
       id: USER_ID,
@@ -338,7 +338,7 @@ describe("PATCH /api/users/me/role", () => {
   it("role-switch always re-issues a token encoding the NEW DB role, not the caller's JWT role", async () => {
     // A user may call PATCH /me/role while holding a stale teacher JWT (e.g.
     // token issued before a prior downgrade).  The endpoint must persist the
-    // requested role to DB and return a fresh token encoding THAT role —
+    // requested role to DB and return a fresh token encoding THAT role , 
     // it must not blindly re-encode the role claim from the incoming JWT.
     // This tests the token-issuance contract.  The complementary test that a
     // stale teacher JWT is rejected on protected class-mutation routes lives in
@@ -367,10 +367,10 @@ describe("PATCH /api/users/me/role", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// PATCH /api/users/me  — extended profile fields
+// PATCH /api/users/me , extended profile fields
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("PATCH /api/users/me — profile fields", () => {
+describe("PATCH /api/users/me, profile fields", () => {
   const USER_ID = 20;
 
   it("saves new profile fields and returns them in the response", async () => {
@@ -441,7 +441,7 @@ describe("PATCH /api/users/me — profile fields", () => {
     expect(lastUpdated).toMatchObject({ bio: null, subjects: null, gradeOrDept: null });
   });
 
-  it("ignores avatarUrl in the request body — avatar must be set via the upload endpoint", async () => {
+  it("ignores avatarUrl in the request body, avatar must be set via the upload endpoint", async () => {
     mockUserRow = {
       id: USER_ID,
       email: "alice@example.com",
@@ -490,15 +490,15 @@ describe("PATCH /api/users/me — profile fields", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// GET /api/users/:id  — public profile
+// GET /api/users/:id , public profile
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/users/:id — public profile", () => {
+describe("GET /api/users/:id, public profile", () => {
   const VIEWER_ID = 30;
   const TARGET_ID = 31;
 
   it("returns the public-safe profile subset and omits email/passwordHash", async () => {
-    // requireAuth only decodes the JWT — no DB select.
+    // requireAuth only decodes the JWT, no DB select.
     // The route's own user lookup is the FIRST db.select() call (callIndex 0),
     // which returns mockExistingUser. Set it to the target user row.
     mockExistingUser = {
@@ -570,7 +570,7 @@ describe("GET /api/users/:id — public profile", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// POST /api/users/me/avatar  — avatar upload
+// POST /api/users/me/avatar , avatar upload
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("POST /api/users/me/avatar", () => {

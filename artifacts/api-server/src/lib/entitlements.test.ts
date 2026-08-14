@@ -1,7 +1,7 @@
 /**
  * Tests for entitlement helpers:
- *  • isPlanActive  — pure predicate over (plan, expiresAt)
- *  • isPremiumAccount — reads the account row and applies isPlanActive
+ *  • isPlanActive , pure predicate over (plan, expiresAt)
+ *  • isPremiumAccount, reads the account row and applies isPlanActive
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 

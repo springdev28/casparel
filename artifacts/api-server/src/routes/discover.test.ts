@@ -1,5 +1,5 @@
 /**
- * Tests for GET /resources/discover — dead-link filtering
+ * Tests for GET /resources/discover, dead-link filtering
  *
  * Mocked:
  *   - @workspace/integrations-openai-ai-server  (openai)
@@ -19,7 +19,7 @@ import { describe, it, vi, beforeEach, expect } from "vitest";
 import request from "supertest";
 import express from "express";
 
-// ── Rate-limit limiter mock — bypass so tests don't exhaust the 5-req cap ─────
+// ── Rate-limit limiter mock, bypass so tests don't exhaust the 5-req cap ─────
 
 vi.mock("../lib/limiters", () => ({
   discoverLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -155,7 +155,7 @@ function fakeAIResponse(items: unknown[]) {
 /** A minimal valid resource item matching the DiscoverResourcesResponse schema. */
 function makeItem(overrides: { url?: string; title?: string } = {}) {
   return {
-    title: overrides.title ?? "Khan Academy — Algebra",
+    title: overrides.title ?? "Khan Academy, Algebra",
     url: overrides.url ?? "https://www.khanacademy.org/math/algebra",
     description: "A free algebra course.",
     format: "video" as const,
@@ -221,7 +221,7 @@ describe("exact-person platform coverage", () => {
 // Happy path
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/resources/discover — filtering", () => {
+describe("GET /api/resources/discover, filtering", () => {
   it("passes the selected source credibility to the stored catalog", async () => {
     const academicResults = [
       {
@@ -304,7 +304,7 @@ describe("GET /api/resources/discover — filtering", () => {
 // Retry behaviour
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/resources/discover — retry when too few results survive", () => {
+describe("GET /api/resources/discover, retry when too few results survive", () => {
   it("calls the AI a second time when fewer than 3 URLs survive", async () => {
     const firstItems = [
       makeItem({ url: "https://a.example.com" }),
@@ -385,7 +385,7 @@ describe("GET /api/resources/discover — retry when too few results survive", (
 // Total failure
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/resources/discover — total failure", () => {
+describe("GET /api/resources/discover, total failure", () => {
   it("returns 502 when both AI passes yield zero reachable results", async () => {
     const item = makeItem({ url: "https://all-dead.example.com" });
 
@@ -421,7 +421,7 @@ describe("GET /api/resources/discover — total failure", () => {
 // Input validation
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/resources/discover — input validation", () => {
+describe("GET /api/resources/discover, input validation", () => {
   it("returns 400 when an invalid format enum value is supplied", async () => {
     const res = await request(buildApp()).get(
       "/api/resources/discover?q=algebra&format=book",

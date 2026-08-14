@@ -1,4 +1,5 @@
-// @ts-nocheck — react-native only available in Expo context
+// @ts-nocheck
+// react-native only available in Expo context
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useColors } from "../../hooks/use-colors";

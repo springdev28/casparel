@@ -1,5 +1,5 @@
 /**
- * Tests for GET /activity/recent — role-scoped activity filtering.
+ * Tests for GET /activity/recent, role-scoped activity filtering.
  *
  * Key contract:
  *  • Only entries whose workspace_role matches the caller's active role are returned.
@@ -114,7 +114,7 @@ beforeEach(() => {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("GET /api/activity/recent — role-scoped filtering", () => {
+describe("GET /api/activity/recent, role-scoped filtering", () => {
   it("returns matching entries when caller is in student mode", async () => {
     mockActivityRows = [activityRow("student")];
 
@@ -139,7 +139,7 @@ describe("GET /api/activity/recent — role-scoped filtering", () => {
     expect(res.body[0].message).toBe("Test message");
   });
 
-  it("queries the DB using the caller's active role — student filter", async () => {
+  it("queries the DB using the caller's active role, student filter", async () => {
     // Verify the .where() call receives the caller's role string so the DB only
     // returns role-matching rows.  The mock captures the where-arguments by
     // spy; we confirm the call was made (query reached the DB) and the response
@@ -165,7 +165,7 @@ describe("GET /api/activity/recent — role-scoped filtering", () => {
     expect(whereSpy).toHaveBeenCalled();
   });
 
-  it("queries the DB using the caller's active role — teacher filter", async () => {
+  it("queries the DB using the caller's active role, teacher filter", async () => {
     mockActivityRows = [];
     const whereSpy = vi.fn().mockImplementation(() => chain);
     let chain: Record<string, unknown>;
@@ -188,8 +188,8 @@ describe("GET /api/activity/recent — role-scoped filtering", () => {
   });
 
   it("returns empty list when no role-matched entries exist (simulates shared-only DB state)", async () => {
-    // When the DB returns no rows — e.g. because only legacy 'shared' rows
-    // exist and the strict role filter excludes them — the response is empty.
+    // When the DB returns no rows, e.g. because only legacy 'shared' rows
+    // exist and the strict role filter excludes them, the response is empty.
     mockActivityRows = [];
 
     const res = await request(buildApp())

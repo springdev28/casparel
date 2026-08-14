@@ -46,7 +46,7 @@ export default function ClassesPage() {
   // GC dialog
   const [gcDialogOpen, setGcDialogOpen] = useState(false);
   const [importingCourseId, setImportingCourseId] = useState<string | null>(null);
-  // Set to true when arriving via ?connect_gc=1 — triggers OAuth once gcStatus loads
+  // Set to true when arriving via ?connect_gc=1, triggers OAuth once gcStatus loads
   const [pendingAutoConnect, setPendingAutoConnect] = useState(false);
   // Set to true when a GC API call returns 401/403 (token expired/revoked)
   const [gcReconnectNeeded, setGcReconnectNeeded] = useState(false);
@@ -114,7 +114,7 @@ export default function ClassesPage() {
       });
       setLocation('/classes', { replace: true });
     } else if (connectGc === '1') {
-      // Arrived from another page requesting a GC connect — flag it and clear the URL.
+      // Arrived from another page requesting a GC connect, flag it and clear the URL.
       // The second effect below will trigger OAuth once gcStatus has loaded.
       setPendingAutoConnect(true);
       setLocation('/classes', { replace: true });
@@ -127,7 +127,7 @@ export default function ClassesPage() {
       setPendingAutoConnect(false);
       handleConnectGoogle();
     } else if (pendingAutoConnect && gcStatus && !gcStatus.configured) {
-      // GC not configured on this server — clear the flag silently
+      // GC not configured on this server, clear the flag silently
       setPendingAutoConnect(false);
     }
   }, [gcStatus, pendingAutoConnect]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -262,7 +262,7 @@ export default function ClassesPage() {
             <DialogContent><DialogHeader><DialogTitle>Join a class</DialogTitle><DialogDescription>Enter the 8-character code your teacher shared.</DialogDescription></DialogHeader><form onSubmit={handleJoin} className="space-y-4"><div className="space-y-1.5"><Label htmlFor="join-code">Class code</Label><Input id="join-code" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, '').slice(0, 8))} className="font-mono text-lg uppercase tracking-widest" placeholder="A1B2C3D4" autoComplete="off" /></div><DialogFooter><Button type="submit" disabled={joining || joinCode.length !== 8}>{joining ? 'Joining…' : 'Join class'}</Button></DialogFooter></form></DialogContent>
           </Dialog>
 
-          {/* Google Classroom — teachers only */}
+          {/* Google Classroom, teachers only */}
           {isTeacher && (
             <>
               {gcStatusLoading ? (
@@ -408,7 +408,7 @@ export default function ClassesPage() {
             </DialogTitle>
             <DialogDescription>
               Your active Google Classroom courses. Click <strong>Import as Class</strong> to
-              create a Casparel class from any course — you can then share resource lists to its
+              create a Casparel class from any course, you can then share resource lists to its
               stream.
             </DialogDescription>
           </DialogHeader>

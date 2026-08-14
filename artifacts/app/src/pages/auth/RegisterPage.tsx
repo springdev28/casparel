@@ -59,7 +59,7 @@ export default function RegisterPage() {
     >
       <div className="w-full max-w-md">
         <h1 className="sr-only">
-          {copy.registerTitle} — Casparel
+          {copy.registerTitle}, Casparel
         </h1>
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-2">

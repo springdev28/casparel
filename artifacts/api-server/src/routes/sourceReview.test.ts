@@ -18,7 +18,7 @@ import express from "express";
 
 let mockResource: Record<string, unknown> | null = {
   id: 42,
-  title: "Khan Academy — Calculus",
+  title: "Khan Academy, Calculus",
   url: "https://www.khanacademy.org/math/calculus-1",
 };
 
@@ -106,7 +106,7 @@ beforeEach(() => {
   lastCreateCall = null;
   mockResource = {
     id: 42,
-    title: "Khan Academy — Calculus",
+    title: "Khan Academy, Calculus",
     url: "https://www.khanacademy.org/math/calculus-1",
   };
 
@@ -141,10 +141,10 @@ beforeEach(() => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Mode contract — the core invariant
+// Mode contract, the core invariant
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/resources/:id/source-review — mode contract", () => {
+describe("GET /api/resources/:id/source-review, mode contract", () => {
   it("quick mode: uses the free provenance registry without OpenAI", async () => {
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review?mode=quick",
@@ -200,10 +200,10 @@ describe("GET /api/resources/:id/source-review — mode contract", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Response shape — mode field is always present
+// Response shape, mode field is always present
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/resources/:id/source-review — response shape", () => {
+describe("GET /api/resources/:id/source-review, response shape", () => {
   it("includes mode: 'quick' in the response body for quick mode", async () => {
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review?mode=quick",
@@ -236,7 +236,7 @@ describe("GET /api/resources/:id/source-review — response shape", () => {
 // Edge cases
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/resources/:id/source-review — edge cases", () => {
+describe("GET /api/resources/:id/source-review, edge cases", () => {
   it("returns 404 when the resource does not exist", async () => {
     mockResource = null;
 

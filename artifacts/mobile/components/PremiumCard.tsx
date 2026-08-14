@@ -65,7 +65,7 @@ export function PremiumCard() {
               Casparel Premium
             </Text>
             <Text style={[styles.subtitle, { color: colors.primary, fontFamily: colors.fontFamily.sansMedium }]}>
-              Active — thank you!
+              Active, thank you!
             </Text>
           </View>
           <Feather name="check-circle" size={20} color={colors.primary} />

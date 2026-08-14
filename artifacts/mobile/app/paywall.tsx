@@ -24,7 +24,7 @@ const BENEFITS: { icon: string; title: string; body: string }[] = [
   {
     icon: 'search',
     title: 'Unlimited AI source research',
-    body: 'Run deep, live-web research on any resource — no daily cap.',
+    body: 'Run deep, live-web research on any resource, with no daily cap.',
   },
   {
     icon: 'compass',
@@ -173,7 +173,7 @@ export default function PaywallScreen() {
           <View style={[styles.premiumBanner, { backgroundColor: colors.primary + '14', borderColor: colors.primary + '40', borderRadius: colors.radius }]}>
             <Feather name="check-circle" size={18} color={colors.primary} />
             <Text style={[styles.premiumText, { color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold }]}>
-              You're on Premium — thank you!
+              You're on Premium. Thank you!
             </Text>
           </View>
         ) : !ready ? (

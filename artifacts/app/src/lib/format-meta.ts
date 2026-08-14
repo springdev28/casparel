@@ -2,7 +2,7 @@
  * Join resource metadata fields (subject, grade, format, …) into a single
  * "A · B" line, dropping anything empty or a stringified null/undefined.
  *
- * Some catalogue entries — notably resources ingested from remote sources —
+ * Some catalogue entries, notably resources ingested from remote sources , 
  * can carry the literal strings "undefined" or "null" in optional fields.
  * Rendering `{subject} · {grade}` directly then shows "undefined · …". This
  * guards every display site so that noise never reaches the UI, regardless of

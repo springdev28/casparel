@@ -24,7 +24,7 @@ function dateToString(d: Date | string | undefined): string | undefined {
   return d as string;
 }
 
-// GET /schedule — own blocks only; optional weekStart (YYYY-MM-DD) filters to that Mon-Sun
+// GET /schedule, own blocks only; optional weekStart (YYYY-MM-DD) filters to that Mon-Sun
 router.get("/schedule", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
 
@@ -61,7 +61,7 @@ router.get("/schedule", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // No weekStart — return all blocks for the user
+  // No weekStart, return all blocks for the user
   const rows = await db
     .select()
     .from(scheduleBlocksTable)
@@ -69,7 +69,7 @@ router.get("/schedule", requireAuth, async (req, res): Promise<void> => {
   res.json(ListScheduleBlocksResponse.parse(rows));
 });
 
-// POST /schedule — any authenticated user; owner always set to self
+// POST /schedule, any authenticated user; owner always set to self
 router.post("/schedule", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const parsed = CreateScheduleBlockBody.safeParse(req.body);
@@ -88,7 +88,7 @@ router.post("/schedule", contentLimiter, requireAuth, async (req, res): Promise<
   syncBlockToGCal(userId, block.id, block).catch(() => {});
 });
 
-// PATCH /schedule/:id — owner only
+// PATCH /schedule/:id, owner only
 router.patch("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = UpdateScheduleBlockParams.safeParse(req.params);
@@ -137,7 +137,7 @@ router.patch("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
   syncBlockToGCal(userId, block.id, block).catch(() => {});
 });
 
-// DELETE /schedule/:id — owner only
+// DELETE /schedule/:id, owner only
 router.delete("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = DeleteScheduleBlockParams.safeParse(req.params);

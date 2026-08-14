@@ -189,7 +189,7 @@ export async function checkUrlReachable(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    // HEAD with manual redirect handling — we never follow redirects
+    // HEAD with manual redirect handling, we never follow redirects
     // automatically to avoid being bounced to an internal address.
     // A 3xx from an external host is itself proof the URL is alive.
     const headRes = await fetch(url, {

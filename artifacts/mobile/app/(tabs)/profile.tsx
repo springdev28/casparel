@@ -271,7 +271,7 @@ export default function ProfileScreen() {
     const fileName = asset.fileName ?? 'avatar.jpg';
     const mimeType = asset.mimeType ?? 'image/jpeg';
     try {
-      // Pass the file descriptor directly — the generated client wraps it in FormData.
+      // Pass the file descriptor directly, the generated client wraps it in FormData.
       // React Native's FormData accepts { uri, name, type } as a file-like value.
       await uploadAvatar.mutateAsync({
         data: { file: { uri: asset.uri, name: fileName, type: mimeType } as unknown as File },

@@ -134,7 +134,7 @@ export default function SettingsPage() {
               <h2 className="font-semibold">Complete guide</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 A full reference to every feature, kept up to date with each
-                release — including what’s new.
+                release, including what’s new.
               </p>
             </div>
           </div>

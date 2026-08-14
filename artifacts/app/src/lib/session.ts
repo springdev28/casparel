@@ -13,7 +13,7 @@ const VALID_ROLES = new Set(["student", "teacher", "admin"]);
 /**
  * Read the signed-in user's claims straight from the stored token.
  *
- * This is a *display* fallback only — the server remains the sole authority and
+ * This is a *display* fallback only, the server remains the sole authority and
  * re-checks every request. It exists so that a slow or failing `GET /users/me`
  * cannot blank out the whole sidebar (profile, plan, role switcher), which is
  * otherwise gated on that single call.

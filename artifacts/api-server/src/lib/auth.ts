@@ -1,5 +1,5 @@
 /**
- * Auth helpers — password hashing (scrypt) and JWT-style signed tokens
+ * Auth helpers, password hashing (scrypt) and JWT-style signed tokens
  * using only Node built-ins so no extra packages are needed.
  */
 import crypto from "node:crypto";

@@ -69,7 +69,7 @@ export default function LoginPage() {
     >
       <div className="w-full max-w-md">
         <h1 className="sr-only">
-          {copy.loginTitle} — Casparel
+          {copy.loginTitle}, Casparel
         </h1>
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-2 mb-2">

@@ -1,4 +1,5 @@
-// @ts-nocheck — react-native / expo-haptics only available in Expo context
+// @ts-nocheck
+// react-native / expo-haptics only available in Expo context
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
 import * as Haptics from "expo-haptics";

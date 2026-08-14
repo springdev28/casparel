@@ -67,7 +67,7 @@ export default function ListsPage() {
       queryClient.invalidateQueries({ queryKey: getListResourceListsQueryKey() });
       toast({ title: 'List deleted', description: `"${name}" has been removed.` });
     } catch (err: unknown) {
-      // A 404 means another session already deleted this list — treat as success.
+      // A 404 means another session already deleted this list, treat as success.
       const status = (err as { status?: number }).status;
       if (status === 404) {
         queryClient.invalidateQueries({ queryKey: getListResourceListsQueryKey() });

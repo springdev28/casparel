@@ -41,7 +41,7 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>() {
           const el = entry.target as HTMLElement;
           // Also reveal anything already scrolled PAST. A fast scroll, an
           // anchor jump or the End key can move an element from below the
-          // viewport to above it without it ever intersecting — without this
+          // viewport to above it without it ever intersecting, without this
           // it would stay at opacity 0 forever, silently losing content.
           const scrolledPast = entry.boundingClientRect.bottom < 0;
           if (!entry.isIntersecting && !scrolledPast) continue;
@@ -56,7 +56,7 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>() {
 
     // IntersectionObserver only reports *changes*. A fast scroll, an anchor
     // jump or the End key can move an element from below the viewport to above
-    // it in one frame — it never intersects, no entry is delivered, and it
+    // it in one frame, it never intersects, no entry is delivered, and it
     // would stay at opacity 0 forever. Sweep on scroll for anything that has
     // reached or passed the viewport.
     let queued = false;

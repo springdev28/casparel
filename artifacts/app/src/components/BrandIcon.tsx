@@ -7,7 +7,7 @@ interface BrandIconProps {
 // Casparel brand mark: a geometric, faceted "C" with a cursor accent, in the
 // Deep Indigo → Azure gradient. Kept as inline SVG so it stays crisp at any
 // size and pairs with the "Casparel" wordmark as the 02 (light) / 03 (dark)
-// lockup — the wordmark color is supplied by the surrounding surface.
+// lockup, the wordmark color is supplied by the surrounding surface.
 export default function BrandIcon({ className = "", title, label }: BrandIconProps) {
   const accessibleName = title || label;
 

@@ -1,13 +1,13 @@
 /**
  * Integration tests for Google Classroom routes.
  *
- * All Google API calls and DB access are fully mocked — no real network or
+ * All Google API calls and DB access are fully mocked, no real network or
  * database required.  The tests cover:
  *
- *  • GET  /api/google-classroom/courses — valid token, expired token (auto-refresh),
+ *  • GET  /api/google-classroom/courses, valid token, expired token (auto-refresh),
  *                                          revoked token (no refresh_token → 401)
- *  • POST /api/google-classroom/share   — successful announcement post
- *  • GET  /api/auth/google/callback     — expired OAuth state, tampered OAuth state
+ *  • POST /api/google-classroom/share  , successful announcement post
+ *  • GET  /api/auth/google/callback    , expired OAuth state, tampered OAuth state
  */
 
 import { describe, it, vi, beforeEach, expect } from "vitest";
@@ -25,7 +25,7 @@ let mockListItems: Array<{ resource: { title: string; url: string } }> = [];
 // Track last db.update call args for assertion
 let lastUpdateSet: Record<string, unknown> | null = null;
 let tokenDeleted = false;
-// Role returned by the users table mock — default "teacher" so all GC routes pass requireTeacher
+// Role returned by the users table mock, default "teacher" so all GC routes pass requireTeacher
 let mockUserRole: "student" | "teacher" = "teacher";
 let mockAuthenticatedUserId = 42;
 
@@ -42,7 +42,7 @@ function makeSelectChain(result: unknown[]) {
 }
 
 vi.mock("@workspace/db", () => {
-  // Stub table objects — used only as identifiers passed to the mock db.
+  // Stub table objects, used only as identifiers passed to the mock db.
   const stub = (name: string) => ({ _name: name });
 
   const db = {
@@ -184,7 +184,7 @@ beforeEach(() => {
 
 describe("GET /api/google-classroom/courses", () => {
   it("returns course list when the stored access token is still valid", async () => {
-    // Token expires 1 hour from now — no refresh needed.
+    // Token expires 1 hour from now, no refresh needed.
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     mockTokenRow = {
       id: 1,
@@ -218,7 +218,7 @@ describe("GET /api/google-classroom/courses", () => {
       { id: "course-2", name: "Science 202", section: null },
     ]);
 
-    // Fetch was called exactly once — no refresh call
+    // Fetch was called exactly once, no refresh call
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
     const [url] = vi.mocked(fetch).mock.calls[0] as [string, ...unknown[]];
     expect(url).toContain("classroom.googleapis.com");
@@ -276,7 +276,7 @@ describe("GET /api/google-classroom/courses", () => {
   });
 
   it("returns 401 and removes the stored token when the refresh token has been revoked", async () => {
-    // Token expired — and refresh fails (revoked)
+    // Token expired, and refresh fails (revoked)
     const expiresAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     mockTokenRow = {
       id: 1,
@@ -427,7 +427,7 @@ describe("POST /api/google-classroom/share", () => {
   });
 
   it("refreshes an expired token and uses the new token for membership check and announcement", async () => {
-    // Token expired 10 minutes ago — share must trigger refresh first
+    // Token expired 10 minutes ago, share must trigger refresh first
     const expiresAt = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     mockTokenRow = {
       id: 1,
@@ -586,7 +586,7 @@ describe("POST /api/google-classroom/share", () => {
 // OAuth state HMAC verification  (tested via GET /api/auth/google/callback)
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("GET /api/auth/google/callback — OAuth state verification", () => {
+describe("GET /api/auth/google/callback, OAuth state verification", () => {
   it("rejects a state that was tampered with (HMAC mismatch)", async () => {
     // Flip the last character of a valid state to break the HMAC
     const valid = makeState(42);

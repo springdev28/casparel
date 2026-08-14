@@ -1,4 +1,5 @@
-// @ts-nocheck — expo-font / google-fonts only available in Expo context
+// @ts-nocheck
+// expo-font / google-fonts only available in Expo context
 import {
   PlusJakartaSans_400Regular,
   PlusJakartaSans_500Medium,

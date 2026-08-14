@@ -68,7 +68,7 @@ async function resolveAuthenticatedUser(
   }
 
   // Keep allowlisted admins promoted on any authenticated request, not just at
-  // login — otherwise a long-lived session keeps its stale non-admin role until
+  // login, otherwise a long-lived session keeps its stale non-admin role until
   // the user happens to sign in again. The write happens at most once.
   let accountRole = user.role;
   if (accountRole !== "admin" && user.email && isAllowlistedAdminEmail(user.email)) {

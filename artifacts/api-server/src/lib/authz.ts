@@ -1,5 +1,5 @@
 /**
- * Authorization helpers — ownership and membership checks.
+ * Authorization helpers, ownership and membership checks.
  * All helpers return true if the check passes, false otherwise.
  * Route handlers should respond 403 when a check fails.
  */
@@ -18,7 +18,7 @@ import {
 
 /**
  * User is the teacher who created this class AND their current DB role is "teacher".
- * Checks the live account role first — a user who has switched to student cannot
+ * Checks the live account role first, a user who has switched to student cannot
  * perform teacher actions on their existing classes, even with an old teacher JWT.
  */
 export async function isClassTeacher(classId: number, userId: number): Promise<boolean> {

@@ -233,7 +233,7 @@ function AccountAccessGate({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Fully private page — redirects to login if unauthenticated. */
+/** Fully private page, redirects to login if unauthenticated. */
 function PrivateRoute({
   component: Component,
 }: {

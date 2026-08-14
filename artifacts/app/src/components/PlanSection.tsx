@@ -144,7 +144,7 @@ export function PlanSection() {
 }
 
 /**
- * Card-shaped variant of the same plan surface, for the Profile page — so the
+ * Card-shaped variant of the same plan surface, for the Profile page, so the
  * plan lives in the same place on web as it does on mobile (Profile → Plan).
  */
 export function PlanCard() {

@@ -54,7 +54,7 @@ async function listWithCount(id: number) {
   return { ...list, itemCount: count };
 }
 
-// GET /lists/shared — lists shared with classes the user is a member of
+// GET /lists/shared, lists shared with classes the user is a member of
 router.get("/lists/shared", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const memberships = await db
@@ -71,7 +71,7 @@ router.get("/lists/shared", requireAuth, async (req, res): Promise<void> => {
   res.json(ListResourceListsResponse.parse(lists.filter(Boolean)));
 });
 
-// GET /lists — only the current user's own lists
+// GET /lists, only the current user's own lists
 router.get("/lists", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const rows = await db
@@ -82,7 +82,7 @@ router.get("/lists", requireAuth, async (req, res): Promise<void> => {
   res.json(ListResourceListsResponse.parse(lists.filter(Boolean)));
 });
 
-// POST /lists — any authenticated user
+// POST /lists, any authenticated user
 router.post("/lists", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const parsed = CreateResourceListBody.safeParse(req.body);
@@ -97,7 +97,7 @@ router.post("/lists", contentLimiter, requireAuth, async (req, res): Promise<voi
   res.status(201).json(CreateResourceListResponse.parse({ ...list, itemCount: 0 }));
 });
 
-// GET /lists/:id — owner or member of the shared class
+// GET /lists/:id, owner or member of the shared class
 router.get("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = GetResourceListParams.safeParse(req.params);
@@ -128,7 +128,7 @@ router.get("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(GetResourceListResponse.parse({ ...list, items }));
 });
 
-// PATCH /lists/:id — owner only
+// PATCH /lists/:id, owner only
 router.patch("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = UpdateResourceListParams.safeParse(req.params);
@@ -158,7 +158,7 @@ router.patch("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(UpdateResourceListResponse.parse(withCount));
 });
 
-// DELETE /lists/:id — owner only
+// DELETE /lists/:id, owner only
 router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = DeleteResourceListParams.safeParse(req.params);
@@ -186,7 +186,7 @@ router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-// POST /lists/:id/items — owner only
+// POST /lists/:id/items, owner only
 router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = AddListItemParams.safeParse(req.params);
@@ -222,7 +222,7 @@ router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): P
   res.status(201).json(AddListItemResponse.parse({ ...item, resource }));
 });
 
-// POST /lists/:id/items/reorder — list owner only
+// POST /lists/:id/items/reorder, list owner only
 // Must be registered before DELETE /lists/:id/items/:itemId so Express doesn't
 // mistake "reorder" for an itemId.
 router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<void> => {
@@ -272,7 +272,7 @@ router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<v
   res.sendStatus(204);
 });
 
-// DELETE /lists/:id/items/:itemId — list owner only
+// DELETE /lists/:id/items/:itemId, list owner only
 router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = RemoveListItemParams.safeParse(req.params);
@@ -290,7 +290,7 @@ router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise
   res.sendStatus(204);
 });
 
-// POST /lists/:id/share — list owner + class teacher
+// POST /lists/:id/share, list owner + class teacher
 router.post("/lists/:id/share", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = ShareListWithClassParams.safeParse(req.params);

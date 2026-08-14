@@ -394,7 +394,7 @@ function isLoomUrl(url: string): boolean {
   }
 }
 
-/** Server-side OEmbed proxy — avoids CORS and third-party rate-limit failures. */
+/** Server-side OEmbed proxy, avoids CORS and third-party rate-limit failures. */
 function useOembedThumbnail(url: string, enabled: boolean) {
   return useQuery<string | null>({
     queryKey: ["oembed-thumbnail", url],
@@ -407,7 +407,7 @@ function useOembedThumbnail(url: string, enabled: boolean) {
       return data.thumbnailUrl ?? null;
     },
     enabled,
-    staleTime: 1000 * 60 * 60, // 1 hour — thumbnail URLs don't change
+    staleTime: 1000 * 60 * 60, // 1 hour, thumbnail URLs don't change
     retry: false,
   });
 }
@@ -1135,7 +1135,7 @@ export default function ResourcesPage() {
   const [thumbnailFilter, setThumbnailFilter] = useState("");
   const [librarySortFilter, setLibrarySortFilter] = useState("");
   // Lets an author find their own submissions that are waiting on review or
-  // were rejected — those are filtered out of everyone else's listings, so
+  // were rejected, those are filtered out of everyone else's listings, so
   // without this they are easy to lose track of.
   const [verificationFilter, setVerificationFilter] = useState<
     "" | "pending" | "rejected"
@@ -1316,7 +1316,7 @@ export default function ResourcesPage() {
       queryKey: getListResourcesQueryKey(libraryCatalogParams),
     },
   });
-  // A user's library is the set of resources they submitted — not the entire
+  // A user's library is the set of resources they submitted, not the entire
   // shared catalogue. Scope the grid to the current account so it only shows
   // (and offers Remove on) resources this user actually owns; browsing the
   // full catalogue is what the Search view is for.
@@ -1416,7 +1416,7 @@ export default function ResourcesPage() {
     });
   }
 
-  // Web discover (shown when searching) — accumulate across pages
+  // Web discover (shown when searching), accumulate across pages
   const discoverParams = {
     q: submittedSearch?.query ?? "",
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
@@ -1621,7 +1621,7 @@ export default function ResourcesPage() {
       if (u.protocol !== "http:" && u.protocol !== "https:") return;
     } catch {
       return;
-    } // not a valid URL yet — skip
+    } // not a valid URL yet, skip
     // Don't prefetch if title is already filled (user typed it themselves)
     if (newTitle.trim()) return;
 
@@ -1644,7 +1644,7 @@ export default function ResourcesPage() {
         );
       setPrefetchedThumbnailUrl(meta.thumbnailUrl ?? null);
     } catch {
-      // silently ignore — user can fill in manually
+      // silently ignore, user can fill in manually
     } finally {
       if (prefetchingUrlRef.current === url) setPrefetching(false);
     }
@@ -1848,7 +1848,7 @@ export default function ResourcesPage() {
               : isSearching
                 ? `Showing library results and web results for "${activeQuery}"`
                 : isLoggedIn
-                  ? "Your personalised library — based on what you've been learning"
+                  ? "Your personalised library, based on what you've been learning"
                   : "Top-rated resources to get you started"}
           </p>
         </div>
@@ -2058,7 +2058,7 @@ export default function ResourcesPage() {
                 className="pl-9 pr-9 h-11 text-base"
                 aria-label="Search resources"
                 placeholder={
-                  'Search anything — "photosynthesis", "MIT calculus", "Python for beginners"…'
+                  'Search anything, "photosynthesis", "MIT calculus", "Python for beginners"…'
                 }
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -2910,7 +2910,7 @@ export default function ResourcesPage() {
           {!isSubmittedSourceMode && (
             <section>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
-                <BookOpen size={14} /> Casparel library — "{activeQuery}"
+                <BookOpen size={14} /> Casparel library, "{activeQuery}"
               </h2>
               {libraryLoading ? (
                 <CardSkeletons count={3} />
@@ -2963,7 +2963,7 @@ export default function ResourcesPage() {
               {submittedSearch?.resultType === DiscoverResourcesResultType.source
                 ? "Sources & channels"
                 : "Open education catalog"}{" "}
-              — "{activeQuery}"
+             , "{activeQuery}"
             </h2>
 
             {webLoading && (
@@ -3003,7 +3003,7 @@ export default function ResourcesPage() {
                     ? isAdmin
                       ? "Optional AI fallback is unavailable because the OpenAI project has no credits."
                       : "Optional AI fallback is temporarily unavailable."
-                    : "Catalog search failed — please try again."}
+                    : "Catalog search failed, please try again."}
                 </p>
                 {webCreditsExhausted && isAdmin ? (
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -3084,7 +3084,7 @@ export default function ResourcesPage() {
               onClick={clearSearch}
               className="text-muted-foreground"
             >
-              <X size={13} className="mr-1.5" /> Clear search — back to library
+              <X size={13} className="mr-1.5" /> Clear search, back to library
             </Button>
           </div>
         </>

@@ -28,7 +28,7 @@ import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
 
 /**
- * The Casparel guide — a complete, maintained reference to every feature.
+ * The Casparel guide, a complete, maintained reference to every feature.
  *
  * ▸ HOW TO KEEP THIS CURRENT (this is the "updates with every update" part):
  *   1. Bump GUIDE_VERSION and add a CHANGELOG entry describing what changed,
@@ -52,7 +52,7 @@ const CHANGELOG: ChangeEntry[] = [
     version: "1.4.0",
     date: "August 2026",
     changes: [
-      "New: this complete guide, plus a replayable product tour — both from Settings.",
+      "New: this complete guide, plus a replayable product tour, both from Settings.",
       "Your Library now shows only the resources you added, and Remove appears only on resources you can actually remove.",
       "Faster first load and a self-hosted display font; search filters and the sign-in screens are more screen-reader friendly.",
       "Sign-in and registration now have a show/hide password control, and new passwords need at least 8 characters.",
@@ -91,7 +91,7 @@ const SECTIONS: GuideSection[] = [
       },
       {
         title: "Browse without an account",
-        desc: "Anyone can use the resource search and citation maker before signing up — the value is visible up front.",
+        desc: "Anyone can use the resource search and citation maker before signing up, the value is visible up front.",
       },
       {
         title: "Languages",
@@ -115,7 +115,7 @@ const SECTIONS: GuideSection[] = [
       },
       {
         title: "Continue workflow",
-        desc: "Resume unfinished learning work — pick up a resource, activity, or assignment from where you left off, on any device.",
+        desc: "Resume unfinished learning work, pick up a resource, activity, or assignment from where you left off, on any device.",
       },
       {
         title: "Quick check-in",
@@ -165,7 +165,7 @@ const SECTIONS: GuideSection[] = [
     items: [
       {
         title: "Guided workflow",
-        desc: "Verify the source, save it to a list, create an activity, then share it to a class or turn it into an assignment — tracked as steps.",
+        desc: "Verify the source, save it to a list, create an activity, then share it to a class or turn it into an assignment, tracked as steps.",
       },
       {
         title: "Verify source",
@@ -193,7 +193,7 @@ const SECTIONS: GuideSection[] = [
     items: [
       {
         title: "Your resources",
-        desc: "The library shows the resources you submitted or saved — not the whole catalogue. Browse the full catalogue from Search instead.",
+        desc: "The library shows the resources you submitted or saved, not the whole catalogue. Browse the full catalogue from Search instead.",
       },
       {
         title: "Open, cite, assign, remove",

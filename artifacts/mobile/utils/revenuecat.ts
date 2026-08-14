@@ -2,7 +2,7 @@
  * RevenueCat configuration + a platform-safe loader for `react-native-purchases`.
  *
  * The native module only exists in a real dev/release build (not Expo Go, not web),
- * so — exactly like `secure-storage.ts` — we load it lazily and degrade gracefully
+ * so, exactly like `secure-storage.ts`, we load it lazily and degrade gracefully
  * everywhere it is unavailable. A minimal local interface keeps this file type-safe
  * whether or not the package is installed in the current environment; the real
  * module (which ships its own richer types) satisfies this shape at runtime.
@@ -87,7 +87,7 @@ let cached: PurchasesModule | null | undefined;
 
 /**
  * Lazily load the native module. Returns `null` on web, in Expo Go, or if the
- * package is not present — callers must handle the null case.
+ * package is not present, callers must handle the null case.
  */
 export async function loadPurchases(): Promise<PurchasesModule | null> {
   if (cached !== undefined) return cached;

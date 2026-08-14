@@ -1,5 +1,5 @@
 /**
- * Seed script — run once to populate dev data.
+ * Seed script, run once to populate dev data.
  * Usage: pnpm --filter @workspace/api-server tsx src/lib/seed.ts
  */
 import "dotenv/config";
@@ -33,7 +33,7 @@ async function seed() {
     .returning();
 
   if (!teacher || !student) {
-    console.log("Users already exist — skipping seed.");
+    console.log("Users already exist, skipping seed.");
     return;
   }
 
@@ -55,7 +55,7 @@ async function seed() {
   const [res1] = await db
     .insert(resourcesTable)
     .values({
-      title: "Khan Academy — Quadratic Equations",
+      title: "Khan Academy, Quadratic Equations",
       url: "https://www.khanacademy.org/math/algebra-home/alg-quadratics",
       description: "Interactive lessons on quadratic equations with practice problems.",
       format: "interactive",
@@ -70,7 +70,7 @@ async function seed() {
   const [res2] = await db
     .insert(resourcesTable)
     .values({
-      title: "MIT OpenCourseWare — Linear Algebra",
+      title: "MIT OpenCourseWare, Linear Algebra",
       url: "https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/",
       description: "Full course materials from MIT's Linear Algebra course.",
       format: "video",
@@ -112,8 +112,8 @@ async function seed() {
 
   // Activity log
   await db.insert(activityLogTable).values([
-    { userId: student.id, type: "resource", message: "Sam Rivera explored Khan Academy — Quadratic Equations" },
-    { userId: student.id, type: "review", message: "Sam Rivera reviewed Khan Academy — Quadratic Equations (5★)" },
+    { userId: student.id, type: "resource", message: "Sam Rivera explored Khan Academy, Quadratic Equations" },
+    { userId: student.id, type: "review", message: "Sam Rivera reviewed Khan Academy, Quadratic Equations (5★)" },
     { userId: teacher.id, type: "class", message: "Alex Johnson created Algebra II" },
   ]);
 

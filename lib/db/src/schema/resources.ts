@@ -46,7 +46,7 @@ export const resourcesTable = pgTable(
       .$type<"unverified" | "verified" | "rejected">()
       .notNull()
       .default("unverified"),
-    // Why it was verified — "legacy" marks rows grandfathered by the migration.
+    // Why it was verified, "legacy" marks rows grandfathered by the migration.
     verificationSource: text("verification_source").$type<
       "catalog" | "trusted-submitter" | "reviewer" | "legacy"
     >(),

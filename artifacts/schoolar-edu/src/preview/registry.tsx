@@ -60,7 +60,7 @@ import {
 } from './foundations';
 
 export type PreviewEntry = {
-  // Globally unique across every group — it is the deep-link slug (`#page=<id>`)
+  // Globally unique across every group, it is the deep-link slug (`#page=<id>`)
   // and the active-page key. Group-qualify names that repeat across groups
   // (e.g. `brand-icons` vs `components-icons`).
   id: string;
@@ -75,7 +75,7 @@ export type NavGroup = {
 };
 
 export const DESIGN_SYSTEM = {
-  title: 'EduDS — Educational Design System',
+  title: 'EduDS, Educational Design System',
   description:
     'Visual language for the student/teacher productivity platform. Deep academic blue, teal-green accent, warm neutral surfaces, and clear typographic hierarchy for dense information.',
 } as const;

@@ -4,7 +4,7 @@
  * The handler passes its rows straight to GetUserLibraryResponse.parse(). That
  * schema requires aggregates (avgRating/reviewCount on resources, itemCount on
  * lists) which raw table rows do not carry, so selecting bare rows made the
- * endpoint throw on its own response — a 500 for every viewer.
+ * endpoint throw on its own response, a 500 for every viewer.
  *
  * These assertions pin that contract so a future bare .select() fails here
  * rather than in production.

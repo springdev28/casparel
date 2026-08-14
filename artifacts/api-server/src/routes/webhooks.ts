@@ -47,8 +47,8 @@ interface RevenueCatEvent {
  * RevenueCat dashboard as `REVENUECAT_WEBHOOK_AUTH`. Reconciles the account's
  * `plan` so entitlement enforcement (AI limits) is authoritative server-side.
  *
- * This is not part of the client OpenAPI surface — it is never called by the
- * app — so it is intentionally not in `lib/api-spec/openapi.yaml`.
+ * This is not part of the client OpenAPI surface, it is never called by the
+ * app, so it is intentionally not in `lib/api-spec/openapi.yaml`.
  */
 router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
   const expected = process.env.REVENUECAT_WEBHOOK_AUTH;
@@ -65,14 +65,14 @@ router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
 
   const event = (req.body as { event?: RevenueCatEvent })?.event;
   if (!event || typeof event.type !== "string") {
-    // Malformed but authenticated — ack so RevenueCat does not retry forever.
+    // Malformed but authenticated, ack so RevenueCat does not retry forever.
     res.status(200).json({ received: true });
     return;
   }
 
   const userId = Number(event.app_user_id);
   if (!Number.isSafeInteger(userId) || userId <= 0) {
-    // Anonymous or non-numeric app user id — nothing to reconcile.
+    // Anonymous or non-numeric app user id, nothing to reconcile.
     res.status(200).json({ received: true });
     return;
   }
@@ -100,7 +100,7 @@ router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
         .where(eq(usersTable.id, userId));
     }
     // Other event types (CANCELLATION, BILLING_ISSUE, TRANSFER, TEST, …) keep
-    // the current plan — cancellation stays entitled until EXPIRATION arrives.
+    // the current plan, cancellation stays entitled until EXPIRATION arrives.
   } catch (error) {
     console.error("RevenueCat webhook: failed to reconcile plan", error);
     res.status(500).json({ error: "Reconciliation failed" });

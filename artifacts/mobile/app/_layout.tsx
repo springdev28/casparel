@@ -13,7 +13,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PurchasesProvider } from "@/contexts/PurchasesContext";
 import { OnboardingProvider, useOnboarding } from "@/contexts/OnboardingContext";
 
-// Module-level setup — runs before any component renders
+// Module-level setup, runs before any component renders
 const domain = process.env.EXPO_PUBLIC_DOMAIN;
 if (domain) {
   setBaseUrl(`https://${domain}`);

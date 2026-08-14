@@ -174,7 +174,7 @@ function deepResearchFallback(
   };
 }
 
-// GET /resources/:id/source-review or /source-review — quick is public; deep requires auth.
+// GET /resources/:id/source-review or /source-review, quick is public; deep requires auth.
 router.get(
   ["/resources/:id/source-review", "/source-review"],
   requireAccountForDeep,
@@ -183,7 +183,7 @@ router.get(
     if (!query.success) {
       res
         .status(400)
-        .json({ error: "Invalid mode — must be 'quick' or 'deep'" });
+        .json({ error: "Invalid mode, must be 'quick' or 'deep'" });
       return;
     }
     const mode = query.data.mode;
@@ -348,7 +348,7 @@ router.get(
       }
       const isAdmin = (req as AuthenticatedRequest).accountRole === "admin";
       const premium = isAdmin || (await isPremiumAccount(deepUserId));
-      // Premium and admin accounts skip the per-user daily/monthly caps —
+      // Premium and admin accounts skip the per-user daily/monthly caps , 
       // "unlimited AI source research" is the headline paywall benefit.
       if (!premium) {
         const daily = await consumeAiQuota(
@@ -427,14 +427,14 @@ Please provide a structured JSON response with the following fields:
 - concerns: Deep mode only; 2-4 specific caveats, weaknesses, disputed points, or risks. Empty in quick mode.
 - limitations: Deep mode only; 2-5 explicit research limitations, including unavailable comments, small samples, inaccessible pages, or uncertain identity matching. Empty in quick mode.
 - researchScope: Deep mode only; a concise account of which source categories were searched and the approximate evidence coverage. Null in quick mode.
-- links: Array of { label, url } objects — up to 5 relevant links (e.g. About page, Wikipedia, official site)
+- links: Array of { label, url } objects, up to 5 relevant links (e.g. About page, Wikipedia, official site)
 - mentions: In deep mode return 4-8 distinct evidence items when available: { summary, url, sourceType, sentiment }. Each summary should be 2-4 sentences, identify the publisher or community, include relevant dates, distinguish fact from opinion, and explain why the evidence matters. Each summary must clearly attribute what people or a named site say. Use only URLs actually found during research. For quick mode return an empty array.
 
 Respond ONLY with valid JSON matching this structure, no markdown or extra text.`;
 
     const deepPrompt = `${basePrompt}
 
-Conduct a multi-angle investigation of both the publisher/creator and this specific resource. Search the live web broadly, using several targeted queries and triangulating important claims across independent sources. Gather public discussion from forums, Reddit, review sites, social posts, external articles, and—when the resource is a YouTube video or channel—publicly indexed viewer comments or discussions about its videos. Distinguish direct comments from third-party reporting, summarize overall sentiment without overstating a small sample, identify claims that the source is current or outdated, and attach the exact supporting URL to every mention. Never invent a quote, comment, consensus, or URL. If comments are unavailable, say so in limitations rather than guessing. Prefer primary or authoritative sources for factual claims, but include public discussion to assess reception. Treat popularity and credibility as separate questions. Look for both confirming and disconfirming evidence, compare publication dates, flag conflicts between sources, and avoid duplicated mentions from the same underlying story. The final report should be nuanced, detailed, useful to a student deciding whether and how to rely on the resource, and normally 700-1,000 words when enough evidence exists.`;
+Conduct a multi-angle investigation of both the publisher/creator and this specific resource. Search the live web broadly, using several targeted queries and triangulating important claims across independent sources. Gather public discussion from forums, Reddit, review sites, social posts, external articles, and, when the resource is a YouTube video or channel, publicly indexed viewer comments or discussions about its videos. Distinguish direct comments from third-party reporting, summarize overall sentiment without overstating a small sample, identify claims that the source is current or outdated, and attach the exact supporting URL to every mention. Never invent a quote, comment, consensus, or URL. If comments are unavailable, say so in limitations rather than guessing. Prefer primary or authoritative sources for factual claims, but include public discussion to assess reception. Treat popularity and credibility as separate questions. Look for both confirming and disconfirming evidence, compare publication dates, flag conflicts between sources, and avoid duplicated mentions from the same underlying story. The final report should be nuanced, detailed, useful to a student deciding whether and how to rely on the resource, and normally 700-1,000 words when enough evidence exists.`;
 
     try {
       let textOutput = "";

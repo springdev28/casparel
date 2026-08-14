@@ -47,7 +47,7 @@ function isLoomUrl(url: string): boolean {
   } catch { return false; }
 }
 
-/** Server-side OEmbed proxy — avoids CORS and third-party rate-limit failures. */
+/** Server-side OEmbed proxy, avoids CORS and third-party rate-limit failures. */
 function useOembedThumbnail(url: string, enabled: boolean) {
   return useQuery<string | null>({
     queryKey: ['oembed-thumbnail', url],
@@ -60,7 +60,7 @@ function useOembedThumbnail(url: string, enabled: boolean) {
       return data.thumbnailUrl ?? null;
     },
     enabled,
-    staleTime: 1000 * 60 * 60, // 1 hour — thumbnail URLs don't change
+    staleTime: 1000 * 60 * 60, // 1 hour, thumbnail URLs don't change
     retry: false,
   });
 }

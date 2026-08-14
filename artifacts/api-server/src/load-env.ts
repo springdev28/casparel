@@ -3,7 +3,7 @@
 // The server reads process.env directly and several modules (@workspace/db,
 // auth, the OpenAI integration) throw at import time when a required variable
 // is missing. On hosts that inject env vars for us (Replit, a correctly-bound
-// Passenger app) this is a no-op — dotenv never overrides variables that are
+// Passenger app) this is a no-op, dotenv never overrides variables that are
 // already set. It only matters when the platform's injection is unavailable
 // (e.g. after a domain rename detaches the deployment's env binding), in which
 // case an operator can drop a .env next to the app and the server reads it.

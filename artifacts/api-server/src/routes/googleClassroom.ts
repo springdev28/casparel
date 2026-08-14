@@ -49,7 +49,7 @@ const SECRET = process.env.SESSION_SECRET ?? "";
 
 // Operators set GOOGLE_REDIRECT_URI to the exact HTTPS callback registered in
 // the Google Cloud Console (e.g. https://<repl-domain>/api/auth/google/callback).
-// When unset the URI is derived from the incoming request — only safe after
+// When unset the URI is derived from the incoming request, only safe after
 // `app.set("trust proxy", 1)` so req.protocol returns "https" behind Replit.
 const GOOGLE_REDIRECT_URI_OVERRIDE = process.env.GOOGLE_REDIRECT_URI ?? "";
 
@@ -148,7 +148,7 @@ async function getValidToken(userId: number): Promise<string | null> {
   });
 
   if (!resp.ok) {
-    // Revoked — clean up
+    // Revoked, clean up
     await db.delete(googleTokensTable).where(eq(googleTokensTable.userId, userId));
     return null;
   }
@@ -168,7 +168,7 @@ async function getValidToken(userId: number): Promise<string | null> {
 /**
  * Returns true only when the Google account associated with `token` is an
  * active teacher of `courseId`.  Uses the authoritative
- * `GET /v1/courses/{courseId}/teachers/me` endpoint — this returns 200 only
+ * `GET /v1/courses/{courseId}/teachers/me` endpoint, this returns 200 only
  * for actual teachers and 404/403 for enrolled students or non-members.
  */
 async function isTeacherOfCourse(courseId: string, token: string): Promise<boolean> {
@@ -179,7 +179,7 @@ async function isTeacherOfCourse(courseId: string, token: string): Promise<boole
   return resp.ok;
 }
 
-// ── GET /auth/google — return OAuth authorization URL (teacher only) ──────────
+// ── GET /auth/google, return OAuth authorization URL (teacher only) ──────────
 
 router.get("/auth/google", requireAuth, requireTeacher, (req, res): void => {
   if (!GC_CONFIGURED) {
@@ -210,7 +210,7 @@ router.get("/auth/google", requireAuth, requireTeacher, (req, res): void => {
   );
 });
 
-// ── GET /auth/google/callback — exchange code for tokens ─────────────────────
+// ── GET /auth/google/callback, exchange code for tokens ─────────────────────
 // Note: this is a browser redirect, no auth header; userId comes from state param.
 
 router.get("/auth/google/callback", async (req, res): Promise<void> => {
@@ -618,7 +618,7 @@ router.post("/google-classroom/share", contentLimiter, requireAuth, requireTeach
   );
 });
 
-// ── DELETE /auth/google — disconnect (teacher only) ───────────────────────────
+// ── DELETE /auth/google, disconnect (teacher only) ───────────────────────────
 
 router.delete("/auth/google", requireAuth, requireTeacher, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
@@ -636,7 +636,7 @@ router.delete("/auth/google", requireAuth, requireTeacher, async (req, res): Pro
         { method: "POST" },
       );
     } catch {
-      // Ignore — we always remove from DB
+      // Ignore, we always remove from DB
     }
     await db.delete(googleTokensTable).where(eq(googleTokensTable.userId, userId));
   }

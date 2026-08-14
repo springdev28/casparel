@@ -3,7 +3,7 @@ import { buildRateLimitStore } from "./rateLimitStore";
 import { isAdminRequest } from "./adminAccess";
 
 /**
- * Global API limiter — 100 requests per minute per IP.
+ * Global API limiter, 100 requests per minute per IP.
  * Applied to every /api route.
  */
 export const globalLimiter = rateLimit({
@@ -24,7 +24,7 @@ export const globalLimiter = rateLimit({
 });
 
 /**
- * Discover limiter — 5 requests per minute per IP.
+ * Discover limiter, 5 requests per minute per IP.
  * Applied to GET /resources/discover which calls OpenAI with web_search_preview
  * on every request, making it expensive to abuse.
  */
@@ -51,7 +51,7 @@ export const discoverLimiter = rateLimit({
 });
 
 /**
- * Content-creation limiter — 20 requests per minute per IP.
+ * Content-creation limiter, 20 requests per minute per IP.
  * Applied to POST /resources and POST /reviews to slow automated content spam.
  */
 export const contentLimiter = rateLimit({
