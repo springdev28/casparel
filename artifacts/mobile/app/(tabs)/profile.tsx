@@ -34,6 +34,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useAuth } from '@/contexts/AuthContext';
+import { PremiumCard } from '@/components/PremiumCard';
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History',
@@ -621,6 +622,12 @@ export default function ProfileScreen() {
           </View>
         )}
       </View>
+
+      {/* Premium / subscription */}
+      <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+        PLAN
+      </Text>
+      <PremiumCard />
 
       {/* Role switcher */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>

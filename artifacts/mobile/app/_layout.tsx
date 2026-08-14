@@ -10,6 +10,7 @@ import { storage } from "@/utils/secure-storage";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 import { useDesignSystemFonts } from "@workspace/edu-ds/hooks/use-fonts";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { PurchasesProvider } from "@/contexts/PurchasesContext";
 
 // Module-level setup — runs before any component renders
 const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -60,6 +61,10 @@ function RootLayoutNav() {
         name="class/[id]"
         options={{ title: "Class", headerBackTitle: "Back" }}
       />
+      <Stack.Screen
+        name="paywall"
+        options={{ presentation: "modal", headerShown: false }}
+      />
     </Stack>
   );
 }
@@ -82,7 +87,9 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AuthProvider>
-                <RootLayoutNav />
+                <PurchasesProvider>
+                  <RootLayoutNav />
+                </PurchasesProvider>
               </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

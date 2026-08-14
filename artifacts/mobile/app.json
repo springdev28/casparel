@@ -3,6 +3,8 @@
     "name": "Casparel",
     "slug": "schooler",
     "version": "1.0.0",
+    "description": "Casparel helps students and teachers discover vetted open-education resources, organize classes and schedules, and study together.",
+    "primaryColor": "#2f4cc8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "schooler",
@@ -15,10 +17,15 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.schooler.app"
+      "bundleIdentifier": "com.schooler.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Casparel needs access to your photos so you can set a profile picture."
+      }
     },
     "android": {
-      "package": "com.schooler.app"
+      "package": "com.schooler.app",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/images/icon.png"
