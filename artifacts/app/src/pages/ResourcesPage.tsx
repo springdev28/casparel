@@ -24,6 +24,8 @@ import {
   CircleHelp,
   Target,
   SlidersHorizontal,
+  ShieldAlert,
+  ShieldX,
   RotateCcw,
   Quote,
   Microscope,
@@ -498,6 +500,7 @@ function LibraryCard({
     reviewCount: number;
     thumbnailUrl?: string | null;
     verificationStatus?: "unverified" | "verified" | "rejected";
+    verificationNote?: string | null;
   };
   onClick: () => void;
   onRemove?: () => void;
@@ -548,12 +551,23 @@ function LibraryCard({
             {resource.title}
           </CardTitle>
           <FormatBadge format={resource.format} />
-          <VerificationBadge status={resource.verificationStatus} />
+          <VerificationBadge
+            status={resource.verificationStatus}
+            note={resource.verificationNote}
+          />
         </div>
         <CardDescription className="text-xs">
           {metaLine(resource.subject, resource.gradeLevel)}
         </CardDescription>
       </CardHeader>
+      {resource.verificationStatus === "rejected" && resource.verificationNote ? (
+        <CardContent className="pb-2">
+          <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
+            <span className="font-semibold">Reviewer:</span>{" "}
+            {resource.verificationNote}
+          </p>
+        </CardContent>
+      ) : null}
       {resource.description && (
         <CardContent className="pb-2">
           <p className="text-sm text-muted-foreground line-clamp-2">
@@ -1120,6 +1134,12 @@ export default function ResourcesPage() {
   const [minReviewsFilter, setMinReviewsFilter] = useState("");
   const [thumbnailFilter, setThumbnailFilter] = useState("");
   const [librarySortFilter, setLibrarySortFilter] = useState("");
+  // Lets an author find their own submissions that are waiting on review or
+  // were rejected — those are filtered out of everyone else's listings, so
+  // without this they are easy to lose track of.
+  const [verificationFilter, setVerificationFilter] = useState<
+    "" | "pending" | "rejected"
+  >("");
   const [freshnessFilter, setFreshnessFilter] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState("");
   const [accessFilter, setAccessFilter] = useState("");
@@ -1260,6 +1280,7 @@ export default function ResourcesPage() {
     ...(submittedSearch?.librarySort
       ? { librarySort: submittedSearch.librarySort }
       : {}),
+    ...(verificationFilter ? { verification: verificationFilter } : {}),
     limit: libraryLimit,
     offset: 0,
   };
@@ -2227,6 +2248,40 @@ export default function ResourcesPage() {
                 </span>
               )}
             </Button>
+            {isLoggedIn ? (
+              <>
+                <Button
+                  type="button"
+                  variant={verificationFilter === "pending" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() =>
+                    setVerificationFilter((current) =>
+                      current === "pending" ? "" : "pending",
+                    )
+                  }
+                  aria-pressed={verificationFilter === "pending"}
+                  data-testid="filter-pending-review"
+                >
+                  <ShieldAlert size={14} className="mr-1.5" />
+                  Pending review
+                </Button>
+                <Button
+                  type="button"
+                  variant={verificationFilter === "rejected" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() =>
+                    setVerificationFilter((current) =>
+                      current === "rejected" ? "" : "rejected",
+                    )
+                  }
+                  aria-pressed={verificationFilter === "rejected"}
+                  data-testid="filter-rejected"
+                >
+                  <ShieldX size={14} className="mr-1.5" />
+                  Not approved
+                </Button>
+              </>
+            ) : null}
             {activeAdvancedFilterCount > 0 && (
               <Button
                 type="button"

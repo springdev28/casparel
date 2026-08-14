@@ -202,6 +202,18 @@ router.get("/resources", async (req, res): Promise<void> => {
   // admins. Both query branches below build from this same array.
   const visibility = visibilityForRequest(req);
   if (visibility) conditions.push(visibility);
+  // Lets an author narrow to their own gated submissions. Combined with the
+  // visibility condition above, asking for someone else's pending items simply
+  // returns nothing rather than leaking them.
+  const verification = queryString(req.query.verification);
+  if (verification === "pending" || verification === "rejected") {
+    conditions.push(
+      eq(
+        resourcesTable.verificationStatus,
+        verification === "pending" ? "unverified" : "rejected",
+      ),
+    );
+  }
   if (searchTerm) {
     const tokens = meaningfulSearchTerms(searchTerm);
     conditions.push(
