@@ -349,8 +349,32 @@ router.post("/auth/logout", (_req, res): void => {
 // GET /users/me
 router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
+  // Project exactly the fields the contract returns. A bare .select() pulls
+  // every column, which (a) selects password_hash for no reason and (b) makes
+  // this endpoint fail outright whenever the schema gains a column the deployed
+  // database has not migrated yet — and because the whole sidebar (profile,
+  // plan, role switcher) is gated on this one call, that failure blanks it.
   const [user] = await db
-    .select()
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      name: usersTable.name,
+      role: usersTable.role,
+      activeRole: usersTable.activeRole,
+      avatarUrl: usersTable.avatarUrl,
+      bio: usersTable.bio,
+      subjects: usersTable.subjects,
+      gradeOrDept: usersTable.gradeOrDept,
+      timezone: usersTable.timezone,
+      websiteUrl: usersTable.websiteUrl,
+      profileVisibility: usersTable.profileVisibility,
+      libraryVisibility: usersTable.libraryVisibility,
+      showBio: usersTable.showBio,
+      showSubjects: usersTable.showSubjects,
+      showGradeOrDept: usersTable.showGradeOrDept,
+      showWebsite: usersTable.showWebsite,
+      createdAt: usersTable.createdAt,
+    })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   if (!user) {

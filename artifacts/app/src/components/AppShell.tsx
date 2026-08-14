@@ -3,6 +3,7 @@ import {
   ReactNode,
   Suspense,
   useEffect,
+  useMemo,
   useState,
   type CSSProperties,
 } from "react";
@@ -71,6 +72,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import ThemeCustomizer, { applyDefaultColors } from "./ThemeCustomizer";
 import { AuthLanguageSelect } from "./AuthLanguageSelect";
+import { readSessionClaims } from "../lib/session";
 import { useAuthLanguage } from "../lib/auth-locale";
 import {
   Popover,
@@ -195,12 +197,18 @@ export default function AppShell({ children }: AppShellProps) {
   const documentVisible = useDocumentVisibility();
   const queryClient = useQueryClient();
   const { data: me, isLoading: meLoading } = useGetMe();
+  // Fallback identity from the stored token, so a slow or failing GET
+  // /users/me cannot blank out the profile, plan and role switcher.
+  const sessionClaims = useMemo(() => readSessionClaims(), []);
+  const signedIn = Boolean(me) || Boolean(sessionClaims);
+  const currentRole =
+    me?.activeRole ?? me?.role ?? sessionClaims?.role ?? "student";
   const { language, setLanguage, copy } = useAuthLanguage();
   const { data: accountPreferences } = useUserPreferences(Boolean(me));
   const updateAccountPreferences = useUpdateUserPreferences();
   const { data: notifications } = useGetRecentActivity({
     query: {
-      enabled: Boolean(me) && secondaryDataReady,
+      enabled: signedIn && secondaryDataReady,
       queryKey: getGetRecentActivityQueryKey(),
     },
   });
@@ -209,7 +217,7 @@ export default function AppShell({ children }: AppShellProps) {
   );
   const { data: accountUsage } = useGetMyUsage({
     query: {
-      enabled: Boolean(me) && isDesktop && secondaryDataReady,
+      enabled: signedIn && isDesktop && secondaryDataReady,
       refetchInterval: 60_000,
       queryKey: getGetMyUsageQueryKey(),
     },
@@ -223,7 +231,7 @@ export default function AppShell({ children }: AppShellProps) {
   }, []);
   useEffect(() => {
     setSecondaryDataReady(false);
-    if (!me) return;
+    if (!signedIn) return;
     if ("requestIdleCallback" in window) {
       const requestId = window.requestIdleCallback(
         () => setSecondaryDataReady(true),
@@ -233,7 +241,7 @@ export default function AppShell({ children }: AppShellProps) {
     }
     const timer = globalThis.setTimeout(() => setSecondaryDataReady(true), 500);
     return () => globalThis.clearTimeout(timer);
-  }, [me?.id]);
+  }, [me?.id, signedIn]);
 
   const activeNotificationRole = me?.activeRole ?? me?.role ?? "student";
   const notificationReadKey = `schoolar_read_notifications:${me?.id ?? "guest"}:${activeNotificationRole}`;
@@ -325,7 +333,7 @@ export default function AppShell({ children }: AppShellProps) {
   }
   const { data: sidebarGoals } = useListLearningGoals({
     query: {
-      enabled: Boolean(me) && isDesktop && secondaryDataReady,
+      enabled: signedIn && isDesktop && secondaryDataReady,
       queryKey: getListLearningGoalsQueryKey(),
     },
   });
@@ -589,15 +597,14 @@ export default function AppShell({ children }: AppShellProps) {
   ) : null;
 
   // Role switcher — shown when user data is loaded
-  const roleSwitcher = me ? (
+  const roleSwitcher = signedIn ? (
     <div className="flex items-center gap-2 w-full" data-testid="role-switcher">
       <UserCog size={13} className="text-primary-foreground/60 shrink-0" />
       <Select
         value={
-          me.activeRole ??
-          (me.role === UserRole.teacher
+          currentRole === UserRole.teacher
             ? RoleSwitchInputRole.teacher
-            : RoleSwitchInputRole.student)
+            : RoleSwitchInputRole.student
         }
         onValueChange={handleRoleSwitch}
         disabled={switchRoleMutation.isPending}
@@ -789,6 +796,21 @@ export default function AppShell({ children }: AppShellProps) {
                   <Skeleton className="h-3 w-16 bg-primary-foreground/20" />
                 </div>
               </div>
+            ) : !me && signedIn ? (
+              // Profile details could not be loaded — still give a way in
+              // rather than silently dropping the whole block.
+              <Link
+                href="/profile"
+                className="flex items-center gap-2.5 mb-2 group"
+                data-testid="sidebar-profile-fallback"
+              >
+                <div className="w-8 h-8 rounded-full bg-primary-foreground/20 flex items-center justify-center shrink-0">
+                  <User size={15} />
+                </div>
+                <p className="text-sm font-semibold text-primary-foreground truncate group-hover:underline">
+                  My profile
+                </p>
+              </Link>
             ) : me ? (
               <Link
                 href="/profile"
@@ -813,7 +835,7 @@ export default function AppShell({ children }: AppShellProps) {
               </Link>
             ) : null}
 
-            {me ? (
+            {signedIn ? (
               <div
                 className="rounded-lg border border-primary-foreground/20 bg-primary-foreground/10 p-3"
                 data-testid="sidebar-plan-usage"
