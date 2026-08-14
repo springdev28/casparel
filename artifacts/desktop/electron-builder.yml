@@ -1,0 +1,55 @@
+# Packaging for the Casparel desktop shell.
+#
+# The shell loads the hosted web app, so the payload is only the compiled main
+# process: installers land in the tens of megabytes (Electron runtime) rather
+# than carrying a copy of the front end that would go stale between deploys.
+appId: com.casparel.desktop
+productName: Casparel
+copyright: Copyright © 2026 Casparel
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+# Signing and notarisation need credentials that do not belong in the repo.
+# Set CSC_LINK / CSC_KEY_PASSWORD (macOS, Windows) in the release environment;
+# unsigned builds are produced without them, which is fine for local testing.
+mac:
+  category: public.app-category.education
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: build/icon.png
+  darkModeSupport: true
+  # Required for the app to reach casparel.com under the hardened runtime.
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+linux:
+  category: Education
+  icon: build/icon.png
+  target:
+    - AppImage
+    - deb
+
+# Deep links: casparel://resources/123 opens that resource in the app.
+protocols:
+  - name: Casparel
+    schemes: [casparel]

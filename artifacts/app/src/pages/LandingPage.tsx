@@ -7,6 +7,7 @@ import {
   CalendarDays,
   GraduationCap,
   Library,
+  Monitor,
   Play,
   ScanSearch,
   Check,
@@ -18,6 +19,7 @@ import {
 import BrandIcon from "../components/BrandIcon";
 import { useSystemDark } from "../hooks/use-system-dark";
 import { readSessionClaims } from "../lib/session";
+import { isDesktopShell } from "../lib/platform";
 import { useReveal } from "../lib/use-reveal";
 import { LetterDrop } from "../components/LetterDrop";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
@@ -29,6 +31,12 @@ import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 const IOS_APP_URL: string | null = null;
 const ANDROID_APP_URL: string | null = null;
 const STORES_LIVE = Boolean(IOS_APP_URL || ANDROID_APP_URL);
+
+/**
+ * Desktop builds (macOS, Windows, Linux) come from the repository's releases.
+ * Same rule as the stores: null until there is something real behind it.
+ */
+const DESKTOP_DOWNLOAD_URL: string | null = null;
 
 /** What the product does. */
 const CAPABILITIES = [
@@ -77,7 +85,10 @@ const CREDENTIALS = [
 ];
 
 function DownloadButtons() {
-  if (!STORES_LIVE) {
+  // Nobody needs to be told to download the app they are already running.
+  if (isDesktopShell()) return null;
+
+  if (!STORES_LIVE && !DESKTOP_DOWNLOAD_URL) {
     return (
       <Button size="lg" disabled className="gap-2">
         <Apple className="size-4" />
@@ -87,6 +98,17 @@ function DownloadButtons() {
   }
   return (
     <div className="flex flex-wrap gap-2">
+      {DESKTOP_DOWNLOAD_URL ? (
+        <Button size="lg" asChild className="gap-2">
+          <a
+            href={DESKTOP_DOWNLOAD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Monitor className="size-4" /> Download for desktop
+          </a>
+        </Button>
+      ) : null}
       {IOS_APP_URL ? (
         <Button size="lg" asChild className="gap-2">
           <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer">
@@ -114,9 +136,18 @@ export default function LandingPage() {
   const { data: me } = useGetMe({
     query: { enabled: signedIn, queryKey: getGetMeQueryKey() },
   });
+  // When there is no download to offer, "continue in browser" is the only
+  // call to action, so it takes the primary style.
+  const inDesktopShell = isDesktopShell();
+  const hasDownload =
+    !inDesktopShell && (STORES_LIVE || Boolean(DESKTOP_DOWNLOAD_URL));
   // Someone already signed in does not need a sales pitch to get back to work.
   const continueHref = signedIn ? "/dashboard" : "/resources";
-  const continueLabel = signedIn ? "Back to your dashboard" : "Continue in browser";
+  const continueLabel = signedIn
+    ? "Back to your dashboard"
+    : inDesktopShell
+      ? "Browse the library"
+      : "Continue in browser";
 
   return (
     <div
@@ -196,7 +227,7 @@ export default function LandingPage() {
               <DownloadButtons />
               <Button
                 size="lg"
-                variant={STORES_LIVE ? "outline" : "default"}
+                variant={hasDownload ? "outline" : "default"}
                 asChild
                 className="gap-2"
               >
@@ -205,7 +236,7 @@ export default function LandingPage() {
                 </Link>
               </Button>
             </div>
-            {!STORES_LIVE ? (
+            {!hasDownload && !inDesktopShell ? (
               <p className="mt-3 text-xs text-muted-foreground">
                 The mobile app is on its way. Everything works in your browser
                 today.

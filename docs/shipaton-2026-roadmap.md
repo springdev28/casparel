@@ -114,11 +114,23 @@ lifts those AI limits. The paywall story writes itself, "unlimited AI deep-resea
 
 ## 4. What's already built (leverage, don't rebuild)
 
-- **Three surfaces:** Expo/React Native mobile, React 19 + Vite web, Express + Drizzle + Postgres (OpenAPI-first, typed hooks).
+- **Four surfaces:** Expo/React Native mobile, React 19 + Vite web, an Electron desktop shell (`artifacts/desktop`), and Express + Drizzle + Postgres (OpenAPI-first, typed hooks).
 - **Learning depth:** open-education catalog (Open Library, Wikibooks), reading lists, classes, schedules, study sessions w/ RSVP, forum, DMs, guided learning workflow.
 - **AI & integrations:** cost-gated OpenAI deep-research & discovery, Google Calendar/Classroom sync, iCal feed, the premium-tier candidates.
 - **Design system:** `edu-ds` (Radix + shadcn + tokens) with native RN components; completed rebrand.
-- **Engineering discipline:** migration-only DB, strict typecheck gates, k6 load tests, real coverage.
+- **Engineering discipline:** migration-only DB, strict typecheck gates, k6 load tests, real coverage, plus a headless-Chromium page audit (`artifacts/app/scripts/audit-pages.mjs`).
+
+### Desktop (added)
+
+`artifacts/desktop` is an Electron shell around the hosted web app rather than a second front end, so it
+inherits every web deploy without cutting a release. It adds the things a browser tab cannot: a real app window
+with remembered geometry, a native menu, single-instance behaviour, and `casparel://` deep links. Navigation is
+pinned to the Casparel origin and anything else is handed to the system browser; there is no preload bridge, so
+the page has no channel into the OS.
+
+**Remaining (build):** installers are only produced per-OS by electron-builder, and signing needs certificates
+(`CSC_LINK`/`CSC_KEY_PASSWORD`, plus Apple notarisation credentials) that are deliberately outside the repo.
+`DESKTOP_DOWNLOAD_URL` in `LandingPage.tsx` stays null until there is a releases page behind it.
 
 ---
 
@@ -144,7 +156,7 @@ same value in the server environment.
 
 ## 6. Working agreements
 
-- Develop on `claude/casparel-shipaton-2026-roadmap-6ypjhy`.
+- Develop on `main` and push each finished change straight through.
 - Respect `AGENTS.md`: never edit generated files, DB changes go through migrations, never hardcode ports,
   auth token key stays `schoolar_token`.
 - `pnpm run typecheck` must pass before every commit.

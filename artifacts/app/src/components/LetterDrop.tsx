@@ -32,6 +32,13 @@ const MAX_STEP = 1 / 30; // clamp so a backgrounded tab cannot explode the sim
 const MAX_RUN_MS = 4200;
 const HUE_SPEED = 26; // degrees per second
 const HUE_SPREAD = 26; // degrees between neighbouring letters
+// Lightness per theme. The hue sweeps the whole wheel, so these are chosen for
+// the worst hue in each direction: 65% clears 3:1 against the dark surface even
+// at deep blue, 30% clears it against the light surface even at yellow. Raising
+// either one puts the wordmark below the large-text contrast floor.
+const LIGHTNESS_ON_DARK = 65;
+const LIGHTNESS_ON_LIGHT = 30;
+const SATURATION = 74;
 const THROW_SCALE = 1000; // px/s per px/ms of pointer travel
 const MAX_THROW = 2600; // px/s, so a violent flick cannot slingshot off-screen
 
@@ -89,6 +96,10 @@ export function LetterDrop({ className = "" }: { className?: string }) {
   const calmRef = useRef(0);
   const lastFrameRef = useRef(0);
   const onScreenRef = useRef(false);
+  // Whether the wordmark sits on the dark surface. The landing page scopes dark
+  // mode to a wrapper element rather than the document root, so this asks the
+  // nearest ancestor rather than assuming.
+  const darkRef = useRef(true);
   // Drag state: which body, the grab offset, and recent pointer samples used to
   // work out the release velocity.
   const dragRef = useRef<{
@@ -107,10 +118,11 @@ export function LetterDrop({ className = "" }: { className?: string }) {
   }, []);
 
   const paint = useCallback(() => {
+    const lightness = darkRef.current ? LIGHTNESS_ON_DARK : LIGHTNESS_ON_LIGHT;
     for (const b of bodiesRef.current) {
       if (!b.el) continue;
       b.el.style.transform = `translate3d(${b.x - b.w / 2}px, ${b.y - b.h / 2}px, 0) rotate(${b.angle}rad)`;
-      b.el.style.color = `hsl(${b.hue % 360} 82% 62%)`;
+      b.el.style.color = `hsl(${b.hue % 360} ${SATURATION}% ${lightness}%)`;
     }
   }, []);
 
@@ -267,6 +279,7 @@ export function LetterDrop({ className = "" }: { className?: string }) {
     const width = host.clientWidth;
     if (width === 0 || host.clientHeight === 0) return;
 
+    darkRef.current = host.closest(".dark") !== null;
     bodiesRef.current = makeBodies(lettersRef.current.filter(Boolean), width);
     for (const b of bodiesRef.current) {
       if (b.el) b.el.style.opacity = "1";
@@ -414,12 +427,22 @@ export function LetterDrop({ className = "" }: { className?: string }) {
     };
     document.addEventListener("visibilitychange", onVisibility);
 
+    // Follow the system theme, so switching it mid-visit re-picks a lightness
+    // that still clears contrast rather than leaving pale letters on white.
+    const scheme = window.matchMedia("(prefers-color-scheme: dark)");
+    const onScheme = () => {
+      darkRef.current = host.closest(".dark") !== null;
+      paint();
+    };
+    scheme.addEventListener("change", onScheme);
+
     return () => {
       observer.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
+      scheme.removeEventListener("change", onScheme);
       stop();
     };
-  }, [run, start, stop]);
+  }, [paint, run, start, stop]);
 
   // "R" re-drops the pile, mirroring the hint shown under the wordmark.
   useEffect(() => {

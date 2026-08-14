@@ -39,6 +39,7 @@ minimumReleaseAgeExclude:
 packages:
   - artifacts/api-server
   - artifacts/app
+  - artifacts/desktop
   - artifacts/schoolar-edu
   - lib/api-client-react
   - lib/api-zod
@@ -75,6 +76,7 @@ catalog:
 autoInstallPeers: false
 
 allowBuilds:
+  electron: true
   '@swc/core': true
   esbuild: true
   msw: true

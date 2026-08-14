@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    // Electron's main process is CommonJS. node16 resolution keeps the
+    // workspace's customConditions working while still emitting CJS, because
+    // this package has no "type": "module".
+    "module": "node16",
+    "moduleResolution": "node16",
+    "lib": ["esnext"],
+    "types": ["node"],
+    "skipLibCheck": true
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@workspace/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Casparel for macOS, Windows and Linux",
+  "main": "dist/main.js",
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "dev": "pnpm run compile && electron .",
+    "build": "pnpm run compile && electron-builder --publish never",
+    "build:linux": "pnpm run compile && electron-builder --linux --publish never",
+    "build:mac": "pnpm run compile && electron-builder --mac --publish never",
+    "build:win": "pnpm run compile && electron-builder --win --publish never",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "electron": "^43.4.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.9.3"
+  }
+}
