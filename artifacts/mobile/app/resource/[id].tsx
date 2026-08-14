@@ -19,6 +19,7 @@ import { Empty } from '@workspace/edu-ds/components/native/empty';
 import { useGetResource, useListResourceReviews } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { Review } from '@workspace/api-client-react';
+import { SourceReviewSection } from '@/components/SourceReviewSection';
 
 function StarRow({ rating }: { rating: number }) {
   const colors = useColors();
@@ -241,6 +242,9 @@ export default function ResourceDetailScreen() {
       >
         Open Resource
       </Button>
+
+      {/* AI Source Research (deep mode is a Premium feature) */}
+      <SourceReviewSection resourceId={resourceId} />
 
       {/* Reviews */}
       <View style={[styles.section, { marginTop: 24 }]}>
