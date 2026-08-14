@@ -9,6 +9,7 @@ import {
   Library,
   Play,
   ScanSearch,
+  Check,
   ShieldCheck,
   Sparkles,
   Users,
@@ -75,15 +76,10 @@ const CREDENTIALS = [
 function DownloadButtons() {
   if (!STORES_LIVE) {
     return (
-      <div className="flex flex-col items-center gap-2 sm:items-start">
-        <Button size="lg" disabled className="gap-2">
-          <Apple className="size-4" />
-          Coming to iOS &amp; Android
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          The mobile app is on its way. Everything works in your browser today.
-        </p>
-      </div>
+      <Button size="lg" disabled className="gap-2">
+        <Apple className="size-4" />
+        Coming to iOS &amp; Android
+      </Button>
     );
   }
   return (
@@ -153,7 +149,8 @@ export default function LandingPage() {
 
       <main>
         {/* Hero */}
-        <section className="mx-auto max-w-6xl px-4 pb-16 pt-16 sm:pt-24">
+        <section className="mx-auto grid max-w-6xl gap-12 px-4 pb-16 pt-16 sm:pt-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-center">
+          <div>
           <p className="rise mb-4 inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
             <GraduationCap className="size-3.5 text-primary" />
             Built for students and teachers
@@ -174,21 +171,69 @@ export default function LandingPage() {
             AI that tells you who is behind any source before you rely on it.
           </p>
 
+          <div className="rise mt-9" style={{ animationDelay: "240ms" }}>
+            <div className="flex flex-wrap items-center gap-3">
+              <DownloadButtons />
+              <Button
+                size="lg"
+                variant={STORES_LIVE ? "outline" : "default"}
+                asChild
+                className="gap-2"
+              >
+                <Link href={continueHref}>
+                  {continueLabel} <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            </div>
+            {!STORES_LIVE ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                The mobile app is on its way. Everything works in your browser
+                today.
+              </p>
+            ) : null}
+          </div>
+          </div>
+
+          {/* A concrete look at the feature the headline promises. */}
           <div
-            className="rise mt-9 flex flex-col gap-4 sm:flex-row sm:items-start"
-            style={{ animationDelay: "240ms" }}
+            className="rise rounded-2xl border border-border bg-card p-5 shadow-sm lg:mt-0"
+            style={{ animationDelay: "320ms" }}
+            aria-hidden="true"
           >
-            <DownloadButtons />
-            <Button
-              size="lg"
-              variant={STORES_LIVE ? "outline" : "default"}
-              asChild
-              className="gap-2"
-            >
-              <Link href={continueHref}>
-                {continueLabel} <ArrowRight className="size-4" />
-              </Link>
-            </Button>
+            <div className="flex items-center gap-2 border-b border-border pb-3">
+              <ScanSearch className="size-4 text-primary" />
+              <span className="text-sm font-semibold">AI source research</span>
+            </div>
+            <div className="mt-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-semibold">MIT OpenCourseWare</p>
+                <p className="text-xs text-muted-foreground">
+                  University · open courseware
+                </p>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                <ShieldCheck className="size-3" /> High trust
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              Published by a major research university, openly licensed, and
+              maintained with course materials from the original faculty.
+            </p>
+            <div className="mt-4 space-y-2">
+              {[
+                "Primary source, not a re-upload",
+                "Openly licensed for reuse",
+                "Reviewed before listing",
+              ].map((line) => (
+                <p
+                  key={line}
+                  className="flex items-start gap-2 text-xs text-muted-foreground"
+                >
+                  <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  {line}
+                </p>
+              ))}
+            </div>
           </div>
         </section>
 

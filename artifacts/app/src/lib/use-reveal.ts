@@ -28,15 +28,24 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>() {
       return;
     }
 
+    const show = (el: HTMLElement, stagger: boolean) => {
+      // Stagger siblings so a grid resolves in sequence rather than at once.
+      const delay = stagger ? Number(el.dataset.revealDelay ?? 0) : 0;
+      if (delay > 0) el.style.transitionDelay = `${delay}ms`;
+      el.classList.add("reveal--in");
+    };
+
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
           const el = entry.target as HTMLElement;
-          // Stagger siblings so a grid resolves in sequence rather than at once.
-          const delay = Number(el.dataset.revealDelay ?? 0);
-          if (delay > 0) el.style.transitionDelay = `${delay}ms`;
-          el.classList.add("reveal--in");
+          // Also reveal anything already scrolled PAST. A fast scroll, an
+          // anchor jump or the End key can move an element from below the
+          // viewport to above it without it ever intersecting — without this
+          // it would stay at opacity 0 forever, silently losing content.
+          const scrolledPast = entry.boundingClientRect.bottom < 0;
+          if (!entry.isIntersecting && !scrolledPast) continue;
+          show(el, entry.isIntersecting);
           observer.unobserve(el);
         }
       },
@@ -44,7 +53,38 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>() {
     );
 
     targets.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+
+    // IntersectionObserver only reports *changes*. A fast scroll, an anchor
+    // jump or the End key can move an element from below the viewport to above
+    // it in one frame — it never intersects, no entry is delivered, and it
+    // would stay at opacity 0 forever. Sweep on scroll for anything that has
+    // reached or passed the viewport.
+    let queued = false;
+    const sweep = () => {
+      queued = false;
+      let remaining = false;
+      for (const el of targets) {
+        if (el.classList.contains("reveal--in")) continue;
+        if (el.getBoundingClientRect().top < window.innerHeight) {
+          show(el, false);
+          observer.unobserve(el);
+        } else {
+          remaining = true;
+        }
+      }
+      if (!remaining) window.removeEventListener("scroll", onScroll);
+    };
+    const onScroll = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(sweep);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      observer.disconnect();
+    };
   }, []);
 
   return containerRef;
