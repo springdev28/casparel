@@ -10,6 +10,7 @@ import { pool, runMigrations } from "@workspace/db";
 import { initRateLimitStore } from "./lib/rateLimitStore";
 import { ensureCuratedCatalog } from "./lib/catalog";
 import { markSchemaFailed, markSchemaReady } from "./lib/schemaHealth";
+import { explainUnreachableDatabase } from "./lib/dbReachability";
 
 // Replit runs the API as a dedicated service on 8080. Local development keeps
 // the conventional 5000 fallback. This must match the web app proxy defaults
@@ -50,11 +51,15 @@ async function main() {
     // touching a column the migration would have added will fail, which shows
     // up as scattered, unrelated-looking breakage in the UI. Record it so
     // GET /healthz can report it instead of it being invisible.
-    markSchemaFailed(err);
+    // A connection timeout reads the same whether the database is down or
+    // simply has no route from this server. Name the difference when we can.
+    const hint = await explainUnreachableDatabase(process.env.DATABASE_URL);
+    markSchemaFailed(err, hint.message);
     logger.error(
       { err },
       "Database setup FAILED - serving with a possibly stale schema. Check GET /healthz.",
     );
+    if (hint.message) logger.error(hint.message);
     if (process.env.REQUIRE_DATABASE_READY === "true") process.exit(1);
   }
 

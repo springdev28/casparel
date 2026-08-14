@@ -15,24 +15,31 @@ export type SchemaState = "pending" | "ready" | "failed";
 interface SchemaHealth {
   state: SchemaState;
   error: string | null;
+  /** A plain-language cause when we can work one out, e.g. no route to host. */
+  hint: string | null;
   checkedAt: string | null;
 }
 
 const health: SchemaHealth = {
   state: "pending",
   error: null,
+  hint: null,
   checkedAt: null,
 };
 
 export function markSchemaReady(): void {
   health.state = "ready";
   health.error = null;
+  health.hint = null;
   health.checkedAt = new Date().toISOString();
 }
 
-export function markSchemaFailed(error: unknown): void {
+export function markSchemaFailed(error: unknown, hint: string | null = null): void {
   health.state = "failed";
   health.error = error instanceof Error ? error.message : String(error);
+  // Surfaced through GET /healthz because the server logs are the one thing
+  // you cannot get at from a browser when the site is down.
+  health.hint = hint;
   health.checkedAt = new Date().toISOString();
 }
 
