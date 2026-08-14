@@ -180,11 +180,9 @@ function BannedAccountPage({ access }: { access: AccountAccess }) {
 function AccountAccessGate({ children }: { children: ReactNode }) {
   const token = localStorage.getItem(TOKEN_KEY);
   const [access, setAccess] = useState<AccountAccess | null>(null);
-  const [checked, setChecked] = useState(!token);
 
   useEffect(() => {
     if (!token) {
-      setChecked(true);
       setAccess(null);
       return;
     }
@@ -208,28 +206,23 @@ function AccountAccessGate({ children }: { children: ReactNode }) {
         if (!response.ok) throw new Error("Could not verify account access");
         return (await response.json()) as AccountAccess;
       })
-      .then((value) => {
-        setAccess(value);
-        setChecked(true);
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError")
-          return;
-        setChecked(true);
+      .then((value) => setAccess(value))
+      .catch(() => {
+        // A failed check must not lock anyone out: the server is still the one
+        // enforcing the ban, so carry on rendering.
       });
     return () => controller.abort();
   }, [token]);
 
-  if (!checked) {
-    return (
-      <main className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground">
-        <Loader2
-          className="size-6 animate-spin text-primary-text"
-          aria-label="Checking account access"
-        />
-      </main>
-    );
-  }
+  // Render straight away rather than holding the whole app behind this check.
+  // It is one request to a database on the other side of the world, so gating
+  // on it meant every reload showed a spinner for about a second before any
+  // part of the app appeared, on every page, for every signed-in visitor.
+  //
+  // Showing the app first is safe because this gate is a courtesy, not the
+  // enforcement: the server rejects a banned account's requests on its own, so
+  // the worst case is that such an account sees a shell it cannot use for the
+  // moment the check is in flight, and is then swapped to the explanation.
   if (access?.banned) return <BannedAccountPage access={access} />;
   return <>{children}</>;
 }
