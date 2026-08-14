@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Keep authenticated app surfaces out of the index; the public pages are the
+# landing page and the resource catalog.
+Disallow: /auth/
+Disallow: /settings
+Disallow: /profile
+Disallow: /messages
+
+Sitemap: https://casparel.com/sitemap.xml
