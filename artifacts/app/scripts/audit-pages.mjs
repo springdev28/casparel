@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
- * Renders the built app in a real browser and checks the public pages for the
- * failure classes that type-checking and unit tests cannot see:
+ * Renders the built app in a real browser and checks its pages for the failure
+ * classes that type-checking and unit tests cannot see:
  *
  *  • text that fails WCAG contrast against its actual background — the bug that
  *    made "Sign in" and "More filters" invisible in dark mode,
  *  • elements left stuck at opacity 0 by reveal-on-scroll, which silently
  *    swallows content,
  *  • horizontal overflow, missing image alt text, and uncaught page errors.
+ *
+ * Signed-in pages are covered too, rendered against the fixtures in
+ * audit-fixtures.mjs rather than a live API, because that is where the
+ * regressions that reached production actually were.
  *
  * Usage:
  *   pnpm --filter @workspace/app run build     # dist/public must exist
@@ -22,6 +26,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { installSession } from "./audit-fixtures.mjs";
 
 const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -29,6 +34,14 @@ const ROOT = path.resolve(
 );
 const PORT = Number(process.env.AUDIT_PORT ?? 4321);
 const PAGES = (process.env.AUDIT_PAGES ?? "/,/auth/login,/auth/register").split(",");
+// Signed-in pages, rendered against fixtures rather than a live API. These are
+// where the regressions that reached production actually were, so they matter
+// more than the public pages, not less.
+const SIGNED_IN_PAGES = (
+  process.env.AUDIT_SIGNED_IN_PAGES ?? "/dashboard,/profile,/resources,/settings"
+)
+  .split(",")
+  .filter(Boolean);
 
 const MIME = {
   ".js": "text/javascript",
@@ -107,11 +120,12 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
 });
 
-async function audit(pathname, colorScheme, width) {
+async function audit(pathname, colorScheme, width, { signedIn = false } = {}) {
   const ctx = await browser.newContext({
     viewport: { width, height: 900 },
     colorScheme,
   });
+  const unfixtured = signedIn ? await installSession(ctx) : new Set();
   const page = await ctx.newPage();
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(String(e).slice(0, 140)));
@@ -146,9 +160,10 @@ async function audit(pathname, colorScheme, width) {
       () => document.documentElement.scrollWidth > window.innerWidth + 2,
     ),
     pageErrors,
+    unfixtured: [...unfixtured],
   };
   await ctx.close();
-  return { pathname, colorScheme, width, findings };
+  return { pathname, colorScheme, width, signedIn, findings };
 }
 
 const results = [];
@@ -158,11 +173,18 @@ for (const pathname of PAGES) {
   }
   results.push(await audit(pathname, "dark", 390));
 }
+for (const pathname of SIGNED_IN_PAGES) {
+  for (const scheme of ["dark", "light"]) {
+    results.push(await audit(pathname, scheme, 1280, { signedIn: true }));
+  }
+  results.push(await audit(pathname, "dark", 390, { signedIn: true }));
+}
 await browser.close();
 server.close();
 
 let failed = 0;
-for (const { pathname, colorScheme, width, findings } of results) {
+const unfixtured = new Set();
+for (const { pathname, colorScheme, width, signedIn, findings } of results) {
   const problems = [
     ...findings.lowContrast.map(
       (c) => `contrast ${c.ratio} < ${c.min} — "${c.text}"`,
@@ -176,7 +198,11 @@ for (const { pathname, colorScheme, width, findings } of results) {
     ...(findings.horizontalOverflow ? ["page scrolls horizontally"] : []),
     ...findings.pageErrors.map((e) => `page error: ${e}`),
   ];
-  const label = `${pathname} [${colorScheme}, ${width}px]`;
+  // Not a failure: an unmapped endpoint means the fixtures have fallen behind
+  // the app, which is worth saying out loud without blocking the build.
+  for (const p of findings.unfixtured ?? []) unfixtured.add(p);
+  const label =
+    `${pathname} [${colorScheme}, ${width}px` + (signedIn ? ", signed in]" : "]");
   if (problems.length === 0) {
     console.log(`ok   ${label}`);
   } else {
@@ -184,6 +210,13 @@ for (const { pathname, colorScheme, width, findings } of results) {
     console.log(`FAIL ${label}`);
     for (const p of problems) console.log(`       ${p}`);
   }
+}
+
+if (unfixtured.size) {
+  console.log(
+    `\nnote: no fixture for ${[...unfixtured].sort().join(", ")}` +
+      " — answered empty. Add it to scripts/audit-fixtures.mjs.",
+  );
 }
 
 console.log(

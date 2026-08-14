@@ -44,7 +44,13 @@ export function usePlan(enabled = true): PlanState {
 
   const role = me?.role ?? readSessionClaims()?.accountRole;
   const isAdmin = role === UserRole.admin;
-  const unlimited = isAdmin || usage?.unlimited === true;
+  // Label and caps must come from the same source or they contradict each
+  // other: reading `unlimited` from the role while the label came from the
+  // server produced a badge saying "Free" above meters saying "Unlimited".
+  // The server is authoritative whenever it answers, since it is what actually
+  // enforces the limits; the role is the fallback for when it does not, which
+  // is the case that used to downgrade the whole display to Free.
+  const unlimited = usage ? usage.unlimited : isAdmin;
 
   return {
     label: usage?.plan ?? (isAdmin ? "Administrator" : "Free"),
