@@ -20,7 +20,7 @@ export default function PublicShell({ children }: PublicShellProps) {
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-4">
           {/* Logo */}
           <Link
-            href="/resources"
+            href="/"
             className="flex min-w-0 items-center text-primary transition-opacity hover:opacity-80"
           >
             <BrandIcon className="mr-2 h-8 w-8 shrink-0 sm:h-9 sm:w-9" label="Casparel" />

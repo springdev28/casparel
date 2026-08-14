@@ -46,6 +46,7 @@ import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import { isPremiumAccount } from "../lib/entitlements";
 import { publicUserColumns } from "../lib/userColumns";
+import { publicResourceColumns } from "../lib/resourceColumns";
 import {
   requireAuth,
   type AuthenticatedRequest,
@@ -978,9 +979,18 @@ router.get(
         return;
       }
     }
+    // These rows go straight into GetUserLibraryResponse.parse(), whose schema
+    // requires avgRating/reviewCount on resources and itemCount on lists. Raw
+    // table rows carry none of those, so selecting them bare made this endpoint
+    // throw on its own response. Compute the aggregates in SQL (one query each)
+    // rather than a round-trip per row.
     const [resources, lists] = await Promise.all([
       db
-        .select()
+        .select({
+          ...publicResourceColumns,
+          avgRating: sql<number>`coalesce((select avg(rating) from reviews where resource_id = resources.id), 0)`,
+          reviewCount: sql<number>`cast((select count(*) from reviews where resource_id = resources.id) as int)`,
+        })
         .from(resourcesTable)
         .where(
           and(
@@ -996,7 +1006,16 @@ router.get(
         )
         .orderBy(desc(resourcesTable.createdAt)),
       db
-        .select()
+        .select({
+          id: resourceListsTable.id,
+          name: resourceListsTable.name,
+          description: resourceListsTable.description,
+          ownerId: resourceListsTable.ownerId,
+          classId: resourceListsTable.classId,
+          workspaceRole: resourceListsTable.workspaceRole,
+          createdAt: resourceListsTable.createdAt,
+          itemCount: sql<number>`cast((select count(*) from list_items where list_id = resource_lists.id) as int)`,
+        })
         .from(resourceListsTable)
         .where(
           and(
@@ -1012,7 +1031,15 @@ router.get(
         )
         .orderBy(desc(resourceListsTable.createdAt)),
     ]);
-    res.json(GetUserLibraryResponse.parse({ resources, lists }));
+    res.json(
+      GetUserLibraryResponse.parse({
+        resources: resources.map((resource) => ({
+          ...resource,
+          avgRating: Math.round(Number(resource.avgRating) * 10) / 10,
+        })),
+        lists,
+      }),
+    );
   },
 );
 
