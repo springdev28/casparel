@@ -167,6 +167,31 @@ export default function ResourceDetailScreen() {
               {resource.subject}
             </Badge>
           </View>
+          {resource.verificationStatus === 'unverified' ||
+          resource.verificationStatus === 'rejected' ? (
+            <View
+              style={[
+                styles.verifyNotice,
+                { backgroundColor: colors.primaryForeground + '1F', borderRadius: colors.radius },
+              ]}
+            >
+              <Feather
+                name={resource.verificationStatus === 'rejected' ? 'shield-off' : 'shield'}
+                size={13}
+                color={colors.primaryForeground}
+              />
+              <Text
+                style={[
+                  styles.verifyNoticeText,
+                  { color: colors.primaryForeground, fontFamily: colors.fontFamily.sans },
+                ]}
+              >
+                {resource.verificationStatus === 'rejected'
+                  ? 'A reviewer did not approve this source.'
+                  : 'Not yet reviewed — check the source before you rely on it.'}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -294,6 +319,15 @@ const styles = StyleSheet.create({
   },
   heroTitle: { fontSize: 22, lineHeight: 28, letterSpacing: -0.3 },
   heroBadges: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  verifyNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    marginTop: 10,
+  },
+  verifyNoticeText: { flex: 1, fontSize: 12, lineHeight: 16 },
   metaCard: {
     borderWidth: 1,
     padding: 16,
