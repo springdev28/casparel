@@ -14,7 +14,7 @@ Companion to [`shipaton-2026-roadmap.md`](./shipaton-2026-roadmap.md). Fill the
 | Subtitle (iOS, ≤30 chars) | Learn. Organize. Study. |
 | Short description (Play, ≤80 chars) | Vetted open-education resources, classes, schedules, and AI research. |
 | Category | Education |
-| Bundle / package id | `com.schooler.app` |
+| Bundle / package id | `com.casparel.app` |
 | Support URL | `‹https://casparel.app/support›` |
 | Marketing URL | `‹https://casparel.app›` |
 | Privacy policy URL | `‹https://casparel.app/privacy›` |

@@ -11,6 +11,10 @@ import {
 } from "@workspace/db";
 import { publicResourceColumns } from "../lib/resourceColumns";
 import {
+  resourceVisibilityCondition,
+  visibilityForRequest,
+} from "../lib/resourceVisibility";
+import {
   ListResourcesResponse,
   ListResourcesQueryParams,
   CreateResourceBody,
@@ -146,7 +150,7 @@ function boundedInteger(value: unknown, min: number, max: number) {
     : undefined;
 }
 
-async function topRatedResources(limit = 12) {
+async function topRatedResources(limit = 12, viewerId: number | null = null) {
   // all resources ordered by avg rating descending
   const rows = await db
     .select({
@@ -154,6 +158,9 @@ async function topRatedResources(limit = 12) {
       avg: sql<number>`coalesce((select avg(rating) from reviews where resource_id = resources.id), 0)`,
     })
     .from(resourcesTable)
+    // Featured lists are a recommendation; never surface unreviewed sources
+    // there, even to the author.
+    .where(resourceVisibilityCondition(viewerId, false))
     .orderBy(
       sql`coalesce((select avg(rating) from reviews where resource_id = resources.id), 0) desc`,
     )
@@ -191,6 +198,10 @@ router.get("/resources", async (req, res): Promise<void> => {
   const minReviews = boundedInteger(req.query.minReviews, 0, 10000);
   const searchTerm = q?.trim().replace(/\s+/g, " ");
   const conditions = [];
+  // Hide unverified/rejected submissions from everyone except their author and
+  // admins. Both query branches below build from this same array.
+  const visibility = visibilityForRequest(req);
+  if (visibility) conditions.push(visibility);
   if (searchTerm) {
     const tokens = meaningfulSearchTerms(searchTerm);
     conditions.push(
@@ -504,6 +515,9 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
     const conditions = [
       interestMatch,
       ne(resourcesTable.submittedById, userId),
+      // Recommendations are other people's resources by definition, so the
+      // author exception never applies here — verified only.
+      eq(resourcesTable.verificationStatus, "verified"),
     ];
     if (reviewedIds.length > 0)
       conditions.push(notInArray(resourcesTable.id, reviewedIds));
@@ -523,7 +537,10 @@ router.get("/resources/recommendations", async (req, res): Promise<void> => {
   // Pad with top-rated resources if not enough personalised results
   if (candidates.length < 6) {
     const exclude = [...reviewedIds, ...candidates];
-    const conditions = [ne(resourcesTable.submittedById, userId)];
+    const conditions = [
+      ne(resourcesTable.submittedById, userId),
+      eq(resourcesTable.verificationStatus, "verified"),
+    ];
     if (exclude.length > 0)
       conditions.push(notInArray(resourcesTable.id, exclude));
     const extra = await db

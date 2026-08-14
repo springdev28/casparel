@@ -17,14 +17,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.schooler.app",
+      "bundleIdentifier": "com.casparel.app",
       "buildNumber": "1",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Casparel needs access to your photos so you can set a profile picture."
       }
     },
     "android": {
-      "package": "com.schooler.app",
+      "package": "com.casparel.app",
       "versionCode": 1
     },
     "web": {
