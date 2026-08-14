@@ -147,3 +147,15 @@ jobs:
           local-dir: ./.deploy-restart/
           server-dir: ${{ vars.FTP_RESTART_DIR || 'hbuilds/current/nodejs/tmp/' }}
           dangerous-clean-slate: false
+
+      # Everything above proves the build was good and that files were
+      # uploaded. Neither proves the running site works: a deploy has gone
+      # green while every data-backed route returned 500, because the database
+      # was unreachable and because a connection string was wrong. This asks
+      # the live site, retrying while Passenger restarts, and fails the job if
+      # the release is live but broken.
+      - name: Smoke-check the deployed site
+        if: ${{ env.FTP_SERVER != '' }}
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+        run: node scripts/smoke-check.mjs "${{ vars.SITE_URL || 'https://casparel.com' }}"
