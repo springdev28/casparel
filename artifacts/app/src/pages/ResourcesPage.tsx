@@ -1280,7 +1280,6 @@ export default function ResourcesPage() {
     ...(submittedSearch?.librarySort
       ? { librarySort: submittedSearch.librarySort }
       : {}),
-    ...(verificationFilter ? { verification: verificationFilter } : {}),
     limit: libraryLimit,
     offset: 0,
   };
@@ -1296,6 +1295,20 @@ export default function ResourcesPage() {
 
   // Load the catalogue to identify this user's existing library URLs even
   // while source-only mode hides the library results panel.
+  // Server-side rather than filtering libraryCatalog in memory: that query is
+  // capped at 50 rows, so an author with a large library would not find their
+  // pending items client-side.
+  const gatedParams = { verification: verificationFilter, limit: 50, offset: 0 };
+  const { data: gatedResults, isLoading: gatedLoading } = useListResources(
+    gatedParams,
+    {
+      query: {
+        enabled: isLoggedIn && verificationFilter !== "",
+        queryKey: getListResourcesQueryKey(gatedParams),
+      },
+    },
+  );
+
   const libraryCatalogParams = { limit: 50, offset: 0 };
   const { data: libraryCatalog } = useListResources(libraryCatalogParams, {
     query: {
@@ -2248,40 +2261,7 @@ export default function ResourcesPage() {
                 </span>
               )}
             </Button>
-            {isLoggedIn ? (
-              <>
-                <Button
-                  type="button"
-                  variant={verificationFilter === "pending" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() =>
-                    setVerificationFilter((current) =>
-                      current === "pending" ? "" : "pending",
-                    )
-                  }
-                  aria-pressed={verificationFilter === "pending"}
-                  data-testid="filter-pending-review"
-                >
-                  <ShieldAlert size={14} className="mr-1.5" />
-                  Pending review
-                </Button>
-                <Button
-                  type="button"
-                  variant={verificationFilter === "rejected" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() =>
-                    setVerificationFilter((current) =>
-                      current === "rejected" ? "" : "rejected",
-                    )
-                  }
-                  aria-pressed={verificationFilter === "rejected"}
-                  data-testid="filter-rejected"
-                >
-                  <ShieldX size={14} className="mr-1.5" />
-                  Not approved
-                </Button>
-              </>
-            ) : null}
+
             {activeAdvancedFilterCount > 0 && (
               <Button
                 type="button"
@@ -2798,14 +2778,87 @@ export default function ResourcesPage() {
 
       {resourceView === "library" && (
         <section className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Library</h2>
-            <p className="text-sm text-muted-foreground">
-              Resources saved in Casparel. Open, cite, assign, or remove them
-              here.
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Library</h2>
+              <p className="text-sm text-muted-foreground">
+                Resources saved in Casparel. Open, cite, assign, or remove them
+                here.
+              </p>
+            </div>
+            {isLoggedIn ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={verificationFilter === "pending" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() =>
+                    setVerificationFilter((current) =>
+                      current === "pending" ? "" : "pending",
+                    )
+                  }
+                  aria-pressed={verificationFilter === "pending"}
+                  data-testid="filter-pending-review"
+                >
+                  <ShieldAlert size={14} className="mr-1.5" />
+                  Pending review
+                </Button>
+                <Button
+                  type="button"
+                  variant={verificationFilter === "rejected" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() =>
+                    setVerificationFilter((current) =>
+                      current === "rejected" ? "" : "rejected",
+                    )
+                  }
+                  aria-pressed={verificationFilter === "rejected"}
+                  data-testid="filter-rejected"
+                >
+                  <ShieldX size={14} className="mr-1.5" />
+                  Not approved
+                </Button>
+              </div>
+            ) : null}
           </div>
-          {!uniqueLibraryCatalog.length ? (
+
+          {verificationFilter ? (
+            gatedLoading ? (
+              <CardSkeletons count={3} />
+            ) : !gatedResults?.length ? (
+              <div className="border-y py-10 text-center">
+                <ShieldCheck className="mx-auto mb-3 size-7 text-muted-foreground" />
+                <p className="font-medium">
+                  {verificationFilter === "pending"
+                    ? "Nothing waiting on review"
+                    : "Nothing was turned down"}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {verificationFilter === "pending"
+                    ? "Resources you submit are checked before they appear in the public library."
+                    : "Rejected submissions show the reviewer's reason here."}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {gatedResults.map((resource) => (
+                  <LibraryCard
+                    key={resource.id}
+                    resource={resource}
+                    onClick={() =>
+                      setLocation(`/resources/${resource.id}?from=library`)
+                    }
+                    onCitation={() => openCitation(resource)}
+                    onRemove={
+                      me && resource.submittedById === me.id
+                        ? () => handleRemoveCard(resource.id, resource.title)
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            )
+          ) : !uniqueLibraryCatalog.length ? (
             <div className="border-y py-12 text-center">
               <BookOpen className="mx-auto mb-3 size-8 text-muted-foreground" />
               <p className="font-medium">Your library is empty</p>
