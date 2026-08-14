@@ -12,7 +12,7 @@ export default function PublicShell({ children }: PublicShellProps) {
   const dark = useSystemDark();
   return (
     <div
-      className={`${dark ? "dark " : ""}flex flex-col min-h-[100dvh] bg-background`}
+      className={`${dark ? "dark " : ""}flex flex-col min-h-[100dvh] bg-background text-foreground`}
       style={{ colorScheme: dark ? "dark" : "light" }}
     >
       {/* Top nav */}

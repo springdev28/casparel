@@ -64,7 +64,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className={`${dark ? "dark " : ""}min-h-[100dvh] flex items-center justify-center bg-background px-4`}
+      className={`${dark ? "dark " : ""}min-h-[100dvh] flex items-center justify-center bg-background text-foreground px-4`}
       style={{ colorScheme: dark ? "dark" : "light" }}
     >
       <div className="w-full max-w-md">

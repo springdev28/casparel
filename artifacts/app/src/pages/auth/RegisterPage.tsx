@@ -54,7 +54,7 @@ export default function RegisterPage() {
 
   return (
     <div
-      className={`${dark ? "dark " : ""}min-h-[100dvh] flex items-center justify-center bg-background px-4 py-8`}
+      className={`${dark ? "dark " : ""}min-h-[100dvh] flex items-center justify-center bg-background text-foreground px-4 py-8`}
       style={{ colorScheme: dark ? "dark" : "light" }}
     >
       <div className="w-full max-w-md">
