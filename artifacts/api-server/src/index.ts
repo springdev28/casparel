@@ -11,6 +11,7 @@ import { initRateLimitStore } from "./lib/rateLimitStore";
 import { ensureCuratedCatalog } from "./lib/catalog";
 import { markSchemaFailed, markSchemaReady } from "./lib/schemaHealth";
 import { explainUnreachableDatabase } from "./lib/dbReachability";
+import { withTimeout } from "./lib/withTimeout";
 
 // Replit runs the API as a dedicated service on 8080. Local development keeps
 // the conventional 5000 fallback. This must match the web app proxy defaults
@@ -23,6 +24,19 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+/**
+ * Ceiling on everything that has to happen before the HTTP port opens.
+ *
+ * Passenger and most process managers decide an app failed to spawn if it does
+ * not listen within about 90 seconds, and until it listens every request is
+ * answered with a 503 that no retry clears. So startup must be bounded by
+ * something shorter than that, and the bound has to cover the whole sequence:
+ * the migration lock, the migrations themselves, the DNS/TLS handshake to a
+ * remote database, and the rate-limit store. Any one of them can hang rather
+ * than fail, and a hang is not something the try/catch below can see.
+ */
+const SCHEMA_PREP_TIMEOUT_MS = 60_000;
 
 async function prepareDatabaseSchema() {
   logger.info("Running database migrations...");
@@ -43,7 +57,11 @@ async function prepareDatabaseSchema() {
 
 async function main() {
   try {
-    await prepareDatabaseSchema();
+    await withTimeout(
+      prepareDatabaseSchema(),
+      SCHEMA_PREP_TIMEOUT_MS,
+      "Database setup",
+    );
     markSchemaReady();
   } catch (err) {
     // We keep serving so a transient database problem does not take the app
