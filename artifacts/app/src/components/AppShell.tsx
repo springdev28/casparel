@@ -61,8 +61,6 @@ import {
   RoleSwitchInputRole,
   useGetRecentActivity,
   getGetRecentActivityQueryKey,
-  useGetMyUsage,
-  getGetMyUsageQueryKey,
   getListLearningGoalsQueryKey,
   useListLearningGoals,
   useUpdateLearningGoal,
@@ -73,6 +71,7 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import ThemeCustomizer, { applyDefaultColors } from "./ThemeCustomizer";
 import { AuthLanguageSelect } from "./AuthLanguageSelect";
 import { readSessionClaims } from "../lib/session";
+import { usePlan } from "@/lib/use-plan";
 import { useAuthLanguage } from "../lib/auth-locale";
 import {
   Popover,
@@ -217,13 +216,9 @@ export default function AppShell({ children }: AppShellProps) {
   const [classInvitations, setClassInvitations] = useState<ClassInvitation[]>(
     [],
   );
-  const { data: accountUsage } = useGetMyUsage({
-    query: {
-      enabled: signedIn && isDesktop && secondaryDataReady,
-      refetchInterval: 60_000,
-      queryKey: getGetMyUsageQueryKey(),
-    },
-  });
+  // Shared with the profile page's plan card, so the two can never disagree
+  // about whether this account is Free, Premium or an administrator.
+  const plan = usePlan(signedIn && isDesktop && secondaryDataReady);
   useEffect(() => {
     const media = window.matchMedia("(min-width: 768px)");
     const update = () => setIsDesktop(media.matches);
@@ -467,11 +462,11 @@ export default function AppShell({ children }: AppShellProps) {
   }
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
   const isAdmin = me?.role === UserRole.admin;
-  const hasUnlimitedUsage = isAdmin || accountUsage?.unlimited === true;
-  const aiSearchUsed = accountUsage?.aiSearch?.used ?? 0;
-  const aiSearchLimit = accountUsage?.aiSearch?.limit ?? 3;
-  const deepResearchUsed = accountUsage?.deepResearch?.used ?? 0;
-  const deepResearchLimit = accountUsage?.deepResearch?.limit ?? 2;
+  const hasUnlimitedUsage = plan.unlimited;
+  const aiSearchUsed = plan.aiSearch.used;
+  const aiSearchLimit = plan.aiSearch.limit ?? 3;
+  const deepResearchUsed = plan.deepResearch.used;
+  const deepResearchLimit = plan.deepResearch.limit ?? 2;
   const navItems = isAdmin
     ? [...NAV_ITEMS, { label: "Admin", href: "/admin", icon: ShieldCheck }]
     : NAV_ITEMS;
@@ -863,7 +858,7 @@ export default function AppShell({ children }: AppShellProps) {
                     <Gauge size={13} /> Current plan
                   </span>
                   <span className="min-w-0 truncate rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] font-semibold">
-                    {accountUsage?.plan ?? (isAdmin ? "Administrator" : "Free")}
+                    {plan.label}
                   </span>
                 </div>
                 <div className="space-y-2 text-[11px] text-primary-foreground/75">

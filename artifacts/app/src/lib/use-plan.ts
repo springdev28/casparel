@@ -1,0 +1,64 @@
+import {
+  getGetMyUsageQueryKey,
+  useGetMe,
+  useGetMyUsage,
+  UserRole,
+} from "@workspace/api-client-react";
+import { readSessionClaims } from "./session";
+
+/**
+ * One answer to "what plan is this account on", for every surface that shows it.
+ *
+ * The sidebar and the profile card used to each work this out for themselves,
+ * and they disagreed: the sidebar fell back to the account role when
+ * `/users/me/usage` was unavailable, the profile card fell back to "Free". An
+ * admin therefore saw "Administrator, Unlimited" and "Free, 0/2 today" on the
+ * same screen. Both now read this hook, so they cannot drift apart again.
+ *
+ * The role fallback also covers the token, so a slow or failing `/users/me`
+ * does not silently downgrade the display to Free either.
+ */
+export interface PlanState {
+  /** Label to show: "Administrator", "Premium" or "Free". */
+  label: string;
+  /** True when AI usage is uncapped (admins, and active premium accounts). */
+  unlimited: boolean;
+  aiSearch: { used: number; limit: number | null };
+  deepResearch: { used: number; limit: number | null };
+  /** True while we still only have the fallback, not the server's answer. */
+  pending: boolean;
+}
+
+const FALLBACK_SEARCH_LIMIT = 3;
+const FALLBACK_DEEP_LIMIT = 2;
+
+export function usePlan(enabled = true): PlanState {
+  const { data: me } = useGetMe();
+  const { data: usage } = useGetMyUsage({
+    query: {
+      enabled,
+      refetchInterval: 60_000,
+      queryKey: getGetMyUsageQueryKey(),
+    },
+  });
+
+  const role = me?.role ?? readSessionClaims()?.accountRole;
+  const isAdmin = role === UserRole.admin;
+  const unlimited = isAdmin || usage?.unlimited === true;
+
+  return {
+    label: usage?.plan ?? (isAdmin ? "Administrator" : "Free"),
+    unlimited,
+    aiSearch: {
+      used: usage?.aiSearch.used ?? 0,
+      limit: unlimited ? null : (usage?.aiSearch.limit ?? FALLBACK_SEARCH_LIMIT),
+    },
+    deepResearch: {
+      used: usage?.deepResearch.used ?? 0,
+      limit: unlimited
+        ? null
+        : (usage?.deepResearch.limit ?? FALLBACK_DEEP_LIMIT),
+    },
+    pending: usage === undefined,
+  };
+}

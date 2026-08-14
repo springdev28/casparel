@@ -1,4 +1,3 @@
-import { useGetMyUsage } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
   Card,
@@ -8,6 +7,7 @@ import {
 } from "@workspace/edu-ds/components/ui/card";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { Check, Crown, Sparkles } from "lucide-react";
+import { usePlan } from "@/lib/use-plan";
 
 function UsageMeter({
   label,
@@ -52,18 +52,17 @@ function useUpgradePrompt() {
     toast({
       title: "Upgrade in the Casparel mobile app",
       description:
-        "Premium is purchased in the app. Sign in with the same account, then open Profile → Plan to unlock unlimited AI.",
+        "Premium is purchased in the app. Sign in with the same account, then open Profile then Plan to unlock unlimited AI.",
     });
   };
 }
 
 /** Shared body: usage meters + upgrade CTA, or the unlocked confirmation. */
 function PlanDetails({ compact = false }: { compact?: boolean }) {
-  const { data: usage } = useGetMyUsage();
-  const unlimited = usage?.unlimited === true;
+  const plan = usePlan();
   const handleUpgrade = useUpgradePrompt();
 
-  if (unlimited) {
+  if (plan.unlimited) {
     return (
       <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Check className="size-4 text-primary" />
@@ -81,13 +80,13 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
       <div className={"mt-3 grid gap-2.5" + (compact ? "" : " max-w-sm")}>
         <UsageMeter
           label="AI source research"
-          used={usage?.deepResearch.used ?? 0}
-          limit={usage?.deepResearch.limit ?? 2}
+          used={plan.deepResearch.used}
+          limit={plan.deepResearch.limit}
         />
         <UsageMeter
           label="AI discovery"
-          used={usage?.aiSearch.used ?? 0}
-          limit={usage?.aiSearch.limit ?? 3}
+          used={plan.aiSearch.used}
+          limit={plan.aiSearch.limit}
         />
       </div>
       {compact ? (
@@ -101,10 +100,13 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
 }
 
 function PlanBadge() {
-  const { data: usage } = useGetMyUsage();
+  const plan = usePlan();
   return (
-    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-      {usage?.plan ?? "Free"}
+    <span
+      className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
+      data-testid="plan-badge"
+    >
+      {plan.label}
     </span>
   );
 }
@@ -116,8 +118,7 @@ function PlanBadge() {
  * status and directs users there to upgrade.
  */
 export function PlanSection() {
-  const { data: usage } = useGetMyUsage();
-  const unlimited = usage?.unlimited === true;
+  const plan = usePlan();
   const handleUpgrade = useUpgradePrompt();
 
   return (
@@ -133,7 +134,7 @@ export function PlanSection() {
         </div>
       </div>
 
-      {!unlimited ? (
+      {!plan.unlimited ? (
         <Button onClick={handleUpgrade} className="gap-2">
           <Sparkles className="size-4" />
           Get Premium
@@ -145,7 +146,7 @@ export function PlanSection() {
 
 /**
  * Card-shaped variant of the same plan surface, for the Profile page, so the
- * plan lives in the same place on web as it does on mobile (Profile → Plan).
+ * plan lives in the same place on web as it does on mobile (Profile then Plan).
  */
 export function PlanCard() {
   return (
