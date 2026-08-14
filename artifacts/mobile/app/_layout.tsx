@@ -11,6 +11,7 @@ import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 import { useDesignSystemFonts } from "@workspace/edu-ds/hooks/use-fonts";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PurchasesProvider } from "@/contexts/PurchasesContext";
+import { OnboardingProvider, useOnboarding } from "@/contexts/OnboardingContext";
 
 // Module-level setup — runs before any component renders
 const domain = process.env.EXPO_PUBLIC_DOMAIN;
@@ -32,27 +33,34 @@ const queryClient = new QueryClient({
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { ready: onboardingReady, needsOnboarding } = useOnboarding();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) return;
-    const inTabsGroup = segments[0] === "(tabs)";
+    if (isLoading || !onboardingReady) return;
     const inLogin = segments[0] === "login";
+    const inOnboarding = segments[0] === "onboarding";
 
-    if (!isAuthenticated && !inLogin) {
-      router.replace("/login");
-    } else if (isAuthenticated && inLogin) {
+    if (!isAuthenticated) {
+      if (!inLogin) router.replace("/login");
+      return;
+    }
+    // Authenticated: show first-run onboarding once, then land on the tabs.
+    if (needsOnboarding && !inOnboarding) {
+      router.replace("/onboarding");
+    } else if (!needsOnboarding && (inLogin || inOnboarding)) {
       router.replace("/(tabs)");
     }
-  }, [isAuthenticated, isLoading, segments, router]);
+  }, [isAuthenticated, isLoading, onboardingReady, needsOnboarding, segments, router]);
 
-  if (isLoading) return null;
+  if (isLoading || !onboardingReady) return null;
 
   return (
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen
         name="resource/[id]"
         options={{ title: "Resource", headerBackTitle: "Back" }}
@@ -87,9 +95,11 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AuthProvider>
-                <PurchasesProvider>
-                  <RootLayoutNav />
-                </PurchasesProvider>
+                <OnboardingProvider>
+                  <PurchasesProvider>
+                    <RootLayoutNav />
+                  </PurchasesProvider>
+                </OnboardingProvider>
               </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

@@ -13,6 +13,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { usePurchases } from '@/contexts/PurchasesContext';
@@ -81,6 +83,18 @@ export default function PaywallScreen() {
     else router.replace('/(tabs)/profile');
   }
 
+  // "Best value" + computed savings on the annual package vs. 12× monthly.
+  const monthlyPkg = packages.find((p) => p.packageType?.toUpperCase() === 'MONTHLY');
+  function badgeFor(pkg: RCPackage): string | null {
+    if (pkg.packageType?.toUpperCase() !== 'ANNUAL') return null;
+    const monthlyPrice = monthlyPkg?.product.price ?? 0;
+    if (monthlyPrice > 0 && pkg.product.price > 0) {
+      const pct = Math.round((1 - pkg.product.price / (monthlyPrice * 12)) * 100);
+      if (pct > 0) return `Best value · Save ${pct}%`;
+    }
+    return 'Best value';
+  }
+
   async function handlePurchase() {
     const pkg = packages.find((p) => p.identifier === selected);
     if (!pkg) return;
@@ -126,24 +140,34 @@ export default function PaywallScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
-        <View style={styles.hero}>
-          <View style={[styles.crown, { backgroundColor: colors.primary + '1A', borderRadius: 24 }]}>
-            <Feather name="award" size={30} color={colors.primary} />
-          </View>
-          <Text style={[styles.title, { color: colors.foreground, fontFamily: colors.fontFamily.sansBold }]}>
-            Casparel Premium
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-            Unlimited AI research and discovery for serious learners.
-          </Text>
-        </View>
+        <Animated.View entering={FadeInDown.duration(450)}>
+          <LinearGradient
+            colors={[colors.primary, colors.accent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.hero, { borderRadius: colors.radius + 6 }]}
+          >
+            <View style={[styles.crown, { backgroundColor: colors.primaryForeground + '26', borderRadius: 24 }]}>
+              <Feather name="award" size={30} color={colors.primaryForeground} />
+            </View>
+            <Text style={[styles.title, { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold }]}>
+              Casparel Premium
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.primaryForeground + 'DD', fontFamily: colors.fontFamily.sans }]}>
+              Unlimited AI research and discovery for serious learners.
+            </Text>
+          </LinearGradient>
+        </Animated.View>
 
         {/* Benefits */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+        <Animated.View
+          entering={FadeInDown.delay(120).duration(450)}
+          style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}
+        >
           {BENEFITS.map((b) => (
             <BenefitRow key={b.title} {...b} />
           ))}
-        </View>
+        </Animated.View>
 
         {isPremium ? (
           <View style={[styles.premiumBanner, { backgroundColor: colors.primary + '14', borderColor: colors.primary + '40', borderRadius: colors.radius }]}>
@@ -167,29 +191,32 @@ export default function PaywallScreen() {
         ) : (
           <>
             {/* Package options */}
-            <View style={{ gap: 10, marginTop: 18 }}>
+            <Animated.View entering={FadeInDown.delay(200).duration(450)} style={{ gap: 10, marginTop: 18 }}>
               {packages.map((pkg) => (
                 <PackageOption
                   key={pkg.identifier}
                   pkg={pkg}
+                  badge={badgeFor(pkg)}
                   selected={pkg.identifier === selected}
                   onSelect={() => setSelected(pkg.identifier)}
                 />
               ))}
-            </View>
+            </Animated.View>
 
             {/* CTA */}
-            <View style={{ marginTop: 18 }}>
-              <Button size="lg" onPress={handlePurchase} loading={busy} disabled={!selected}>
-                Continue
-              </Button>
-            </View>
+            <Animated.View entering={FadeInDown.delay(280).duration(450)}>
+              <View style={{ marginTop: 18 }}>
+                <Button size="lg" onPress={handlePurchase} loading={busy} disabled={!selected}>
+                  Continue
+                </Button>
+              </View>
 
-            <Pressable onPress={handleRestore} disabled={busy} style={styles.restore}>
-              <Text style={[styles.restoreText, { color: colors.primary, fontFamily: colors.fontFamily.sansMedium }]}>
-                Restore purchases
-              </Text>
-            </Pressable>
+              <Pressable onPress={handleRestore} disabled={busy} style={styles.restore}>
+                <Text style={[styles.restoreText, { color: colors.primary, fontFamily: colors.fontFamily.sansMedium }]}>
+                  Restore purchases
+                </Text>
+              </Pressable>
+            </Animated.View>
           </>
         )}
 
@@ -214,10 +241,12 @@ function PackageOption({
   pkg,
   selected,
   onSelect,
+  badge,
 }: {
   pkg: RCPackage;
   selected: boolean;
   onSelect: () => void;
+  badge?: string | null;
 }) {
   const colors = useColors();
   const period =
@@ -239,6 +268,13 @@ function PackageOption({
         },
       ]}
     >
+      {badge ? (
+        <View style={[styles.pkgBadge, { backgroundColor: colors.accent, borderRadius: colors.radius }]}>
+          <Text style={[styles.pkgBadgeText, { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+            {badge}
+          </Text>
+        </View>
+      ) : null}
       <View style={{ flex: 1 }}>
         <Text style={[styles.pkgTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
           {pkg.product.title || pkg.identifier}
@@ -277,7 +313,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hero: { alignItems: 'center', gap: 10, marginBottom: 20 },
+  hero: { alignItems: 'center', gap: 10, marginBottom: 20, paddingVertical: 26, paddingHorizontal: 20 },
   crown: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 26, letterSpacing: -0.5, textAlign: 'center' },
   subtitle: { fontSize: 15, lineHeight: 21, textAlign: 'center', maxWidth: 300 },
@@ -291,7 +327,9 @@ const styles = StyleSheet.create({
   loading: { paddingVertical: 32, alignItems: 'center' },
   notice: { borderWidth: 1, borderStyle: 'dashed', padding: 16, marginTop: 18 },
   noticeText: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
-  pkg: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  pkg: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, position: 'relative' },
+  pkgBadge: { position: 'absolute', top: -9, right: 12, paddingHorizontal: 8, paddingVertical: 2, zIndex: 1 },
+  pkgBadgeText: { fontSize: 10, letterSpacing: 0.2 },
   pkgTitle: { fontSize: 15 },
   pkgPeriod: { fontSize: 12, marginTop: 2 },
   pkgPrice: { fontSize: 16 },
