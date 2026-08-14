@@ -397,7 +397,16 @@ export default function ProfilePage() {
           {/* iCal feed */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-foreground">Calendar Subscription (iCal)</span>
+              {/* A real label rather than a styled span: the field below holds
+                  the feed URL and had nothing naming it, so a screen reader
+                  announced it as an empty text box. This also makes the text
+                  clickable to focus the field. */}
+              <label
+                htmlFor="ical-feed-url"
+                className="text-sm font-medium text-foreground"
+              >
+                Calendar Subscription (iCal)
+              </label>
             </div>
             <p className="text-xs text-muted-foreground">
               Subscribe to your schedule in Apple Calendar, Outlook, or any calendar app. The feed updates automatically.
@@ -405,6 +414,7 @@ export default function ProfilePage() {
             {calStatus?.icalSecret && (
               <div className="flex gap-2">
                 <Input
+                  id="ical-feed-url"
                   readOnly
                   value={buildIcalUrl(calStatus.icalSecret)}
                   className="text-xs font-mono flex-1 truncate"

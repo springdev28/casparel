@@ -551,7 +551,7 @@ export default function AdminPage() {
           </div>
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search every account field..." className="pl-9" />
+            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search every account field..." aria-label="Search accounts" className="pl-9" />
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">

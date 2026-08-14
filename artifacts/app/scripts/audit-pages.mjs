@@ -17,10 +17,9 @@
  *   pnpm --filter @workspace/app run build     # dist/public must exist
  *   node scripts/audit-pages.mjs               # exits non-zero on findings
  *
- * Requires playwright-core and a Chromium build. In an environment that already
- * ships one, point CHROMIUM_PATH at it; otherwise `npx playwright install
- * chromium` once. Kept out of package.json dependencies deliberately: this is
- * a local/CI tool, not something the app bundle needs.
+ * Requires a Chromium build. Preinstalled browsers are found automatically
+ * (see chromiumExecutable below); CHROMIUM_PATH overrides the search, and
+ * `npx playwright install chromium` is the fallback for a bare machine.
  */
 import http from "node:http";
 import fs from "node:fs";
@@ -86,6 +85,40 @@ const server = http
   })
   .listen(PORT, "127.0.0.1");
 
+/**
+ * Runs in the page: the accessibility faults a browser can see but a type
+ * checker cannot. A control with no accessible name is announced as just
+ * "button", a field with no label as an empty text box, and a skipped heading
+ * level breaks the outline screen-reader users navigate by.
+ */
+const A11Y = `(() => {
+  const visible = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+    return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const name = (el) => (
+    el.getAttribute('aria-label') ||
+    (el.getAttribute('aria-labelledby') && document.getElementById(el.getAttribute('aria-labelledby'))?.textContent) ||
+    el.textContent || el.getAttribute('title') || ''
+  ).trim();
+
+  const namelessControls = [...document.querySelectorAll('button, a[href], [role="button"]')]
+    .filter(visible).filter((el) => !name(el))
+    .map((el) => (el.outerHTML || '').replace(/\\s+/g, ' ').slice(0, 70));
+
+  const unlabelledFields = [...document.querySelectorAll('input, select, textarea')]
+    .filter(visible).filter((el) => el.type !== 'hidden')
+    .filter((el) => !el.getAttribute('aria-label') && !el.getAttribute('aria-labelledby')
+      && !(el.id && document.querySelector('label[for="' + CSS.escape(el.id) + '"]'))
+      && !el.closest('label'))
+    .map((el) => (el.outerHTML || '').replace(/\\s+/g, ' ').slice(0, 70));
+
+  const levels = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].filter(visible).map((h) => +h.tagName[1]);
+  const headingSkips = [];
+  for (let i = 1; i < levels.length; i++)
+    if (levels[i] - levels[i - 1] > 1) headingSkips.push('h' + levels[i - 1] + ' to h' + levels[i]);
+
+  return { namelessControls, unlabelledFields, headingSkips };
+})()`;
+
 /** Runs in the page: WCAG contrast for every leaf text element. */
 const CONTRAST = `(() => {
   const lum = (c) => { const [r,g,b] = c.map(v => { v/=255; return v<=0.04045 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); });
@@ -116,8 +149,32 @@ const CONTRAST = `(() => {
   return out;
 })()`;
 
+/**
+ * Playwright looks for a browser build whose revision matches the
+ * playwright-core version it ships with, and refuses to start when that exact
+ * revision is missing. Environments that preinstall Chromium (CI images, this
+ * sandbox) pin one revision, so any playwright-core bump breaks the audit with
+ * "Executable doesn't exist" even though a perfectly usable browser is sitting
+ * on disk. Prefer an explicit CHROMIUM_PATH, then a preinstalled browser, then
+ * fall back to whatever Playwright manages itself.
+ */
+function chromiumExecutable() {
+  const candidates = [
+    process.env.CHROMIUM_PATH,
+    process.env.PLAYWRIGHT_BROWSERS_PATH
+      ? `${process.env.PLAYWRIGHT_BROWSERS_PATH}/chromium`
+      : null,
+    "/opt/pw-browsers/chromium",
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
+
+const executablePath = chromiumExecutable();
 const browser = await chromium.launch({
-  ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
+  ...(executablePath ? { executablePath } : {}),
   args: ["--no-sandbox"],
 });
 
@@ -158,8 +215,10 @@ async function audit(pathname, colorScheme, width, options = {}) {
   });
   await page.waitForTimeout(1200);
 
+  const a11y = await page.evaluate(A11Y);
   const findings = {
     lowContrast: await page.evaluate(CONTRAST),
+    ...a11y,
     invisibleAfterScroll: await page.$$eval(".reveal", (els) =>
       els
         .filter((e) => getComputedStyle(e).opacity === "0")
@@ -206,6 +265,9 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
             pageErrors: [
               `render did not finish within ${RENDER_TIMEOUT_MS / 1000}s`,
             ],
+            namelessControls: [],
+            unlabelledFields: [],
+            headingSkips: [],
             unfixtured: [],
           },
         }),
@@ -265,6 +327,13 @@ for (const {
       ? [`${findings.imagesMissingAlt} image(s) with no alt`]
       : []),
     ...(findings.horizontalOverflow ? ["page scrolls horizontally"] : []),
+    ...(findings.namelessControls ?? []).map(
+      (c) => `control has no accessible name: ${c}`,
+    ),
+    ...(findings.unlabelledFields ?? []).map(
+      (c) => `form field has no label: ${c}`,
+    ),
+    ...(findings.headingSkips ?? []).map((s) => `heading level skips ${s}`),
     ...findings.pageErrors.map((e) => `page error: ${e}`),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind

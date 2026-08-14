@@ -929,6 +929,7 @@ export default function ForumPage({
                     event.key === "Enter" && loadMaterials()
                   }
                   placeholder="Search titles, tags, units, topics, uploaders..."
+                  aria-label="Search materials"
                   className="pl-9"
                 />
               </div>
@@ -1037,11 +1038,13 @@ export default function ForumPage({
                 value={unit}
                 onChange={(event) => setUnit(event.target.value)}
                 placeholder="Unit"
+                aria-label="Filter by unit"
               />
               <Input
                 value={topic}
                 onChange={(event) => setTopic(event.target.value)}
                 placeholder="Topic"
+                aria-label="Filter by topic"
               />
               <Select value={materialType} onValueChange={setMaterialType}>
                 <SelectTrigger>
@@ -1072,6 +1075,7 @@ export default function ForumPage({
                 value={uploader}
                 onChange={(event) => setUploader(event.target.value)}
                 placeholder="Uploader"
+                aria-label="Filter by uploader"
               />
               <Select value={materialSort} onValueChange={setMaterialSort}>
                 <SelectTrigger>
