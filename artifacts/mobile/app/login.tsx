@@ -141,7 +141,7 @@ export default function LoginScreen() {
               style={[
                 styles.error,
                 {
-                  color: colors.destructive,
+                  color: colors.destructiveText,
                   fontFamily: colors.fontFamily.sans,
                 },
               ]}

@@ -160,7 +160,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
           </View>
         ) : isError ? (
           <View style={{ gap: 10 }}>
-            <Text style={[styles.prompt, { color: colors.destructive, fontFamily: colors.fontFamily.sans }]}>
+            <Text style={[styles.prompt, { color: colors.destructiveText, fontFamily: colors.fontFamily.sans }]}>
               Couldn't complete the research. You may have reached a daily limit.
             </Text>
             <Pressable onPress={() => refetch()} style={styles.retry}>

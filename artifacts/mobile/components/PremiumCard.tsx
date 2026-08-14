@@ -27,7 +27,7 @@ function UsageMeter({
         <Text
           style={[
             styles.meterValue,
-            { color: nearLimit ? colors.destructive : colors.mutedForeground, fontFamily: colors.fontFamily.sansMedium },
+            { color: nearLimit ? colors.destructiveText : colors.mutedForeground, fontFamily: colors.fontFamily.sansMedium },
           ]}
         >
           {limit == null ? 'Unlimited' : `${used} / ${limit} today`}

@@ -134,7 +134,7 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
             style={{ backgroundColor: colors.destructive + '15', borderRadius: colors.radius, paddingHorizontal: 10, paddingVertical: 4 }}
             disabled={disconnectGoogle.isPending}
           >
-            <Text style={{ fontSize: 12, color: colors.destructive, fontFamily: colors.fontFamily.sans }}>
+            <Text style={{ fontSize: 12, color: colors.destructiveText, fontFamily: colors.fontFamily.sans }}>
               Disconnect
             </Text>
           </TouchableOpacity>
@@ -701,9 +701,9 @@ export default function ProfileScreen() {
         >
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: colors.destructive + '15', borderRadius: colors.radius - 2 }]}>
-              <Feather name="log-out" size={18} color={colors.destructive} />
+              <Feather name="log-out" size={18} color={colors.destructiveText} />
             </View>
-            <Text style={[styles.rowLabel, { color: colors.destructive, fontFamily: colors.fontFamily.sansSemiBold }]}>
+            <Text style={[styles.rowLabel, { color: colors.destructiveText, fontFamily: colors.fontFamily.sansSemiBold }]}>
               Sign out
             </Text>
           </View>

@@ -158,8 +158,8 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
               </View>
             ) : item.verificationStatus === 'rejected' ? (
               <View style={[styles.verifyChip, { borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '1A' }]}>
-                <Feather name="shield-off" size={10} color={colors.destructive} />
-                <Text style={[styles.verifyChipText, { color: colors.destructive, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                <Feather name="shield-off" size={10} color={colors.destructiveText} />
+                <Text style={[styles.verifyChipText, { color: colors.destructiveText, fontFamily: colors.fontFamily.sansSemiBold }]}>
                   Not approved
                 </Text>
               </View>

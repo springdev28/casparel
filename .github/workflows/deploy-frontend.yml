@@ -81,7 +81,7 @@ jobs:
             artifacts/app/node_modules/playwright-core
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
 
-      - name: Audit the public pages in a real browser
+      - name: Audit the app in a real browser
         working-directory: artifacts/app
         run: node scripts/audit-pages.mjs
 

@@ -118,7 +118,10 @@ lifts those AI limits. The paywall story writes itself, "unlimited AI deep-resea
 - **Learning depth:** open-education catalog (Open Library, Wikibooks), reading lists, classes, schedules, study sessions w/ RSVP, forum, DMs, guided learning workflow.
 - **AI & integrations:** cost-gated OpenAI deep-research & discovery, Google Calendar/Classroom sync, iCal feed, the premium-tier candidates.
 - **Design system:** `edu-ds` (Radix + shadcn + tokens) with native RN components; completed rebrand.
-- **Engineering discipline:** migration-only DB, strict typecheck gates, k6 load tests, real coverage, plus a headless-Chromium page audit (`artifacts/app/scripts/audit-pages.mjs`).
+- **Engineering discipline:** migration-only DB, strict typecheck gates, k6 load tests, real coverage, and a
+  headless-Chromium page audit (`artifacts/app/scripts/audit-pages.mjs`) covering 27 renders across public and
+  signed-in pages, both interface palettes, and mobile width. CI runs the whole gate, and the deploy workflow runs
+  it again before uploading, so a red build cannot reach production.
 
 ### Desktop (added)
 
