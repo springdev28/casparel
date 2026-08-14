@@ -498,6 +498,14 @@ router.patch(
               role: parsed.data.role,
               activeRole: parsed.data.role,
               gradeOrDept: null,
+              // Self-service role changes must drop account verification.
+              // Without this, anyone could self-promote to teacher, get
+              // verified, switch back, and keep verification — which would
+              // make every verified submitter's auto-publish trivially
+              // forgeable.
+              teacherVerified: false,
+              verifiedAt: null,
+              verifiedById: null,
             },
       )
       .where(eq(usersTable.id, userId))

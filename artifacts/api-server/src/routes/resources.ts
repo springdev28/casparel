@@ -7,6 +7,7 @@ import {
   usersTable,
   learningGoalsTable,
   activityLogTable,
+  catalogResourcesTable,
 } from "@workspace/db";
 import {
   ListResourcesResponse,
@@ -81,6 +82,50 @@ function canonicalResourceUrl(raw: string) {
   } catch {
     return raw.trim().replace(/\/$/, "").toLocaleLowerCase();
   }
+}
+
+/**
+ * Decide a new submission's verification state at insert time.
+ *
+ * Two things auto-clear, so the review queue drains at the source instead of
+ * growing with every submission:
+ *  • the URL is already in the vetted catalog (this covers "Add to library" on
+ *    discover results, which is the highest-volume submission path), and
+ *  • the submitter is an admin or a verified account.
+ *
+ * Everything else starts "unverified". Host provenance (.edu/.gov) is
+ * deliberately NOT a trust signal here — personal pages under those domains are
+ * trivially obtainable.
+ */
+async function classifySubmission(
+  url: string,
+  userId: number,
+  accountRole: string,
+): Promise<{
+  verificationStatus: "unverified" | "verified";
+  verificationSource: "catalog" | "trusted-submitter" | null;
+}> {
+  const [inCatalog] = await db
+    .select({ id: catalogResourcesTable.id })
+    .from(catalogResourcesTable)
+    .where(eq(catalogResourcesTable.canonicalUrl, canonicalResourceUrl(url)))
+    .limit(1);
+  if (inCatalog) {
+    return { verificationStatus: "verified", verificationSource: "catalog" };
+  }
+
+  if (accountRole === "admin") {
+    return { verificationStatus: "verified", verificationSource: "trusted-submitter" };
+  }
+  const [submitter] = await db
+    .select({ teacherVerified: usersTable.teacherVerified })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  if (submitter?.teacherVerified === true) {
+    return { verificationStatus: "verified", verificationSource: "trusted-submitter" };
+  }
+
+  return { verificationStatus: "unverified", verificationSource: null };
 }
 
 function queryString(value: unknown): string | undefined {
@@ -1560,18 +1605,22 @@ router.post(
   contentLimiter,
   requireAuth,
   async (req, res): Promise<void> => {
-    const { userId, userRole } = req as AuthenticatedRequest;
+    const { userId, userRole, accountRole } = req as AuthenticatedRequest;
     const parsed = CreateResourceBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
     }
+    // Verification is always computed server-side — it is absent from
+    // CreateResourceBody, so a client can never assert its own status.
+    const verification = await classifySubmission(parsed.data.url, userId, accountRole);
     const [resource] = await db
       .insert(resourcesTable)
       .values({
         ...parsed.data,
         submittedById: userId,
         workspaceRole: userRole as "student" | "teacher",
+        ...verification,
       })
       .returning();
     res.status(201).json(

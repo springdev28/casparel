@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, pgEnum, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -24,7 +24,18 @@ export const usersTable = pgTable("users", {
   showGradeOrDept: boolean("show_grade_or_dept").notNull().default(true),
   showWebsite: boolean("show_website").notNull().default(true),
   websiteUrl: text("website_url"),
+  // NOTE: despite the name, this is the *account-verified* flag — a verified
+  // student also has teacher_verified = true. It grants publishing trust only:
+  // a verified submitter's resources skip the review queue. It does NOT grant
+  // teacher powers — forum approval gates on (role === "teacher" && this flag),
+  // so never treat this column alone as "is a teacher".
   teacherVerified: boolean("teacher_verified").notNull().default(false),
+  verifiedAt: timestamp("verified_at", { withTimezone: true, mode: "string" }),
+  verifiedById: integer("verified_by_id"),
+  verificationRequestedAt: timestamp("verification_requested_at", {
+    withTimezone: true,
+    mode: "string",
+  }),
   plan: text("plan").notNull().default("free"),
   planExpiresAt: timestamp("plan_expires_at", { withTimezone: true, mode: "string" }),
   bannedAt: timestamp("banned_at", { withTimezone: true, mode: "string" }),

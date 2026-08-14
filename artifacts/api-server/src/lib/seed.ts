@@ -62,6 +62,8 @@ async function seed() {
       subject: "Mathematics",
       gradeLevel: "10th Grade",
       submittedById: teacher.id,
+      verificationStatus: "verified",
+      verificationSource: "reviewer",
     })
     .returning();
 
@@ -75,6 +77,8 @@ async function seed() {
       subject: "Mathematics",
       gradeLevel: "12th Grade",
       submittedById: teacher.id,
+      verificationStatus: "verified",
+      verificationSource: "reviewer",
     })
     .returning();
 

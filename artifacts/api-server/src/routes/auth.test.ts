@@ -290,6 +290,32 @@ describe("PATCH /api/users/me/role", () => {
     expect(decoded?.role).toBe("teacher");
   });
 
+  it("clears account verification on a self-service role switch", async () => {
+    // Verification lets a submitter's resources publish without review, so it
+    // must not survive a self-chosen role change — otherwise anyone could
+    // self-promote to teacher, get verified, switch back, and keep the trust.
+    mockUserRow = {
+      id: USER_ID,
+      email: "mallory@example.com",
+      name: "Mallory",
+      role: "student",
+      createdAt: new Date().toISOString(),
+    };
+
+    const res = await request(buildApp())
+      .patch("/api/users/me/role")
+      .set("Authorization", `Bearer ${issueToken(USER_ID, "teacher")}`)
+      .send({ role: "student" });
+
+    expect(res.status).toBe(200);
+    expect(lastUpdated).toMatchObject({
+      role: "student",
+      teacherVerified: false,
+      verifiedAt: null,
+      verifiedById: null,
+    });
+  });
+
   it("returns 400 for an invalid role value", async () => {
     const token = `Bearer ${issueToken(USER_ID, "teacher")}`;
 

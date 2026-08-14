@@ -854,22 +854,45 @@ router.patch("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<voi
 
 router.patch("/admin/users/:id/teacher-verification", requireAdmin, async (req, res): Promise<void> => {
   const targetId = Number(req.params.id);
-  const verified = req.body?.verified === true;
   if (!targetId) {
     res.status(400).json({ error: "Invalid user ID" });
     return;
   }
+  // Parse strictly: a malformed body used to be read as `verified === false`,
+  // which silently REMOVED verification instead of rejecting the request.
+  const body = z.object({ verified: z.boolean() }).strict().safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Expected { verified: boolean }" });
+    return;
+  }
+  const { verified } = body.data;
+
   const [target] = await db
     .select({ role: usersTable.role })
     .from(usersTable)
     .where(eq(usersTable.id, targetId));
-  if (!target || target.role !== "teacher") {
-    res.status(400).json({ error: "Only teacher accounts can be verified" });
+  if (!target) {
+    res.status(404).json({ error: "User not found" });
     return;
   }
+  // Verification is an ACCOUNT-level trust flag (it lets a submitter's
+  // resources publish without review), so students can hold it too. Admins are
+  // trusted implicitly and are excluded — they also can never be role
+  // "teacher", so the old teacher-only gate made allowlisted admins permanently
+  // unverifiable.
+  if (target.role === "admin") {
+    res.status(400).json({ error: "Admin accounts are trusted implicitly" });
+    return;
+  }
+
+  const { userId } = req as import("../middlewares/requireAuth").AuthenticatedRequest;
   const [user] = await db
     .update(usersTable)
-    .set({ teacherVerified: verified })
+    .set({
+      teacherVerified: verified,
+      verifiedAt: verified ? new Date().toISOString() : null,
+      verifiedById: verified ? userId : null,
+    })
     .where(eq(usersTable.id, targetId))
     .returning(adminUserSelection);
   res.json(user);
