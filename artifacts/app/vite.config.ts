@@ -65,6 +65,11 @@ export default defineConfig({
         // default per-dynamic-import splitting so they stay off the critical
         // path and only load with the lazy page that uses them.
         manualChunks(id) {
+          // The generated API client is imported by nearly every page, so it
+          // was being hoisted into the shared app chunk. Naming it keeps it in
+          // one long-lived cache entry instead of invalidating with app code.
+          if (id.includes('api-client-react')) return 'api-client';
+
           if (!id.includes('node_modules')) return;
           if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-is)[\\/]/.test(id))
             return 'react-vendor';
@@ -72,6 +77,18 @@ export default defineConfig({
             return 'icons';
           if (id.includes('@radix-ui')) return 'radix';
           if (id.includes('@tanstack')) return 'query';
+
+          // p5 (~1MB) is a vanta dependency. It was being hoisted into the
+          // shared app chunk and downloaded on every first paint even though
+          // only the decorative background needs it. Naming it keeps it with
+          // vanta, and since the only importer is the lazily-mounted
+          // VantaBackground it stays off the critical path entirely.
+          if (/[\\/]node_modules[\\/](p5|vanta)[\\/]/.test(id)) return 'ambient';
+
+          // NOTE: do NOT name chunks for recharts / @xyflow / @dnd-kit and
+          // friends. They are only reached through lazy pages, and naming them
+          // pulls them into the entry's static import graph — measurably worse
+          // than leaving them inside the lazy page chunk that uses them.
         },
       },
     },
