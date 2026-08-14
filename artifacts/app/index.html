@@ -35,9 +35,81 @@
       type="font/woff2"
       crossorigin
     />
+    <!-- Structured data. The app renders client-side, so the served HTML is
+         otherwise an empty shell — crawlers read this without executing any
+         JavaScript. Deliberately no aggregateRating or review markup: there is
+         no real rating data behind it, and fabricated review markup is a
+         manual-action risk. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://casparel.com/#organization",
+            "name": "Casparel",
+            "url": "https://casparel.com/",
+            "logo": "https://casparel.com/apple-touch-icon.png"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://casparel.com/#website",
+            "name": "Casparel",
+            "url": "https://casparel.com/",
+            "publisher": { "@id": "https://casparel.com/#organization" },
+            "inLanguage": "en",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://casparel.com/resources?q={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://casparel.com/#app",
+            "name": "Casparel",
+            "url": "https://casparel.com/",
+            "applicationCategory": "EducationalApplication",
+            "operatingSystem": "Web",
+            "browserRequirements": "Requires JavaScript",
+            "description": "Discover vetted open-education resources, organise classes and schedules, and research any source with AI.",
+            "publisher": { "@id": "https://casparel.com/#organization" },
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD",
+              "description": "The open-education library is free to use."
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <!-- Crawlers execute JavaScript, but not always and not immediately. This
+         gives the page real content and working links on the first fetch. -->
+    <noscript>
+      <main>
+        <h1>Casparel &mdash; learn, organise, study</h1>
+        <p>
+          Casparel is a free, vetted library of open education for students and
+          teachers, with the classes, schedules and study tools to work through
+          it &mdash; and AI source research that tells you who is behind any
+          resource before you rely on it.
+        </p>
+        <ul>
+          <li>A vetted catalog drawn from Open Library, Wikibooks and other open sources.</li>
+          <li>Classes, reading lists, schedules and study sessions in one place.</li>
+          <li>AI source research with a credibility assessment and cited evidence.</li>
+        </ul>
+        <p><a href="/resources">Browse the library</a> &middot; <a href="/auth/register">Create a free account</a></p>
+        <p>Casparel needs JavaScript enabled to run the full app.</p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
