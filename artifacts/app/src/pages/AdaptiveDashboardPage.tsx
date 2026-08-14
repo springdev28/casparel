@@ -621,7 +621,10 @@ const signals = [
 function TeacherView({ name }: { name?: string }) {
   const [, setLocation] = useLocation();
   const { data: learningSignals } = useGetLearningSignals();
-  const liveSignals = learningSignals?.signals.length
+  // Guarded field by field: a malformed but successful response (an object
+  // without `signals`) used to throw here, and an uncaught render error takes
+  // the whole app down, not just this panel.
+  const liveSignals = learningSignals?.signals?.length
     ? learningSignals.signals.map(
         (signal) =>
           [
@@ -632,11 +635,11 @@ function TeacherView({ name }: { name?: string }) {
           ] as const,
       )
     : signals;
-  const understandingPercent = learningSignals
-    ? Math.round((learningSignals.averageUnderstanding / 4) * 100)
-    : 0;
+  const understandingPercent = Math.round(
+    ((learningSignals?.averageUnderstanding ?? 0) / 4) * 100,
+  );
   const needsAttention =
-    learningSignals?.signals.reduce(
+    learningSignals?.signals?.reduce(
       (sum, signal) => sum + signal.stalledCount,
       0,
     ) ?? 0;

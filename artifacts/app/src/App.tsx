@@ -25,6 +25,7 @@ import {
 } from "@workspace/api-client-react";
 
 import { applyLastSavedColors } from "./components/ThemeCustomizer";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
 
 const AppShell = lazy(() => import("./components/AppShell"));
@@ -391,6 +392,11 @@ function App() {
   }, []);
 
   return (
+    // Wired in after a single malformed API field blanked the entire app: an
+    // uncaught render error unmounts the whole React tree, so the user gets a
+    // white page with nothing to act on and no clue what happened. The
+    // boundary turns that into a message and a reload, and logs the error.
+    <AppErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <UiTranslationRuntime />
       <TooltipProvider>
@@ -410,6 +416,7 @@ function App() {
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
+    </AppErrorBoundary>
   );
 }
 

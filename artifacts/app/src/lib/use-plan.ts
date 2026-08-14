@@ -50,20 +50,26 @@ export function usePlan(enabled = true): PlanState {
   // The server is authoritative whenever it answers, since it is what actually
   // enforces the limits; the role is the fallback for when it does not, which
   // is the case that used to downgrade the whole display to Free.
-  const unlimited = usage ? usage.unlimited : isAdmin;
+  const unlimited = usage ? usage.unlimited === true : isAdmin;
 
+  // Every field is read defensively, including the nested ones. This hook feeds
+  // the sidebar, which renders on every signed-in page, so a usage response
+  // that is served but malformed — an object missing `aiSearch`, an error body
+  // returned with a 200 — must not be able to throw. It did: `usage?.aiSearch`
+  // guarded the response but not the field inside it, and one such response
+  // took down the whole app, not just the plan card.
   return {
     label: usage?.plan ?? (isAdmin ? "Administrator" : "Free"),
     unlimited,
     aiSearch: {
-      used: usage?.aiSearch.used ?? 0,
-      limit: unlimited ? null : (usage?.aiSearch.limit ?? FALLBACK_SEARCH_LIMIT),
+      used: usage?.aiSearch?.used ?? 0,
+      limit: unlimited ? null : (usage?.aiSearch?.limit ?? FALLBACK_SEARCH_LIMIT),
     },
     deepResearch: {
-      used: usage?.deepResearch.used ?? 0,
+      used: usage?.deepResearch?.used ?? 0,
       limit: unlimited
         ? null
-        : (usage?.deepResearch.limit ?? FALLBACK_DEEP_LIMIT),
+        : (usage?.deepResearch?.limit ?? FALLBACK_DEEP_LIMIT),
     },
     pending: usage === undefined,
   };
