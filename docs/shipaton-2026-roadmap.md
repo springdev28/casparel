@@ -5,6 +5,8 @@
 This roadmap turns the [Casparel at Shipaton 2026 strategy brief](https://claude.ai/code/artifact/694e1e4a-7925-4000-81ce-8a09e918d091)
 into an ordered, trackable plan. It is the single source of truth for what ships, in what order, and why.
 
+**Related:** [`shipaton-2026-submission.md`](./shipaton-2026-submission.md) — ready-to-paste store + Devpost copy, screenshot plan, and demo shot list.
+
 ---
 
 ## 0. The bet in one paragraph
