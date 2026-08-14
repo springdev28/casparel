@@ -90,6 +90,7 @@ import {
   type DiscoveredResource,
   type SourceReview,
 } from "@workspace/api-client-react";
+import { VerificationBadge } from "../components/VerificationBadge";
 import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
 import { AUTH_LANGUAGES, useAuthLanguage } from "../lib/auth-locale";
@@ -496,6 +497,7 @@ function LibraryCard({
     avgRating: number;
     reviewCount: number;
     thumbnailUrl?: string | null;
+    verificationStatus?: "unverified" | "verified" | "rejected";
   };
   onClick: () => void;
   onRemove?: () => void;
@@ -546,6 +548,7 @@ function LibraryCard({
             {resource.title}
           </CardTitle>
           <FormatBadge format={resource.format} />
+          <VerificationBadge status={resource.verificationStatus} />
         </div>
         <CardDescription className="text-xs">
           {metaLine(resource.subject, resource.gradeLevel)}

@@ -194,6 +194,8 @@ export default function AppShell({ children }: AppShellProps) {
     () => window.matchMedia("(min-width: 768px)").matches,
   );
   const [secondaryDataReady, setSecondaryDataReady] = useState(false);
+  // Gates the decorative three.js background until the browser is idle.
+  const [ambientReady, setAmbientReady] = useState(false);
   const documentVisible = useDocumentVisibility();
   const queryClient = useQueryClient();
   const { data: me, isLoading: meLoading } = useGetMe();
@@ -229,6 +231,18 @@ export default function AppShell({ children }: AppShellProps) {
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);
+  useEffect(() => {
+    if (!isDesktop) return;
+    if ("requestIdleCallback" in window) {
+      const requestId = window.requestIdleCallback(
+        () => setAmbientReady(true),
+        { timeout: 3_000 },
+      );
+      return () => window.cancelIdleCallback(requestId);
+    }
+    const timer = globalThis.setTimeout(() => setAmbientReady(true), 1_500);
+    return () => globalThis.clearTimeout(timer);
+  }, [isDesktop]);
   useEffect(() => {
     setSecondaryDataReady(false);
     if (!signedIn) return;
@@ -1103,7 +1117,10 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Main content */}
         <main className="relative flex-1 min-w-0 bg-background text-foreground overflow-auto md:pt-0 pt-14">
-          {isDesktop ? (
+          {/* The ambient background pulls in three.js (~600KB), so it is kept
+              off the critical path: nothing is requested until the app is
+              idle, and nothing at all when the effect is switched off. */}
+          {isDesktop && ambientReady && ambientStyle !== "off" ? (
             <Suspense fallback={null}>
               <VantaBackground
                 style={ambientStyle}

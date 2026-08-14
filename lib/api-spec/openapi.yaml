@@ -2709,6 +2709,12 @@ components:
         avgRating: { type: number }
         reviewCount: { type: integer }
         createdAt: { type: string }
+        # Trust state for user-submitted resources. Optional so that older
+        # producers and cached clients keep working; computed server-side and
+        # never accepted from the client (absent from ResourceInput).
+        verificationStatus:
+          { type: string, enum: [unverified, verified, rejected] }
+        verificationNote: { type: ["string", "null"] }
 
     ResourceInput:
       type: object
