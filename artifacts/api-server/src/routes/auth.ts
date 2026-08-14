@@ -45,6 +45,7 @@ import {
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import { isPremiumAccount } from "../lib/entitlements";
+import { publicUserColumns } from "../lib/userColumns";
 import {
   requireAuth,
   type AuthenticatedRequest,
@@ -298,7 +299,7 @@ router.post(
     const [user] = await db
       .insert(usersTable)
       .values({ email, passwordHash, name, role })
-      .returning();
+      .returning(publicUserColumns);
     const token = issueToken(user.id, user.role, user.activeRole);
     res.status(201).json(RegisterResponse.parse({ user, token }));
   },
@@ -312,26 +313,29 @@ router.post("/auth/login", authRateLimiter, async (req, res): Promise<void> => {
     return;
   }
   const { email, password } = parsed.data;
-  const [user] = await db
-    .select()
+  // Project explicitly (contract fields + the hash we need to verify against)
+  // so a pending migration can never take down login itself.
+  const [row] = await db
+    .select({ ...publicUserColumns, passwordHash: usersTable.passwordHash })
     .from(usersTable)
     .where(eq(usersTable.email, email));
-  if (!user) {
+  if (!row) {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
-  const ok = await verifyPassword(password, user.passwordHash);
+  const ok = await verifyPassword(password, row.passwordHash);
   if (!ok) {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
+  const { passwordHash: _passwordHash, ...user } = row;
   let loggedInUser = user;
   if (user.role !== "admin" && isAllowlistedAdminEmail(user.email)) {
     [loggedInUser] = await db
       .update(usersTable)
       .set({ role: "admin" })
       .where(eq(usersTable.id, user.id))
-      .returning();
+      .returning(publicUserColumns);
   }
   const token = issueToken(
     loggedInUser.id,
@@ -355,26 +359,7 @@ router.get("/users/me", requireAuth, async (req, res): Promise<void> => {
   // database has not migrated yet — and because the whole sidebar (profile,
   // plan, role switcher) is gated on this one call, that failure blanks it.
   const [user] = await db
-    .select({
-      id: usersTable.id,
-      email: usersTable.email,
-      name: usersTable.name,
-      role: usersTable.role,
-      activeRole: usersTable.activeRole,
-      avatarUrl: usersTable.avatarUrl,
-      bio: usersTable.bio,
-      subjects: usersTable.subjects,
-      gradeOrDept: usersTable.gradeOrDept,
-      timezone: usersTable.timezone,
-      websiteUrl: usersTable.websiteUrl,
-      profileVisibility: usersTable.profileVisibility,
-      libraryVisibility: usersTable.libraryVisibility,
-      showBio: usersTable.showBio,
-      showSubjects: usersTable.showSubjects,
-      showGradeOrDept: usersTable.showGradeOrDept,
-      showWebsite: usersTable.showWebsite,
-      createdAt: usersTable.createdAt,
-    })
+    .select(publicUserColumns)
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   if (!user) {
@@ -496,7 +481,7 @@ router.patch(
       .update(usersTable)
       .set(safeFields)
       .where(eq(usersTable.id, userId))
-      .returning();
+      .returning(publicUserColumns);
     res.json(UpdateMeResponse.parse(user));
   },
 );
@@ -533,7 +518,7 @@ router.patch(
             },
       )
       .where(eq(usersTable.id, userId))
-      .returning();
+      .returning(publicUserColumns);
     const token = issueToken(user.id, user.role, user.activeRole);
     res.json(SwitchRoleResponse.parse({ user, token }));
   },
@@ -574,7 +559,7 @@ router.post(
       .update(usersTable)
       .set({ avatarUrl: dataUrl })
       .where(eq(usersTable.id, userId))
-      .returning();
+      .returning(publicUserColumns);
     res.json(UploadAvatarResponse.parse(user));
   },
 );
@@ -599,7 +584,7 @@ router.put(
       .update(usersTable)
       .set({ avatarUrl })
       .where(eq(usersTable.id, userId))
-      .returning();
+      .returning(publicUserColumns);
     res.json(SetPresetAvatarResponse.parse(user));
   },
 );
