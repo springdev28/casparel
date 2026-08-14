@@ -397,17 +397,12 @@ router.get("/resources", async (req, res): Promise<void> => {
     // Limit the resource rows before calculating their review summaries. The
     // common newest/relevance paths should not aggregate the whole catalog.
     const rows = await db
+      // Spread the shared projection rather than listing columns again: this
+      // list used to hand-maintain its own set and had silently fallen behind,
+      // omitting verificationStatus so a resource in review looked verified in
+      // every listing while the detail route reported it correctly.
       .select({
-        id: resourcesTable.id,
-        title: resourcesTable.title,
-        url: resourcesTable.url,
-        description: resourcesTable.description,
-        format: resourcesTable.format,
-        subject: resourcesTable.subject,
-        gradeLevel: resourcesTable.gradeLevel,
-        thumbnailUrl: resourcesTable.thumbnailUrl,
-        submittedById: resourcesTable.submittedById,
-        createdAt: resourcesTable.createdAt,
+        ...publicResourceColumns,
         avgRating: selectedAvgRating,
         reviewCount: selectedReviewCount,
       })
@@ -425,16 +420,7 @@ router.get("/resources", async (req, res): Promise<void> => {
   // two-query-per-result pattern and keeps response time flat as pages grow.
   const rows = await db
     .select({
-      id: resourcesTable.id,
-      title: resourcesTable.title,
-      url: resourcesTable.url,
-      description: resourcesTable.description,
-      format: resourcesTable.format,
-      subject: resourcesTable.subject,
-      gradeLevel: resourcesTable.gradeLevel,
-      thumbnailUrl: resourcesTable.thumbnailUrl,
-      submittedById: resourcesTable.submittedById,
-      createdAt: resourcesTable.createdAt,
+      ...publicResourceColumns,
       avgRating,
       reviewCount,
     })
