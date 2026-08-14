@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { decodeToken } from "../lib/auth";
+import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 
 export interface AuthenticatedRequest extends Request {
   userId: number;
@@ -34,32 +35,54 @@ export function requireAuth(
     return;
   }
 
-  void db
+  void resolveAuthenticatedUser(req, res, next, payload.userId).catch(next);
+}
+
+async function resolveAuthenticatedUser(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  userId: number,
+): Promise<void> {
+  const [user] = await db
     .select({
       id: usersTable.id,
+      email: usersTable.email,
       role: usersTable.role,
       activeRole: usersTable.activeRole,
       bannedAt: usersTable.bannedAt,
     })
     .from(usersTable)
-    .where(eq(usersTable.id, payload.userId))
-    .then(([user]) => {
-      if (!user) {
-        res.status(401).json({ error: "User not found" });
-        return;
-      }
-      if (user.bannedAt && !bannedAccountRouteAllowed(req)) {
-        res.status(423).json({
-          error: "This account has been banned",
-          code: "ACCOUNT_BANNED",
-        });
-        return;
-      }
-      const request = req as AuthenticatedRequest;
-      request.userId = user.id;
-      request.userRole = user.activeRole ?? user.role;
-      request.accountRole = user.role;
-      next();
-    })
-    .catch(next);
+    .where(eq(usersTable.id, userId));
+
+  if (!user) {
+    res.status(401).json({ error: "User not found" });
+    return;
+  }
+  if (user.bannedAt && !bannedAccountRouteAllowed(req)) {
+    res.status(423).json({
+      error: "This account has been banned",
+      code: "ACCOUNT_BANNED",
+    });
+    return;
+  }
+
+  // Keep allowlisted admins promoted on any authenticated request, not just at
+  // login — otherwise a long-lived session keeps its stale non-admin role until
+  // the user happens to sign in again. The write happens at most once.
+  let accountRole = user.role;
+  if (accountRole !== "admin" && user.email && isAllowlistedAdminEmail(user.email)) {
+    const [promoted] = await db
+      .update(usersTable)
+      .set({ role: "admin" })
+      .where(eq(usersTable.id, user.id))
+      .returning({ role: usersTable.role });
+    if (promoted?.role) accountRole = promoted.role;
+  }
+
+  const request = req as AuthenticatedRequest;
+  request.userId = user.id;
+  request.userRole = user.activeRole ?? user.role;
+  request.accountRole = accountRole;
+  next();
 }

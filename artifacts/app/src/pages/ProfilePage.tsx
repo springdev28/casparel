@@ -36,6 +36,7 @@ import { Progress } from '@workspace/edu-ds/components/ui/progress';
 import { Switch } from '@workspace/edu-ds/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/edu-ds/components/ui/dialog';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
+import { PlanCard } from '../components/PlanSection';
 import {
   useGetMe,
   useUpdateMe,
@@ -475,6 +476,9 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Plan — same location as the mobile app (Profile → Plan) */}
+      <PlanCard />
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck size={16} className="text-primary" />Privacy & discovery</CardTitle>
