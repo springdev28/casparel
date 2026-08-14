@@ -27,7 +27,7 @@ function UsageMeter({
         <span className="text-muted-foreground">{label}</span>
         <span
           className={
-            nearLimit ? "font-medium text-destructive" : "text-muted-foreground"
+            nearLimit ? "font-medium text-destructive-text" : "text-muted-foreground"
           }
         >
           {unlimited ? "Unlimited" : `${used} / ${limit} today`}
@@ -65,7 +65,7 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
   if (plan.unlimited) {
     return (
       <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Check className="size-4 text-primary" />
+        <Check className="size-4 text-primary-text" />
         Unlimited AI research and discovery is unlocked.
       </p>
     );
@@ -103,7 +103,7 @@ function PlanBadge() {
   const plan = usePlan();
   return (
     <span
-      className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary"
+      className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary-text"
       data-testid="plan-badge"
     >
       {plan.label}
@@ -124,7 +124,7 @@ export function PlanSection() {
   return (
     <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
       <div className="flex min-w-0 gap-3">
-        <Crown className="mt-0.5 size-5 shrink-0 text-primary" />
+        <Crown className="mt-0.5 size-5 shrink-0 text-primary-text" />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold">Plan</h2>
@@ -153,7 +153,7 @@ export function PlanCard() {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <Crown size={16} className="text-primary" />
+          <Crown size={16} className="text-primary-text" />
           Plan
           <PlanBadge />
         </CardTitle>

@@ -38,7 +38,8 @@ const PAGES = (process.env.AUDIT_PAGES ?? "/,/auth/login,/auth/register").split(
 // where the regressions that reached production actually were, so they matter
 // more than the public pages, not less.
 const SIGNED_IN_PAGES = (
-  process.env.AUDIT_SIGNED_IN_PAGES ?? "/dashboard,/profile,/resources,/settings"
+  process.env.AUDIT_SIGNED_IN_PAGES ??
+  "/dashboard,/profile,/resources,/catalog,/settings,/admin"
 )
   .split(",")
   .filter(Boolean);
@@ -120,12 +121,15 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
 });
 
-async function audit(pathname, colorScheme, width, { signedIn = false } = {}) {
+async function audit(pathname, colorScheme, width, options = {}) {
+  const { signedIn = false, palette } = options;
   const ctx = await browser.newContext({
     viewport: { width, height: 900 },
     colorScheme,
   });
-  const unfixtured = signedIn ? await installSession(ctx) : new Set();
+  const unfixtured = signedIn
+    ? await installSession(ctx, { palette })
+    : new Set();
   const page = await ctx.newPage();
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(String(e).slice(0, 140)));
@@ -163,7 +167,7 @@ async function audit(pathname, colorScheme, width, { signedIn = false } = {}) {
     unfixtured: [...unfixtured],
   };
   await ctx.close();
-  return { pathname, colorScheme, width, signedIn, findings };
+  return { pathname, colorScheme, width, signedIn, palette, findings };
 }
 
 const results = [];
@@ -173,18 +177,31 @@ for (const pathname of PAGES) {
   }
   results.push(await audit(pathname, "dark", 390));
 }
+// Signed-in pages vary by saved palette, not by prefers-color-scheme, so that
+// is what is swept here.
 for (const pathname of SIGNED_IN_PAGES) {
-  for (const scheme of ["dark", "light"]) {
-    results.push(await audit(pathname, scheme, 1280, { signedIn: true }));
+  for (const palette of ["dark", "light"]) {
+    results.push(
+      await audit(pathname, palette, 1280, { signedIn: true, palette }),
+    );
   }
-  results.push(await audit(pathname, "dark", 390, { signedIn: true }));
+  results.push(
+    await audit(pathname, "dark", 390, { signedIn: true, palette: "dark" }),
+  );
 }
 await browser.close();
 server.close();
 
 let failed = 0;
 const unfixtured = new Set();
-for (const { pathname, colorScheme, width, signedIn, findings } of results) {
+for (const {
+  pathname,
+  colorScheme,
+  width,
+  signedIn,
+  palette,
+  findings,
+} of results) {
   const problems = [
     ...findings.lowContrast.map(
       (c) => `contrast ${c.ratio} < ${c.min} — "${c.text}"`,
@@ -201,8 +218,9 @@ for (const { pathname, colorScheme, width, signedIn, findings } of results) {
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind
   // the app, which is worth saying out loud without blocking the build.
   for (const p of findings.unfixtured ?? []) unfixtured.add(p);
-  const label =
-    `${pathname} [${colorScheme}, ${width}px` + (signedIn ? ", signed in]" : "]");
+  const label = signedIn
+    ? `${pathname} [${palette} palette, ${width}px, signed in]`
+    : `${pathname} [${colorScheme}, ${width}px]`;
   if (problems.length === 0) {
     console.log(`ok   ${label}`);
   } else {

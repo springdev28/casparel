@@ -152,7 +152,7 @@ export default function ListsPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 -mt-1 -mr-1"
+                    className="shrink-0 text-muted-foreground hover:text-destructive-text hover:bg-destructive/10 -mt-1 -mr-1"
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeleteTarget({ id: list.id, name: list.name });

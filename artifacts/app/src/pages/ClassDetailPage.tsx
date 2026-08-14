@@ -534,7 +534,7 @@ export default function ClassDetailPage() {
                       {member.user.avatarUrl ? <img src={member.user.avatarUrl} alt={member.user.name + " profile"} className="h-full w-full object-cover" /> : <span className="text-xs font-semibold text-muted-foreground uppercase">{member.user.name.charAt(0)}</span>}
                     </div>
                     <div>
-                      <button className="text-left text-sm font-medium text-foreground hover:text-primary hover:underline" onClick={() => setLocation(`/profile/${member.userId}${isTeacher ? `?classId=${classId}` : ""}`)}>{member.user.name}</button>
+                      <button className="text-left text-sm font-medium text-foreground hover:text-primary-text hover:underline" onClick={() => setLocation(`/profile/${member.userId}${isTeacher ? `?classId=${classId}` : ""}`)}>{member.user.name}</button>
                       {member.user.gradeOrDept && (
                         <p className="text-xs text-muted-foreground">{member.user.gradeOrDept}</p>
                       )}
@@ -546,7 +546,7 @@ export default function ClassDetailPage() {
                       Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true })}
                     </span>
                     {isTeacher && member.role === 'student' && <Button size="sm" variant="outline" onClick={() => setActiveTab('notes')}><StickyNote size={14} className="mr-1.5" />Note</Button>}
-                    {isTeacher && member.userId !== cls.teacherId && <Button size="icon" variant="ghost" className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setMemberToRemove({ userId: member.userId, name: member.user.name })} aria-label={"Remove " + member.user.name} data-testid="remove-class-member"><Trash2 size={14} /></Button>}
+                    {isTeacher && member.userId !== cls.teacherId && <Button size="icon" variant="ghost" className="size-8 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text" onClick={() => setMemberToRemove({ userId: member.userId, name: member.user.name })} aria-label={"Remove " + member.user.name} data-testid="remove-class-member"><Trash2 size={14} /></Button>}
                   </div>
                 </div>
               ))}
@@ -660,7 +660,7 @@ export default function ClassDetailPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          className="text-destructive-text hover:text-destructive-text hover:bg-destructive/10"
                           onClick={() => handleRemoveResource(item.resource.id)}
                           disabled={removeClassResource.isPending}
                           data-testid="remove-class-resource"

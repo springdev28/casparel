@@ -508,7 +508,7 @@ export function ClassAssignments({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-destructive"
+                    className="text-destructive-text"
                     onClick={() => void deleteAssignment(assignment.id)}
                   >
                     <Trash2 size={14} />

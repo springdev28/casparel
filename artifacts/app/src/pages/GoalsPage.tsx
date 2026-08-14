@@ -440,7 +440,7 @@ export default function GoalsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Target className="size-6 text-primary" />
+            <Target className="size-6 text-primary-text" />
             Learning goals
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -607,7 +607,7 @@ export default function GoalsPage() {
         <section className="rounded-xl border bg-card p-4" data-testid="manage-student-goals">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="flex items-center gap-2 font-semibold"><Users className="size-4 text-primary" /> Manage students&apos; goals</h2>
+              <h2 className="flex items-center gap-2 font-semibold"><Users className="size-4 text-primary-text" /> Manage students&apos; goals</h2>
               <p className="text-xs text-muted-foreground">Review and update goals for students in your classes.</p>
             </div>
             <Select value={managedClassId ? String(managedClassId) : ""} onValueChange={(value) => setManagedClassId(Number(value))}>
@@ -636,7 +636,7 @@ export default function GoalsPage() {
       <section className="space-y-4 border-y py-5" data-testid="community-study-paths">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Share2 className="size-5 text-primary" /> Community study paths
+            <Share2 className="size-5 text-primary-text" /> Community study paths
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Reuse checklists shared by students and teachers, then personalize
@@ -812,7 +812,7 @@ export default function GoalsPage() {
                           <Input defaultValue={step.title} key={`${step.id}:${step.title}`} aria-label={`Rename ${step.title}`} className={cn("h-8 min-w-0 flex-1 text-sm", step.completed && "text-muted-foreground line-through")} onBlur={(event) => { if (event.currentTarget.value.trim() !== step.title) void renameStep(goal, step.id, event.currentTarget.value); }} />
                           <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === 0} onClick={() => moveStep(goal, index, -1)} aria-label={`Move ${step.title} up`}><ArrowUp size={14} /></Button>
                           <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === goal.pathSteps.length - 1} onClick={() => moveStep(goal, index, 1)} aria-label={`Move ${step.title} down`}><ArrowDown size={14} /></Button>
-                          <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive" onClick={() => deleteStep(goal, step.id)} aria-label={`Delete ${step.title}`}><Trash2 size={14} /></Button>
+                          <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive-text" onClick={() => deleteStep(goal, step.id)} aria-label={`Delete ${step.title}`}><Trash2 size={14} /></Button>
                         </div>
                       ))}
                       <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); void addStep(goal); }}>

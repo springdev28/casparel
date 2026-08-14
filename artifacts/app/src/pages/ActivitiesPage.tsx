@@ -1243,7 +1243,7 @@ export default function ActivitiesPage({
                 <section className="border-y py-6">
                   {practiceComplete ? (
                     <div className="py-10 text-center">
-                      <p className="text-4xl font-bold text-primary">
+                      <p className="text-4xl font-bold text-primary-text">
                         {practiceCorrect} / {practiceOrder.length}
                       </p>
                       <p className="mt-2 font-medium">Practice complete</p>
@@ -1322,7 +1322,7 @@ export default function ActivitiesPage({
                 <section className="border-y py-6">
                   {quizComplete ? (
                     <div className="py-10 text-center">
-                      <p className="text-4xl font-bold text-primary">
+                      <p className="text-4xl font-bold text-primary-text">
                         {quizCorrect} / {quizOrder.length}
                       </p>
                       <p className="mt-2 font-medium">Quiz complete</p>
@@ -1382,7 +1382,7 @@ export default function ActivitiesPage({
                 <section className="border-y py-6">
                   {trueFalseComplete ? (
                     <div className="py-10 text-center">
-                      <p className="text-4xl font-bold text-primary">
+                      <p className="text-4xl font-bold text-primary-text">
                         {trueFalseCorrect} / {trueFalseOrder.length}
                       </p>
                       <p className="mt-2 font-medium">Round complete</p>
@@ -1441,7 +1441,7 @@ export default function ActivitiesPage({
                 <section className="border-y py-6">
                   {scrambleComplete ? (
                     <div className="py-10 text-center">
-                      <p className="text-4xl font-bold text-primary">
+                      <p className="text-4xl font-bold text-primary-text">
                         {scrambleCorrect} / {scrambleOrder.length}
                       </p>
                       <p className="mt-2 font-medium">Scramble complete</p>
@@ -1508,7 +1508,7 @@ export default function ActivitiesPage({
                 <section className="border-y py-6">
                   {missingComplete ? (
                     <div className="py-10 text-center">
-                      <p className="text-4xl font-bold text-primary">
+                      <p className="text-4xl font-bold text-primary-text">
                         {missingCorrect} / {missingOrder.length}
                       </p>
                       <p className="mt-2 font-medium">Activity complete</p>

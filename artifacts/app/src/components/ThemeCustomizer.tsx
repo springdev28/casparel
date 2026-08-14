@@ -137,6 +137,109 @@ function contrastingMutedForeground(hex: string) {
   return relativeLuminance(hex) <= 0.179 ? "0 0% 82%" : "225 10% 36%";
 }
 
+/** WCAG contrast ratio between two luminances. */
+function contrastRatio(a: number, b: number) {
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+const MIN_TEXT_CONTRAST = 4.5;
+
+function hslChannelsToLuminance(hue: number, saturation: number, l: number) {
+  // Minimal HSL to linear-luminance conversion, enough to score a candidate.
+  const c = (1 - Math.abs(2 * l - 1)) * saturation;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = l - c / 2;
+  const [r, g, b] = (
+    hue < 60
+      ? [c, x, 0]
+      : hue < 120
+        ? [x, c, 0]
+        : hue < 180
+          ? [0, c, x]
+          : hue < 240
+            ? [0, x, c]
+            : hue < 300
+              ? [x, 0, c]
+              : [c, 0, x]
+  ).map((channel) => {
+    const value = channel + m;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * The account's own primary, moved along the lightness axis until it is
+ * readable as text on this palette.
+ *
+ * `--primary` has two jobs: it fills the sidebar and buttons, where a deep
+ * navy is exactly right, and it tints text and icons on cards, where that same
+ * navy on a dark surface measures under 2:1. Since users pick their own
+ * colours, no single value can serve both. This keeps the hue and saturation
+ * they chose, so the interface still reads as theirs, and only lifts or drops
+ * the lightness far enough to clear 4.5:1 against both the page background and
+ * the card surface.
+ */
+function readableTextTint(tint: string, background: string, surface: string) {
+  const [hue, saturationPercent, lightnessPercent] = hexToHsl(tint)
+    .replace(/%/g, "")
+    .split(" ")
+    .map(Number);
+  const saturation = saturationPercent / 100;
+  const surfaces = [
+    relativeLuminance(background),
+    relativeLuminance(surface),
+  ];
+  const scores = (l: number) => {
+    const candidate = hslChannelsToLuminance(hue, saturation, l);
+    return Math.min(...surfaces.map((s) => contrastRatio(candidate, s)));
+  };
+
+  const start = lightnessPercent / 100;
+  if (scores(start) >= MIN_TEXT_CONTRAST) return hexToHsl(tint);
+
+  // Walk toward whichever end of the lightness axis the surfaces leave room in,
+  // in small steps, and stop at the first value that clears the floor.
+  const towardLight = Math.max(...surfaces) < 0.4;
+  for (let step = 1; step <= 20; step++) {
+    const l = towardLight
+      ? Math.min(0.97, start + step * 0.04)
+      : Math.max(0.05, start - step * 0.04);
+    if (scores(l) >= MIN_TEXT_CONTRAST) {
+      return `${hue} ${saturationPercent}% ${Math.round(l * 1000) / 10}%`;
+    }
+  }
+  // Nothing on this hue works, so fall back to plain contrast against the page.
+  return contrastingForeground(background);
+}
+
+// The two destructive reds from the design tokens, as HSL channels.
+const DESTRUCTIVE_TEXT_ON_LIGHT = "0 73.7% 41.8%"; // #b91c1c
+const DESTRUCTIVE_TEXT_ON_DARK = "0 90.6% 70.8%"; // #f87171
+const DESTRUCTIVE_TEXT_LUMINANCE = {
+  onLight: relativeLuminance("#b91c1c"),
+  onDark: relativeLuminance("#f87171"),
+};
+
+/**
+ * Pick the destructive red that stays readable against this palette.
+ *
+ * Error text, delete actions and the at-limit usage counts are the messages a
+ * user least wants to miss, and a custom palette can put them on a surface the
+ * token was not chosen for. The design system ships one red for light surfaces
+ * and one for dark; this picks whichever holds up better against *both* the
+ * page background and the card surface, since destructive text appears on each.
+ */
+function contrastingDestructiveText(background: string, surface: string) {
+  const surfaces = [relativeLuminance(background), relativeLuminance(surface)];
+  const worst = (candidate: number) =>
+    Math.min(...surfaces.map((s) => contrastRatio(candidate, s)));
+  return worst(DESTRUCTIVE_TEXT_LUMINANCE.onDark) >
+    worst(DESTRUCTIVE_TEXT_LUMINANCE.onLight)
+    ? DESTRUCTIVE_TEXT_ON_DARK
+    : DESTRUCTIVE_TEXT_ON_LIGHT;
+}
+
 function applyColors(colors: InterfaceColors) {
   const root = document.documentElement;
   const background = hexToHsl(colors.background);
@@ -171,6 +274,15 @@ function applyColors(colors: InterfaceColors) {
     "--sidebar-foreground": primaryForeground,
     "--sidebar-primary": primary,
     "--sidebar-primary-foreground": primaryForeground,
+    "--destructive-text": contrastingDestructiveText(
+      colors.background,
+      colors.surface,
+    ),
+    "--primary-text": readableTextTint(
+      colors.primary,
+      colors.background,
+      colors.surface,
+    ),
     "--accent": accent,
     "--accent-foreground": accentForeground,
     "--sidebar-accent": accent,

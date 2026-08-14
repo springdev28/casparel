@@ -299,7 +299,7 @@ export default function ListDetailPage() {
             <Button
               size="sm"
               variant="outline"
-              className="shrink-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              className="shrink-0 border-destructive text-destructive-text hover:bg-destructive hover:text-destructive-foreground"
               onClick={() => setLocation('/classes?connect_gc=1')}
               data-testid="gc-reconnect-button"
             >
@@ -470,7 +470,7 @@ export default function ListDetailPage() {
                     )}
                   </div>
                   {selectedCourseId === course.id && (
-                    <Check size={16} className="shrink-0 text-primary" />
+                    <Check size={16} className="shrink-0 text-primary-text" />
                   )}
                 </button>
               ))
@@ -565,7 +565,7 @@ function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  className="text-destructive-text hover:text-destructive-text hover:bg-destructive/10"
                   onClick={() => onRemove(item.id)}
                   disabled={isRemoving}
                   data-testid="remove-item-button"

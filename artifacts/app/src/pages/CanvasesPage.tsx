@@ -148,14 +148,14 @@ export default function CanvasesPage({
       <Card className="flex min-h-56 flex-col overflow-hidden">
         <CardHeader className="border-b bg-card/75">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <span className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary-text">
               <Icon size={18} />
             </span>
             <div className="flex items-center gap-1">
               <Badge variant="outline" className="capitalize">
                 {canvas.permissions.role.replace("-", " ")}
               </Badge>
-              {canvas.permissions.canManage ? <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="size-8" aria-label={`Manage ${canvas.title}`} title="Canvas menu"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48"><DropdownMenuItem onClick={() => setLocation(`/canvases/${canvas.id}?panel=details`)}><Pencil className="mr-2 size-4" />Edit details</DropdownMenuItem><DropdownMenuItem onClick={() => setLocation(`/canvases/${canvas.id}?panel=share`)}><Share2 className="mr-2 size-4" />Sharing and access</DropdownMenuItem><DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => void deleteCanvasFromCard(canvas)}><Trash2 className="mr-2 size-4" />Delete canvas</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}
+              {canvas.permissions.canManage ? <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="size-8" aria-label={`Manage ${canvas.title}`} title="Canvas menu"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48"><DropdownMenuItem onClick={() => setLocation(`/canvases/${canvas.id}?panel=details`)}><Pencil className="mr-2 size-4" />Edit details</DropdownMenuItem><DropdownMenuItem onClick={() => setLocation(`/canvases/${canvas.id}?panel=share`)}><Share2 className="mr-2 size-4" />Sharing and access</DropdownMenuItem><DropdownMenuItem className="text-destructive-text focus:text-destructive-text" onClick={() => void deleteCanvasFromCard(canvas)}><Trash2 className="mr-2 size-4" />Delete canvas</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}
             </div>
           </div>
           <CardTitle className="line-clamp-2 text-base">{canvas.title}</CardTitle>
@@ -184,7 +184,7 @@ export default function CanvasesPage({
     <div className={embedded ? "space-y-6" : "mx-auto max-w-7xl space-y-8 p-4 sm:p-6 lg:p-8"}>
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary">
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-primary-text">
             <BookOpenCheck size={16} /> Visual study spaces
           </div>
           <h1 className="text-2xl font-bold">{requestedClassId ? "Class canvas" : "Canvas"}</h1>
@@ -196,7 +196,7 @@ export default function CanvasesPage({
       </header>
 
       {loading ? (
-        <div className="flex min-h-52 items-center justify-center"><Loader2 className="size-6 animate-spin text-primary" /></div>
+        <div className="flex min-h-52 items-center justify-center"><Loader2 className="size-6 animate-spin text-primary-text" /></div>
       ) : !hasVisibleCanvases ? (
         <section className="border-y py-16 text-center">
           <LayoutDashboard className="mx-auto mb-4 size-10 text-muted-foreground" />

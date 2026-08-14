@@ -438,7 +438,7 @@ function InviteePicker({
           {selected.map((u) => (
             <span
               key={u.id}
-              className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary text-xs px-2.5 py-1"
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary-text text-xs px-2.5 py-1"
             >
               {u.name}
               <button
@@ -581,7 +581,7 @@ function StudySessionDetail({
           href={session.meetingUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+          className="inline-flex items-center gap-2 text-sm font-medium text-primary-text hover:underline"
         >
           <Video size={14} />
           {platform ? platform.label : "Join Meeting"}
@@ -727,7 +727,7 @@ function StudySessionDetail({
           <Button
             size="sm"
             variant="ghost"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5 ml-auto"
+            className="text-destructive-text hover:text-destructive-text hover:bg-destructive/10 gap-1.5 ml-auto"
             onClick={handleCancel}
             disabled={deleteSession.isPending}
           >
@@ -1574,7 +1574,7 @@ export default function SchedulePage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-muted-foreground hover:text-primary h-8 w-8 p-0"
+                    className="text-muted-foreground hover:text-primary-text h-8 w-8 p-0"
                     onClick={() => downloadBlockIcs(block.id)}
                     title="Export to Calendar"
                   >
@@ -1583,7 +1583,7 @@ export default function SchedulePage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                    className="text-destructive-text hover:text-destructive-text hover:bg-destructive/10 h-8 w-8 p-0"
                     onClick={() => handleDelete(block.id)}
                   >
                     <Trash2 size={14} />

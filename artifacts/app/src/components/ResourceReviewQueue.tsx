@@ -125,7 +125,7 @@ export function ResourceReviewQueue() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <ShieldCheck size={16} className="text-primary" />
+          <ShieldCheck size={16} className="text-primary-text" />
           Resource review queue
           {pendingTotal > 0 ? (
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">

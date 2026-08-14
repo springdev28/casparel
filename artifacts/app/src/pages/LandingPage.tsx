@@ -158,7 +158,7 @@ export default function LandingPage() {
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
-          <Link href="/" className="flex min-w-0 items-center text-primary">
+          <Link href="/" className="flex min-w-0 items-center text-primary-text">
             <BrandIcon className="mr-2 h-8 w-8 shrink-0" />
             <span className="font-bold text-lg tracking-tight text-foreground">
               Casparel
@@ -182,7 +182,7 @@ export default function LandingPage() {
                       className="size-7 rounded-full object-cover"
                     />
                   ) : (
-                    <UserRound className="size-4 text-primary" />
+                    <UserRound className="size-4 text-primary-text" />
                   )}
                 </span>
                 <span className="max-w-32 truncate text-sm font-medium">
@@ -203,7 +203,7 @@ export default function LandingPage() {
         <section className="mx-auto grid max-w-6xl gap-12 px-4 pb-16 pt-16 sm:pt-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-center">
           <div>
           <p className="rise mb-4 inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
-            <GraduationCap className="size-3.5 text-primary" />
+            <GraduationCap className="size-3.5 text-primary-text" />
             Built for students and teachers
           </p>
           <h1
@@ -211,7 +211,7 @@ export default function LandingPage() {
             style={{ animationDelay: "80ms" }}
           >
             Good learning starts with{" "}
-            <span className="text-primary">sources you can trust</span>.
+            <span className="text-primary-text">sources you can trust</span>.
           </h1>
           <p
             className="rise mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground"
@@ -252,7 +252,7 @@ export default function LandingPage() {
             aria-hidden="true"
           >
             <div className="flex items-center gap-2 border-b border-border pb-3">
-              <ScanSearch className="size-4 text-primary" />
+              <ScanSearch className="size-4 text-primary-text" />
               <span className="text-sm font-semibold">AI source research</span>
             </div>
             <div className="mt-4 flex items-start justify-between gap-3">
@@ -302,7 +302,7 @@ export default function LandingPage() {
                   className="reveal card-lift rounded-xl border border-border bg-card p-6"
                 >
                   <div className="mb-4 flex size-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Icon className="size-5 text-primary" />
+                    <Icon className="size-5 text-primary-text" />
                   </div>
                   <h3 className="font-semibold">{title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -327,7 +327,7 @@ export default function LandingPage() {
                   data-reveal-delay={index * 80}
                   className="reveal card-lift rounded-xl border border-border bg-card p-6"
                 >
-                  <p className="text-lg font-semibold text-primary">{metric}</p>
+                  <p className="text-lg font-semibold text-primary-text">{metric}</p>
                   <h3 className="mt-2 font-semibold">{title}</h3>
                   <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                     {body}
@@ -341,7 +341,7 @@ export default function LandingPage() {
         {/* Closing CTA */}
         <section className="border-t border-border bg-muted/30">
           <div className="reveal mx-auto max-w-3xl px-4 py-16 text-center">
-            <Sparkles className="mx-auto size-6 text-primary" />
+            <Sparkles className="mx-auto size-6 text-primary-text" />
             <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight">
               Start with one good source.
             </h2>
@@ -376,7 +376,7 @@ export default function LandingPage() {
       <footer className="border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p className="flex items-center gap-2">
-            <ShieldCheck className="size-4 text-primary" />
+            <ShieldCheck className="size-4 text-primary-text" />
             The library is free. Premium covers unlimited AI research, not access.
           </p>
           <p>© {new Date().getFullYear()} Casparel</p>

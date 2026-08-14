@@ -238,7 +238,7 @@ export default function ClassesPage() {
             <Button
               size="sm"
               variant="outline"
-              className="shrink-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              className="shrink-0 border-destructive text-destructive-text hover:bg-destructive hover:text-destructive-foreground"
               onClick={() => { setGcReconnectNeeded(false); handleConnectGoogle(); }}
               disabled={authUrlFetching}
               data-testid="gc-reconnect-button"

@@ -21,7 +21,7 @@ export default function PublicShell({ children }: PublicShellProps) {
           {/* Logo */}
           <Link
             href="/"
-            className="flex min-w-0 items-center text-primary transition-opacity hover:opacity-80"
+            className="flex min-w-0 items-center text-primary-text transition-opacity hover:opacity-80"
           >
             <BrandIcon className="mr-2 h-8 w-8 shrink-0 sm:h-9 sm:w-9" label="Casparel" />
             <span className="hidden font-bold text-lg tracking-tight text-foreground sm:inline">Casparel</span>

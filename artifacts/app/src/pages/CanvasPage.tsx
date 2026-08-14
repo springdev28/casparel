@@ -198,7 +198,7 @@ function StudyNodeCard({ id, data, selected }: NodeProps<StudyFlowNode>) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {NODE_COLORS.map((item) => <DropdownMenuItem key={item.value} onClick={() => actions.update(id, { color: item.value })}><span className={`mr-2 size-3 border ${item.className}`} />{item.value}</DropdownMenuItem>)}
-              <DropdownMenuItem className="text-destructive" onClick={() => actions.remove(id)}><Trash2 className="mr-2 size-4" />Delete card</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive-text" onClick={() => actions.remove(id)}><Trash2 className="mr-2 size-4" />Delete card</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
@@ -677,7 +677,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
     if (panel === "share" && canManage) void openSharing();
   }, [canvas?.id, canManage, routeSearch, shared]);
 
-  if (loading) return <div className={`flex ${pageHeight} items-center justify-center`}><Loader2 className="size-7 animate-spin text-primary" /></div>;
+  if (loading) return <div className={`flex ${pageHeight} items-center justify-center`}><Loader2 className="size-7 animate-spin text-primary-text" /></div>;
   if (!canvas || loadError) return <div className={`flex ${pageHeight} flex-col items-center justify-center gap-3 p-6 text-center`}><h1 className="text-xl font-bold">Canvas unavailable</h1><p className="text-sm text-muted-foreground">{loadError}</p>{!shared ? <Button variant="outline" onClick={() => setLocation("/canvases")}><ArrowLeft className="mr-2 size-4" />Back to canvases</Button> : null}</div>;
 
   const shareUrl = canvas.shareToken ? `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/canvas/shared/${canvas.shareToken}` : "";
@@ -730,7 +730,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
                 <DropdownMenuContent align="start" className="w-52">
                   <DropdownMenuItem onClick={() => setDetailsOpen(true)}><FileText className="mr-2 size-4" />Edit canvas details</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => void openSharing()}><Share2 className="mr-2 size-4" />Sharing and access</DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => void deleteCanvas()}><Trash2 className="mr-2 size-4" />Delete canvas</DropdownMenuItem>
+                  <DropdownMenuItem className="text-destructive-text focus:text-destructive-text" onClick={() => void deleteCanvas()}><Trash2 className="mr-2 size-4" />Delete canvas</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (

@@ -271,7 +271,7 @@ function inlineMarkdown(text: string, keyPrefix: string) {
           href={link[2]}
           target="_blank"
           rel="noreferrer"
-          className="text-primary underline underline-offset-2"
+          className="text-primary-text underline underline-offset-2"
         >
           {link[1]}
         </a>
@@ -830,7 +830,7 @@ export default function ForumPage({
             </Button>
           )}
           <div className="flex items-center gap-2">
-            <MessagesSquare className="size-6 text-primary" />
+            <MessagesSquare className="size-6 text-primary-text" />
             <h1 className="text-2xl font-bold">
               {catalogOnly ? "Material catalog" : classId ? "Class forum" : "Education forum"}
             </h1>
@@ -1151,7 +1151,7 @@ export default function ForumPage({
                               href={source}
                               target="_blank"
                               rel="noreferrer"
-                              className="block break-all text-primary hover:underline"
+                              className="block break-all text-primary-text hover:underline"
                             >
                               {source}
                             </a>
@@ -1228,7 +1228,7 @@ export default function ForumPage({
                           title="Delete material"
                           onClick={() => remove("material", material.id)}
                         >
-                          <Trash2 className="size-4 text-destructive" />
+                          <Trash2 className="size-4 text-destructive-text" />
                         </Button>
                       )}
                     </div>
@@ -1539,7 +1539,7 @@ export default function ForumPage({
                         <div className="grid grid-cols-[3.25rem_1fr]">
                         <aside className="flex flex-col items-center border-r bg-muted/45 py-3 text-xs font-bold">
                           <Button size="icon" variant="ghost" className="size-8" onClick={() => toggleLike("post", post.id)} title={post.likedByMe ? "Remove upvote" : "Upvote"}>
-                            <ArrowBigUp className={"size-6 " + (post.likedByMe ? "fill-primary text-primary" : "")} />
+                            <ArrowBigUp className={"size-6 " + (post.likedByMe ? "fill-primary text-primary-text" : "")} />
                           </Button>
                           <span>{post.likeCount}</span>
                         </aside>
@@ -1590,7 +1590,7 @@ export default function ForumPage({
                                   aria-label="Delete post"
                                   onClick={() => remove("post", post.id)}
                                 >
-                                  <Trash2 className="size-4 text-destructive" />
+                                  <Trash2 className="size-4 text-destructive-text" />
                                 </Button>
                               )}
                             </div>
@@ -1611,7 +1611,7 @@ export default function ForumPage({
                                   key={tag}
                                   type="button"
                                   onClick={() => setPostTag(tag)}
-                                  className="text-sm text-primary hover:underline"
+                                  className="text-sm text-primary-text hover:underline"
                                 >
                                   #{tag}
                                 </button>
@@ -1753,7 +1753,7 @@ export default function ForumPage({
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="rounded-none transition-colors hover:bg-primary/10 hover:text-primary"
+                              className="rounded-none transition-colors hover:bg-primary/10 hover:text-primary-text"
                               onClick={() => {
                                 setQuoteTarget(post);
                                 setPostMode("post");
@@ -1905,7 +1905,7 @@ function QuotedPostPreview({ post }: { post: QuotedPost | ForumPost | null }) {
   return (
     <div className="rounded-md border-l-4 border-l-primary bg-muted/35 p-3 transition-colors hover:bg-muted/55">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Quote className="size-3.5 text-primary" />
+        <Quote className="size-3.5 text-primary-text" />
         <span className="font-semibold text-foreground">{profileHandle(post.authorName)}</span>
         <span>{new Date(post.createdAt).toLocaleString()}</span>
       </div>
@@ -2165,7 +2165,7 @@ function CommentRow({
             title="Delete comment"
             onClick={() => onDelete("comment", comment.id)}
           >
-            <Trash2 className="size-3.5 text-destructive" />
+            <Trash2 className="size-3.5 text-destructive-text" />
           </Button>
         )}
       </div>

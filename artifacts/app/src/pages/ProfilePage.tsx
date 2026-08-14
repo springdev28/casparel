@@ -367,7 +367,7 @@ export default function ProfilePage() {
                   size="sm"
                   onClick={handleDisconnect}
                   disabled={disconnectGoogle.isPending}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 text-xs"
+                  className="text-destructive-text hover:text-destructive-text hover:bg-destructive/10 gap-1 text-xs"
                 >
                   <Unlink size={13} /> Disconnect
                 </Button>
@@ -459,7 +459,7 @@ export default function ProfilePage() {
         <CardContent className="pt-4 pb-3">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-sm font-medium text-foreground">Profile completeness</span>
-            <span className="text-sm font-semibold text-primary">{completeness}%</span>
+            <span className="text-sm font-semibold text-primary-text">{completeness}%</span>
           </div>
           <Progress value={completeness} className="h-2" />
           {completeness < 100 && (
@@ -481,7 +481,7 @@ export default function ProfilePage() {
       <PlanCard />
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck size={16} className="text-primary" />Privacy & discovery</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck size={16} className="text-primary-text" />Privacy & discovery</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {editing ? (
@@ -535,7 +535,7 @@ export default function ProfilePage() {
                 {me.avatarUrl ? (
                   <img src={me.avatarUrl} alt={me.name} className="w-full h-full object-cover" />
                 ) : (
-                  <User size={36} className="text-primary/60" />
+                  <User size={36} className="text-primary-text/60" />
                 )}
               </div>
               <button
@@ -671,7 +671,7 @@ export default function ProfilePage() {
                 {form.subjects.map((s) => (
                   <Badge key={s} variant="secondary" className="gap-1">
                     {s}
-                    <button onClick={() => removeSubject(s)} className="ml-0.5 hover:text-destructive">
+                    <button onClick={() => removeSubject(s)} className="ml-0.5 hover:text-destructive-text">
                       <X size={11} />
                     </button>
                   </Badge>
@@ -683,7 +683,7 @@ export default function ProfilePage() {
                   <button
                     key={s}
                     onClick={() => addSubject(s)}
-                    className="text-xs px-2 py-0.5 rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                    className="text-xs px-2 py-0.5 rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground hover:border-primary hover:text-primary-text transition-colors"
                   >
                     + {s}
                   </button>
@@ -786,7 +786,7 @@ export default function ProfilePage() {
                     href={me.websiteUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline truncate"
+                    className="text-sm text-primary-text hover:underline truncate"
                   >
                     {me.websiteUrl}
                   </a>

@@ -46,7 +46,7 @@ function StatCard({
 function activityIcon(type: string) {
   switch (type) {
     case ActivityItemType.review: return <Star size={14} className="text-amber-500" />;
-    case ActivityItemType.resource: return <BookOpen size={14} className="text-primary" />;
+    case ActivityItemType.resource: return <BookOpen size={14} className="text-primary-text" />;
     case ActivityItemType.list: return <List size={14} className="text-accent" />;
     case ActivityItemType.schedule: return <Calendar size={14} className="text-purple-500" />;
     case ActivityItemType.class: return <GraduationCap size={14} className="text-emerald-600" />;

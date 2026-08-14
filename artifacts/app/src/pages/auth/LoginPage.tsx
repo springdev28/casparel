@@ -148,7 +148,7 @@ export default function LoginPage() {
               {copy.noAccount}{" "}
               <Link
                 href="/auth/register"
-                className="text-primary font-medium hover:underline"
+                className="text-primary-text font-medium hover:underline"
                 data-testid="register-link"
               >
                 {copy.createOne}

@@ -64,6 +64,27 @@ const USAGE = {
   deepResearch: { used: 2, limit: 2, window: "day" },
 };
 
+/**
+ * Signed-in pages do not follow prefers-color-scheme: the app paints them from
+ * the account's saved interface colours. So that, not the OS setting, is the
+ * axis the audit has to vary, and it is why a dark-mode contrast bug on
+ * /resources could reach production while the audit stayed green.
+ */
+export const PALETTES = {
+  light: {
+    background: "#f4f6fb",
+    surface: "#ffffff",
+    primary: "#163a8a",
+    accent: "#dbeafe",
+  },
+  dark: {
+    background: "#0f1117",
+    surface: "#1a1e2a",
+    primary: "#1e3a8a",
+    accent: "#1e293b",
+  },
+};
+
 const PREFERENCES = {
   userId: 1,
   language: "en",
@@ -98,6 +119,14 @@ const RESOURCE = {
   averageRating: 4.5,
   ratingCount: 12,
   createdAt: "2026-02-11T09:00:00.000Z",
+};
+
+/** The admin user table returns more columns than the public User schema. */
+const ADMIN_USER_ROW = {
+  ...USER,
+  teacherVerified: true,
+  bannedAt: null,
+  bannedReason: null,
 };
 
 const LEARNING_GOAL = {
@@ -144,6 +173,81 @@ export const FIXTURES = {
   "/api/lists": [],
   "/api/class-invitations": [],
   "/api/google-classroom/status": { connected: false, configured: false },
+  "/api/lists/shared": [],
+  "/api/schedule": [],
+  "/api/study-sessions": [],
+  "/api/forum/access": { canPost: true, canModerate: true },
+  "/api/forum/materials": [],
+  "/api/forum/posts": [],
+  "/api/admin/users": [ADMIN_USER_ROW],
+  "/api/admin/resources/review-queue": [
+    {
+      ...RESOURCE,
+      id: 202,
+      title: "Community submission awaiting review",
+      verificationStatus: "unverified",
+      verificationNote: null,
+      submittedById: 1,
+    },
+  ],
+  // Shape mirrors the AdminOverview schema exactly; the numbers are made up but
+  // non-zero so the counters and tables actually render something to check.
+  "/api/admin/overview": {
+    users: 128,
+    students: 96,
+    teachers: 30,
+    admins: 2,
+    goals: 41,
+    resources: 512,
+    cachedResearchReports: 64,
+    plan: {
+      name: "Administrator",
+      status: "active",
+      aiSearchLimit: null,
+      deepResearchDailyLimit: null,
+    },
+    usage: {
+      aiSearchesToday: 12,
+      deepResearchToday: 4,
+      totalAiRequests: 830,
+      estimatedCostUsd: 4.21,
+      byFeature: {
+        search: { total: 500, month: 120, estimatedCostUsd: 1.2 },
+        "quick-review": { total: 200, month: 60, estimatedCostUsd: 0.9 },
+        "deep-research": { total: 90, month: 20, estimatedCostUsd: 1.8 },
+        metadata: { total: 40, month: 10, estimatedCostUsd: 0.31 },
+      },
+      byUser: [],
+    },
+    workflow: {
+      funnel: {
+        viewed: 400,
+        reviewed: 210,
+        saved: 150,
+        activityCreated: 80,
+        classShared: 40,
+        assignmentCreated: 25,
+        completedJourneys: 18,
+        viewToReviewRate: 0.53,
+        reviewToSaveRate: 0.71,
+        saveToActivityRate: 0.53,
+        activityToClassRate: 0.5,
+        classToAssignmentRate: 0.63,
+      },
+      engagement: {
+        activeUsers7d: 34,
+        activeUsers30d: 88,
+        weeklyActiveClasses: 6,
+        avgMinutesToFirstActivity: 12.5,
+        inviteAcceptanceRate: 0.68,
+        assignmentCompletionRate: 0.74,
+        remixRate: 0.21,
+        teacherApprovalRate: 0.92,
+        reportsPerThousand: 1.4,
+        estimatedStoredMb: 240,
+      },
+    },
+  },
   "/api/learning-signals": {
     evidenceCount: 0,
     learnerCount: 0,
@@ -161,14 +265,27 @@ export const FIXTURES = {
  */
 export async function installSession(context, options = {}) {
   const unfixtured = new Set();
+  const colors = PALETTES[options.palette ?? "light"] ?? PALETTES.light;
 
-  await context.addInitScript((token) => {
-    localStorage.setItem("schoolar_token", token);
-  }, sessionToken(options));
+  await context.addInitScript(
+    ({ token, colors: seededColors }) => {
+      localStorage.setItem("schoolar_token", token);
+      // The app reads this before /users/me lands, to avoid a flash of the
+      // default palette. Seeding it is what makes the palette take effect.
+      localStorage.setItem(
+        "schoolar_interface_colors:last",
+        JSON.stringify(seededColors),
+      );
+    },
+    { token: sessionToken(options), colors },
+  );
 
   await context.route("**/api/**", async (route) => {
     const { pathname } = new URL(route.request().url());
-    const body = FIXTURES[pathname];
+    const body =
+      pathname === "/api/users/me/preferences"
+        ? { ...PREFERENCES, interfaceColors: colors }
+        : FIXTURES[pathname];
 
     if (body === undefined) {
       unfixtured.add(pathname);

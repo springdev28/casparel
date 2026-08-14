@@ -457,7 +457,7 @@ export function LetterDrop({ className = "" }: { className?: string }) {
   if (reduced) {
     return (
       <div className={className}>
-        <p className="select-none text-center text-6xl font-bold tracking-tight text-primary sm:text-8xl">
+        <p className="select-none text-center text-6xl font-bold tracking-tight text-primary-text sm:text-8xl">
           {WORD}
         </p>
       </div>
@@ -486,7 +486,7 @@ export function LetterDrop({ className = "" }: { className?: string }) {
             }}
             aria-hidden="true"
             style={{ opacity: 0, willChange: "transform" }}
-            className="absolute left-0 top-0 text-6xl font-bold leading-none tracking-tight text-primary sm:text-8xl"
+            className="absolute left-0 top-0 text-6xl font-bold leading-none tracking-tight text-primary-text sm:text-8xl"
           >
             {ch}
           </span>

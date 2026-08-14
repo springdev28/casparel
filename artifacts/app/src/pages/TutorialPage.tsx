@@ -119,7 +119,7 @@ export default function TutorialPage() {
           </Button>
 
           <div className="p-6 sm:p-8">
-            <span className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <span className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary-text">
               <Icon className="size-6" />
             </span>
 
@@ -140,7 +140,7 @@ export default function TutorialPage() {
                 const PointIcon = point.icon;
                 return (
                   <li key={point.text} className="flex items-start gap-3">
-                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary-text">
                       <PointIcon className="size-4" />
                     </span>
                     <span className="text-sm text-foreground/90">
@@ -186,11 +186,11 @@ export default function TutorialPage() {
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
           You can revisit this any time from{" "}
-          <Link href="/settings" className="font-medium text-primary hover:underline">
+          <Link href="/settings" className="font-medium text-primary-text hover:underline">
             Settings
           </Link>
           , or read the{" "}
-          <Link href="/guide" className="font-medium text-primary hover:underline">
+          <Link href="/guide" className="font-medium text-primary-text hover:underline">
             complete guide
           </Link>
           .

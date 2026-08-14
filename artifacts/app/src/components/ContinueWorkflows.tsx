@@ -156,7 +156,7 @@ export function ContinueWorkflows() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 sm:px-5">
           <div>
             <h2 className="flex items-center gap-2 font-semibold">
-              <BookOpen className="size-4 text-primary" /> Continue workflow
+              <BookOpen className="size-4 text-primary-text" /> Continue workflow
             </h2>
             <p className="text-xs text-muted-foreground">
               Resume unfinished learning work from any device.
@@ -183,7 +183,7 @@ export function ContinueWorkflows() {
                     {item.classShare?.name ? ` · ${item.classShare.name}` : ""}
                   </p>
                   <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground sm:hidden">
-                    <Icon className="size-3.5 text-primary" /> {action.description}
+                    <Icon className="size-3.5 text-primary-text" /> {action.description}
                   </p>
                 </div>
                 <div className="min-w-0">

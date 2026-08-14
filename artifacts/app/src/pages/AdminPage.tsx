@@ -419,7 +419,7 @@ export default function AdminPage() {
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <div>
         <div className="flex items-center gap-2">
-          <ShieldCheck className="text-primary" />
+          <ShieldCheck className="text-primary-text" />
           <h1 className="text-2xl font-bold">Administrator panel</h1>
         </div>
         <p className="mt-2 text-muted-foreground">
@@ -429,7 +429,7 @@ export default function AdminPage() {
 
       {error ? (
         <Card className="border-destructive">
-          <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6 text-destructive">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6 text-destructive-text">
             <div>
               <p className="font-medium">Administrator data could not be loaded.</p>
               <p className="mt-1 text-sm">{error instanceof Error ? error.message : "The server did not return administrator data."}</p>
@@ -446,7 +446,7 @@ export default function AdminPage() {
           <Card key={key} className="ui-lift min-w-0 overflow-hidden">
             <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 p-4 pb-2 sm:p-6 sm:pb-2">
               <CardTitle className="min-w-0 text-xs font-medium leading-snug sm:text-sm">{label}</CardTitle>
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary-text">
                 <Icon className="size-4" />
               </span>
             </CardHeader>
@@ -462,7 +462,7 @@ export default function AdminPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="size-5 text-primary" /> Learning workflow
+                <Sparkles className="size-5 text-primary-text" /> Learning workflow
               </CardTitle>
               <p className="mt-1 text-sm text-muted-foreground">
                 Resource discovery to verified, reusable classroom learning.
@@ -653,7 +653,7 @@ export default function AdminPage() {
 
           {managedDetailsLoading ? (
             <div className="flex min-h-72 items-center justify-center">
-              <Loader2 className="size-6 animate-spin text-primary" />
+              <Loader2 className="size-6 animate-spin text-primary-text" />
             </div>
           ) : managedDetails ? (
             <Tabs defaultValue="profile" className="min-h-0 px-5 pb-5">
@@ -686,7 +686,7 @@ export default function AdminPage() {
 
               <TabsContent value="affiliations" className="max-h-[65dvh] space-y-5 overflow-y-auto pt-4">
                 <section>
-                  <div className="mb-2 flex items-center gap-2"><GraduationCap className="size-4 text-primary" /><h3 className="font-semibold">Classes owned ({managedDetails.affiliations.ownedClasses.length})</h3></div>
+                  <div className="mb-2 flex items-center gap-2"><GraduationCap className="size-4 text-primary-text" /><h3 className="font-semibold">Classes owned ({managedDetails.affiliations.ownedClasses.length})</h3></div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {managedDetails.affiliations.ownedClasses.map((item) => (
                       <div key={item.id} className="border p-3" style={{ borderRadius: 8 }}>
@@ -698,7 +698,7 @@ export default function AdminPage() {
                   </div>
                 </section>
                 <section>
-                  <div className="mb-2 flex items-center gap-2"><Users className="size-4 text-primary" /><h3 className="font-semibold">Class memberships ({managedDetails.affiliations.classMemberships.length})</h3></div>
+                  <div className="mb-2 flex items-center gap-2"><Users className="size-4 text-primary-text" /><h3 className="font-semibold">Class memberships ({managedDetails.affiliations.classMemberships.length})</h3></div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {managedDetails.affiliations.classMemberships.map((item) => (
                       <div key={item.classId} className="border p-3" style={{ borderRadius: 8 }}>
@@ -711,7 +711,7 @@ export default function AdminPage() {
                   </div>
                 </section>
                 <section>
-                  <div className="mb-2 flex items-center gap-2"><Layers3 className="size-4 text-primary" /><h3 className="font-semibold">Canvas collaborations ({managedDetails.affiliations.canvasCollaborations.length})</h3></div>
+                  <div className="mb-2 flex items-center gap-2"><Layers3 className="size-4 text-primary-text" /><h3 className="font-semibold">Canvas collaborations ({managedDetails.affiliations.canvasCollaborations.length})</h3></div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {managedDetails.affiliations.canvasCollaborations.map((item) => (
                       <div key={item.canvasId} className="flex items-center justify-between gap-3 border p-3" style={{ borderRadius: 8 }}>
@@ -736,7 +736,7 @@ export default function AdminPage() {
                   if (!items.length) return null;
                   return (
                     <section key={key}>
-                      <div className="mb-2 flex items-center gap-2"><BookOpen className="size-4 text-primary" /><h3 className="font-semibold">{label} ({items.length})</h3></div>
+                      <div className="mb-2 flex items-center gap-2"><BookOpen className="size-4 text-primary-text" /><h3 className="font-semibold">{label} ({items.length})</h3></div>
                       <div className="space-y-2">
                         {items.map((item) => {
                           const description = workItemDescription(item);
@@ -755,12 +755,12 @@ export default function AdminPage() {
                                     {item.nodes ? <span>{item.nodes.length} nodes · {item.connectionCount ?? 0} connections</span> : null}
                                   </div>
                                 </div>
-                                <div className="flex shrink-0 items-center gap-1">{date ? <span className="text-xs text-muted-foreground">{date}</span> : null}<Button size="icon" variant="ghost" title="Edit user work" onClick={() => void editWorkItem(key, item)}><Pencil className="size-4" /></Button><Button size="icon" variant="ghost" title="Delete user work" onClick={() => void deleteWorkItem(key, item)}><Trash2 className="size-4 text-destructive" /></Button></div>
+                                <div className="flex shrink-0 items-center gap-1">{date ? <span className="text-xs text-muted-foreground">{date}</span> : null}<Button size="icon" variant="ghost" title="Edit user work" onClick={() => void editWorkItem(key, item)}><Pencil className="size-4" /></Button><Button size="icon" variant="ghost" title="Delete user work" onClick={() => void deleteWorkItem(key, item)}><Trash2 className="size-4 text-destructive-text" /></Button></div>
                               </div>
                               {description && description !== workItemName(item) ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{description}</p> : null}
                               {item.cards?.length ? <div className="mt-2 space-y-1 border-t pt-2 text-xs">{item.cards.map((card) => <p key={card.id}><strong>{card.term}</strong>: {card.answer}{card.hasImage ? " · image attached" : ""}</p>)}</div> : null}
                               {item.nodes?.length ? <div className="mt-2 space-y-1 border-t pt-2 text-xs">{item.nodes.map((node, index) => <p key={`${node.kind}-${index}`}><strong>{node.title}</strong>{node.text ? `: ${node.text}` : ""}</p>)}</div> : null}
-                              {item.url ? <a className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary underline" href={item.url} target="_blank" rel="noreferrer">Open source <ExternalLink className="size-3" /></a> : null}
+                              {item.url ? <a className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary-text underline" href={item.url} target="_blank" rel="noreferrer">Open source <ExternalLink className="size-3" /></a> : null}
                             </div>
                           );
                         })}
@@ -795,7 +795,7 @@ export default function AdminPage() {
                   </section>
                 ) : null}
                 <section className="border p-4" style={{ borderRadius: 8 }}>
-                  <div className="flex items-center gap-2"><CalendarDays className="size-4 text-primary" /><h3 className="font-semibold">Account record</h3></div>
+                  <div className="flex items-center gap-2"><CalendarDays className="size-4 text-primary-text" /><h3 className="font-semibold">Account record</h3></div>
                   <p className="mt-2 text-sm">User ID: {managedDetails.user.id}</p>
                   <p className="text-sm">Created: {new Date(managedDetails.user.createdAt).toLocaleString()}</p>
                 </section>
@@ -811,7 +811,7 @@ export default function AdminPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div><CardTitle>Current plan</CardTitle><p className="mt-1 text-sm text-muted-foreground">Access and account limits</p></div>
-            <Sparkles className="size-5 text-primary" />
+            <Sparkles className="size-5 text-primary-text" />
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -828,7 +828,7 @@ export default function AdminPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div><CardTitle>Usage today</CardTitle><p className="mt-1 text-sm text-muted-foreground">Platform-wide AI activity</p></div>
-            <Activity className="size-5 text-primary" />
+            <Activity className="size-5 text-primary-text" />
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
             <div className="rounded-md border p-4"><p className="text-sm text-muted-foreground">AI searches</p><p className="mt-2 text-3xl font-bold">{data?.usage.aiSearchesToday ?? 0}</p></div>
@@ -838,8 +838,8 @@ export default function AdminPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Total AI requests</CardTitle><BarChart3 className="size-5 text-primary" /></CardHeader><CardContent><p className="text-3xl font-bold">{data?.usage.totalAiRequests ?? 0}</p></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Estimated AI cost</CardTitle><DollarSign className="size-5 text-primary" /></CardHeader><CardContent><p className="text-3xl font-bold">${(data?.usage.estimatedCostUsd ?? 0).toFixed(2)}</p></CardContent></Card>
+        <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Total AI requests</CardTitle><BarChart3 className="size-5 text-primary-text" /></CardHeader><CardContent><p className="text-3xl font-bold">{data?.usage.totalAiRequests ?? 0}</p></CardContent></Card>
+        <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Estimated AI cost</CardTitle><DollarSign className="size-5 text-primary-text" /></CardHeader><CardContent><p className="text-3xl font-bold">${(data?.usage.estimatedCostUsd ?? 0).toFixed(2)}</p></CardContent></Card>
         <Card><CardHeader><CardTitle>Last 30 days</CardTitle></CardHeader><CardContent className="space-y-1 text-sm">{data ? Object.entries(data.usage.byFeature).map(([feature, usage]) => <div key={feature} className="flex justify-between"><span className="capitalize">{feature.replaceAll("-", " ")}</span><span className="font-semibold">{usage.month}</span></div>) : <Skeleton className="h-20 w-full" />}</CardContent></Card>
       </div>
 

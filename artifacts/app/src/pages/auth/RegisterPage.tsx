@@ -158,7 +158,7 @@ export default function RegisterPage() {
               {copy.hasAccount}{" "}
               <Link
                 href="/auth/login"
-                className="text-primary font-medium hover:underline"
+                className="text-primary-text font-medium hover:underline"
                 data-testid="login-link"
               >
                 {copy.signIn}

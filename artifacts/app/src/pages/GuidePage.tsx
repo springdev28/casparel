@@ -446,7 +446,7 @@ export default function GuidePage() {
         <p className="mt-2 max-w-2xl text-sm text-page-contrast-muted">
           A complete reference to every feature in Casparel, kept up to date
           with each release. New here?{" "}
-          <Link href="/tutorial" className="font-medium text-primary hover:underline">
+          <Link href="/tutorial" className="font-medium text-primary-text hover:underline">
             Take the guided tour
           </Link>
           .
@@ -472,7 +472,7 @@ export default function GuidePage() {
             className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm"
           >
             <div className="mb-3 flex items-center gap-2">
-              <Sparkles className="size-5 text-primary" />
+              <Sparkles className="size-5 text-primary-text" />
               <h2 className="text-lg font-semibold">What’s new</h2>
             </div>
             <div className="space-y-5">
@@ -510,7 +510,7 @@ export default function GuidePage() {
                 className="scroll-mt-20 rounded-lg border bg-card p-5 text-card-foreground shadow-sm"
               >
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary-text">
                     <Icon className="size-5" />
                   </span>
                   <div className="min-w-0">

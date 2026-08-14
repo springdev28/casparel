@@ -49,7 +49,7 @@ export function Guidelines({
         <li key={`${item.kind}-${item.text}`} className="flex gap-3">
           <span
             className={`shrink-0 font-medium ${
-              item.kind === 'do' ? 'text-primary' : 'text-destructive'
+              item.kind === 'do' ? 'text-primary-text' : 'text-destructive-text'
             }`}
           >
             {item.kind === 'do' ? 'Do' : "Don't"}

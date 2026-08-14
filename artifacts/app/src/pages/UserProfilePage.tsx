@@ -99,7 +99,7 @@ export default function UserProfilePage() {
               {profile.avatarUrl ? (
                 <img src={profile.avatarUrl} alt={profile.name} className="w-full h-full object-cover" />
               ) : (
-                <User size={36} className="text-primary/60" />
+                <User size={36} className="text-primary-text/60" />
               )}
             </div>
             {/* Name + role */}
@@ -117,7 +117,7 @@ export default function UserProfilePage() {
       </Card>
 
       {classStudent && <Card className="border-primary/20">
-        <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><ClipboardPen className="size-4 text-primary" />Private teacher note · class seating</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><ClipboardPen className="size-4 text-primary-text" />Private teacher note · class seating</CardTitle></CardHeader>
         <CardContent className="space-y-3"><p className="text-xs text-muted-foreground">Only teachers of this class can see this note. The seating assistant uses its latest saved wording, including named relationships.</p><Textarea value={teacherNote} onChange={(event) => setTeacherNote(event.target.value)} maxLength={2000} rows={5} placeholder={`Example:  talks a lot with Jane. Keep them at different desks.`} /><Button onClick={saveTeacherNote} disabled={updateStudentNote.isPending}>{updateStudentNote.isPending && <Loader2 className="mr-2 size-4 animate-spin" />}Save private note</Button></CardContent>
       </Card>}
 
@@ -143,14 +143,14 @@ export default function UserProfilePage() {
       </Card>
 
       <Card>
-        <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><BookOpen size={16} className="text-primary" />User Library</CardTitle></CardHeader>
+        <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><BookOpen size={16} className="text-primary-text" />User Library</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {library.isLoading ? <Skeleton className="h-24 w-full" /> : library.isError ? (
             <p className="text-sm text-muted-foreground">This user’s library is private or limited to classmates.</p>
           ) : (library.data?.resources.length || library.data?.lists.length) ? (
             <>
-              {library.data.lists.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lists</p><div className="space-y-2">{library.data.lists.map((item) => <button key={item.id} onClick={() => setLocation("/lists/" + item.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><List size={16} className="text-primary" /><span><span className="block text-sm font-medium">{item.name}</span>{item.description && <span className="block text-xs text-muted-foreground">{item.description}</span>}</span></button>)}</div></div>}
-              {library.data.resources.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resources</p><div className="space-y-2">{library.data.resources.map((resource) => <button key={resource.id} onClick={() => setLocation("/resources/" + resource.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><BookOpen size={16} className="text-primary" /><span><span className="block text-sm font-medium">{resource.title}</span><span className="block text-xs text-muted-foreground">{resource.subject} · {resource.format}</span></span></button>)}</div></div>}
+              {library.data.lists.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lists</p><div className="space-y-2">{library.data.lists.map((item) => <button key={item.id} onClick={() => setLocation("/lists/" + item.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><List size={16} className="text-primary-text" /><span><span className="block text-sm font-medium">{item.name}</span>{item.description && <span className="block text-xs text-muted-foreground">{item.description}</span>}</span></button>)}</div></div>}
+              {library.data.resources.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resources</p><div className="space-y-2">{library.data.resources.map((resource) => <button key={resource.id} onClick={() => setLocation("/resources/" + resource.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><BookOpen size={16} className="text-primary-text" /><span><span className="block text-sm font-medium">{resource.title}</span><span className="block text-xs text-muted-foreground">{resource.subject} · {resource.format}</span></span></button>)}</div></div>}
             </>
           ) : <p className="text-sm text-muted-foreground">This user has not added anything to their library yet.</p>}
         </CardContent>
@@ -191,7 +191,7 @@ export default function UserProfilePage() {
           <CardContent className="space-y-3">
             {profile.gradeOrDept && <div className="flex items-center gap-2"><GraduationCap size={15} className="shrink-0 text-muted-foreground" /><span className="w-28 shrink-0 text-sm text-muted-foreground">{profile.role === "teacher" ? "Department" : "Grade"}</span><span className="text-sm text-foreground">{profile.gradeOrDept}</span></div>}
             {profile.gradeOrDept && profile.websiteUrl && <Separator />}
-            {profile.websiteUrl && <a href={profile.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary hover:underline"><Globe size={15} className="shrink-0" /><span className="min-w-0 flex-1 truncate">{profile.websiteUrl}</span><ExternalLink size={14} className="shrink-0" /></a>}
+            {profile.websiteUrl && <a href={profile.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-text hover:underline"><Globe size={15} className="shrink-0" /><span className="min-w-0 flex-1 truncate">{profile.websiteUrl}</span><ExternalLink size={14} className="shrink-0" /></a>}
           </CardContent>
         </Card>
       )}

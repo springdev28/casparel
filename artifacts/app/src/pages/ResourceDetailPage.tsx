@@ -452,7 +452,7 @@ function SourceReviewPanel({
         )}
 
         {isError && (
-          <div className="py-4 text-center text-sm text-destructive">
+          <div className="py-4 text-center text-sm text-destructive-text">
             Could not retrieve source information. Please try again later.
           </div>
         )}
@@ -641,7 +641,7 @@ function SourceReviewPanel({
                       </span>
                     </div>
                     <p className="text-xs leading-relaxed">{mention.summary}</p>
-                    <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-primary">
+                    <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-primary-text">
                       <LinkIcon size={10} /> View evidence
                     </span>
                   </a>
@@ -681,7 +681,7 @@ function SourceReviewPanel({
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs text-primary hover:underline"
+                      className="flex items-center gap-1 text-xs text-primary-text hover:underline"
                     >
                       <LinkIcon size={11} />
                       {link.label}
@@ -700,7 +700,7 @@ function SourceReviewPanel({
             {/* Switch mode */}
             <button
               onClick={() => setMode(null)}
-              className="text-xs text-primary hover:underline"
+              className="text-xs text-primary-text hover:underline"
             >
               Switch mode
             </button>
@@ -1355,7 +1355,7 @@ export default function ResourceDetailPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-destructive hover:text-destructive"
+                      className="text-destructive-text hover:text-destructive-text"
                       data-testid="remove-resource-button"
                     >
                       <Trash2 size={14} className="mr-1" /> Remove
@@ -1427,7 +1427,7 @@ export default function ResourceDetailPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <WandSparkles className="size-4 text-primary" /> Turn this source into learning
+                  <WandSparkles className="size-4 text-primary-text" /> Turn this source into learning
                 </CardTitle>
                 <CardDescription className="mt-1">
                   Verify it, organize it, build an activity, then put it into use.

@@ -141,7 +141,7 @@ function BannedAccountPage({ access }: { access: AccountAccess }) {
     <main className="flex min-h-[100dvh] items-center justify-center bg-background p-4 text-foreground">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <div className="mb-2 flex size-11 items-center justify-center rounded-md bg-destructive/10 text-destructive">
+          <div className="mb-2 flex size-11 items-center justify-center rounded-md bg-destructive/10 text-destructive-text">
             <Ban className="size-5" />
           </div>
           <CardTitle>Account banned</CardTitle>
@@ -223,7 +223,7 @@ function AccountAccessGate({ children }: { children: ReactNode }) {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-background text-foreground">
         <Loader2
-          className="size-6 animate-spin text-primary"
+          className="size-6 animate-spin text-primary-text"
           aria-label="Checking account access"
         />
       </main>
@@ -398,7 +398,7 @@ function App() {
           <Suspense
             fallback={
               <main className="flex min-h-[100dvh] items-center justify-center bg-background">
-                <Loader2 className="size-6 animate-spin text-primary" />
+                <Loader2 className="size-6 animate-spin text-primary-text" />
               </main>
             }
           >

@@ -182,7 +182,7 @@ function PublicProfileCard({ person }: { person: PublicPersonGroup }) {
   return (
     <Card className="flex h-full flex-col border-primary/15 bg-gradient-to-br from-card to-primary/5">
       <CardHeader>
-        <div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary-text">
           <GraduationCap className="size-5" />
         </div>
         <CardTitle className="text-base">{person.name}</CardTitle>
@@ -191,7 +191,7 @@ function PublicProfileCard({ person }: { person: PublicPersonGroup }) {
       <CardContent className="flex flex-1 flex-col gap-3">
         <div className="flex flex-wrap gap-1.5">
           {person.subject && (
-            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary-text">
               {person.subject}
             </span>
           )}
@@ -232,7 +232,7 @@ function PublicProfileCard({ person }: { person: PublicPersonGroup }) {
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 rounded-lg border bg-background/70 px-3 py-2 text-sm font-medium transition-colors hover:border-primary/40 hover:bg-accent"
               >
-                <Icon className="size-4 shrink-0 text-primary" />
+                <Icon className="size-4 shrink-0 text-primary-text" />
                 <span className="min-w-0 flex-1 truncate">{label}</span>
                 <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
               </a>
@@ -246,7 +246,7 @@ function PublicProfileCard({ person }: { person: PublicPersonGroup }) {
           </div>
         )}
         {expanded && isError && (
-          <p className="text-xs text-destructive">
+          <p className="text-xs text-destructive-text">
             Additional profiles could not be loaded.
           </p>
         )}
@@ -420,7 +420,7 @@ export default function PeoplePage() {
     <div className="mx-auto max-w-6xl space-y-7 p-4 sm:p-6 lg:p-8">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <Users className="size-6 text-primary" /> Find people
+          <Users className="size-6 text-primary-text" /> Find people
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Discover students with shared interests and educators or professionals
@@ -434,7 +434,7 @@ export default function PeoplePage() {
       >
         {associatedTopic && !query && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Target className="size-4 text-primary" /> Showing people associated
+            <Target className="size-4 text-primary-text" /> Showing people associated
             with <b className="text-foreground">{associatedTopic}</b>. A name is
             optional.
           </div>
@@ -537,7 +537,7 @@ export default function PeoplePage() {
             ))}
           </div>
         ) : socialError && allSocialPeople.length === 0 ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive-text">
             {socialRateLimited
               ? "Your daily search limit has been reached. It resets daily."
               : "Public profile search could not be loaded. Try a more specific name or subject."}
@@ -569,7 +569,7 @@ export default function PeoplePage() {
                   </p>
                 )}
               {socialError && (
-                <p className="text-sm text-destructive">
+                <p className="text-sm text-destructive-text">
                   More profiles could not be loaded. Your current results are
                   still shown.
                 </p>
@@ -597,7 +597,7 @@ export default function PeoplePage() {
           <p className="mt-1 text-sm">Choose filters and press Search people.</p>
         </div>
       ) : isError ? (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive-text">
           {peopleRateLimited
             ? "Your daily search limit has been reached. It resets daily."
             : "People search could not be loaded. Please try again."}

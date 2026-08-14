@@ -57,7 +57,7 @@ export default function SettingsPage() {
 
         <section className="grid gap-4 border-b p-4 sm:grid-cols-[minmax(0,1fr)_minmax(14rem,20rem)] sm:items-center sm:p-5">
           <div className="flex min-w-0 gap-3">
-            <Languages className="mt-0.5 size-5 shrink-0 text-primary" />
+            <Languages className="mt-0.5 size-5 shrink-0 text-primary-text" />
             <div>
               <h2 className="font-semibold">Language</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -74,7 +74,7 @@ export default function SettingsPage() {
 
         <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="flex min-w-0 gap-3">
-            <Palette className="mt-0.5 size-5 shrink-0 text-primary" />
+            <Palette className="mt-0.5 size-5 shrink-0 text-primary-text" />
             <div>
               <h2 className="font-semibold">Appearance</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -91,7 +91,7 @@ export default function SettingsPage() {
 
         <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
           <div className="flex min-w-0 gap-3">
-            <MessageCircle className="mt-0.5 size-5 shrink-0 text-primary" />
+            <MessageCircle className="mt-0.5 size-5 shrink-0 text-primary-text" />
             <div>
               <h2 className="font-semibold">Message requests</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -111,7 +111,7 @@ export default function SettingsPage() {
 
         <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="flex min-w-0 gap-3">
-            <Compass className="mt-0.5 size-5 shrink-0 text-primary" />
+            <Compass className="mt-0.5 size-5 shrink-0 text-primary-text" />
             <div>
               <h2 className="font-semibold">Product tour</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -129,7 +129,7 @@ export default function SettingsPage() {
 
         <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="flex min-w-0 gap-3">
-            <BookOpen className="mt-0.5 size-5 shrink-0 text-primary" />
+            <BookOpen className="mt-0.5 size-5 shrink-0 text-primary-text" />
             <div>
               <h2 className="font-semibold">Complete guide</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -147,7 +147,7 @@ export default function SettingsPage() {
 
         <section className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
           <div className="flex min-w-0 gap-3">
-            <UserRound className="mt-0.5 size-5 shrink-0 text-primary" />
+            <UserRound className="mt-0.5 size-5 shrink-0 text-primary-text" />
             <div>
               <h2 className="font-semibold">Profile and privacy</h2>
               <p className="mt-1 text-sm text-muted-foreground">

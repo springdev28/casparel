@@ -562,7 +562,7 @@ function LibraryCard({
       </CardHeader>
       {resource.verificationStatus === "rejected" && resource.verificationNote ? (
         <CardContent className="pb-2">
-          <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
+          <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive-text">
             <span className="font-semibold">Reviewer:</span>{" "}
             {resource.verificationNote}
           </p>
@@ -579,7 +579,7 @@ function LibraryCard({
         <div className="min-w-0">
           <StarRating value={resource.avgRating} size="sm" />
           <p
-            className="mt-1 text-xs font-medium text-primary"
+            className="mt-1 text-xs font-medium text-primary-text"
             title="Evidence score: 70% average rating and 30% review confidence"
           >
             {evidenceScore === null
@@ -611,7 +611,7 @@ function LibraryCard({
                 e.stopPropagation();
                 onAssign();
               }}
-              className="text-muted-foreground hover:text-primary transition-colors"
+              className="text-muted-foreground hover:text-primary-text transition-colors"
               title="Assign to class"
             >
               <GraduationCap size={13} />
@@ -624,7 +624,7 @@ function LibraryCard({
                 e.stopPropagation();
                 onRemove();
               }}
-              className="text-muted-foreground hover:text-destructive transition-colors"
+              className="text-muted-foreground hover:text-destructive-text transition-colors"
               title="Remove from library"
             >
               <Trash2 size={13} />
@@ -762,7 +762,7 @@ function UnsavedSourceResearchDialog({
           </div>
         )}
         {error && (
-          <div className="border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          <div className="border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive-text">
             {error}
             <Button
               variant="outline"
@@ -1003,7 +1003,7 @@ function SourceCard({
   return (
     <Card className="render-later flex h-full flex-col border-primary/15 bg-gradient-to-br from-card to-primary/5">
       <CardHeader className="pb-3">
-        <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary-text">
           {isChannel ? <Video size={22} /> : <Globe size={22} />}
         </div>
         <CardTitle className="text-lg leading-snug">{resource.title}</CardTitle>
@@ -1015,7 +1015,7 @@ function SourceCard({
           {resource.description}
         </p>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+          <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary-text">
             {isChannel ? "Channel" : "Website"}
           </span>
           {resource.subject && (
@@ -2594,7 +2594,7 @@ export default function ResourcesPage() {
               >
                 <button
                   type="button"
-                  className="px-3 py-1.5 text-sm hover:text-primary"
+                  className="px-3 py-1.5 text-sm hover:text-primary-text"
                   onClick={() => {
                     setInputValue(item.query);
                     inputRef.current?.focus();
@@ -2604,7 +2604,7 @@ export default function ResourcesPage() {
                 </button>
                 <button
                   type="button"
-                  className="border-l px-2 py-1.5 text-muted-foreground hover:text-destructive"
+                  className="border-l px-2 py-1.5 text-muted-foreground hover:text-destructive-text"
                   aria-label={`Delete ${item.query} from search history`}
                   onClick={() => {
                     if (!me?.id) return;
@@ -2998,7 +2998,7 @@ export default function ResourcesPage() {
 
             {webError && !webLoading && !webRateLimited && (
               <div className="py-6 text-center">
-                <p className="text-sm text-destructive font-medium">
+                <p className="text-sm text-destructive-text font-medium">
                   {webCreditsExhausted
                     ? isAdmin
                       ? "Optional AI fallback is unavailable because the OpenAI project has no credits."
@@ -3025,7 +3025,7 @@ export default function ResourcesPage() {
               <>
                 {!isSubmittedSourceMode && !isLoggedIn && (
                   <p className="text-xs text-muted-foreground mb-3">
-                    <Link href="/auth/login" className="text-primary underline">
+                    <Link href="/auth/login" className="text-primary-text underline">
                       Sign in
                     </Link>{" "}
                     to save web results to your library.

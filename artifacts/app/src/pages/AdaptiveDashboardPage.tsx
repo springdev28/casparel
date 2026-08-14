@@ -286,7 +286,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-bold text-primary">
+          <p className="text-sm font-bold text-primary-text">
             YOUR LEARNING JOURNEY
           </p>
           <h1 className="text-3xl font-bold">
@@ -313,7 +313,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
           <CardContent className="p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="flex gap-4">
-                <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                <div className="rounded-2xl bg-primary/10 p-3 text-primary-text">
                   <BookOpen />
                 </div>
                 <div>
@@ -391,7 +391,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
         <Card>
           <CardContent className="p-6">
             <div className="mb-4 flex gap-3">
-              <Brain className="text-primary" />
+              <Brain className="text-primary-text" />
               <div>
                 <b>Quick check-in</b>
                 <p className="text-xs text-muted-foreground">
@@ -452,7 +452,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                   Built around your goal and updated as you learn.
                 </p>
               </div>
-              <b className="text-sm text-primary">
+              <b className="text-sm text-primary-text">
                 {evidenceLoading
                   ? "Loading progress…"
                   : `${completedSteps.size} of ${path.length} complete`}
@@ -512,7 +512,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                   {isComplete ? (
                     <Badge variant="outline">Complete</Badge>
                   ) : (
-                    <span className="flex items-center text-xs font-medium text-primary">
+                    <span className="flex items-center text-xs font-medium text-primary-text">
                       Mark complete
                     </span>
                   )}
@@ -524,7 +524,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
         <Card>
           <CardContent className="p-6">
             <div className="flex gap-3">
-              <Network className="text-primary" />
+              <Network className="text-primary-text" />
               <div>
                 <b>Learning evidence map</b>
                 <p className="text-xs text-muted-foreground">
@@ -652,7 +652,7 @@ function TeacherView({ name }: { name?: string }) {
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-bold text-primary">CLASSROOM COPILOT</p>
+          <p className="text-sm font-bold text-primary-text">CLASSROOM COPILOT</p>
           <h1 className="text-3xl font-bold">
             Good morning{name ? `, ${name.split(" ")[0]}` : ""}
           </h1>
@@ -694,7 +694,7 @@ function TeacherView({ name }: { name?: string }) {
             <div className="space-y-3">
               {liveSignals.map(([Icon, title, text]) => (
                 <div key={title} className="flex gap-4 rounded-xl border p-4">
-                  <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                  <div className="rounded-lg bg-primary/10 p-2 text-primary-text">
                     <Icon size={18} />
                   </div>
                   <div className="flex-1">
@@ -716,7 +716,7 @@ function TeacherView({ name }: { name?: string }) {
         <Card className="border-primary/20">
           <CardContent className="p-6">
             <div className="flex gap-3">
-              <Sparkles className="text-primary" />
+              <Sparkles className="text-primary-text" />
               <div>
                 <h2 className="text-lg font-bold">Suggested next move</h2>
                 <p className="text-sm text-muted-foreground">
@@ -780,7 +780,7 @@ function TeacherView({ name }: { name?: string }) {
               onClick={() => setLocation(href as string)}
               className="rounded-xl border bg-card p-5 text-left shadow-sm hover:border-primary"
             >
-              <Icon className="mb-3 text-primary" />
+              <Icon className="mb-3 text-primary-text" />
               <b>{title as string}</b>
               <p className="mt-1 text-sm text-muted-foreground">
                 Start from learning evidence, with every decision visible and
