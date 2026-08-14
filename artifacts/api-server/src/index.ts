@@ -9,6 +9,7 @@ import { logger } from "./lib/logger";
 import { pool, runMigrations } from "@workspace/db";
 import { initRateLimitStore } from "./lib/rateLimitStore";
 import { ensureCuratedCatalog } from "./lib/catalog";
+import { markSchemaFailed, markSchemaReady } from "./lib/schemaHealth";
 
 // Replit runs the API as a dedicated service on 8080. Local development keeps
 // the conventional 5000 fallback. This must match the web app proxy defaults
@@ -42,8 +43,18 @@ async function prepareDatabaseSchema() {
 async function main() {
   try {
     await prepareDatabaseSchema();
+    markSchemaReady();
   } catch (err) {
-    logger.error({ err }, "Database setup failed");
+    // We keep serving so a transient database problem does not take the app
+    // down, but the schema is now potentially behind the code: any query
+    // touching a column the migration would have added will fail, which shows
+    // up as scattered, unrelated-looking breakage in the UI. Record it so
+    // GET /healthz can report it instead of it being invisible.
+    markSchemaFailed(err);
+    logger.error(
+      { err },
+      "Database setup FAILED - serving with a possibly stale schema. Check GET /healthz.",
+    );
     if (process.env.REQUIRE_DATABASE_READY === "true") process.exit(1);
   }
 
