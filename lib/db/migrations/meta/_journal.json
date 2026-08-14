@@ -302,6 +302,13 @@
       "when": 1789372800000,
       "tag": "0042_tutorial_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786700731426,
+      "tag": "0043_daily_naoko",
+      "breakpoints": true
     }
   ]
 }

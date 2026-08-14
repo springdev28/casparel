@@ -25,6 +25,8 @@ export const usersTable = pgTable("users", {
   showWebsite: boolean("show_website").notNull().default(true),
   websiteUrl: text("website_url"),
   teacherVerified: boolean("teacher_verified").notNull().default(false),
+  plan: text("plan").notNull().default("free"),
+  planExpiresAt: timestamp("plan_expires_at", { withTimezone: true, mode: "string" }),
   bannedAt: timestamp("banned_at", { withTimezone: true, mode: "string" }),
   bannedReason: text("banned_reason"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),

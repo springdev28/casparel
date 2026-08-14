@@ -23,6 +23,7 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { consumeAiQuota, recordAiUsage } from "../lib/aiCostControls";
+import { isPremiumAccount } from "../lib/entitlements";
 import { buildFreeQuickReview } from "../lib/sourceProvenance";
 import {
   optionalWorkflowUserId,
@@ -345,7 +346,11 @@ router.get(
         });
         return;
       }
-      if ((req as AuthenticatedRequest).accountRole !== "admin") {
+      const isAdmin = (req as AuthenticatedRequest).accountRole === "admin";
+      const premium = isAdmin || (await isPremiumAccount(deepUserId));
+      // Premium and admin accounts skip the per-user daily/monthly caps —
+      // "unlimited AI source research" is the headline paywall benefit.
+      if (!premium) {
         const daily = await consumeAiQuota(
           "deep-user-day",
           String(deepUserId),
@@ -374,6 +379,10 @@ router.get(
           });
           return;
         }
+      }
+      // The global daily budget remains a cost safety net for every non-admin
+      // account, including premium.
+      if (!isAdmin) {
         const globalDaily = await consumeAiQuota(
           "deep-global-day",
           "all",

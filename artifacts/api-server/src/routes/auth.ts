@@ -44,6 +44,7 @@ import {
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
+import { isPremiumAccount } from "../lib/entitlements";
 import {
   requireAuth,
   type AuthenticatedRequest,
@@ -422,7 +423,9 @@ router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
 // GET /users/me/usage
 router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
   const { userId, accountRole } = req as AuthenticatedRequest;
-  const unlimited = accountRole === "admin";
+  const isAdmin = accountRole === "admin";
+  const premium = isAdmin || (await isPremiumAccount(userId));
+  const unlimited = premium;
   const result = await pool.query<{ key: string; hits: number }>(
     `SELECT key, CASE WHEN reset_time > NOW() THEN hits ELSE 0 END AS hits
      FROM rate_limit_hits WHERE key = ANY($1::text[])`,
@@ -432,7 +435,7 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
   const searchLimit = Number(process.env.AI_SEARCH_DAILY_USER_LIMIT ?? 3);
   res.json(
     GetMyUsageResponse.parse({
-      plan: unlimited ? "Administrator" : "Free",
+      plan: isAdmin ? "Administrator" : premium ? "Premium" : "Free",
       unlimited,
       aiSearch: {
         used: usage.get("ai-search-user-day:user:" + userId) ?? 0,

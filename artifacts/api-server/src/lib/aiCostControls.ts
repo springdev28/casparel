@@ -4,10 +4,27 @@ import { pool } from "@workspace/db";
 import { buildRateLimitStore } from "./rateLimitStore";
 import { isAdminRequest } from "./adminAccess";
 import { decodeToken } from "./auth";
+import { isPremiumAccount } from "./entitlements";
+import type { Request } from "express";
 
 function positiveLimit(value: string | undefined, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+/** Admins and premium accounts are exempt from the per-user AI search cap. */
+async function skipPrivilegedRequest(req: Request): Promise<boolean> {
+  if (isAdminRequest(req)) return true;
+  const header = req.headers.authorization;
+  const payload = header?.startsWith("Bearer ")
+    ? decodeToken(header.slice(7))
+    : null;
+  if (!payload) return false;
+  try {
+    return await isPremiumAccount(payload.userId);
+  } catch {
+    return false;
+  }
 }
 
 export const requireAiSearchEnabled: RequestHandler = (_req, res, next) => {
@@ -19,7 +36,7 @@ export const requireAiSearchEnabled: RequestHandler = (_req, res, next) => {
 };
 
 export const aiSearchDailyUserLimiter = rateLimit({
-  skip: isAdminRequest,
+  skip: skipPrivilegedRequest,
   keyGenerator: (req) => {
     const header = req.headers.authorization;
     const payload = header?.startsWith("Bearer ")

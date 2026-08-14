@@ -49,8 +49,10 @@ lifts those AI limits. The paywall story writes itself — "unlimited AI deep-re
       `EXPO_PUBLIC_RC_IOS_KEY` / `EXPO_PUBLIC_RC_ANDROID_KEY`
 - [ ] **[dashboard]** Configure a `premium` entitlement, an offering, and products
       (monthly + annual) in App Store Connect / Play Console and map them in RevenueCat
-- [ ] **[stretch]** Reconcile entitlement server-side: RevenueCat webhook → `users.plan` column → `/users/me/usage`
-      reports `Premium` and lifts the rate-limit caps for genuine enforcement (see §5)
+- [x] **[stretch]** Reconcile entitlement server-side: RevenueCat webhook → `users.plan` column → `/users/me/usage`
+      reports `Premium` and lifts the AI rate-limit caps for genuine enforcement (see §5)
+- [ ] **[dashboard]** Point the RevenueCat webhook at `POST /api/webhooks/revenuecat` and set the shared secret
+      `REVENUECAT_WEBHOOK_AUTH` (same value in the dashboard's Authorization header and the server env)
 
 ### Gate B — Live on a store  📦 *accounts + build*
 
@@ -118,17 +120,23 @@ lifts those AI limits. The paywall story writes itself — "unlimited AI deep-re
 
 ---
 
-## 5. Server-side entitlement reconciliation *(stretch, post-launch-safe)*
+## 5. Server-side entitlement reconciliation ✅ *implemented*
 
 Client-side gating via the RevenueCat entitlement satisfies the Shipaton requirement. For genuine enforcement of the
-AI limits, reconcile server-side:
+AI limits, the entitlement is now reconciled server-side:
 
-1. Add a `plan` (and optional `plan_expires_at`) column to `users` via a Drizzle **migration** (never `drizzle push`).
-2. RevenueCat webhook endpoint → update `users.plan` on purchase / renewal / expiry.
-3. `/users/me/usage` and the AI rate-limiters read `plan` so `Premium` lifts the `aiSearch` / `deepResearch` caps.
-4. Regenerate the OpenAPI client if the shape changes (`pnpm --filter @workspace/api-spec run codegen`).
+1. ✅ `users.plan` (default `free`) + `users.plan_expires_at` added via Drizzle migration `0043_daily_naoko.sql`
+   (guarded with `IF NOT EXISTS`).
+2. ✅ `POST /api/webhooks/revenuecat` (`routes/webhooks.ts`) — shared-secret auth via `REVENUECAT_WEBHOOK_AUTH`,
+   flips `users.plan` on grant events (purchase/renewal/uncancellation/…) and clears it on `EXPIRATION`.
+3. ✅ `lib/entitlements.ts#isPremiumAccount` is the single source of truth. `/users/me/usage` reports `Premium`
+   and null (unlimited) caps; deep-research per-user limits and the AI-search daily limiter are bypassed for premium.
+   A global daily deep-research budget stays as a cost safety net for all non-admin accounts.
+4. The `AccountUsage` response shape is unchanged (`plan: string`, `unlimited: boolean`, nullable limits), so **no
+   OpenAPI codegen was required**. The webhook is server-to-server and intentionally not in the client spec.
 
-Sequenced **after** the store launch so it can't block the critical path.
+**Remaining (dashboard):** configure the webhook URL + `REVENUECAT_WEBHOOK_AUTH` secret in RevenueCat, and set the
+same value in the server environment.
 
 ---
 
