@@ -140,10 +140,19 @@ async function audit(pathname, colorScheme, width, options = {}) {
   await page.waitForTimeout(1500);
 
   // Scroll the whole page so reveal-on-scroll content is given its chance,
-  // then assert nothing is left invisible.
+  // then assert nothing is left invisible. The step count is fixed up front:
+  // re-reading scrollHeight each iteration means a page that grows as you
+  // scroll it (lazy lists, charts that mount late) can extend the loop
+  // indefinitely, and an audit that hangs blocks every deploy behind it.
   await page.evaluate(async () => {
-    for (let y = 0; y < document.body.scrollHeight; y += 500) {
-      window.scrollTo(0, y);
+    const STEP = 500;
+    const MAX_STEPS = 60; // 30,000px of page is far more than any view here
+    const steps = Math.min(
+      MAX_STEPS,
+      Math.ceil(document.body.scrollHeight / STEP),
+    );
+    for (let i = 0; i <= steps; i++) {
+      window.scrollTo(0, i * STEP);
       await new Promise((r) => setTimeout(r, 80));
     }
   });
@@ -170,23 +179,66 @@ async function audit(pathname, colorScheme, width, options = {}) {
   return { pathname, colorScheme, width, signedIn, palette, findings };
 }
 
+/**
+ * Run one render with a hard ceiling. A single page that never settles used to
+ * hang the whole audit, and since the deploy waits on it, that stalls every
+ * release behind a 20-minute job timeout with no clue which page was at fault.
+ * A timeout is reported as a finding, naming the page.
+ */
+const RENDER_TIMEOUT_MS = Number(process.env.AUDIT_RENDER_TIMEOUT_MS ?? 90_000);
+
+async function auditGuarded(pathname, colorScheme, width, options = {}) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(
+      () =>
+        resolve({
+          pathname,
+          colorScheme,
+          width,
+          signedIn: options.signedIn ?? false,
+          palette: options.palette,
+          findings: {
+            lowContrast: [],
+            invisibleAfterScroll: [],
+            imagesMissingAlt: 0,
+            horizontalOverflow: false,
+            pageErrors: [
+              `render did not finish within ${RENDER_TIMEOUT_MS / 1000}s`,
+            ],
+            unfixtured: [],
+          },
+        }),
+      RENDER_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([
+      audit(pathname, colorScheme, width, options),
+      timeout,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const results = [];
 for (const pathname of PAGES) {
   for (const scheme of ["dark", "light"]) {
-    results.push(await audit(pathname, scheme, 1280));
+    results.push(await auditGuarded(pathname, scheme, 1280));
   }
-  results.push(await audit(pathname, "dark", 390));
+  results.push(await auditGuarded(pathname, "dark", 390));
 }
 // Signed-in pages vary by saved palette, not by prefers-color-scheme, so that
 // is what is swept here.
 for (const pathname of SIGNED_IN_PAGES) {
   for (const palette of ["dark", "light"]) {
     results.push(
-      await audit(pathname, palette, 1280, { signedIn: true, palette }),
+      await auditGuarded(pathname, palette, 1280, { signedIn: true, palette }),
     );
   }
   results.push(
-    await audit(pathname, "dark", 390, { signedIn: true, palette: "dark" }),
+    await auditGuarded(pathname, "dark", 390, { signedIn: true, palette: "dark" }),
   );
 }
 await browser.close();
