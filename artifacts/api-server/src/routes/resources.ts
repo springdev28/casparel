@@ -9,6 +9,7 @@ import {
   activityLogTable,
   catalogResourcesTable,
 } from "@workspace/db";
+import { publicResourceColumns } from "../lib/resourceColumns";
 import {
   ListResourcesResponse,
   ListResourcesQueryParams,
@@ -58,7 +59,7 @@ const router: IRouter = Router();
 
 async function resourceWithRating(id: number) {
   const [r] = await db
-    .select()
+    .select(publicResourceColumns)
     .from(resourcesTable)
     .where(eq(resourcesTable.id, id));
   if (!r) return null;

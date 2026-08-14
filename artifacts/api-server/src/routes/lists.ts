@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and, max, asc, inArray, or } from "drizzle-orm";
 import { db, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, classMembersTable } from "@workspace/db";
+import { publicResourceColumns } from "../lib/resourceColumns";
 import {
   ListResourceListsResponse,
   CreateResourceListBody,
@@ -28,7 +29,10 @@ import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 const router: IRouter = Router();
 
 async function resourceWithRating(id: number) {
-  const [r] = await db.select().from(resourcesTable).where(eq(resourcesTable.id, id));
+  const [r] = await db
+    .select(publicResourceColumns)
+    .from(resourcesTable)
+    .where(eq(resourcesTable.id, id));
   if (!r) return null;
   const [stats] = await db
     .select({

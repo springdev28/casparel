@@ -149,6 +149,21 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
           <View style={styles.badgeRow}>
             <Badge variant="default">{item.format}</Badge>
             <Badge variant="secondary">{item.subject}</Badge>
+            {item.verificationStatus === 'unverified' ? (
+              <View style={[styles.verifyChip, { borderColor: colors.chart3 + '66', backgroundColor: colors.chart3 + '1A' }]}>
+                <Feather name="shield" size={10} color={colors.chart3} />
+                <Text style={[styles.verifyChipText, { color: colors.chart3, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                  Pending review
+                </Text>
+              </View>
+            ) : item.verificationStatus === 'rejected' ? (
+              <View style={[styles.verifyChip, { borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '1A' }]}>
+                <Feather name="shield-off" size={10} color={colors.destructive} />
+                <Text style={[styles.verifyChipText, { color: colors.destructive, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                  Not approved
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
       </View>
@@ -364,6 +379,16 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   gradeBadge: { fontSize: 12 },
+  verifyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  verifyChipText: { fontSize: 10 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   stars: { flexDirection: 'row', gap: 2 },
   ratingText: { fontSize: 11 },

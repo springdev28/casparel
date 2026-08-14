@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and, max, asc, desc } from "drizzle-orm";
 import { db, classesTable, classMembersTable, classInvitationsTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable } from "@workspace/db";
+import { publicResourceColumns } from "../lib/resourceColumns";
 import {
   ListClassesResponse,
   CreateClassBody,
@@ -44,7 +45,10 @@ import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher, isClassMember } from "../lib/authz";
 
 async function resourceWithRating(id: number) {
-  const [r] = await db.select().from(resourcesTable).where(eq(resourcesTable.id, id));
+  const [r] = await db
+    .select(publicResourceColumns)
+    .from(resourcesTable)
+    .where(eq(resourcesTable.id, id));
   if (!r) return null;
   const [stats] = await db
     .select({ avg: sql<number>`coalesce(avg(rating), 0)`, count: sql<number>`cast(count(*) as int)` })
