@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { AuthLanguageSelect } from "../components/AuthLanguageSelect";
 import ThemeCustomizer from "../components/ThemeCustomizer";
+import { PlanSection } from "../components/PlanSection";
 import { useAuthLanguage } from "../lib/auth-locale";
 import {
   useUpdateUserPreferences,
@@ -52,6 +53,8 @@ export default function SettingsPage() {
       </header>
 
       <div className="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
+        <PlanSection />
+
         <section className="grid gap-4 border-b p-4 sm:grid-cols-[minmax(0,1fr)_minmax(14rem,20rem)] sm:items-center sm:p-5">
           <div className="flex min-w-0 gap-3">
             <Languages className="mt-0.5 size-5 shrink-0 text-primary" />
