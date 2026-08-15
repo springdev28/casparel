@@ -71,10 +71,41 @@ vi.mock("@workspace/integrations-openai-ai-server", () => {
   return { openai };
 });
 
+vi.mock("../lib/aiCostControls", () => ({
+  consumeAiQuota: vi.fn().mockResolvedValue({
+    allowed: true,
+    remaining: 10,
+    retryAfter: 60,
+  }),
+  recordAiUsage: vi.fn(),
+}));
+
+vi.mock("../middlewares/requireAuth", () => ({
+  requireAuth: (req: Record<string, unknown>, _res: unknown, next: () => void) => {
+    req.userId = 7;
+    req.accountRole = "student";
+    next();
+  },
+}));
+
+vi.mock("../lib/entitlements", () => ({
+  getAccountEntitlements: vi.fn().mockResolvedValue({
+    tier: "pro",
+    label: "Pro",
+    unlimitedAi: true,
+    features: {
+      "ai-discovery": true,
+      "deep-research": true,
+      "seating-planner": true,
+    },
+  }),
+}));
+
 // ── Subjects (imported AFTER mock declarations) ────────────────────────────────
 
 import { db } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { getAccountEntitlements } from "../lib/entitlements";
 import sourceReviewRouter from "./sourceReview.js";
 
 // ── App factory ────────────────────────────────────────────────────────────────
@@ -169,6 +200,29 @@ describe("GET /api/resources/:id/source-review, mode contract", () => {
     };
     expect(args.input).toContain("multi-angle investigation");
     expect(args.tools).toBeDefined();
+  });
+
+  it("rejects Free accounts before running deep AI research", async () => {
+    vi.mocked(getAccountEntitlements).mockResolvedValueOnce({
+      tier: "free",
+      label: "Free",
+      unlimitedAi: false,
+      features: {
+        "ai-discovery": false,
+        "deep-research": false,
+        "seating-planner": false,
+      },
+    });
+    const res = await request(buildApp()).get(
+      "/api/resources/42/source-review?mode=deep",
+    );
+
+    expect(res.status).toBe(402);
+    expect(res.body).toMatchObject({
+      code: "SUBSCRIPTION_REQUIRED",
+      requiredPlan: "plus",
+    });
+    expect(openai.responses.create).not.toHaveBeenCalled();
   });
 
   it("default (no mode param) behaves like quick without OpenAI", async () => {

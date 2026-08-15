@@ -60,11 +60,25 @@ vi.mock("../middlewares/requireAuth", () => ({
   },
 }));
 
+vi.mock("../lib/entitlements", () => ({
+  getAccountEntitlements: vi.fn().mockResolvedValue({
+    tier: "pro",
+    label: "Pro",
+    unlimitedAi: true,
+    features: {
+      "ai-discovery": true,
+      "deep-research": true,
+      "seating-planner": true,
+    },
+  }),
+}));
+
 // ── Import subjects AFTER mock declarations ────────────────────────────────────
 import { db } from "@workspace/db";
 import classesRouter from "./classes.js";
 import { issueToken } from "../lib/auth.js";
 import { isClassTeacher } from "../lib/authz.js";
+import { getAccountEntitlements } from "../lib/entitlements";
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -527,5 +541,31 @@ describe("isClassTeacher administrator workspace switching", () => {
 
     await expect(isClassTeacher(CLASS_ID, TEACHER_ID)).resolves.toBe(true);
     expect(chain.from).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("POST /api/classes/:id/seating-plan/suggest, subscription gate", () => {
+  it("rejects a Free teacher before generating a seating assignment", async () => {
+    vi.mocked(getAccountEntitlements).mockResolvedValueOnce({
+      tier: "free",
+      label: "Free",
+      unlimitedAi: false,
+      features: {
+        "ai-discovery": false,
+        "deep-research": false,
+        "seating-planner": false,
+      },
+    });
+
+    const res = await request(buildApp())
+      .post(`/api/classes/${CLASS_ID}/seating-plan/suggest`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ priorities: null });
+
+    expect(res.status).toBe(402);
+    expect(res.body).toMatchObject({
+      code: "SUBSCRIPTION_REQUIRED",
+      requiredPlan: "pro",
+    });
   });
 });

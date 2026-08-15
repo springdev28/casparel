@@ -14,7 +14,12 @@ vi.mock("@workspace/db", () => {
 });
 
 import { db } from "@workspace/db";
-import { isPlanActive, isPremiumAccount } from "./entitlements.js";
+import {
+  entitlementsForPlan,
+  isPlanActive,
+  isPremiumAccount,
+  normalizePlan,
+} from "./entitlements.js";
 
 function mockAccountRow(row: Record<string, unknown> | null) {
   vi.mocked(db.select).mockImplementation(
@@ -31,7 +36,7 @@ describe("isPlanActive", () => {
     expect(isPlanActive("free", null)).toBe(false);
   });
 
-  it("is true for premium with no expiry", () => {
+  it("is true for legacy premium with no expiry", () => {
     expect(isPlanActive("premium", null)).toBe(true);
   });
 
@@ -45,9 +50,56 @@ describe("isPlanActive", () => {
     expect(isPlanActive("premium", past)).toBe(false);
   });
 
+  it("is true for active Plus and Pro plans", () => {
+    expect(isPlanActive("plus", null)).toBe(true);
+    expect(isPlanActive("pro", null)).toBe(true);
+  });
+
   it("is false for an unknown plan value or null", () => {
-    expect(isPlanActive("plus", null)).toBe(false);
+    expect(isPlanActive("enterprise", null)).toBe(false);
     expect(isPlanActive(null, null)).toBe(false);
+  });
+});
+
+describe("tier feature matrix", () => {
+  it("gives Free no AI features, including seating suggestions", () => {
+    expect(entitlementsForPlan("free", null)).toEqual({
+      tier: "free",
+      label: "Free",
+      unlimitedAi: false,
+      features: {
+        "ai-discovery": false,
+        "deep-research": false,
+        "seating-planner": false,
+      },
+    });
+  });
+
+  it("gives Plus limited research AI but not seating suggestions", () => {
+    expect(entitlementsForPlan("plus", null)).toMatchObject({
+      tier: "plus",
+      unlimitedAi: false,
+      features: {
+        "ai-discovery": true,
+        "deep-research": true,
+        "seating-planner": false,
+      },
+    });
+  });
+
+  it("gives Pro every subscription feature and maps legacy premium to Pro", () => {
+    expect(entitlementsForPlan("pro", null)).toMatchObject({
+      tier: "pro",
+      unlimitedAi: true,
+      features: { "seating-planner": true },
+    });
+    expect(normalizePlan("premium", null)).toBe("pro");
+  });
+
+  it("downgrades an expired or invalid-dated paid plan to Free", () => {
+    const past = new Date(Date.now() - 60_000).toISOString();
+    expect(normalizePlan("plus", past)).toBe("free");
+    expect(normalizePlan("pro", "not-a-date")).toBe("free");
   });
 });
 
@@ -58,6 +110,11 @@ describe("isPremiumAccount", () => {
 
   it("returns true for an active premium account", async () => {
     mockAccountRow({ plan: "premium", expiresAt: null });
+    await expect(isPremiumAccount(1)).resolves.toBe(true);
+  });
+
+  it("returns true for an active Plus account", async () => {
+    mockAccountRow({ plan: "plus", expiresAt: null });
     await expect(isPremiumAccount(1)).resolves.toBe(true);
   });
 

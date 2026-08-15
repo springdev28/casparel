@@ -66,6 +66,7 @@ import {
 } from "../lib/catalog";
 import { meaningfulSearchTerms } from "../lib/searchTerms";
 import { logger } from "../lib/logger";
+import { getAccountEntitlements } from "../lib/entitlements";
 
 const router: IRouter = Router();
 
@@ -1097,28 +1098,46 @@ router.get(
       return;
     }
 
-    // Paid discovery is an explicit opt-in fallback; normal catalog searches
-    // do not consume a user's AI allowance.
+    // AI discovery is paid-only. Normal stored-catalog searches stay free and
+    // never consume an AI allowance.
     if (!isAdminRequest(req)) {
+      if (discoverUserId === null) {
+        res.status(401).json({
+          error: "Sign in with a paid Casparel plan to use AI discovery.",
+          code: "AUTHENTICATION_REQUIRED",
+        });
+        return;
+      }
+      const entitlements = await getAccountEntitlements(discoverUserId);
+      if (!entitlements.features["ai-discovery"]) {
+        res.status(402).json({
+          error: "AI discovery requires Casparel Plus or Pro.",
+          code: "SUBSCRIPTION_REQUIRED",
+          requiredPlan: "plus",
+        });
+        return;
+      }
       const configuredLimit = (value: string | undefined, fallback: number) => {
         const parsed = Number(value);
         return Number.isFinite(parsed) && parsed > 0
           ? Math.floor(parsed)
           : fallback;
       };
-      const userBudget = await consumeAiQuota(
-        "discover-ai-user-day",
-        discoverUserId ? `user:${discoverUserId}` : `ip:${req.ip ?? "unknown"}`,
-        24 * 60 * 60 * 1000,
-        configuredLimit(process.env.AI_SEARCH_DAILY_USER_LIMIT, 3),
-      );
-      if (!userBudget.allowed) {
-        res.setHeader("Retry-After", userBudget.retryAfter);
-        res.status(429).json({
-          error: "Daily AI search limit reached.",
-          retryAfter: userBudget.retryAfter,
-        });
-        return;
+      if (!entitlements.unlimitedAi) {
+        const userBudget = await consumeAiQuota(
+          "discover-ai-user-day",
+          `user:${discoverUserId}`,
+          24 * 60 * 60 * 1000,
+          configuredLimit(process.env.AI_PLUS_SEARCH_DAILY_LIMIT, 20),
+        );
+        if (!userBudget.allowed) {
+          res.setHeader("Retry-After", userBudget.retryAfter);
+          res.status(429).json({
+            error: "Daily AI discovery limit reached.",
+            retryAfter: userBudget.retryAfter,
+          });
+          return;
+        }
       }
       const globalBudget = await consumeAiQuota(
         "discover-ai-global-day",

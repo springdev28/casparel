@@ -23,7 +23,7 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { consumeAiQuota, recordAiUsage } from "../lib/aiCostControls";
-import { isPremiumAccount } from "../lib/entitlements";
+import { getAccountEntitlements } from "../lib/entitlements";
 import { buildFreeQuickReview } from "../lib/sourceProvenance";
 import {
   optionalWorkflowUserId,
@@ -150,11 +150,7 @@ function requireAccountForDeep(
   next: NextFunction,
 ) {
   const query = GetResourceSourceReviewQueryParams.safeParse(req.query);
-  if (
-    process.env.NODE_ENV !== "test" &&
-    query.success &&
-    query.data.mode === "deep"
-  ) {
+  if (query.success && query.data.mode === "deep") {
     requireAuth(req, res, next);
     return;
   }
@@ -281,6 +277,23 @@ router.get(
     };
     const canonicalUrl = canonicalResourceUrl(url);
     const reviewKey = mode + ":" + canonicalUrl;
+    let deepUserId: number | null = null;
+    let deepIsAdmin = false;
+    let deepUnlimited = false;
+    if (mode === "deep") {
+      deepUserId = (req as AuthenticatedRequest).userId;
+      deepIsAdmin = (req as AuthenticatedRequest).accountRole === "admin";
+      const entitlements = await getAccountEntitlements(deepUserId);
+      if (!deepIsAdmin && !entitlements.features["deep-research"]) {
+        res.status(402).json({
+          error: "Deep AI source research requires Casparel Plus or Pro.",
+          code: "SUBSCRIPTION_REQUIRED",
+          requiredPlan: "plus",
+        });
+        return;
+      }
+      deepUnlimited = deepIsAdmin || entitlements.unlimitedAi;
+    }
     const now = new Date().toISOString();
     const cached =
       process.env.NODE_ENV === "test"
@@ -336,9 +349,7 @@ router.get(
       return;
     }
 
-    let deepUserId: number | null = null;
-    if (mode === "deep" && process.env.NODE_ENV !== "test") {
-      deepUserId = (req as AuthenticatedRequest).userId;
+    if (mode === "deep" && deepUserId !== null) {
       if (activeDeepUsers.has(deepUserId) || activeReviews.has(reviewKey)) {
         res.status(429).json({
           error:
@@ -346,16 +357,16 @@ router.get(
         });
         return;
       }
-      const isAdmin = (req as AuthenticatedRequest).accountRole === "admin";
-      const premium = isAdmin || (await isPremiumAccount(deepUserId));
-      // Premium and admin accounts skip the per-user daily/monthly caps , 
-      // "unlimited AI source research" is the headline paywall benefit.
-      if (!premium) {
+      // Plus has predictable per-user caps. Pro and admins are uncapped at the
+      // account level, while the global cost-safety budget still applies.
+      if (!deepUnlimited) {
         const daily = await consumeAiQuota(
           "deep-user-day",
           String(deepUserId),
           24 * 60 * 60 * 1000,
-          2,
+          Number(process.env.AI_PLUS_DEEP_DAILY_LIMIT) > 0
+            ? Math.floor(Number(process.env.AI_PLUS_DEEP_DAILY_LIMIT))
+            : 5,
         );
         if (!daily.allowed) {
           res.setHeader("Retry-After", daily.retryAfter);
@@ -369,7 +380,9 @@ router.get(
           "deep-user-month",
           String(deepUserId),
           30 * 24 * 60 * 60 * 1000,
-          2,
+          Number(process.env.AI_PLUS_DEEP_MONTHLY_LIMIT) > 0
+            ? Math.floor(Number(process.env.AI_PLUS_DEEP_MONTHLY_LIMIT))
+            : 50,
         );
         if (!monthly.allowed) {
           res.setHeader("Retry-After", monthly.retryAfter);
@@ -382,7 +395,7 @@ router.get(
       }
       // The global daily budget remains a cost safety net for every non-admin
       // account, including premium.
-      if (!isAdmin) {
+      if (!deepIsAdmin) {
         const globalDaily = await consumeAiQuota(
           "deep-global-day",
           "all",

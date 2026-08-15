@@ -66,7 +66,7 @@ export default function SupportPage() {
         <Card>
           <CardHeader>
             <ShieldCheck className="size-5 text-primary-text" />
-            <CardTitle className="text-base">Premium and privacy</CardTitle>
+            <CardTitle className="text-base">Subscriptions and privacy</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             Use Restore purchases in the mobile app first. For privacy requests,

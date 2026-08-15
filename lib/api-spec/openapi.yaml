@@ -687,6 +687,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/SeatingPlanSuggestion"
         "403": { description: Not the class teacher }
+        "402": { description: Casparel Pro subscription required }
 
   /classes/{id}/student-goals:
     get:
@@ -1191,6 +1192,10 @@ paths:
                   $ref: "#/components/schemas/DiscoveredResource"
         "400":
           description: Missing query
+        "401":
+          description: Sign-in required when the stored catalog has no results and AI discovery is used
+        "402":
+          description: Casparel Plus or Pro subscription required for AI discovery fallback
         "502":
           description: Search failed
 
@@ -1311,6 +1316,8 @@ paths:
                 $ref: "#/components/schemas/SourceReview"
         "404":
           description: Resource not found
+        "402":
+          description: Casparel Plus or Pro subscription required for deep AI research
         "502":
           description: Source research failed
 

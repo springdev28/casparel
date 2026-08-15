@@ -18,28 +18,23 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { usePurchases } from '@/contexts/PurchasesContext';
-import { purchasesSupported, type RCPackage } from '@/utils/revenuecat';
+import { purchasesSupported, tierForPackage, type RCPackage } from '@/utils/revenuecat';
 
 const BENEFITS: { icon: string; title: string; body: string }[] = [
   {
-    icon: 'search',
-    title: 'Unlimited AI source research',
-    body: 'Run deep, live-web research on any resource, with no daily cap.',
+    icon: 'book-open',
+    title: 'Free',
+    body: 'Library, classes, schedules, citations, and manual seating. No AI features.',
   },
   {
-    icon: 'file-text',
-    title: 'Cited live-web reports',
-    body: 'See the source, trust signals, strengths, concerns, and supporting links.',
+    icon: 'sparkles',
+    title: 'Plus',
+    body: 'AI discovery and cited deep research with daily and monthly allowances.',
   },
   {
-    icon: 'smartphone',
-    title: 'One Premium account',
-    body: 'Premium follows your Casparel login across supported devices.',
-  },
-  {
-    icon: 'heart',
-    title: 'Keep learning open',
-    body: 'The core library stays free for everyone. Premium funds it.',
+    icon: 'award',
+    title: 'Pro',
+    body: 'Unlimited account-level AI plus explainable seating-plan suggestions for teachers.',
   },
 ];
 
@@ -90,17 +85,21 @@ export default function PaywallScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { ready, available, isPremium, packages, purchase, restore } = usePurchases();
+  const { ready, available, tier, isPlus, isPro, packages, purchase, restore } = usePurchases();
+  const upgradePackages = isPlus ? packages.filter((pkg) => tierForPackage(pkg) === 'pro') : packages;
 
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // Default the selection to the annual package when offerings arrive, else the first.
   useEffect(() => {
-    if (selected || packages.length === 0) return;
-    const annual = packages.find((p) => p.packageType?.toUpperCase() === 'ANNUAL');
-    setSelected((annual ?? packages[0]).identifier);
-  }, [packages, selected]);
+    if (selected && upgradePackages.some((pkg) => pkg.identifier === selected)) return;
+    const plusAnnual = upgradePackages.find(
+      (pkg) => tierForPackage(pkg) === 'plus' && pkg.packageType?.toUpperCase() === 'ANNUAL',
+    );
+    const annual = upgradePackages.find((pkg) => pkg.packageType?.toUpperCase() === 'ANNUAL');
+    setSelected((plusAnnual ?? annual ?? upgradePackages[0])?.identifier ?? null);
+  }, [upgradePackages, selected]);
 
   function close() {
     if (router.canGoBack()) router.back();
@@ -108,9 +107,14 @@ export default function PaywallScreen() {
   }
 
   // "Best value" + computed savings on the annual package vs. 12× monthly.
-  const monthlyPkg = packages.find((p) => p.packageType?.toUpperCase() === 'MONTHLY');
   function badgeFor(pkg: RCPackage): string | null {
     if (pkg.packageType?.toUpperCase() !== 'ANNUAL') return null;
+    const packageTier = tierForPackage(pkg);
+    const monthlyPkg = packages.find(
+      (candidate) =>
+        tierForPackage(candidate) === packageTier &&
+        candidate.packageType?.toUpperCase() === 'MONTHLY',
+    );
     const monthlyPrice = monthlyPkg?.product.price ?? 0;
     if (monthlyPrice > 0 && pkg.product.price > 0) {
       const pct = Math.round((1 - pkg.product.price / (monthlyPrice * 12)) * 100);
@@ -120,13 +124,14 @@ export default function PaywallScreen() {
   }
 
   async function handlePurchase() {
-    const pkg = packages.find((p) => p.identifier === selected);
+    const pkg = upgradePackages.find((p) => p.identifier === selected);
     if (!pkg) return;
     setBusy(true);
     const result = await purchase(pkg);
     setBusy(false);
     if (result === 'success') {
-      Alert.alert('Welcome to Premium', 'Your premium features are now unlocked. Thank you!', [
+      const purchasedTier = tierForPackage(pkg);
+      Alert.alert(`Welcome to Casparel ${purchasedTier === 'pro' ? 'Pro' : 'Plus'}`, 'Your subscription features are now unlocked. Thank you!', [
         { text: 'Great', onPress: close },
       ]);
     } else if (result === 'error') {
@@ -143,7 +148,7 @@ export default function PaywallScreen() {
     setBusy(false);
     Alert.alert(
       ok ? 'Purchases restored' : 'Nothing to restore',
-      ok ? 'Your premium access is active again.' : "We couldn't find a previous purchase for this account.",
+      ok ? 'Your paid plan is active again.' : "We couldn't find a previous purchase for this account.",
       ok ? [{ text: 'Great', onPress: close }] : undefined,
     );
   }
@@ -154,7 +159,7 @@ export default function PaywallScreen() {
       <Pressable
         onPress={close}
         accessibilityRole="button"
-        accessibilityLabel="Close Premium plans"
+        accessibilityLabel="Close subscription plans"
         style={[
           styles.closeBtn,
           {
@@ -204,7 +209,7 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              Casparel Premium
+              Choose your Casparel plan
             </Text>
             <Text
               style={[
@@ -215,7 +220,7 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              Unlimited deep source research for serious learners.
+              Keep the core free, then add only the AI access you need.
             </Text>
           </LinearGradient>
         </Animated.View>
@@ -237,7 +242,7 @@ export default function PaywallScreen() {
           ))}
         </Animated.View>
 
-        {isPremium ? (
+        {tier !== 'free' ? (
           <View
             style={[
               styles.premiumBanner,
@@ -258,14 +263,16 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              You're on Premium. Thank you!
+              You're on Casparel {tier === 'pro' ? 'Pro' : 'Plus'}. Thank you!
             </Text>
           </View>
-        ) : !ready ? (
+        ) : null}
+
+        {isPro ? null : !ready ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.primary} />
           </View>
-        ) : !available || packages.length === 0 ? (
+        ) : !available || upgradePackages.length === 0 ? (
           <View style={[styles.notice, { borderColor: colors.border, borderRadius: colors.radius }]}>
             <Text
               style={[
@@ -277,7 +284,7 @@ export default function PaywallScreen() {
               ]}
             >
               {Platform.OS === 'web'
-                ? 'Open Casparel on your phone to upgrade to Premium.'
+                ? 'Open Casparel on your phone to choose Plus or Pro.'
                 : 'Plans are loading or unavailable right now. Please try again shortly.'}
             </Text>
           </View>
@@ -285,7 +292,7 @@ export default function PaywallScreen() {
           <>
             {/* Package options */}
             <Animated.View entering={FadeInDown.delay(200).duration(450)} style={{ gap: 10, marginTop: 18 }}>
-              {packages.map((pkg) => (
+              {upgradePackages.map((pkg) => (
                 <PackageOption
                   key={pkg.identifier}
                   pkg={pkg}
@@ -320,7 +327,7 @@ export default function PaywallScreen() {
           produce a misleading "Nothing to restore" next to the notice telling
           the user to open the app on their phone.
         */}
-        {!isPremium && purchasesSupported ? (
+        {tier === 'free' && purchasesSupported ? (
           <Pressable
             onPress={handleRestore}
             disabled={busy}
@@ -387,6 +394,7 @@ function PackageOption({
   badge?: string | null;
 }) {
   const colors = useColors();
+  const packageTier = tierForPackage(pkg);
   const period =
     pkg.packageType?.toUpperCase() === 'ANNUAL'
       ? 'Billed yearly'
@@ -434,7 +442,7 @@ function PackageOption({
             },
           ]}
         >
-          {pkg.product.title || pkg.identifier}
+          Casparel {packageTier === 'pro' ? 'Pro' : 'Plus'}
         </Text>
         {period ? (
           <Text

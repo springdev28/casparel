@@ -110,14 +110,16 @@ export function TermsPage() {
         </p>
       </Section>
 
-      <Section title="Premium subscriptions">
+      <Section title="Subscriptions">
         <p>
-          Casparel is free to use, with limits on AI discovery and deep
-          research. Premium removes those limits. Subscriptions bought in the
-          mobile apps are billed by Apple or Google, renew automatically, and
-          can be cancelled at any time in your App Store or Google Play account
-          settings. Cancelling stops the next renewal; it does not refund the
-          period already paid for.
+          Casparel Free includes the core library, classes, schedules,
+          citations, and manual seating, but no AI features. Plus includes AI
+          discovery and deep research with allowances. Pro includes unlimited
+          account-level AI and explainable seating-plan suggestions.
+          Subscriptions bought in the mobile apps are billed by Apple or
+          Google, renew automatically, and can be cancelled at any time in your
+          App Store or Google Play account settings. Cancelling stops the next
+          renewal; it does not refund the period already paid for.
         </p>
         <p>
           Refunds are handled by whichever store you bought through, under that
@@ -127,10 +129,11 @@ export function TermsPage() {
 
       <Section title="AI features">
         <p>
-          AI discovery and deep research generate suggestions from external
-          sources. They can be wrong, out of date, or incomplete. Check anything
-          you intend to rely on, particularly for assessed work. Casparel is a
-          study aid, not an authority.
+          AI discovery, deep research, and seating-plan suggestions generate
+          recommendations that can be wrong, out of date, or incomplete. Check
+          anything you intend to rely on, particularly for assessed work or
+          decisions affecting students. Casparel is a study aid, not an
+          authority.
         </p>
       </Section>
 
@@ -145,12 +148,9 @@ export function TermsPage() {
 
       <Section title="Ending your account">
         <p>
-          You can delete your account at any time from your profile settings, on
-          the web or in the mobile app. This destroys your credentials and
-          clears your profile; contributions to shared spaces stay, unlinked
-          from you. See the Privacy Policy for exactly what is removed. We may
-          suspend an account that breaks these terms, and will explain why when
-          we do.
+          You can delete your account at any time from your profile settings,
+          which removes your account and its associated content. We may suspend
+          an account that breaks these terms, and will explain why when we do.
         </p>
       </Section>
     </LegalLayout>
@@ -238,18 +238,9 @@ export function PrivacyPage() {
       <Section title="Keeping and deleting data">
         <p>
           We keep your data while your account exists. You can delete your
-          account at any time from your profile settings, on the web or in the
-          mobile app.
-        </p>
-        <p>
-          Deleting removes your personal details: your email address and
-          password are destroyed, your name, avatar, bio, subjects, year group
-          and website are cleared, and the account can no longer be signed in
-          to. Resources and posts you contributed to shared spaces remain, no
-          longer linked to you and shown as authored by a deleted user, so that
-          other people's lists and classes do not break. If you want particular
-          contributions removed as well, or a copy of your data first, email{" "}
-          {SUPPORT_EMAIL} and we will do it by hand.
+          account at any time from your profile settings; this removes your
+          account and the content tied to it. If you would rather we did it, or
+          you want a copy of your data first, email {SUPPORT_EMAIL}.
         </p>
       </Section>
 

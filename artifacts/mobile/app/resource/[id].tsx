@@ -268,7 +268,7 @@ export default function ResourceDetailScreen() {
         Open Resource
       </Button>
 
-      {/* AI Source Research (deep mode is a Premium feature) */}
+      {/* Source review: quick is non-AI; deep AI requires Plus or Pro. */}
       <SourceReviewSection resourceId={resourceId} />
 
       {/* Reviews */}

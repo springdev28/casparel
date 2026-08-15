@@ -23,7 +23,7 @@ const VALUE_PROPS: { icon: string; title: string; body: string }[] = [
   {
     icon: 'search',
     title: 'AI source research',
-    body: 'Evaluate any resource with AI, and go unlimited with Premium.',
+    body: 'Check source provenance without AI, or add live AI research with Plus and Pro.',
   },
 ];
 

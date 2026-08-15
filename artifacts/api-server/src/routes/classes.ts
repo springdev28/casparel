@@ -41,6 +41,7 @@ RemoveClassMemberParams,
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher, isClassMember } from "../lib/authz";
+import { getAccountEntitlements } from "../lib/entitlements";
 
 async function resourceWithRating(id: number) {
   const [r] = await db
@@ -774,6 +775,16 @@ router.post("/classes/:id/seating-plan/suggest", contentLimiter, requireAuth, as
   const body = SuggestSeatingPlanBody.safeParse(req.body ?? {});
   if (!params.success || !body.success) { res.status(400).json({ error: "Invalid seating-plan request" }); return; }
   if (!(await isClassTeacher(params.data.id, userId))) { res.status(403).json({ error: "Only the class teacher can request a seating plan" }); return; }
+  const isAdmin = (req as AuthenticatedRequest).accountRole === "admin";
+  const entitlements = await getAccountEntitlements(userId);
+  if (!isAdmin && !entitlements.features["seating-planner"]) {
+    res.status(402).json({
+      error: "AI seating-plan suggestions require Casparel Pro.",
+      code: "SUBSCRIPTION_REQUIRED",
+      requiredPlan: "pro",
+    });
+    return;
+  }
   const chart = await seatingChart(params.data.id);
   if (!chart) { res.status(404).json({ error: "Class not found" }); return; }
 

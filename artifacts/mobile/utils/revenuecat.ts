@@ -9,8 +9,11 @@
  */
 import { Platform } from 'react-native';
 
-/** The entitlement identifier configured in the RevenueCat dashboard. */
+/** Entitlement identifiers configured in RevenueCat. */
+export const PLUS_ENTITLEMENT = 'plus';
+export const PRO_ENTITLEMENT = 'pro';
 export const PREMIUM_ENTITLEMENT = 'premium';
+export type SubscriptionTier = 'free' | 'plus' | 'pro';
 
 /**
  * Public RevenueCat SDK keys. These are *publishable* keys and are safe to ship
@@ -107,8 +110,22 @@ export async function loadPurchases(): Promise<PurchasesModule | null> {
   }
 }
 
-/** Does this CustomerInfo grant the premium entitlement? */
+/** Resolve active entitlements, preserving legacy `premium` buyers as Pro. */
+export function subscriptionTier(info: RCCustomerInfo | null | undefined): SubscriptionTier {
+  if (!info) return 'free';
+  const active = info.entitlements.active;
+  if (active[PRO_ENTITLEMENT]?.isActive || active[PREMIUM_ENTITLEMENT]?.isActive) return 'pro';
+  if (active[PLUS_ENTITLEMENT]?.isActive) return 'plus';
+  return 'free';
+}
+
+/** Compatibility name: true for either paid subscription tier. */
 export function hasPremium(info: RCCustomerInfo | null | undefined): boolean {
-  if (!info) return false;
-  return Boolean(info.entitlements.active[PREMIUM_ENTITLEMENT]?.isActive);
+  return subscriptionTier(info) !== 'free';
+}
+
+/** RevenueCat products must contain `plus` or `pro`; legacy products map Pro. */
+export function tierForPackage(pkg: RCPackage): Exclude<SubscriptionTier, 'free'> {
+  const identity = `${pkg.identifier} ${pkg.product.identifier} ${pkg.product.title}`.toLowerCase();
+  return identity.includes('plus') ? 'plus' : 'pro';
 }

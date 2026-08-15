@@ -19,18 +19,21 @@ import { readSessionClaims } from "./session";
  * does not silently downgrade the display to Free either.
  */
 export interface PlanState {
-  /** Label to show: "Administrator", "Premium" or "Free". */
+  /** Label to show: "Administrator", "Pro", "Plus" or "Free". */
   label: string;
-  /** True when AI usage is uncapped (admins, and active premium accounts). */
+  tier: "free" | "plus" | "pro" | "administrator";
+  /** True when AI usage is uncapped (admins and Pro accounts). */
   unlimited: boolean;
+  aiEnabled: boolean;
+  seatingPlanner: boolean;
   aiSearch: { used: number; limit: number | null };
   deepResearch: { used: number; limit: number | null };
   /** True while we still only have the fallback, not the server's answer. */
   pending: boolean;
 }
 
-const FALLBACK_SEARCH_LIMIT = 3;
-const FALLBACK_DEEP_LIMIT = 2;
+const FALLBACK_SEARCH_LIMIT = 0;
+const FALLBACK_DEEP_LIMIT = 0;
 
 export function usePlan(enabled = true): PlanState {
   const { data: me } = useGetMe();
@@ -51,6 +54,15 @@ export function usePlan(enabled = true): PlanState {
   // enforces the limits; the role is the fallback for when it does not, which
   // is the case that used to downgrade the whole display to Free.
   const unlimited = usage ? usage.unlimited === true : isAdmin;
+  const label = usage?.plan ?? (isAdmin ? "Administrator" : "Free");
+  const tier =
+    label === "Administrator"
+      ? "administrator"
+      : label === "Pro" || label === "Premium"
+        ? "pro"
+        : label === "Plus"
+          ? "plus"
+          : "free";
 
   // Every field is read defensively, including the nested ones. This hook feeds
   // the sidebar, which renders on every signed-in page, so a usage response
@@ -59,8 +71,11 @@ export function usePlan(enabled = true): PlanState {
   // `usage?.aiSearch` guarded the response but not the field inside it, and
   // one such response took down the whole app, not just the plan card.
   return {
-    label: usage?.plan ?? (isAdmin ? "Administrator" : "Free"),
+    label,
+    tier,
     unlimited,
+    aiEnabled: tier !== "free",
+    seatingPlanner: tier === "pro" || tier === "administrator",
     aiSearch: {
       used: usage?.aiSearch?.used ?? 0,
       limit: unlimited ? null : (usage?.aiSearch?.limit ?? FALLBACK_SEARCH_LIMIT),

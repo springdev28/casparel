@@ -86,6 +86,7 @@ import {
 import type { SourceReview } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
+import { usePlan } from "../lib/use-plan";
 
 // ── Media helpers ────────────────────────────────────────────────────────────
 
@@ -317,6 +318,7 @@ function SourceReviewPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"quick" | "deep" | null>(null);
+  const plan = usePlan(isLoggedIn);
 
   const {
     data: quickData,
@@ -376,6 +378,13 @@ function SourceReviewPanel({
   }
 
   function handleModeSelect(selected: "quick" | "deep") {
+    if (selected === "deep" && !plan.aiEnabled) {
+      toast({
+        title: "Casparel Plus or Pro required",
+        description: "Free includes the non-AI quick source check. Deep live-web research is an AI feature.",
+      });
+      return;
+    }
     setMode(selected);
   }
 
@@ -401,8 +410,7 @@ function SourceReviewPanel({
         <DialogHeader>
           <DialogTitle>Source Review</DialogTitle>
           <DialogDescription>
-            AI-researched background on the publisher or uploader of this
-            resource.
+            Check maintained source provenance, or use paid AI for deeper live-web research.
           </DialogDescription>
         </DialogHeader>
 
@@ -420,7 +428,7 @@ function SourceReviewPanel({
               >
                 <span className="text-sm font-semibold">Quick Overlook</span>
                 <span className="text-xs text-muted-foreground leading-relaxed">
-                  Brief live lookup of the source and the resource's key facts.
+                  Maintained source provenance and key resource facts. No AI.
                 </span>
               </button>
               <button
@@ -431,8 +439,8 @@ function SourceReviewPanel({
               >
                 <span className="text-sm font-semibold">Deep Research</span>
                 <span className="text-xs text-muted-foreground leading-relaxed">
-                  Live web research across forums, comments, reviews, articles,
-                  and other mentions.
+                  Paid AI research across forums, comments, reviews, articles,
+                  and other mentions. Requires Plus or Pro.
                 </span>
               </button>
             </div>

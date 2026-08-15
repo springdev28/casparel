@@ -4,7 +4,10 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import {
   PLAN_FREE,
-  PLAN_PREMIUM,
+  PLAN_PLUS,
+  PLAN_PRO,
+  PLUS_ENTITLEMENT,
+  PRO_ENTITLEMENT,
   PREMIUM_ENTITLEMENT,
 } from "../lib/entitlements";
 
@@ -77,23 +80,36 @@ router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
     return;
   }
 
-  const entitlementIds = event.entitlement_ids ?? [];
-  const touchesPremium =
+  const entitlementIds = [
+    ...(event.entitlement_ids ?? []),
+    ...(event.entitlement_id ? [event.entitlement_id] : []),
+  ];
+  const knownEntitlements = new Set([
+    PLUS_ENTITLEMENT,
+    PRO_ENTITLEMENT,
+    PREMIUM_ENTITLEMENT,
+  ]);
+  const touchesSubscription =
     entitlementIds.length === 0 ||
-    entitlementIds.includes(PREMIUM_ENTITLEMENT) ||
-    event.entitlement_id === PREMIUM_ENTITLEMENT;
+    entitlementIds.some((id) => knownEntitlements.has(id));
+  const grantedPlan =
+    entitlementIds.length === 0 ||
+    entitlementIds.includes(PRO_ENTITLEMENT) ||
+    entitlementIds.includes(PREMIUM_ENTITLEMENT)
+      ? PLAN_PRO
+      : PLAN_PLUS;
 
   try {
-    if (GRANT_EVENTS.has(event.type) && touchesPremium) {
+    if (GRANT_EVENTS.has(event.type) && touchesSubscription) {
       const expiresAt =
         typeof event.expiration_at_ms === "number" && event.expiration_at_ms > 0
           ? new Date(event.expiration_at_ms).toISOString()
           : null;
       await db
         .update(usersTable)
-        .set({ plan: PLAN_PREMIUM, planExpiresAt: expiresAt })
+        .set({ plan: grantedPlan, planExpiresAt: expiresAt })
         .where(eq(usersTable.id, userId));
-    } else if (REVOKE_EVENTS.has(event.type) && touchesPremium) {
+    } else if (REVOKE_EVENTS.has(event.type) && touchesSubscription) {
       await db
         .update(usersTable)
         .set({ plan: PLAN_FREE, planExpiresAt: null })

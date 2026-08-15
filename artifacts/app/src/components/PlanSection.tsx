@@ -20,7 +20,8 @@ function UsageMeter({
 }) {
   const unlimited = limit == null;
   const pct = !unlimited && limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
-  const nearLimit = !unlimited && used >= limit;
+  const included = unlimited || limit > 0;
+  const nearLimit = !unlimited && included && used >= limit;
   return (
     <div>
       <div className="flex justify-between text-xs">
@@ -30,10 +31,14 @@ function UsageMeter({
             nearLimit ? "font-medium text-destructive-text" : "text-muted-foreground"
           }
         >
-          {unlimited ? "Unlimited" : `${used} / ${limit} today`}
+          {unlimited
+            ? "Unlimited"
+            : included
+              ? `${used} / ${limit} today`
+              : "Not included"}
         </span>
       </div>
-      {!unlimited ? (
+      {!unlimited && included ? (
         <div className="mt-1 h-1.5 overflow-hidden rounded bg-muted">
           <div
             className={
@@ -52,7 +57,7 @@ function useUpgradePrompt() {
     toast({
       title: "Upgrade in the Casparel mobile app",
       description:
-        "Premium is purchased in the app. Sign in with the same account, then open Profile then Plan to unlock unlimited AI.",
+        "Subscriptions are purchased in the Casparel mobile app. Open Profile then Plan to choose Plus or Pro.",
     });
   };
 }
@@ -62,20 +67,15 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
   const plan = usePlan();
   const handleUpgrade = useUpgradePrompt();
 
-  if (plan.unlimited) {
-    return (
-      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <Check className="size-4 text-primary-text" />
-        Unlimited AI research and discovery is unlocked.
-      </p>
-    );
-  }
-
   return (
     <>
-      <p className="text-sm text-muted-foreground">
-        Premium unlocks unlimited AI source research and discovery. The core
-        library stays free.
+      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        {plan.aiEnabled ? <Check className="size-4 text-primary-text" /> : null}
+        {plan.unlimited
+          ? "Unlimited account-level AI research and discovery is unlocked."
+          : plan.tier === "plus"
+            ? "AI discovery and deep research are active with plan allowances."
+            : "Free includes core learning tools, with no AI features."}
       </p>
       <div className={"mt-3 grid gap-2.5" + (compact ? "" : " max-w-sm")}>
         <UsageMeter
@@ -89,11 +89,29 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
           limit={plan.aiSearch.limit}
         />
       </div>
+      {!compact ? (
+        <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
+          <div className="rounded-lg border p-3">
+            <b>Free</b>
+            <p className="mt-1 text-muted-foreground">Library, classes, schedules, citations, and manual seating. No AI.</p>
+          </div>
+          <div className="rounded-lg border border-primary/30 p-3">
+            <b>Plus</b>
+            <p className="mt-1 text-muted-foreground">AI discovery and cited deep research with allowances.</p>
+          </div>
+          <div className="rounded-lg border border-primary/50 bg-primary/5 p-3">
+            <b>Pro</b>
+            <p className="mt-1 text-muted-foreground">Unlimited AI plus explainable seating-plan suggestions.</p>
+          </div>
+        </div>
+      ) : null}
       {compact ? (
-        <Button onClick={handleUpgrade} className="mt-4 w-full gap-2">
-          <Sparkles className="size-4" />
-          Get Premium
-        </Button>
+        plan.tier === "free" || plan.tier === "plus" ? (
+          <Button onClick={handleUpgrade} className="mt-4 w-full gap-2">
+            <Sparkles className="size-4" />
+            {plan.tier === "plus" ? "Upgrade to Pro" : "See Plus and Pro"}
+          </Button>
+        ) : null
       ) : null}
     </>
   );
@@ -112,8 +130,8 @@ function PlanBadge() {
 }
 
 /**
- * Plan / subscription row for the web Settings page. Mirrors the mobile
- * PremiumCard: shows the current plan and AI usage from /users/me/usage.
+ * Plan / subscription row for the web Settings page. Shows the current plan
+ * and AI usage from /users/me/usage.
  * Purchases happen in the mobile app (RevenueCat IAP), so the web surfaces
  * status and directs users there to upgrade.
  */
@@ -134,10 +152,10 @@ export function PlanSection() {
         </div>
       </div>
 
-      {!plan.unlimited ? (
+      {plan.tier === "free" || plan.tier === "plus" ? (
         <Button onClick={handleUpgrade} className="gap-2">
           <Sparkles className="size-4" />
-          Get Premium
+          {plan.tier === "plus" ? "Upgrade to Pro" : "See plans"}
         </Button>
       ) : null}
     </section>

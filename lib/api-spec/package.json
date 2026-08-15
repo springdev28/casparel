@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "codegen": "orval --config ./orval.config.ts && find ../../lib/api-zod/src/generated -name '*.ts' -exec sed -i \"s|from 'zod'|from 'zod/v4'|g\" {} \\; && sed -i \"/export \\* from '.\\/generated\\/types'/d\" ../../lib/api-zod/src/index.ts && pnpm -w run typecheck:libs"
+    "codegen": "orval --config ./orval.config.ts && find ../../lib/api-zod/src/generated -name '*.ts' -exec perl -pi -e \"s/from 'zod'/from 'zod\\/v4'/g\" {} \\; && perl -ni -e \"print unless /export \\* from '\\.\\/generated\\/types'/\" ../../lib/api-zod/src/index.ts && pnpm -w run typecheck:libs"
   },
   "devDependencies": {
     "orval": "^8.23.0"

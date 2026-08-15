@@ -172,7 +172,13 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
 
   const deepLimit = usage?.deepResearch.limit ?? null;
   const deepUsed = usage?.deepResearch.used ?? 0;
-  const deepLimitReached = !isPremium && deepLimit != null && deepUsed >= deepLimit;
+  const paidAi =
+    isPremium ||
+    usage?.unlimited === true ||
+    usage?.plan === 'Plus' ||
+    usage?.plan === 'Pro' ||
+    usage?.plan === 'Administrator';
+  const deepLimitReached = !paidAi || (deepLimit != null && deepUsed >= deepLimit);
   const deepRemaining = deepLimit == null ? null : Math.max(0, deepLimit - deepUsed);
 
   const { data, isFetching, isError, refetch } = useGetResourceSourceReview(
@@ -221,7 +227,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
             },
           ]}
         >
-          AI Source Research
+          Source Review
         </Text>
       </View>
 
@@ -245,8 +251,8 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
               },
             ]}
           >
-            Evaluate who's behind this resource and how much to trust it. Quick check uses AI knowledge; deep research
-            runs live web research for a fuller, cited report.
+            Evaluate who's behind this resource and how much to trust it. Quick check uses Casparel's maintained
+            provenance registry without AI. Deep research runs live AI web research for a fuller, cited report.
           </Text>
         ) : isFetching ? (
           <View style={styles.loading}>
@@ -260,7 +266,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
                 },
               ]}
             >
-              {mode === 'deep' ? 'Running live web research…' : 'Analyzing source…'}
+              {mode === 'deep' ? 'Running live web research…' : 'Checking source registry…'}
             </Text>
           </View>
         ) : isError ? (
@@ -301,7 +307,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
             onPress={runQuick}
             disabled={isFetching}
             accessibilityRole="button"
-            accessibilityLabel="Run a quick AI source check"
+            accessibilityLabel="Run a quick non-AI source check"
             style={[styles.actionBtn, { borderColor: colors.border, opacity: isFetching ? 0.5 : 1 }]}
           >
             <Feather name="zap" size={14} color={colors.foreground} />
@@ -322,7 +328,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
             disabled={isFetching}
             accessibilityRole="button"
             accessibilityLabel={
-              deepLimitReached ? 'View Premium plans for more deep research' : 'Run deep source research'
+              deepLimitReached ? 'View paid plans for deep AI research' : 'Run deep source research'
             }
             style={[
               styles.actionBtn,
@@ -347,7 +353,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
             </Text>
           </Pressable>
         </View>
-        {!isPremium ? (
+        {!usage?.unlimited ? (
           <Text
             style={[
               styles.deepHint,
@@ -357,11 +363,13 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
               },
             ]}
           >
-            {deepLimitReached
-              ? 'Your free deep-report allowance is used. Premium removes account-level limits.'
-              : deepRemaining == null
-                ? 'The free plan includes limited deep research. Premium removes account-level limits.'
-                : `${deepRemaining} free deep ${deepRemaining === 1 ? 'report' : 'reports'} remaining in your allowance. Premium removes account-level limits.`}
+            {!paidAi
+              ? 'Deep AI research starts with Plus. Free includes the non-AI quick source check.'
+              : deepLimitReached
+                ? 'Your Plus deep-research allowance is used. Pro removes account-level limits.'
+                : deepRemaining == null
+                  ? 'Pro includes unlimited account-level deep research.'
+                  : `${deepRemaining} Plus deep ${deepRemaining === 1 ? 'report' : 'reports'} remaining today. Pro removes account-level limits.`}
           </Text>
         ) : null}
       </View>

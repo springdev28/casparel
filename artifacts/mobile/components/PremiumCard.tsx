@@ -8,6 +8,7 @@ import { usePurchases } from '@/contexts/PurchasesContext';
 
 function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number | null }) {
   const colors = useColors();
+  const included = limit == null || limit > 0;
   const pct = limit && limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
   const nearLimit = limit != null && used >= limit;
   return (
@@ -25,10 +26,10 @@ function UsageMeter({ label, used, limit }: { label: string; used: number; limit
             },
           ]}
         >
-          {limit == null ? 'Unlimited' : `${used} / ${limit} allowance used`}
+          {limit == null ? 'Unlimited' : included ? `${used} / ${limit} allowance used` : 'Not included'}
         </Text>
       </View>
-      {limit != null ? (
+      {limit != null && included ? (
         <View style={[styles.meterTrack, { backgroundColor: colors.border }]}>
           <View
             style={[
@@ -48,73 +49,11 @@ function UsageMeter({ label, used, limit }: { label: string; used: number; limit
 export function PremiumCard() {
   const colors = useColors();
   const router = useRouter();
-  const { isPremium } = usePurchases();
+  const { tier } = usePurchases();
   const { data: usage } = useGetMyUsage();
-
-  if (isPremium) {
-    return (
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.primary + '12',
-            borderColor: colors.primary + '40',
-            borderRadius: colors.radius,
-          },
-        ]}
-      >
-        <View style={styles.headerRow}>
-          <View
-            style={[
-              styles.iconBadge,
-              {
-                backgroundColor: colors.primary + '22',
-                borderRadius: colors.radius - 2,
-              },
-            ]}
-          >
-            <Feather name="award" size={18} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={[
-                styles.title,
-                {
-                  color: colors.foreground,
-                  fontFamily: colors.fontFamily.sansBold,
-                },
-              ]}
-            >
-              Casparel Premium
-            </Text>
-            <Text
-              style={[
-                styles.subtitle,
-                {
-                  color: colors.primary,
-                  fontFamily: colors.fontFamily.sansMedium,
-                },
-              ]}
-            >
-              Active, thank you!
-            </Text>
-          </View>
-          <Feather name="check-circle" size={20} color={colors.primary} />
-        </View>
-        <Text
-          style={[
-            styles.perk,
-            {
-              color: colors.mutedForeground,
-              fontFamily: colors.fontFamily.sans,
-            },
-          ]}
-        >
-          Unlimited deep source research is unlocked.
-        </Text>
-      </View>
-    );
-  }
+  const planLabel = usage?.plan ?? (tier === 'pro' ? 'Pro' : tier === 'plus' ? 'Plus' : 'Free');
+  const isUnlimited = usage?.unlimited === true || planLabel === 'Pro' || planLabel === 'Administrator';
+  const isPaid = isUnlimited || planLabel === 'Plus';
 
   return (
     <View
@@ -149,7 +88,7 @@ export function PremiumCard() {
               },
             ]}
           >
-            Upgrade to Premium
+            Casparel {planLabel}
           </Text>
           <Text
             style={[
@@ -160,7 +99,11 @@ export function PremiumCard() {
               },
             ]}
           >
-            Remove the daily deep-research limit.
+            {isUnlimited
+              ? 'All account-level AI features are unlocked.'
+              : isPaid
+                ? 'AI discovery and deep research are active with allowances.'
+                : 'Core learning tools are included. AI features are not included.'}
           </Text>
         </View>
       </View>
@@ -168,13 +111,14 @@ export function PremiumCard() {
       {usage ? (
         <View style={{ gap: 12, marginTop: 4 }}>
           <UsageMeter label="AI source research" used={usage.deepResearch.used} limit={usage.deepResearch.limit} />
+          <UsageMeter label="AI discovery" used={usage.aiSearch.used} limit={usage.aiSearch.limit} />
         </View>
       ) : null}
 
-      <Pressable
+      {!isUnlimited ? <Pressable
         onPress={() => router.push('/paywall')}
         accessibilityRole="button"
-        accessibilityLabel="See Premium plans"
+        accessibilityLabel={isPaid ? 'Upgrade to Casparel Pro' : 'See Plus and Pro plans'}
         style={({ pressed }) => [
           styles.cta,
           {
@@ -194,9 +138,9 @@ export function PremiumCard() {
             },
           ]}
         >
-          See Premium plans
+          {isPaid ? 'Upgrade to Pro' : 'See Plus and Pro'}
         </Text>
-      </Pressable>
+      </Pressable> : null}
     </View>
   );
 }

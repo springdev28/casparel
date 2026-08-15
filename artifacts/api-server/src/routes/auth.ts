@@ -43,7 +43,7 @@ import {
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
-import { isPremiumAccount } from "../lib/entitlements";
+import { getAccountEntitlements } from "../lib/entitlements";
 import { publicUserColumns } from "../lib/userColumns";
 import { publicResourceColumns } from "../lib/resourceColumns";
 import {
@@ -417,41 +417,58 @@ router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
 router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
   const { userId, accountRole } = req as AuthenticatedRequest;
   const isAdmin = accountRole === "admin";
-  const premium = isAdmin || (await isPremiumAccount(userId));
-  const unlimited = premium;
+  const entitlements = await getAccountEntitlements(userId);
+  const unlimited = isAdmin || entitlements.unlimitedAi;
   const result = await pool.query<{ key: string; hits: number }>(
     `SELECT key, CASE WHEN reset_time > NOW() THEN hits ELSE 0 END AS hits
      FROM rate_limit_hits WHERE key = ANY($1::text[])`,
     [
       [
-        "ai-search-user-day:user:" + userId,
+        "discover-ai-user-day:user:" + userId,
         "deep-user-day:" + userId,
         "deep-user-month:" + userId,
       ],
     ],
   );
   const usage = new Map(result.rows.map((row) => [row.key, Number(row.hits)]));
-  const searchLimit = Number(process.env.AI_SEARCH_DAILY_USER_LIMIT ?? 3);
-  // Deep research has both a daily and a monthly free-account guard. Both are
-  // currently two reports, so exposing the greater count lets clients stop at
-  // the effective limit instead of offering a request the server will reject
-  // once the monthly allowance has already been used.
+  const configuredLimit = (value: string | undefined, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.floor(parsed)
+      : fallback;
+  };
+  const plusSearchLimit = configuredLimit(
+    process.env.AI_PLUS_SEARCH_DAILY_LIMIT,
+    20,
+  );
+  const plusDeepDailyLimit = configuredLimit(
+    process.env.AI_PLUS_DEEP_DAILY_LIMIT,
+    5,
+  );
   const deepUsage = Math.max(
     usage.get("deep-user-day:" + userId) ?? 0,
     usage.get("deep-user-month:" + userId) ?? 0,
   );
   res.json(
     GetMyUsageResponse.parse({
-      plan: isAdmin ? "Administrator" : premium ? "Premium" : "Free",
+      plan: isAdmin ? "Administrator" : entitlements.label,
       unlimited,
       aiSearch: {
-        used: usage.get("ai-search-user-day:user:" + userId) ?? 0,
-        limit: unlimited ? null : searchLimit,
+        used: usage.get("discover-ai-user-day:user:" + userId) ?? 0,
+        limit: unlimited
+          ? null
+          : entitlements.tier === "plus"
+            ? plusSearchLimit
+            : 0,
         window: "day",
       },
       deepResearch: {
         used: deepUsage,
-        limit: unlimited ? null : 2,
+        limit: unlimited
+          ? null
+          : entitlements.tier === "plus"
+            ? plusDeepDailyLimit
+            : 0,
         window: "day",
       },
     }),

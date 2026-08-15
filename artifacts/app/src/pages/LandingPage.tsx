@@ -80,7 +80,7 @@ const CREDENTIALS = [
   {
     metric: "Free forever",
     title: "The library stays open",
-    body: "Access to learning materials is never paywalled. Premium covers unlimited AI research, not access.",
+    body: "Access to learning materials is never paywalled. Free has no AI; Plus and Pro add optional AI tools.",
   },
 ];
 
@@ -377,7 +377,7 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-primary-text" />
-            The library is free. Premium covers unlimited AI research, not access.
+            The library is free. Plus and Pro add optional AI tools, not access.
           </p>
           <p>© {new Date().getFullYear()} Casparel</p>
         </div>

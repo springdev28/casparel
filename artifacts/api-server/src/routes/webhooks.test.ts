@@ -67,7 +67,7 @@ describe("POST /api/webhooks/revenuecat", () => {
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it("grants premium and records the expiry on INITIAL_PURCHASE", async () => {
+  it("maps a legacy premium purchase to Pro and records the expiry", async () => {
     const expiresMs = Date.now() + 30 * 24 * 60 * 60 * 1000;
     const res = await post(
       {
@@ -82,7 +82,27 @@ describe("POST /api/webhooks/revenuecat", () => {
     );
     expect(res.status).toBe(200);
     expect(setMock).toHaveBeenCalledWith({
-      plan: "premium",
+      plan: "pro",
+      planExpiresAt: new Date(expiresMs).toISOString(),
+    });
+  });
+
+  it("grants Plus for the plus entitlement", async () => {
+    const expiresMs = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    const res = await post(
+      {
+        event: {
+          type: "INITIAL_PURCHASE",
+          app_user_id: "42",
+          entitlement_ids: ["plus"],
+          expiration_at_ms: expiresMs,
+        },
+      },
+      SECRET,
+    );
+    expect(res.status).toBe(200);
+    expect(setMock).toHaveBeenCalledWith({
+      plan: "plus",
       planExpiresAt: new Date(expiresMs).toISOString(),
     });
   });

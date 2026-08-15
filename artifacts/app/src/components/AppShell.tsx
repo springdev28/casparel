@@ -217,7 +217,7 @@ export default function AppShell({ children }: AppShellProps) {
     [],
   );
   // Shared with the profile page's plan card, so the two can never disagree
-  // about whether this account is Free, Premium or an administrator.
+  // about whether this account is Free, Plus, Pro or an administrator.
   const plan = usePlan(signedIn && isDesktop && secondaryDataReady);
   useEffect(() => {
     const media = window.matchMedia("(min-width: 768px)");
@@ -474,9 +474,9 @@ export default function AppShell({ children }: AppShellProps) {
   const isAdmin = me?.role === UserRole.admin;
   const hasUnlimitedUsage = plan.unlimited;
   const aiSearchUsed = plan.aiSearch.used;
-  const aiSearchLimit = plan.aiSearch.limit ?? 3;
+  const aiSearchLimit = plan.aiSearch.limit ?? 0;
   const deepResearchUsed = plan.deepResearch.used;
-  const deepResearchLimit = plan.deepResearch.limit ?? 2;
+  const deepResearchLimit = plan.deepResearch.limit ?? 0;
   const navItems = isAdmin
     ? [...NAV_ITEMS, { label: "Admin", href: "/admin", icon: ShieldCheck }]
     : NAV_ITEMS;
@@ -646,7 +646,7 @@ export default function AppShell({ children }: AppShellProps) {
     <>
       <div className="fixed inset-0 flex w-full overflow-hidden bg-primary">
         {/* Sidebar */}
-        <aside className="sidebar-scrollbar-hidden hidden h-full min-h-0 w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex app-nav-surface">
+        <aside className="sidebar-scrollbar-hidden hidden h-full min-h-0 w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex [--primary:222_47%_11%]">
           {/* Logo */}
           <Link
             href="/"
@@ -878,10 +878,12 @@ export default function AppShell({ children }: AppShellProps) {
                       <span>
                         {hasUnlimitedUsage
                           ? "Unlimited"
-                          : `${aiSearchUsed} / ${aiSearchLimit}`}
+                          : aiSearchLimit > 0
+                            ? `${aiSearchUsed} / ${aiSearchLimit}`
+                            : "Not included"}
                       </span>
                     </div>
-                    {!hasUnlimitedUsage ? (
+                    {!hasUnlimitedUsage && aiSearchLimit > 0 ? (
                       <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15">
                         <div
                           className="h-full rounded bg-primary-foreground/70"
@@ -902,10 +904,12 @@ export default function AppShell({ children }: AppShellProps) {
                       <span>
                         {hasUnlimitedUsage
                           ? "Unlimited"
-                          : `${deepResearchUsed} / ${deepResearchLimit}`}
+                          : deepResearchLimit > 0
+                            ? `${deepResearchUsed} / ${deepResearchLimit}`
+                            : "Not included"}
                       </span>
                     </div>
-                    {!hasUnlimitedUsage ? (
+                    {!hasUnlimitedUsage && deepResearchLimit > 0 ? (
                       <div className="mt-1 h-1 overflow-hidden rounded bg-primary-foreground/15">
                         <div
                           className="h-full rounded bg-primary-foreground/70"
@@ -923,16 +927,18 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
                 <p className="mt-2 text-[10px] text-primary-foreground/55">
                   {hasUnlimitedUsage
-                    ? "No search or research limits"
-                    : "Search and research reset daily"}
+                    ? "No account-level AI limits"
+                    : plan.aiEnabled
+                      ? "AI allowances reset daily"
+                      : "Free includes no AI features"}
                 </p>
-                {!hasUnlimitedUsage ? (
+                {plan.tier === "free" || plan.tier === "plus" ? (
                   <Link
                     href="/settings"
                     className="mt-2 flex items-center justify-center gap-1.5 rounded-md bg-primary-foreground/15 px-2 py-1.5 text-[11px] font-semibold hover:bg-primary-foreground/25"
                     data-testid="sidebar-upgrade"
                   >
-                    <Sparkles size={12} /> Upgrade to Premium
+                    <Sparkles size={12} /> {plan.tier === "plus" ? "Upgrade to Pro" : "See Plus and Pro"}
                   </Link>
                 ) : null}
               </div>
@@ -982,7 +988,7 @@ export default function AppShell({ children }: AppShellProps) {
         </aside>
 
         {/* Mobile top bar */}
-        <div className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-primary px-2 text-primary-foreground md:hidden app-nav-surface">
+        <div className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-primary px-2 text-primary-foreground md:hidden [--primary:222_47%_11%]">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
               <Button
@@ -997,7 +1003,7 @@ export default function AppShell({ children }: AppShellProps) {
             </SheetTrigger>
             <SheetContent
               side="left"
-              className="w-[min(22rem,88vw)] border-primary-foreground/20 bg-primary p-0 text-primary-foreground [&>button]:text-primary-foreground app-nav-surface"
+              className="w-[min(22rem,88vw)] border-primary-foreground/20 bg-primary p-0 text-primary-foreground [&>button]:text-primary-foreground [--primary:222_47%_11%]"
             >
               <div className="flex h-full min-h-0 flex-col">
                 <SheetHeader className="shrink-0 border-b border-primary-foreground/20 px-5 py-4 text-left">
