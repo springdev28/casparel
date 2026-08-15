@@ -40,7 +40,7 @@ const TIER_CARDS: Record<
   student: [
     {
       name: "Free",
-      body: "25 activities, 10 goals, 5 lists and 3 canvases, plus a daily taste of AI: 2 discovery searches and 1 deep report (2 per month).",
+      body: "The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases, plus a daily AI taste: 2 discovery searches and 1 deep report (2 per month).",
     },
     {
       name: "Student Plus",
@@ -54,7 +54,7 @@ const TIER_CARDS: Record<
   teacher: [
     {
       name: "Free",
-      body: "One class of up to 30 with manual seating, plus a daily taste of AI: 2 discovery searches and 1 deep report (2 per month).",
+      body: "One class of up to 30 with manual seating, student seating suggestions and private notes, plus a daily AI taste: 2 discovery searches and 1 deep report (2 per month).",
     },
     {
       name: "Teacher Plus",

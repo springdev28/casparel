@@ -36,6 +36,29 @@ The rules that make this safe to sell:
 
 Verified locally at first writing: typecheck clean, 203/203 tests, web build green. After the role-tier revision: typecheck clean, 218/218 tests, web build and the full 51-render browser audit green.
 
+## The two named experiences
+
+The tier model has to speak for the product's flagship experiences by name, not only in table rows. Two were missing from the first two revisions of this document.
+
+### The seating arrangement suite
+
+Four pieces, placed individually. Manual Classroom Designer (grid and custom desks), student seating-change suggestions to the teacher, and per-student private notes are on **every plan** — they are the collaborative core, and the notes are valuable even if the planner is never run. The **explainable seating planner** is the Teacher Pro feature (generic Pro keeps it for legacy holders; admins always have it).
+
+Corrected in this revision: the planner was being sold as "AI seating-plan suggestions" — including in copy written yesterday — but the implementation is **deterministic**: pattern rules over the teacher's notes (front/back needs, keep-apart/keep-together relationships) and a seat-scoring loop, with no model call anywhere. That is the same truth-in-labeling failure the August audit existed to catch, one release away from an App Store listing. All copy (402 body, web editor, Terms) now says rule-based and explainable, never AI. Two consequences worth writing down:
+
+- Being deterministic is why it is feature-gated but **not metered**: it costs nearly nothing to run, so there is no allowance to spend and no admin-only bypass to design.
+- If it is ever rebuilt on a model (free-text priorities interpreted by an LLM is the obvious upgrade), it must join `AI_RATES_BY_TIER`, get a quota, and only then may the copy say AI.
+
+### The personal assistant
+
+What exists today is the **adaptive dashboard**: goal path steps, confidence check-ins, evidence capture, and a ratings-based resource-effectiveness heuristic that recommends the next action. It makes no model calls and is deliberately **free on every tier** — it is the activation loop the readiness review's evidence dashboard measures, and paywalling the surface that teaches users why Casparel matters would starve every paid tier of buyers. Its check-ins write learning-evidence rows, which are not yet capacity-metered (added to Phase 4).
+
+A **model-backed personal assistant** — chat over your own goals, schedule, evidence and saved resources, answering "what should I do next and why" with citations into the library — is the strongest candidate flagship for the Student ladder, and the honest place for it is this roadmap, not the feature list:
+
+- **Placement if built:** taste on Free (a handful of turns/day), a real daily allowance on Student Plus, the headline allowance on Student Pro; it joins `AI_RATES_BY_TIER` like every other AI surface, because uncapped remains admin-only.
+- **Safety before tiers:** the audience includes minors. It needs the same posture as source review — cite, hedge, show limitations, never present itself as an authority — plus moderation on both sides of the conversation, before any pricing question matters.
+- **Sequencing:** after the store gates. It is exactly the "broad new feature" the August audit warned against spending the remaining runway on. Nothing in the product may describe it as existing until it does.
+
 ## Phase 1 — before any of this can be sold (target: by 22 August)
 
 These are correctness problems in the paid path. Every one of them can take money and give nothing back, so they gate store submission.
@@ -74,6 +97,7 @@ The enforced set covers the six largest owned-row tables. It is not everything t
 
 - forum posts and comments, direct messages and conversations;
 - list items, schedule blocks, study sessions and canvas objects;
+- learning-evidence rows, including the adaptive dashboard's confidence check-ins — the personal assistant's own data trail is currently uncapped;
 - uploaded images, which are bytes rather than rows and need a storage budget rather than a count.
 
 Uploads matter most: they are the only capacity where one user can cost meaningfully more than another without creating many rows at all. Until there is a byte budget, image-heavy accounts are mispriced in a way row counts cannot see.

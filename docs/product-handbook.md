@@ -200,9 +200,22 @@ Rules that hold across every capacity:
 
 Every account-owned capacity, its current usage and its limit are returned by `GET /api/users/me/usage` alongside the AI counters.
 
-### Features
+### Feature placement
 
-The explainable seating planner requires the Pro level of a plan a teacher can hold: `teacher-pro` or generic `pro`. Student plans never include it — the route also requires being the class teacher, so the feature gate and the authorization gate agree.
+Two named experiences sit at the centre of the product and deserve explicit placement, not just a row in a table.
+
+**The personal assistant (adaptive dashboard).** Casparel's assistant surface is the adaptive dashboard: it takes the active learning goal's path steps, confidence check-ins and captured evidence, and recommends the next action, scoring library resources with a ratings-based effectiveness heuristic. It is deliberately **free on every tier** — it is the activation loop (registered → first goal → first action → return), and charging for the thing that teaches people why the product matters would starve every paid tier of future buyers. It makes **no model calls**: everything on it is computed from the account's own rows. Its check-ins write learning-evidence rows, which are not yet capacity-metered (see boundaries). A model-backed personal assistant is a roadmap candidate for the Student ladder, not a shipped feature, and must not be described as existing.
+
+**The seating arrangement suite.** Four pieces, individually placed:
+
+| Piece | What it is | Plan |
+| --- | --- | --- |
+| Classroom Designer | Manual grid or custom desk layout, drag/assign every seat | Every plan |
+| Student seating suggestions | A student sends the teacher a seating-change message | Every plan |
+| Teacher private notes | Per-student notes (feed the planner; useful alone) | Every plan |
+| Explainable seating planner | Generates a full reviewable seating plan with a reason per placement | Teacher Pro, generic Pro, admin |
+
+The planner is **rule-based, not an AI model**: it pattern-matches the teacher's private notes (front/back needs, keep-apart and keep-together relationships), scores seats deterministically, and explains every placement. Because it is deterministic and cheap it consumes **no AI allowance** — the feature gate is the whole gate — and product copy must not call it AI. (Earlier copy did; that was corrected on 15 August. If it is ever rebuilt on a model, it joins the AI rate table and only then may the copy say AI.)
 
 ### Entitlement reconciliation
 
@@ -319,7 +332,7 @@ Accessibility is enforced partly in the browser audit and partly through native 
 - Expo/Metro currently resolves `image-size` 1.2.1; npm reports high-severity [ICNS](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr) and [JXL/HEIF](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq) parser denial-of-service advisories, while the declared patched 2.0.3 release is not yet published. Treat untrusted ICNS/JXL/HEIF build input as unsafe and upgrade as soon as the fix exists.
 - Deep allowances combine a daily and a 30-day cap, so product copy says “allowance” rather than promising the daily number every day of the month.
 - The global AI budgets still apply to every non-admin account, including Pro-level plans. No plan is sold as unlimited, so this is an operational guard rather than a copy contradiction; size it against real paying demand.
-- Capacity limits are enforced on the routes that create classes, rosters, activities, lists, goals and canvases. Rows created by other surfaces (forum posts, messages, list items, schedule blocks, canvas objects) are not yet capped.
+- Capacity limits are enforced on the routes that create classes, rosters, activities, lists, goals and canvases. Rows created by other surfaces (forum posts, messages, list items, schedule blocks, study sessions, learning evidence — including adaptive-dashboard check-ins — and canvas objects) are not yet capped.
 - Mobile is a focused subset, not feature parity with web.
 - The largest lazy web chunks (p5 and Three.js) are heavy; they are isolated from the initial route but should remain under route-level performance budgets.
 - Production smoke measurements show availability/latency at low volume, not concurrency capacity. Capacity tests require staging and database telemetry.

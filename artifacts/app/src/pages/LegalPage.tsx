@@ -144,11 +144,13 @@ export function TermsPage() {
 
       <Section title="AI features">
         <p>
-          AI discovery, deep research, and seating-plan suggestions generate
-          recommendations that can be wrong, out of date, or incomplete. Check
-          anything you intend to rely on, particularly for assessed work or
-          decisions affecting students. Casparel is a study aid, not an
-          authority.
+          AI discovery and deep research generate suggestions from external
+          sources; they can be wrong, out of date, or incomplete. The seating
+          planner is rule-based rather than an AI model: it reads your saved
+          layout and private notes literally, and its suggestions can still be
+          wrong. Check anything you intend to rely on, particularly for
+          assessed work or decisions affecting students. Casparel is a study
+          aid, not an authority.
         </p>
       </Section>
 

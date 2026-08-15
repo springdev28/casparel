@@ -43,7 +43,7 @@ const BENEFITS: Record<
     {
       icon: 'book-open',
       title: 'Free',
-      body: '25 activities, 10 goals, 5 lists, 3 canvases — and a daily AI taste: 2 discovery searches and 1 deep report (2 per month).',
+      body: 'The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases — and a daily AI taste: 2 discovery searches and 1 deep report (2 per month).',
     },
     {
       icon: 'sparkles',
@@ -60,7 +60,7 @@ const BENEFITS: Record<
     {
       icon: 'book-open',
       title: 'Free',
-      body: 'One class of up to 30 with manual seating — and a daily AI taste: 2 discovery searches and 1 deep report (2 per month).',
+      body: 'One class of up to 30 with manual seating, seating suggestions and private notes — and a daily AI taste: 2 discovery searches and 1 deep report (2 per month).',
     },
     {
       icon: 'sparkles',
