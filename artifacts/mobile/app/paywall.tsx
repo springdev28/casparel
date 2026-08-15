@@ -18,7 +18,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { usePurchases } from '@/contexts/PurchasesContext';
-import type { RCPackage } from '@/utils/revenuecat';
+import { purchasesSupported, type RCPackage } from '@/utils/revenuecat';
 
 const BENEFITS: { icon: string; title: string; body: string }[] = [
   {
@@ -210,25 +210,40 @@ export default function PaywallScreen() {
                   Continue
                 </Button>
               </View>
-
-              <Pressable onPress={handleRestore} disabled={busy} style={styles.restore}>
-                <Text style={[styles.restoreText, { color: colors.primary, fontFamily: colors.fontFamily.sansMedium }]}>
-                  Restore purchases
-                </Text>
-              </Pressable>
             </Animated.View>
           </>
         )}
+
+        {/*
+          Restore sits OUTSIDE the branches above. It used to render only where
+          offerings had loaded successfully, so it disappeared in exactly the
+          state a returning subscriber needs it: offerings still loading, or
+          failing to load on a flaky connection, leaving them looking at a
+          paywall for something they had already paid for. Apple also requires
+          a restore path be reachable.
+
+          Gated on purchasesSupported as well as !isPremium, because on web
+          restore() always resolves false, so showing it there would only ever
+          produce a misleading "Nothing to restore" next to the notice telling
+          the user to open the app on their phone.
+        */}
+        {!isPremium && purchasesSupported ? (
+          <Pressable onPress={handleRestore} disabled={busy} style={styles.restore}>
+            <Text style={[styles.restoreText, { color: colors.primary, fontFamily: colors.fontFamily.sansMedium }]}>
+              Restore purchases
+            </Text>
+          </Pressable>
+        ) : null}
 
         {/* Legal */}
         <Text style={[styles.legal, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
           Subscriptions renew automatically until cancelled. Manage or cancel anytime in your{' '}
           {Platform.OS === 'ios' ? 'App Store' : 'Google Play'} account settings.{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL('https://casparel.app/terms')}>
+          <Text style={styles.link} onPress={() => Linking.openURL('https://casparel.com/terms')}>
             Terms
           </Text>{' '}
           &middot;{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL('https://casparel.app/privacy')}>
+          <Text style={styles.link} onPress={() => Linking.openURL('https://casparel.com/privacy')}>
             Privacy
           </Text>
         </Text>

@@ -12,20 +12,21 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
-      "ios": { "simulator": false }
+      "ios": { "simulator": false },
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "casparel.com"
+      }
     },
     "production": {
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "casparel.com"
+      }
     }
   },
   "submit": {
     "production": {
-      "ios": {
-        "appleId": "APPLE_ID_EMAIL_SET_IN_EAS",
-        "ascAppId": "APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "APPLE_TEAM_ID"
-      },
       "android": {
         "serviceAccountKeyPath": "./play-service-account.json",
         "track": "internal"

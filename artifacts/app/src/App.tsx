@@ -64,6 +64,12 @@ const ActivitiesPage = lazy(() => import("./pages/ActivitiesPage"));
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
 const CanvasesPage = lazy(() => import("./pages/CanvasesPage"));
 const CanvasPage = lazy(() => import("./pages/CanvasPage"));
+const TermsPage = lazy(() =>
+  import("./pages/LegalPage").then((m) => ({ default: m.TermsPage })),
+);
+const PrivacyPage = lazy(() =>
+  import("./pages/LegalPage").then((m) => ({ default: m.PrivacyPage })),
+);
 
 const TOKEN_KEY = "schoolar_token";
 const LANGUAGE_EVENT = "schoolar-language-change";
@@ -336,6 +342,15 @@ function Router() {
       </Route>
       <Route path="/resources">
         {() => <PublicRoute component={ResourcesPage} />}
+      </Route>
+      {/* Reachable without an account on purpose: the mobile paywall links
+          here, and both app stores require the Terms and Privacy pages to
+          resolve for a signed-out reviewer. */}
+      <Route path="/terms">
+        {() => <PublicRoute component={TermsPage} />}
+      </Route>
+      <Route path="/privacy">
+        {() => <PublicRoute component={PrivacyPage} />}
       </Route>
       <Route path="/canvas/shared/:token">
         {() => <PublicRoute component={() => <CanvasPage shared />} />}

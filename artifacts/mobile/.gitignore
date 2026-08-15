@@ -39,3 +39,8 @@ yarn-error.*
 .vercel
 
 .env
+
+# Google Play submission key. eas.json points submit.production.android at
+# this path; it is a Google Cloud private key and must never be committed.
+# The *.key / *.p12 rules above do not cover a .json key file.
+play-service-account.json

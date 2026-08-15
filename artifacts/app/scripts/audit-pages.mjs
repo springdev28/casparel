@@ -32,7 +32,10 @@ const ROOT = path.resolve(
   "../dist/public",
 );
 const PORT = Number(process.env.AUDIT_PORT ?? 4321);
-const PAGES = (process.env.AUDIT_PAGES ?? "/,/auth/login,/auth/register").split(",");
+// /terms and /privacy are in the default set because the app stores require
+// them to resolve for a signed-out reviewer, so a regression there is a
+// submission blocker rather than a cosmetic issue.
+const PAGES = (process.env.AUDIT_PAGES ?? "/,/auth/login,/auth/register,/terms,/privacy").split(",");
 // Signed-in pages, rendered against fixtures rather than a live API. These are
 // where the regressions that reached production actually were, so they matter
 // more than the public pages, not less.
