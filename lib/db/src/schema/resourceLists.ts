@@ -18,7 +18,11 @@ export const resourceListsTable = pgTable("resource_lists", {
 export const listItemsTable = pgTable("list_items", {
   id: serial("id").primaryKey(),
   listId: integer("list_id").notNull().references(() => resourceListsTable.id),
-  resourceId: integer("resource_id").notNull().references(() => resourcesTable.id),
+  resourceId: integer("resource_id")
+    .notNull()
+    // A list item is meaningless without its resource, and the column is NOT
+    // NULL, so the row goes with it.
+    .references(() => resourcesTable.id, { onDelete: "cascade" }),
   note: text("note"),
   position: integer("position").notNull().default(0),
   addedAt: timestamp("added_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),

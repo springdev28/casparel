@@ -17,7 +17,9 @@ export const reviewsTable = pgTable(
     id: serial("id").primaryKey(),
     resourceId: integer("resource_id")
       .notNull()
-      .references(() => resourcesTable.id),
+      // A review is about the resource and cannot outlive it; the column is
+      // NOT NULL, so the row goes with it rather than blocking the delete.
+      .references(() => resourcesTable.id, { onDelete: "cascade" }),
     userId: integer("user_id")
       .notNull()
       .references(() => usersTable.id),

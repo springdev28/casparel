@@ -65,6 +65,7 @@ import {
   type SourceCredibility,
 } from "../lib/catalog";
 import { meaningfulSearchTerms } from "../lib/searchTerms";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -1833,9 +1834,27 @@ router.delete(
         .json({ error: "Only the submitter can delete this resource" });
       return;
     }
-    await db
-      .delete(resourcesTable)
-      .where(eq(resourcesTable.id, params.data.id));
+    // Migration 0045 makes the referencing rows cascade or null out, so this
+    // no longer trips a foreign-key violation for a resource that has been
+    // reviewed, listed or scheduled. The guard stays because the failure it
+    // covers is silent and expensive: an unhandled violation reaches the
+    // terminal error middleware as a bare 500, which is what users saw while
+    // trying to delete their own submission. If a future table adds a NO
+    // ACTION reference, this says so instead.
+    try {
+      await db
+        .delete(resourcesTable)
+        .where(eq(resourcesTable.id, params.data.id));
+    } catch (err) {
+      if ((err as { code?: string } | null)?.code === "23503") {
+        logger.error({ err, resourceId: params.data.id }, "Resource delete blocked by a foreign key");
+        res.status(409).json({
+          error: "This resource is still referenced elsewhere and could not be deleted.",
+        });
+        return;
+      }
+      throw err;
+    }
     res.sendStatus(204);
   },
 );

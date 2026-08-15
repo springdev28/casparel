@@ -13,7 +13,10 @@ export const scheduleBlocksTable = pgTable("schedule_blocks", {
   date: date("date", { mode: "string" }).notNull(),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
-  resourceId: integer("resource_id").references(() => resourcesTable.id),
+  resourceId: integer("resource_id").references(() => resourcesTable.id, {
+    // The block is the user's own plan; losing the resource must not delete it.
+    onDelete: "set null",
+  }),
   listId: integer("list_id").references(() => resourceListsTable.id),
   classId: integer("class_id").references(() => classesTable.id),
   notes: text("notes"),

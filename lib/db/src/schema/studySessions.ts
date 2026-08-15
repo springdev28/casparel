@@ -20,7 +20,10 @@ export const studySessionsTable = pgTable("study_sessions", {
   startsAt: timestamp("starts_at", { withTimezone: true, mode: "string" }).notNull(),
   durationMinutes: integer("duration_minutes").notNull().default(60),
   topic: text("topic"),
-  resourceId: integer("resource_id").references(() => resourcesTable.id),
+  resourceId: integer("resource_id").references(() => resourcesTable.id, {
+    // Keep the session record, drop the link.
+    onDelete: "set null",
+  }),
   meetingUrl: text("meeting_url").notNull(),
   googleCalendarEventId: text("google_calendar_event_id"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
