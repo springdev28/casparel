@@ -71,6 +71,10 @@ These are correctness problems in the paid path. Every one of them can take mone
 
 Exit gate: a sandbox purchase of each product grants exactly the tier it names, survives a webhook replay, and a subscriber whose usage endpoint is failing still gets the features they paid for.
 
+### Where users actually see and buy these plans
+
+As of this revision the paywall exists on both surfaces. **Mobile** is the point of sale: the paywall screen offers role-matched RevenueCat packages with purchase and restore (still unverified against live store products — Phase 1 items 3–4). **Web** cannot charge, so `/plans` is its paywall: a public, role-aware comparison page that marks the current plan and explains mobile billing and downgrade safety; the sidebar upgrade link, Settings/Profile buttons and the locked seating planner all land there (they previously ended in a toast). Open option, deliberately deferred: RevenueCat Web Billing (Stripe) would let the web charge directly — do not consider it before the store gates are green, and note Apple's anti-steering rules constrain how the iOS app may link out to it.
+
 ## Phase 2 — find out whether these numbers are right (23 August – 6 September)
 
 The limits above are a hypothesis. They were chosen for plausibility, not from data, and shipping them as though they were measured would repeat the mistake the August audit was written to catch.

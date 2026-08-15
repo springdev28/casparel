@@ -35,7 +35,7 @@ The React/Vite app is the complete product surface.
 
 | Area       | Pages                                                       | Purpose                                                                |
 | ---------- | ----------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Public     | Landing, login, registration, legal, resource browse/detail | Acquisition, public discovery, trust and account entry                 |
+| Public     | Landing, login, registration, legal, plans, resource browse/detail | Acquisition, public discovery, trust, plan comparison and account entry |
 | Home       | Dashboard, adaptive dashboard, guide/tutorial               | Personal orientation, recommended next action and onboarding           |
 | Learning   | Goals, activities, schedule, canvases                       | Planning, focused work and evidence of learning                        |
 | Resources  | Search/library, resource detail, lists/list detail, catalog | Public and saved discovery, source evaluation, citation, collections   |
@@ -216,6 +216,10 @@ Two named experiences sit at the centre of the product and deserve explicit plac
 | Explainable seating planner | Generates a full reviewable seating plan with a reason per placement | Teacher Pro, generic Pro, admin |
 
 The planner is **rule-based, not an AI model**: it pattern-matches the teacher's private notes (front/back needs, keep-apart and keep-together relationships), scores seats deterministically, and explains every placement. Because it is deterministic and cheap it consumes **no AI allowance** — the feature gate is the whole gate — and product copy must not call it AI. (Earlier copy did; that was corrected on 15 August. If it is ever rebuilt on a model, it joins the AI rate table and only then may the copy say AI.)
+
+### Where the paywall lives
+
+Purchases happen only in the mobile app, through RevenueCat and Apple/Google billing; the mobile paywall offers only packages matching the account's role. The web cannot charge, so its paywall is `/plans`: a role-aware comparison page (public, with generic cards when signed out) that marks the current plan and explains mobile billing, downgrade safety and the finite-allowance rule. Every web upsell — the sidebar upgrade link, the Settings/Profile plan buttons, the locked seating planner — lands on `/plans`, never on a toast. Web billing (e.g. RevenueCat Web Billing/Stripe) is a roadmap option, not a shipped path.
 
 ### Entitlement reconciliation
 

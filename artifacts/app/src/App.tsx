@@ -71,6 +71,7 @@ const PrivacyPage = lazy(() =>
   import("./pages/LegalPage").then((m) => ({ default: m.PrivacyPage })),
 );
 const SupportPage = lazy(() => import("./pages/SupportPage"));
+const PlansPage = lazy(() => import("./pages/PlansPage"));
 
 const TOKEN_KEY = "schoolar_token";
 const LANGUAGE_EVENT = "schoolar-language-change";
@@ -352,6 +353,9 @@ function Router() {
       </Route>
       <Route path="/privacy">
         {() => <PublicRoute component={PrivacyPage} />}
+      </Route>
+      <Route path="/plans">
+        {() => <PublicRoute component={PlansPage} />}
       </Route>
       <Route path="/support">
         {() => <PublicRoute component={SupportPage} />}

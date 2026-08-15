@@ -5,13 +5,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/edu-ds/components/ui/card";
-import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { Check, Crown, Sparkles } from "lucide-react";
+import { useLocation } from "wouter";
 import {
   CAPACITY_LABELS,
   usePlan,
   type PlanCapacityKey,
 } from "@/lib/use-plan";
+import { audienceForRole, TIER_CARDS } from "@/lib/plan-copy";
 
 /**
  * Roster size is a property of each class rather than a running account total,
@@ -26,60 +27,6 @@ const WORKSPACE_METERS: PlanCapacityKey[] = [
   "canvases",
 ];
 
-/**
- * The three plans this account can actually be on, worded for its role.
- * Student and teacher plans never mix: a student is never sold a roster and a
- * teacher is never sold a bigger flashcard box as the headline. The generic
- * cards remain for admin/unknown roles and for legacy Plus/Pro holders.
- * Numbers must match CAPACITY_BY_TIER and AI_RATES_BY_TIER on the server.
- */
-const TIER_CARDS: Record<
-  "student" | "teacher" | "generic",
-  { name: string; body: string }[]
-> = {
-  student: [
-    {
-      name: "Free",
-      body: "The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases, plus a daily AI taste: 2 discovery searches and 1 deep report (2 per month).",
-    },
-    {
-      name: "Student Plus",
-      body: "400 activities, 150 goals, 75 lists and 40 canvases, with 30 AI discovery searches and 8 deep reports a day.",
-    },
-    {
-      name: "Student Pro",
-      body: "1,500 activities, 500 goals, 300 lists and 150 canvases, with 90 AI discovery searches and 25 deep reports a day.",
-    },
-  ],
-  teacher: [
-    {
-      name: "Free",
-      body: "One class of up to 30 with manual seating, student seating suggestions and private notes, plus a daily AI taste: 2 discovery searches and 1 deep report (2 per month).",
-    },
-    {
-      name: "Teacher Plus",
-      body: "8 classes of up to 150, with 250 activities and 20 AI discovery searches and 5 deep reports a day.",
-    },
-    {
-      name: "Teacher Pro",
-      body: "25 classes of up to 400, the explainable seating planner, and 60 AI discovery searches and 15 deep reports a day.",
-    },
-  ],
-  generic: [
-    {
-      name: "Free",
-      body: "One class of 30, 25 activities, 10 goals and 5 lists, plus a small daily taste of AI discovery and deep research.",
-    },
-    {
-      name: "Plus",
-      body: "5 classes of 100, 250 activities, 100 goals and 50 lists, with 20 AI discovery searches and 5 deep reports a day.",
-    },
-    {
-      name: "Pro",
-      body: "20 classes of 300, 1,000 activities and 400 goals, the seating planner, and 60 discovery searches and 15 deep reports a day.",
-    },
-  ],
-};
 
 function UsageMeter({
   label,
@@ -131,12 +78,11 @@ function UsageMeter({
 }
 
 function useUpgradePrompt() {
+  // The web paywall page explains role plans and how mobile billing works;
+  // sending people there beats a toast that used to be the whole journey.
+  const [, setLocation] = useLocation();
   return function handleUpgrade() {
-    toast({
-      title: "Upgrade in the Casparel mobile app",
-      description:
-        "Subscriptions are purchased in the Casparel mobile app. Open Profile then Plan to choose Plus or Pro.",
-    });
+    setLocation("/plans");
   };
 }
 
@@ -201,7 +147,7 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
       ) : null}
       {!compact ? (
         <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
-          {TIER_CARDS[plan.accountRole === "teacher" ? "teacher" : plan.accountRole === "student" ? "student" : "generic"].map(
+          {TIER_CARDS[audienceForRole(plan.accountRole)].map(
             (card, index) => (
               <div
                 key={card.name}
@@ -214,7 +160,7 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
                 }
               >
                 <b>{card.name}</b>
-                <p className="mt-1 text-muted-foreground">{card.body}</p>
+                <p className="mt-1 text-muted-foreground">{card.blurb}</p>
               </div>
             ),
           )}

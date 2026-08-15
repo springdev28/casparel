@@ -37,14 +37,14 @@ const PORT = Number(process.env.AUDIT_PORT ?? 4321);
 // submission blocker rather than a cosmetic issue.
 const PAGES = (
   process.env.AUDIT_PAGES ??
-  "/,/resources,/support,/auth/login,/auth/register,/terms,/privacy"
+  "/,/resources,/support,/plans,/auth/login,/auth/register,/terms,/privacy"
 ).split(",");
 // Signed-in pages, rendered against fixtures rather than a live API. These are
 // where the regressions that reached production actually were, so they matter
 // more than the public pages, not less.
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
-  "/dashboard,/profile,/resources,/catalog,/settings,/admin"
+  "/dashboard,/profile,/resources,/catalog,/settings,/plans,/admin"
 )
   .split(",")
   .filter(Boolean);

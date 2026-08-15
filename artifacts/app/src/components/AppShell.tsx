@@ -934,7 +934,7 @@ export default function AppShell({ children }: AppShellProps) {
                 </p>
                 {plan.tier !== "administrator" && plan.level !== "pro" ? (
                   <Link
-                    href="/settings"
+                    href="/plans"
                     className="mt-2 flex items-center justify-center gap-1.5 rounded-md bg-primary-foreground/15 px-2 py-1.5 text-[11px] font-semibold hover:bg-primary-foreground/25"
                     data-testid="sidebar-upgrade"
                   >
