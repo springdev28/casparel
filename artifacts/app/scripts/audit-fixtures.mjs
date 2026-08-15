@@ -28,7 +28,11 @@ export function sessionToken({ role = "teacher", accountRole = "admin" } = {}) {
     userId: 1,
     role,
     accountRole,
-    exp: Math.floor(Date.now() / 1000) + 86_400,
+    // MILLISECONDS, matching what the server issues: lib/auth.ts signs
+    // `exp: Date.now() + TOKEN_TTL_MS`. This is not a standard JWT `exp`, and
+    // the seconds value used here previously read as long expired to
+    // readSessionClaims(), which compares against Date.now().
+    exp: Date.now() + 86_400_000,
   });
   return `${header}.${payload}.audit`;
 }

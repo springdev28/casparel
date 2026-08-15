@@ -70,7 +70,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import ThemeCustomizer, { applyDefaultColors } from "./ThemeCustomizer";
 import { AuthLanguageSelect } from "./AuthLanguageSelect";
-import { readSessionClaims } from "../lib/session";
+import { readSessionClaims, clearSession } from "../lib/session";
 import { usePlan } from "@/lib/use-plan";
 import { useAuthLanguage } from "../lib/auth-locale";
 import {
@@ -517,7 +517,7 @@ export default function AppShell({ children }: AppShellProps) {
   }, [gcAuthUrlData]);
 
   function handleLogout() {
-    localStorage.removeItem(TOKEN_KEY);
+    clearSession();
     applyDefaultColors();
     queryClient.clear();
     const configuredBase = import.meta.env.BASE_URL;

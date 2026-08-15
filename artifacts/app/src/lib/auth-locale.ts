@@ -1,3 +1,4 @@
+import { getApiError } from "./api-error";
 import { useEffect, useState } from "react";
 
 export const AUTH_LANGUAGE_KEY = "schoolar_language";
@@ -36,6 +37,11 @@ type AuthCopy = {
   creatingAccount: string;
   createAccount: string;
   registrationFailed: string;
+  /** Shown instead of the server's English text, which is not localized. */
+  emailTaken: string;
+  wrongCredentials: string;
+  tooManyAttempts: string;
+  offline: string;
   hasAccount: string;
   showPassword: string;
   hidePassword: string;
@@ -65,6 +71,10 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     creatingAccount: "Creating account…",
     createAccount: "Create account",
     registrationFailed: "Registration failed",
+    emailTaken: "That email already has a Casparel account. Try signing in instead.",
+    wrongCredentials: "Email or password is incorrect.",
+    tooManyAttempts: "Too many attempts. Please wait a few minutes and try again.",
+    offline: "Could not reach Casparel. Check your connection and try again.",
     hasAccount: "Already have an account?",
     showPassword: "Show password",
     hidePassword: "Hide password",
@@ -92,6 +102,10 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     creatingAccount: "Creando cuenta…",
     createAccount: "Crear cuenta",
     registrationFailed: "Error al registrarse",
+    emailTaken: "Ese correo ya tiene una cuenta de Casparel. Prueba a iniciar sesión.",
+    wrongCredentials: "El correo o la contraseña no son correctos.",
+    tooManyAttempts: "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+    offline: "No se pudo conectar con Casparel. Revisa tu conexión e inténtalo de nuevo.",
     hasAccount: "¿Ya tienes una cuenta?",
     showPassword: "Mostrar contraseña",
     hidePassword: "Ocultar contraseña",
@@ -119,6 +133,10 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     creatingAccount: "Création du compte…",
     createAccount: "Créer le compte",
     registrationFailed: "Échec de l’inscription",
+    emailTaken: "Cette adresse e-mail a déjà un compte Casparel. Essayez de vous connecter.",
+    wrongCredentials: "L’e-mail ou le mot de passe est incorrect.",
+    tooManyAttempts: "Trop de tentatives. Patientez quelques minutes et réessayez.",
+    offline: "Impossible de joindre Casparel. Vérifiez votre connexion et réessayez.",
     hasAccount: "Vous avez déjà un compte ?",
     showPassword: "Afficher le mot de passe",
     hidePassword: "Masquer le mot de passe",
@@ -147,6 +165,10 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     creatingAccount: "Konto wird erstellt…",
     createAccount: "Konto erstellen",
     registrationFailed: "Registrierung fehlgeschlagen",
+    emailTaken: "Für diese E-Mail existiert bereits ein Casparel-Konto. Melde dich stattdessen an.",
+    wrongCredentials: "E-Mail oder Passwort ist falsch.",
+    tooManyAttempts: "Zu viele Versuche. Warte einige Minuten und versuche es erneut.",
+    offline: "Casparel ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
     hasAccount: "Du hast bereits ein Konto?",
     showPassword: "Passwort anzeigen",
     hidePassword: "Passwort verbergen",
@@ -174,6 +196,10 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     creatingAccount: "Criando conta…",
     createAccount: "Criar conta",
     registrationFailed: "Falha no cadastro",
+    emailTaken: "Esse e-mail já tem uma conta Casparel. Tente entrar em vez disso.",
+    wrongCredentials: "E-mail ou senha incorretos.",
+    tooManyAttempts: "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+    offline: "Não foi possível conectar ao Casparel. Verifique sua conexão e tente novamente.",
     hasAccount: "Já tem uma conta?",
     showPassword: "Mostrar senha",
     hidePassword: "Ocultar senha",
@@ -202,6 +228,10 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     creatingAccount: "Hesap oluşturuluyor…",
     createAccount: "Hesap oluştur",
     registrationFailed: "Kayıt başarısız",
+    emailTaken: "Bu e-posta ile zaten bir Casparel hesabı var. Bunun yerine giriş yapmayı deneyin.",
+    wrongCredentials: "E-posta veya şifre hatalı.",
+    tooManyAttempts: "Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyip tekrar deneyin.",
+    offline: "Casparel’e ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",
     hasAccount: "Zaten hesabınız var mı?",
     showPassword: "Şifreyi göster",
     hidePassword: "Şifreyi gizle",
@@ -258,4 +288,33 @@ export function useAuthLanguage() {
   }
 
   return { language, setLanguage, copy: AUTH_COPY[language] };
+}
+
+/**
+ * Turn a failed sign-in / sign-up into a sentence the user can act on.
+ *
+ * Both pages used to render the thrown error's `message`, which the generated
+ * client formats for logs as "HTTP 400 Bad Request: Email already in use".
+ * Users saw the status line; speakers of the other five languages saw English.
+ *
+ * Server error strings are matched but never displayed: they are hardcoded
+ * English in the API, so they select the localized copy rather than becoming
+ * it. Anything unrecognised falls back to the generic title with no raw detail,
+ * so a new server message can never leak a log string into the UI again.
+ */
+export function describeAuthError(
+  err: unknown,
+  copy: AuthCopy,
+  fallback: string,
+): string {
+  const { status, error, offline } = getApiError(err);
+  if (offline) return copy.offline;
+  if (status === 429) return copy.tooManyAttempts;
+  if (status === 401) return copy.wrongCredentials;
+  if (status === 400 && error && /already (in use|exists|registered)/i.test(error)) {
+    return copy.emailTaken;
+  }
+  if (status === 409) return copy.emailTaken;
+  if (status !== undefined && status >= 500) return copy.offline;
+  return fallback;
 }

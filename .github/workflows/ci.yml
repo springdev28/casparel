@@ -66,5 +66,12 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-pages.mjs
 
+      # Drives auth state rather than rendering: an expired or server-rejected
+      # session must return the user to the login page, and a valid one must
+      # not be ejected.
+      - name: Audit session handling
+        working-directory: artifacts/app
+        run: node scripts/audit-session.mjs
+
       - name: Compile the desktop main process
         run: pnpm --filter @workspace/desktop run compile

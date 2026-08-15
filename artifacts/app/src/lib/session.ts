@@ -1,4 +1,5 @@
 const TOKEN_KEY = "schoolar_token";
+const SESSION_EVENT = "schoolar-session-change";
 
 export interface SessionClaims {
   userId: number;
@@ -51,4 +52,59 @@ export function readSessionClaims(): SessionClaims | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Make the stored session observable.
+ *
+ * Route guards used to read localStorage during render. localStorage is not
+ * reactive, so clearing the token changed nothing on screen: an expired or
+ * revoked session left the user sitting inside the signed-in app with every
+ * request failing and no way back to the login page except a manual reload.
+ *
+ * Two events matter. The browser's own `storage` event covers other tabs -
+ * signing out in one tab should not leave the others in a dead session - but
+ * it deliberately does not fire in the tab that made the change, so writes in
+ * this tab announce themselves through a custom event.
+ */
+export function subscribeToSession(onChange: () => void): () => void {
+  const handleStorage = (event: StorageEvent) => {
+    // key is null when the whole store is cleared.
+    if (event.key === null || event.key === TOKEN_KEY) onChange();
+  };
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(SESSION_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(SESSION_EVENT, onChange);
+  };
+}
+
+/** Snapshot for useSyncExternalStore: the raw token, or null. */
+export function readSessionToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Drop the session and tell every subscriber in this tab.
+ *
+ * Everything that signs a user out goes through here so no caller can forget
+ * the notification and leave the UI showing a session that no longer exists.
+ */
+export function clearSession(): void {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // A storage failure must not stop the rest of the sign-out.
+  }
+  window.dispatchEvent(new Event(SESSION_EVENT));
+}
+
+/** Announce a token that was just written (sign-in, token refresh). */
+export function notifySessionChanged(): void {
+  window.dispatchEvent(new Event(SESSION_EVENT));
 }

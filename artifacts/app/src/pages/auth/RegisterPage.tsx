@@ -15,7 +15,8 @@ import {
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useRegister } from "@workspace/api-client-react";
 import { AuthLanguageSelect } from "../../components/AuthLanguageSelect";
-import { useAuthLanguage } from "../../lib/auth-locale";
+import { describeAuthError, useAuthLanguage } from "../../lib/auth-locale";
+import { notifySessionChanged } from "../../lib/session";
 import { useSystemDark } from "../../hooks/use-system-dark";
 
 const TOKEN_KEY = "schoolar_token";
@@ -38,15 +39,16 @@ export default function RegisterPage() {
         data: { name, email, password },
       });
       localStorage.setItem(TOKEN_KEY, result.token);
+      // Tell the route guards a session now exists; localStorage writes do not
+      // notify the tab that made them.
+      notifySessionChanged();
       // New accounts land on the guided tour first; it marks tutorialSeen and
       // moves on to the dashboard when finished or skipped.
       setLocation("/tutorial");
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : copy.registrationFailed;
       toast({
         title: copy.registrationFailed,
-        description: message,
+        description: describeAuthError(err, copy, copy.registrationFailed),
         variant: "destructive",
       });
     }

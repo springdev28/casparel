@@ -1,5 +1,10 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { Toaster } from "@workspace/edu-ds/components/ui/toaster";
 import { TooltipProvider } from "@workspace/edu-ds/components/ui/tooltip";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -27,6 +32,8 @@ import {
 import { applyLastSavedColors } from "./components/ThemeCustomizer";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
+import { clearSession, readSessionToken } from "./lib/session";
+import { useSessionClaims } from "./lib/use-session";
 
 const AppShell = lazy(() => import("./components/AppShell"));
 const UiTranslationBridge = lazy(
@@ -61,7 +68,38 @@ const CanvasPage = lazy(() => import("./pages/CanvasPage"));
 const TOKEN_KEY = "schoolar_token";
 const LANGUAGE_EVENT = "schoolar-language-change";
 
+/**
+ * Sign the user out when the server says the session is gone.
+ *
+ * Nothing acted on a 401 before, so an expired or revoked token left the user
+ * inside the signed-in app with every panel failing and no route back to
+ * login. The token sat in localStorage looking valid to the route guards.
+ *
+ * Two conditions keep this from firing on a normal failed sign-in. A 401 only
+ * means "your session ended" if a session was actually sent, so requests made
+ * while signed out are ignored; and the credential endpoints answer 401 for a
+ * wrong password, which must keep showing "Email or password is incorrect"
+ * rather than bouncing to a spurious "session expired".
+ */
+function isSessionExpiry(error: unknown): boolean {
+  const status = (error as { status?: unknown } | null)?.status;
+  if (status !== 401) return false;
+  if (!readSessionToken()) return false;
+  const url = String((error as { url?: unknown } | null)?.url ?? "");
+  return !/\/auth\/(login|register)$/.test(url);
+}
+
+function handleQueryError(error: unknown): void {
+  if (!isSessionExpiry(error)) return;
+  clearSession();
+  // Drop every cached response so the next signed-in visit cannot read data
+  // belonging to the session that just ended.
+  queryClient.clear();
+}
+
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({ onError: handleQueryError }),
+  mutationCache: new MutationCache({ onError: handleQueryError }),
   defaultOptions: {
     queries: {
       retry: 1,
@@ -130,7 +168,7 @@ function BannedAccountPage({ access }: { access: AccountAccess }) {
         headers: { Authorization: "Bearer " + localStorage.getItem(TOKEN_KEY) },
       });
       if (!response.ok) throw new Error("Account deletion failed");
-      localStorage.removeItem(TOKEN_KEY);
+      clearSession();
       queryClient.clear();
       window.location.assign(import.meta.env.BASE_URL + "resources");
     } finally {
@@ -200,7 +238,7 @@ function AccountAccessGate({ children }: { children: ReactNode }) {
     })
       .then(async (response) => {
         if (response.status === 401) {
-          localStorage.removeItem(TOKEN_KEY);
+          clearSession();
           return null;
         }
         if (!response.ok) throw new Error("Could not verify account access");
@@ -233,8 +271,11 @@ function PrivateRoute({
 }: {
   component: React.ComponentType;
 }) {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) return <Redirect to="/auth/login" />;
+  // Claims, not the raw token: a token that is present but past its expiry is
+  // not a session. Reading localStorage directly also never re-rendered when
+  // the token was cleared, which is what kept expired users inside the app.
+  const claims = useSessionClaims();
+  if (!claims) return <Redirect to="/auth/login" />;
   return (
     <AppShell>
       <Component />

@@ -15,7 +15,8 @@ import {
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useLogin } from "@workspace/api-client-react";
 import { AuthLanguageSelect } from "../../components/AuthLanguageSelect";
-import { useAuthLanguage } from "../../lib/auth-locale";
+import { describeAuthError, useAuthLanguage } from "../../lib/auth-locale";
+import { notifySessionChanged } from "../../lib/session";
 import { useSystemDark } from "../../hooks/use-system-dark";
 
 const TOKEN_KEY = "schoolar_token";
@@ -38,6 +39,9 @@ export default function LoginPage() {
         data: { email, password },
       });
       localStorage.setItem(TOKEN_KEY, result.token);
+      // Tell the route guards a session now exists; localStorage writes do not
+      // notify the tab that made them.
+      notifySessionChanged();
       const previousCheckIn = Number(
         localStorage.getItem(CHECK_IN_INDEX_KEY) ?? -1,
       );
@@ -46,17 +50,9 @@ export default function LoginPage() {
       sessionStorage.setItem(CHECK_IN_INDEX_KEY, String(nextCheckIn));
       setLocation("/dashboard");
     } catch (err: unknown) {
-      // Try to surface the server's friendly error text (e.g. rate-limit message
-      // with retry-after seconds) instead of a generic "Network Error".
-      let message = copy.loginFailed;
-      if (err instanceof Error) {
-        // axios wraps the response body in err.response.data.error
-        const axiosData = (err as unknown as { response?: { data?: { error?: string } } }).response?.data;
-        message = axiosData?.error ?? err.message;
-      }
       toast({
         title: copy.loginFailed,
-        description: message,
+        description: describeAuthError(err, copy, copy.loginFailed),
         variant: "destructive",
       });
     }

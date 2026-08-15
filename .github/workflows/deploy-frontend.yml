@@ -85,6 +85,13 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-pages.mjs
 
+      # Separate from the page audit: this one drives auth state rather than
+      # rendering, and checks that an expired or server-rejected session
+      # actually returns the user to the login page.
+      - name: Audit session handling
+        working-directory: artifacts/app
+        run: node scripts/audit-session.mjs
+
       - name: Build API (bundles the SPA into dist/public)
         run: pnpm --filter @workspace/api-server run build
         env:
