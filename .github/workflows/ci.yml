@@ -74,6 +74,12 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-session.mjs
 
+      # The smoke check has to tell a broken RELEASE from a broken HOST. Pin
+      # every verdict, including the timing: a release that provably did not
+      # come up must fail at once, not wait out the long host window.
+      - name: Verify smoke-check verdicts
+        run: node scripts/smoke-check.test.mjs
+
       - name: Compile the desktop main process
         run: pnpm --filter @workspace/desktop run compile
 

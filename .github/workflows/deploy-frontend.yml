@@ -44,6 +44,29 @@ jobs:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
     steps:
       - uses: actions/checkout@v4
+
+      # The upload, the restart and the smoke check used to be guarded on
+      # `if: env.FTP_SERVER != ''`, so a missing or renamed secret skipped all
+      # three together and the job went green having deployed nothing. A
+      # deploy that cannot deploy is a failure, not a no-op. The credentials
+      # are checked once, here, before ~10 minutes of build time is spent, and
+      # nothing downstream is conditional any more.
+      - name: Require deploy credentials
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          missing=()
+          for name in FTP_SERVER FTP_USERNAME FTP_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error title=Deploy secrets missing::${missing[*]} not set. Add them under Settings → Secrets and variables → Actions. This job will not report success without deploying."
+            exit 1
+          fi
+          echo "FTP credentials present."
+
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -104,15 +127,23 @@ jobs:
           test -f artifacts/api-server/dist/index.mjs
           test -f artifacts/api-server/dist/public/index.html
 
+      # Ask the live site how it is BEFORE anything is uploaded, and record
+      # the answer. This is what lets the post-deploy check tell "my release
+      # will not boot" from "the host's edge is down": both look like a 503
+      # with no application behind it, but only one of them was also true a
+      # minute before the upload. It never fails the job — it only reports
+      # what it saw, and a missing/skipped reading is treated as "not the
+      # host" downstream.
+      - name: Probe the site before deploying
+        id: baseline
+        run: node scripts/smoke-check.mjs --probe "${{ vars.SITE_URL || 'https://casparel.com' }}"
+
       # Upload the self-contained esbuild output (index.mjs + workers +
       # migrations + the bundled SPA in public/) into the running app dir.
       # node_modules at the app root is left untouched — the build changes no
       # externalized native deps. Longer timeout to ride out slow FTP control
       # sockets on this host.
       - name: Deploy app over FTP
-        if: ${{ env.FTP_SERVER != '' }}
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -140,9 +171,6 @@ jobs:
           echo "restarted by GitHub Actions at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > .deploy-restart/restart.txt
 
       - name: Restart Passenger app
-        if: ${{ env.FTP_SERVER != '' }}
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -162,7 +190,9 @@ jobs:
       # the live site, retrying while Passenger restarts, and fails the job if
       # the release is live but broken.
       - name: Smoke-check the deployed site
-        if: ${{ env.FTP_SERVER != '' }}
         env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          # "true" if the site was answering before this upload, "false" if it
+          # was already dark, "" if the probe never ran. Only an explicit
+          # "false" lets a total blackout be blamed on the host.
+          SMOKE_BASELINE_REACHABLE: ${{ steps.baseline.outputs.reachable }}
         run: node scripts/smoke-check.mjs "${{ vars.SITE_URL || 'https://casparel.com' }}"

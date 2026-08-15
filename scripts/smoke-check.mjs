@@ -17,14 +17,34 @@
  *
  * Usage:
  *   node scripts/smoke-check.mjs [baseUrl]
+ *   node scripts/smoke-check.mjs --probe [baseUrl]   (pre-deploy reading)
  *   SMOKE_BASE_URL=https://casparel.com node scripts/smoke-check.mjs
  *
- * Exits non-zero when the site is not healthy, so a deploy job fails loudly
- * instead of going green over a broken release.
+ * Exit codes:
+ *   0   the live site is healthy.
+ *   1   the release is broken. The application answered — a 500 is an answer —
+ *       or it went dark on a host that was answering before the upload.
+ *   75  the release is UNVERIFIED: nothing answered from the application at
+ *       any point, and the site was already unreachable before this release
+ *       was uploaded, so the fault predates it. Not a pass. Re-run once the
+ *       host is back.
+ *
+ * The 0/1 boundary never moves for a host outage: a release only ever reaches
+ * 75 by failing every check, producing zero application responses for the
+ * whole window, AND having been preceded by a site that was already down.
  */
 
+import { appendFileSync } from "node:fs";
+
+const ARGS = process.argv.slice(2);
+
+// --probe takes one reading and reports whether the application answered,
+// without judging the release. It is run before a deploy, so the check after
+// the deploy knows what the site looked like beforehand.
+const PROBE_ONLY = ARGS.includes("--probe");
+
 const BASE = (
-  process.argv[2] ??
+  ARGS.find((arg) => !arg.startsWith("--")) ??
   process.env.SMOKE_BASE_URL ??
   "https://casparel.com"
 ).replace(/\/+$/, "");
@@ -36,7 +56,43 @@ const TIMEOUT_MS = Number(process.env.SMOKE_TIMEOUT_MS ?? 180_000);
 const RETRY_DELAY_MS = Number(process.env.SMOKE_RETRY_MS ?? 10_000);
 const REQUEST_TIMEOUT_MS = Number(process.env.SMOKE_REQUEST_MS ?? 30_000);
 
+// While nothing at all is answering, the site is either still restarting or
+// the host's edge is down; both clear on their own, and this host's last edge
+// outage ran for 35 minutes. So that one state gets a much longer window.
+// It is only ever used when every check fails with zero application responses
+// — a release that answers and answers wrongly still fails after TIMEOUT_MS.
+const HOST_TIMEOUT_MS = Number(process.env.SMOKE_HOST_TIMEOUT_MS ?? 1_200_000);
+
+// Written by the pre-deploy `--probe` run: "true" if the application answered
+// before this release was uploaded, "false" if it did not, "" if no probe
+// ran. Only an explicit "false" permits the host-fault verdict below.
+const BASELINE_REACHABLE = (process.env.SMOKE_BASELINE_REACHABLE ?? "").trim();
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// The statuses a shared host's edge returns when it never reached the app.
+// They are the only statuses that can mean "host", and only when the body did
+// not come from us either.
+const GATEWAY_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * Did this response come from our application, or from the edge in front of
+ * it? Everything the app emits is JSON or the built SPA; a Hostinger edge
+ * error page is neither.
+ *
+ * This is the whole discriminator, and it is deliberately biased against
+ * excuses: ANY application response — a 500 very much included — proves the
+ * release is running and reachable, so every failing check from that point on
+ * belongs to the release.
+ */
+function fromApplication(status, text) {
+  if (status === 0) return false; // never connected, or timed out
+  if (!GATEWAY_STATUSES.has(status)) return true; // 200, 401, 404, 500 … ours
+  return parse(text) != null || text.includes('<div id="root"');
+}
+
+/** How many responses in this run demonstrably came from the application. */
+let appResponses = 0;
 
 async function get(path) {
   const controller = new AbortController();
@@ -47,6 +103,7 @@ async function get(path) {
       headers: { "user-agent": "casparel-smoke-check" },
     });
     const text = await response.text();
+    if (fromApplication(response.status, text)) appResponses += 1;
     return { status: response.status, text };
   } catch (error) {
     return { status: 0, text: String(error?.message ?? error) };
@@ -134,21 +191,55 @@ async function runAll() {
   return results;
 }
 
+// ── Pre-deploy probe ───────────────────────────────────────────────────────
+// Records whether the site answered, and nothing else. Deliberately exits 0
+// whatever it finds: it must never be the thing that blocks a deploy, it only
+// leaves behind the reading the post-deploy run needs.
+if (PROBE_ONLY) {
+  await get("/");
+  await get("/api/healthz");
+  const reachable = appResponses > 0;
+  console.log(
+    `probe ${BASE}: application ${reachable ? "answered" : "did not answer"}`,
+  );
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `reachable=${reachable}\n`);
+  }
+  process.exit(0);
+}
+
 const deadline = Date.now() + TIMEOUT_MS;
+const hostDeadline = Date.now() + HOST_TIMEOUT_MS;
 let results = [];
 let attempt = 0;
+let blackout = false;
 
-while (Date.now() < deadline) {
+for (;;) {
   attempt += 1;
+  const seenBefore = appResponses;
   results = await runAll();
   if (results.every((r) => r.ok)) break;
 
-  const remaining = deadline - Date.now();
+  // A blackout is every check failing with not one response from the
+  // application on this attempt. Anything less is a release fault, and gets
+  // the ordinary short window.
+  blackout = results.every((r) => !r.ok) && appResponses === seenBefore;
+
+  // The long window only buys time for a verdict that is still open, and a
+  // host verdict additionally requires the baseline to say the site was
+  // already dark. Gating the wait on the same condition as hostFault below
+  // keeps a release that provably did not come up - baseline "true", the most
+  // common serious deploy failure - from sitting here for twenty minutes to
+  // deliver a failure that was decided on the first attempt.
+  const remaining =
+    (blackout && BASELINE_REACHABLE === "false" ? hostDeadline : deadline) -
+    Date.now();
   if (remaining <= RETRY_DELAY_MS) break;
   const failing = results.filter((r) => !r.ok).map((r) => r.name);
   console.log(
     `attempt ${attempt}: waiting on ${failing.join(", ")} ` +
-      `(${Math.round(remaining / 1000)}s left)`,
+      `(${Math.round(remaining / 1000)}s left` +
+      `${blackout ? ", nothing answering at all" : ""})`,
   );
   await sleep(RETRY_DELAY_MS);
 }
@@ -159,11 +250,50 @@ for (const { name, ok, detail } of results) {
 }
 
 const failed = results.filter((r) => !r.ok);
-if (failed.length) {
-  console.log(
-    `\n${failed.length} check(s) failing after ${attempt} attempt(s). ` +
-      `The deploy is live but not healthy.`,
-  );
-  process.exit(1);
+if (!failed.length) {
+  console.log(`\nAll ${results.length} checks passed.`);
+  process.exit(0);
 }
-console.log(`\nAll ${results.length} checks passed.`);
+
+// The host verdict needs all four of these, and nothing weaker will do:
+//  • every check failed,
+//  • not one response in the entire run came from the application,
+//  • the site was already not answering BEFORE this release was uploaded, so
+//    the blackout predates us, and
+//  • it stayed that way for the whole extended window.
+// A release that boots and misbehaves answers, and falls through to exit 1.
+// A release that cannot boot at all does not answer — but the site answered
+// before the upload, so the baseline refuses to excuse it, and it also falls
+// through to exit 1. An unknown baseline counts as "not the host". This path
+// cannot turn any failure into a pass; its best outcome is still a red job.
+const hostFault =
+  blackout && appResponses === 0 && BASELINE_REACHABLE === "false";
+
+if (hostFault) {
+  console.log(
+    `\nRELEASE UNVERIFIED after ${attempt} attempt(s). Nothing answered from ` +
+      `the application, and ${BASE} was already unreachable before this ` +
+      `release was uploaded, so the fault is the host's and predates the ` +
+      `deploy. This says nothing good about the release either — re-run this ` +
+      `job once the site is answering.`,
+  );
+  console.log(
+    `::error title=Release unverified (host unreachable)::${BASE} never ` +
+      `answered from the application, before or after the upload. Re-run the ` +
+      `deploy to verify this release.`,
+  );
+  process.exit(75); // EX_TEMPFAIL: not a pass, and not a verdict on the release
+}
+
+console.log(
+  `\n${failed.length} check(s) failing after ${attempt} attempt(s). ` +
+    (appResponses === 0
+      ? BASELINE_REACHABLE === "true"
+        ? `Nothing answered from the application, and the site WAS answering ` +
+          `before this upload: this release did not come up.`
+        : `Nothing answered from the application, and there is no record of ` +
+          `the site being down beforehand, so this is not written off as a ` +
+          `host outage.`
+      : `The deploy is live but not healthy.`),
+);
+process.exit(1);
