@@ -90,26 +90,40 @@ jobs:
             echo "::error title=Host unreachable::Neither FTP (21) nor SSH (22) answers on the configured host. FTP_SERVER is likely the wrong host/IP entirely; copy it from the same hPanel page as the username."
             exit 1
           fi
-          echo "Attempting FTP login as the configured user (values are masked)."
-          set +e
-          curl -sS --connect-timeout 15 --max-time 60 \
-            --user "${FTP_USERNAME}:${FTP_PASSWORD}" \
-            "ftp://${host}/" --list-only -o /dev/null
-          code=$?
-          set -e
-          case "$code" in
-            0)
-              echo "FTP login OK." ;;
-            67)
-              echo "::error title=FTP login rejected::The server answered but refused the username/password pair. Re-copy both from hPanel → Files → FTP Accounts for this website — the username is the uXXXXXXXXX value shown there, not the hPanel email — and note a freshly changed password can take a few minutes to apply."
-              exit 1 ;;
-            6|7|28)
-              echo "::error title=FTP unreachable::Port 21 opened in the scan but the FTP conversation failed (curl ${code})."
-              exit 1 ;;
-            *)
-              echo "::error title=FTP preflight failed::curl exited ${code}."
-              exit 1 ;;
-          esac
+          # Hostinger servers accept exactly one of two username forms — the
+          # bare account id (u123456789) or id.domain — and a freshly changed
+          # password can take minutes to propagate. Try both forms, three
+          # rounds apart, and hand the working one to the upload steps below.
+          candidates=("${FTP_USERNAME}")
+          if [[ "${FTP_USERNAME}" == *.* ]]; then
+            candidates+=("${FTP_USERNAME%%.*}")
+          else
+            candidates+=("${FTP_USERNAME}.casparel.com")
+          fi
+          labels=("as stored in the secret" "alternate Hostinger form")
+          for candidate in "${candidates[@]}"; do
+            echo "::add-mask::${candidate}"
+          done
+          for round in 1 2 3; do
+            for i in 0 1; do
+              candidate="${candidates[$i]}"
+              set +e
+              curl -sS --connect-timeout 15 --max-time 60 \
+                --user "${candidate}:${FTP_PASSWORD}" \
+                "ftp://${host}/" --list-only -o /dev/null
+              code=$?
+              set -e
+              if [ "$code" -eq 0 ]; then
+                echo "FTP login OK using the username ${labels[$i]}."
+                echo "FTP_USERNAME_EFFECTIVE=${candidate}" >> "$GITHUB_ENV"
+                exit 0
+              fi
+              echo "Round ${round}: username ${labels[$i]} rejected (curl ${code})."
+            done
+            [ "$round" -lt 3 ] && { echo "Waiting 25s in case a fresh password is still propagating…"; sleep 25; }
+          done
+          echo "::error title=FTP login rejected::Both username forms were refused across three rounds. The password in the secret does not match the server. Verify the pair once in an FTP client (FileZilla) against this host; if it works there, re-save the GitHub secret watching for stray spaces."
+          exit 1
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -191,7 +205,7 @@ jobs:
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
+          username: ${{ env.FTP_USERNAME_EFFECTIVE }}
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftp
           port: 21
@@ -218,7 +232,7 @@ jobs:
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
+          username: ${{ env.FTP_USERNAME_EFFECTIVE }}
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftp
           port: 21
