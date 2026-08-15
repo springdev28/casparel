@@ -67,6 +67,39 @@ jobs:
           fi
           echo "FTP credentials present."
 
+      # Presence is not validity: after a day of 530s at the very end of
+      # six-minute runs, the login itself is now proven in seconds, before any
+      # build time is spent. curl separates the failure modes the deploy
+      # action reports as one: 67 = the server answered and refused the pair,
+      # 6/7/28 = the host itself is wrong or unreachable.
+      - name: Verify FTP login (fail fast)
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          host="${FTP_SERVER#ftps://}"; host="${host#ftp://}"; host="${host%%/*}"
+          echo "Attempting FTP login to ${host} as the configured user (values are masked)."
+          set +e
+          curl -sS --connect-timeout 15 --max-time 60 \
+            --user "${FTP_USERNAME}:${FTP_PASSWORD}" \
+            "ftp://${host}/" --list-only -o /dev/null
+          code=$?
+          set -e
+          case "$code" in
+            0)
+              echo "FTP login OK." ;;
+            67)
+              echo "::error title=FTP login rejected::${host} answered but refused the username/password pair. Re-copy both from hPanel → Files → FTP Accounts for this website — the username is the uXXXXXXXXX value shown there, not the hPanel email — and note a freshly changed password can take a few minutes to apply."
+              exit 1 ;;
+            6|7|28)
+              echo "::error title=FTP host unreachable::Could not reach ${host} (curl ${code}). FTP_SERVER must be the host/IP exactly as hPanel shows it, with no ftp:// prefix."
+              exit 1 ;;
+            *)
+              echo "::error title=FTP preflight failed::curl exited ${code}."
+              exit 1 ;;
+          esac
+
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
