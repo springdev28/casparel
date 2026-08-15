@@ -14,8 +14,17 @@
  */
 import http from "node:http";
 import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const SCRIPT = "/home/user/casparel/scripts/smoke-check.mjs";
+// Resolved relative to this file, never hardcoded: an absolute path from one
+// machine made every CI run fail in 0.0s with "module not found" while the
+// same test passed locally, and three of the five verdicts wanted a non-zero
+// exit anyway, so the breakage even looked half-green.
+const SCRIPT = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "smoke-check.mjs",
+);
 
 function server(port, handler) {
   return new Promise((resolve) => {
