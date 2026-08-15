@@ -36,6 +36,7 @@ import {
   Workflow,
   X,
   Menu,
+  Crown,
   Settings,
 } from "lucide-react";
 import { cn } from "@workspace/edu-ds/lib/utils";
@@ -117,6 +118,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Messages", href: "/messages", icon: MessageCircle },
   { label: "Lists", href: "/lists", icon: List },
   { label: "Schedule", href: "/schedule", icon: Calendar },
+  { label: "Plans", href: "/plans", icon: Crown },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -1335,4 +1337,5 @@ const NAV_LABELS_TR: Record<string, string> = {
   Lists: "Listeler",
   Schedule: "Takvim",
   Settings: "Ayarlar",
+  Plans: "Planlar",
 };

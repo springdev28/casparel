@@ -30,6 +30,9 @@ export default function PublicShell({ children }: PublicShellProps) {
           {/* Auth actions */}
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Button variant="ghost" size="sm" asChild>
+              <Link href="/plans">Plans</Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
               <Link href="/auth/login">Sign in</Link>
             </Button>
             <Button size="sm" asChild>

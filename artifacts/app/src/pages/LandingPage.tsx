@@ -80,7 +80,7 @@ const CREDENTIALS = [
   {
     metric: "Free forever",
     title: "The library stays open",
-    body: "Access to learning materials is never paywalled. Free has no AI; Plus and Pro add optional AI tools.",
+    body: "Access to learning materials is never paywalled. Free includes a daily taste of AI; Student and Teacher plans add room and larger AI allowances.",
   },
 ];
 
@@ -168,6 +168,9 @@ export default function LandingPage() {
             <Button variant="ghost" size="sm" asChild>
               <Link href="/resources">Browse</Link>
             </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/plans">Plans</Link>
+            </Button>
             {signedIn ? (
               <Link
                 href="/profile"
@@ -236,12 +239,14 @@ export default function LandingPage() {
                 </Link>
               </Button>
             </div>
-            {!hasDownload && !inDesktopShell ? (
-              <p className="mt-3 text-xs text-muted-foreground">
-                The mobile app is on its way. Everything works in your browser
-                today.
-              </p>
-            ) : null}
+            <p className="mt-3 text-xs text-muted-foreground">
+              {!hasDownload && !inDesktopShell
+                ? "The mobile app is on its way. Everything works in your browser today. "
+                : null}
+              <Link href="/plans" className="text-primary-text hover:underline">
+                See plans and pricing
+              </Link>
+            </p>
           </div>
           </div>
 
