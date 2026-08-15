@@ -79,7 +79,18 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
           host="${FTP_SERVER#ftps://}"; host="${host#ftp://}"; host="${host%%/*}"
-          echo "Attempting FTP login to ${host} as the configured user (values are masked)."
+          probe() { timeout 6 bash -c "</dev/tcp/${host}/$1" 2>/dev/null && echo open || echo closed; }
+          p21=$(probe 21); p22=$(probe 22)
+          echo "Port scan on the configured host: 21 (FTP) is ${p21}, 22 (SFTP/SSH) is ${p22}."
+          if [ "$p21" = "closed" ] && [ "$p22" = "open" ]; then
+            echo "::error title=Host is SFTP-only::The configured host answers SSH/SFTP (22) but not FTP (21). Either FTP is disabled on this server — the deploy must switch to SFTP — or FTP_SERVER points at the wrong machine for FTP."
+            exit 1
+          fi
+          if [ "$p21" = "closed" ] && [ "$p22" = "closed" ]; then
+            echo "::error title=Host unreachable::Neither FTP (21) nor SSH (22) answers on the configured host. FTP_SERVER is likely the wrong host/IP entirely; copy it from the same hPanel page as the username."
+            exit 1
+          fi
+          echo "Attempting FTP login as the configured user (values are masked)."
           set +e
           curl -sS --connect-timeout 15 --max-time 60 \
             --user "${FTP_USERNAME}:${FTP_PASSWORD}" \
@@ -90,10 +101,10 @@ jobs:
             0)
               echo "FTP login OK." ;;
             67)
-              echo "::error title=FTP login rejected::${host} answered but refused the username/password pair. Re-copy both from hPanel → Files → FTP Accounts for this website — the username is the uXXXXXXXXX value shown there, not the hPanel email — and note a freshly changed password can take a few minutes to apply."
+              echo "::error title=FTP login rejected::The server answered but refused the username/password pair. Re-copy both from hPanel → Files → FTP Accounts for this website — the username is the uXXXXXXXXX value shown there, not the hPanel email — and note a freshly changed password can take a few minutes to apply."
               exit 1 ;;
             6|7|28)
-              echo "::error title=FTP host unreachable::Could not reach ${host} (curl ${code}). FTP_SERVER must be the host/IP exactly as hPanel shows it, with no ftp:// prefix."
+              echo "::error title=FTP unreachable::Port 21 opened in the scan but the FTP conversation failed (curl ${code})."
               exit 1 ;;
             *)
               echo "::error title=FTP preflight failed::curl exited ${code}."
