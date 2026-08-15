@@ -168,7 +168,10 @@ export const forumCommentsTable = pgTable("forum_comments", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
     .notNull()
     .defaultNow(),
-});
+}, (table) => [
+  // The feed counts comments per (target_type, target_id) once per row.
+  index("forum_comments_target_idx").on(table.targetType, table.targetId),
+]);
 
 export const forumLikesTable = pgTable(
   "forum_likes",
@@ -189,6 +192,9 @@ export const forumLikesTable = pgTable(
       table.targetType,
       table.targetId,
     ),
+    // The feed counts likes by target, so it cannot use the unique index above
+    // (wrong leading column).
+    index("forum_likes_target_idx").on(table.targetType, table.targetId),
   ],
 );
 

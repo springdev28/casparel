@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, or } from "drizzle-orm"; // `or` used in listCount query
+import { eq, sql, and, or, inArray } from "drizzle-orm"; // `or` used in listCount query
 import {
   db,
   classesTable,
@@ -58,7 +58,10 @@ router.get("/dashboard/summary", requireAuth, async (req, res): Promise<void> =>
       const [{ count }] = await db
         .select({ count: sql<number>`cast(count(*) as int)` })
         .from(classMembersTable)
-        .where(eq(classMembersTable.role, "student"));
+        .where(and(
+          inArray(classMembersTable.classId, classIds),
+          eq(classMembersTable.role, "student"),
+        ));
       studentCount = count;
     }
   }

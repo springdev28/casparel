@@ -17,7 +17,11 @@ export const resourceListsTable = pgTable("resource_lists", {
 
 export const listItemsTable = pgTable("list_items", {
   id: serial("id").primaryKey(),
-  listId: integer("list_id").notNull().references(() => resourceListsTable.id),
+  listId: integer("list_id")
+    .notNull()
+    // A list item is meaningless without its list, and the column is NOT NULL,
+    // so the row goes with it rather than blocking the list delete.
+    .references(() => resourceListsTable.id, { onDelete: "cascade" }),
   resourceId: integer("resource_id")
     .notNull()
     // A list item is meaningless without its resource, and the column is NOT

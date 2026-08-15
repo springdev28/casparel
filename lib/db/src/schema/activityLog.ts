@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { index, pgTable, serial, integer, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -18,7 +18,14 @@ export const activityLogTable = pgTable("activity_log", {
   message: text("message").notNull(),
   workspaceRole: text("workspace_role").$type<"student" | "teacher" | "shared">().notNull().default("shared"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-});
+}, (table) => [
+  // GET /activity/recent: where (user_id, workspace_role) order by created_at desc.
+  index("activity_log_user_role_created_idx").on(
+    table.userId,
+    table.workspaceRole,
+    table.createdAt.desc(),
+  ),
+]);
 
 export const insertActivityLogSchema = createInsertSchema(activityLogTable).omit({ id: true, createdAt: true });
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
