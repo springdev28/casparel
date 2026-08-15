@@ -20,7 +20,8 @@
     "build:linux": "pnpm run compile && electron-builder --linux --publish never",
     "build:mac": "pnpm run compile && electron-builder --mac --publish never",
     "build:win": "pnpm run compile && electron-builder --win --publish never",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke": "xvfb-run -a node scripts/smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

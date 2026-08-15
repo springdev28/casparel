@@ -25,8 +25,9 @@ jobs:
     timeout-minutes: 20
     env:
       # The desktop package pulls a ~100MB Electron runtime in postinstall.
-      # Compiling the main process only needs its types, which ship in the
-      # package either way, so skip the download and keep CI quick.
+      # Most of this job only needs its types, which ship in the package
+      # either way, so the download is skipped here and fetched on demand by
+      # the one step that runs a real Electron window.
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
     steps:
       - uses: actions/checkout@v4
@@ -75,3 +76,18 @@ jobs:
 
       - name: Compile the desktop main process
         run: pnpm --filter @workspace/desktop run compile
+
+      # postinstall skipped the runtime for every other step; fetch it now.
+      - name: Fetch the Electron runtime
+        working-directory: artifacts/desktop
+        run: node node_modules/electron/install.js
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 0
+
+      # Launches the real Electron shell against a local stand-in for
+      # casparel.com. Covers what a type check cannot see: a failed embed
+      # must not tear down the window, a cross-origin redirect must not load
+      # inside the app frame, and a deep link handed to a cold start must
+      # become the first page.
+      - name: Smoke-test the desktop shell
+        run: pnpm --filter @workspace/desktop run smoke
