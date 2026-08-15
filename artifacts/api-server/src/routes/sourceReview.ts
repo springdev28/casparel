@@ -277,22 +277,19 @@ router.get(
     };
     const canonicalUrl = canonicalResourceUrl(url);
     const reviewKey = mode + ":" + canonicalUrl;
+    // Every tier may run deep research; the tiers differ in allowance. Free's
+    // allowance is a deliberate taste — large enough to see what a cited deep
+    // report is, far too small to live on. Only administrators are uncapped:
+    // uncapped is an operational property, not something money can buy.
     let deepUserId: number | null = null;
     let deepIsAdmin = false;
-    let deepUnlimited = false;
+    let deepRates: { deepPerDay: number; deepPerMonth: number } | null = null;
     if (mode === "deep") {
       deepUserId = (req as AuthenticatedRequest).userId;
       deepIsAdmin = (req as AuthenticatedRequest).accountRole === "admin";
-      const entitlements = await getAccountEntitlements(deepUserId);
-      if (!deepIsAdmin && !entitlements.features["deep-research"]) {
-        res.status(402).json({
-          error: "Deep AI source research requires Casparel Plus or Pro.",
-          code: "SUBSCRIPTION_REQUIRED",
-          requiredPlan: "plus",
-        });
-        return;
+      if (!deepIsAdmin) {
+        deepRates = (await getAccountEntitlements(deepUserId)).ai;
       }
-      deepUnlimited = deepIsAdmin || entitlements.unlimitedAi;
     }
     const now = new Date().toISOString();
     const cached =
@@ -357,16 +354,14 @@ router.get(
         });
         return;
       }
-      // Plus has predictable per-user caps. Pro and admins are uncapped at the
-      // account level, while the global cost-safety budget still applies.
-      if (!deepUnlimited) {
+      // Per-account caps come from the tier table; only admins skip them.
+      // The global cost-safety budget below applies to every non-admin too.
+      if (deepRates) {
         const daily = await consumeAiQuota(
           "deep-user-day",
           String(deepUserId),
           24 * 60 * 60 * 1000,
-          Number(process.env.AI_PLUS_DEEP_DAILY_LIMIT) > 0
-            ? Math.floor(Number(process.env.AI_PLUS_DEEP_DAILY_LIMIT))
-            : 5,
+          deepRates.deepPerDay,
         );
         if (!daily.allowed) {
           res.setHeader("Retry-After", daily.retryAfter);
@@ -380,9 +375,7 @@ router.get(
           "deep-user-month",
           String(deepUserId),
           30 * 24 * 60 * 60 * 1000,
-          Number(process.env.AI_PLUS_DEEP_MONTHLY_LIMIT) > 0
-            ? Math.floor(Number(process.env.AI_PLUS_DEEP_MONTHLY_LIMIT))
-            : 50,
+          deepRates.deepPerMonth,
         );
         if (!monthly.allowed) {
           res.setHeader("Retry-After", monthly.retryAfter);
@@ -400,9 +393,11 @@ router.get(
           "deep-global-day",
           "all",
           24 * 60 * 60 * 1000,
+          // Service-wide safety net, raised with the tier model: Pro-level
+          // accounts alone can legitimately run 15-25 reports a day.
           Number(process.env.AI_DEEP_DAILY_GLOBAL_LIMIT) > 0
             ? Math.floor(Number(process.env.AI_DEEP_DAILY_GLOBAL_LIMIT))
-            : 20,
+            : 100,
         );
         if (!globalDaily.allowed) {
           res.setHeader("Retry-After", globalDaily.retryAfter);

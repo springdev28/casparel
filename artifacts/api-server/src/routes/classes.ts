@@ -803,10 +803,13 @@ router.post("/classes/:id/seating-plan/suggest", contentLimiter, requireAuth, as
   const isAdmin = (req as AuthenticatedRequest).accountRole === "admin";
   const entitlements = await getAccountEntitlements(userId);
   if (!isAdmin && !entitlements.features["seating-planner"]) {
+    // This route already required the class teacher, so the plan that fits
+    // is the teacher ladder's Pro step (generic Pro also carries the feature
+    // and keeps working for accounts that hold it).
     res.status(402).json({
-      error: "AI seating-plan suggestions require Casparel Pro.",
+      error: "AI seating-plan suggestions require Casparel Teacher Pro.",
       code: "SUBSCRIPTION_REQUIRED",
-      requiredPlan: "pro",
+      requiredPlan: "teacher-pro",
     });
     return;
   }

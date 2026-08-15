@@ -20,11 +20,11 @@ import {
   learningGoalsTable,
   resourceListsTable,
   studyActivitiesTable,
-  usersTable,
 } from "@workspace/db";
 import {
   capacityLimitFor,
-  entitlementsForPlan,
+  resolveAccountPlan,
+  TIER_LABELS,
   upgradeTargetFor,
   type PlanCapacity,
   type SubscriptionTier,
@@ -48,8 +48,8 @@ export interface CapacityDecision {
   /** Rows still available, or null when uncapped. */
   remaining: number | null;
   tier: SubscriptionTier;
-  /** The cheapest plan that would fit the requested rows. */
-  requiredPlan: "plus" | "pro";
+  /** The cheapest plan on this account's ladder that would fit the rows. */
+  requiredPlan: SubscriptionTier;
 }
 
 const UNCAPPED: Omit<CapacityDecision, "tier" | "used"> = {
@@ -112,36 +112,22 @@ async function usedByAccount(
   }
 }
 
-/** Read one account's tier, treating admins as uncapped. */
-async function tierForAccount(
-  userId: number,
-): Promise<SubscriptionTier | "admin"> {
-  const [row] = await db
-    .select({
-      plan: usersTable.plan,
-      expiresAt: usersTable.planExpiresAt,
-      role: usersTable.role,
-    })
-    .from(usersTable)
-    .where(eq(usersTable.id, userId));
-  if (!row) return "free";
-  if (row.role === "admin") return "admin";
-  return entitlementsForPlan(row.plan ?? null, row.expiresAt ?? null).tier;
-}
-
 /**
  * Would `additional` more rows of `capacity` fit inside this account's plan?
- * Admin accounts are uncapped, matching how they bypass the AI quotas.
+ * Admin accounts are uncapped — the only uncapped accounts anywhere, matching
+ * how they bypass the AI quotas.
  */
 export async function accountCapacity(
   userId: number,
   capacity: PlanCapacity,
   additional = 1,
 ): Promise<CapacityDecision> {
-  const tier = await tierForAccount(userId);
-  if (tier === "admin") {
+  const { entitlements, accountRole, isAdmin } =
+    await resolveAccountPlan(userId);
+  if (isAdmin) {
     return { ...UNCAPPED, tier: "pro", used: 0 };
   }
+  const tier = entitlements.tier;
   const limit = capacityLimitFor(tier, capacity);
   const used = await usedByAccount(userId, capacity);
   if (limit === null) return { ...UNCAPPED, tier, used };
@@ -151,7 +137,7 @@ export async function accountCapacity(
     used,
     remaining: Math.max(0, limit - used),
     tier,
-    requiredPlan: upgradeTargetFor(capacity, tier, used + additional),
+    requiredPlan: upgradeTargetFor(capacity, accountRole, used + additional, tier),
   };
 }
 
@@ -170,9 +156,12 @@ export async function classMemberCapacity(
     .where(eq(classesTable.id, classId));
   if (!cls) return { ...UNCAPPED, tier: "free", used: 0 };
 
-  const tier = await tierForAccount(cls.teacherId);
-  if (tier === "admin") return { ...UNCAPPED, tier: "pro", used: 0 };
+  const { entitlements, accountRole, isAdmin } = await resolveAccountPlan(
+    cls.teacherId,
+  );
+  if (isAdmin) return { ...UNCAPPED, tier: "pro", used: 0 };
 
+  const tier = entitlements.tier;
   const limit = capacityLimitFor(tier, "class-members");
   const used = await countRows(
     db
@@ -187,7 +176,12 @@ export async function classMemberCapacity(
     used,
     remaining: Math.max(0, limit - used),
     tier,
-    requiredPlan: upgradeTargetFor("class-members", tier, used + additional),
+    requiredPlan: upgradeTargetFor(
+      "class-members",
+      accountRole,
+      used + additional,
+      tier,
+    ),
   };
 }
 
@@ -201,9 +195,8 @@ export function capacityErrorBody(
   capacity: PlanCapacity,
   decision: CapacityDecision,
 ) {
-  const planName = decision.requiredPlan === "pro" ? "Pro" : "Plus";
-  const tierName =
-    decision.tier === "pro" ? "Pro" : decision.tier === "plus" ? "Plus" : "Free";
+  const planName = TIER_LABELS[decision.requiredPlan];
+  const tierName = TIER_LABELS[decision.tier];
   return {
     error:
       `Casparel ${tierName} includes up to ${decision.limit} ` +
@@ -258,8 +251,8 @@ export async function ensureClassMemberCapacity(
 export async function accountCapacityReport(
   userId: number,
 ): Promise<Record<PlanCapacity, { used: number; limit: number | null }>> {
-  const tier = await tierForAccount(userId);
-  const effective: SubscriptionTier = tier === "admin" ? "pro" : tier;
+  const { entitlements, isAdmin } = await resolveAccountPlan(userId);
+  const effective = entitlements.tier;
   const capacities: PlanCapacity[] = [
     "classes-owned",
     "study-activities",
@@ -277,14 +270,14 @@ export async function accountCapacityReport(
   capacities.forEach((capacity, index) => {
     report[capacity] = {
       used: counts[index],
-      limit: tier === "admin" ? null : capacityLimitFor(effective, capacity),
+      limit: isAdmin ? null : capacityLimitFor(effective, capacity),
     };
   });
   // Roster size is per class, not per account, so it is reported as the cap
   // that applies to classes this account owns rather than a usage count.
   report["class-members"] = {
     used: 0,
-    limit: tier === "admin" ? null : capacityLimitFor(effective, "class-members"),
+    limit: isAdmin ? null : capacityLimitFor(effective, "class-members"),
   };
   return report;
 }

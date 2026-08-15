@@ -1,8 +1,16 @@
 # Casparel subscription roadmap
 
-Written: 15 August 2026. Shipaton deadline: 30 September 2026.
+Written: 15 August 2026, revised the same day after the role-specific tiers landed. Shipaton deadline: 30 September 2026.
 
-This roadmap follows the change that made Casparel's tiers about stored data as well as AI usage. It is deliberately ordered by what blocks revenue, not by what is most interesting to build.
+This roadmap follows two changes: the one that made Casparel's tiers about stored data as well as AI usage, and the one that specialised the tiers by role (Student/Teacher Plus and Pro), gave Free a small AI taste, and made every paid allowance finite — uncapped is now an admin property only. It is deliberately ordered by what blocks revenue, not by what is most interesting to build.
+
+## Revision note (same day)
+
+- The tier set is now seven: `free`, generic `plus`/`pro` (kept, still honoured), `student-plus`, `student-pro`, `teacher-plus`, `teacher-pro`. Roles never mix: a role-specific plan resolves to Free while the account's role does not match, purchases are never rewritten, and the paywall only sells packages for the buyer's role.
+- Free's "no AI" decision was reversed into a taste: 2 discovery searches/day, 1 deep report/day, 2/30 days.
+- Phase 1's first item (Pro sold as uncapped but globally capped) is **resolved by product definition**: nothing is sold as uncapped any more. The global budgets remain as operational guards, raised to defaults that clear paying demand (discovery 200/day, deep 100/day).
+- Phase 1's third item (`tierForPackage` substring mapping) is improved — role words are recognised, `pro` beats `plus` in ambiguous names — but explicit dashboard-identifier mapping remains the real fix before launch.
+- New consequence to own: **legacy `premium` buyers were sold "unlimited deep research" and now resolve to finite Pro caps.** The caps are large (15/day, 150/30 days), but store copy and any renewal messaging must be corrected before the next release, and a goodwill path (e.g. grandfathered higher caps) should be decided consciously rather than discovered by a complaint.
 
 ## What changed
 
@@ -26,15 +34,15 @@ The rules that make this safe to sell:
 - **Limits live in one table** (`CAPACITY_BY_TIER`) that the enforcement helper, the usage endpoint and the tests all read, so a limit shown to a user and a limit applied by the server cannot drift apart.
 - **Refusals carry data, not just prose**: `402` with `code`, `capacity`, `limit`, `used` and `requiredPlan`, and `requiredPlan` names the cheapest plan that would actually fit the request.
 
-Verified locally: `pnpm run typecheck` clean across all six workspaces, `vitest run` 203/203 passing (19 new), web production build succeeds, OpenAPI regenerated with no drift.
+Verified locally at first writing: typecheck clean, 203/203 tests, web build green. After the role-tier revision: typecheck clean, 218/218 tests, web build and the full 51-render browser audit green.
 
 ## Phase 1 — before any of this can be sold (target: by 22 August)
 
 These are correctness problems in the paid path. Every one of them can take money and give nothing back, so they gate store submission.
 
-1. **Pro is sold as uncapped but is capped.** `AI_DEEP_DAILY_GLOBAL_LIMIT` (default 20/day) still applies to every non-admin account including Pro. Four Pro subscribers running five reports each exhaust the platform for the day and the fifth is refused. Either raise and meter the global budget per paying account, or stop using the word uncapped. This is a consumer-protection issue once real money is involved, not a tuning question.
-2. **Paying users can be told they have not paid.** `use-plan.ts` derives the tier from a label that falls back to `"Free"` whenever `/users/me/usage` has not answered, and callers gate on `aiEnabled` without checking `pending`. A Plus subscriber clicking Deep Research during load, or permanently if that endpoint errors, is told they need Plus. The hook's own comment warns against exactly this. The capacity work adds more surfaces that read the same fallback, so this now misreports the workspace allowances too.
-3. **Tier is inferred from product-name substrings.** `tierForPackage()` decides Plus vs Pro by looking for `"plus"` in the package, product identifier and title, defaulting everything else to Pro. A product named "Casparel Pro Plus Annual" resolves to Plus and sells the wrong thing. Map RevenueCat identifiers explicitly.
+1. ~~Pro is sold as uncapped but is capped.~~ **Resolved** — no plan is sold as uncapped; global budgets raised and documented as operational guards. Remaining follow-up: correct legacy-premium store copy (see revision note).
+2. ~~Paying users can be told they have not paid.~~ **Mostly resolved** — the client no longer pre-blocks any AI feature on plan (every tier has an allowance; the server answers 429 when it is spent), and the tier now arrives as machine-readable data in `/users/me/usage` instead of being parsed from a label. Residual cosmetic issue: sidebar meters read "Not included" for a moment while usage is loading. Watch it; do not let a future gate read those pending zeros.
+3. **Tier is still inferred from product-name substrings** (now role-aware, `pro` beats `plus`, but still a heuristic). Map RevenueCat product identifiers to plans explicitly in the dashboard offering metadata before launch; with seven plans the cost of a wrong guess is now a wrong *product*, not just a wrong size.
 4. **Webhook idempotency and `TRANSFER` reconciliation** (open since the August audit). Repeated delivery is normal in RevenueCat, and a store-account transfer can leave the previous Casparel account holding an entitlement it no longer owns. Key on event ID; reconcile subscriber state for both aliases.
 5. **The deletion copy is wrong.** Terms and Privacy say deletion "removes your account and the content tied to it". `DELETE /users/me` anonymises the row and bans it; contributions survive, unlinked. The earlier wording described this accurately and was replaced with something shorter and false. This feeds the App Store privacy and Play Data Safety forms, so it blocks submission independently of anything above.
 
@@ -79,7 +87,12 @@ Sequencing note: nothing in this phase should displace Phase 1 or the store gate
 - Revisit whether classes should be priced per seat rather than per class. Teacher-led distribution is the stated 3–6 month growth path, and a per-class limit prices a 12-student class the same as a 95-student one.
 - Consider an institution tier only once a school has actually asked, and only after the per-account cost basis exists to price it.
 
-## Open questions
+## Open questions (updated)
+
+- The role-specific capacity numbers are as much a hypothesis as the first table was; Phase 2's instrumentation now needs a `tier` dimension so student and teacher demand can be read separately.
+- When a teacher on `teacher-pro` self-switches to student (losing verification, per the role-switch route), their plan resolves to Free until they switch back. That is the strict reading of "roles do not mix" and is reversible, but the switch screen should warn about it.
+
+## Earlier open questions
 
 - Should a teacher's roster limit be consumed by co-teachers as well as students? Currently every member counts equally.
 - When a Pro teacher downgrades to Plus with a 150-member class, the class stays intact and no member can be added. Is that the right outcome, or should the roster be frozen but re-openable for replacements?

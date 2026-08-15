@@ -8,9 +8,12 @@
 import type { AccountUsageAiSearch } from './accountUsageAiSearch';
 import type { AccountUsageCapacity } from './accountUsageCapacity';
 import type { AccountUsageDeepResearch } from './accountUsageDeepResearch';
+import type { AccountUsageTier } from './accountUsageTier';
 
 export interface AccountUsage {
   plan: string;
+  /** Machine-readable tier. Role-specific plans only apply while the account's role matches; this field always reports the tier that is actually in effect. */
+  tier: AccountUsageTier;
   unlimited: boolean;
   aiSearch: AccountUsageAiSearch;
   deepResearch: AccountUsageDeepResearch;

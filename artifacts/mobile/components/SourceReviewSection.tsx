@@ -172,13 +172,12 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
 
   const deepLimit = usage?.deepResearch.limit ?? null;
   const deepUsed = usage?.deepResearch.used ?? 0;
-  const paidAi =
-    isPremium ||
-    usage?.unlimited === true ||
-    usage?.plan === 'Plus' ||
-    usage?.plan === 'Pro' ||
-    usage?.plan === 'Administrator';
-  const deepLimitReached = !paidAi || (deepLimit != null && deepUsed >= deepLimit);
+  // Every plan carries a deep-research allowance now — Free's is a small
+  // taste — so nothing is pre-blocked by plan. Only a spent allowance stops
+  // the button, and only admins report a null (uncapped) limit.
+  const paidLevel = usage?.tier != null && usage.tier !== 'free' && usage.tier !== 'administrator';
+  const canUpgrade = !usage?.unlimited && (isPremium ? paidLevel : true);
+  const deepLimitReached = deepLimit != null && deepUsed >= deepLimit;
   const deepRemaining = deepLimit == null ? null : Math.max(0, deepLimit - deepUsed);
 
   const { data, isFetching, isError, refetch } = useGetResourceSourceReview(
@@ -208,7 +207,9 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
 
   function runDeep() {
     if (deepLimitReached) {
-      router.push('/paywall');
+      // A spent allowance is an upsell only while a bigger plan exists; a
+      // Pro-level account is told when it resets instead of being sold to.
+      if (canUpgrade) router.push('/paywall');
       return;
     }
     setMode('deep');
@@ -363,13 +364,13 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
               },
             ]}
           >
-            {!paidAi
-              ? 'Deep AI research starts with Plus. Free includes the non-AI quick source check.'
-              : deepLimitReached
-                ? 'Your Plus deep-research allowance is used. Pro removes account-level limits.'
-                : deepRemaining == null
-                  ? 'Pro includes unlimited account-level deep research.'
-                  : `${deepRemaining} Plus deep ${deepRemaining === 1 ? 'report' : 'reports'} remaining today. Pro removes account-level limits.`}
+            {deepLimitReached
+              ? paidLevel
+                ? 'Today\u2019s deep-research allowance is used. It resets daily; larger plans include more.'
+                : 'Your free deep-research taste is used for now. Plus plans include far more.'
+              : deepRemaining == null
+                ? 'Deep research is uncapped on this account.'
+                : `${deepRemaining} deep ${deepRemaining === 1 ? 'report' : 'reports'} remaining today on your plan.`}
           </Text>
         ) : null}
       </View>

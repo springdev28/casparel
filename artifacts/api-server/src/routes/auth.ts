@@ -43,7 +43,7 @@ import {
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
-import { getAccountEntitlements } from "../lib/entitlements";
+import { resolveAccountPlan } from "../lib/entitlements";
 import { accountCapacityReport } from "../lib/planCapacity";
 import { publicUserColumns } from "../lib/userColumns";
 import { publicResourceColumns } from "../lib/resourceColumns";
@@ -416,10 +416,10 @@ router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
 
 // GET /users/me/usage
 router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
-  const { userId, accountRole } = req as AuthenticatedRequest;
-  const isAdmin = accountRole === "admin";
-  const entitlements = await getAccountEntitlements(userId);
-  const unlimited = isAdmin || entitlements.unlimitedAi;
+  const { userId } = req as AuthenticatedRequest;
+  const { entitlements, isAdmin } = await resolveAccountPlan(userId);
+  // Uncapped is an administrator property only; every tier has finite rates.
+  const unlimited = isAdmin;
   const result = await pool.query<{ key: string; hits: number }>(
     `SELECT key, CASE WHEN reset_time > NOW() THEN hits ELSE 0 END AS hits
      FROM rate_limit_hits WHERE key = ANY($1::text[])`,
@@ -432,20 +432,6 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
     ],
   );
   const usage = new Map(result.rows.map((row) => [row.key, Number(row.hits)]));
-  const configuredLimit = (value: string | undefined, fallback: number) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0
-      ? Math.floor(parsed)
-      : fallback;
-  };
-  const plusSearchLimit = configuredLimit(
-    process.env.AI_PLUS_SEARCH_DAILY_LIMIT,
-    20,
-  );
-  const plusDeepDailyLimit = configuredLimit(
-    process.env.AI_PLUS_DEEP_DAILY_LIMIT,
-    5,
-  );
   const deepUsage = Math.max(
     usage.get("deep-user-day:" + userId) ?? 0,
     usage.get("deep-user-month:" + userId) ?? 0,
@@ -456,23 +442,17 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
   res.json(
     GetMyUsageResponse.parse({
       plan: isAdmin ? "Administrator" : entitlements.label,
+      // The machine-readable tier, so clients never have to parse the label.
+      tier: isAdmin ? "administrator" : entitlements.tier,
       unlimited,
       aiSearch: {
         used: usage.get("discover-ai-user-day:user:" + userId) ?? 0,
-        limit: unlimited
-          ? null
-          : entitlements.tier === "plus"
-            ? plusSearchLimit
-            : 0,
+        limit: unlimited ? null : entitlements.ai.searchPerDay,
         window: "day",
       },
       deepResearch: {
         used: deepUsage,
-        limit: unlimited
-          ? null
-          : entitlements.tier === "plus"
-            ? plusDeepDailyLimit
-            : 0,
+        limit: unlimited ? null : entitlements.ai.deepPerDay,
         window: "day",
       },
       capacity: {

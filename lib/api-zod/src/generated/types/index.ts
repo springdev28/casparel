@@ -12,6 +12,7 @@ export * from './accountUsageAiSearchWindow';
 export * from './accountUsageCapacity';
 export * from './accountUsageDeepResearch';
 export * from './accountUsageDeepResearchWindow';
+export * from './accountUsageTier';
 export * from './activityItem';
 export * from './activityItemType';
 export * from './adminAiFeatureUsage';

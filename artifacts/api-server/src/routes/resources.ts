@@ -1098,22 +1098,16 @@ router.get(
       return;
     }
 
-    // AI discovery is paid-only. Normal stored-catalog searches stay free and
-    // never consume an AI allowance.
+    // AI discovery needs an account (the allowance is per user, so anonymous
+    // traffic cannot spend it), but every tier has one: Free's small daily
+    // taste, larger allowances on the paid plans. Normal stored-catalog
+    // searches stay free and never consume an AI allowance. Only admins are
+    // uncapped.
     if (!isAdminRequest(req)) {
       if (discoverUserId === null) {
         res.status(401).json({
-          error: "Sign in with a paid Casparel plan to use AI discovery.",
+          error: "Sign in to use AI discovery.",
           code: "AUTHENTICATION_REQUIRED",
-        });
-        return;
-      }
-      const entitlements = await getAccountEntitlements(discoverUserId);
-      if (!entitlements.features["ai-discovery"]) {
-        res.status(402).json({
-          error: "AI discovery requires Casparel Plus or Pro.",
-          code: "SUBSCRIPTION_REQUIRED",
-          requiredPlan: "plus",
         });
         return;
       }
@@ -1123,27 +1117,29 @@ router.get(
           ? Math.floor(parsed)
           : fallback;
       };
-      if (!entitlements.unlimitedAi) {
-        const userBudget = await consumeAiQuota(
-          "discover-ai-user-day",
-          `user:${discoverUserId}`,
-          24 * 60 * 60 * 1000,
-          configuredLimit(process.env.AI_PLUS_SEARCH_DAILY_LIMIT, 20),
-        );
-        if (!userBudget.allowed) {
-          res.setHeader("Retry-After", userBudget.retryAfter);
-          res.status(429).json({
-            error: "Daily AI discovery limit reached.",
-            retryAfter: userBudget.retryAfter,
-          });
-          return;
-        }
+      const entitlements = await getAccountEntitlements(discoverUserId);
+      const userBudget = await consumeAiQuota(
+        "discover-ai-user-day",
+        `user:${discoverUserId}`,
+        24 * 60 * 60 * 1000,
+        entitlements.ai.searchPerDay,
+      );
+      if (!userBudget.allowed) {
+        res.setHeader("Retry-After", userBudget.retryAfter);
+        res.status(429).json({
+          error: "Daily AI discovery limit reached.",
+          retryAfter: userBudget.retryAfter,
+        });
+        return;
       }
       const globalBudget = await consumeAiQuota(
         "discover-ai-global-day",
         "all",
         24 * 60 * 60 * 1000,
-        configuredLimit(process.env.AI_SEARCH_DAILY_LIMIT, 20),
+        // The service-wide safety net. Raised alongside the tier model: with
+        // per-account allowances up to 90/day, a global 20 would let a couple
+        // of paying accounts exhaust the whole platform before lunch.
+        configuredLimit(process.env.AI_SEARCH_DAILY_LIMIT, 200),
       );
       if (!globalBudget.allowed) {
         res.setHeader("Retry-After", globalBudget.retryAfter);

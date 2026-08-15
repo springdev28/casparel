@@ -107,6 +107,62 @@ describe("POST /api/webhooks/revenuecat", () => {
     });
   });
 
+  it("stores the role-specific plan exactly as bought", async () => {
+    for (const [entitlement, plan] of [
+      ["teacher-pro", "teacher-pro"],
+      ["teacher-plus", "teacher-plus"],
+      ["student-pro", "student-pro"],
+      ["student-plus", "student-plus"],
+    ] as const) {
+      setMock.mockClear();
+      const res = await post(
+        {
+          event: {
+            type: "INITIAL_PURCHASE",
+            app_user_id: "42",
+            entitlement_ids: [entitlement],
+          },
+        },
+        SECRET,
+      );
+      expect(res.status).toBe(200);
+      expect(setMock).toHaveBeenCalledWith({ plan, planExpiresAt: null });
+    }
+  });
+
+  it("lets the strongest entitlement win when several arrive together", async () => {
+    const res = await post(
+      {
+        event: {
+          type: "INITIAL_PURCHASE",
+          app_user_id: "42",
+          entitlement_ids: ["plus", "teacher-pro"],
+        },
+      },
+      SECRET,
+    );
+    expect(res.status).toBe(200);
+    expect(setMock).toHaveBeenCalledWith({
+      plan: "teacher-pro",
+      planExpiresAt: null,
+    });
+  });
+
+  it("ignores a purchase that only carries unknown entitlements", async () => {
+    const res = await post(
+      {
+        event: {
+          type: "INITIAL_PURCHASE",
+          app_user_id: "42",
+          entitlement_ids: ["battle-pass"],
+        },
+      },
+      SECRET,
+    );
+    expect(res.status).toBe(200);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
   it("clears premium on EXPIRATION", async () => {
     const res = await post(
       { event: { type: "EXPIRATION", app_user_id: "42", entitlement_ids: ["premium"] } },

@@ -26,6 +26,61 @@ const WORKSPACE_METERS: PlanCapacityKey[] = [
   "canvases",
 ];
 
+/**
+ * The three plans this account can actually be on, worded for its role.
+ * Student and teacher plans never mix: a student is never sold a roster and a
+ * teacher is never sold a bigger flashcard box as the headline. The generic
+ * cards remain for admin/unknown roles and for legacy Plus/Pro holders.
+ * Numbers must match CAPACITY_BY_TIER and AI_RATES_BY_TIER on the server.
+ */
+const TIER_CARDS: Record<
+  "student" | "teacher" | "generic",
+  { name: string; body: string }[]
+> = {
+  student: [
+    {
+      name: "Free",
+      body: "25 activities, 10 goals, 5 lists and 3 canvases, plus a daily taste of AI: 2 discovery searches and 1 deep report (2 per month).",
+    },
+    {
+      name: "Student Plus",
+      body: "400 activities, 150 goals, 75 lists and 40 canvases, with 30 AI discovery searches and 8 deep reports a day.",
+    },
+    {
+      name: "Student Pro",
+      body: "1,500 activities, 500 goals, 300 lists and 150 canvases, with 90 AI discovery searches and 25 deep reports a day.",
+    },
+  ],
+  teacher: [
+    {
+      name: "Free",
+      body: "One class of up to 30 with manual seating, plus a daily taste of AI: 2 discovery searches and 1 deep report (2 per month).",
+    },
+    {
+      name: "Teacher Plus",
+      body: "8 classes of up to 150, with 250 activities and 20 AI discovery searches and 5 deep reports a day.",
+    },
+    {
+      name: "Teacher Pro",
+      body: "25 classes of up to 400, the explainable seating planner, and 60 AI discovery searches and 15 deep reports a day.",
+    },
+  ],
+  generic: [
+    {
+      name: "Free",
+      body: "One class of 30, 25 activities, 10 goals and 5 lists, plus a small daily taste of AI discovery and deep research.",
+    },
+    {
+      name: "Plus",
+      body: "5 classes of 100, 250 activities, 100 goals and 50 lists, with 20 AI discovery searches and 5 deep reports a day.",
+    },
+    {
+      name: "Pro",
+      body: "20 classes of 300, 1,000 activities and 400 goals, the seating planner, and 60 discovery searches and 15 deep reports a day.",
+    },
+  ],
+};
+
 function UsageMeter({
   label,
   used,
@@ -93,12 +148,14 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
   return (
     <>
       <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        {plan.aiEnabled ? <Check className="size-4 text-primary-text" /> : null}
+        {plan.level !== "free" ? (
+          <Check className="size-4 text-primary-text" />
+        ) : null}
         {plan.unlimited
-          ? "Unlimited account-level AI research and discovery is unlocked."
-          : plan.tier === "plus"
-            ? "AI discovery and deep research are active with plan allowances."
-            : "Free includes core learning tools, with no AI features."}
+          ? "Administrator account: AI usage is uncapped."
+          : plan.level === "free"
+            ? "Free includes the core tools and a small daily taste of AI."
+            : "AI discovery and deep research are active with plan allowances."}
       </p>
       <div className={"mt-3 grid gap-2.5" + (compact ? "" : " max-w-sm")}>
         <UsageMeter
@@ -122,7 +179,9 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
           <p className="text-xs font-medium text-muted-foreground">
             Workspace
           </p>
-          {WORKSPACE_METERS.map((key) => (
+          {WORKSPACE_METERS.filter(
+            (key) => key !== "classesOwned" || plan.accountRole !== "student",
+          ).map((key) => (
             <UsageMeter
               key={key}
               label={CAPACITY_LABELS[key]}
@@ -131,43 +190,41 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
               period="stored"
             />
           ))}
-          <p className="text-xs text-muted-foreground">
-            {plan.capacity.classMembers.limit == null
-              ? "Class rosters are unlimited on your plan."
-              : `Each class you own holds up to ${plan.capacity.classMembers.limit} members.`}
-          </p>
+          {plan.accountRole !== "student" ? (
+            <p className="text-xs text-muted-foreground">
+              {plan.capacity.classMembers.limit == null
+                ? "Class rosters are uncapped on this account."
+                : `Each class you own holds up to ${plan.capacity.classMembers.limit} members.`}
+            </p>
+          ) : null}
         </div>
       ) : null}
       {!compact ? (
         <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
-          <div className="rounded-lg border p-3">
-            <b>Free</b>
-            <p className="mt-1 text-muted-foreground">
-              One class of up to 30, with room for 25 activities, 10 goals and 5
-              lists. Library, schedules, citations and manual seating. No AI.
-            </p>
-          </div>
-          <div className="rounded-lg border border-primary/30 p-3">
-            <b>Plus</b>
-            <p className="mt-1 text-muted-foreground">
-              Five classes of up to 100, with 250 activities, 100 goals and 50
-              lists. Adds AI discovery and cited deep research with allowances.
-            </p>
-          </div>
-          <div className="rounded-lg border border-primary/50 bg-primary/5 p-3">
-            <b>Pro</b>
-            <p className="mt-1 text-muted-foreground">
-              Unlimited classes, rosters and saved work. Unlimited
-              account-level AI plus explainable seating-plan suggestions.
-            </p>
-          </div>
+          {TIER_CARDS[plan.accountRole === "teacher" ? "teacher" : plan.accountRole === "student" ? "student" : "generic"].map(
+            (card, index) => (
+              <div
+                key={card.name}
+                className={
+                  index === 0
+                    ? "rounded-lg border p-3"
+                    : index === 1
+                      ? "rounded-lg border border-primary/30 p-3"
+                      : "rounded-lg border border-primary/50 bg-primary/5 p-3"
+                }
+              >
+                <b>{card.name}</b>
+                <p className="mt-1 text-muted-foreground">{card.body}</p>
+              </div>
+            ),
+          )}
         </div>
       ) : null}
       {compact ? (
-        plan.tier === "free" || plan.tier === "plus" ? (
+        plan.tier !== "administrator" && plan.level !== "pro" ? (
           <Button onClick={handleUpgrade} className="mt-4 w-full gap-2">
             <Sparkles className="size-4" />
-            {plan.tier === "plus" ? "Upgrade to Pro" : "See Plus and Pro"}
+            {plan.level === "plus" ? "Upgrade to Pro" : "See plans"}
           </Button>
         ) : null
       ) : null}
@@ -210,10 +267,10 @@ export function PlanSection() {
         </div>
       </div>
 
-      {plan.tier === "free" || plan.tier === "plus" ? (
+      {plan.tier !== "administrator" && plan.level !== "pro" ? (
         <Button onClick={handleUpgrade} className="gap-2">
           <Sparkles className="size-4" />
-          {plan.tier === "plus" ? "Upgrade to Pro" : "See plans"}
+          {plan.level === "plus" ? "Upgrade to Pro" : "See plans"}
         </Button>
       ) : null}
     </section>

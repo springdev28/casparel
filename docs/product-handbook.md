@@ -20,9 +20,10 @@ The product's strongest differentiator is the path from **discovery → source e
 | Signed out | Landing page, public library search and resource details, terms/privacy, registration/login                                 |
 | Student    | Goals, schedules, resources/lists, classes, activities, canvases, messaging, forum, profile and evidence                    |
 | Teacher    | Student capabilities plus class management, assignments/recommendations, notes, seating tools, Google Classroom integration |
-| Admin      | Moderation, user/class/work controls, verification queues, usage/cost overview                                              |
-| Plus       | Larger workspace allowances plus AI discovery and deep source research within per-account limits                            |
-| Pro        | Uncapped workspace allowances and uncapped account-level AI; the server-wide safety budget still applies                    |
+| Admin      | Moderation, user/class/work controls, verification queues, usage/cost overview; the only uncapped accounts                  |
+| Student Plus/Pro | Larger personal-study allowances (activities, goals, lists, canvases) and larger AI research allowances               |
+| Teacher Plus/Pro | Larger classroom allowances (classes, rosters); Teacher Pro adds the explainable seating planner                      |
+| Plus/Pro (legacy generic) | The original role-agnostic paid plans; still valid, finite like everything else                              |
 
 Authentication uses a signed bearer token stored under the legacy key `schoolar_token` on web and mobile. That key is a compatibility contract and must not be renamed casually.
 
@@ -142,36 +143,51 @@ Schema changes require both a TypeScript schema edit and a generated migration c
 
 ### Plans
 
-Casparel sells three tiers. `free` is the default; `plus` and `pro` are the paid plans; the legacy `premium` plan value and entitlement are still honoured and resolve to Pro.
+Casparel sells seven tiers: `free`, the role-agnostic `plus` and `pro` (the original pair, still valid and honoured), and four role-specific plans — `student-plus`, `student-pro`, `teacher-plus`, `teacher-pro`. The legacy `premium` plan value and entitlement resolve to Pro.
+
+**Roles do not mix.** A student plan grants nothing on a teacher account and the other way round. The stored plan is billing truth and is never rewritten; whether it applies is resolved at read time against the account's base `role` (`activeRole` is a view mode and is ignored). Because roles are self-service (`PATCH /users/me/role`), a user who switches roles keeps their purchase and regains its benefits the moment the role matches again. The mobile paywall only offers packages for the account's role, so a mismatch can only arise from a role switch after purchase.
+
+**Nothing paid is uncapped.** Every allowance on every tier is finite; uncapped is an administrator property, not something money can buy. Legacy `premium` buyers now resolve to the large-but-finite Pro caps.
 
 A plan governs two different things, and both matter:
 
 - **Rate** — how much AI an account may consume per day or per month.
-- **Capacity** — how many rows an account may accumulate. Every capacity maps to one table, so a tier is also a statement about how much database and backup an account occupies. Pricing only the AI rate would price the cheap, self-limiting part of the product: an abandoned free account with forty classes and a thousand activities costs storage and query time every day after its AI spend has stopped.
+- **Capacity** — how many rows an account may accumulate. Every capacity maps to one table, so a tier is also a statement about how much database and backup an account occupies.
+
+The specialisation is one sentence per family: student tiers buy personal study depth, teacher tiers buy classroom scale, generic tiers buy a bit of both.
 
 ### Rate limits
 
-| Surface                | Free | Plus                     | Pro                     |
-| ---------------------- | ---- | ------------------------ | ----------------------- |
-| AI discovery fallback  | none | 20/day                   | uncapped per account    |
-| Deep source research   | none | 5/day and 50/30 days     | uncapped per account    |
+Free's AI row is a deliberate **taste**: enough to experience AI discovery and one cited deep report, far too small to live on.
 
-The quick source check is not an AI feature — it reads a maintained provenance registry — and stays available on every plan, signed in or out. Plus limits are configurable via `AI_PLUS_SEARCH_DAILY_LIMIT`, `AI_PLUS_DEEP_DAILY_LIMIT` and `AI_PLUS_DEEP_MONTHLY_LIMIT`.
+| Tier         | Discovery/day | Deep/day | Deep/30 days |
+| ------------ | ------------: | -------: | -----------: |
+| Free         |             2 |        1 |            2 |
+| Plus         |            20 |        5 |           50 |
+| Pro          |            60 |       15 |          150 |
+| Student Plus |            30 |        8 |           80 |
+| Student Pro  |            90 |       25 |          250 |
+| Teacher Plus |            20 |        5 |           50 |
+| Teacher Pro  |            60 |       15 |          150 |
 
-A global deep-research budget (`AI_DEEP_DAILY_GLOBAL_LIMIT`, default 20/day) applies to every non-admin account **including Pro**, as a cost safety net. This is a known contradiction with the uncapped Pro claim and is the first item on the subscription roadmap.
+Rates live in `AI_RATES_BY_TIER` in `artifacts/api-server/src/lib/entitlements.ts`. The quick source check is not an AI feature — it reads a maintained provenance registry — and stays available on every plan, signed in or out. AI discovery requires sign-in (the allowance is per account), but every tier including Free has one.
+
+Service-wide safety nets apply on top of every per-account allowance, admins excepted: `AI_SEARCH_DAILY_LIMIT` (default 200/day) and `AI_DEEP_DAILY_GLOBAL_LIMIT` (default 100/day). Since no plan claims to be unlimited any more, these are operational cost guards, not a contradiction of the product copy.
 
 ### Capacity limits
 
 Defined once in `CAPACITY_BY_TIER` in `artifacts/api-server/src/lib/entitlements.ts`, which the usage endpoint, the enforcement helper and the tests all read, so a displayed limit and an applied limit cannot drift apart.
 
-| Capacity            | Free | Plus | Pro       |
-| ------------------- | ---: | ---: | --------- |
-| Classes owned       |    1 |    5 | uncapped  |
-| Members per class   |   30 |  100 | uncapped  |
-| Study activities    |   25 |  250 | uncapped  |
-| Resource lists      |    5 |   50 | uncapped  |
-| Learning goals      |   10 |  100 | uncapped  |
-| Canvases            |    3 |   30 | uncapped  |
+| Capacity          | Free | Plus |  Pro | Student Plus | Student Pro | Teacher Plus | Teacher Pro |
+| ----------------- | ---: | ---: | ---: | -----------: | ----------: | -----------: | ----------: |
+| Classes owned     |    1 |    5 |   20 |            1 |           1 |            8 |          25 |
+| Members per class |   30 |  100 |  300 |           30 |          30 |          150 |         400 |
+| Study activities  |   25 |  250 | 1000 |          400 |        1500 |          250 |        1000 |
+| Resource lists    |    5 |   50 |  200 |           75 |         300 |           50 |         200 |
+| Learning goals    |   10 |  100 |  400 |          150 |         500 |          100 |         400 |
+| Canvases          |    3 |   30 |  100 |           40 |         150 |           30 |         100 |
+
+Student tiers keep the Free class columns because students cannot create classes and rosters are always charged to the owning teacher; the columns are inert unless the account's role changes, at which point the plan stops applying anyway.
 
 Rules that hold across every capacity:
 
@@ -184,9 +200,13 @@ Rules that hold across every capacity:
 
 Every account-owned capacity, its current usage and its limit are returned by `GET /api/users/me/usage` alongside the AI counters.
 
+### Features
+
+The explainable seating planner requires the Pro level of a plan a teacher can hold: `teacher-pro` or generic `pro`. Student plans never include it — the route also requires being the class teacher, so the feature gate and the authorization gate agree.
+
 ### Entitlement reconciliation
 
-The native client derives immediate entitlement state from RevenueCat. RevenueCat also calls `POST /api/webhooks/revenuecat` with a shared Authorization value so the server can grant/revoke the account plan. The webhook maps the `pro` and legacy `premium` entitlements to the Pro plan and `plus` to Plus, and records any expiry.
+The native client derives immediate entitlement state from RevenueCat. RevenueCat also calls `POST /api/webhooks/revenuecat` with a shared Authorization value so the server can grant/revoke the account plan. The webhook recognises seven entitlements (`plus`, `pro`, legacy `premium`, `student-plus`, `student-pro`, `teacher-plus`, `teacher-pro`) and stores the strongest one bought, exactly as bought — role matching happens at read time, not at grant time, so a purchase is never silently converted into a different product. `GET /users/me/usage` returns the label, the machine-readable `tier`, both AI counters and the full capacity report.
 
 ## 6. Discovery and research
 
@@ -297,8 +317,8 @@ Accessibility is enforced partly in the browser audit and partly through native 
 - Several newer API domains are not yet specified in OpenAPI, so generated client/schema coverage is incomplete.
 - RevenueCat `TRANSFER` events are not authoritatively reconciled; a store account transfer can leave the previous Casparel user stale until another entitlement event or manual correction.
 - Expo/Metro currently resolves `image-size` 1.2.1; npm reports high-severity [ICNS](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr) and [JXL/HEIF](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq) parser denial-of-service advisories, while the declared patched 2.0.3 release is not yet published. Treat untrusted ICNS/JXL/HEIF build input as unsafe and upgrade as soon as the fix exists.
-- The Plus deep allowance combines a daily and a 30-day cap, so product copy says “allowance” rather than promising five reports every day of the month.
-- The global deep-research budget still applies to Pro, so an account sold as uncapped can be refused by a shared 20/day ceiling. See the subscription roadmap.
+- Deep allowances combine a daily and a 30-day cap, so product copy says “allowance” rather than promising the daily number every day of the month.
+- The global AI budgets still apply to every non-admin account, including Pro-level plans. No plan is sold as unlimited, so this is an operational guard rather than a copy contradiction; size it against real paying demand.
 - Capacity limits are enforced on the routes that create classes, rosters, activities, lists, goals and canvases. Rows created by other surfaces (forum posts, messages, list items, schedule blocks, canvas objects) are not yet capped.
 - Mobile is a focused subset, not feature parity with web.
 - The largest lazy web chunks (p5 and Three.js) are heavy; they are isolated from the initial route but should remain under route-level performance budgets.

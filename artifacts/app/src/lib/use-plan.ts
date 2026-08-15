@@ -18,13 +18,27 @@ import { readSessionClaims } from "./session";
  * The role fallback also covers the token, so a slow or failing `/users/me`
  * does not silently downgrade the display to Free either.
  */
+export type PlanTier =
+  | "free"
+  | "plus"
+  | "pro"
+  | "student-plus"
+  | "student-pro"
+  | "teacher-plus"
+  | "teacher-pro"
+  | "administrator";
+
 export interface PlanState {
-  /** Label to show: "Administrator", "Pro", "Plus" or "Free". */
+  /** Label to show, e.g. "Administrator", "Teacher Pro", "Plus" or "Free". */
   label: string;
-  tier: "free" | "plus" | "pro" | "administrator";
-  /** True when AI usage is uncapped (admins and Pro accounts). */
+  /** The server's machine-readable tier; the label is derived from it. */
+  tier: PlanTier;
+  /** "plus"/"pro" price level of the tier, for upgrade CTAs. */
+  level: "free" | "plus" | "pro";
+  /** The account's base role, for choosing which plans to offer. */
+  accountRole: "student" | "teacher" | "admin" | null;
+  /** True when AI usage is uncapped — administrators only, never a paid tier. */
   unlimited: boolean;
-  aiEnabled: boolean;
   seatingPlanner: boolean;
   aiSearch: { used: number; limit: number | null };
   deepResearch: { used: number; limit: number | null };
@@ -55,6 +69,28 @@ export const CAPACITY_LABELS: Record<PlanCapacityKey, string> = {
   canvases: "Canvases",
 };
 
+const LEVELS: Record<PlanTier, "free" | "plus" | "pro"> = {
+  free: "free",
+  plus: "plus",
+  "student-plus": "plus",
+  "teacher-plus": "plus",
+  pro: "pro",
+  "student-pro": "pro",
+  "teacher-pro": "pro",
+  administrator: "pro",
+};
+
+const TIER_VALUES: ReadonlySet<string> = new Set([
+  "free",
+  "plus",
+  "pro",
+  "student-plus",
+  "student-pro",
+  "teacher-plus",
+  "teacher-pro",
+  "administrator",
+]);
+
 const FALLBACK_SEARCH_LIMIT = 0;
 const FALLBACK_DEEP_LIMIT = 0;
 
@@ -78,14 +114,13 @@ export function usePlan(enabled = true): PlanState {
   // is the case that used to downgrade the whole display to Free.
   const unlimited = usage ? usage.unlimited === true : isAdmin;
   const label = usage?.plan ?? (isAdmin ? "Administrator" : "Free");
-  const tier =
-    label === "Administrator"
-      ? "administrator"
-      : label === "Pro" || label === "Premium"
-        ? "pro"
-        : label === "Plus"
-          ? "plus"
-          : "free";
+  // The server now sends the tier as data; the guard is only for a cached
+  // response from an older server build that predates the field.
+  const serverTier =
+    typeof usage?.tier === "string" && TIER_VALUES.has(usage.tier)
+      ? (usage.tier as PlanTier)
+      : null;
+  const tier: PlanTier = serverTier ?? (isAdmin ? "administrator" : "free");
 
   // Every field is read defensively, including the nested ones. This hook feeds
   // the sidebar, which renders on every signed-in page, so a usage response
@@ -96,9 +131,14 @@ export function usePlan(enabled = true): PlanState {
   return {
     label,
     tier,
+    level: LEVELS[tier],
+    accountRole:
+      role === "student" || role === "teacher" || role === "admin"
+        ? role
+        : null,
     unlimited,
-    aiEnabled: tier !== "free",
-    seatingPlanner: tier === "pro" || tier === "administrator",
+    seatingPlanner:
+      tier === "pro" || tier === "teacher-pro" || tier === "administrator",
     aiSearch: {
       used: usage?.aiSearch?.used ?? 0,
       limit: unlimited ? null : (usage?.aiSearch?.limit ?? FALLBACK_SEARCH_LIMIT),

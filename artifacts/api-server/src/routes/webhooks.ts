@@ -3,12 +3,10 @@ import { timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import {
+  KNOWN_ENTITLEMENTS,
   PLAN_FREE,
-  PLAN_PLUS,
   PLAN_PRO,
-  PLUS_ENTITLEMENT,
-  PRO_ENTITLEMENT,
-  PREMIUM_ENTITLEMENT,
+  planForEntitlementIds,
 } from "../lib/entitlements";
 
 const router: IRouter = Router();
@@ -84,23 +82,19 @@ router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
     ...(event.entitlement_ids ?? []),
     ...(event.entitlement_id ? [event.entitlement_id] : []),
   ];
-  const knownEntitlements = new Set([
-    PLUS_ENTITLEMENT,
-    PRO_ENTITLEMENT,
-    PREMIUM_ENTITLEMENT,
-  ]);
   const touchesSubscription =
     entitlementIds.length === 0 ||
-    entitlementIds.some((id) => knownEntitlements.has(id));
+    entitlementIds.some((id) => KNOWN_ENTITLEMENTS.has(id));
+  // The stored plan is billing truth: it records exactly what was bought,
+  // including a role-specific plan. Whether the account's current role lets
+  // that plan grant anything is decided at read time in entitlements, so a
+  // role switch never destroys a purchase and roles still never mix.
   const grantedPlan =
-    entitlementIds.length === 0 ||
-    entitlementIds.includes(PRO_ENTITLEMENT) ||
-    entitlementIds.includes(PREMIUM_ENTITLEMENT)
-      ? PLAN_PRO
-      : PLAN_PLUS;
+    planForEntitlementIds(entitlementIds) ??
+    (entitlementIds.length === 0 ? PLAN_PRO : null);
 
   try {
-    if (GRANT_EVENTS.has(event.type) && touchesSubscription) {
+    if (GRANT_EVENTS.has(event.type) && touchesSubscription && grantedPlan) {
       const expiresAt =
         typeof event.expiration_at_ms === "number" && event.expiration_at_ms > 0
           ? new Date(event.expiration_at_ms).toISOString()

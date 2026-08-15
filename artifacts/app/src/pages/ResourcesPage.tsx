@@ -110,7 +110,6 @@ import {
   useUpdateUserPreferences,
   useUserPreferences,
 } from "../lib/user-preferences";
-import { usePlan } from "../lib/use-plan";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
 const RESOURCE_SEARCH_STATE_KEY = "schoolar_resource_search_state";
@@ -667,7 +666,6 @@ function UnsavedSourceResearchDialog({
   isLoggedIn: boolean;
   onRequireLogin: () => void;
 }) {
-  const plan = usePlan(isLoggedIn);
   const [mode, setMode] = useState<"quick" | "deep" | null>(null);
   const [data, setData] = useState<UnsavedResearch | null>(null);
   const [loading, setLoading] = useState(false);
@@ -683,11 +681,6 @@ function UnsavedSourceResearchDialog({
     if (!resource) return;
     if (nextMode === "deep" && !isLoggedIn) {
       onRequireLogin();
-      return;
-    }
-    if (nextMode === "deep" && !plan.aiEnabled) {
-      setMode("deep");
-      setError("Deep AI research requires Casparel Plus or Pro. The quick source check remains available without AI.");
       return;
     }
     setMode(nextMode);
@@ -755,7 +748,7 @@ function UnsavedSourceResearchDialog({
               <p className="font-semibold">Deep research</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Broader evidence across reputation, discussion, quality,
-                currency, and limitations. Requires Casparel Plus or Pro.
+                currency, and limitations. Uses your plan's allowance.
               </p>
             </button>
           </div>
@@ -1236,7 +1229,6 @@ export default function ResourcesPage() {
   });
   const isLoggedIn = !!me;
   const isAdmin = me?.role === "admin";
-  const plan = usePlan(isLoggedIn);
 
   useEffect(() => {
     if (!me?.id) {
@@ -1536,7 +1528,6 @@ export default function ResourcesPage() {
   const webCreditsExhausted =
     webErrorResponse?.status === 503 &&
     webErrorResponse.data?.code === "AI_CREDITS_EXHAUSTED";
-  const webSubscriptionRequired = webErrorResponse?.status === 402;
   const webAuthenticationRequired = webErrorResponse?.status === 401;
 
   // Reset accumulated results when query changes; append on page increment
@@ -3099,31 +3090,29 @@ export default function ResourcesPage() {
             {webError && !webLoading && !webRateLimited && (
               <div className="py-6 text-center">
                 <p className="text-sm text-destructive-text font-medium">
-                  {webSubscriptionRequired
-                    ? "The stored catalog has no matches. AI discovery requires Casparel Plus or Pro."
-                    : webAuthenticationRequired
-                      ? "The stored catalog has no matches. Sign in with Plus or Pro to use AI discovery."
+                  {webAuthenticationRequired
+                    ? "The stored catalog has no matches. Sign in to use your AI discovery allowance."
                     : webCreditsExhausted
                     ? isAdmin
                       ? "Optional AI fallback is unavailable because the OpenAI project has no credits."
                       : "Optional AI fallback is temporarily unavailable."
                     : "Catalog search failed, please try again."}
                 </p>
-                {webSubscriptionRequired || webAuthenticationRequired ? (
+                {webAuthenticationRequired ? (
                   <Button
                     variant="outline"
                     size="sm"
                     className="mt-3"
-                    onClick={() => setLocation(webAuthenticationRequired ? "/auth/login" : "/settings")}
+                    onClick={() => setLocation("/auth/login")}
                   >
-                    {webAuthenticationRequired ? "Sign in" : plan.tier === "plus" ? "View Pro" : "View plans"}
+                    Sign in
                   </Button>
                 ) : webCreditsExhausted && isAdmin ? (
                   <p className="mt-1 text-xs text-muted-foreground">
                     Add credits in OpenAI billing, then retry this search.
                   </p>
                 ) : null}
-                {!webSubscriptionRequired && !webAuthenticationRequired ? <Button
+                {!webAuthenticationRequired ? <Button
                   variant="outline"
                   size="sm"
                   className="mt-3"

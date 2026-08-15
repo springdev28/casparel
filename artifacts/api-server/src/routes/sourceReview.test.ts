@@ -206,20 +206,20 @@ describe("GET /api/resources/:id/source-review, mode contract", () => {
     expect(args.tools).toBeDefined();
   });
 
-  it("rejects Free accounts before running deep AI research", async () => {
+  it("lets a Free account run deep research on its small taste allowance", async () => {
     vi.mocked(getAccountEntitlements).mockResolvedValueOnce(
-      entitlementsForPlan("free", null),
+      entitlementsForPlan("free", null, "student"),
     );
+
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review?mode=deep",
     );
 
-    expect(res.status).toBe(402);
-    expect(res.body).toMatchObject({
-      code: "SUBSCRIPTION_REQUIRED",
-      requiredPlan: "plus",
-    });
-    expect(openai.responses.create).not.toHaveBeenCalled();
+    // The subscription wall is gone: Free passes the gate, the request runs
+    // the normal deep-research path, and the taste allowance was consulted.
+    expect(res.status).toBe(200);
+    expect(openai.responses.create).toHaveBeenCalledOnce();
+    expect(getAccountEntitlements).toHaveBeenCalled();
   });
 
   it("default (no mode param) behaves like quick without OpenAI", async () => {

@@ -9,11 +9,49 @@
  */
 import { Platform } from 'react-native';
 
-/** Entitlement identifiers configured in RevenueCat. */
+/** Entitlement identifiers configured in RevenueCat. `premium` is legacy. */
 export const PLUS_ENTITLEMENT = 'plus';
 export const PRO_ENTITLEMENT = 'pro';
 export const PREMIUM_ENTITLEMENT = 'premium';
-export type SubscriptionTier = 'free' | 'plus' | 'pro';
+export const STUDENT_PLUS_ENTITLEMENT = 'student-plus';
+export const STUDENT_PRO_ENTITLEMENT = 'student-pro';
+export const TEACHER_PLUS_ENTITLEMENT = 'teacher-plus';
+export const TEACHER_PRO_ENTITLEMENT = 'teacher-pro';
+
+export type SubscriptionTier =
+  | 'free'
+  | 'plus'
+  | 'pro'
+  | 'student-plus'
+  | 'student-pro'
+  | 'teacher-plus'
+  | 'teacher-pro';
+export type TierLevel = 'free' | 'plus' | 'pro';
+export type PlanRole = 'student' | 'teacher';
+
+export const TIER_TITLES: Record<SubscriptionTier, string> = {
+  free: 'Free',
+  plus: 'Plus',
+  pro: 'Pro',
+  'student-plus': 'Student Plus',
+  'student-pro': 'Student Pro',
+  'teacher-plus': 'Teacher Plus',
+  'teacher-pro': 'Teacher Pro',
+};
+
+/** Collapse a tier to its price level, for upgrade logic and CTAs. */
+export function tierLevel(tier: SubscriptionTier): TierLevel {
+  if (tier === 'free') return 'free';
+  if (tier === 'plus' || tier === 'student-plus' || tier === 'teacher-plus') return 'plus';
+  return 'pro';
+}
+
+/** The account role a tier is reserved for, or null when any role may hold it. */
+export function tierRole(tier: SubscriptionTier): PlanRole | null {
+  if (tier === 'student-plus' || tier === 'student-pro') return 'student';
+  if (tier === 'teacher-plus' || tier === 'teacher-pro') return 'teacher';
+  return null;
+}
 
 /**
  * Public RevenueCat SDK keys. These are *publishable* keys and are safe to ship
@@ -110,22 +148,60 @@ export async function loadPurchases(): Promise<PurchasesModule | null> {
   }
 }
 
-/** Resolve active entitlements, preserving legacy `premium` buyers as Pro. */
+/**
+ * Resolve active entitlements to a tier. Role-specific Pro entitlements win
+ * over generic ones, then the Plus level the same way; legacy `premium` maps
+ * to Pro. The server applies the same precedence in its webhook, so the badge
+ * on the device and the plan on the account cannot disagree about a stack of
+ * entitlements.
+ */
 export function subscriptionTier(info: RCCustomerInfo | null | undefined): SubscriptionTier {
   if (!info) return 'free';
   const active = info.entitlements.active;
+  if (active[TEACHER_PRO_ENTITLEMENT]?.isActive) return 'teacher-pro';
+  if (active[STUDENT_PRO_ENTITLEMENT]?.isActive) return 'student-pro';
   if (active[PRO_ENTITLEMENT]?.isActive || active[PREMIUM_ENTITLEMENT]?.isActive) return 'pro';
+  if (active[TEACHER_PLUS_ENTITLEMENT]?.isActive) return 'teacher-plus';
+  if (active[STUDENT_PLUS_ENTITLEMENT]?.isActive) return 'student-plus';
   if (active[PLUS_ENTITLEMENT]?.isActive) return 'plus';
   return 'free';
 }
 
-/** Compatibility name: true for either paid subscription tier. */
+/** Compatibility name: true for any paid subscription tier. */
 export function hasPremium(info: RCCustomerInfo | null | undefined): boolean {
   return subscriptionTier(info) !== 'free';
 }
 
-/** RevenueCat products must contain `plus` or `pro`; legacy products map Pro. */
+/**
+ * Map a store package to the tier it sells, from the package/product
+ * identifiers and title. Role words are matched first, then the level;
+ * `pro` beats `plus` when both appear so "Pro Plus"-style names never
+ * undersell. Products should still be named unambiguously in the dashboard —
+ * this is a mapping of last resort, not a naming convention.
+ */
 export function tierForPackage(pkg: RCPackage): Exclude<SubscriptionTier, 'free'> {
   const identity = `${pkg.identifier} ${pkg.product.identifier} ${pkg.product.title}`.toLowerCase();
-  return identity.includes('plus') ? 'plus' : 'pro';
+  const level: Exclude<TierLevel, 'free'> = identity.includes('pro') ? 'pro' : 'plus';
+  if (identity.includes('teacher')) return `teacher-${level}`;
+  if (identity.includes('student')) return `student-${level}`;
+  return level;
+}
+
+/**
+ * The packages one account may actually buy. Role-specific packages for the
+ * account's role are preferred; generic packages appear only when the
+ * offering has no package for that role, so a student is never shown a
+ * teacher plan and a teacher is never shown a student plan.
+ */
+export function packagesForRole(
+  packages: RCPackage[],
+  role: PlanRole | null,
+): RCPackage[] {
+  const allowed = packages.filter((pkg) => {
+    const pkgRole = tierRole(tierForPackage(pkg));
+    return pkgRole === null || pkgRole === role;
+  });
+  if (!role) return allowed;
+  const roleSpecific = allowed.filter((pkg) => tierRole(tierForPackage(pkg)) === role);
+  return roleSpecific.length > 0 ? roleSpecific : allowed;
 }

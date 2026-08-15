@@ -13,7 +13,9 @@ import {
   purchasesSupported,
   RC_API_KEY,
   subscriptionTier,
+  tierLevel,
   type SubscriptionTier,
+  type TierLevel,
   type PurchasesModule,
   type RCCustomerInfo,
   type RCOffering,
@@ -28,10 +30,12 @@ interface PurchasesContextValue {
   ready: boolean;
   /** RevenueCat is configured and usable on this device. */
   available: boolean;
-  /** Compatibility flag: the user holds either paid entitlement. */
+  /** Compatibility flag: the user holds any paid entitlement. */
   isPremium: boolean;
-  /** RevenueCat's active Free, Plus, or Pro tier. */
+  /** RevenueCat's active tier, including the role-specific plans. */
   tier: SubscriptionTier;
+  /** The tier's price level, which is what upgrade decisions care about. */
+  level: TierLevel;
   isPlus: boolean;
   isPro: boolean;
   /** The current offering's purchasable packages (empty when unavailable). */
@@ -182,13 +186,15 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<PurchasesContextValue>(() => {
     const tier = subscriptionTier(customerInfo);
+    const level = tierLevel(tier);
     return {
       ready,
       available,
       tier,
+      level,
       isPremium: tier !== 'free',
-      isPlus: tier === 'plus',
-      isPro: tier === 'pro',
+      isPlus: level === 'plus',
+      isPro: level === 'pro',
       packages: currentOffering?.availablePackages ?? [],
       currentOffering,
       customerInfo,

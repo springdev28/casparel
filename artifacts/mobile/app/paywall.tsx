@@ -18,25 +18,79 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { usePurchases } from '@/contexts/PurchasesContext';
-import { purchasesSupported, tierForPackage, type RCPackage } from '@/utils/revenuecat';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  packagesForRole,
+  purchasesSupported,
+  tierForPackage,
+  tierLevel,
+  TIER_TITLES,
+  type PlanRole,
+  type RCPackage,
+} from '@/utils/revenuecat';
 
-const BENEFITS: { icon: string; title: string; body: string }[] = [
-  {
-    icon: 'book-open',
-    title: 'Free',
-    body: 'One class of up to 30, plus 25 activities, 10 goals and 5 lists. Library, schedules and manual seating. No AI.',
-  },
-  {
-    icon: 'sparkles',
-    title: 'Plus',
-    body: 'Five classes of up to 100, plus 250 activities, 100 goals and 50 lists. Adds AI discovery and cited deep research.',
-  },
-  {
-    icon: 'award',
-    title: 'Pro',
-    body: 'Unlimited classes, rosters and saved work. Unlimited account-level AI and seating-plan suggestions.',
-  },
-];
+/**
+ * Plan explainers per account role. Student and teacher plans never mix, so a
+ * student reads about study depth and a teacher about classroom scale — never
+ * the other way round. Numbers must match the server's tier tables. Free's AI
+ * line is the taste: enough to see what the feature is, not enough to live on.
+ */
+const BENEFITS: Record<
+  'student' | 'teacher' | 'generic',
+  { icon: string; title: string; body: string }[]
+> = {
+  student: [
+    {
+      icon: 'book-open',
+      title: 'Free',
+      body: '25 activities, 10 goals, 5 lists, 3 canvases — and a daily AI taste: 2 discovery searches and 1 deep report (2 per month).',
+    },
+    {
+      icon: 'sparkles',
+      title: 'Student Plus',
+      body: '400 activities, 150 goals, 75 lists and 40 canvases, with 30 AI discovery searches and 8 cited deep reports a day.',
+    },
+    {
+      icon: 'award',
+      title: 'Student Pro',
+      body: '1,500 activities, 500 goals, 300 lists and 150 canvases, with 90 discovery searches and 25 deep reports a day.',
+    },
+  ],
+  teacher: [
+    {
+      icon: 'book-open',
+      title: 'Free',
+      body: 'One class of up to 30 with manual seating — and a daily AI taste: 2 discovery searches and 1 deep report (2 per month).',
+    },
+    {
+      icon: 'sparkles',
+      title: 'Teacher Plus',
+      body: '8 classes of up to 150 members, 250 activities, and 20 AI discovery searches with 5 cited deep reports a day.',
+    },
+    {
+      icon: 'award',
+      title: 'Teacher Pro',
+      body: '25 classes of up to 400, the explainable seating planner, and 60 discovery searches with 15 deep reports a day.',
+    },
+  ],
+  generic: [
+    {
+      icon: 'book-open',
+      title: 'Free',
+      body: 'One class of 30, 25 activities, 10 goals and 5 lists — and a small daily taste of AI discovery and deep research.',
+    },
+    {
+      icon: 'sparkles',
+      title: 'Plus',
+      body: '5 classes of 100, 250 activities, 100 goals and 50 lists, with 20 AI discovery searches and 5 deep reports a day.',
+    },
+    {
+      icon: 'award',
+      title: 'Pro',
+      body: '20 classes of 300, 1,000 activities, the seating planner, and 60 discovery searches with 15 deep reports a day.',
+    },
+  ],
+};
 
 function BenefitRow({ icon, title, body }: { icon: string; title: string; body: string }) {
   const colors = useColors();
@@ -86,7 +140,17 @@ export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { ready, available, tier, isPlus, isPro, packages, purchase, restore } = usePurchases();
-  const upgradePackages = isPlus ? packages.filter((pkg) => tierForPackage(pkg) === 'pro') : packages;
+  const { user } = useAuth();
+  const accountRole: PlanRole | null =
+    user?.role === 'teacher' ? 'teacher' : user?.role === 'student' ? 'student' : null;
+  const benefits = BENEFITS[accountRole ?? 'generic'];
+  // Roles never mix at the point of sale: a student is only offered student
+  // (or generic) packages, a teacher only teacher (or generic) ones. On a
+  // Plus-level plan, only the Pro-level packages remain as upgrades.
+  const rolePackages = packagesForRole(packages, accountRole);
+  const upgradePackages = isPlus
+    ? rolePackages.filter((pkg) => tierLevel(tierForPackage(pkg)) === 'pro')
+    : rolePackages;
 
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -95,7 +159,9 @@ export default function PaywallScreen() {
   useEffect(() => {
     if (selected && upgradePackages.some((pkg) => pkg.identifier === selected)) return;
     const plusAnnual = upgradePackages.find(
-      (pkg) => tierForPackage(pkg) === 'plus' && pkg.packageType?.toUpperCase() === 'ANNUAL',
+      (pkg) =>
+        tierLevel(tierForPackage(pkg)) === 'plus' &&
+        pkg.packageType?.toUpperCase() === 'ANNUAL',
     );
     const annual = upgradePackages.find((pkg) => pkg.packageType?.toUpperCase() === 'ANNUAL');
     setSelected((plusAnnual ?? annual ?? upgradePackages[0])?.identifier ?? null);
@@ -131,7 +197,7 @@ export default function PaywallScreen() {
     setBusy(false);
     if (result === 'success') {
       const purchasedTier = tierForPackage(pkg);
-      Alert.alert(`Welcome to Casparel ${purchasedTier === 'pro' ? 'Pro' : 'Plus'}`, 'Your subscription features are now unlocked. Thank you!', [
+      Alert.alert(`Welcome to Casparel ${TIER_TITLES[purchasedTier]}`, 'Your subscription features are now unlocked. Thank you!', [
         { text: 'Great', onPress: close },
       ]);
     } else if (result === 'error') {
@@ -237,7 +303,7 @@ export default function PaywallScreen() {
             },
           ]}
         >
-          {BENEFITS.map((b) => (
+          {benefits.map((b) => (
             <BenefitRow key={b.title} {...b} />
           ))}
         </Animated.View>
@@ -263,7 +329,7 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              You're on Casparel {tier === 'pro' ? 'Pro' : 'Plus'}. Thank you!
+              You're on Casparel {TIER_TITLES[tier]}. Thank you!
             </Text>
           </View>
         ) : null}
@@ -442,7 +508,7 @@ function PackageOption({
             },
           ]}
         >
-          Casparel {packageTier === 'pro' ? 'Pro' : 'Plus'}
+          Casparel {TIER_TITLES[packageTier]}
         </Text>
         {period ? (
           <Text

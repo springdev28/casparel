@@ -928,17 +928,18 @@ export default function AppShell({ children }: AppShellProps) {
                 <p className="mt-2 text-[10px] text-primary-foreground/55">
                   {hasUnlimitedUsage
                     ? "No account-level AI limits"
-                    : plan.aiEnabled
-                      ? "AI allowances reset daily"
-                      : "Free includes no AI features"}
+                    : plan.level === "free"
+                      ? "Free includes a small daily AI taste"
+                      : "AI allowances reset daily"}
                 </p>
-                {plan.tier === "free" || plan.tier === "plus" ? (
+                {plan.tier !== "administrator" && plan.level !== "pro" ? (
                   <Link
                     href="/settings"
                     className="mt-2 flex items-center justify-center gap-1.5 rounded-md bg-primary-foreground/15 px-2 py-1.5 text-[11px] font-semibold hover:bg-primary-foreground/25"
                     data-testid="sidebar-upgrade"
                   >
-                    <Sparkles size={12} /> {plan.tier === "plus" ? "Upgrade to Pro" : "See Plus and Pro"}
+                    <Sparkles size={12} />{" "}
+                    {plan.level === "plus" ? "Upgrade to Pro" : "See plans"}
                   </Link>
                 ) : null}
               </div>

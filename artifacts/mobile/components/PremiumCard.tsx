@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { useGetMyUsage } from '@workspace/api-client-react';
 import { usePurchases } from '@/contexts/PurchasesContext';
+import { TIER_TITLES, tierLevel } from '@/utils/revenuecat';
 
 function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number | null }) {
   const colors = useColors();
@@ -51,9 +52,20 @@ export function PremiumCard() {
   const router = useRouter();
   const { tier } = usePurchases();
   const { data: usage } = useGetMyUsage();
-  const planLabel = usage?.plan ?? (tier === 'pro' ? 'Pro' : tier === 'plus' ? 'Plus' : 'Free');
-  const isUnlimited = usage?.unlimited === true || planLabel === 'Pro' || planLabel === 'Administrator';
-  const isPaid = isUnlimited || planLabel === 'Plus';
+  // The server label wins whenever it has answered; RevenueCat's tier is the
+  // fallback so the card is not stuck on "Free" while usage is loading.
+  const planLabel = usage?.plan ?? TIER_TITLES[tier];
+  // Unlimited is an administrator property. No paid tier is uncapped, so the
+  // meters below always render for subscribers — including Pro-level plans.
+  const isUnlimited = usage?.unlimited === true;
+  const serverLevel =
+    usage?.tier === 'administrator'
+      ? 'pro'
+      : usage?.tier
+        ? tierLevel(usage.tier as Parameters<typeof tierLevel>[0])
+        : null;
+  const level = serverLevel ?? tierLevel(tier);
+  const isPaid = isUnlimited || level !== 'free';
 
   return (
     <View
@@ -100,10 +112,10 @@ export function PremiumCard() {
             ]}
           >
             {isUnlimited
-              ? 'All account-level AI features are unlocked.'
+              ? 'Administrator account: AI usage is uncapped.'
               : isPaid
                 ? 'AI discovery and deep research are active with allowances.'
-                : 'Core learning tools are included. AI features are not included.'}
+                : 'Core tools plus a small daily taste of AI are included.'}
           </Text>
         </View>
       </View>
@@ -115,10 +127,10 @@ export function PremiumCard() {
         </View>
       ) : null}
 
-      {!isUnlimited ? <Pressable
+      {!isUnlimited && level !== 'pro' ? <Pressable
         onPress={() => router.push('/paywall')}
         accessibilityRole="button"
-        accessibilityLabel={isPaid ? 'Upgrade to Casparel Pro' : 'See Plus and Pro plans'}
+        accessibilityLabel={isPaid ? 'Upgrade to the Pro plan' : 'See subscription plans'}
         style={({ pressed }) => [
           styles.cta,
           {
@@ -138,7 +150,7 @@ export function PremiumCard() {
             },
           ]}
         >
-          {isPaid ? 'Upgrade to Pro' : 'See Plus and Pro'}
+          {isPaid ? 'Upgrade to Pro' : 'See plans'}
         </Text>
       </Pressable> : null}
     </View>

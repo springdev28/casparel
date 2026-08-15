@@ -599,14 +599,15 @@ describe("POST /api/classes, plan capacity gate", () => {
       capacity: "classes-owned",
       limit: 1,
       used: 1,
-      requiredPlan: "plus",
+      // Class creation is teacher-only, so the upsell names the teacher plan.
+      requiredPlan: "teacher-plus",
     });
     // The refusal must happen before the write, not after it.
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it("lets a Plus teacher past the Free ceiling", async () => {
-    mockOwnedClasses("plus", 1);
+  it("lets a Teacher Plus teacher past the Free ceiling", async () => {
+    mockOwnedClasses("teacher-plus", 1);
     const returning = vi.fn().mockResolvedValue([CLASS_ROW]);
     vi.mocked(db.insert).mockReturnValue({
       values: vi.fn().mockReturnValue({
@@ -628,7 +629,7 @@ describe("POST /api/classes, plan capacity gate", () => {
 describe("POST /api/classes/:id/seating-plan/suggest, subscription gate", () => {
   it("rejects a Free teacher before generating a seating assignment", async () => {
     vi.mocked(getAccountEntitlements).mockResolvedValueOnce(
-      entitlementsForPlan("free", null),
+      entitlementsForPlan("free", null, "teacher"),
     );
 
     const res = await request(buildApp())
@@ -639,7 +640,37 @@ describe("POST /api/classes/:id/seating-plan/suggest, subscription gate", () => 
     expect(res.status).toBe(402);
     expect(res.body).toMatchObject({
       code: "SUBSCRIPTION_REQUIRED",
-      requiredPlan: "pro",
+      requiredPlan: "teacher-pro",
     });
+  });
+
+  it("rejects Teacher Plus too: the planner lives on the Pro level", async () => {
+    vi.mocked(getAccountEntitlements).mockResolvedValueOnce(
+      entitlementsForPlan("teacher-plus", null, "teacher"),
+    );
+
+    const res = await request(buildApp())
+      .post(`/api/classes/${CLASS_ID}/seating-plan/suggest`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ priorities: null });
+
+    expect(res.status).toBe(402);
+    expect(res.body).toMatchObject({ code: "SUBSCRIPTION_REQUIRED" });
+  });
+
+  it("rejects a teacher holding a student plan: roles do not mix", async () => {
+    // A Student Pro plan on a teacher account resolves to Free, so the
+    // teacher-only seating planner stays locked despite the paid plan.
+    vi.mocked(getAccountEntitlements).mockResolvedValueOnce(
+      entitlementsForPlan("student-pro", null, "teacher"),
+    );
+
+    const res = await request(buildApp())
+      .post(`/api/classes/${CLASS_ID}/seating-plan/suggest`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ priorities: null });
+
+    expect(res.status).toBe(402);
+    expect(res.body).toMatchObject({ code: "SUBSCRIPTION_REQUIRED" });
   });
 });

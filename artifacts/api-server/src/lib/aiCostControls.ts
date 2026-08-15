@@ -4,7 +4,6 @@ import { pool } from "@workspace/db";
 import { buildRateLimitStore } from "./rateLimitStore";
 import { isAdminRequest } from "./adminAccess";
 import { decodeToken } from "./auth";
-import { isPremiumAccount } from "./entitlements";
 import type { Request } from "express";
 
 function positiveLimit(value: string | undefined, fallback: number) {
@@ -12,19 +11,13 @@ function positiveLimit(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
 
-/** Admins and premium accounts are exempt from the per-user AI search cap. */
+/**
+ * Only admins are exempt from the per-user AI search cap. Paid plans used to
+ * skip it too, but no tier is uncapped anymore — uncapped is an operational
+ * property of administrator accounts, not something a subscription grants.
+ */
 async function skipPrivilegedRequest(req: Request): Promise<boolean> {
-  if (isAdminRequest(req)) return true;
-  const header = req.headers.authorization;
-  const payload = header?.startsWith("Bearer ")
-    ? decodeToken(header.slice(7))
-    : null;
-  if (!payload) return false;
-  try {
-    return await isPremiumAccount(payload.userId);
-  } catch {
-    return false;
-  }
+  return isAdminRequest(req);
 }
 
 export const requireAiSearchEnabled: RequestHandler = (_req, res, next) => {

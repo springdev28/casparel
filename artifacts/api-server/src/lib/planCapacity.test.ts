@@ -74,11 +74,13 @@ describe("accountCapacity", () => {
     });
 
     mockAccount("free", 5);
+    // The default mock account is a teacher, so the upsell names the teacher
+    // ladder, never a generic or student plan.
     await expect(accountCapacity(1, "resource-lists")).resolves.toMatchObject({
       allowed: false,
       used: 5,
       remaining: 0,
-      requiredPlan: "plus",
+      requiredPlan: "teacher-plus",
     });
   });
 
@@ -93,18 +95,34 @@ describe("accountCapacity", () => {
     ).resolves.toMatchObject({ allowed: false });
   });
 
-  it("raises the ceiling for Plus and removes it for Pro", async () => {
+  it("raises the ceiling for Plus and again for Pro, which stays finite", async () => {
     mockAccount("plus", 40);
     await expect(accountCapacity(1, "resource-lists")).resolves.toMatchObject({
       allowed: true,
       limit: 50,
     });
 
+    // No paid tier is uncapped: Pro is big, not infinite.
     mockAccount("pro", 10_000);
     await expect(accountCapacity(1, "resource-lists")).resolves.toMatchObject({
+      allowed: false,
+      limit: 200,
+    });
+    mockAccount("pro", 40);
+    await expect(accountCapacity(1, "resource-lists")).resolves.toMatchObject({
       allowed: true,
-      limit: null,
-      remaining: null,
+      limit: 200,
+    });
+  });
+
+  it("resolves a role-mismatched plan as Free", async () => {
+    // A teacher holding a student plan gets no benefit from it: roles do not
+    // mix, and the stored plan only counts while the role matches.
+    mockAccount("student-pro", 20, "teacher");
+    await expect(accountCapacity(1, "resource-lists")).resolves.toMatchObject({
+      allowed: false,
+      tier: "free",
+      limit: 5,
     });
   });
 
@@ -136,11 +154,11 @@ describe("accountCapacity", () => {
     });
   });
 
-  it("names Pro when Plus would refuse the request too", async () => {
+  it("names the Pro step when the Plus step would refuse the request too", async () => {
     mockAccount("free", 0);
     await expect(
       accountCapacity(1, "study-activities", 400),
-    ).resolves.toMatchObject({ allowed: false, requiredPlan: "pro" });
+    ).resolves.toMatchObject({ allowed: false, requiredPlan: "teacher-pro" });
   });
 });
 
@@ -163,7 +181,15 @@ describe("classMemberCapacity", () => {
     mockClass("pro", 250);
     await expect(classMemberCapacity(7)).resolves.toMatchObject({
       allowed: true,
-      limit: null,
+      limit: 300,
+    });
+  });
+
+  it("gives a Teacher Pro roster more room than generic Pro", async () => {
+    mockClass("teacher-pro", 350);
+    await expect(classMemberCapacity(7)).resolves.toMatchObject({
+      allowed: true,
+      limit: 400,
     });
   });
 
@@ -173,7 +199,7 @@ describe("classMemberCapacity", () => {
       allowed: false,
       limit: 30,
       used: 30,
-      requiredPlan: "plus",
+      requiredPlan: "teacher-plus",
     });
   });
 
@@ -208,10 +234,10 @@ describe("the refusal sent to the client", () => {
       capacity: "study-activities",
       limit: 25,
       used: 25,
-      requiredPlan: "plus",
+      requiredPlan: "teacher-plus",
     });
     expect(body.error).toContain("25");
-    expect(body.error).toContain("Plus");
+    expect(body.error).toContain("Teacher Plus");
   });
 
   it("sends 402 and reports that the route must stop", async () => {

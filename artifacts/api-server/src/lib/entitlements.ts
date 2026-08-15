@@ -1,30 +1,57 @@
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 
-/** RevenueCat entitlement identifiers. `premium` is kept for legacy buyers. */
+/**
+ * RevenueCat entitlement identifiers. `premium` is kept for legacy buyers and
+ * resolves to the generic Pro plan. The role-specific identifiers must match
+ * the entitlements configured in the RevenueCat dashboard.
+ */
 export const PLUS_ENTITLEMENT = "plus";
 export const PRO_ENTITLEMENT = "pro";
 export const PREMIUM_ENTITLEMENT = "premium";
+export const STUDENT_PLUS_ENTITLEMENT = "student-plus";
+export const STUDENT_PRO_ENTITLEMENT = "student-pro";
+export const TEACHER_PLUS_ENTITLEMENT = "teacher-plus";
+export const TEACHER_PRO_ENTITLEMENT = "teacher-pro";
 
 export const PLAN_FREE = "free";
 export const PLAN_PLUS = "plus";
 export const PLAN_PRO = "pro";
 export const PLAN_PREMIUM = "premium";
+export const PLAN_STUDENT_PLUS = "student-plus";
+export const PLAN_STUDENT_PRO = "student-pro";
+export const PLAN_TEACHER_PLUS = "teacher-plus";
+export const PLAN_TEACHER_PRO = "teacher-pro";
 
-export type SubscriptionTier = "free" | "plus" | "pro";
+/**
+ * The public tier model.
+ *
+ * `plus` and `pro` are the original role-agnostic plans and remain valid and
+ * purchasable; the role-specific tiers specialise them. Student tiers buy
+ * depth for personal study (activities, goals, lists, canvases, research);
+ * teacher tiers buy classroom scale (classes, rosters, and on Teacher Pro the
+ * explainable seating planner).
+ *
+ * No tier is uncapped anywhere: every allowance below is finite. Uncapped is
+ * an administrator property, not something money can buy.
+ */
+export type SubscriptionTier =
+  | "free"
+  | "plus"
+  | "pro"
+  | "student-plus"
+  | "student-pro"
+  | "teacher-plus"
+  | "teacher-pro";
+
+/** Which account role a tier is reserved for. `null` = any role. */
+export type PlanRole = "student" | "teacher";
+
 export type PlanFeature =
   | "ai-discovery"
   | "deep-research"
   | "seating-planner";
 
-/**
- * Things a plan lets an account accumulate, as opposed to things it lets an
- * account do. Every key here maps to rows in one table, so a tier is also a
- * statement about how much database an account may occupy. A plan built only
- * on AI call counts prices the cheap part of the product: an abandoned free
- * account with forty classes and a thousand activities costs storage, backup
- * and query time every day, while its AI spend stopped months ago.
- */
 export type PlanCapacity =
   | "classes-owned"
   | "class-members"
@@ -33,17 +60,71 @@ export type PlanCapacity =
   | "learning-goals"
   | "canvases";
 
-/** Row budgets per capacity. `null` means the plan sets no cap. */
+/** Row budgets per capacity. `null` means uncapped — admin accounts only. */
 export type CapacityLimits = Record<PlanCapacity, number | null>;
 
+/** Per-account AI allowances. Finite for every tier; only admins bypass. */
+export interface AiRates {
+  /** AI discovery fallback searches per day. */
+  searchPerDay: number;
+  /** Deep source-research reports per day. */
+  deepPerDay: number;
+  /** Deep source-research reports per rolling 30 days. */
+  deepPerMonth: number;
+}
+
+export const TIER_LABELS: Record<SubscriptionTier, string> = {
+  free: "Free",
+  plus: "Plus",
+  pro: "Pro",
+  "student-plus": "Student Plus",
+  "student-pro": "Student Pro",
+  "teacher-plus": "Teacher Plus",
+  "teacher-pro": "Teacher Pro",
+};
+
+/** The account role a tier requires, or null when any role may hold it. */
+export function planRoleRequirement(tier: SubscriptionTier): PlanRole | null {
+  if (tier === PLAN_STUDENT_PLUS || tier === PLAN_STUDENT_PRO) return "student";
+  if (tier === PLAN_TEACHER_PLUS || tier === PLAN_TEACHER_PRO) return "teacher";
+  return null;
+}
+
+/** Collapse a tier to its price level, for upgrade CTAs and package pickers. */
+export function planLevel(tier: SubscriptionTier): "free" | "plus" | "pro" {
+  if (tier === PLAN_FREE) return "free";
+  if (tier === PLAN_PLUS || tier === PLAN_STUDENT_PLUS || tier === PLAN_TEACHER_PLUS)
+    return "plus";
+  return "pro";
+}
+
 /**
- * The single source of truth for capacity. The usage endpoint, the enforcement
- * helper and the tests all read this table, so a limit shown to a user and a
- * limit applied by the server cannot drift apart.
+ * The Free row is deliberately non-zero on AI: it is a taste, sized so a new
+ * account can experience what AI discovery and a cited deep report actually
+ * are before being asked to pay, without being large enough to live on.
+ */
+export const AI_RATES_BY_TIER: Record<SubscriptionTier, AiRates> = {
+  free: { searchPerDay: 2, deepPerDay: 1, deepPerMonth: 2 },
+  plus: { searchPerDay: 20, deepPerDay: 5, deepPerMonth: 50 },
+  pro: { searchPerDay: 60, deepPerDay: 15, deepPerMonth: 150 },
+  "student-plus": { searchPerDay: 30, deepPerDay: 8, deepPerMonth: 80 },
+  "student-pro": { searchPerDay: 90, deepPerDay: 25, deepPerMonth: 250 },
+  "teacher-plus": { searchPerDay: 20, deepPerDay: 5, deepPerMonth: 50 },
+  "teacher-pro": { searchPerDay: 60, deepPerDay: 15, deepPerMonth: 150 },
+};
+
+/**
+ * The single source of truth for stored-data capacity. The usage endpoint,
+ * the enforcement helper and the tests all read this table, so a limit shown
+ * to a user and a limit applied by the server cannot drift apart.
  *
- * `class-members` is charged to the teacher who owns the class, not to the
- * student joining it: the roster is the teacher's data, and a student cannot
- * be asked to pay for a class they were invited into.
+ * Shape notes:
+ * - Student tiers keep the Free class columns: students cannot create classes,
+ *   and a roster is always charged to the teacher who owns the class.
+ * - Teacher tiers keep the study columns of their generic level: teachers
+ *   build materials too, but classroom scale is what they are paying for.
+ * - Pro rows are large but finite. Legacy `premium` buyers resolve to `pro`
+ *   and therefore also have finite caps now.
  */
 export const CAPACITY_BY_TIER: Record<SubscriptionTier, CapacityLimits> = {
   free: {
@@ -63,19 +144,53 @@ export const CAPACITY_BY_TIER: Record<SubscriptionTier, CapacityLimits> = {
     canvases: 30,
   },
   pro: {
-    "classes-owned": null,
-    "class-members": null,
-    "study-activities": null,
-    "resource-lists": null,
-    "learning-goals": null,
-    canvases: null,
+    "classes-owned": 20,
+    "class-members": 300,
+    "study-activities": 1000,
+    "resource-lists": 200,
+    "learning-goals": 400,
+    canvases: 100,
+  },
+  "student-plus": {
+    "classes-owned": 1,
+    "class-members": 30,
+    "study-activities": 400,
+    "resource-lists": 75,
+    "learning-goals": 150,
+    canvases: 40,
+  },
+  "student-pro": {
+    "classes-owned": 1,
+    "class-members": 30,
+    "study-activities": 1500,
+    "resource-lists": 300,
+    "learning-goals": 500,
+    canvases: 150,
+  },
+  "teacher-plus": {
+    "classes-owned": 8,
+    "class-members": 150,
+    "study-activities": 250,
+    "resource-lists": 50,
+    "learning-goals": 100,
+    canvases: 30,
+  },
+  "teacher-pro": {
+    "classes-owned": 25,
+    "class-members": 400,
+    "study-activities": 1000,
+    "resource-lists": 200,
+    "learning-goals": 400,
+    canvases: 100,
   },
 };
 
 export interface AccountEntitlements {
   tier: SubscriptionTier;
-  label: "Free" | "Plus" | "Pro";
-  unlimitedAi: boolean;
+  label: string;
+  /** The role this tier is reserved for, or null when any role may hold it. */
+  planRole: PlanRole | null;
+  ai: AiRates;
   features: Record<PlanFeature, boolean>;
   capacity: CapacityLimits;
 }
@@ -86,31 +201,57 @@ function expiryIsActive(expiresAt: string | null): boolean {
   return Number.isFinite(expiry) && expiry > Date.now();
 }
 
-/** Normalise stored and legacy plan values into the public three-tier model. */
+const STORED_PLAN_TO_TIER: Record<string, SubscriptionTier> = {
+  [PLAN_PLUS]: "plus",
+  [PLAN_PRO]: "pro",
+  [PLAN_PREMIUM]: "pro",
+  [PLAN_STUDENT_PLUS]: "student-plus",
+  [PLAN_STUDENT_PRO]: "student-pro",
+  [PLAN_TEACHER_PLUS]: "teacher-plus",
+  [PLAN_TEACHER_PRO]: "teacher-pro",
+};
+
+/**
+ * Normalise a stored plan value into the tier that actually applies to this
+ * account right now.
+ *
+ * Roles do not mix: a role-specific plan grants nothing while the account's
+ * role does not match it. The stored plan is left untouched — it is billing
+ * truth — so the benefits come back the moment the role matches again (roles
+ * are self-service, so a student who switches to teacher and back must not
+ * permanently lose a student plan they are still paying for).
+ */
 export function normalizePlan(
   plan: string | null,
   expiresAt: string | null,
+  accountRole: string | null = null,
 ): SubscriptionTier {
   if (!expiryIsActive(expiresAt)) return PLAN_FREE;
-  if (plan === PLAN_PLUS) return PLAN_PLUS;
-  if (plan === PLAN_PRO || plan === PLAN_PREMIUM) return PLAN_PRO;
-  return PLAN_FREE;
+  const tier = plan ? STORED_PLAN_TO_TIER[plan] : undefined;
+  if (!tier) return PLAN_FREE;
+  const requiredRole = planRoleRequirement(tier);
+  if (requiredRole && accountRole !== requiredRole) return PLAN_FREE;
+  return tier;
 }
 
 export function entitlementsForPlan(
   plan: string | null,
   expiresAt: string | null,
+  accountRole: string | null = null,
 ): AccountEntitlements {
-  const tier = normalizePlan(plan, expiresAt);
-  const paidAi = tier === PLAN_PLUS || tier === PLAN_PRO;
+  const tier = normalizePlan(plan, expiresAt, accountRole);
   return {
     tier,
-    label: tier === PLAN_PRO ? "Pro" : tier === PLAN_PLUS ? "Plus" : "Free",
-    unlimitedAi: tier === PLAN_PRO,
+    label: TIER_LABELS[tier],
+    planRole: planRoleRequirement(tier),
+    ai: { ...AI_RATES_BY_TIER[tier] },
     features: {
-      "ai-discovery": paidAi,
-      "deep-research": paidAi,
-      "seating-planner": tier === PLAN_PRO,
+      // Every tier can touch the AI features; the tiers differ in how much.
+      "ai-discovery": true,
+      "deep-research": true,
+      // The explainable seating planner is a classroom feature and lives on
+      // the Pro level of the plans a teacher can actually hold.
+      "seating-planner": tier === PLAN_PRO || tier === PLAN_TEACHER_PRO,
     },
     capacity: { ...CAPACITY_BY_TIER[tier] },
   };
@@ -125,30 +266,114 @@ export function capacityLimitFor(
 }
 
 /**
- * The cheapest plan that would actually fit `needed` rows, so the upsell names
- * a plan that solves the problem. Recommending Plus to a teacher who needs a
- * 400-student roster just moves the same refusal one payment later.
+ * The upgrade ladder for an account role: the plans this account may actually
+ * buy, cheapest first. Role-specific plans are preferred; the generic ladder
+ * is the fallback for accounts with no role match (and for admins, who never
+ * see an upsell anyway).
  */
+export function upgradeLadderFor(accountRole: string | null): SubscriptionTier[] {
+  if (accountRole === "student") return [PLAN_STUDENT_PLUS, PLAN_STUDENT_PRO];
+  if (accountRole === "teacher") return [PLAN_TEACHER_PLUS, PLAN_TEACHER_PRO];
+  return [PLAN_PLUS, PLAN_PRO];
+}
+
+/**
+ * The cheapest plan on this account's ladder that would fit `needed` rows, so
+ * the upsell names a plan that solves the problem. Falls back to the top of
+ * the ladder when nothing fits — with every tier finite there are requests no
+ * plan satisfies, and the top plan is still the honest answer to "which plan
+ * gets me furthest".
+ */
+const LEVEL_RANK = { free: 0, plus: 1, pro: 2 } as const;
+
 export function upgradeTargetFor(
   capacity: PlanCapacity,
-  tier: SubscriptionTier,
+  accountRole: string | null,
   needed: number,
-): "plus" | "pro" {
-  if (tier === PLAN_FREE) {
-    const plusLimit = CAPACITY_BY_TIER.plus[capacity];
-    if (plusLimit === null || needed <= plusLimit) return PLAN_PLUS;
+  currentTier: SubscriptionTier = PLAN_FREE,
+): SubscriptionTier {
+  const ladder = upgradeLadderFor(accountRole).filter(
+    (step) =>
+      step !== currentTier &&
+      LEVEL_RANK[planLevel(step)] >= LEVEL_RANK[planLevel(currentTier)],
+  );
+  for (const step of ladder) {
+    const limit = CAPACITY_BY_TIER[step][capacity];
+    if (limit === null || needed <= limit) return step;
   }
-  return PLAN_PRO;
+  return ladder[ladder.length - 1] ?? upgradeLadderFor(accountRole)[1];
+}
+
+/**
+ * Map a RevenueCat event's entitlement identifiers to the plan to store.
+ * When several are active, the strongest wins: role-specific Pro plans first
+ * (they are the most specialised product actually bought), then generic Pro
+ * (and legacy premium), then the Plus level the same way.
+ */
+export function planForEntitlementIds(ids: string[]): string | null {
+  const active = new Set(ids);
+  if (active.has(TEACHER_PRO_ENTITLEMENT)) return PLAN_TEACHER_PRO;
+  if (active.has(STUDENT_PRO_ENTITLEMENT)) return PLAN_STUDENT_PRO;
+  if (active.has(PRO_ENTITLEMENT) || active.has(PREMIUM_ENTITLEMENT)) {
+    return PLAN_PRO;
+  }
+  if (active.has(TEACHER_PLUS_ENTITLEMENT)) return PLAN_TEACHER_PLUS;
+  if (active.has(STUDENT_PLUS_ENTITLEMENT)) return PLAN_STUDENT_PLUS;
+  if (active.has(PLUS_ENTITLEMENT)) return PLAN_PLUS;
+  return null;
+}
+
+/** Every entitlement identifier this server recognises. */
+export const KNOWN_ENTITLEMENTS: ReadonlySet<string> = new Set([
+  PLUS_ENTITLEMENT,
+  PRO_ENTITLEMENT,
+  PREMIUM_ENTITLEMENT,
+  STUDENT_PLUS_ENTITLEMENT,
+  STUDENT_PRO_ENTITLEMENT,
+  TEACHER_PLUS_ENTITLEMENT,
+  TEACHER_PRO_ENTITLEMENT,
+]);
+
+export interface ResolvedAccountPlan {
+  entitlements: AccountEntitlements;
+  /** The account's base role; activeRole is a view mode and never read here. */
+  accountRole: string | null;
+  /** Admins bypass every account-level cap. This cannot be bought. */
+  isAdmin: boolean;
+}
+
+/**
+ * One read that answers every plan question for an account. The base `role`
+ * column decides role matching — `activeRole` is a display mode a teacher can
+ * toggle and must not move their subscription with it.
+ */
+export async function resolveAccountPlan(
+  userId: number,
+): Promise<ResolvedAccountPlan> {
+  const [row] = await db
+    .select({
+      plan: usersTable.plan,
+      expiresAt: usersTable.planExpiresAt,
+      role: usersTable.role,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  const accountRole = row?.role ?? null;
+  return {
+    entitlements: entitlementsForPlan(
+      row?.plan ?? null,
+      row?.expiresAt ?? null,
+      accountRole,
+    ),
+    accountRole,
+    isAdmin: accountRole === "admin",
+  };
 }
 
 export async function getAccountEntitlements(
   userId: number,
 ): Promise<AccountEntitlements> {
-  const [row] = await db
-    .select({ plan: usersTable.plan, expiresAt: usersTable.planExpiresAt })
-    .from(usersTable)
-    .where(eq(usersTable.id, userId));
-  return entitlementsForPlan(row?.plan ?? null, row?.expiresAt ?? null);
+  return (await resolveAccountPlan(userId)).entitlements;
 }
 
 export async function accountHasFeature(
@@ -158,15 +383,16 @@ export async function accountHasFeature(
   return (await getAccountEntitlements(userId)).features[feature];
 }
 
-/** Compatibility helper used by older limiters: true for either paid tier. */
+/** Compatibility helper used by older limiters: true for any paid tier. */
 export async function isPremiumAccount(userId: number): Promise<boolean> {
   return (await getAccountEntitlements(userId)).tier !== PLAN_FREE;
 }
 
-/** Compatibility predicate: true for any active paid plan. */
+/** Compatibility predicate: true for any active paid plan (role-agnostic). */
 export function isPlanActive(
   plan: string | null,
   expiresAt: string | null,
 ): boolean {
-  return normalizePlan(plan, expiresAt) !== PLAN_FREE;
+  if (!expiryIsActive(expiresAt)) return false;
+  return Boolean(plan && STORED_PLAN_TO_TIER[plan]);
 }

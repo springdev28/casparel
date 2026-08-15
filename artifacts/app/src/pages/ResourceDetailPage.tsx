@@ -86,7 +86,6 @@ import {
 import type { SourceReview } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
-import { usePlan } from "../lib/use-plan";
 
 // ── Media helpers ────────────────────────────────────────────────────────────
 
@@ -318,7 +317,6 @@ function SourceReviewPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"quick" | "deep" | null>(null);
-  const plan = usePlan(isLoggedIn);
 
   const {
     data: quickData,
@@ -378,13 +376,9 @@ function SourceReviewPanel({
   }
 
   function handleModeSelect(selected: "quick" | "deep") {
-    if (selected === "deep" && !plan.aiEnabled) {
-      toast({
-        title: "Casparel Plus or Pro required",
-        description: "Free includes the non-AI quick source check. Deep live-web research is an AI feature.",
-      });
-      return;
-    }
+    // Every plan carries a deep-research allowance — Free's is a small taste —
+    // so the client no longer pre-blocks; the server answers 429 with a
+    // Retry-After when the allowance is spent.
     setMode(selected);
   }
 
@@ -439,8 +433,8 @@ function SourceReviewPanel({
               >
                 <span className="text-sm font-semibold">Deep Research</span>
                 <span className="text-xs text-muted-foreground leading-relaxed">
-                  Paid AI research across forums, comments, reviews, articles,
-                  and other mentions. Requires Plus or Pro.
+                  AI research across forums, comments, reviews, articles, and
+                  other mentions. Uses your plan's deep-research allowance.
                 </span>
               </button>
             </div>

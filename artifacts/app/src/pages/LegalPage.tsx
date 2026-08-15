@@ -113,13 +113,19 @@ export function TermsPage() {
       <Section title="Subscriptions">
         <p>
           Casparel Free includes the core library, schedules, citations and
-          manual seating, with no AI features, and holds one class of up to 30
-          members, 25 study activities, 10 learning goals, 5 resource lists and
-          3 canvases. Plus raises those allowances and adds AI discovery and
-          deep research with usage limits. Pro removes the account-level
-          allowances and adds explainable seating-plan suggestions. Your current
-          allowances and usage are shown under Settings then Plan.
-          Subscriptions bought in the mobile apps are billed by Apple or
+          manual seating, holds one class of up to 30 members, 25 study
+          activities, 10 learning goals, 5 resource lists and 3 canvases, and
+          comes with a small daily taste of AI: two discovery searches and one
+          deep research report a day (two per month). Paid plans are specific
+          to your account role: Student Plus and Student Pro raise the personal
+          study allowances, Teacher Plus and Teacher Pro raise classroom
+          allowances, and Teacher Pro adds explainable seating-plan
+          suggestions. A student plan grants nothing on a teacher account and
+          the other way round; the earlier role-agnostic Plus and Pro plans
+          remain valid for the accounts that hold them. Every allowance on
+          every plan is finite — no subscription is unlimited — and your
+          current allowances and usage are always shown under Settings, then
+          Plan. Subscriptions bought in the mobile apps are billed by Apple or
           Google, renew automatically, and can be cancelled at any time in your
           App Store or Google Play account settings. Cancelling stops the next
           renewal; it does not refund the period already paid for.
@@ -157,9 +163,11 @@ export function TermsPage() {
 
       <Section title="Ending your account">
         <p>
-          You can delete your account at any time from your profile settings,
-          which removes your account and its associated content. We may suspend
-          an account that breaks these terms, and will explain why when we do.
+          You can delete your account at any time from your profile settings.
+          This destroys your credentials and clears your profile; contributions
+          to shared spaces stay, unlinked from you. See the Privacy Policy for
+          exactly what is removed. We may suspend an account that breaks these
+          terms, and will explain why when we do.
         </p>
       </Section>
     </LegalLayout>
@@ -247,9 +255,17 @@ export function PrivacyPage() {
       <Section title="Keeping and deleting data">
         <p>
           We keep your data while your account exists. You can delete your
-          account at any time from your profile settings; this removes your
-          account and the content tied to it. If you would rather we did it, or
-          you want a copy of your data first, email {SUPPORT_EMAIL}.
+          account at any time from your profile settings.
+        </p>
+        <p>
+          Deleting removes your personal details: your email address and
+          password are destroyed, your name, avatar, bio, subjects, year group
+          and website are cleared, and the account can no longer be signed in
+          to. Resources and posts you contributed to shared spaces remain, no
+          longer linked to you and shown as authored by a deleted user, so that
+          other people's lists and classes do not break. If you want particular
+          contributions removed as well, or a copy of your data first, email{" "}
+          {SUPPORT_EMAIL} and we will do it by hand.
         </p>
       </Section>
 
