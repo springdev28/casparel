@@ -33,6 +33,12 @@ import type {
   CalendarStatus,
   Class,
   ClassInput,
+  ClassInvitation,
+  ClassInvitationInput,
+  ClassInvitationResponse,
+  ClassInvitationResponseInput,
+  ClassJoinCode,
+  ClassJoinCodeIssued,
   ClassMember,
   ClassPatch,
   ClassResourceRecommendation,
@@ -51,6 +57,8 @@ import type {
   GCStatus,
   GetResourceSourceReviewParams,
   HealthStatus,
+  JoinClassInput,
+  JoinedClass,
   LearningEvidence,
   LearningEvidenceInput,
   LearningGoal,
@@ -3298,6 +3306,524 @@ export const useReviewClassResourceRecommendation = <TError = ErrorType<unknown>
         TContext
       > => {
       return useMutation(getReviewClassResourceRecommendationMutationOptions(options));
+    }
+
+export const getListClassInvitationsUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/invitations`
+}
+
+/**
+ * @summary List pending invitations for a class (teacher only)
+ */
+export const listClassInvitations = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ClassInvitation[]> => {
+
+  return customFetch<ClassInvitation[]>(getListClassInvitationsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListClassInvitationsQueryKey = (id: number,) => {
+    return [
+    `/api/classes/${id}/invitations`
+    ] as const;
+    }
+
+
+export const getListClassInvitationsQueryOptions = <TData = Awaited<ReturnType<typeof listClassInvitations>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClassInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListClassInvitationsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listClassInvitations>>> = ({ signal }) => listClassInvitations(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listClassInvitations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListClassInvitationsQueryResult = NonNullable<Awaited<ReturnType<typeof listClassInvitations>>>
+export type ListClassInvitationsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List pending invitations for a class (teacher only)
+ */
+
+export function useListClassInvitations<TData = Awaited<ReturnType<typeof listClassInvitations>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listClassInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListClassInvitationsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getInviteClassMemberUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/invitations`
+}
+
+/**
+ * Creates a pending invitation the invitee must accept; role is derived from the invitee account, any role sent in the body is ignored.
+ * @summary Invite an existing account to a class by email (teacher only)
+ */
+export const inviteClassMember = async (id: number,
+    classInvitationInput: ClassInvitationInput, options?: Parameters<typeof customFetch>[1]): Promise<ClassInvitation> => {
+
+  return customFetch<ClassInvitation>(getInviteClassMemberUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(classInvitationInput)
+  }
+);}
+
+
+
+
+
+export const getInviteClassMemberMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteClassMember>>, TError,{id: number;data: BodyType<ClassInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteClassMember>>, TError,{id: number;data: BodyType<ClassInvitationInput>}, TContext> => {
+
+const mutationKey = ['inviteClassMember'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteClassMember>>, {id: number;data: BodyType<ClassInvitationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  inviteClassMember(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteClassMemberMutationResult = NonNullable<Awaited<ReturnType<typeof inviteClassMember>>>
+    export type InviteClassMemberMutationBody = BodyType<ClassInvitationInput>
+    export type InviteClassMemberMutationError = ErrorType<void>
+
+    /**
+ * @summary Invite an existing account to a class by email (teacher only)
+ */
+export const useInviteClassMember = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteClassMember>>, TError,{id: number;data: BodyType<ClassInvitationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof inviteClassMember>>,
+        TError,
+        {id: number;data: BodyType<ClassInvitationInput>},
+        TContext
+      > => {
+      return useMutation(getInviteClassMemberMutationOptions(options));
+    }
+
+export const getGetClassJoinCodeUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/join-code`
+}
+
+/**
+ * @summary Get the class join code (teacher only)
+ */
+export const getClassJoinCode = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ClassJoinCode> => {
+
+  return customFetch<ClassJoinCode>(getGetClassJoinCodeUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetClassJoinCodeQueryKey = (id: number,) => {
+    return [
+    `/api/classes/${id}/join-code`
+    ] as const;
+    }
+
+
+export const getGetClassJoinCodeQueryOptions = <TData = Awaited<ReturnType<typeof getClassJoinCode>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClassJoinCode>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetClassJoinCodeQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getClassJoinCode>>> = ({ signal }) => getClassJoinCode(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getClassJoinCode>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetClassJoinCodeQueryResult = NonNullable<Awaited<ReturnType<typeof getClassJoinCode>>>
+export type GetClassJoinCodeQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the class join code (teacher only)
+ */
+
+export function useGetClassJoinCode<TData = Awaited<ReturnType<typeof getClassJoinCode>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getClassJoinCode>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetClassJoinCodeQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateClassJoinCodeUrl = (id: number,) => {
+
+
+
+
+  return `/api/classes/${id}/join-code`
+}
+
+/**
+ * @summary Create or rotate the class join code (teacher only)
+ */
+export const createClassJoinCode = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ClassJoinCodeIssued> => {
+
+  return customFetch<ClassJoinCodeIssued>(getCreateClassJoinCodeUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateClassJoinCodeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClassJoinCode>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createClassJoinCode>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['createClassJoinCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createClassJoinCode>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  createClassJoinCode(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateClassJoinCodeMutationResult = NonNullable<Awaited<ReturnType<typeof createClassJoinCode>>>
+
+    export type CreateClassJoinCodeMutationError = ErrorType<void>
+
+    /**
+ * @summary Create or rotate the class join code (teacher only)
+ */
+export const useCreateClassJoinCode = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClassJoinCode>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createClassJoinCode>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCreateClassJoinCodeMutationOptions(options));
+    }
+
+export const getJoinClassByCodeUrl = () => {
+
+
+
+
+  return `/api/classes/join`
+}
+
+/**
+ * @summary Join a class with an 8-character join code
+ */
+export const joinClassByCode = async (joinClassInput: JoinClassInput, options?: Parameters<typeof customFetch>[1]): Promise<JoinedClass> => {
+
+  return customFetch<JoinedClass>(getJoinClassByCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(joinClassInput)
+  }
+);}
+
+
+
+
+
+export const getJoinClassByCodeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinClassByCode>>, TError,{data: BodyType<JoinClassInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinClassByCode>>, TError,{data: BodyType<JoinClassInput>}, TContext> => {
+
+const mutationKey = ['joinClassByCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinClassByCode>>, {data: BodyType<JoinClassInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  joinClassByCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinClassByCodeMutationResult = NonNullable<Awaited<ReturnType<typeof joinClassByCode>>>
+    export type JoinClassByCodeMutationBody = BodyType<JoinClassInput>
+    export type JoinClassByCodeMutationError = ErrorType<void>
+
+    /**
+ * @summary Join a class with an 8-character join code
+ */
+export const useJoinClassByCode = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinClassByCode>>, TError,{data: BodyType<JoinClassInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof joinClassByCode>>,
+        TError,
+        {data: BodyType<JoinClassInput>},
+        TContext
+      > => {
+      return useMutation(getJoinClassByCodeMutationOptions(options));
+    }
+
+export const getListMyClassInvitationsUrl = () => {
+
+
+
+
+  return `/api/class-invitations`
+}
+
+/**
+ * @summary List the current user's pending class invitations
+ */
+export const listMyClassInvitations = async ( options?: Parameters<typeof customFetch>[1]): Promise<ClassInvitation[]> => {
+
+  return customFetch<ClassInvitation[]>(getListMyClassInvitationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyClassInvitationsQueryKey = () => {
+    return [
+    `/api/class-invitations`
+    ] as const;
+    }
+
+
+export const getListMyClassInvitationsQueryOptions = <TData = Awaited<ReturnType<typeof listMyClassInvitations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyClassInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyClassInvitationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyClassInvitations>>> = ({ signal }) => listMyClassInvitations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyClassInvitations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyClassInvitationsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyClassInvitations>>>
+export type ListMyClassInvitationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the current user's pending class invitations
+ */
+
+export function useListMyClassInvitations<TData = Awaited<ReturnType<typeof listMyClassInvitations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyClassInvitations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyClassInvitationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRespondToClassInvitationUrl = (id: number,) => {
+
+
+
+
+  return `/api/class-invitations/${id}`
+}
+
+/**
+ * @summary Accept or decline a pending class invitation
+ */
+export const respondToClassInvitation = async (id: number,
+    classInvitationResponseInput: ClassInvitationResponseInput, options?: Parameters<typeof customFetch>[1]): Promise<ClassInvitationResponse> => {
+
+  return customFetch<ClassInvitationResponse>(getRespondToClassInvitationUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(classInvitationResponseInput)
+  }
+);}
+
+
+
+
+
+export const getRespondToClassInvitationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToClassInvitation>>, TError,{id: number;data: BodyType<ClassInvitationResponseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof respondToClassInvitation>>, TError,{id: number;data: BodyType<ClassInvitationResponseInput>}, TContext> => {
+
+const mutationKey = ['respondToClassInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof respondToClassInvitation>>, {id: number;data: BodyType<ClassInvitationResponseInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  respondToClassInvitation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RespondToClassInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof respondToClassInvitation>>>
+    export type RespondToClassInvitationMutationBody = BodyType<ClassInvitationResponseInput>
+    export type RespondToClassInvitationMutationError = ErrorType<void>
+
+    /**
+ * @summary Accept or decline a pending class invitation
+ */
+export const useRespondToClassInvitation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToClassInvitation>>, TError,{id: number;data: BodyType<ClassInvitationResponseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof respondToClassInvitation>>,
+        TError,
+        {id: number;data: BodyType<ClassInvitationResponseInput>},
+        TContext
+      > => {
+      return useMutation(getRespondToClassInvitationMutationOptions(options));
     }
 
 export const getListResourcesUrl = (params?: ListResourcesParams,) => {

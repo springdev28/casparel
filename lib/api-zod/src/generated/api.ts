@@ -1477,6 +1477,166 @@ export const ReviewClassResourceRecommendationResponse = zod.object({
 
 
 /**
+ * @summary List pending invitations for a class (teacher only)
+ */
+export const ListClassInvitationsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ListClassInvitationsResponseItem = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "userId": zod.int(),
+  "invitedById": zod.int(),
+  "role": zod.enum(['student', 'teacher']),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().nullish(),
+  "class": zod.object({
+  "id": zod.int(),
+  "name": zod.string()
+}),
+  "inviter": zod.object({
+  "id": zod.int(),
+  "name": zod.string()
+}),
+  "invitee": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "email": zod.string()
+})
+})
+export const ListClassInvitationsResponse = zod.array(ListClassInvitationsResponseItem)
+
+
+/**
+ * Creates a pending invitation the invitee must accept; role is derived from the invitee account, any role sent in the body is ignored.
+ * @summary Invite an existing account to a class by email (teacher only)
+ */
+export const InviteClassMemberParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const inviteClassMemberBodyEmailMax = 320;
+
+
+
+export const InviteClassMemberBody = zod.object({
+  "email": zod.email().max(inviteClassMemberBodyEmailMax)
+})
+
+export const InviteClassMemberResponse = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "userId": zod.int(),
+  "invitedById": zod.int(),
+  "role": zod.enum(['student', 'teacher']),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().nullish(),
+  "class": zod.object({
+  "id": zod.int(),
+  "name": zod.string()
+}),
+  "inviter": zod.object({
+  "id": zod.int(),
+  "name": zod.string()
+}),
+  "invitee": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "email": zod.string()
+})
+})
+
+
+/**
+ * @summary Get the class join code (teacher only)
+ */
+export const GetClassJoinCodeParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetClassJoinCodeResponse = zod.object({
+  "joinCode": zod.string().nullable()
+})
+
+
+/**
+ * @summary Create or rotate the class join code (teacher only)
+ */
+export const CreateClassJoinCodeParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const CreateClassJoinCodeResponse = zod.object({
+  "joinCode": zod.string()
+})
+
+
+/**
+ * @summary Join a class with an 8-character join code
+ */
+export const joinClassByCodeBodyCodeRegExp = new RegExp('^[A-Fa-f0-9]{8}$');
+
+
+export const JoinClassByCodeBody = zod.object({
+  "code": zod.string().regex(joinClassByCodeBodyCodeRegExp)
+})
+
+export const JoinClassByCodeResponse = zod.object({
+  "id": zod.int(),
+  "name": zod.string()
+})
+
+
+/**
+ * @summary List the current user's pending class invitations
+ */
+export const ListMyClassInvitationsResponseItem = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "userId": zod.int(),
+  "invitedById": zod.int(),
+  "role": zod.enum(['student', 'teacher']),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.string(),
+  "respondedAt": zod.string().nullish(),
+  "class": zod.object({
+  "id": zod.int(),
+  "name": zod.string()
+}),
+  "inviter": zod.object({
+  "id": zod.int(),
+  "name": zod.string()
+}),
+  "invitee": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "email": zod.string()
+})
+})
+export const ListMyClassInvitationsResponse = zod.array(ListMyClassInvitationsResponseItem)
+
+
+/**
+ * @summary Accept or decline a pending class invitation
+ */
+export const RespondToClassInvitationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RespondToClassInvitationBody = zod.object({
+  "action": zod.enum(['accept', 'decline'])
+})
+
+export const RespondToClassInvitationResponse = zod.object({
+  "accepted": zod.boolean(),
+  "classId": zod.int()
+})
+
+
+/**
  * @summary List and search resources
  */
 export const listResourcesQueryMinRatingMax = 5;

@@ -877,6 +877,145 @@ paths:
               schema:
                 { $ref: "#/components/schemas/ClassResourceRecommendation" }
 
+  /classes/{id}/invitations:
+    get:
+      operationId: listClassInvitations
+      tags: [classes]
+      summary: List pending invitations for a class (teacher only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Pending invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClassInvitation" }
+        "403": { description: Only the class teacher can view invitations }
+    post:
+      operationId: inviteClassMember
+      tags: [classes]
+      summary: Invite an existing account to a class by email (teacher only)
+      description: >-
+        Creates a pending invitation the invitee must accept; role is derived
+        from the invitee account, any role sent in the body is ignored.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ClassInvitationInput" }
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClassInvitation" }
+        "403": { description: Only the class teacher can invite members }
+        "404": { description: No account with that email }
+        "409": { description: This user is already a class member }
+
+  /classes/{id}/join-code:
+    get:
+      operationId: getClassJoinCode
+      tags: [classes]
+      summary: Get the class join code (teacher only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Current join code, null when none has been created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClassJoinCode" }
+        "403": { description: Only the class teacher can view the join code }
+    post:
+      operationId: createClassJoinCode
+      tags: [classes]
+      summary: Create or rotate the class join code (teacher only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Newly issued join code
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClassJoinCodeIssued" }
+        "403": { description: Only the class teacher can create a join code }
+
+  /classes/join:
+    post:
+      operationId: joinClassByCode
+      tags: [classes]
+      summary: Join a class with an 8-character join code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JoinClassInput" }
+      responses:
+        "200":
+          description: Class joined
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JoinedClass" }
+        "400": { description: Code is not 8 hex characters }
+        "404": { description: Class code not found }
+
+  # ── Class invitations ─────────────────────────────────────────────────────
+  /class-invitations:
+    get:
+      operationId: listMyClassInvitations
+      tags: [classes]
+      summary: List the current user's pending class invitations
+      responses:
+        "200":
+          description: Pending invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClassInvitation" }
+
+  /class-invitations/{id}:
+    patch:
+      operationId: respondToClassInvitation
+      tags: [classes]
+      summary: Accept or decline a pending class invitation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              { $ref: "#/components/schemas/ClassInvitationResponseInput" }
+      responses:
+        "200":
+          description: Invitation resolved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClassInvitationResponse" }
+        "400": { description: Choose whether to accept or decline }
+        "404": { description: Pending invitation not found }
+
   # ── Resources ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   /resources:
     get:
@@ -3028,6 +3167,94 @@ components:
         reviewedAt: { type: ["string", "null"] }
         createdAt: { type: string }
         resource: { $ref: "#/components/schemas/Resource" }
+
+    ClassInvitation:
+      type: object
+      required:
+        [
+          id,
+          classId,
+          userId,
+          invitedById,
+          role,
+          status,
+          createdAt,
+          class,
+          inviter,
+          invitee,
+        ]
+      properties:
+        id: { type: integer }
+        classId: { type: integer }
+        userId: { type: integer }
+        invitedById: { type: integer }
+        role: { type: string, enum: [student, teacher] }
+        status: { type: string, enum: [pending, accepted, declined] }
+        createdAt: { type: string }
+        respondedAt: { type: ["string", "null"] }
+        class:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        inviter:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        invitee:
+          type: object
+          required: [id, name, email]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            email: { type: string }
+
+    ClassInvitationInput:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+
+    ClassInvitationResponseInput:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [accept, decline] }
+
+    ClassInvitationResponse:
+      type: object
+      required: [accepted, classId]
+      properties:
+        accepted: { type: boolean }
+        classId: { type: integer }
+
+    ClassJoinCode:
+      type: object
+      required: [joinCode]
+      properties:
+        joinCode: { type: ["string", "null"] }
+
+    ClassJoinCodeIssued:
+      type: object
+      required: [joinCode]
+      properties:
+        joinCode: { type: string }
+
+    JoinClassInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, pattern: "^[A-Fa-f0-9]{8}$" }
+
+    JoinedClass:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
 
     # ── Schedule ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     ScheduleBlock:

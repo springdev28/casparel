@@ -19,6 +19,7 @@ import {
 } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { ErrorState } from '@/components/ErrorState';
 import type { ActivityItem } from '@workspace/api-client-react';
 
 function StatCard({
@@ -26,11 +27,15 @@ function StatCard({
   value,
   icon,
   color,
+  isLoading,
+  isFailed,
 }: {
   label: string;
   value: number | undefined;
   icon: string;
   color: string;
+  isLoading: boolean;
+  isFailed: boolean;
 }) {
   const colors = useColors();
   return (
@@ -47,8 +52,27 @@ function StatCard({
       <View style={[styles.statIcon, { backgroundColor: color + '1A', borderRadius: colors.radius - 2 }]}>
         <Feather name={icon as never} size={20} color={color} />
       </View>
-      {value === undefined ? (
+      {isLoading ? (
         <Skeleton width={40} height={28} style={{ marginTop: 8 }} />
+      ) : isFailed ? (
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}
+        >
+          <Feather name="alert-circle" size={16} color={colors.destructiveText} />
+          <Text
+            style={[
+              styles.statValue,
+              {
+                fontSize: 20,
+                letterSpacing: 0,
+                color: colors.destructiveText,
+                fontFamily: colors.fontFamily.sansBold,
+              },
+            ]}
+          >
+            —
+          </Text>
+        </View>
       ) : (
         <Text
           style={[
@@ -56,7 +80,7 @@ function StatCard({
             { color: colors.foreground, fontFamily: colors.fontFamily.sansBold },
           ]}
         >
-          {value}
+          {value ?? 0}
         </Text>
       )}
       <Text
@@ -129,8 +153,28 @@ export default function DashboardScreen() {
   const { user: authUser } = useAuth();
 
   const { data: me } = useGetMe();
-  const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useGetDashboardSummary();
-  const { data: activity, isLoading: activityLoading, refetch: refetchActivity } = useGetRecentActivity();
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError: summaryIsError,
+    error: summaryError,
+    isFetching: summaryFetching,
+    refetch: refetchSummary,
+  } = useGetDashboardSummary();
+  const {
+    data: activity,
+    isLoading: activityLoading,
+    isError: activityIsError,
+    error: activityError,
+    isFetching: activityFetching,
+    refetch: refetchActivity,
+  } = useGetRecentActivity();
+
+  // A query that failed with nothing cached must not keep rendering skeletons
+  // (stats) or an "empty" state (activity) — both read as "you have no data"
+  // rather than "we could not load your data".
+  const summaryFailed = summaryIsError && summary === undefined;
+  const activityFailed = activityIsError && activity === undefined;
 
   const displayUser = me ?? authUser;
   const isTeacher = displayUser?.role === 'teacher';
@@ -184,30 +228,49 @@ export default function DashboardScreen() {
       </View>
 
       {/* Stat Cards */}
+      {summaryFailed ? (
+        <ErrorState
+          variant="banner"
+          error={summaryError}
+          retrying={summaryFetching}
+          onRetry={() => {
+            void refetchSummary();
+          }}
+          style={{ marginVertical: 8 }}
+        />
+      ) : null}
       <View style={styles.statsGrid}>
         <StatCard
           label="Classes"
           value={summary?.classCount}
           icon="users"
           color={colors.primary}
+          isLoading={summaryLoading}
+          isFailed={summaryFailed}
         />
         <StatCard
           label="Resources"
           value={summary?.resourceCount}
           icon="book-open"
           color={colors.accent}
+          isLoading={summaryLoading}
+          isFailed={summaryFailed}
         />
         <StatCard
           label="Schedule"
           value={summary?.scheduleBlockCount}
           icon="calendar"
           color={colors.chart3}
+          isLoading={summaryLoading}
+          isFailed={summaryFailed}
         />
         <StatCard
           label={isTeacher ? 'Students' : 'Reviews'}
           value={isTeacher ? summary?.studentCount : summary?.reviewCount}
           icon={isTeacher ? 'user-check' : 'star'}
           color={colors.chart4}
+          isLoading={summaryLoading}
+          isFailed={summaryFailed}
         />
       </View>
 
@@ -228,6 +291,14 @@ export default function DashboardScreen() {
               <Skeleton key={i} width="100%" height={52} style={{ marginBottom: 2 }} />
             ))}
           </View>
+        ) : activityFailed ? (
+          <ErrorState
+            error={activityError}
+            retrying={activityFetching}
+            onRetry={() => {
+              void refetchActivity();
+            }}
+          />
         ) : !activity?.length ? (
           <Empty
             icon="activity"

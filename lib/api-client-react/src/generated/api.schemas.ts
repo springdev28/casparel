@@ -1284,6 +1284,95 @@ export interface ClassResourceRecommendation {
   resource: Resource;
 }
 
+export type ClassInvitationRole = typeof ClassInvitationRole[keyof typeof ClassInvitationRole];
+
+
+export const ClassInvitationRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;
+
+export type ClassInvitationStatus = typeof ClassInvitationStatus[keyof typeof ClassInvitationStatus];
+
+
+export const ClassInvitationStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export type ClassInvitationClass = {
+  id: number;
+  name: string;
+};
+
+export type ClassInvitationInviter = {
+  id: number;
+  name: string;
+};
+
+export type ClassInvitationInvitee = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+export interface ClassInvitation {
+  id: number;
+  classId: number;
+  userId: number;
+  invitedById: number;
+  role: ClassInvitationRole;
+  status: ClassInvitationStatus;
+  createdAt: string;
+  /** @nullable */
+  respondedAt?: string | null;
+  class: ClassInvitationClass;
+  inviter: ClassInvitationInviter;
+  invitee: ClassInvitationInvitee;
+}
+
+export interface ClassInvitationInput {
+  /** @maxLength 320 */
+  email: string;
+}
+
+export type ClassInvitationResponseInputAction = typeof ClassInvitationResponseInputAction[keyof typeof ClassInvitationResponseInputAction];
+
+
+export const ClassInvitationResponseInputAction = {
+  accept: 'accept',
+  decline: 'decline',
+} as const;
+
+export interface ClassInvitationResponseInput {
+  action: ClassInvitationResponseInputAction;
+}
+
+export interface ClassInvitationResponse {
+  accepted: boolean;
+  classId: number;
+}
+
+export interface ClassJoinCode {
+  /** @nullable */
+  joinCode: string | null;
+}
+
+export interface ClassJoinCodeIssued {
+  joinCode: string;
+}
+
+export interface JoinClassInput {
+  /** @pattern ^[A-Fa-f0-9]{8}$ */
+  code: string;
+}
+
+export interface JoinedClass {
+  id: number;
+  name: string;
+}
+
 export interface ScheduleBlock {
   id: number;
   userId: number;

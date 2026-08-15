@@ -15,6 +15,7 @@ import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { useListClasses } from '@workspace/api-client-react';
+import { ErrorState } from '@/components/ErrorState';
 import { Feather } from '@expo/vector-icons';
 import type { Class } from '@workspace/api-client-react';
 
@@ -112,7 +113,11 @@ export default function ClassesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const { data, isLoading, refetch } = useListClasses();
+  const { data, isLoading, isError, error, isFetching, refetch } = useListClasses();
+
+  // Request failed and nothing is cached: say so instead of rendering
+  // "No classes yet", which reads as "your account is empty".
+  const failed = isError && data === undefined;
 
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = async () => {
@@ -153,6 +158,15 @@ export default function ClassesScreen() {
           renderItem={() => <ClassSkeleton />}
           contentContainerStyle={styles.listContent}
           scrollEnabled={false}
+        />
+      ) : failed ? (
+        <ErrorState
+          error={error}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetch();
+          }}
+          style={{ paddingTop: 24 }}
         />
       ) : (
         <FlatList
