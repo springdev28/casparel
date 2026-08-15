@@ -798,36 +798,6 @@ export const ListClassMembersResponse = zod.array(ListClassMembersResponseItem)
 
 
 /**
- * @summary Add a member to a class
- */
-export const AddClassMemberParams = zod.object({
-  "id": zod.coerce.number().int()
-})
-
-export const AddClassMemberBody = zod.object({
-  "email": zod.string(),
-  "role": zod.enum(['student', 'teacher']).optional()
-})
-
-export const AddClassMemberResponse = zod.object({
-  "userId": zod.int(),
-  "classId": zod.int(),
-  "role": zod.enum(['student', 'teacher']),
-  "joinedAt": zod.string(),
-  "user": zod.object({
-  "id": zod.int(),
-  "name": zod.string(),
-  "role": zod.enum(['student', 'teacher', 'admin']),
-  "websiteUrl": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish(),
-  "bio": zod.string().nullish(),
-  "subjects": zod.array(zod.string()).nullish(),
-  "gradeOrDept": zod.string().nullish()
-})
-})
-
-
-/**
  * @summary Bulk-add students to a class by email (teacher only)
  */
 export const BulkInviteClassMembersParams = zod.object({

@@ -500,29 +500,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ClassMember"
-    post:
-      operationId: addClassMember
-      tags: [classes]
-      summary: Add a member to a class
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClassMemberInput"
-      responses:
-        "201":
-          description: Added
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ClassMember"
 
   /classes/{id}/members/bulk-invite:
     post:

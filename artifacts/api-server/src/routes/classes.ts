@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod/v4";
 import { eq, sql, and, max, asc, desc } from "drizzle-orm";
 import { db, classesTable, classMembersTable, classInvitationsTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable } from "@workspace/db";
 import { publicResourceColumns } from "../lib/resourceColumns";
@@ -14,10 +15,7 @@ import {
   DeleteClassParams,
   ListClassMembersParams,
   ListClassMembersResponse,
-  AddClassMemberParams,
-  AddClassMemberBody,
-  AddClassMemberResponse,
-  RemoveClassMemberParams,
+RemoveClassMemberParams,
   BulkInviteClassMembersParams,
   BulkInviteClassMembersBody,
   BulkInviteClassMembersResponse,
@@ -70,6 +68,20 @@ async function getOrCreateClassList(classId: number, ownerId: number) {
     .returning();
   return created;
 }
+
+/**
+ * Body for inviting someone to a class: just their email.
+ *
+ * Defined here rather than imported from @workspace/api-zod because the schema
+ * it used to borrow (AddClassMemberBody) belonged to POST /classes/:id/members,
+ * the consent-free force-add route that was removed. The invitation routes are
+ * not in lib/api-spec yet - the web app reaches them through a hand-rolled
+ * fetch helper - so there is no generated schema to use, and validating the
+ * body locally is better than leaving it unvalidated.
+ */
+const InviteClassMemberBody = z.object({
+  email: z.email().max(320),
+});
 
 const router: IRouter = Router();
 
@@ -432,7 +444,7 @@ router.post(
       res.status(403).json({ error: "Only the class teacher can invite members" });
       return;
     }
-    const parsed = AddClassMemberBody.safeParse(req.body);
+    const parsed = InviteClassMemberBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
@@ -487,51 +499,22 @@ router.post(
   },
 );
 
-// POST /classes/:id/members, class teacher only
-// The membership role always mirrors the target user's account role to avoid contradictions.
-router.post("/classes/:id/members", contentLimiter, requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
-  const params = AddClassMemberParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-  if (!(await isClassTeacher(params.data.id, userId))) {
-    res.status(403).json({ error: "Only the class teacher can add members" });
-    return;
-  }
-  const parsed = AddClassMemberBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-  const [user] = await db
-    .select()
-    .from(usersTable)
-    .where(eq(usersTable.email, parsed.data.email));
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  // Use the user's account role as their membership role, prevents assigning
-  // "teacher" role in the class to a student account (or vice versa).
-  const membershipRole = user.role === "admin" ? "student" : user.role;
-  await db
-    .insert(classMembersTable)
-    .values({ userId: user.id, classId: params.data.id, role: membershipRole })
-    .onConflictDoNothing();
-  const [member] = await db
-    .select()
-    .from(classMembersTable)
-    .where(
-      and(
-        eq(classMembersTable.userId, user.id),
-        eq(classMembersTable.classId, params.data.id),
-      ),
-    );
-  await db.insert(activityLogTable).values({ userId: user.id, type: "class", workspaceRole: membershipRole, message: "You were added to a class." });
-  res.status(201).json(AddClassMemberResponse.parse({ ...member, user }));
-});
+// POST /classes/:id/members was REMOVED, and is deliberately not replaced.
+//
+// It looked up any account by email and inserted a class membership directly,
+// with no consent from that person. Combined with PATCH /users/me/role, which
+// lets any account act as a teacher, that meant a stranger could create a
+// class and pull arbitrary users into it. Membership is not cosmetic: the
+// default profileVisibility and libraryVisibility are "classmates", so being
+// added to someone's class exposes profile and library contents to them, and
+// sharesClass() is a bare class_members lookup that grants that access.
+//
+// POST /classes/:id/invitations below takes the same body and the same
+// teacher check, but creates a PENDING invitation the invitee must accept, so
+// nothing is lost by removing this. Nothing called it: there was no reference
+// in the web app or the mobile app, only a generated hook nobody imported.
+// The operation is gone from lib/api-spec/openapi.yaml too, so the generated
+// clients no longer advertise a route that does not exist.
 
 // POST /classes/:id/members/bulk-invite, class teacher only
 // Adds multiple students by email. Students with matching EduHub accounts are

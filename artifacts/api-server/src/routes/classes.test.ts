@@ -9,7 +9,7 @@
  * Covered routes:
  *  • PATCH  /api/classes/:id              , teacher-only update
  *  • DELETE /api/classes/:id              , teacher-only delete
- *  • POST   /api/classes/:id/members      , teacher-only invite
+ *  • POST   /api/classes/:id/invitations  , teacher-only, consented invite
  *  • DELETE /api/classes/:id/members/:uid , teacher-only removal
  */
 
@@ -348,38 +348,31 @@ describe("DELETE /api/classes/:id, teacher-only", () => {
 // POST /api/classes/:id/members
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("POST /api/classes/:id/members, teacher-only", () => {
-  it("returns 201 when caller is teacher and owns the class", async () => {
-    vi.mocked(db.select)
-      .mockImplementationOnce(() => {
-        // isClassTeacher: usersTable role check (actor)
-        const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "teacher" }]) };
-        return chain as unknown as ReturnType<typeof db.select>;
-      })
-      .mockImplementationOnce(() => {
-        // isClassTeacher: classesTable ownership
-        const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([CLASS_ROW]) };
-        return chain as unknown as ReturnType<typeof db.select>;
-      })
-      .mockImplementationOnce(() => {
-        // lookup invited user by email
-        const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([INVITED_USER_ROW]) };
-        return chain as unknown as ReturnType<typeof db.select>;
-      })
-      .mockImplementationOnce(() => {
-        // final select of newly inserted member row
-        const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([MEMBER_ROW]) };
-        return chain as unknown as ReturnType<typeof db.select>;
-      });
-
+describe("POST /api/classes/:id/members is gone, invites need consent", () => {
+  it("no longer exists: a member cannot be added without their consent", async () => {
+    // The route looked up any account by email and inserted a class membership
+    // outright. Membership is not cosmetic - the default profile and library
+    // visibility is "classmates" - and any account can act as a teacher, so a
+    // stranger could pull arbitrary users into a class and see their content.
+    // POST /classes/:id/invitations replaces it with a pending invitation the
+    // invitee must accept. If someone reinstates the force-add, this fails.
     const res = await request(buildApp())
       .post(`/api/classes/${CLASS_ID}/members`)
       .set("Authorization", tokenFor("teacher"))
-      .send({ email: "member@example.com", role: "student" });
+      .send({ email: "victim@example.com", role: "student" });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(404);
   });
+});
 
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/classes/:id/invitations
+// ══════════════════════════════════════════════════════════════════════════════
+
+// These two guard isClassTeacher rather than any one route: the check must read
+// the live database role, not the role baked into the token. They used to run
+// against the force-add route; the invitation route carries the same guard.
+describe("POST /api/classes/:id/invitations, teacher-only", () => {
   it("returns 403 after role downgrade (fresh student token)", async () => {
     vi.mocked(db.select).mockImplementationOnce(() => {
       const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student" }]) };
@@ -387,9 +380,9 @@ describe("POST /api/classes/:id/members, teacher-only", () => {
     });
 
     const res = await request(buildApp())
-      .post(`/api/classes/${CLASS_ID}/members`)
+      .post(`/api/classes/${CLASS_ID}/invitations`)
       .set("Authorization", tokenFor("student"))
-      .send({ email: "member@example.com", role: "student" });
+      .send({ email: "member@example.com" });
 
     expect(res.status).toBe(403);
   });
@@ -401,9 +394,9 @@ describe("POST /api/classes/:id/members, teacher-only", () => {
     });
 
     const res = await request(buildApp())
-      .post(`/api/classes/${CLASS_ID}/members`)
+      .post(`/api/classes/${CLASS_ID}/invitations`)
       .set("Authorization", tokenFor("teacher"))   // stale teacher JWT
-      .send({ email: "member@example.com", role: "student" });
+      .send({ email: "member@example.com" });
 
     expect(res.status).toBe(403);
   });
@@ -498,13 +491,13 @@ describe("isClassTeacher active-role downgrade, role=teacher, activeRole=student
     expect(res.status).toBe(403);
   });
 
-  it("POST /classes/:id/members returns 403 when teacher is in student mode", async () => {
+  it("POST /classes/:id/invitations returns 403 when teacher is in student mode", async () => {
     vi.mocked(db.select).mockImplementationOnce(() => stubbedTeacherInStudentMode());
 
     const res = await request(buildApp())
-      .post(`/api/classes/${CLASS_ID}/members`)
+      .post(`/api/classes/${CLASS_ID}/invitations`)
       .set("Authorization", tokenFor("teacher"))
-      .send({ email: "member@example.com", role: "student" });
+      .send({ email: "member@example.com" });
 
     expect(res.status).toBe(403);
   });

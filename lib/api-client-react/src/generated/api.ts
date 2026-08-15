@@ -34,7 +34,6 @@ import type {
   Class,
   ClassInput,
   ClassMember,
-  ClassMemberInput,
   ClassPatch,
   ClassResourceRecommendation,
   ClassResourceRecommendationInput,
@@ -2121,78 +2120,6 @@ export function useListClassMembers<TData = Awaited<ReturnType<typeof listClassM
 
 
 
-
-export const getAddClassMemberUrl = (id: number,) => {
-
-
-
-
-  return `/api/classes/${id}/members`
-}
-
-/**
- * @summary Add a member to a class
- */
-export const addClassMember = async (id: number,
-    classMemberInput: ClassMemberInput, options?: Parameters<typeof customFetch>[1]): Promise<ClassMember> => {
-
-  return customFetch<ClassMember>(getAddClassMemberUrl(id),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(classMemberInput)
-  }
-);}
-
-
-
-
-
-export const getAddClassMemberMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addClassMember>>, TError,{id: number;data: BodyType<ClassMemberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof addClassMember>>, TError,{id: number;data: BodyType<ClassMemberInput>}, TContext> => {
-
-const mutationKey = ['addClassMember'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addClassMember>>, {id: number;data: BodyType<ClassMemberInput>}> = (props) => {
-          const {id,data} = props ?? {};
-
-          return  addClassMember(id,data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type AddClassMemberMutationResult = NonNullable<Awaited<ReturnType<typeof addClassMember>>>
-    export type AddClassMemberMutationBody = BodyType<ClassMemberInput>
-    export type AddClassMemberMutationError = ErrorType<unknown>
-
-    /**
- * @summary Add a member to a class
- */
-export const useAddClassMember = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addClassMember>>, TError,{id: number;data: BodyType<ClassMemberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof addClassMember>>,
-        TError,
-        {id: number;data: BodyType<ClassMemberInput>},
-        TContext
-      > => {
-      return useMutation(getAddClassMemberMutationOptions(options));
-    }
 
 export const getBulkInviteClassMembersUrl = (id: number,) => {
 
