@@ -548,6 +548,92 @@ describe("isClassTeacher administrator workspace switching", () => {
   });
 });
 
+describe("PUT /api/classes/:id/students/:userId/role, custom class roles", () => {
+  beforeEach(() => {
+    mockActorRole = "teacher";
+    vi.clearAllMocks();
+    vi.mocked(db.select).mockImplementation(makeSelectChain as unknown as () => ReturnType<typeof db.select>);
+  });
+
+  function mockRoleUpdate(returned: Record<string, unknown> | null) {
+    vi.mocked(db.update).mockImplementation(() => ({
+      set: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockResolvedValue(returned ? [returned] : []),
+    }) as unknown as ReturnType<typeof db.update>);
+    // The route reads users twice: the actor's live role first, then the
+    // student's public fields for the response. The shared chain returns the
+    // teacher row for every users query, which fails response validation.
+    let userReads = 0;
+    vi.mocked(db.select).mockImplementation((() => {
+      let tableName = "";
+      const chain: Record<string, unknown> = {
+        from: vi.fn().mockImplementation((table: { _name: string }) => { tableName = table._name; return chain; }),
+        where: vi.fn().mockImplementation(() => {
+          if (tableName === "users") {
+            userReads += 1;
+            return Promise.resolve(userReads === 1
+              ? [{ id: TEACHER_ID, role: mockActorRole }]
+              : [{ userId: MEMBER_ID, name: "Member", avatarUrl: null, gradeOrDept: null }]);
+          }
+          if (tableName === "classes") return Promise.resolve([CLASS_ROW]);
+          return Promise.resolve([]);
+        }),
+        innerJoin: vi.fn().mockReturnThis(),
+      };
+      return chain;
+    }) as unknown as typeof db.select);
+  }
+
+  it("lets the teacher assign a role and echoes it back", async () => {
+    mockRoleUpdate({ customRole: "Group Leader", seatRow: null, seatColumn: null });
+    const res = await request(buildApp())
+      .put(`/api/classes/${CLASS_ID}/students/${MEMBER_ID}/role`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ role: "Group Leader" });
+    expect(res.status).toBe(200);
+    expect(res.body.customRole).toBe("Group Leader");
+  });
+
+  it("removes the role when null is sent", async () => {
+    mockRoleUpdate({ customRole: null, seatRow: null, seatColumn: null });
+    const res = await request(buildApp())
+      .put(`/api/classes/${CLASS_ID}/students/${MEMBER_ID}/role`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ role: null });
+    expect(res.status).toBe(200);
+    expect(res.body.customRole).toBeNull();
+  });
+
+  it("refuses a teacher whose live role has been downgraded", async () => {
+    mockActorRole = "student";
+    const res = await request(buildApp())
+      .put(`/api/classes/${CLASS_ID}/students/${MEMBER_ID}/role`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ role: "Group Leader" });
+    expect(res.status).toBe(403);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("404s when the target is not a student in this class", async () => {
+    mockRoleUpdate(null);
+    const res = await request(buildApp())
+      .put(`/api/classes/${CLASS_ID}/students/424242/role`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ role: "Group Leader" });
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects a role longer than sixty characters", async () => {
+    const res = await request(buildApp())
+      .put(`/api/classes/${CLASS_ID}/students/${MEMBER_ID}/role`)
+      .set("Authorization", tokenFor("teacher"))
+      .send({ role: "x".repeat(61) });
+    expect(res.status).toBe(400);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/classes, plan capacity gate", () => {
   /**
    * Drive the two reads the capacity check makes: the acting account's plan,

@@ -666,6 +666,40 @@ paths:
               schema:
                 $ref: "#/components/schemas/SeatingStudent"
 
+  /classes/{id}/students/{userId}/role:
+    put:
+      operationId: updateStudentRole
+      tags: [classes]
+      summary: Assign, edit or remove a custom class role for a student (teacher only)
+      description: >-
+        Custom roles are short labels like "Group Leader" chosen by the
+        teacher. Unlike private notes they are visible to the whole class.
+        Sending null removes the role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudentRoleInput"
+      responses:
+        "200":
+          description: Updated student record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeatingStudent"
+        "403": { description: Only the class teacher can manage roles }
+        "404": { description: Student not found in class }
+
   /classes/{id}/seating-plan/suggest:
     post:
       operationId: suggestSeatingPlan
@@ -2720,6 +2754,7 @@ components:
         userId: { type: integer }
         classId: { type: integer }
         role: { type: string, enum: [student, teacher] }
+        customRole: { type: ["string", "null"], maxLength: 60 }
         joinedAt: { type: string }
         user: { $ref: "#/components/schemas/PublicUser" }
 
@@ -2728,17 +2763,25 @@ components:
       required: [id, shape, x, y, width, height, rotation, capacity, label]
       properties:
         id: { type: string, minLength: 1, maxLength: 80 }
+        kind:
+          description: >-
+            What this element is. Tables (desk) and chairs seat students;
+            podium, board and text are room furniture and carry no seats.
+            Absent means desk, which keeps every stored layout valid.
+          type: string
+          enum: [desk, chair, podium, board, text]
         shape:
           { type: string, enum: [rectangle, polygon, round, oval, trapezoid] }
         angle: { type: number, minimum: 25, maximum: 85 }
         sides: { type: integer, minimum: 3, maximum: 12 }
         x: { type: number, minimum: 0, maximum: 100 }
         y: { type: number, minimum: 0, maximum: 100 }
-        width: { type: number, minimum: 8, maximum: 60 }
-        height: { type: number, minimum: 8, maximum: 60 }
+        width: { type: number, minimum: 4, maximum: 60 }
+        height: { type: number, minimum: 4, maximum: 60 }
         rotation: { type: number, minimum: -180, maximum: 180 }
-        capacity: { type: integer, minimum: 1, maximum: 8 }
+        capacity: { type: integer, minimum: 0, maximum: 8 }
         label: { type: string, maxLength: 80 }
+        text: { type: ["string", "null"], maxLength: 300 }
 
     SeatingStudent:
       type: object
@@ -2749,6 +2792,7 @@ components:
         avatarUrl: { type: ["string", "null"] }
         gradeOrDept: { type: ["string", "null"] }
         teacherNote: { type: ["string", "null"] }
+        customRole: { type: ["string", "null"], maxLength: 60 }
         seatRow: { type: ["integer", "null"] }
         seatColumn: { type: ["integer", "null"] }
         seatDeskId: { type: ["string", "null"] }
@@ -2835,6 +2879,12 @@ components:
       required: [note]
       properties:
         note: { type: ["string", "null"], maxLength: 2000 }
+
+    StudentRoleInput:
+      type: object
+      required: [role]
+      properties:
+        role: { type: ["string", "null"], maxLength: 60 }
 
     ClassMemberInput:
       type: object

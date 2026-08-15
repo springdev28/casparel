@@ -23,6 +23,8 @@ export const classesTable = pgTable("classes", {
     jsonb("seating_layout").$type<
       Array<{
         id: string;
+        /** Absent means desk; podium/board/text are seatless room furniture. */
+        kind?: "desk" | "chair" | "podium" | "board" | "text";
         shape: "rectangle" | "polygon" | "round" | "oval" | "trapezoid";
         angle?: number;
         sides?: number;
@@ -33,6 +35,8 @@ export const classesTable = pgTable("classes", {
         rotation: number;
         capacity: number;
         label: string;
+        /** Annotation content for text elements. */
+        text?: string | null;
       }>
     >(),
   teacherId: integer("teacher_id")

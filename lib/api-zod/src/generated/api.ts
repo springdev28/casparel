@@ -724,6 +724,10 @@ export const GetClassParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const getClassResponseMembersItemCustomRoleMax = 60;
+
+
+
 export const GetClassResponse = zod.object({
   "id": zod.int(),
   "name": zod.string(),
@@ -739,6 +743,7 @@ export const GetClassResponse = zod.object({
   "userId": zod.int(),
   "classId": zod.int(),
   "role": zod.enum(['student', 'teacher']),
+  "customRole": zod.string().max(getClassResponseMembersItemCustomRoleMax).nullish(),
   "joinedAt": zod.string(),
   "user": zod.object({
   "id": zod.int(),
@@ -812,10 +817,15 @@ export const ListClassMembersParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const listClassMembersResponseCustomRoleMax = 60;
+
+
+
 export const ListClassMembersResponseItem = zod.object({
   "userId": zod.int(),
   "classId": zod.int(),
   "role": zod.enum(['student', 'teacher']),
+  "customRole": zod.string().max(listClassMembersResponseCustomRoleMax).nullish(),
   "joinedAt": zod.string(),
   "user": zod.object({
   "id": zod.int(),
@@ -888,18 +898,23 @@ export const getSeatingChartResponseDesksItemXMax = 100;
 export const getSeatingChartResponseDesksItemYMin = 0;
 export const getSeatingChartResponseDesksItemYMax = 100;
 
-export const getSeatingChartResponseDesksItemWidthMin = 8;
+export const getSeatingChartResponseDesksItemWidthMin = 4;
 export const getSeatingChartResponseDesksItemWidthMax = 60;
 
-export const getSeatingChartResponseDesksItemHeightMin = 8;
+export const getSeatingChartResponseDesksItemHeightMin = 4;
 export const getSeatingChartResponseDesksItemHeightMax = 60;
 
 export const getSeatingChartResponseDesksItemRotationMin = -180;
 export const getSeatingChartResponseDesksItemRotationMax = 180;
 
+export const getSeatingChartResponseDesksItemCapacityMin = 0;
 export const getSeatingChartResponseDesksItemCapacityMax = 8;
 
 export const getSeatingChartResponseDesksItemLabelMax = 80;
+
+export const getSeatingChartResponseDesksItemTextMax = 300;
+
+export const getSeatingChartResponseStudentsItemCustomRoleMax = 60;
 
 
 
@@ -910,6 +925,7 @@ export const GetSeatingChartResponse = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(getSeatingChartResponseDesksItemIdMax),
+  "kind": zod.enum(['desk', 'chair', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
   "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
   "angle": zod.number().min(getSeatingChartResponseDesksItemAngleMin).max(getSeatingChartResponseDesksItemAngleMax).optional(),
   "sides": zod.int().min(getSeatingChartResponseDesksItemSidesMin).max(getSeatingChartResponseDesksItemSidesMax).optional(),
@@ -918,8 +934,9 @@ export const GetSeatingChartResponse = zod.object({
   "width": zod.number().min(getSeatingChartResponseDesksItemWidthMin).max(getSeatingChartResponseDesksItemWidthMax),
   "height": zod.number().min(getSeatingChartResponseDesksItemHeightMin).max(getSeatingChartResponseDesksItemHeightMax),
   "rotation": zod.number().min(getSeatingChartResponseDesksItemRotationMin).max(getSeatingChartResponseDesksItemRotationMax),
-  "capacity": zod.int().min(1).max(getSeatingChartResponseDesksItemCapacityMax),
-  "label": zod.string().max(getSeatingChartResponseDesksItemLabelMax)
+  "capacity": zod.int().min(getSeatingChartResponseDesksItemCapacityMin).max(getSeatingChartResponseDesksItemCapacityMax),
+  "label": zod.string().max(getSeatingChartResponseDesksItemLabelMax),
+  "text": zod.string().max(getSeatingChartResponseDesksItemTextMax).nullish()
 })),
   "students": zod.array(zod.object({
   "userId": zod.int(),
@@ -927,6 +944,7 @@ export const GetSeatingChartResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "gradeOrDept": zod.string().nullish(),
   "teacherNote": zod.string().nullish(),
+  "customRole": zod.string().max(getSeatingChartResponseStudentsItemCustomRoleMax).nullish(),
   "seatRow": zod.int().nullish(),
   "seatColumn": zod.int().nullish(),
   "seatDeskId": zod.string().nullish(),
@@ -960,18 +978,21 @@ export const updateSeatingChartBodyDesksItemXMax = 100;
 export const updateSeatingChartBodyDesksItemYMin = 0;
 export const updateSeatingChartBodyDesksItemYMax = 100;
 
-export const updateSeatingChartBodyDesksItemWidthMin = 8;
+export const updateSeatingChartBodyDesksItemWidthMin = 4;
 export const updateSeatingChartBodyDesksItemWidthMax = 60;
 
-export const updateSeatingChartBodyDesksItemHeightMin = 8;
+export const updateSeatingChartBodyDesksItemHeightMin = 4;
 export const updateSeatingChartBodyDesksItemHeightMax = 60;
 
 export const updateSeatingChartBodyDesksItemRotationMin = -180;
 export const updateSeatingChartBodyDesksItemRotationMax = 180;
 
+export const updateSeatingChartBodyDesksItemCapacityMin = 0;
 export const updateSeatingChartBodyDesksItemCapacityMax = 8;
 
 export const updateSeatingChartBodyDesksItemLabelMax = 80;
+
+export const updateSeatingChartBodyDesksItemTextMax = 300;
 
 export const updateSeatingChartBodyDesksMax = 50;
 
@@ -985,6 +1006,7 @@ export const UpdateSeatingChartBody = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(updateSeatingChartBodyDesksItemIdMax),
+  "kind": zod.enum(['desk', 'chair', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
   "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
   "angle": zod.number().min(updateSeatingChartBodyDesksItemAngleMin).max(updateSeatingChartBodyDesksItemAngleMax).optional(),
   "sides": zod.int().min(updateSeatingChartBodyDesksItemSidesMin).max(updateSeatingChartBodyDesksItemSidesMax).optional(),
@@ -993,8 +1015,9 @@ export const UpdateSeatingChartBody = zod.object({
   "width": zod.number().min(updateSeatingChartBodyDesksItemWidthMin).max(updateSeatingChartBodyDesksItemWidthMax),
   "height": zod.number().min(updateSeatingChartBodyDesksItemHeightMin).max(updateSeatingChartBodyDesksItemHeightMax),
   "rotation": zod.number().min(updateSeatingChartBodyDesksItemRotationMin).max(updateSeatingChartBodyDesksItemRotationMax),
-  "capacity": zod.int().min(1).max(updateSeatingChartBodyDesksItemCapacityMax),
-  "label": zod.string().max(updateSeatingChartBodyDesksItemLabelMax)
+  "capacity": zod.int().min(updateSeatingChartBodyDesksItemCapacityMin).max(updateSeatingChartBodyDesksItemCapacityMax),
+  "label": zod.string().max(updateSeatingChartBodyDesksItemLabelMax),
+  "text": zod.string().max(updateSeatingChartBodyDesksItemTextMax).nullish()
 })).max(updateSeatingChartBodyDesksMax),
   "assignments": zod.array(zod.object({
   "userId": zod.int(),
@@ -1019,18 +1042,23 @@ export const updateSeatingChartResponseDesksItemXMax = 100;
 export const updateSeatingChartResponseDesksItemYMin = 0;
 export const updateSeatingChartResponseDesksItemYMax = 100;
 
-export const updateSeatingChartResponseDesksItemWidthMin = 8;
+export const updateSeatingChartResponseDesksItemWidthMin = 4;
 export const updateSeatingChartResponseDesksItemWidthMax = 60;
 
-export const updateSeatingChartResponseDesksItemHeightMin = 8;
+export const updateSeatingChartResponseDesksItemHeightMin = 4;
 export const updateSeatingChartResponseDesksItemHeightMax = 60;
 
 export const updateSeatingChartResponseDesksItemRotationMin = -180;
 export const updateSeatingChartResponseDesksItemRotationMax = 180;
 
+export const updateSeatingChartResponseDesksItemCapacityMin = 0;
 export const updateSeatingChartResponseDesksItemCapacityMax = 8;
 
 export const updateSeatingChartResponseDesksItemLabelMax = 80;
+
+export const updateSeatingChartResponseDesksItemTextMax = 300;
+
+export const updateSeatingChartResponseStudentsItemCustomRoleMax = 60;
 
 
 
@@ -1041,6 +1069,7 @@ export const UpdateSeatingChartResponse = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(updateSeatingChartResponseDesksItemIdMax),
+  "kind": zod.enum(['desk', 'chair', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
   "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
   "angle": zod.number().min(updateSeatingChartResponseDesksItemAngleMin).max(updateSeatingChartResponseDesksItemAngleMax).optional(),
   "sides": zod.int().min(updateSeatingChartResponseDesksItemSidesMin).max(updateSeatingChartResponseDesksItemSidesMax).optional(),
@@ -1049,8 +1078,9 @@ export const UpdateSeatingChartResponse = zod.object({
   "width": zod.number().min(updateSeatingChartResponseDesksItemWidthMin).max(updateSeatingChartResponseDesksItemWidthMax),
   "height": zod.number().min(updateSeatingChartResponseDesksItemHeightMin).max(updateSeatingChartResponseDesksItemHeightMax),
   "rotation": zod.number().min(updateSeatingChartResponseDesksItemRotationMin).max(updateSeatingChartResponseDesksItemRotationMax),
-  "capacity": zod.int().min(1).max(updateSeatingChartResponseDesksItemCapacityMax),
-  "label": zod.string().max(updateSeatingChartResponseDesksItemLabelMax)
+  "capacity": zod.int().min(updateSeatingChartResponseDesksItemCapacityMin).max(updateSeatingChartResponseDesksItemCapacityMax),
+  "label": zod.string().max(updateSeatingChartResponseDesksItemLabelMax),
+  "text": zod.string().max(updateSeatingChartResponseDesksItemTextMax).nullish()
 })),
   "students": zod.array(zod.object({
   "userId": zod.int(),
@@ -1058,6 +1088,7 @@ export const UpdateSeatingChartResponse = zod.object({
   "avatarUrl": zod.string().nullish(),
   "gradeOrDept": zod.string().nullish(),
   "teacherNote": zod.string().nullish(),
+  "customRole": zod.string().max(updateSeatingChartResponseStudentsItemCustomRoleMax).nullish(),
   "seatRow": zod.int().nullish(),
   "seatColumn": zod.int().nullish(),
   "seatDeskId": zod.string().nullish(),
@@ -1103,12 +1134,52 @@ export const UpdateStudentNoteBody = zod.object({
   "note": zod.string().max(updateStudentNoteBodyNoteMax).nullable()
 })
 
+export const updateStudentNoteResponseCustomRoleMax = 60;
+
+
+
 export const UpdateStudentNoteResponse = zod.object({
   "userId": zod.int(),
   "name": zod.string(),
   "avatarUrl": zod.string().nullish(),
   "gradeOrDept": zod.string().nullish(),
   "teacherNote": zod.string().nullish(),
+  "customRole": zod.string().max(updateStudentNoteResponseCustomRoleMax).nullish(),
+  "seatRow": zod.int().nullish(),
+  "seatColumn": zod.int().nullish(),
+  "seatDeskId": zod.string().nullish(),
+  "seatPosition": zod.int().nullish()
+})
+
+
+/**
+ * Custom roles are short labels like "Group Leader" chosen by the teacher. Unlike private notes they are visible to the whole class. Sending null removes the role.
+ * @summary Assign, edit or remove a custom class role for a student (teacher only)
+ */
+export const UpdateStudentRoleParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "userId": zod.coerce.number().int()
+})
+
+export const updateStudentRoleBodyRoleMax = 60;
+
+
+
+export const UpdateStudentRoleBody = zod.object({
+  "role": zod.string().max(updateStudentRoleBodyRoleMax).nullable()
+})
+
+export const updateStudentRoleResponseCustomRoleMax = 60;
+
+
+
+export const UpdateStudentRoleResponse = zod.object({
+  "userId": zod.int(),
+  "name": zod.string(),
+  "avatarUrl": zod.string().nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "teacherNote": zod.string().nullish(),
+  "customRole": zod.string().max(updateStudentRoleResponseCustomRoleMax).nullish(),
   "seatRow": zod.int().nullish(),
   "seatColumn": zod.int().nullish(),
   "seatDeskId": zod.string().nullish(),
@@ -1145,18 +1216,21 @@ export const suggestSeatingPlanResponseDesksItemXMax = 100;
 export const suggestSeatingPlanResponseDesksItemYMin = 0;
 export const suggestSeatingPlanResponseDesksItemYMax = 100;
 
-export const suggestSeatingPlanResponseDesksItemWidthMin = 8;
+export const suggestSeatingPlanResponseDesksItemWidthMin = 4;
 export const suggestSeatingPlanResponseDesksItemWidthMax = 60;
 
-export const suggestSeatingPlanResponseDesksItemHeightMin = 8;
+export const suggestSeatingPlanResponseDesksItemHeightMin = 4;
 export const suggestSeatingPlanResponseDesksItemHeightMax = 60;
 
 export const suggestSeatingPlanResponseDesksItemRotationMin = -180;
 export const suggestSeatingPlanResponseDesksItemRotationMax = 180;
 
+export const suggestSeatingPlanResponseDesksItemCapacityMin = 0;
 export const suggestSeatingPlanResponseDesksItemCapacityMax = 8;
 
 export const suggestSeatingPlanResponseDesksItemLabelMax = 80;
+
+export const suggestSeatingPlanResponseDesksItemTextMax = 300;
 
 
 
@@ -1166,6 +1240,7 @@ export const SuggestSeatingPlanResponse = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(suggestSeatingPlanResponseDesksItemIdMax),
+  "kind": zod.enum(['desk', 'chair', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
   "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
   "angle": zod.number().min(suggestSeatingPlanResponseDesksItemAngleMin).max(suggestSeatingPlanResponseDesksItemAngleMax).optional(),
   "sides": zod.int().min(suggestSeatingPlanResponseDesksItemSidesMin).max(suggestSeatingPlanResponseDesksItemSidesMax).optional(),
@@ -1174,8 +1249,9 @@ export const SuggestSeatingPlanResponse = zod.object({
   "width": zod.number().min(suggestSeatingPlanResponseDesksItemWidthMin).max(suggestSeatingPlanResponseDesksItemWidthMax),
   "height": zod.number().min(suggestSeatingPlanResponseDesksItemHeightMin).max(suggestSeatingPlanResponseDesksItemHeightMax),
   "rotation": zod.number().min(suggestSeatingPlanResponseDesksItemRotationMin).max(suggestSeatingPlanResponseDesksItemRotationMax),
-  "capacity": zod.int().min(1).max(suggestSeatingPlanResponseDesksItemCapacityMax),
-  "label": zod.string().max(suggestSeatingPlanResponseDesksItemLabelMax)
+  "capacity": zod.int().min(suggestSeatingPlanResponseDesksItemCapacityMin).max(suggestSeatingPlanResponseDesksItemCapacityMax),
+  "label": zod.string().max(suggestSeatingPlanResponseDesksItemLabelMax),
+  "text": zod.string().max(suggestSeatingPlanResponseDesksItemTextMax).nullish()
 })),
   "summary": zod.string(),
   "considerations": zod.array(zod.string()),

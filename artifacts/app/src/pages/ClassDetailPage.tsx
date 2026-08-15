@@ -30,6 +30,7 @@ import {
   useReviewClassResourceRecommendation,
   useUpdateClass,
   useGetSeatingChart,
+  useUpdateStudentRole,
   useUpdateStudentNote,
   getListClassResourceRecommendationsQueryKey,
   ClassResourceRecommendationStatus,
@@ -109,6 +110,24 @@ export default function ClassDetailPage() {
   const removeClassResource = useRemoveClassResource();
   const deleteClass = useDeleteClass();
   const removeClassMember = useRemoveClassMember();
+  const updateStudentRole = useUpdateStudentRole();
+  // Custom class roles ("Group Leader"): teacher-assigned, class-visible,
+  // editable and removable inline from the member list.
+  const [roleEditorFor, setRoleEditorFor] = useState<number | null>(null);
+  const [roleDraft, setRoleDraft] = useState("");
+  async function saveMemberRole(userId: number, role: string | null) {
+    try {
+      await updateStudentRole.mutateAsync({ id: classId, userId, data: { role } });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetClassQueryKey(classId) }),
+        queryClient.invalidateQueries({ queryKey: getGetSeatingChartQueryKey(classId) }),
+      ]);
+      setRoleEditorFor(null);
+      toast({ title: role ? "Role saved" : "Role removed" });
+    } catch {
+      toast({ title: "Could not update the role", variant: "destructive" });
+    }
+  }
   const leaveClass = useLeaveClass();
   const reviewRecommendation = useReviewClassResourceRecommendation();
   const { data: classRecommendations } = useListClassResourceRecommendations(classId, {
@@ -541,15 +560,45 @@ export default function ClassDetailPage() {
                     </div>
                   </div>
                   <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
+                    {member.customRole && roleEditorFor !== member.userId && (
+                      <Badge variant="outline" className="border-primary/40 text-primary-text" data-testid="member-custom-role">{member.customRole}</Badge>
+                    )}
                     <Badge variant={member.role === 'teacher' ? 'default' : 'secondary'} className="capitalize">{member.role}</Badge>
                     <span className="text-xs text-muted-foreground hidden sm:inline">
                       Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true })}
                     </span>
+                    {isTeacher && member.role === 'student' && roleEditorFor !== member.userId && (
+                      <Button size="sm" variant="outline" onClick={() => { setRoleEditorFor(member.userId); setRoleDraft(member.customRole ?? ""); }} data-testid="edit-member-role">
+                        <ShieldCheck size={14} className="mr-1.5" />{member.customRole ? "Edit role" : "Assign role"}
+                      </Button>
+                    )}
                     {isTeacher && member.role === 'student' && <Button size="sm" variant="outline" onClick={() => setActiveTab('notes')}><StickyNote size={14} className="mr-1.5" />Note</Button>}
                     {isTeacher && member.userId !== cls.teacherId && <Button size="icon" variant="ghost" className="size-8 text-destructive-text hover:bg-destructive/10 hover:text-destructive-text" onClick={() => setMemberToRemove({ userId: member.userId, name: member.user.name })} aria-label={"Remove " + member.user.name} data-testid="remove-class-member"><Trash2 size={14} /></Button>}
                   </div>
+                  {isTeacher && roleEditorFor === member.userId && (
+                    <div className="flex w-full flex-wrap items-center gap-2 pt-1 sm:justify-end">
+                      <Label htmlFor={`member-role-${member.userId}`} className="sr-only">Custom role for {member.user.name}</Label>
+                      <Input
+                        id={`member-role-${member.userId}`}
+                        list="class-custom-roles"
+                        value={roleDraft}
+                        maxLength={60}
+                        placeholder="e.g. Group Leader"
+                        className="h-9 w-48"
+                        onChange={(event) => setRoleDraft(event.target.value)}
+                        data-testid="member-role-input"
+                      />
+                      <Button size="sm" onClick={() => void saveMemberRole(member.userId, roleDraft.trim() || null)} disabled={updateStudentRole.isPending} data-testid="save-member-role">Save</Button>
+                      {member.customRole && <Button size="sm" variant="outline" onClick={() => void saveMemberRole(member.userId, null)} disabled={updateStudentRole.isPending} data-testid="remove-member-role">Remove role</Button>}
+                      <Button size="sm" variant="ghost" onClick={() => setRoleEditorFor(null)}>Cancel</Button>
+                    </div>
+                  )}
                 </div>
               ))}
+              {/* Roles already used in this class, offered as quick picks. */}
+              <datalist id="class-custom-roles">
+                {[...new Set(cls.members.map((member) => member.customRole).filter(Boolean))].map((role) => <option key={role as string} value={role as string} />)}
+              </datalist>
             </CardContent>
           </Card>
         )}

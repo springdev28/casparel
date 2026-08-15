@@ -210,10 +210,13 @@ Two named experiences sit at the centre of the product and deserve explicit plac
 
 | Piece | What it is | Plan |
 | --- | --- | --- |
-| Classroom Designer | Manual grid or custom desk layout, drag/assign every seat | Every plan |
+| Classroom Designer | Manual grid or free-form room: tables in four shapes plus room elements — single chairs, a teacher podium, a whiteboard/screen, and text annotations — moved by drag, resized from a corner handle, rotated from a top handle, removed with the Delete key | Every plan |
 | Student seating suggestions | A student sends the teacher a seating-change message | Every plan |
 | Teacher private notes | Per-student notes (feed the planner; useful alone) | Every plan |
+| Custom student roles | Short teacher-chosen labels ("Group Leader") on the roster, visible to the whole class, assignable, editable and removable from the Members tab | Every plan |
 | Explainable seating planner | Generates a full reviewable seating plan with a reason per placement | Teacher Pro, generic Pro, admin |
+
+Room elements carry `capacity: 0` and therefore never enter the seating planner's seat pool; the planner reasons over tables and chairs only. Custom roles live in their own column (`class_members.custom_role`, migration 0047) precisely because they are class-visible, while `teacher_note` stays private to the teacher — the two must never be merged.
 
 The planner is **rule-based, not an AI model**: it pattern-matches the teacher's private notes (front/back needs, keep-apart and keep-together relationships), scores seats deterministically, and explains every placement. Because it is deterministic and cheap it consumes **no AI allowance** — the feature gate is the whole gate — and product copy must not call it AI. (Earlier copy did; that was corrected on 15 August. If it is ever rebuilt on a model, it joins the AI rate table and only then may the copy say AI.)
 

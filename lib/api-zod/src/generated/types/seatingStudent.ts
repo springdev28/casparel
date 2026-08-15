@@ -15,6 +15,11 @@ export interface SeatingStudent {
   gradeOrDept?: string | null;
   /** @nullable */
   teacherNote?: string | null;
+  /**
+     * @maxLength 60
+     * @nullable
+     */
+  customRole?: string | null;
   /** @nullable */
   seatRow?: number | null;
   /** @nullable */

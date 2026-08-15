@@ -644,6 +644,11 @@ export interface ClassMember {
   userId: number;
   classId: number;
   role: ClassMemberRole;
+  /**
+     * @maxLength 60
+     * @nullable
+     */
+  customRole?: string | null;
   joinedAt: string;
   user: PublicUser;
 }
@@ -719,6 +724,20 @@ export interface ClassPatch {
   description?: string;
 }
 
+/**
+ * What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.
+ */
+export type ClassroomDeskKind = typeof ClassroomDeskKind[keyof typeof ClassroomDeskKind];
+
+
+export const ClassroomDeskKind = {
+  desk: 'desk',
+  chair: 'chair',
+  podium: 'podium',
+  board: 'board',
+  text: 'text',
+} as const;
+
 export type ClassroomDeskShape = typeof ClassroomDeskShape[keyof typeof ClassroomDeskShape];
 
 
@@ -736,6 +755,8 @@ export interface ClassroomDesk {
      * @maxLength 80
      */
   id: string;
+  /** What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid. */
+  kind?: ClassroomDeskKind;
   shape: ClassroomDeskShape;
   /**
      * @minimum 25
@@ -758,12 +779,12 @@ export interface ClassroomDesk {
      */
   y: number;
   /**
-     * @minimum 8
+     * @minimum 4
      * @maximum 60
      */
   width: number;
   /**
-     * @minimum 8
+     * @minimum 4
      * @maximum 60
      */
   height: number;
@@ -773,12 +794,17 @@ export interface ClassroomDesk {
      */
   rotation: number;
   /**
-     * @minimum 1
+     * @minimum 0
      * @maximum 8
      */
   capacity: number;
   /** @maxLength 80 */
   label: string;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  text?: string | null;
 }
 
 export interface SeatingStudent {
@@ -790,6 +816,11 @@ export interface SeatingStudent {
   gradeOrDept?: string | null;
   /** @nullable */
   teacherNote?: string | null;
+  /**
+     * @maxLength 60
+     * @nullable
+     */
+  customRole?: string | null;
   /** @nullable */
   seatRow?: number | null;
   /** @nullable */
@@ -900,6 +931,14 @@ export interface StudentNoteInput {
      * @nullable
      */
   note: string | null;
+}
+
+export interface StudentRoleInput {
+  /**
+     * @maxLength 60
+     * @nullable
+     */
+  role: string | null;
 }
 
 export type ClassMemberInputRole = typeof ClassMemberInputRole[keyof typeof ClassMemberInputRole];

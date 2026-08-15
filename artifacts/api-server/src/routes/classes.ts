@@ -30,6 +30,9 @@ RemoveClassMemberParams,
   UpdateSeatingChartResponse,
   UpdateStudentNoteParams,
   UpdateStudentNoteBody,
+  UpdateStudentRoleParams,
+  UpdateStudentRoleBody,
+  UpdateStudentRoleResponse,
   SuggestSeatingPlanParams,
   SuggestSeatingPlanBody,
   SuggestSeatingPlanResponse,
@@ -681,6 +684,7 @@ async function seatingChart(classId: number) {
   const students = await db.select({
     userId: classMembersTable.userId, name: usersTable.name, avatarUrl: usersTable.avatarUrl,
     gradeOrDept: usersTable.gradeOrDept, teacherNote: classMembersTable.teacherNote,
+    customRole: classMembersTable.customRole,
     seatRow: classMembersTable.seatRow, seatColumn: classMembersTable.seatColumn,
     seatDeskId: classMembersTable.seatDeskId, seatPosition: classMembersTable.seatPosition,
   }).from(classMembersTable).innerJoin(usersTable, eq(usersTable.id, classMembersTable.userId))
@@ -902,6 +906,25 @@ router.put("/classes/:id/students/:userId/note", contentLimiter, requireAuth, as
   const [student] = await db.select({ userId: usersTable.id, name: usersTable.name, avatarUrl: usersTable.avatarUrl, gradeOrDept: usersTable.gradeOrDept })
     .from(usersTable).where(eq(usersTable.id, params.data.userId));
   res.json(UpdateStudentNoteResponse.parse({ ...student, teacherNote: updated.teacherNote, seatRow: updated.seatRow, seatColumn: updated.seatColumn }));
+});
+
+// PUT /classes/:id/students/:userId/role — assign, edit or remove a custom
+// class role ("Group Leader", "Note Taker"). Teacher-only to write, but unlike
+// the private teacher note the label is visible to the whole class, which is
+// why it lives in a separate column and a separate route.
+router.put("/classes/:id/students/:userId/role", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId: teacherId } = req as AuthenticatedRequest;
+  const params = UpdateStudentRoleParams.safeParse(req.params);
+  const body = UpdateStudentRoleBody.safeParse(req.body);
+  if (!params.success || !body.success) { res.status(400).json({ error: "Invalid role" }); return; }
+  if (!(await isClassTeacher(params.data.id, teacherId))) { res.status(403).json({ error: "Only the class teacher can manage roles" }); return; }
+  const [updated] = await db.update(classMembersTable).set({ customRole: body.data.role?.trim() || null }).where(and(
+    eq(classMembersTable.classId, params.data.id), eq(classMembersTable.userId, params.data.userId), eq(classMembersTable.role, "student"),
+  )).returning();
+  if (!updated) { res.status(404).json({ error: "Student not found in class" }); return; }
+  const [student] = await db.select({ userId: usersTable.id, name: usersTable.name, avatarUrl: usersTable.avatarUrl, gradeOrDept: usersTable.gradeOrDept })
+    .from(usersTable).where(eq(usersTable.id, params.data.userId));
+  res.json(UpdateStudentRoleResponse.parse({ ...student, customRole: updated.customRole, seatRow: updated.seatRow, seatColumn: updated.seatColumn }));
 });
 
 // GET /classes/:id/resources-list, any class member can view

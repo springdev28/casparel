@@ -101,6 +101,7 @@ import type {
   SourceReview,
   StudentLearningGoal,
   StudentNoteInput,
+  StudentRoleInput,
   StudySessionInput,
   StudySessionPatch,
   StudySessionRsvp,
@@ -2639,6 +2640,81 @@ export const useUpdateStudentNote = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateStudentNoteMutationOptions(options));
+    }
+
+export const getUpdateStudentRoleUrl = (id: number,
+    userId: number,) => {
+
+
+
+
+  return `/api/classes/${id}/students/${userId}/role`
+}
+
+/**
+ * Custom roles are short labels like "Group Leader" chosen by the teacher. Unlike private notes they are visible to the whole class. Sending null removes the role.
+ * @summary Assign, edit or remove a custom class role for a student (teacher only)
+ */
+export const updateStudentRole = async (id: number,
+    userId: number,
+    studentRoleInput: StudentRoleInput, options?: Parameters<typeof customFetch>[1]): Promise<SeatingStudent> => {
+
+  return customFetch<SeatingStudent>(getUpdateStudentRoleUrl(id,userId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(studentRoleInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateStudentRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStudentRole>>, TError,{id: number;userId: number;data: BodyType<StudentRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStudentRole>>, TError,{id: number;userId: number;data: BodyType<StudentRoleInput>}, TContext> => {
+
+const mutationKey = ['updateStudentRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStudentRole>>, {id: number;userId: number;data: BodyType<StudentRoleInput>}> = (props) => {
+          const {id,userId,data} = props ?? {};
+
+          return  updateStudentRole(id,userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStudentRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateStudentRole>>>
+    export type UpdateStudentRoleMutationBody = BodyType<StudentRoleInput>
+    export type UpdateStudentRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Assign, edit or remove a custom class role for a student (teacher only)
+ */
+export const useUpdateStudentRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStudentRole>>, TError,{id: number;userId: number;data: BodyType<StudentRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStudentRole>>,
+        TError,
+        {id: number;userId: number;data: BodyType<StudentRoleInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateStudentRoleMutationOptions(options));
     }
 
 export const getSuggestSeatingPlanUrl = (id: number,) => {

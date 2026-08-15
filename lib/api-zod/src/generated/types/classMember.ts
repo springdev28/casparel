@@ -12,6 +12,11 @@ export interface ClassMember {
   userId: number;
   classId: number;
   role: ClassMemberRole;
+  /**
+     * @maxLength 60
+     * @nullable
+     */
+  customRole?: string | null;
   joinedAt: string;
   user: PublicUser;
 }

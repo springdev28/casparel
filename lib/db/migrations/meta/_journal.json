@@ -330,6 +330,13 @@
       "when": 1789372800004,
       "tag": "0046_list_delete_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1789372800005,
+      "tag": "0047_cultured_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

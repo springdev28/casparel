@@ -5,6 +5,7 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { ClassroomDeskKind } from './classroomDeskKind';
 import type { ClassroomDeskShape } from './classroomDeskShape';
 
 export interface ClassroomDesk {
@@ -13,6 +14,8 @@ export interface ClassroomDesk {
      * @maxLength 80
      */
   id: string;
+  /** What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid. */
+  kind?: ClassroomDeskKind;
   shape: ClassroomDeskShape;
   /**
      * @minimum 25
@@ -35,12 +38,12 @@ export interface ClassroomDesk {
      */
   y: number;
   /**
-     * @minimum 8
+     * @minimum 4
      * @maximum 60
      */
   width: number;
   /**
-     * @minimum 8
+     * @minimum 4
      * @maximum 60
      */
   height: number;
@@ -50,10 +53,15 @@ export interface ClassroomDesk {
      */
   rotation: number;
   /**
-     * @minimum 1
+     * @minimum 0
      * @maximum 8
      */
   capacity: number;
   /** @maxLength 80 */
   label: string;
+  /**
+     * @maxLength 300
+     * @nullable
+     */
+  text?: string | null;
 }
