@@ -422,10 +422,24 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
   const result = await pool.query<{ key: string; hits: number }>(
     `SELECT key, CASE WHEN reset_time > NOW() THEN hits ELSE 0 END AS hits
      FROM rate_limit_hits WHERE key = ANY($1::text[])`,
-    [["ai-search-user-day:user:" + userId, "deep-user-day:" + userId]],
+    [
+      [
+        "ai-search-user-day:user:" + userId,
+        "deep-user-day:" + userId,
+        "deep-user-month:" + userId,
+      ],
+    ],
   );
   const usage = new Map(result.rows.map((row) => [row.key, Number(row.hits)]));
   const searchLimit = Number(process.env.AI_SEARCH_DAILY_USER_LIMIT ?? 3);
+  // Deep research has both a daily and a monthly free-account guard. Both are
+  // currently two reports, so exposing the greater count lets clients stop at
+  // the effective limit instead of offering a request the server will reject
+  // once the monthly allowance has already been used.
+  const deepUsage = Math.max(
+    usage.get("deep-user-day:" + userId) ?? 0,
+    usage.get("deep-user-month:" + userId) ?? 0,
+  );
   res.json(
     GetMyUsageResponse.parse({
       plan: isAdmin ? "Administrator" : premium ? "Premium" : "Free",
@@ -436,7 +450,7 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
         window: "day",
       },
       deepResearch: {
-        used: usage.get("deep-user-day:" + userId) ?? 0,
+        used: deepUsage,
         limit: unlimited ? null : 2,
         window: "day",
       },

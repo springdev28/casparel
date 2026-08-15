@@ -3,7 +3,8 @@ import { storage } from "@/utils/secure-storage";
 import type { User } from "@workspace/api-client-react";
 
 const TOKEN_KEY = "schoolar_token";
-const USER_KEY = "schooler_user";
+const USER_KEY = "casparel_user";
+const LEGACY_USER_KEY = "schooler_user";
 
 interface AuthContextValue {
   token: string | null;
@@ -26,7 +27,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function loadStored() {
       try {
         const storedToken = await storage.getItemAsync(TOKEN_KEY);
-        const storedUser = await storage.getItemAsync(USER_KEY);
+        const currentUser = await storage.getItemAsync(USER_KEY);
+        const legacyUser = currentUser
+          ? null
+          : await storage.getItemAsync(LEGACY_USER_KEY);
+        const storedUser = currentUser ?? legacyUser;
+        if (legacyUser) {
+          await storage.setItemAsync(USER_KEY, legacyUser);
+          await storage.deleteItemAsync(LEGACY_USER_KEY);
+        }
         if (storedToken) {
           setToken(storedToken);
         }
@@ -54,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     await storage.deleteItemAsync(TOKEN_KEY);
     await storage.deleteItemAsync(USER_KEY);
+    await storage.deleteItemAsync(LEGACY_USER_KEY);
     setToken(null);
     setUser(null);
   };

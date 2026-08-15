@@ -40,7 +40,9 @@ packages:
   - artifacts/api-server
   - artifacts/app
   - artifacts/desktop
+  - artifacts/mobile
   - artifacts/schoolar-edu
+  - lib/api-spec
   - lib/api-client-react
   - lib/api-zod
   - lib/db
@@ -86,6 +88,10 @@ patchedDependencies:
   esbuild@0.28.1: patches/esbuild@0.28.1.patch
 
 overrides:
+  # Security floors for Expo/Metro transitive tooling. Keep the range on the
+  # left so future non-vulnerable major versions are not forced backwards.
+  "postcss@<=8.5.17": "8.5.18"
+  nanoid: "3.3.18"
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
@@ -169,4 +175,3 @@ overrides:
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
   esbuild: "0.28.1"
-  nanoid: "3.3.17"

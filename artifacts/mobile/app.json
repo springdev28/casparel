@@ -1,13 +1,13 @@
 {
   "expo": {
     "name": "Casparel",
-    "slug": "schooler",
+    "slug": "casparel",
     "version": "1.0.0",
     "description": "Casparel helps students and teachers discover vetted open-education resources, organize classes and schedules, and study together.",
     "primaryColor": "#2f4cc8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "schooler",
+    "scheme": "casparel",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -34,7 +34,7 @@
       [
         "expo-router",
         {
-          "origin": "https://replit.com/"
+          "origin": "https://casparel.com"
         }
       ],
       "expo-font",

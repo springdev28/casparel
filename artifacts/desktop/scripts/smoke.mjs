@@ -12,7 +12,8 @@
  *   • a cross-origin server REDIRECT must not load inside the app frame,
  *   • a deep link handed to a cold start must become the first page.
  *
- * Run: xvfb-run -a node scripts/smoke.mjs   (needs a display; CI provides one)
+ * Run through `pnpm run smoke`; the wrapper supplies Xvfb on Linux and uses
+ * the current desktop session on macOS/Windows.
  */
 import { spawn } from "node:child_process";
 import http from "node:http";
@@ -23,6 +24,21 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const PORT = 4457;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
+const electronBinary =
+  process.platform === "darwin"
+    ? join(
+        root,
+        "node_modules",
+        "electron",
+        "dist",
+        "Electron.app",
+        "Contents",
+        "MacOS",
+        "Electron",
+      )
+    : process.platform === "win32"
+      ? join(root, "node_modules", "electron", "dist", "electron.exe")
+      : join(root, "node_modules", "electron", "dist", "electron");
 
 const pages = {
   "/": `<html><body><h1>Casparel</h1>
@@ -58,19 +74,15 @@ function runCase(name, { deepLink, script }) {
   return new Promise((resolve) => {
     const args = [join(root, "dist", "main.js")];
     if (deepLink) args.push(deepLink);
-    const child = spawn(
-      join(root, "node_modules", "electron", "dist", "electron"),
-      args,
-      {
-        env: {
-          ...process.env,
-          CASPAREL_URL: ORIGIN,
-          CASPAREL_SMOKE: script,
-          ELECTRON_DISABLE_SANDBOX: "1",
-        },
-        stdio: ["ignore", "pipe", "pipe"],
+    const child = spawn(electronBinary, args, {
+      env: {
+        ...process.env,
+        CASPAREL_URL: ORIGIN,
+        CASPAREL_SMOKE: script,
+        ELECTRON_DISABLE_SANDBOX: "1",
       },
-    );
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let out = "";
     child.stdout.on("data", (chunk) => (out += chunk));
     child.stderr.on("data", () => {});

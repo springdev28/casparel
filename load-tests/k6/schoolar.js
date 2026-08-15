@@ -8,10 +8,21 @@ const BASE_URL = (__ENV.BASE_URL || "http://127.0.0.1:8080").replace(
   "",
 );
 const PROFILE = (__ENV.PROFILE || "smoke").toLowerCase();
-const IS_PRODUCTION = BASE_URL.includes(
+const IS_PRODUCTION = [
+  "https://casparel.com",
+  "https://www.casparel.com",
   "lightgrey-oyster-122608.hostingersite.com",
+].some(
+  (origin) =>
+    BASE_URL === origin ||
+    BASE_URL.startsWith(`${origin}/`) ||
+    (!origin.startsWith("https://") && BASE_URL.includes(origin)),
 );
 const ALLOW_PRODUCTION_LOAD = __ENV.ALLOW_PRODUCTION_LOAD === "true";
+const SMOKE_ITERATIONS = Math.min(
+  10,
+  Math.max(1, Math.floor(Number(__ENV.SMOKE_ITERATIONS || 1))),
+);
 
 if (!["smoke", "public", "authenticated"].includes(PROFILE)) {
   throw new Error(`Unknown PROFILE "${PROFILE}"`);
@@ -68,7 +79,7 @@ const profileOptions = {
       smoke: {
         executor: "shared-iterations",
         vus: 1,
-        iterations: 1,
+        iterations: SMOKE_ITERATIONS,
         maxDuration: "30s",
       },
     },

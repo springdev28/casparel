@@ -10,6 +10,7 @@ out-tsc
 
 # dependencies
 node_modules
+.pnpm-store/
 
 # Secrets. .env.example tells you to copy it to .env and fill in DATABASE_URL,
 # SESSION_SECRET and the RevenueCat webhook token, so an unignored .env is a

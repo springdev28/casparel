@@ -74,13 +74,6 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-session.mjs
 
-      # artifacts/mobile is not a pnpm workspace package, so `pnpm run
-      # typecheck` skips it entirely and no workflow covered it: the Expo app
-      # has never been type-checked in CI. Run tsc against it directly.
-      - name: Typecheck the mobile app
-        working-directory: artifacts/mobile
-        run: npx tsc -p tsconfig.json --noEmit
-
       - name: Compile the desktop main process
         run: pnpm --filter @workspace/desktop run compile
 

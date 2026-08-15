@@ -35,7 +35,10 @@ const PORT = Number(process.env.AUDIT_PORT ?? 4321);
 // /terms and /privacy are in the default set because the app stores require
 // them to resolve for a signed-out reviewer, so a regression there is a
 // submission blocker rather than a cosmetic issue.
-const PAGES = (process.env.AUDIT_PAGES ?? "/,/auth/login,/auth/register,/terms,/privacy").split(",");
+const PAGES = (
+  process.env.AUDIT_PAGES ??
+  "/,/resources,/support,/auth/login,/auth/register,/terms,/privacy"
+).split(",");
 // Signed-in pages, rendered against fixtures rather than a live API. These are
 // where the regressions that reached production actually were, so they matter
 // more than the public pages, not less.
@@ -303,7 +306,10 @@ for (const pathname of SIGNED_IN_PAGES) {
     );
   }
   results.push(
-    await auditGuarded(pathname, "dark", 390, { signedIn: true, palette: "dark" }),
+    await auditGuarded(pathname, "dark", 390, {
+      signedIn: true,
+      palette: "dark",
+    }),
   );
 }
 await browser.close();

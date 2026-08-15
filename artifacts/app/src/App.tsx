@@ -70,6 +70,7 @@ const TermsPage = lazy(() =>
 const PrivacyPage = lazy(() =>
   import("./pages/LegalPage").then((m) => ({ default: m.PrivacyPage })),
 );
+const SupportPage = lazy(() => import("./pages/SupportPage"));
 
 const TOKEN_KEY = "schoolar_token";
 const LANGUAGE_EVENT = "schoolar-language-change";
@@ -352,6 +353,9 @@ function Router() {
       <Route path="/privacy">
         {() => <PublicRoute component={PrivacyPage} />}
       </Route>
+      <Route path="/support">
+        {() => <PublicRoute component={SupportPage} />}
+      </Route>
       <Route path="/canvas/shared/:token">
         {() => <PublicRoute component={() => <CanvasPage shared />} />}
       </Route>
@@ -446,25 +450,25 @@ function App() {
     // white page with nothing to act on and no clue what happened. The
     // boundary turns that into a message and a reload, and logs the error.
     <AppErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <UiTranslationRuntime />
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Suspense
-            fallback={
-              <main className="flex min-h-[100dvh] items-center justify-center bg-background">
-                <Loader2 className="size-6 animate-spin text-primary-text" />
-              </main>
-            }
-          >
-            <AccountAccessGate>
-              <Router />
-            </AccountAccessGate>
-          </Suspense>
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <UiTranslationRuntime />
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Suspense
+              fallback={
+                <main className="flex min-h-[100dvh] items-center justify-center bg-background">
+                  <Loader2 className="size-6 animate-spin text-primary-text" />
+                </main>
+              }
+            >
+              <AccountAccessGate>
+                <Router />
+              </AccountAccessGate>
+            </Suspense>
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
     </AppErrorBoundary>
   );
 }

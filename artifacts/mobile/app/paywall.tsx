@@ -27,14 +27,14 @@ const BENEFITS: { icon: string; title: string; body: string }[] = [
     body: 'Run deep, live-web research on any resource, with no daily cap.',
   },
   {
-    icon: 'compass',
-    title: 'Unlimited AI discovery',
-    body: 'Find vetted learning materials with unlimited AI-powered search.',
+    icon: 'file-text',
+    title: 'Cited live-web reports',
+    body: 'See the source, trust signals, strengths, concerns, and supporting links.',
   },
   {
-    icon: 'zap',
-    title: 'Priority everything',
-    body: 'Faster research, cached reports, and early access to new tools.',
+    icon: 'smartphone',
+    title: 'One Premium account',
+    body: 'Premium follows your Casparel login across supported devices.',
   },
   {
     icon: 'heart',
@@ -47,14 +47,38 @@ function BenefitRow({ icon, title, body }: { icon: string; title: string; body: 
   const colors = useColors();
   return (
     <View style={styles.benefitRow}>
-      <View style={[styles.benefitIcon, { backgroundColor: colors.primary + '1A', borderRadius: colors.radius }]}>
+      <View
+        style={[
+          styles.benefitIcon,
+          {
+            backgroundColor: colors.primary + '1A',
+            borderRadius: colors.radius,
+          },
+        ]}
+      >
         <Feather name={icon as never} size={18} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.benefitTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+        <Text
+          style={[
+            styles.benefitTitle,
+            {
+              color: colors.foreground,
+              fontFamily: colors.fontFamily.sansSemiBold,
+            },
+          ]}
+        >
           {title}
         </Text>
-        <Text style={[styles.benefitBody, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
+        <Text
+          style={[
+            styles.benefitBody,
+            {
+              color: colors.mutedForeground,
+              fontFamily: colors.fontFamily.sans,
+            },
+          ]}
+        >
           {body}
         </Text>
       </View>
@@ -129,14 +153,27 @@ export default function PaywallScreen() {
       {/* Close */}
       <Pressable
         onPress={close}
-        style={[styles.closeBtn, { top: insets.top + 8, backgroundColor: colors.card, borderColor: colors.border }]}
+        accessibilityRole="button"
+        accessibilityLabel="Close Premium plans"
+        style={[
+          styles.closeBtn,
+          {
+            top: insets.top + 8,
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
         hitSlop={10}
       >
         <Feather name="x" size={20} color={colors.mutedForeground} />
       </Pressable>
 
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 56, paddingBottom: insets.bottom + 28, paddingHorizontal: 20 }}
+        contentContainerStyle={{
+          paddingTop: insets.top + 56,
+          paddingBottom: insets.bottom + 28,
+          paddingHorizontal: 20,
+        }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -147,14 +184,38 @@ export default function PaywallScreen() {
             end={{ x: 1, y: 1 }}
             style={[styles.hero, { borderRadius: colors.radius + 6 }]}
           >
-            <View style={[styles.crown, { backgroundColor: colors.primaryForeground + '26', borderRadius: 24 }]}>
+            <View
+              style={[
+                styles.crown,
+                {
+                  backgroundColor: colors.primaryForeground + '26',
+                  borderRadius: 24,
+                },
+              ]}
+            >
               <Feather name="award" size={30} color={colors.primaryForeground} />
             </View>
-            <Text style={[styles.title, { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold }]}>
+            <Text
+              style={[
+                styles.title,
+                {
+                  color: colors.primaryForeground,
+                  fontFamily: colors.fontFamily.sansBold,
+                },
+              ]}
+            >
               Casparel Premium
             </Text>
-            <Text style={[styles.subtitle, { color: colors.primaryForeground + 'DD', fontFamily: colors.fontFamily.sans }]}>
-              Unlimited AI research and discovery for serious learners.
+            <Text
+              style={[
+                styles.subtitle,
+                {
+                  color: colors.primaryForeground + 'DD',
+                  fontFamily: colors.fontFamily.sans,
+                },
+              ]}
+            >
+              Unlimited deep source research for serious learners.
             </Text>
           </LinearGradient>
         </Animated.View>
@@ -162,7 +223,14 @@ export default function PaywallScreen() {
         {/* Benefits */}
         <Animated.View
           entering={FadeInDown.delay(120).duration(450)}
-          style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
         >
           {BENEFITS.map((b) => (
             <BenefitRow key={b.title} {...b} />
@@ -170,9 +238,26 @@ export default function PaywallScreen() {
         </Animated.View>
 
         {isPremium ? (
-          <View style={[styles.premiumBanner, { backgroundColor: colors.primary + '14', borderColor: colors.primary + '40', borderRadius: colors.radius }]}>
+          <View
+            style={[
+              styles.premiumBanner,
+              {
+                backgroundColor: colors.primary + '14',
+                borderColor: colors.primary + '40',
+                borderRadius: colors.radius,
+              },
+            ]}
+          >
             <Feather name="check-circle" size={18} color={colors.primary} />
-            <Text style={[styles.premiumText, { color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold }]}>
+            <Text
+              style={[
+                styles.premiumText,
+                {
+                  color: colors.primary,
+                  fontFamily: colors.fontFamily.sansSemiBold,
+                },
+              ]}
+            >
               You're on Premium. Thank you!
             </Text>
           </View>
@@ -182,7 +267,15 @@ export default function PaywallScreen() {
           </View>
         ) : !available || packages.length === 0 ? (
           <View style={[styles.notice, { borderColor: colors.border, borderRadius: colors.radius }]}>
-            <Text style={[styles.noticeText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
+            <Text
+              style={[
+                styles.noticeText,
+                {
+                  color: colors.mutedForeground,
+                  fontFamily: colors.fontFamily.sans,
+                },
+              ]}
+            >
               {Platform.OS === 'web'
                 ? 'Open Casparel on your phone to upgrade to Premium.'
                 : 'Plans are loading or unavailable right now. Please try again shortly.'}
@@ -228,22 +321,52 @@ export default function PaywallScreen() {
           the user to open the app on their phone.
         */}
         {!isPremium && purchasesSupported ? (
-          <Pressable onPress={handleRestore} disabled={busy} style={styles.restore}>
-            <Text style={[styles.restoreText, { color: colors.primary, fontFamily: colors.fontFamily.sansMedium }]}>
+          <Pressable
+            onPress={handleRestore}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Restore previous purchases"
+            style={styles.restore}
+          >
+            <Text
+              style={[
+                styles.restoreText,
+                {
+                  color: colors.primary,
+                  fontFamily: colors.fontFamily.sansMedium,
+                },
+              ]}
+            >
               Restore purchases
             </Text>
           </Pressable>
         ) : null}
 
         {/* Legal */}
-        <Text style={[styles.legal, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
+        <Text
+          style={[
+            styles.legal,
+            {
+              color: colors.mutedForeground,
+              fontFamily: colors.fontFamily.sans,
+            },
+          ]}
+        >
           Subscriptions renew automatically until cancelled. Manage or cancel anytime in your{' '}
           {Platform.OS === 'ios' ? 'App Store' : 'Google Play'} account settings.{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL('https://casparel.com/terms')}>
+          <Text
+            accessibilityRole="link"
+            style={styles.link}
+            onPress={() => Linking.openURL('https://casparel.com/terms')}
+          >
             Terms
           </Text>{' '}
           &middot;{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL('https://casparel.com/privacy')}>
+          <Text
+            accessibilityRole="link"
+            style={styles.link}
+            onPress={() => Linking.openURL('https://casparel.com/privacy')}
+          >
             Privacy
           </Text>
         </Text>
@@ -273,6 +396,9 @@ function PackageOption({
   return (
     <Pressable
       onPress={onSelect}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${pkg.product.title || pkg.identifier}, ${pkg.product.priceString}${period ? `, ${period}` : ''}`}
       style={[
         styles.pkg,
         {
@@ -285,17 +411,41 @@ function PackageOption({
     >
       {badge ? (
         <View style={[styles.pkgBadge, { backgroundColor: colors.accent, borderRadius: colors.radius }]}>
-          <Text style={[styles.pkgBadgeText, { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+          <Text
+            style={[
+              styles.pkgBadgeText,
+              {
+                color: colors.primaryForeground,
+                fontFamily: colors.fontFamily.sansSemiBold,
+              },
+            ]}
+          >
             {badge}
           </Text>
         </View>
       ) : null}
       <View style={{ flex: 1 }}>
-        <Text style={[styles.pkgTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+        <Text
+          style={[
+            styles.pkgTitle,
+            {
+              color: colors.foreground,
+              fontFamily: colors.fontFamily.sansSemiBold,
+            },
+          ]}
+        >
           {pkg.product.title || pkg.identifier}
         </Text>
         {period ? (
-          <Text style={[styles.pkgPeriod, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
+          <Text
+            style={[
+              styles.pkgPeriod,
+              {
+                color: colors.mutedForeground,
+                fontFamily: colors.fontFamily.sans,
+              },
+            ]}
+          >
             {period}
           </Text>
         ) : null}
@@ -306,7 +456,10 @@ function PackageOption({
       <View
         style={[
           styles.radio,
-          { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primary : 'transparent' },
+          {
+            borderColor: selected ? colors.primary : colors.border,
+            backgroundColor: selected ? colors.primary : 'transparent',
+          },
         ]}
       >
         {selected ? <Feather name="check" size={12} color={colors.primaryForeground} /> : null}
@@ -328,27 +481,75 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  hero: { alignItems: 'center', gap: 10, marginBottom: 20, paddingVertical: 26, paddingHorizontal: 20 },
-  crown: { width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
+  hero: {
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+    paddingVertical: 26,
+    paddingHorizontal: 20,
+  },
+  crown: {
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: { fontSize: 26, letterSpacing: -0.5, textAlign: 'center' },
-  subtitle: { fontSize: 15, lineHeight: 21, textAlign: 'center', maxWidth: 300 },
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 21,
+    textAlign: 'center',
+    maxWidth: 300,
+  },
   card: { borderWidth: 1, padding: 16, gap: 16 },
   benefitRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  benefitIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  benefitIcon: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   benefitTitle: { fontSize: 15 },
   benefitBody: { fontSize: 13, lineHeight: 18, marginTop: 2 },
-  premiumBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, padding: 14, marginTop: 18 },
+  premiumBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    padding: 14,
+    marginTop: 18,
+  },
   premiumText: { fontSize: 14 },
   loading: { paddingVertical: 32, alignItems: 'center' },
   notice: { borderWidth: 1, borderStyle: 'dashed', padding: 16, marginTop: 18 },
   noticeText: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
-  pkg: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, position: 'relative' },
-  pkgBadge: { position: 'absolute', top: -9, right: 12, paddingHorizontal: 8, paddingVertical: 2, zIndex: 1 },
+  pkg: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    position: 'relative',
+  },
+  pkgBadge: {
+    position: 'absolute',
+    top: -9,
+    right: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    zIndex: 1,
+  },
   pkgBadgeText: { fontSize: 10, letterSpacing: 0.2 },
   pkgTitle: { fontSize: 15 },
   pkgPeriod: { fontSize: 12, marginTop: 2 },
   pkgPrice: { fontSize: 16 },
-  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   restore: { alignItems: 'center', paddingVertical: 14 },
   restoreText: { fontSize: 14 },
   legal: { fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 18 },

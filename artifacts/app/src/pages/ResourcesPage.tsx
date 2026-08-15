@@ -159,8 +159,7 @@ function titleWords(value: string) {
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter(
-      (word) =>
-        (word.length > 1 || /^\d+$/.test(word)) && !ignored.has(word),
+      (word) => (word.length > 1 || /^\d+$/.test(word)) && !ignored.has(word),
     );
 }
 
@@ -560,7 +559,8 @@ function LibraryCard({
           {metaLine(resource.subject, resource.gradeLevel)}
         </CardDescription>
       </CardHeader>
-      {resource.verificationStatus === "rejected" && resource.verificationNote ? (
+      {resource.verificationStatus === "rejected" &&
+      resource.verificationNote ? (
         <CardContent className="pb-2">
           <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive-text">
             <span className="font-semibold">Reviewer:</span>{" "}
@@ -1196,7 +1196,8 @@ export default function ResourcesPage() {
     const saved = accountPreferences.resourceSearchState;
     if (!saved) return;
     if (typeof saved.inputValue === "string") setInputValue(saved.inputValue);
-    if (typeof saved.activeQuery === "string") setActiveQuery(saved.activeQuery);
+    if (typeof saved.activeQuery === "string")
+      setActiveQuery(saved.activeQuery);
     if (Array.isArray(saved.results))
       setAllWebResults(saved.results as DiscoveredResource[]);
   }, [accountPreferences]);
@@ -1293,12 +1294,32 @@ export default function ResourcesPage() {
     },
   );
 
+  const starterParams = {
+    sortBy: ListResourcesSortBy.top_rated,
+    limit: 6,
+    offset: 0,
+  };
+  const {
+    data: starterResults,
+    isLoading: starterLoading,
+    isError: starterError,
+  } = useListResources(starterParams, {
+    query: {
+      enabled: resourceView === "search" && submittedSearch === null,
+      queryKey: getListResourcesQueryKey(starterParams),
+    },
+  });
+
   // Load the catalogue to identify this user's existing library URLs even
   // while source-only mode hides the library results panel.
   // Server-side rather than filtering libraryCatalog in memory: that query is
   // capped at 50 rows, so an author with a large library would not find their
   // pending items client-side.
-  const gatedParams = { verification: verificationFilter, limit: 50, offset: 0 };
+  const gatedParams = {
+    verification: verificationFilter,
+    limit: 50,
+    offset: 0,
+  };
   const { data: gatedResults, isLoading: gatedLoading } = useListResources(
     gatedParams,
     {
@@ -1326,6 +1347,7 @@ export default function ResourcesPage() {
     ),
   );
   const uniqueLibraryResults = dedupeResourcesByWork(libraryResults ?? []);
+  const uniqueStarterResults = dedupeResourcesByWork(starterResults ?? []);
   const savedLibraryUrls = new Set(
     (libraryCatalog ?? [])
       .filter((resource) => resource.submittedById === me?.id)
@@ -1849,7 +1871,7 @@ export default function ResourcesPage() {
                 ? `Showing library results and web results for "${activeQuery}"`
                 : isLoggedIn
                   ? "Your personalised library, based on what you've been learning"
-                  : "Top-rated resources to get you started"}
+                  : "Browse the library or search the open education catalog"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -2068,6 +2090,7 @@ export default function ResourcesPage() {
                 <button
                   type="button"
                   onClick={clearSearch}
+                  aria-label="Clear resource search"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   <X size={15} />
@@ -2610,7 +2633,9 @@ export default function ResourcesPage() {
                     if (!me?.id) return;
                     const nextHistory = deleteSearchHistory(me.id, item.query);
                     setSearchHistory(nextHistory);
-                    updateAccountPreferences.mutate({ searchHistory: nextHistory });
+                    updateAccountPreferences.mutate({
+                      searchHistory: nextHistory,
+                    });
                   }}
                 >
                   <X size={13} />
@@ -2618,6 +2643,64 @@ export default function ResourcesPage() {
               </span>
             ))}
           </div>
+        </section>
+      )}
+
+      {resourceView === "search" && !isSearching && (
+        <section
+          aria-labelledby="starter-resources-heading"
+          className="space-y-4"
+        >
+          <div>
+            <h2
+              id="starter-resources-heading"
+              className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-muted-foreground"
+            >
+              <BookOpen size={14} /> Top-rated in the Casparel library
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Open a community resource now, or search above for something
+              specific.
+            </p>
+          </div>
+          {starterLoading ? (
+            <CardSkeletons count={3} />
+          ) : starterError ? (
+            <p className="border-y py-8 text-center text-sm text-muted-foreground">
+              The starter library could not be loaded. Search is still available
+              above.
+            </p>
+          ) : uniqueStarterResults.length ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {uniqueStarterResults.map((resource) => (
+                <LibraryCard
+                  key={resource.id}
+                  resource={resource}
+                  onClick={() => setLocation(`/resources/${resource.id}`)}
+                  onCitation={() => openCitation(resource)}
+                  onRemove={
+                    me && resource.submittedById === me.id
+                      ? () => handleRemoveCard(resource.id, resource.title)
+                      : undefined
+                  }
+                  onAssign={
+                    isTeacher
+                      ? () =>
+                          setAssignTarget({
+                            id: resource.id,
+                            title: resource.title,
+                          })
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="border-y py-8 text-center text-sm text-muted-foreground">
+              No public resources have been added yet. Try the open catalog
+              search above.
+            </p>
+          )}
         </section>
       )}
 
@@ -2790,7 +2873,9 @@ export default function ResourcesPage() {
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  variant={verificationFilter === "pending" ? "default" : "outline"}
+                  variant={
+                    verificationFilter === "pending" ? "default" : "outline"
+                  }
                   size="sm"
                   onClick={() =>
                     setVerificationFilter((current) =>
@@ -2805,7 +2890,9 @@ export default function ResourcesPage() {
                 </Button>
                 <Button
                   type="button"
-                  variant={verificationFilter === "rejected" ? "default" : "outline"}
+                  variant={
+                    verificationFilter === "rejected" ? "default" : "outline"
+                  }
                   size="sm"
                   onClick={() =>
                     setVerificationFilter((current) =>
@@ -2916,8 +3003,8 @@ export default function ResourcesPage() {
                 <CardSkeletons count={3} />
               ) : uniqueLibraryResults.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
-                  No saved Casparel resources match "{activeQuery}" yet.
-                  Results from the open catalog below can be saved to add them.
+                  No saved Casparel resources match "{activeQuery}" yet. Results
+                  from the open catalog below can be saved to add them.
                 </p>
               ) : (
                 <>
@@ -2929,7 +3016,9 @@ export default function ResourcesPage() {
                         onClick={() => setLocation(`/resources/${r.id}`)}
                         onCitation={() => openCitation(r)}
                         onRemove={
-                          me ? () => handleRemoveCard(r.id, r.title) : undefined
+                          me && r.submittedById === me.id
+                            ? () => handleRemoveCard(r.id, r.title)
+                            : undefined
                         }
                         onAssign={
                           isTeacher
@@ -2960,10 +3049,11 @@ export default function ResourcesPage() {
           <section>
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4 flex items-center gap-1.5">
               <Sparkles size={14} />{" "}
-              {submittedSearch?.resultType === DiscoverResourcesResultType.source
+              {submittedSearch?.resultType ===
+              DiscoverResourcesResultType.source
                 ? "Sources & channels"
                 : "Open education catalog"}{" "}
-             , "{activeQuery}"
+              , "{activeQuery}"
             </h2>
 
             {webLoading && (
@@ -3025,7 +3115,10 @@ export default function ResourcesPage() {
               <>
                 {!isSubmittedSourceMode && !isLoggedIn && (
                   <p className="text-xs text-muted-foreground mb-3">
-                    <Link href="/auth/login" className="text-primary-text underline">
+                    <Link
+                      href="/auth/login"
+                      className="text-primary-text underline"
+                    >
                       Sign in
                     </Link>{" "}
                     to save web results to your library.
