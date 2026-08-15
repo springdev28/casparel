@@ -23,6 +23,7 @@ import {
   useGetMe,
   useUpdateMe,
   useUploadAvatar,
+  useDeleteMe,
   useSwitchRole,
   RoleSwitchInputRole,
   useGetCalendarStatus,
@@ -197,6 +198,41 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { logout, updateToken } = useAuth();
+  const deleteAccount = useDeleteMe();
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      'Delete account',
+      'This permanently deletes your Casparel account and the content tied to it. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            // Second confirmation: the first tap is easy to hit by accident on
+            // a row that sits under "Sign out".
+            Alert.alert('Are you sure?', 'There is no way to recover the account afterwards.', [
+              { text: 'Keep my account', style: 'cancel' },
+              {
+                text: 'Delete permanently',
+                style: 'destructive',
+                onPress: () =>
+                  deleteAccount.mutate(undefined, {
+                    onSuccess: () => logout(),
+                    onError: () =>
+                      Alert.alert(
+                        'Could not delete your account',
+                        'Something went wrong. Please try again, or email support@casparel.com.',
+                      ),
+                  }),
+              },
+            ]);
+          },
+        },
+      ],
+    );
+  }
   const queryClient = useQueryClient();
 
   const { data: me, isLoading } = useGetMe();
@@ -706,6 +742,40 @@ export default function ProfileScreen() {
             <Text style={[styles.rowLabel, { color: colors.destructiveText, fontFamily: colors.fontFamily.sansSemiBold }]}>
               Sign out
             </Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+
+      {/*
+        Deleting your account has to be possible from inside the app. App Store
+        guideline 5.1.1(v) requires it of anything that lets you create an
+        account, and until now the only way was the web app - the server route
+        existed but was missing from the API spec, so no generated client could
+        reach it. Two steps on purpose: this is irreversible.
+      */}
+      <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+        ACCOUNT
+      </Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+        <TouchableOpacity
+          style={styles.row}
+          disabled={deleteAccount.isPending}
+          onPress={confirmDeleteAccount}
+          activeOpacity={0.7}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.destructive + '15', borderRadius: colors.radius - 2 }]}>
+              <Feather name="trash-2" size={18} color={colors.destructiveText} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.destructiveText, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                {deleteAccount.isPending ? 'Deleting account…' : 'Delete account'}
+              </Text>
+              <Text style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans, fontSize: 12, marginTop: 2 }}>
+                Permanently removes your account and content
+              </Text>
+            </View>
           </View>
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>

@@ -14,37 +14,67 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { Input } from '@workspace/edu-ds/components/native/input';
 import { Feather } from '@expo/vector-icons';
-import { useLogin } from '@workspace/api-client-react';
+import { useRegister } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function LoginScreen() {
+/**
+ * Creating an account, on the phone.
+ *
+ * The login screen used to end with "Contact your administrator to create an
+ * account." That was never true - registration is open self-serve on the web -
+ * and it made the app impossible to enter for anyone who did not already have
+ * credentials, including an App Store reviewer opening it for the first time.
+ * There is no way to pass review from a screen you cannot get past.
+ */
+const MIN_PASSWORD = 8;
+
+export default function RegisterScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { login } = useAuth();
 
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const loginMutation = useLogin();
+  const registerMutation = useRegister();
 
-  const handleLogin = () => {
+  const handleRegister = () => {
     setErrorMsg('');
-    if (!email.trim() || !password.trim()) {
-      setErrorMsg('Please enter your email and password.');
+    if (!name.trim() || !email.trim() || !password) {
+      setErrorMsg('Please fill in your name, email and password.');
       return;
     }
-    loginMutation.mutate(
-      { data: { email: email.trim(), password } },
+    if (password.length < MIN_PASSWORD) {
+      setErrorMsg(`Choose a password of at least ${MIN_PASSWORD} characters.`);
+      return;
+    }
+    registerMutation.mutate(
+      { data: { name: name.trim(), email: email.trim(), password } },
       {
         onSuccess: (data) => {
           login(data.token, data.user);
         },
-        onError: () => {
-          setErrorMsg('Invalid email or password. Please try again.');
+        onError: (error) => {
+          // Say what actually went wrong. The generated client builds a
+          // message for logs that starts "HTTP 400 Bad Request: ...", so read
+          // the status rather than showing that string to a person.
+          const status = (error as { status?: number } | null)?.status;
+          if (status === 400 || status === 409) {
+            setErrorMsg(
+              'That email already has a Casparel account. Try signing in instead.',
+            );
+          } else if (status === 429) {
+            setErrorMsg('Too many attempts. Please wait a few minutes and try again.');
+          } else if (status === undefined) {
+            setErrorMsg('Could not reach Casparel. Check your connection and try again.');
+          } else {
+            setErrorMsg('Could not create your account. Please try again.');
+          }
         },
-      }
+      },
     );
   };
 
@@ -64,7 +94,6 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo / Brand */}
         <View style={styles.brandRow}>
           <View
             style={[
@@ -77,10 +106,7 @@ export default function LoginScreen() {
           <Text
             style={[
               styles.brandName,
-              {
-                color: colors.foreground,
-                fontFamily: colors.fontFamily.sansBold,
-              },
+              { color: colors.foreground, fontFamily: colors.fontFamily.sansBold },
             ]}
           >
             Casparel
@@ -94,18 +120,15 @@ export default function LoginScreen() {
               { color: colors.foreground, fontFamily: colors.fontFamily.sansBold },
             ]}
           >
-            Welcome back
+            Create your account
           </Text>
           <Text
             style={[
               styles.subheading,
-              {
-                color: colors.mutedForeground,
-                fontFamily: colors.fontFamily.sans,
-              },
+              { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
             ]}
           >
-            Sign in to your account
+            Free to join. The library stays free.
           </Text>
         </View>
 
@@ -120,6 +143,14 @@ export default function LoginScreen() {
           ]}
         >
           <Input
+            label="Name"
+            placeholder="Your name"
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+            autoComplete="name"
+          />
+          <Input
             label="Email"
             placeholder="you@school.edu"
             value={email}
@@ -127,15 +158,16 @@ export default function LoginScreen() {
             autoCapitalize="none"
             keyboardType="email-address"
             autoComplete="email"
+            style={{ marginTop: 16 }}
           />
           <Input
             label="Password"
-            placeholder="••••••••"
+            placeholder="At least 8 characters"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             autoCapitalize="none"
-            autoComplete="password"
+            autoComplete="new-password"
             style={{ marginTop: 16 }}
           />
 
@@ -143,10 +175,7 @@ export default function LoginScreen() {
             <Text
               style={[
                 styles.error,
-                {
-                  color: colors.destructiveText,
-                  fontFamily: colors.fontFamily.sans,
-                },
+                { color: colors.destructiveText, fontFamily: colors.fontFamily.sans },
               ]}
             >
               {errorMsg}
@@ -154,37 +183,25 @@ export default function LoginScreen() {
           ) : null}
 
           <Button
-            onPress={handleLogin}
-            loading={loginMutation.isPending}
+            onPress={handleRegister}
+            loading={registerMutation.isPending}
             size="lg"
             style={{ marginTop: 24 }}
           >
-            Sign in
+            Create account
           </Button>
         </View>
 
-        {/* Registration is open self-serve, and always was on the web. This
-            used to read "Contact your administrator to create an account",
-            which left anyone without existing credentials - an App Store
-            reviewer included - with no way into the app at all. */}
-        <Pressable onPress={() => router.push('/register')} style={styles.footerLink}>
+        <Pressable onPress={() => router.replace('/login')} style={styles.footerLink}>
           <Text
             style={[
               styles.footer,
-              {
-                color: colors.mutedForeground,
-                fontFamily: colors.fontFamily.sans,
-              },
+              { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
             ]}
           >
-            New to Casparel?{' '}
-            <Text
-              style={{
-                color: colors.primary,
-                fontFamily: colors.fontFamily.sansMedium,
-              }}
-            >
-              Create an account
+            Already have an account?{' '}
+            <Text style={{ color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}>
+              Sign in
             </Text>
           </Text>
         </Pressable>
@@ -195,48 +212,15 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  container: {
-    paddingHorizontal: 24,
-    gap: 28,
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  logoBox: {
-    width: 52,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandName: {
-    fontSize: 26,
-    letterSpacing: -0.5,
-  },
-  headingBlock: {
-    gap: 4,
-  },
-  heading: {
-    fontSize: 28,
-    letterSpacing: -0.5,
-  },
-  subheading: {
-    fontSize: 15,
-  },
-  card: {
-    borderWidth: 1,
-    padding: 20,
-  },
-  error: {
-    fontSize: 13,
-    marginTop: 12,
-  },
-  footerLink: {
-    alignSelf: 'center',
-  },
-  footer: {
-    fontSize: 13,
-    textAlign: 'center',
-  },
+  container: { paddingHorizontal: 24, gap: 28 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  logoBox: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+  brandName: { fontSize: 26, letterSpacing: -0.5 },
+  headingBlock: { gap: 4 },
+  heading: { fontSize: 28, letterSpacing: -0.5 },
+  subheading: { fontSize: 15 },
+  card: { borderWidth: 1, padding: 20 },
+  error: { fontSize: 13, marginTop: 12 },
+  footerLink: { alignSelf: 'center' },
+  footer: { fontSize: 13, textAlign: 'center' },
 });

@@ -165,6 +165,13 @@ export const UpdateMeResponse = zod.object({
 
 
 /**
+ * Anonymises the account and ends the session. Implemented on the server since launch but absent from this document, so no generated client existed and the mobile app had no way to offer deletion - which App Store guideline 5.1.1(v) requires of any app that lets you create an account.
+ * @summary Permanently delete the authenticated account
+ */
+export const DeleteMeResponse = zod.void()
+
+
+/**
  * @summary Upload an avatar image for the current user
  */
 export const UploadAvatarBody = zod.object({

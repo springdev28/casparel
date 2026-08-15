@@ -145,9 +145,12 @@ export function TermsPage() {
 
       <Section title="Ending your account">
         <p>
-          You can delete your account at any time from your profile settings,
-          which removes your account and its associated content. We may suspend
-          an account that breaks these terms, and will explain why when we do.
+          You can delete your account at any time from your profile settings, on
+          the web or in the mobile app. This destroys your credentials and
+          clears your profile; contributions to shared spaces stay, unlinked
+          from you. See the Privacy Policy for exactly what is removed. We may
+          suspend an account that breaks these terms, and will explain why when
+          we do.
         </p>
       </Section>
     </LegalLayout>
@@ -235,9 +238,18 @@ export function PrivacyPage() {
       <Section title="Keeping and deleting data">
         <p>
           We keep your data while your account exists. You can delete your
-          account at any time from your profile settings; this removes your
-          account and the content tied to it. If you would rather we did it, or
-          you want a copy of your data first, email {SUPPORT_EMAIL}.
+          account at any time from your profile settings, on the web or in the
+          mobile app.
+        </p>
+        <p>
+          Deleting removes your personal details: your email address and
+          password are destroyed, your name, avatar, bio, subjects, year group
+          and website are cleared, and the account can no longer be signed in
+          to. Resources and posts you contributed to shared spaces remain, no
+          longer linked to you and shown as authored by a deleted user, so that
+          other people's lists and classes do not break. If you want particular
+          contributions removed as well, or a copy of your data first, email{" "}
+          {SUPPORT_EMAIL} and we will do it by hand.
         </p>
       </Section>
 

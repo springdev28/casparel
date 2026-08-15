@@ -39,17 +39,20 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (isLoading || !onboardingReady) return;
-    const inLogin = segments[0] === "login";
+    // Both credential screens are reachable while signed out. Guarding on
+    // "login" alone bounced anyone who tapped "Create an account" straight
+    // back, which would have made the new screen unreachable.
+    const inAuthScreen = segments[0] === "login" || segments[0] === "register";
     const inOnboarding = segments[0] === "onboarding";
 
     if (!isAuthenticated) {
-      if (!inLogin) router.replace("/login");
+      if (!inAuthScreen) router.replace("/login");
       return;
     }
     // Authenticated: show first-run onboarding once, then land on the tabs.
     if (needsOnboarding && !inOnboarding) {
       router.replace("/onboarding");
-    } else if (!needsOnboarding && (inLogin || inOnboarding)) {
+    } else if (!needsOnboarding && (inAuthScreen || inOnboarding)) {
       router.replace("/(tabs)");
     }
   }, [isAuthenticated, isLoading, onboardingReady, needsOnboarding, segments, router]);
@@ -60,6 +63,7 @@ function RootLayoutNav() {
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="register" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen
         name="resource/[id]"
