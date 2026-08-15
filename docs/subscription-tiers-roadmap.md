@@ -7,7 +7,7 @@ This roadmap follows two changes: the one that made Casparel's tiers about store
 ## Revision note (same day)
 
 - The tier set is now seven: `free`, generic `plus`/`pro` (kept, still honoured), `student-plus`, `student-pro`, `teacher-plus`, `teacher-pro`. Roles never mix: a role-specific plan resolves to Free while the account's role does not match, purchases are never rewritten, and the paywall only sells packages for the buyer's role.
-- Free's "no AI" decision was reversed into a taste: 2 discovery searches/day, 1 deep report/day, 2/30 days.
+- Free's "no AI" decision was reversed into a taste: 2 discovery searches/day and a flat 2 deep reports per rolling 30 days (first worded "1/day, 2/30 days", corrected after the owner flagged it as reading like a maths error).
 - Phase 1's first item (Pro sold as uncapped but globally capped) is **resolved by product definition**: nothing is sold as uncapped any more. The global budgets remain as operational guards, raised to defaults that clear paying demand (discovery 200/day, deep 100/day).
 - Phase 1's third item (`tierForPackage` substring mapping) is improved — role words are recognised, `pro` beats `plus` in ambiguous names — but explicit dashboard-identifier mapping remains the real fix before launch.
 - New consequence to own: **legacy `premium` buyers were sold "unlimited deep research" and now resolve to finite Pro caps.** The caps are large (15/day, 150/30 days), but store copy and any renewal messaging must be corrected before the next release, and a goodwill path (e.g. grandfathered higher caps) should be decided consciously rather than discovered by a complaint.

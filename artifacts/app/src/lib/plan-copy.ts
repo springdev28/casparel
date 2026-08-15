@@ -33,7 +33,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       tier: "free",
       name: "Free",
       blurb:
-        "The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases, plus a daily AI taste: 2 discovery searches and 1 deep report (2 per month).",
+        "The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases, plus an AI taste: 2 discovery searches a day and 2 deep reports per 30 days.",
       workspace: [
         "25 study activities",
         "10 learning goals",
@@ -42,7 +42,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       ],
       ai: [
         "2 AI discovery searches a day",
-        "1 deep research report a day, 2 per 30 days",
+        "2 deep research reports per 30 days",
       ],
       extras: [
         "Adaptive study dashboard",
@@ -63,7 +63,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       ],
       ai: [
         "30 AI discovery searches a day",
-        "8 deep research reports a day, 80 per 30 days",
+        "8 deep research reports a day, up to 80 per 30 days",
       ],
       extras: ["Everything in Free"],
     },
@@ -80,7 +80,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       ],
       ai: [
         "90 AI discovery searches a day",
-        "25 deep research reports a day, 250 per 30 days",
+        "25 deep research reports a day, up to 250 per 30 days",
       ],
       extras: ["Everything in Student Plus"],
     },
@@ -90,7 +90,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       tier: "free",
       name: "Free",
       blurb:
-        "One class of up to 30 with manual seating, student seating suggestions and private notes, plus a daily AI taste: 2 discovery searches and 1 deep report (2 per month).",
+        "One class of up to 30 with manual seating, student seating suggestions and private notes, plus an AI taste: 2 discovery searches a day and 2 deep reports per 30 days.",
       workspace: [
         "1 class, up to 30 members",
         "25 study activities",
@@ -100,7 +100,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       ],
       ai: [
         "2 AI discovery searches a day",
-        "1 deep research report a day, 2 per 30 days",
+        "2 deep research reports per 30 days",
       ],
       extras: [
         "Manual Classroom Designer",
@@ -122,7 +122,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       ],
       ai: [
         "20 AI discovery searches a day",
-        "5 deep research reports a day, 50 per 30 days",
+        "5 deep research reports a day, up to 50 per 30 days",
       ],
       extras: ["Everything in Free"],
     },
@@ -140,7 +140,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       ],
       ai: [
         "60 AI discovery searches a day",
-        "15 deep research reports a day, 150 per 30 days",
+        "15 deep research reports a day, up to 150 per 30 days",
       ],
       extras: [
         "Explainable seating planner (rule-based)",
@@ -163,7 +163,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       ],
       ai: [
         "2 AI discovery searches a day",
-        "1 deep research report a day, 2 per 30 days",
+        "2 deep research reports per 30 days",
       ],
       extras: ["Adaptive study dashboard", "Manual Classroom Designer"],
     },
@@ -181,7 +181,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       ],
       ai: [
         "20 AI discovery searches a day",
-        "5 deep research reports a day, 50 per 30 days",
+        "5 deep research reports a day, up to 50 per 30 days",
       ],
       extras: ["Everything in Free"],
     },
@@ -199,7 +199,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       ],
       ai: [
         "60 AI discovery searches a day",
-        "15 deep research reports a day, 150 per 30 days",
+        "15 deep research reports a day, up to 150 per 30 days",
       ],
       extras: [
         "Explainable seating planner (rule-based)",

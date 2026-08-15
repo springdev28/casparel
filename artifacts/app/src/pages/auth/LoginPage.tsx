@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, useSearch, Link } from "wouter";
 import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import BrandIcon from "../../components/BrandIcon";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -24,6 +24,14 @@ const CHECK_IN_INDEX_KEY = "schoolar_check_in_index";
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  // Where to land after auth. Only same-app paths are honoured, so a crafted
+  // link can never bounce a fresh login out to another site.
+  const requestedNext = new URLSearchParams(search).get("next");
+  const nextPath =
+    requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//")
+      ? requestedNext
+      : "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -48,7 +56,7 @@ export default function LoginPage() {
       const nextCheckIn = (previousCheckIn + 1) % 4;
       localStorage.setItem(CHECK_IN_INDEX_KEY, String(nextCheckIn));
       sessionStorage.setItem(CHECK_IN_INDEX_KEY, String(nextCheckIn));
-      setLocation("/dashboard");
+      setLocation(nextPath);
     } catch (err: unknown) {
       toast({
         title: copy.loginFailed,

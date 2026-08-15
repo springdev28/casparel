@@ -1,29 +1,32 @@
 /**
- * /plans — the web paywall, including card checkout.
+ * /plans — the standalone plans and checkout page.
+ *
+ * Deliberately NOT inside the app shell: plans are an account decision, not a
+ * workspace tab, so the page stands on its own with a minimal header, the way
+ * the landing page does. The sidebar reaches it from the current-plan card.
  *
  * Plans are buyable from everywhere: in the mobile app through Apple/Google
  * billing, and here by card through RevenueCat Web Billing when the
  * deployment carries a Web Billing public key (see lib/webBilling.ts). Both
- * paths land on the same server webhook with the same entitlement ids, so
- * one purchase pipeline serves every store. Without the key — or before the
- * dashboard has offerings — the page degrades to role-aware comparison plus
- * buy-on-mobile instructions, never a broken checkout.
+ * paths land on the same server webhook with the same entitlement ids, so one
+ * purchase pipeline serves every store.
  *
- * Signed-out visitors get the generic cards and a create-account CTA; the
- * page renders inside PublicShell for them and inside the AppShell sidebar
- * for signed-in users (see PublicRoute in App.tsx).
+ * Signed-out visitors see live prices through an anonymous RevenueCat
+ * identity and a role toggle (student/teacher plans differ); pressing
+ * Subscribe sends them through sign-in with ?next=/plans and straight back
+ * here. Without the key — or before the dashboard has offerings — the page
+ * degrades to comparison plus buy-on-mobile instructions, never a broken
+ * checkout.
  */
 import { useCallback, useEffect, useState } from "react";
 import { CreditCard, Check, Crown, Loader2, Smartphone } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  getGetMeQueryKey,
-  getGetMyUsageQueryKey,
-  useGetMe,
-} from "@workspace/api-client-react";
+import { getGetMeQueryKey, getGetMyUsageQueryKey, useGetMe } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@workspace/edu-ds/components/ui/card";
+import BrandIcon from "../components/BrandIcon";
+import { useSystemDark } from "../hooks/use-system-dark";
 import { usePlan, type PlanTier } from "../lib/use-plan";
 import { audienceForRole, TIER_CARDS, type TierCard } from "../lib/plan-copy";
 import { readSessionClaims } from "../lib/session";
@@ -57,18 +60,23 @@ type CheckoutState =
   | { status: "error" };
 
 /**
- * Load the card-checkout packages for the signed-in account. Everything here
- * degrades to "unavailable", which renders the buy-on-mobile instructions —
- * a missing key, a dashboard without offerings, or a network failure must
- * never leave the page worse than it was before card checkout existed.
+ * Load the card-checkout packages — for the signed-in account, or through an
+ * anonymous identity so visitors still see prices. Everything here degrades
+ * to "unavailable", which renders the buy-on-mobile instructions: a missing
+ * key, a dashboard without offerings, or a network failure must never leave
+ * the page worse than it was before card checkout existed.
  */
-function useWebCheckout(userId: number | undefined, role: "student" | "teacher" | null) {
+function useWebCheckout(
+  userId: number | null,
+  enabled: boolean,
+  role: "student" | "teacher" | null,
+) {
   const [state, setState] = useState<CheckoutState>({
     status: webBillingConfigured() ? "loading" : "unavailable",
   });
 
   useEffect(() => {
-    if (!webBillingConfigured() || userId == null) {
+    if (!webBillingConfigured() || !enabled) {
       setState({ status: "unavailable" });
       return;
     }
@@ -82,7 +90,7 @@ function useWebCheckout(userId: number | undefined, role: "student" | "teacher" 
         }
         const [packages, manageUrl] = await Promise.all([
           fetchWebPackages(purchases),
-          managementUrl(purchases),
+          userId != null ? managementUrl(purchases) : Promise.resolve(null),
         ]);
         if (cancelled) return;
         const forRole = webPackagesForRole(packages, role);
@@ -98,7 +106,7 @@ function useWebCheckout(userId: number | undefined, role: "student" | "teacher" 
     return () => {
       cancelled = true;
     };
-  }, [userId, role]);
+  }, [userId, enabled, role]);
 
   return state;
 }
@@ -219,19 +227,30 @@ function TierColumn({
 }
 
 export default function PlansPage() {
+  const dark = useSystemDark();
+  const [, setLocation] = useLocation();
   const isLoggedIn = Boolean(readSessionClaims());
   const plan = usePlan(isLoggedIn);
   const { data: me } = useGetMe({
     query: { enabled: isLoggedIn, queryKey: getGetMeQueryKey() },
   });
   const queryClient = useQueryClient();
-  const audience = isLoggedIn ? audienceForRole(plan.accountRole) : "generic";
-  const cards = TIER_CARDS[audience];
   const isAdmin = plan.tier === "administrator";
 
+  // Role accounts see exactly their ladder — roles never mix at the point of
+  // sale. Visitors and admins get a toggle, because "where are the student
+  // and teacher plans?" must never be answered with a generic table.
+  const ownAudience = isLoggedIn ? audienceForRole(plan.accountRole) : "generic";
+  const [previewRole, setPreviewRole] = useState<"student" | "teacher">(
+    "student",
+  );
+  const audience = ownAudience === "generic" ? previewRole : ownAudience;
+  const cards = TIER_CARDS[audience];
+
   const checkout = useWebCheckout(
-    isLoggedIn && !isAdmin ? me?.id : undefined,
-    plan.accountRole === "admin" ? null : plan.accountRole,
+    isLoggedIn && !isAdmin ? (me?.id ?? null) : null,
+    !isAdmin,
+    audience,
   );
   const [busyPackageId, setBusyPackageId] = useState<string | null>(null);
   const [purchaseNote, setPurchaseNote] = useState<
@@ -240,6 +259,12 @@ export default function PlansPage() {
 
   const handleBuy = useCallback(
     async (pkg: WebPlanPackage) => {
+      // Buying needs an account: the purchase must attach to a Casparel user.
+      // Sign-in (or registration) bounces straight back to this page.
+      if (!isLoggedIn) {
+        setLocation("/auth/login?next=/plans");
+        return;
+      }
       if (checkout.status !== "ready") return;
       setBusyPackageId(pkg.id);
       setPurchaseNote(null);
@@ -268,162 +293,227 @@ export default function PlansPage() {
         });
       }
     },
-    [checkout.status, me?.id, queryClient],
+    [isLoggedIn, setLocation, checkout.status, me?.id, queryClient],
   );
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8">
-      <div className="flex items-start gap-3">
-        <Crown className="mt-1 size-6 shrink-0 text-primary-text" />
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Casparel plans</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {audience === "teacher"
-              ? "Teacher plans grow your classroom: more classes, bigger rosters, and the explainable seating planner on Teacher Pro."
-              : audience === "student"
-                ? "Student plans grow your study space: more activities, goals, lists and canvases, and larger AI research allowances."
-                : "Plans grow your workspace and your AI research allowances. Student and teacher accounts see plans specialised for their role."}
-          </p>
-          {isLoggedIn && !isAdmin ? (
-            <p className="mt-1 text-sm text-muted-foreground">
-              You are on <b className="text-foreground">{plan.label}</b>. Your
-              live usage and allowances are in{" "}
-              <Link href="/settings" className="text-primary-text hover:underline">
-                Settings → Plan
-              </Link>
-              .
-            </p>
-          ) : null}
-          {isAdmin ? (
-            <p className="mt-1 text-sm text-muted-foreground">
-              Administrator accounts are uncapped and never need a plan; this
-              page shows what other accounts are offered.
-            </p>
-          ) : null}
+    <div
+      className={`${dark ? "dark " : ""}min-h-[100dvh] bg-background text-foreground`}
+      style={{ colorScheme: dark ? "dark" : "light" }}
+    >
+      <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
+          <Link href="/" className="flex min-w-0 items-center text-primary-text">
+            <BrandIcon className="mr-2 h-8 w-8 shrink-0" />
+            <span className="text-lg font-bold tracking-tight text-foreground">
+              Casparel
+            </span>
+          </Link>
+          <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {isLoggedIn ? (
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/dashboard">Back to your dashboard</Link>
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/auth/login?next=/plans">Sign in</Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link href="/auth/register?next=/plans">Create account</Link>
+                </Button>
+              </>
+            )}
+          </nav>
         </div>
-      </div>
+      </header>
 
-      {purchaseNote ? (
-        <p
-          role="status"
-          className={
-            "mt-4 rounded-lg border p-3 text-sm " +
-            (purchaseNote.kind === "success"
-              ? "border-primary/40 bg-primary/5 text-foreground"
-              : "border-destructive/40 bg-destructive/5 text-destructive-text")
-          }
-        >
-          {purchaseNote.text}
-        </p>
-      ) : null}
-
-      <h2 className="mt-6 text-lg font-semibold">Compare plans</h2>
-      <div className="mt-3 grid gap-4 md:grid-cols-3">
-        {cards.map((card, index) => (
-          <TierColumn
-            key={card.tier}
-            card={card}
-            isCurrent={isLoggedIn && plan.tier === card.tier}
-            highlight={index === 2}
-            packages={
-              checkout.status === "ready"
-                ? checkout.packages.filter((pkg) => pkg.tier === card.tier)
-                : []
-            }
-            buyable={
-              isLoggedIn &&
-              !isAdmin &&
-              !plan.pending &&
-              LEVEL_RANK[levelOfTier(card.tier)] > LEVEL_RANK[plan.level]
-            }
-            busyPackageId={busyPackageId}
-            onBuy={handleBuy}
-          />
-        ))}
-      </div>
-
-      <Card className="mt-6">
-        <CardHeader className="pb-2">
-          {/* A real h2, not CardTitle's div: the audit checks heading order. */}
-          <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
-            <Smartphone className="size-4 text-primary-text" />
-            How upgrading works
-          </h2>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          {checkout.status === "ready" ? (
-            <p>
-              Subscribe right here with a card — checkout is handled by
-              RevenueCat — or in the Casparel mobile app billed by Apple or
-              Google (<b className="text-foreground">Profile → Plan</b>).
-              Either way the subscription attaches to your Casparel account
-              and works on every device the moment the purchase completes.
+      <main className="mx-auto w-full max-w-5xl px-4 py-8">
+        <div className="flex items-start gap-3">
+          <Crown className="mt-1 size-6 shrink-0 text-primary-text" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Casparel plans</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {audience === "teacher"
+                ? "Teacher plans grow your classroom: more classes, bigger rosters, and the explainable seating planner on Teacher Pro."
+                : "Student plans grow your study space: more activities, goals, lists and canvases, and larger AI research allowances."}
             </p>
-          ) : (
-            <p>
-              Subscriptions are purchased in the Casparel mobile app and billed
-              by Apple or Google: open the app on your phone, go to{" "}
-              <b className="text-foreground">Profile → Plan</b>, and choose
-              your plan.
-              {webBillingConfigured()
-                ? " Card checkout on the web is temporarily unavailable; please try again shortly."
-                : " Card checkout on the web is coming and will appear on this page."}{" "}
-              Your subscription follows your Casparel account, so it works here
-              on the web the moment the purchase completes.
-            </p>
-          )}
-          {checkout.status === "ready" && checkout.manageUrl && plan.level !== "free" ? (
-            <p>
-              <a
-                href={checkout.manageUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary-text hover:underline"
+            {isLoggedIn && !isAdmin ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                You are on <b className="text-foreground">{plan.label}</b>. Your
+                live usage and allowances are in{" "}
+                <Link href="/settings" className="text-primary-text hover:underline">
+                  Settings → Plan
+                </Link>
+                .
+              </p>
+            ) : null}
+            {isAdmin ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Administrator accounts are uncapped and never need a plan; use
+                the toggle below to review what students and teachers are
+                offered.
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        {ownAudience === "generic" ? (
+          <div
+            className="mt-5 inline-flex rounded-lg border border-border p-1"
+            role="group"
+            aria-label="Choose which plans to view"
+          >
+            {(["student", "teacher"] as const).map((role) => (
+              <button
+                key={role}
+                type="button"
+                aria-pressed={previewRole === role}
+                onClick={() => setPreviewRole(role)}
+                className={
+                  "rounded-md px-4 py-1.5 text-sm font-medium transition-colors " +
+                  (previewRole === role
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground")
+                }
               >
-                Manage billing
-              </a>{" "}
-              — invoices, card details and cancellation for a subscription
-              bought on the web.
-            </p>
-          ) : null}
-          <ul className="list-disc space-y-1 pl-5">
-            <li>
-              Plans match your account role: a student plan does nothing on a
-              teacher account and the other way round, and the app only offers
-              plans for your role.
-            </li>
-            <li>
-              Every allowance on every plan is finite; no subscription is
-              unlimited. What you see on this page is exactly what is enforced.
-            </li>
-            <li>
-              If a subscription ends, nothing you created is deleted or hidden.
-              You keep everything and simply cannot add more of a kind you are
-              over the limit on until there is room again.
-            </li>
-            <li>
-              Cancelling — in the App Store or Google Play for phone purchases,
-              or from Manage billing for card purchases — stops the next
-              renewal; it does not refund the period already paid. See the{" "}
-              <Link href="/terms" className="text-primary-text hover:underline">
-                Terms
-              </Link>{" "}
-              for the full wording.
-            </li>
-          </ul>
-        </CardContent>
-      </Card>
+                {role === "student" ? "For students" : "For teachers"}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
-      {!isLoggedIn ? (
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Button asChild>
-            <Link href="/auth/register">Create your free account</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/auth/login">Sign in</Link>
-          </Button>
+        {purchaseNote ? (
+          <p
+            role="status"
+            className={
+              "mt-4 rounded-lg border p-3 text-sm " +
+              (purchaseNote.kind === "success"
+                ? "border-primary/40 bg-primary/5 text-foreground"
+                : "border-destructive/40 bg-destructive/5 text-destructive-text")
+            }
+          >
+            {purchaseNote.text}
+          </p>
+        ) : null}
+
+        <h2 className="mt-6 text-lg font-semibold">Compare plans</h2>
+        <div className="mt-3 grid gap-4 md:grid-cols-3">
+          {cards.map((card, index) => (
+            <TierColumn
+              key={card.tier}
+              card={card}
+              isCurrent={isLoggedIn && plan.tier === card.tier}
+              highlight={index === 2}
+              packages={
+                checkout.status === "ready"
+                  ? checkout.packages.filter((pkg) => pkg.tier === card.tier)
+                  : []
+              }
+              buyable={
+                !isAdmin &&
+                (!isLoggedIn ||
+                  (!plan.pending &&
+                    LEVEL_RANK[levelOfTier(card.tier)] >
+                      LEVEL_RANK[plan.level]))
+              }
+              busyPackageId={busyPackageId}
+              onBuy={handleBuy}
+            />
+          ))}
         </div>
-      ) : null}
-    </main>
+
+        <Card className="mt-6">
+          <CardHeader className="pb-2">
+            {/* A real h2, not CardTitle's div: the audit checks heading order. */}
+            <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
+              <Smartphone className="size-4 text-primary-text" />
+              How upgrading works
+            </h2>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            {checkout.status === "ready" ? (
+              <p>
+                Subscribe right here with a card — checkout is handled by
+                RevenueCat{!isLoggedIn ? " after you sign in" : ""} — or in the
+                Casparel mobile app billed by Apple or Google (
+                <b className="text-foreground">Profile → Plan</b>). Either way
+                the subscription attaches to your Casparel account and works on
+                every device the moment the purchase completes.
+              </p>
+            ) : (
+              <p>
+                Subscriptions are purchased in the Casparel mobile app and
+                billed by Apple or Google: open the app on your phone, go to{" "}
+                <b className="text-foreground">Profile → Plan</b>, and choose
+                your plan.
+                {webBillingConfigured()
+                  ? " Card checkout on the web is temporarily unavailable; please try again shortly."
+                  : " Card checkout on the web is coming and will appear on this page."}{" "}
+                Your subscription follows your Casparel account, so it works
+                here on the web the moment the purchase completes.
+              </p>
+            )}
+            {checkout.status === "ready" &&
+            checkout.manageUrl &&
+            isLoggedIn &&
+            plan.level !== "free" ? (
+              <p>
+                <a
+                  href={checkout.manageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary-text hover:underline"
+                >
+                  Manage billing
+                </a>{" "}
+                — invoices, card details and cancellation for a subscription
+                bought on the web.
+              </p>
+            ) : null}
+            <ul className="list-disc space-y-1 pl-5">
+              <li>
+                Plans match your account role: a student plan does nothing on a
+                teacher account and the other way round, and checkout only
+                offers plans for your role.
+              </li>
+              <li>
+                Every allowance on every plan is finite; no subscription is
+                unlimited. What you see on this page is exactly what is
+                enforced.
+              </li>
+              <li>
+                If a subscription ends, nothing you created is deleted or
+                hidden. You keep everything and simply cannot add more of a
+                kind you are over the limit on until there is room again.
+              </li>
+              <li>
+                Cancelling — in the App Store or Google Play for phone
+                purchases, or from Manage billing for card purchases — stops
+                the next renewal; it does not refund the period already paid.
+                See the{" "}
+                <Link href="/terms" className="text-primary-text hover:underline">
+                  Terms
+                </Link>{" "}
+                for the full wording.
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
+
+        {!isLoggedIn ? (
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Button asChild>
+              <Link href="/auth/register?next=/plans">
+                Create your free account
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/auth/login?next=/plans">Sign in</Link>
+            </Button>
+          </div>
+        ) : null}
+      </main>
+    </div>
   );
 }

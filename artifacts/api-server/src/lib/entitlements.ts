@@ -104,7 +104,10 @@ export function planLevel(tier: SubscriptionTier): "free" | "plus" | "pro" {
  * are before being asked to pay, without being large enough to live on.
  */
 export const AI_RATES_BY_TIER: Record<SubscriptionTier, AiRates> = {
-  free: { searchPerDay: 2, deepPerDay: 1, deepPerMonth: 2 },
+  // Free's deep taste is a flat 2 per rolling 30 days. deepPerDay equals
+  // deepPerMonth so the daily window can never be the binding cap — "1 a day
+  // but 2 a month" read as a maths error, and it effectively was one.
+  free: { searchPerDay: 2, deepPerDay: 2, deepPerMonth: 2 },
   plus: { searchPerDay: 20, deepPerDay: 5, deepPerMonth: 50 },
   pro: { searchPerDay: 60, deepPerDay: 15, deepPerMonth: 150 },
   "student-plus": { searchPerDay: 30, deepPerDay: 8, deepPerMonth: 80 },

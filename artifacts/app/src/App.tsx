@@ -354,9 +354,9 @@ function Router() {
       <Route path="/privacy">
         {() => <PublicRoute component={PrivacyPage} />}
       </Route>
-      <Route path="/plans">
-        {() => <PublicRoute component={PlansPage} />}
-      </Route>
+      {/* Standalone: plans is an account decision with its own header, not a
+          workspace tab inside the app shell. */}
+      <Route path="/plans" component={PlansPage} />
       <Route path="/support">
         {() => <PublicRoute component={SupportPage} />}
       </Route>

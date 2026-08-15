@@ -158,11 +158,11 @@ The specialisation is one sentence per family: student tiers buy personal study 
 
 ### Rate limits
 
-Free's AI row is a deliberate **taste**: enough to experience AI discovery and one cited deep report, far too small to live on.
+Free's AI row is a deliberate **taste**: enough to experience AI discovery and a couple of cited deep reports, far too small to live on. The free deep allowance is a flat 2 per rolling 30 days — the equal day and month caps mean the daily window can never be the binding number, after "1 a day, 2 a month" was rightly read as a contradiction.
 
 | Tier         | Discovery/day | Deep/day | Deep/30 days |
 | ------------ | ------------: | -------: | -----------: |
-| Free         |             2 |        1 |            2 |
+| Free         |             2 |        2 |            2 |
 | Plus         |            20 |        5 |           50 |
 | Pro          |            60 |       15 |          150 |
 | Student Plus |            30 |        8 |           80 |

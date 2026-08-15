@@ -115,8 +115,8 @@ export function TermsPage() {
           Casparel Free includes the core library, schedules, citations and
           manual seating, holds one class of up to 30 members, 25 study
           activities, 10 learning goals, 5 resource lists and 3 canvases, and
-          comes with a small daily taste of AI: two discovery searches and one
-          deep research report a day (two per month). Paid plans are specific
+          comes with a small taste of AI: two discovery searches a day and two
+          deep research reports per rolling 30 days. Paid plans are specific
           to your account role: Student Plus and Student Pro raise the personal
           study allowances, Teacher Plus and Teacher Pro raise classroom
           allowances, and Teacher Pro adds explainable seating-plan

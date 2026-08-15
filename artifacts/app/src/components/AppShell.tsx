@@ -36,7 +36,6 @@ import {
   Workflow,
   X,
   Menu,
-  Crown,
   Settings,
 } from "lucide-react";
 import { cn } from "@workspace/edu-ds/lib/utils";
@@ -118,7 +117,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Messages", href: "/messages", icon: MessageCircle },
   { label: "Lists", href: "/lists", icon: List },
   { label: "Schedule", href: "/schedule", icon: Calendar },
-  { label: "Plans", href: "/plans", icon: Crown },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -934,16 +932,22 @@ export default function AppShell({ children }: AppShellProps) {
                       ? "Free includes a small daily AI taste"
                       : "AI allowances reset daily"}
                 </p>
-                {plan.tier !== "administrator" && plan.level !== "pro" ? (
-                  <Link
-                    href="/plans"
-                    className="mt-2 flex items-center justify-center gap-1.5 rounded-md bg-primary-foreground/15 px-2 py-1.5 text-[11px] font-semibold hover:bg-primary-foreground/25"
-                    data-testid="sidebar-upgrade"
-                  >
-                    <Sparkles size={12} />{" "}
-                    {plan.level === "plus" ? "Upgrade to Pro" : "See plans"}
-                  </Link>
-                ) : null}
+                {/* Plans lives here, inside the current-plan card, not in
+                    the nav tabs: it is an account concern, and this way every
+                    tier (admins and Pro included) keeps a visible way to the
+                    plans page. */}
+                <Link
+                  href="/plans"
+                  className="mt-2 flex items-center justify-center gap-1.5 rounded-md bg-primary-foreground/15 px-2 py-1.5 text-[11px] font-semibold hover:bg-primary-foreground/25"
+                  data-testid="sidebar-upgrade"
+                >
+                  <Sparkles size={12} />{" "}
+                  {plan.tier === "administrator" || plan.level === "pro"
+                    ? "View plans"
+                    : plan.level === "plus"
+                      ? "Upgrade to Pro"
+                      : "See plans"}
+                </Link>
               </div>
             ) : null}
 
@@ -1337,5 +1341,4 @@ const NAV_LABELS_TR: Record<string, string> = {
   Lists: "Listeler",
   Schedule: "Takvim",
   Settings: "Ayarlar",
-  Plans: "Planlar",
 };

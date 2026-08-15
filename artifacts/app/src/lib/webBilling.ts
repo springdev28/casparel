@@ -94,14 +94,23 @@ let instance: Purchases | null = null;
 let instanceUserId: string | null = null;
 
 /**
- * Configure (or re-target) the SDK for the signed-in Casparel account. The
- * numeric user id is the same identity the mobile SDK logs in with, which is
- * what lets the server webhook attach the purchase to the right account.
+ * Configure (or re-target) the SDK. Signed-in accounts use the numeric
+ * Casparel user id — the same identity the mobile SDK logs in with, which is
+ * what lets the server webhook attach a purchase to the right account.
+ * `null` configures an anonymous RevenueCat identity so signed-out visitors
+ * can still see live prices; buying always goes through sign-in first, and
+ * the post-login load calls changeUser onto the real account.
  */
-export async function loadWebBilling(userId: number): Promise<Purchases | null> {
+export async function loadWebBilling(
+  userId: number | null,
+): Promise<Purchases | null> {
   if (!webBillingConfigured()) return null;
-  const appUserId = String(userId);
   const { Purchases: PurchasesClass } = await import("@revenuecat/purchases-js");
+  const appUserId =
+    userId != null
+      ? String(userId)
+      : (instanceUserId?.startsWith("$RCAnonymousID") ? instanceUserId : null) ??
+        PurchasesClass.generateRevenueCatAnonymousAppUserId();
   if (instance && instanceUserId === appUserId) return instance;
   if (instance) {
     await instance.changeUser(appUserId);

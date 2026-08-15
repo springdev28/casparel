@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, useSearch, Link } from "wouter";
 import { Eye, EyeOff } from "lucide-react";
 import BrandIcon from "../../components/BrandIcon";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -23,6 +23,14 @@ const TOKEN_KEY = "schoolar_token";
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  // Where to land after auth. Only same-app paths are honoured, so a crafted
+  // link can never bounce a fresh login out to another site.
+  const requestedNext = new URLSearchParams(search).get("next");
+  const nextPath =
+    requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//")
+      ? requestedNext
+      : "/tutorial";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,7 +52,7 @@ export default function RegisterPage() {
       notifySessionChanged();
       // New accounts land on the guided tour first; it marks tutorialSeen and
       // moves on to the dashboard when finished or skipped.
-      setLocation("/tutorial");
+      setLocation(nextPath);
     } catch (err: unknown) {
       toast({
         title: copy.registrationFailed,
