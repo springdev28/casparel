@@ -7,16 +7,39 @@ import {
 } from "@workspace/edu-ds/components/ui/card";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { Check, Crown, Sparkles } from "lucide-react";
-import { usePlan } from "@/lib/use-plan";
+import {
+  CAPACITY_LABELS,
+  usePlan,
+  type PlanCapacityKey,
+} from "@/lib/use-plan";
+
+/**
+ * Roster size is a property of each class rather than a running account total,
+ * so it is described in a sentence below instead of being given a meter that
+ * would always read 0.
+ */
+const WORKSPACE_METERS: PlanCapacityKey[] = [
+  "classesOwned",
+  "studyActivities",
+  "resourceLists",
+  "learningGoals",
+  "canvases",
+];
 
 function UsageMeter({
   label,
   used,
   limit,
+  /**
+   * AI counters reset daily; stored-data allowances do not. Saying "today" on a
+   * class or activity count would suggest a limit that clears overnight.
+   */
+  period = "today",
 }: {
   label: string;
   used: number;
   limit: number | null;
+  period?: "today" | "stored";
 }) {
   const unlimited = limit == null;
   const pct = !unlimited && limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
@@ -34,7 +57,7 @@ function UsageMeter({
           {unlimited
             ? "Unlimited"
             : included
-              ? `${used} / ${limit} today`
+              ? `${used} / ${limit}${period === "today" ? " today" : ""}`
               : "Not included"}
         </span>
       </div>
@@ -89,19 +112,54 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
           limit={plan.aiSearch.limit}
         />
       </div>
+      {/*
+        Workspace allowances are only rendered once the server has answered.
+        While `pending`, every limit is null, which the meter would show as
+        "Unlimited" , the one reading a free account must never be given.
+      */}
+      {!plan.pending ? (
+        <div className={"mt-3 grid gap-2.5" + (compact ? "" : " max-w-sm")}>
+          <p className="text-xs font-medium text-muted-foreground">
+            Workspace
+          </p>
+          {WORKSPACE_METERS.map((key) => (
+            <UsageMeter
+              key={key}
+              label={CAPACITY_LABELS[key]}
+              used={plan.capacity[key].used}
+              limit={plan.capacity[key].limit}
+              period="stored"
+            />
+          ))}
+          <p className="text-xs text-muted-foreground">
+            {plan.capacity.classMembers.limit == null
+              ? "Class rosters are unlimited on your plan."
+              : `Each class you own holds up to ${plan.capacity.classMembers.limit} members.`}
+          </p>
+        </div>
+      ) : null}
       {!compact ? (
         <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3">
           <div className="rounded-lg border p-3">
             <b>Free</b>
-            <p className="mt-1 text-muted-foreground">Library, classes, schedules, citations, and manual seating. No AI.</p>
+            <p className="mt-1 text-muted-foreground">
+              One class of up to 30, with room for 25 activities, 10 goals and 5
+              lists. Library, schedules, citations and manual seating. No AI.
+            </p>
           </div>
           <div className="rounded-lg border border-primary/30 p-3">
             <b>Plus</b>
-            <p className="mt-1 text-muted-foreground">AI discovery and cited deep research with allowances.</p>
+            <p className="mt-1 text-muted-foreground">
+              Five classes of up to 100, with 250 activities, 100 goals and 50
+              lists. Adds AI discovery and cited deep research with allowances.
+            </p>
           </div>
           <div className="rounded-lg border border-primary/50 bg-primary/5 p-3">
             <b>Pro</b>
-            <p className="mt-1 text-muted-foreground">Unlimited AI plus explainable seating-plan suggestions.</p>
+            <p className="mt-1 text-muted-foreground">
+              Unlimited classes, rosters and saved work. Unlimited
+              account-level AI plus explainable seating-plan suggestions.
+            </p>
           </div>
         </div>
       ) : null}

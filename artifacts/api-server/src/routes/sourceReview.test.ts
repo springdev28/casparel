@@ -88,24 +88,28 @@ vi.mock("../middlewares/requireAuth", () => ({
   },
 }));
 
-vi.mock("../lib/entitlements", () => ({
-  getAccountEntitlements: vi.fn().mockResolvedValue({
-    tier: "pro",
-    label: "Pro",
-    unlimitedAi: true,
-    features: {
-      "ai-discovery": true,
-      "deep-research": true,
-      "seating-planner": true,
-    },
-  }),
-}));
+// Only the account lookup is stubbed. The tier table itself stays real, so a
+// change to what a plan includes shows up here instead of being shadowed by a
+// hand-written literal that nobody remembers to update.
+vi.mock("../lib/entitlements", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../lib/entitlements")>();
+  return {
+    ...actual,
+    getAccountEntitlements: vi
+      .fn()
+      .mockResolvedValue(actual.entitlementsForPlan("pro", null)),
+  };
+});
 
 // ── Subjects (imported AFTER mock declarations) ────────────────────────────────
 
 import { db } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
-import { getAccountEntitlements } from "../lib/entitlements";
+import {
+  entitlementsForPlan,
+  getAccountEntitlements,
+} from "../lib/entitlements";
 import sourceReviewRouter from "./sourceReview.js";
 
 // ── App factory ────────────────────────────────────────────────────────────────
@@ -203,16 +207,9 @@ describe("GET /api/resources/:id/source-review, mode contract", () => {
   });
 
   it("rejects Free accounts before running deep AI research", async () => {
-    vi.mocked(getAccountEntitlements).mockResolvedValueOnce({
-      tier: "free",
-      label: "Free",
-      unlimitedAi: false,
-      features: {
-        "ai-discovery": false,
-        "deep-research": false,
-        "seating-planner": false,
-      },
-    });
+    vi.mocked(getAccountEntitlements).mockResolvedValueOnce(
+      entitlementsForPlan("free", null),
+    );
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review?mode=deep",
     );

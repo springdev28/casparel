@@ -15,10 +15,14 @@ vi.mock("@workspace/db", () => {
 
 import { db } from "@workspace/db";
 import {
+  CAPACITY_BY_TIER,
+  capacityLimitFor,
   entitlementsForPlan,
   isPlanActive,
   isPremiumAccount,
   normalizePlan,
+  upgradeTargetFor,
+  type PlanCapacity,
 } from "./entitlements.js";
 
 function mockAccountRow(row: Record<string, unknown> | null) {
@@ -72,6 +76,7 @@ describe("tier feature matrix", () => {
         "deep-research": false,
         "seating-planner": false,
       },
+      capacity: CAPACITY_BY_TIER.free,
     });
   });
 
@@ -100,6 +105,60 @@ describe("tier feature matrix", () => {
     const past = new Date(Date.now() - 60_000).toISOString();
     expect(normalizePlan("plus", past)).toBe("free");
     expect(normalizePlan("pro", "not-a-date")).toBe("free");
+  });
+});
+
+describe("capacity limits", () => {
+  const CAPACITIES: PlanCapacity[] = [
+    "classes-owned",
+    "class-members",
+    "study-activities",
+    "resource-lists",
+    "learning-goals",
+    "canvases",
+  ];
+
+  it("never shrinks an allowance as the plan gets more expensive", () => {
+    for (const capacity of CAPACITIES) {
+      const free = capacityLimitFor("free", capacity);
+      const plus = capacityLimitFor("plus", capacity);
+      const pro = capacityLimitFor("pro", capacity);
+      expect(free).not.toBeNull();
+      expect(plus).not.toBeNull();
+      // Pro is uncapped on every capacity, so paying more can never buy less.
+      expect(pro).toBeNull();
+      expect(plus as number).toBeGreaterThan(free as number);
+    }
+  });
+
+  it("gives every capacity a positive Free allowance", () => {
+    // A zero here would make the product unusable without paying, which is a
+    // different decision from limiting how much a free account may store.
+    for (const capacity of CAPACITIES) {
+      expect(capacityLimitFor("free", capacity) as number).toBeGreaterThan(0);
+    }
+  });
+
+  it("carries the tier's capacity into the resolved entitlements", () => {
+    expect(entitlementsForPlan("plus", null).capacity).toEqual(
+      CAPACITY_BY_TIER.plus,
+    );
+    expect(entitlementsForPlan("pro", null).capacity["class-members"]).toBeNull();
+  });
+
+  it("hands out a copy so a caller cannot mutate the shared table", () => {
+    const entitlements = entitlementsForPlan("free", null);
+    entitlements.capacity["classes-owned"] = 999;
+    expect(CAPACITY_BY_TIER.free["classes-owned"]).toBe(1);
+  });
+
+  it("recommends the cheapest plan that actually fits the request", () => {
+    // Free teacher wanting a 40-seat roster: Plus (100) is enough.
+    expect(upgradeTargetFor("class-members", "free", 40)).toBe("plus");
+    // Free teacher wanting 400 seats: Plus would refuse them too, so say Pro.
+    expect(upgradeTargetFor("class-members", "free", 400)).toBe("pro");
+    // Already on Plus, so the only plan left is Pro.
+    expect(upgradeTargetFor("class-members", "plus", 120)).toBe("pro");
   });
 });
 

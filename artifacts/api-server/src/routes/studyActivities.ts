@@ -18,6 +18,7 @@ import {
 } from "../middlewares/requireAuth";
 import { isClassMember, isClassTeacher } from "../lib/authz";
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
+import { ensureAccountCapacity } from "../lib/planCapacity";
 
 const router: IRouter = Router();
 const IMAGE_DATA_PATTERN = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
@@ -233,6 +234,7 @@ router.post(
         return;
       }
     }
+    if (!(await ensureAccountCapacity(res, userId, "study-activities"))) return;
     const [activity] = await db
       .insert(studyActivitiesTable)
       .values({

@@ -38,6 +38,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import { ensureAccountCapacity } from "../lib/planCapacity";
 
 const router: IRouter = Router();
 
@@ -412,6 +413,8 @@ router.post(
       description?: string;
     };
 
+    // An imported course is a class like any other, and counts the same.
+    if (!(await ensureAccountCapacity(res, userId, "classes-owned"))) return;
     // Create Casparel class using course data
     const [cls] = await db
       .insert(classesTable)

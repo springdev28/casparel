@@ -24,17 +24,17 @@ const BENEFITS: { icon: string; title: string; body: string }[] = [
   {
     icon: 'book-open',
     title: 'Free',
-    body: 'Library, classes, schedules, citations, and manual seating. No AI features.',
+    body: 'One class of up to 30, plus 25 activities, 10 goals and 5 lists. Library, schedules and manual seating. No AI.',
   },
   {
     icon: 'sparkles',
     title: 'Plus',
-    body: 'AI discovery and cited deep research with daily and monthly allowances.',
+    body: 'Five classes of up to 100, plus 250 activities, 100 goals and 50 lists. Adds AI discovery and cited deep research.',
   },
   {
     icon: 'award',
     title: 'Pro',
-    body: 'Unlimited account-level AI plus explainable seating-plan suggestions for teachers.',
+    body: 'Unlimited classes, rosters and saved work. Unlimited account-level AI and seating-plan suggestions.',
   },
 ];
 

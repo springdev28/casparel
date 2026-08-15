@@ -20,6 +20,7 @@ import {
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher } from "../lib/authz";
+import { ensureAccountCapacity } from "../lib/planCapacity";
 
 const router: IRouter = Router();
 function dateString(
@@ -267,6 +268,7 @@ router.post(
       res.status(400).json({ error: body.error.message });
       return;
     }
+    if (!(await ensureAccountCapacity(res, userId, "learning-goals"))) return;
     const [goal] = await db
       .insert(learningGoalsTable)
       .values({

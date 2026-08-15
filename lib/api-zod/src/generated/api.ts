@@ -386,7 +386,33 @@ export const GetMyUsageResponse = zod.object({
   "used": zod.int(),
   "limit": zod.int().nullable(),
   "window": zod.enum(['day'])
+}),
+  "capacity": zod.object({
+  "classesOwned": zod.object({
+  "used": zod.int(),
+  "limit": zod.int().nullable()
+}),
+  "classMembers": zod.object({
+  "used": zod.int(),
+  "limit": zod.int().nullable()
+}),
+  "studyActivities": zod.object({
+  "used": zod.int(),
+  "limit": zod.int().nullable()
+}),
+  "resourceLists": zod.object({
+  "used": zod.int(),
+  "limit": zod.int().nullable()
+}),
+  "learningGoals": zod.object({
+  "used": zod.int(),
+  "limit": zod.int().nullable()
+}),
+  "canvases": zod.object({
+  "used": zod.int(),
+  "limit": zod.int().nullable()
 })
+}).describe('Stored-data allowances for the plan. A null limit means uncapped. classMembers reports the per-class roster cap that applies to classes this account owns, so its used count is always 0.')
 })
 
 

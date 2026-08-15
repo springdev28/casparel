@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AccountUsageAiSearch } from './accountUsageAiSearch';
+import type { AccountUsageCapacity } from './accountUsageCapacity';
 import type { AccountUsageDeepResearch } from './accountUsageDeepResearch';
 
 export interface AccountUsage {
@@ -13,4 +14,6 @@ export interface AccountUsage {
   unlimited: boolean;
   aiSearch: AccountUsageAiSearch;
   deepResearch: AccountUsageDeepResearch;
+  /** Stored-data allowances for the plan. A null limit means uncapped. classMembers reports the per-class roster cap that applies to classes this account owns, so its used count is always 0. */
+  capacity: AccountUsageCapacity;
 }

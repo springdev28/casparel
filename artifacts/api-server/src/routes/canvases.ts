@@ -19,6 +19,7 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import { ensureAccountCapacity } from "../lib/planCapacity";
 
 const router: IRouter = Router();
 
@@ -226,6 +227,7 @@ router.post(
         return;
       }
     }
+    if (!(await ensureAccountCapacity(res, userId, "canvases"))) return;
     const [canvas] = await db
       .insert(canvasesTable)
       .values({

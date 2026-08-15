@@ -301,11 +301,31 @@ export type AccountUsageDeepResearch = {
   window: AccountUsageDeepResearchWindow;
 };
 
+export interface CapacityUsage {
+  used: number;
+  /** @nullable */
+  limit: number | null;
+}
+
+/**
+ * Stored-data allowances for the plan. A null limit means uncapped. classMembers reports the per-class roster cap that applies to classes this account owns, so its used count is always 0.
+ */
+export type AccountUsageCapacity = {
+  classesOwned: CapacityUsage;
+  classMembers: CapacityUsage;
+  studyActivities: CapacityUsage;
+  resourceLists: CapacityUsage;
+  learningGoals: CapacityUsage;
+  canvases: CapacityUsage;
+};
+
 export interface AccountUsage {
   plan: string;
   unlimited: boolean;
   aiSearch: AccountUsageAiSearch;
   deepResearch: AccountUsageDeepResearch;
+  /** Stored-data allowances for the plan. A null limit means uncapped. classMembers reports the per-class roster cap that applies to classes this account owns, so its used count is always 0. */
+  capacity: AccountUsageCapacity;
 }
 
 export interface AdminAiFeatureUsage {

@@ -11,7 +11,7 @@ Casparel is a cross-platform learning workspace for two primary audiences:
 - Students discover credible learning material, organise it around goals, schedule study, collaborate, and preserve evidence of progress.
 - Teachers manage classes, recommend and assign resources, review student work, and use learning signals to support students.
 
-The product's strongest differentiator is the path from **discovery → source evaluation → organised study → evidence**, not a generic social feed or a generic AI chatbot. The public educational-resource library and quick source check remain useful without Premium. Premium removes account-level limits from deep live-web source research.
+The product's strongest differentiator is the path from **discovery → source evaluation → organised study → evidence**, not a generic social feed or a generic AI chatbot. The public educational-resource library and the non-AI quick source check remain fully useful on the free plan. The paid tiers sell two things together: AI research, and room to keep more of the work a class or a study year produces.
 
 ### Roles and access
 
@@ -21,7 +21,8 @@ The product's strongest differentiator is the path from **discovery → source e
 | Student    | Goals, schedules, resources/lists, classes, activities, canvases, messaging, forum, profile and evidence                    |
 | Teacher    | Student capabilities plus class management, assignments/recommendations, notes, seating tools, Google Classroom integration |
 | Admin      | Moderation, user/class/work controls, verification queues, usage/cost overview                                              |
-| Premium    | Unlimited account-level deep source research; the server-wide safety budget still applies                                   |
+| Plus       | Larger workspace allowances plus AI discovery and deep source research within per-account limits                            |
+| Pro        | Uncapped workspace allowances and uncapped account-level AI; the server-wide safety budget still applies                    |
 
 Authentication uses a signed bearer token stored under the legacy key `schoolar_token` on web and mobile. That key is a compatibility contract and must not be renamed casually.
 
@@ -47,7 +48,7 @@ Important resource behaviour:
 - The empty search view loads six top-rated public resources so a new visitor has an immediate path forward.
 - Search combines the Casparel library with an open education catalog.
 - Optional AI discovery is a fallback only when stored/remote catalog search has no result and the relevant feature flag is enabled.
-- A quick source check uses model knowledge; deep research uses live web research and returns cited strengths, concerns, limitations, currency and reputation analysis.
+- The quick source check reads a maintained provenance registry and makes no model call, which is why it stays free; deep research uses live web research and returns cited strengths, concerns, limitations, currency and reputation analysis.
 - Users may remove only resources they submitted; public search cards must not expose another author's removal action.
 
 ### Mobile application
@@ -60,9 +61,9 @@ The Expo Router app provides focused native flows:
 - schedule;
 - resource browse and resource detail;
 - quick and deep source review;
-- profile, usage and Premium paywall.
+- profile, usage and the plan paywall.
 
-The native identifiers are `com.casparel.app`; the Expo slug and URL scheme are `casparel`. RevenueCat is loaded behind a platform-safe adapter, uses entitlement identifier `premium`, and logs in with the numeric Casparel user ID so purchases can reconcile to the server account.
+The native identifiers are `com.casparel.app`; the Expo slug and URL scheme are `casparel`. RevenueCat is loaded behind a platform-safe adapter, resolves the `plus`, `pro` and legacy `premium` entitlements, and logs in with the numeric Casparel user ID so purchases can reconcile to the server account.
 
 The mobile app is intentionally narrower than the web app. It does not currently provide the full web experiences for goals, canvases, lists, messaging, forum, activities, admin, or AI-assisted open-catalog discovery. Paywall copy must not imply that missing native experiences exist.
 
@@ -139,17 +140,53 @@ Schema changes require both a TypeScript schema edit and a generated migration c
 - Expired or server-rejected tokens are cleared by the client and return the user to login.
 - Logout clears client session state. Account deletion anonymises/disables the account rather than leaving active personal identity.
 
-### Premium reconciliation
+### Plans
 
-The native client derives immediate entitlement state from RevenueCat. RevenueCat also calls `POST /api/webhooks/revenuecat` with a shared Authorization value so the server can grant/revoke the account plan. The server validates `plan === "premium"` and any recorded expiry.
+Casparel sells three tiers. `free` is the default; `plus` and `pro` are the paid plans; the legacy `premium` plan value and entitlement are still honoured and resolve to Pro.
 
-Current free limits:
+A plan governs two different things, and both matter:
 
-- optional AI discovery fallback: three per user/day by default;
-- deep source research: two per user/day and two per user/30-day window;
-- a global deep-research budget defaults to 20/day for every non-admin account, including Premium, as a cost safety net.
+- **Rate** — how much AI an account may consume per day or per month.
+- **Capacity** — how many rows an account may accumulate. Every capacity maps to one table, so a tier is also a statement about how much database and backup an account occupies. Pricing only the AI rate would price the cheap, self-limiting part of the product: an abandoned free account with forty classes and a thousand activities costs storage and query time every day after its AI spend has stopped.
 
-The usage endpoint returns the effective two-report free allowance by considering both deep counters. Premium removes account-level limits, not the global emergency budget.
+### Rate limits
+
+| Surface                | Free | Plus                     | Pro                     |
+| ---------------------- | ---- | ------------------------ | ----------------------- |
+| AI discovery fallback  | none | 20/day                   | uncapped per account    |
+| Deep source research   | none | 5/day and 50/30 days     | uncapped per account    |
+
+The quick source check is not an AI feature — it reads a maintained provenance registry — and stays available on every plan, signed in or out. Plus limits are configurable via `AI_PLUS_SEARCH_DAILY_LIMIT`, `AI_PLUS_DEEP_DAILY_LIMIT` and `AI_PLUS_DEEP_MONTHLY_LIMIT`.
+
+A global deep-research budget (`AI_DEEP_DAILY_GLOBAL_LIMIT`, default 20/day) applies to every non-admin account **including Pro**, as a cost safety net. This is a known contradiction with the uncapped Pro claim and is the first item on the subscription roadmap.
+
+### Capacity limits
+
+Defined once in `CAPACITY_BY_TIER` in `artifacts/api-server/src/lib/entitlements.ts`, which the usage endpoint, the enforcement helper and the tests all read, so a displayed limit and an applied limit cannot drift apart.
+
+| Capacity            | Free | Plus | Pro       |
+| ------------------- | ---: | ---: | --------- |
+| Classes owned       |    1 |    5 | uncapped  |
+| Members per class   |   30 |  100 | uncapped  |
+| Study activities    |   25 |  250 | uncapped  |
+| Resource lists      |    5 |   50 | uncapped  |
+| Learning goals      |   10 |  100 | uncapped  |
+| Canvases            |    3 |   30 | uncapped  |
+
+Rules that hold across every capacity:
+
+- Counts are read at write time, so a downgrade takes effect on the next creation attempt with no reconciliation job.
+- Nothing is deleted or hidden when a plan shrinks. An account over its limit keeps everything it has and simply cannot add more of that kind until it is back under.
+- A refusal is `402` with `code: "PLAN_LIMIT_REACHED"` and the `capacity`, `limit`, `used` and `requiredPlan` as fields, so a client can render a meter without parsing the sentence.
+- `requiredPlan` names the cheapest plan that would actually fit the request, so a teacher who needs a 400-seat roster is pointed at Pro rather than at a Plus plan that would refuse them again.
+- **Class rosters are charged to the teacher who owns the class, never to the student joining it.** A free student joining a Pro teacher's class is never blocked by their own plan.
+- Admin accounts are uncapped on capacity, matching how they bypass the AI quotas.
+
+Every account-owned capacity, its current usage and its limit are returned by `GET /api/users/me/usage` alongside the AI counters.
+
+### Entitlement reconciliation
+
+The native client derives immediate entitlement state from RevenueCat. RevenueCat also calls `POST /api/webhooks/revenuecat` with a shared Authorization value so the server can grant/revoke the account plan. The webhook maps the `pro` and legacy `premium` entitlements to the Pro plan and `plus` to Plus, and records any expiry.
 
 ## 6. Discovery and research
 
@@ -260,7 +297,9 @@ Accessibility is enforced partly in the browser audit and partly through native 
 - Several newer API domains are not yet specified in OpenAPI, so generated client/schema coverage is incomplete.
 - RevenueCat `TRANSFER` events are not authoritatively reconciled; a store account transfer can leave the previous Casparel user stale until another entitlement event or manual correction.
 - Expo/Metro currently resolves `image-size` 1.2.1; npm reports high-severity [ICNS](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr) and [JXL/HEIF](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq) parser denial-of-service advisories, while the declared patched 2.0.3 release is not yet published. Treat untrusted ICNS/JXL/HEIF build input as unsafe and upgrade as soon as the fix exists.
-- The free deep allowance combines a daily and 30-day cap; product copy intentionally says “allowance” rather than promising two reports every day.
+- The Plus deep allowance combines a daily and a 30-day cap, so product copy says “allowance” rather than promising five reports every day of the month.
+- The global deep-research budget still applies to Pro, so an account sold as uncapped can be refused by a shared 20/day ceiling. See the subscription roadmap.
+- Capacity limits are enforced on the routes that create classes, rosters, activities, lists, goals and canvases. Rows created by other surfaces (forum posts, messages, list items, schedule blocks, canvas objects) are not yet capped.
 - Mobile is a focused subset, not feature parity with web.
 - The largest lazy web chunks (p5 and Three.js) are heavy; they are isolated from the initial route but should remain under route-level performance budgets.
 - Production smoke measurements show availability/latency at low volume, not concurrency capacity. Capacity tests require staging and database telemetry.

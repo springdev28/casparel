@@ -112,14 +112,23 @@ export function TermsPage() {
 
       <Section title="Subscriptions">
         <p>
-          Casparel Free includes the core library, classes, schedules,
-          citations, and manual seating, but no AI features. Plus includes AI
-          discovery and deep research with allowances. Pro includes unlimited
-          account-level AI and explainable seating-plan suggestions.
+          Casparel Free includes the core library, schedules, citations and
+          manual seating, with no AI features, and holds one class of up to 30
+          members, 25 study activities, 10 learning goals, 5 resource lists and
+          3 canvases. Plus raises those allowances and adds AI discovery and
+          deep research with usage limits. Pro removes the account-level
+          allowances and adds explainable seating-plan suggestions. Your current
+          allowances and usage are shown under Settings then Plan.
           Subscriptions bought in the mobile apps are billed by Apple or
           Google, renew automatically, and can be cancelled at any time in your
           App Store or Google Play account settings. Cancelling stops the next
           renewal; it does not refund the period already paid for.
+        </p>
+        <p>
+          If a subscription ends, nothing you have already created is deleted or
+          hidden. Work that exceeds the Free allowances stays available and
+          stays yours; until you are back under the limit you cannot add more of
+          that kind of item.
         </p>
         <p>
           Refunds are handled by whichever store you bought through, under that

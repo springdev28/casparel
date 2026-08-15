@@ -20,6 +20,7 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
+import { ensureClassMemberCapacity } from "../lib/planCapacity";
 import { nextResourceWorkflowAction } from "../lib/workflowState";
 
 const router: IRouter = Router();
@@ -411,6 +412,9 @@ router.post(
       res.status(404).json({ error: "Class code not found" });
       return;
     }
+    // The roster limit belongs to the teacher who owns the class, so a free
+    // student is never blocked from joining a class a paid teacher runs.
+    if (!(await ensureClassMemberCapacity(res, cls.id))) return;
     await db
       .insert(classMembersTable)
       .values({ classId: cls.id, userId, role: "student" })

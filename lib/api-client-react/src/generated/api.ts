@@ -1568,7 +1568,7 @@ export const createLearningGoal = async (learningGoalInput: LearningGoalInput, o
 
 
 
-export const getCreateLearningGoalMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateLearningGoalMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLearningGoal>>, TError,{data: BodyType<LearningGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createLearningGoal>>, TError,{data: BodyType<LearningGoalInput>}, TContext> => {
 
@@ -1597,12 +1597,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateLearningGoalMutationResult = NonNullable<Awaited<ReturnType<typeof createLearningGoal>>>
     export type CreateLearningGoalMutationBody = BodyType<LearningGoalInput>
-    export type CreateLearningGoalMutationError = ErrorType<unknown>
+    export type CreateLearningGoalMutationError = ErrorType<void>
 
     /**
  * @summary Create a learning goal
  */
-export const useCreateLearningGoal = <TError = ErrorType<unknown>,
+export const useCreateLearningGoal = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createLearningGoal>>, TError,{data: BodyType<LearningGoalInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createLearningGoal>>,
@@ -1859,7 +1859,7 @@ export const createClass = async (classInput: ClassInput, options?: Parameters<t
 
 
 
-export const getCreateClassMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateClassMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClass>>, TError,{data: BodyType<ClassInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createClass>>, TError,{data: BodyType<ClassInput>}, TContext> => {
 
@@ -1888,12 +1888,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateClassMutationResult = NonNullable<Awaited<ReturnType<typeof createClass>>>
     export type CreateClassMutationBody = BodyType<ClassInput>
-    export type CreateClassMutationError = ErrorType<unknown>
+    export type CreateClassMutationError = ErrorType<void>
 
     /**
  * @summary Create a new class (teacher only)
  */
-export const useCreateClass = <TError = ErrorType<unknown>,
+export const useCreateClass = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createClass>>, TError,{data: BodyType<ClassInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createClass>>,
@@ -4996,7 +4996,7 @@ export const createResourceList = async (resourceListInput: ResourceListInput, o
 
 
 
-export const getCreateResourceListMutationOptions = <TError = ErrorType<unknown>,
+export const getCreateResourceListMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResourceList>>, TError,{data: BodyType<ResourceListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createResourceList>>, TError,{data: BodyType<ResourceListInput>}, TContext> => {
 
@@ -5025,12 +5025,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreateResourceListMutationResult = NonNullable<Awaited<ReturnType<typeof createResourceList>>>
     export type CreateResourceListMutationBody = BodyType<ResourceListInput>
-    export type CreateResourceListMutationError = ErrorType<unknown>
+    export type CreateResourceListMutationError = ErrorType<void>
 
     /**
  * @summary Create a new resource list
  */
-export const useCreateResourceList = <TError = ErrorType<unknown>,
+export const useCreateResourceList = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResourceList>>, TError,{data: BodyType<ResourceListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof createResourceList>>,

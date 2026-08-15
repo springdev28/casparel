@@ -646,7 +646,7 @@ export default function AppShell({ children }: AppShellProps) {
     <>
       <div className="fixed inset-0 flex w-full overflow-hidden bg-primary">
         {/* Sidebar */}
-        <aside className="sidebar-scrollbar-hidden hidden h-full min-h-0 w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex [--primary:222_47%_11%]">
+        <aside className="sidebar-scrollbar-hidden hidden h-full min-h-0 w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex app-nav-surface">
           {/* Logo */}
           <Link
             href="/"
@@ -988,7 +988,7 @@ export default function AppShell({ children }: AppShellProps) {
         </aside>
 
         {/* Mobile top bar */}
-        <div className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-primary px-2 text-primary-foreground md:hidden [--primary:222_47%_11%]">
+        <div className="fixed inset-x-0 top-0 z-50 flex h-14 items-center gap-2 bg-primary px-2 text-primary-foreground md:hidden app-nav-surface">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild>
               <Button
@@ -1003,7 +1003,7 @@ export default function AppShell({ children }: AppShellProps) {
             </SheetTrigger>
             <SheetContent
               side="left"
-              className="w-[min(22rem,88vw)] border-primary-foreground/20 bg-primary p-0 text-primary-foreground [&>button]:text-primary-foreground [--primary:222_47%_11%]"
+              className="w-[min(22rem,88vw)] border-primary-foreground/20 bg-primary p-0 text-primary-foreground [&>button]:text-primary-foreground app-nav-surface"
             >
               <div className="flex h-full min-h-0 flex-col">
                 <SheetHeader className="shrink-0 border-b border-primary-foreground/20 px-5 py-4 text-left">

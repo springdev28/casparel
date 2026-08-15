@@ -368,6 +368,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LearningGoal"
+        "402": { description: "Plan capacity reached (PLAN_LIMIT_REACHED)" }
 
   /learning-goals/{id}:
     patch:
@@ -437,6 +438,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Class"
+        "402": { description: "Plan capacity reached (PLAN_LIMIT_REACHED)" }
 
   /classes/{id}:
     get:
@@ -542,6 +544,7 @@ paths:
                 $ref: "#/components/schemas/BulkInviteResult"
         "403":
           description: Not the class teacher
+        "402": { description: "Plan capacity reached (PLAN_LIMIT_REACHED)" }
 
   /classes/{id}/members/{userId}:
     delete:
@@ -938,6 +941,7 @@ paths:
         "403": { description: Only the class teacher can invite members }
         "404": { description: No account with that email }
         "409": { description: This user is already a class member }
+        "402": { description: "Plan capacity reached (PLAN_LIMIT_REACHED)" }
 
   /classes/{id}/join-code:
     get:
@@ -1031,6 +1035,7 @@ paths:
               schema: { $ref: "#/components/schemas/ClassInvitationResponse" }
         "400": { description: Choose whether to accept or decline }
         "404": { description: Pending invitation not found }
+        "402": { description: "Plan capacity reached (PLAN_LIMIT_REACHED)" }
 
   # ── Resources ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   /resources:
@@ -1418,6 +1423,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResourceList"
+        "402": { description: "Plan capacity reached (PLAN_LIMIT_REACHED)" }
 
   /lists/{id}:
     get:
@@ -2320,7 +2326,7 @@ components:
 
     AccountUsage:
       type: object
-      required: [plan, unlimited, aiSearch, deepResearch]
+      required: [plan, unlimited, aiSearch, deepResearch, capacity]
       properties:
         plan: { type: string }
         unlimited: { type: boolean }
@@ -2338,6 +2344,35 @@ components:
             used: { type: integer }
             limit: { type: ["integer", "null"] }
             window: { type: string, enum: [day] }
+        capacity:
+          description: >-
+            Stored-data allowances for the plan. A null limit means uncapped.
+            classMembers reports the per-class roster cap that applies to
+            classes this account owns, so its used count is always 0.
+          type: object
+          required:
+            [
+              classesOwned,
+              classMembers,
+              studyActivities,
+              resourceLists,
+              learningGoals,
+              canvases,
+            ]
+          properties:
+            classesOwned: { $ref: "#/components/schemas/CapacityUsage" }
+            classMembers: { $ref: "#/components/schemas/CapacityUsage" }
+            studyActivities: { $ref: "#/components/schemas/CapacityUsage" }
+            resourceLists: { $ref: "#/components/schemas/CapacityUsage" }
+            learningGoals: { $ref: "#/components/schemas/CapacityUsage" }
+            canvases: { $ref: "#/components/schemas/CapacityUsage" }
+
+    CapacityUsage:
+      type: object
+      required: [used, limit]
+      properties:
+        used: { type: integer }
+        limit: { type: ["integer", "null"] }
 
     AdminAiFeatureUsage:
       type: object

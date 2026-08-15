@@ -60,25 +60,29 @@ vi.mock("../middlewares/requireAuth", () => ({
   },
 }));
 
-vi.mock("../lib/entitlements", () => ({
-  getAccountEntitlements: vi.fn().mockResolvedValue({
-    tier: "pro",
-    label: "Pro",
-    unlimitedAi: true,
-    features: {
-      "ai-discovery": true,
-      "deep-research": true,
-      "seating-planner": true,
-    },
-  }),
-}));
+// Only the account lookup is stubbed. The tier table itself stays real, so a
+// change to what a plan includes shows up here instead of being shadowed by a
+// hand-written literal that nobody remembers to update.
+vi.mock("../lib/entitlements", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../lib/entitlements")>();
+  return {
+    ...actual,
+    getAccountEntitlements: vi
+      .fn()
+      .mockResolvedValue(actual.entitlementsForPlan("pro", null)),
+  };
+});
 
 // ── Import subjects AFTER mock declarations ────────────────────────────────────
 import { db } from "@workspace/db";
 import classesRouter from "./classes.js";
 import { issueToken } from "../lib/auth.js";
 import { isClassTeacher } from "../lib/authz.js";
-import { getAccountEntitlements } from "../lib/entitlements";
+import {
+  entitlementsForPlan,
+  getAccountEntitlements,
+} from "../lib/entitlements";
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
@@ -544,18 +548,88 @@ describe("isClassTeacher administrator workspace switching", () => {
   });
 });
 
+describe("POST /api/classes, plan capacity gate", () => {
+  /**
+   * Drive the two reads the capacity check makes: the acting account's plan,
+   * and how many classes it already owns. Everything else on this route is
+   * covered by the ownership tests above.
+   */
+  function mockOwnedClasses(plan: string, owned: number) {
+    vi.mocked(db.select).mockImplementation(
+      ((projection?: Record<string, unknown>) => ({
+        from: (table: { _name: string }) => ({
+          where: () => {
+            if (table._name === "users") {
+              return Promise.resolve([
+                {
+                  id: TEACHER_ID,
+                  role: "teacher",
+                  activeRole: "teacher",
+                  plan,
+                  planExpiresAt: null,
+                },
+              ]);
+            }
+            if (projection && "count" in projection) {
+              return Promise.resolve([{ count: owned }]);
+            }
+            return Promise.resolve([CLASS_ROW]);
+          },
+        }),
+      })) as unknown as typeof db.select,
+    );
+  }
+
+  beforeEach(() => {
+    mockActorRole = "teacher";
+    vi.clearAllMocks();
+  });
+
+  it("refuses a second class on Free and names the plan that would allow it", async () => {
+    mockOwnedClasses("free", 1);
+
+    const res = await request(buildApp())
+      .post("/api/classes")
+      .set("Authorization", tokenFor("teacher"))
+      .send({ name: "Second Class", subject: "Maths", gradeLevel: "Grade 5" });
+
+    expect(res.status).toBe(402);
+    expect(res.body).toMatchObject({
+      code: "PLAN_LIMIT_REACHED",
+      capacity: "classes-owned",
+      limit: 1,
+      used: 1,
+      requiredPlan: "plus",
+    });
+    // The refusal must happen before the write, not after it.
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("lets a Plus teacher past the Free ceiling", async () => {
+    mockOwnedClasses("plus", 1);
+    const returning = vi.fn().mockResolvedValue([CLASS_ROW]);
+    vi.mocked(db.insert).mockReturnValue({
+      values: vi.fn().mockReturnValue({
+        returning,
+        onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
+      }),
+    } as never);
+
+    const res = await request(buildApp())
+      .post("/api/classes")
+      .set("Authorization", tokenFor("teacher"))
+      .send({ name: "Second Class", subject: "Maths", gradeLevel: "Grade 5" });
+
+    expect(res.status).toBe(201);
+    expect(db.insert).toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/classes/:id/seating-plan/suggest, subscription gate", () => {
   it("rejects a Free teacher before generating a seating assignment", async () => {
-    vi.mocked(getAccountEntitlements).mockResolvedValueOnce({
-      tier: "free",
-      label: "Free",
-      unlimitedAi: false,
-      features: {
-        "ai-discovery": false,
-        "deep-research": false,
-        "seating-planner": false,
-      },
-    });
+    vi.mocked(getAccountEntitlements).mockResolvedValueOnce(
+      entitlementsForPlan("free", null),
+    );
 
     const res = await request(buildApp())
       .post(`/api/classes/${CLASS_ID}/seating-plan/suggest`)

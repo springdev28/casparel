@@ -25,6 +25,7 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { contentLimiter } from "../lib/limiters";
 import { isListOwner, canReadList, isListItemOwner, isClassTeacher } from "../lib/authz";
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
+import { ensureAccountCapacity } from "../lib/planCapacity";
 
 const router: IRouter = Router();
 
@@ -90,6 +91,7 @@ router.post("/lists", contentLimiter, requireAuth, async (req, res): Promise<voi
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  if (!(await ensureAccountCapacity(res, userId, "resource-lists"))) return;
   const [list] = await db
     .insert(resourceListsTable)
     .values({ ...parsed.data, ownerId: userId, workspaceRole: userRole as "student" | "teacher" })

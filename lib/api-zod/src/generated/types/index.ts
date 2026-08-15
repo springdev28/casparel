@@ -9,6 +9,7 @@
 export * from './accountUsage';
 export * from './accountUsageAiSearch';
 export * from './accountUsageAiSearchWindow';
+export * from './accountUsageCapacity';
 export * from './accountUsageDeepResearch';
 export * from './accountUsageDeepResearchWindow';
 export * from './activityItem';
@@ -33,6 +34,7 @@ export * from './bulkInviteResultItemStatus';
 export * from './calendarConnectUrl';
 export * from './calendarIcalUrl';
 export * from './calendarStatus';
+export * from './capacityUsage';
 export * from './class';
 export * from './classInput';
 export * from './classInvitation';

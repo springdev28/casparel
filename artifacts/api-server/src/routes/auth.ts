@@ -44,6 +44,7 @@ import {
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import { getAccountEntitlements } from "../lib/entitlements";
+import { accountCapacityReport } from "../lib/planCapacity";
 import { publicUserColumns } from "../lib/userColumns";
 import { publicResourceColumns } from "../lib/resourceColumns";
 import {
@@ -449,6 +450,9 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
     usage.get("deep-user-day:" + userId) ?? 0,
     usage.get("deep-user-month:" + userId) ?? 0,
   );
+  // Stored-data allowances travel with the AI counters so a client renders the
+  // whole plan from one response instead of guessing the half it cannot see.
+  const capacity = await accountCapacityReport(userId);
   res.json(
     GetMyUsageResponse.parse({
       plan: isAdmin ? "Administrator" : entitlements.label,
@@ -470,6 +474,14 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
             ? plusDeepDailyLimit
             : 0,
         window: "day",
+      },
+      capacity: {
+        classesOwned: capacity["classes-owned"],
+        classMembers: capacity["class-members"],
+        studyActivities: capacity["study-activities"],
+        resourceLists: capacity["resource-lists"],
+        learningGoals: capacity["learning-goals"],
+        canvases: capacity.canvases,
       },
     }),
   );

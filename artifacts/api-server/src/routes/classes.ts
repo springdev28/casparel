@@ -42,6 +42,10 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher, isClassMember } from "../lib/authz";
 import { getAccountEntitlements } from "../lib/entitlements";
+import {
+  ensureAccountCapacity,
+  ensureClassMemberCapacity,
+} from "../lib/planCapacity";
 
 async function resourceWithRating(id: number) {
   const [r] = await db
@@ -154,6 +158,15 @@ router.patch(
       return;
     }
     const accepted = action === "accept";
+    // Checked at accept time as well as at invite time: the roster can fill up,
+    // or the teacher's plan can lapse, between sending an invitation and the
+    // student answering it.
+    if (
+      accepted &&
+      !(await ensureClassMemberCapacity(res, invitation.classId))
+    ) {
+      return;
+    }
     await db.transaction(async (tx) => {
       await tx
         .update(classInvitationsTable)
@@ -232,6 +245,7 @@ router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<v
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  if (!(await ensureAccountCapacity(res, userId, "classes-owned"))) return;
   const [cls] = await db
     .insert(classesTable)
     .values({ ...parsed.data, teacherId: userId })
@@ -471,6 +485,9 @@ router.post(
       res.status(409).json({ error: "This user is already a class member" });
       return;
     }
+    // Refuse here rather than letting the teacher send invitations that would
+    // be rejected when the student accepts them.
+    if (!(await ensureClassMemberCapacity(res, classId))) return;
     const role = invitee.role === "teacher" ? "teacher" : "student";
     const [invitation] = await db
       .insert(classInvitationsTable)
@@ -575,6 +592,14 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
   }
 
   if (toInsert.length > 0) {
+    // A bulk invite is all-or-nothing against the roster limit. Accepting the
+    // first N of a pasted list and silently dropping the rest would leave the
+    // teacher believing the whole class was invited.
+    if (
+      !(await ensureClassMemberCapacity(res, params.data.id, toInsert.length))
+    ) {
+      return;
+    }
     const [cls] = await db
       .select({ name: classesTable.name })
       .from(classesTable)

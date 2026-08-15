@@ -28,9 +28,32 @@ export interface PlanState {
   seatingPlanner: boolean;
   aiSearch: { used: number; limit: number | null };
   deepResearch: { used: number; limit: number | null };
+  /**
+   * Stored-data allowances. A plan is not only a rate of AI calls, it is also
+   * how much of the workspace an account may keep, so these travel with the
+   * per-day counters rather than being fetched separately.
+   */
+  capacity: Record<PlanCapacityKey, { used: number; limit: number | null }>;
   /** True while we still only have the fallback, not the server's answer. */
   pending: boolean;
 }
+
+export type PlanCapacityKey =
+  | "classesOwned"
+  | "classMembers"
+  | "studyActivities"
+  | "resourceLists"
+  | "learningGoals"
+  | "canvases";
+
+export const CAPACITY_LABELS: Record<PlanCapacityKey, string> = {
+  classesOwned: "Classes",
+  classMembers: "Members per class",
+  studyActivities: "Study activities",
+  resourceLists: "Resource lists",
+  learningGoals: "Learning goals",
+  canvases: "Canvases",
+};
 
 const FALLBACK_SEARCH_LIMIT = 0;
 const FALLBACK_DEEP_LIMIT = 0;
@@ -86,6 +109,22 @@ export function usePlan(enabled = true): PlanState {
         ? null
         : (usage?.deepResearch?.limit ?? FALLBACK_DEEP_LIMIT),
     },
+    // Read field by field, like the counters above: a malformed usage body must
+    // not be able to throw out of a hook the whole signed-in shell depends on.
+    // `limit: null` reads as "unlimited", so callers must check `pending`
+    // before rendering these rather than trusting a not-yet-loaded response.
+    capacity: {
+      classesOwned: readCapacity(usage?.capacity?.classesOwned),
+      classMembers: readCapacity(usage?.capacity?.classMembers),
+      studyActivities: readCapacity(usage?.capacity?.studyActivities),
+      resourceLists: readCapacity(usage?.capacity?.resourceLists),
+      learningGoals: readCapacity(usage?.capacity?.learningGoals),
+      canvases: readCapacity(usage?.capacity?.canvases),
+    },
     pending: usage === undefined,
   };
+}
+
+function readCapacity(entry: { used?: number; limit?: number | null } | undefined) {
+  return { used: entry?.used ?? 0, limit: entry?.limit ?? null };
 }
