@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import router from "./routes";
 import loginCompatRouter from "./routes/loginCompat";
 import { logger } from "./lib/logger";
-import { globalLimiter } from "./lib/limiters";
+import { authLimiter, globalLimiter } from "./lib/limiters";
 
 const app: Express = express();
 const configuredOrigins = new Set(
@@ -101,6 +101,14 @@ app.use("/api", (req, res, next) => {
   next();
 });
 app.use("/api", globalLimiter);
+// Credential endpoints are rate limited HERE, at the mount point, not inside
+// the router that serves them. Two routers below both declare POST
+// /auth/login, and Express hands the request to whichever is mounted first,
+// so a limiter attached to one handler protects nothing if the other wins.
+// That is what happened: loginCompatRouter shadowed the limited route and
+// left password guessing capped only by the 100/min global limiter.
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
 app.use("/api", loginCompatRouter);
 app.use("/api", router);
 

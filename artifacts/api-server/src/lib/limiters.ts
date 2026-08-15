@@ -24,6 +24,41 @@ export const globalLimiter = rateLimit({
 });
 
 /**
+ * Credential limiter, 20 attempts per 15 minutes per IP, for sign-in and
+ * registration.
+ *
+ * This deliberately lives here rather than next to the handler it protects.
+ * It used to be defined inside routes/auth.ts and attached to that file's
+ * POST /auth/login, which left brute-force protection switched off in
+ * practice: routes/loginCompat.ts declares its own POST /auth/login and is
+ * mounted first in app.ts, so Express matched the compat handler and the
+ * limiter on the second copy was never reached. Password guessing was
+ * bounded only by the 100/min global limiter.
+ *
+ * Attaching it at the mount point instead of to a handler makes it
+ * unshadowable: it now runs before either router sees the request, so adding
+ * another /auth/login handler in future cannot silently disable it again.
+ *
+ * No admin skip. Bypassing the limiter requires being recognised as an admin,
+ * and recognising anyone is exactly what these routes have not done yet.
+ */
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: buildRateLimitStore("auth"),
+  handler(_req, res, _next, options) {
+    const retryAfter = Math.ceil(options.windowMs / 1000 / 60);
+    res.setHeader("Retry-After", retryAfter * 60);
+    res.status(429).json({
+      error: `Too many sign-in attempts. Please wait ${retryAfter} minutes and try again.`,
+      retryAfter: retryAfter * 60,
+    });
+  },
+});
+
+/**
  * Discover limiter, 5 requests per minute per IP.
  * Applied to GET /resources/discover which calls OpenAI with web_search_preview
  * on every request, making it expensive to abuse.

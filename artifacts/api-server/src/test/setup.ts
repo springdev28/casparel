@@ -6,3 +6,7 @@ process.env.GOOGLE_CLIENT_ID = "test-client-id";
 process.env.GOOGLE_CLIENT_SECRET = "test-client-secret";
 // Use in-memory rate-limit store so tests never need a real DB pool
 process.env.RATE_LIMIT_STORE = "memory";
+// Required to import routes/resources.ts, which loads the OpenAI integration
+// at module scope. Tests never call out; these only satisfy the import guard.
+process.env.AI_INTEGRATIONS_OPENAI_BASE_URL = "https://example.invalid/v1";
+process.env.AI_INTEGRATIONS_OPENAI_API_KEY = "test-key-not-real";

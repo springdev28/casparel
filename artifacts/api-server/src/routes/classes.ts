@@ -757,14 +757,19 @@ router.put("/classes/:id/seating-chart", contentLimiter, requireAuth, async (req
     if (body.data.layoutMode === "custom") {
       if (assignment.deskId == null || assignment.deskSeat == null) continue;
       const desk = deskById.get(assignment.deskId);
-      if (!desk || assignment.deskSeat >= desk.capacity) { res.status(400).json({ error: "Seat is outside its desk capacity" }); return; }
-      const deskKey = `desk::`;
+      if (!desk || assignment.deskSeat < 0 || assignment.deskSeat >= desk.capacity) { res.status(400).json({ error: "Seat is outside its desk capacity" }); return; }
+      // Must identify the actual desk and seat. This was `desk::` - a template
+      // literal with no interpolations, so every assignment produced the same
+      // constant string and the second seated student always collided with the
+      // first. Custom layouts could hold exactly one student; the grid branch
+      // below was unaffected because it builds a real key.
+      const deskKey = `desk:${assignment.deskId}:${assignment.deskSeat}`;
       if (occupied.has(deskKey)) { res.status(400).json({ error: "Two students cannot share one desk position" }); return; }
       occupied.add(deskKey);
       continue;
     }
     if (assignment.row == null || assignment.column == null) continue;
-    if (assignment.row >= body.data.rows || assignment.column >= body.data.columns) { res.status(400).json({ error: "Seat is outside the classroom grid" }); return; }
+    if (assignment.row < 0 || assignment.column < 0 || assignment.row >= body.data.rows || assignment.column >= body.data.columns) { res.status(400).json({ error: "Seat is outside the classroom grid" }); return; }
     const key = `${assignment.row}:${assignment.column}`;
     if (occupied.has(key)) { res.status(400).json({ error: "Two students cannot share one seat" }); return; }
     occupied.add(key);

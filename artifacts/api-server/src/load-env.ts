@@ -36,3 +36,32 @@ for (const dir of candidates) {
     break;
   }
 }
+
+/**
+ * Fail with the full list of missing variables, not the first one.
+ *
+ * Several modules guard their own configuration by throwing from module scope
+ * (lib/integrations-openai-ai-server does this for both of its variables, and
+ * @workspace/db for DATABASE_URL). Because those throws happen during the
+ * import graph, the process dies before index.ts runs: no HTTP server, no
+ * /healthz, and a log line naming exactly one variable. Fixing it, restarting,
+ * and discovering the next one is a slow way to learn what a deploy needs.
+ *
+ * This runs first and reports everything that is missing in one message.
+ */
+const REQUIRED_ENV = [
+  ["DATABASE_URL", "Postgres connection string"],
+  ["SESSION_SECRET", "signs session tokens; a long random string"],
+  ["AI_INTEGRATIONS_OPENAI_BASE_URL", "OpenAI-compatible API base URL"],
+  ["AI_INTEGRATIONS_OPENAI_API_KEY", "OpenAI-compatible API key"],
+] as const;
+
+const missing = REQUIRED_ENV.filter(([name]) => !process.env[name]?.trim());
+if (missing.length > 0) {
+  const lines = missing.map(([name, why]) => `  - ${name}  (${why})`);
+  throw new Error(
+    `Cannot start: ${missing.length} required environment variable(s) missing.\n` +
+      `${lines.join("\n")}\n` +
+      `See artifacts/api-server/.env.example. A .env placed next to the app is picked up automatically.`,
+  );
+}

@@ -1,6 +1,5 @@
 import { Router, type IRouter } from "express";
 import { eq, and, or, ilike, inArray, ne, sql, desc } from "drizzle-orm";
-import rateLimit from "express-rate-limit";
 import multer from "multer";
 import { z } from "zod/v4";
 import {
@@ -52,7 +51,6 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
-import { buildRateLimitStore } from "../lib/rateLimitStore";
 
 const PRESET_AVATARS: Record<
   string,
@@ -255,30 +253,15 @@ router.patch(
   },
 );
 
-// 20 attempts per IP per 15 minutes on auth endpoints.
-// 5 was too restrictive, a user whose session expires and retries a couple
-// of times (or who misremembers their password) would hit the limit and be
-// locked out.  20 still provides meaningful brute-force protection.
-const authRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: buildRateLimitStore("auth"),
-  handler(_req, res, _next, options) {
-    const retryAfter = Math.ceil(options.windowMs / 1000 / 60);
-    res.setHeader("Retry-After", retryAfter * 60);
-    res.status(429).json({
-      error: `Too many sign-in attempts. Please wait ${retryAfter} minutes and try again.`,
-      retryAfter: retryAfter * 60,
-    });
-  },
-});
+// Sign-in and registration are rate limited in app.ts, at the mount point,
+// not here. This file used to define its own limiter and attach it to the
+// handlers below, which protected nothing: routes/loginCompat.ts declares a
+// second POST /auth/login and is mounted first, so Express never reached the
+// limited copy. See authLimiter in lib/limiters.ts.
 
 // POST /auth/register
 router.post(
   "/auth/register",
-  authRateLimiter,
   async (req, res): Promise<void> => {
     const parsed = RegisterBody.safeParse(req.body);
     if (!parsed.success) {
@@ -307,7 +290,7 @@ router.post(
 );
 
 // POST /auth/login
-router.post("/auth/login", authRateLimiter, async (req, res): Promise<void> => {
+router.post("/auth/login", async (req, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
