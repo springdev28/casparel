@@ -125,10 +125,14 @@ export function TermsPage() {
           remain valid for the accounts that hold them. Every allowance on
           every plan is finite — no subscription is unlimited — and your
           current allowances and usage are always shown under Settings, then
-          Plan. Subscriptions bought in the mobile apps are billed by Apple or
-          Google, renew automatically, and can be cancelled at any time in your
-          App Store or Google Play account settings. Cancelling stops the next
-          renewal; it does not refund the period already paid for.
+          Plan. Subscriptions can be bought in the mobile apps, billed by Apple
+          or Google, or on the web by card, billed through RevenueCat. All of
+          them renew automatically and attach to your Casparel account, so a
+          plan bought anywhere works everywhere you sign in. Cancel at any time
+          — in your App Store or Google Play account settings for app
+          purchases, or from the Manage billing link on the Plans page for
+          card purchases. Cancelling stops the next renewal; it does not
+          refund the period already paid for.
         </p>
         <p>
           If a subscription ends, nothing you have already created is deleted or
@@ -137,8 +141,10 @@ export function TermsPage() {
           that kind of item.
         </p>
         <p>
-          Refunds are handled by whichever store you bought through, under that
-          store's policy, not by us directly.
+          Refunds for app purchases are handled by Apple or Google under their
+          policies, not by us directly. For card purchases made on the web,
+          contact {SUPPORT_EMAIL} and we will handle it with our payment
+          provider.
         </p>
       </Section>
 
@@ -223,9 +229,11 @@ export function PrivacyPage() {
         </p>
         <p>
           <strong className="text-foreground">RevenueCat, Apple and Google.</strong>{" "}
-          Subscriptions are processed by the app stores and reconciled through
-          RevenueCat. They tell us whether your subscription is active. We never
-          receive your card details.
+          App-store subscriptions are processed by Apple or Google, and web
+          card subscriptions by RevenueCat and its payment provider; both are
+          reconciled through RevenueCat, which tells us whether your
+          subscription is active. Your card details go to the payment
+          processor, never to us — we never receive or store them.
         </p>
         <p>
           <strong className="text-foreground">Google Calendar and Google

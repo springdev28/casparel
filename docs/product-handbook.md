@@ -219,7 +219,14 @@ The planner is **rule-based, not an AI model**: it pattern-matches the teacher's
 
 ### Where the paywall lives
 
-Purchases happen only in the mobile app, through RevenueCat and Apple/Google billing; the mobile paywall offers only packages matching the account's role. The web cannot charge, so its paywall is `/plans`: a role-aware comparison page (public, with generic cards when signed out) that marks the current plan and explains mobile billing, downgrade safety and the finite-allowance rule. Every web upsell — the sidebar upgrade link, the Settings/Profile plan buttons, the locked seating planner — lands on `/plans`, never on a toast. Web billing (e.g. RevenueCat Web Billing/Stripe) is a roadmap option, not a shipped path.
+Plans are buyable from every surface, through one reconciliation pipeline:
+
+- **iOS / Android**: the mobile paywall, RevenueCat native SDKs, billed by Apple/Google. Offers only packages matching the account's role.
+- **Web**: `/plans`, a public role-aware comparison page that is also a card checkout. When the build carries `VITE_REVENUECAT_WEB_API_KEY` (a *publishable* Web Billing key, like the mobile SDK keys) and the RevenueCat dashboard has a Web Billing app with offerings, signed-in users see per-tier Subscribe buttons with live prices; checkout is RevenueCat's hosted card flow (Stripe-backed), and a Manage billing link (invoices, card, cancellation) appears for web subscribers. Without the key or offerings the page degrades to comparison plus buy-on-mobile instructions — never a broken checkout. The browser audit runs unconfigured, so the SDK is never even loaded there.
+
+Every purchase path — App Store, Play, web card — reports to the same `POST /api/webhooks/revenuecat` with the same entitlement identifiers, and the client signs into RevenueCat with the numeric Casparel user id on web exactly as on mobile. The server therefore has exactly one grant path, and role matching keeps applying at read time regardless of where the plan was bought. Every web upsell — the sidebar upgrade link, the Settings/Profile plan buttons, the locked seating planner — lands on `/plans`, never on a toast.
+
+One deliberate omission: the iOS app does not advertise the web card checkout. Apple's anti-steering rules constrain linking out to external purchases from inside the app; revisit only with the current rules in hand.
 
 ### Entitlement reconciliation
 

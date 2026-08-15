@@ -276,6 +276,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.1.0)
+      '@revenuecat/purchases-js':
+        specifier: ^1.52.3
+        version: 1.52.3
       '@xyflow/react':
         specifier: ^12.11.2
         version: 12.11.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -2587,6 +2590,9 @@ packages:
 
   '@revenuecat/purchases-js@1.52.0':
     resolution: {integrity: sha512-DCxib99kv7+Dt+HlDnV9cOBgQz6BEUdsP1bi3hObhzGHGtBoVab9qMkEMLamVT33nipOtWZRlHcfNfk3iCbsdQ==}
+
+  '@revenuecat/purchases-js@1.52.3':
+    resolution: {integrity: sha512-ZU+mqdW7jsGTqYhtDmvDjcLzplvfh+jTspSKC0eMijxmFik0r/Wwq/CkD3o0QEqVRbVF0HkwEh2zZp6qdGR1Eg==}
 
   '@revenuecat/purchases-typescript-internal@18.30.0':
     resolution: {integrity: sha512-yqvd7vZ6Cp4A6FGqRIQHwF5OMAAPW/0D4XKx/NGED499F4jV/o+Q6AsVtGI4obAsj+aPTeW+QplTiOeF8wlzsw==}
@@ -9542,6 +9548,8 @@ snapshots:
       '@revenuecat/purchases-js': 1.52.0
 
   '@revenuecat/purchases-js@1.52.0': {}
+
+  '@revenuecat/purchases-js@1.52.3': {}
 
   '@revenuecat/purchases-typescript-internal@18.30.0': {}
 
