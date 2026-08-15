@@ -23,6 +23,7 @@ import path from "node:path";
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
+import { launchOptions } from "./chromium.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist/public");
 const PORT = 4401;
@@ -36,7 +37,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((r) => server.listen(PORT, r));
 
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium", args: ["--no-sandbox"] });
+const browser = await chromium.launch(launchOptions());
 
 function expiredToken() {
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
