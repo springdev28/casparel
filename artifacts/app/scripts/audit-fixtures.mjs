@@ -87,6 +87,24 @@ export const PALETTES = {
     primary: "#1e3a8a",
     accent: "#1e293b",
   },
+  // Brand extremes. `primary` is the one colour a user picks that the
+  // navigation cannot adapt to -- it keeps a fixed near-black surface -- so
+  // these sweep the brand to each end of the lightness axis while holding the
+  // canvas/surface polarity of the two palettes above. Both resolve
+  // `--primary-foreground` to near-black, which is what put invisible text on
+  // the sidebar; both also push `--primary-text` to the far end of its walk.
+  brandLight: {
+    background: "#f4f6fb",
+    surface: "#ffffff",
+    primary: "#ffe066",
+    accent: "#fffbeb",
+  },
+  brandDark: {
+    background: "#0f1117",
+    surface: "#1a1e2a",
+    primary: "#f9fafb",
+    accent: "#e5e7eb",
+  },
 };
 
 const PREFERENCES = {

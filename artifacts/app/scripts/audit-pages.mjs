@@ -299,10 +299,31 @@ for (const pathname of PAGES) {
 }
 // Signed-in pages vary by saved palette, not by prefers-color-scheme, so that
 // is what is swept here.
+/**
+ * Signed-in sweep: which saved palette, and which colorScheme to render it under.
+ *
+ * Two realistic palettes were not enough. Both happen to pick a brand colour
+ * dark enough that the navigation's inherited --primary-foreground came out
+ * white by luck, so a light brand pick - which resolves it to near-black on the
+ * sidebar's near-black surface, about 1.09:1 - rendered invisible text and the
+ * audit stayed green. brandLight and brandDark push the brand to each end of
+ * the lightness axis while holding each canvas polarity.
+ *
+ * The second element is deliberately separate from the first: Playwright's
+ * colorScheme is a strict enum (dark|light|no-preference|no-override) and
+ * rejects a palette name outright, throwing before any page is rendered.
+ */
+const SIGNED_IN_SWEEP = [
+  ["dark", "dark"],
+  ["light", "light"],
+  ["brandLight", "light"],
+  ["brandDark", "dark"],
+];
+
 for (const pathname of SIGNED_IN_PAGES) {
-  for (const palette of ["dark", "light"]) {
+  for (const [palette, colorScheme] of SIGNED_IN_SWEEP) {
     results.push(
-      await auditGuarded(pathname, palette, 1280, { signedIn: true, palette }),
+      await auditGuarded(pathname, colorScheme, 1280, { signedIn: true, palette }),
     );
   }
   results.push(

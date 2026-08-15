@@ -40,11 +40,21 @@ type InterfaceColors = {
   accent: string;
 };
 
+/**
+ * The design system's own light palette, mirrored from
+ * artifacts/schoolar-edu/tokens.json (color.light background / card / primary /
+ * accent).
+ *
+ * applyColors writes these onto :root's inline style, which outranks every rule
+ * in the generated stylesheet, so any value here that is not the token value
+ * silently replaces the design system with a second palette for accounts that
+ * never opened the picker. Keep them in step with tokens.json.
+ */
 const DEFAULT_COLORS: InterfaceColors = {
-  background: "#f4f6fb",
+  background: "#f8f7f4",
   surface: "#ffffff",
-  primary: "#163a8a",
-  accent: "#dbeafe",
+  primary: "#1e40af",
+  accent: "#0d9488",
 };
 
 /** Restore the signed-out interface without deleting account-specific colors. */
@@ -133,8 +143,42 @@ function contrastingForeground(hex: string) {
   return whiteContrast >= darkContrast ? "0 0% 100%" : "225 21.1% 7.5%";
 }
 
-function contrastingMutedForeground(hex: string) {
-  return relativeLuminance(hex) <= 0.179 ? "0 0% 82%" : "225 10% 36%";
+/** A little headroom over the 4.5:1 text floor, so rounding cannot cross it. */
+const MIN_MUTED_CONTRAST = 5;
+
+/**
+ * A grey that still reads as *secondary* text on every surface it can land on.
+ *
+ * Two fixed greys cannot cover an arbitrary palette: a mid-tone surface leaves
+ * both of them under 2:1, and `--muted-foreground` has to hold up against the
+ * card surface as well as the page canvas, because portalled overlays (dialogs,
+ * popovers, selects) render outside `.ambient-copy-contrast` and so never get
+ * the per-surface re-resolution in the app stylesheet. This walks the grey axis
+ * and returns the quietest value that clears the floor against all of them, so
+ * the muted/body hierarchy survives a custom palette instead of collapsing onto
+ * `--foreground`.
+ */
+function readableMutedForeground(...surfaceHexes: string[]) {
+  const surfaces = surfaceHexes.map(relativeLuminance);
+  const worst = (lightness: number) =>
+    Math.min(
+      ...surfaces.map((surface) =>
+        contrastRatio(hslChannelsToLuminance(0, 0, lightness), surface),
+      ),
+    );
+  let quietest: { lightness: number; ratio: number } | null = null;
+  let strongest = { lightness: 0.5, ratio: 0 };
+  for (let step = 0; step <= 200; step++) {
+    const lightness = step / 200;
+    const ratio = worst(lightness);
+    if (ratio > strongest.ratio) strongest = { lightness, ratio };
+    if (ratio >= MIN_MUTED_CONTRAST && (!quietest || ratio < quietest.ratio))
+      quietest = { lightness, ratio };
+  }
+  // Opposite-polarity surfaces can leave nothing clearing the floor on both;
+  // then the best available worst case is the honest answer.
+  const chosen = quietest ?? strongest;
+  return `0 0% ${Math.round(chosen.lightness * 1000) / 10}%`;
 }
 
 /** WCAG contrast ratio between two luminances. */
@@ -246,7 +290,7 @@ function applyColors(colors: InterfaceColors) {
   const backgroundForeground = contrastingForeground(colors.background);
   const surface = hexToHsl(colors.surface);
   const surfaceForeground = contrastingForeground(colors.surface);
-  const surfaceMutedForeground = contrastingMutedForeground(colors.surface);
+  const surfaceMutedForeground = readableMutedForeground(colors.surface);
   const primary = hexToHsl(colors.primary);
   const primaryForeground = contrastingForeground(colors.primary);
   const accent = hexToHsl(colors.accent);
@@ -263,10 +307,15 @@ function applyColors(colors: InterfaceColors) {
     "--secondary": surface,
     "--secondary-foreground": surfaceForeground,
     "--muted": surface,
-    // Unframed secondary text sits on the page canvas, so its contrast follows
-    // the page background. Cards and other surfaces provide their own text
-    // colors locally.
-    "--muted-foreground": backgroundForeground,
+    // Secondary text has to stay quieter than body text and remain readable on
+    // both the page canvas and the card surface, because portalled overlays
+    // inherit this value while rendering on a card. Setting it to the page
+    // foreground made every "muted" string full strength, and unreadable
+    // outright whenever the canvas and the surface differ in polarity.
+    "--muted-foreground": readableMutedForeground(
+      colors.background,
+      colors.surface,
+    ),
     "--primary": primary,
     "--primary-foreground": primaryForeground,
     "--ring": primary,

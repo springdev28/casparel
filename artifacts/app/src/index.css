@@ -52,6 +52,18 @@
   color: hsl(var(--foreground));
 }
 
+/* The workspace navigation keeps a fixed near-black surface whatever brand
+   colour the account picks, so its foreground has to be pinned alongside it.
+   Declaring only the surface left `--primary-foreground` inheriting the value
+   computed from the brand colour, and a light brand resolves that to near-black
+   text on this near-black surface (1.09:1). Both halves live here so they
+   cannot drift apart again; white on this surface is 17.9:1 for every possible
+   brand colour. */
+.app-nav-surface {
+  --primary: 222 47% 11%;
+  --primary-foreground: 0 0% 100%;
+}
+
 .sidebar-scrollbar-hidden {
   scrollbar-width: none;
 }
