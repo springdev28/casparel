@@ -287,6 +287,7 @@ export const AccountUsageTier = {
   'student-pro': 'student-pro',
   'teacher-plus': 'teacher-plus',
   'teacher-pro': 'teacher-pro',
+  institutional: 'institutional',
   administrator: 'administrator',
 } as const;
 

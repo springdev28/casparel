@@ -160,6 +160,9 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
                 }
               >
                 <b>{card.name}</b>
+                <span className="ml-1.5 text-muted-foreground">
+                  {card.price ? `${card.price.monthly}/mo` : "US$0"}
+                </span>
                 <p className="mt-1 text-muted-foreground">{card.blurb}</p>
               </div>
             ),

@@ -197,11 +197,17 @@ export function capacityErrorBody(
 ) {
   const planName = TIER_LABELS[decision.requiredPlan];
   const tierName = TIER_LABELS[decision.tier];
+  // When the account is already on the recommended plan (today that means the
+  // sales-led Institutional licence, which has no self-serve step above it),
+  // "upgrade to <same plan>" would be nonsense — say the honest thing instead.
+  const advice =
+    decision.requiredPlan === decision.tier
+      ? "Contact support to extend your licence, or remove some to free up room."
+      : `Upgrade to ${planName} for more, or remove some to free up room.`;
   return {
     error:
       `Casparel ${tierName} includes up to ${decision.limit} ` +
-      `${CAPACITY_LABELS[capacity]}. Upgrade to ${planName} for more, or ` +
-      `remove some to free up room.`,
+      `${CAPACITY_LABELS[capacity]}. ${advice}`,
     code: "PLAN_LIMIT_REACHED" as const,
     capacity,
     limit: decision.limit,

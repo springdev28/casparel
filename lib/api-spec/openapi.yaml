@@ -2374,6 +2374,7 @@ components:
               student-pro,
               teacher-plus,
               teacher-pro,
+              institutional,
               administrator,
             ]
         unlimited: { type: boolean }

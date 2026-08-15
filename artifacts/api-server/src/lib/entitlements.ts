@@ -13,6 +13,7 @@ export const STUDENT_PLUS_ENTITLEMENT = "student-plus";
 export const STUDENT_PRO_ENTITLEMENT = "student-pro";
 export const TEACHER_PLUS_ENTITLEMENT = "teacher-plus";
 export const TEACHER_PRO_ENTITLEMENT = "teacher-pro";
+export const INSTITUTIONAL_ENTITLEMENT = "institutional";
 
 export const PLAN_FREE = "free";
 export const PLAN_PLUS = "plus";
@@ -22,6 +23,7 @@ export const PLAN_STUDENT_PLUS = "student-plus";
 export const PLAN_STUDENT_PRO = "student-pro";
 export const PLAN_TEACHER_PLUS = "teacher-plus";
 export const PLAN_TEACHER_PRO = "teacher-pro";
+export const PLAN_INSTITUTIONAL = "institutional";
 
 /**
  * The public tier model.
@@ -32,8 +34,16 @@ export const PLAN_TEACHER_PRO = "teacher-pro";
  * teacher tiers buy classroom scale (classes, rosters, and on Teacher Pro the
  * explainable seating planner).
  *
- * No tier is uncapped anywhere: every allowance below is finite. Uncapped is
- * an administrator property, not something money can buy.
+ * `institutional` is the sales-led school licence: per-seat, invoiced, never
+ * sold as a store package. It applies to any account role and sits above both
+ * Pro specialisations on every allowance. It is fulfilled by granting the
+ * `institutional` RevenueCat entitlement to each licensed account (or by
+ * setting the plan directly), so it flows through the same webhook pipeline
+ * as every purchased plan.
+ *
+ * No tier is uncapped anywhere: every allowance below is finite — including
+ * institutional. Uncapped is an administrator property, not something money
+ * can buy.
  */
 export type SubscriptionTier =
   | "free"
@@ -42,7 +52,8 @@ export type SubscriptionTier =
   | "student-plus"
   | "student-pro"
   | "teacher-plus"
-  | "teacher-pro";
+  | "teacher-pro"
+  | "institutional";
 
 /** Which account role a tier is reserved for. `null` = any role. */
 export type PlanRole = "student" | "teacher";
@@ -81,6 +92,7 @@ export const TIER_LABELS: Record<SubscriptionTier, string> = {
   "student-pro": "Student Pro",
   "teacher-plus": "Teacher Plus",
   "teacher-pro": "Teacher Pro",
+  institutional: "Institutional",
 };
 
 /** The account role a tier requires, or null when any role may hold it. */
@@ -90,7 +102,12 @@ export function planRoleRequirement(tier: SubscriptionTier): PlanRole | null {
   return null;
 }
 
-/** Collapse a tier to its price level, for upgrade CTAs and package pickers. */
+/**
+ * Collapse a tier to its price level, for upgrade CTAs and package pickers.
+ * Institutional reports "pro": it sits above Pro, but self-serve checkout has
+ * nothing to sell past it, so for every CTA decision ("is there an upgrade to
+ * offer?") the answer must be the same as for a Pro account — no.
+ */
 export function planLevel(tier: SubscriptionTier): "free" | "plus" | "pro" {
   if (tier === PLAN_FREE) return "free";
   if (tier === PLAN_PLUS || tier === PLAN_STUDENT_PLUS || tier === PLAN_TEACHER_PLUS)
@@ -114,6 +131,9 @@ export const AI_RATES_BY_TIER: Record<SubscriptionTier, AiRates> = {
   "student-pro": { searchPerDay: 90, deepPerDay: 25, deepPerMonth: 250 },
   "teacher-plus": { searchPerDay: 20, deepPerDay: 5, deepPerMonth: 50 },
   "teacher-pro": { searchPerDay: 60, deepPerDay: 15, deepPerMonth: 150 },
+  // Above both Pro specialisations, still finite: a licensed seat is not an
+  // admin account, and the daily window bounds worst-case AI spend per seat.
+  institutional: { searchPerDay: 120, deepPerDay: 30, deepPerMonth: 300 },
 };
 
 /**
@@ -186,6 +206,17 @@ export const CAPACITY_BY_TIER: Record<SubscriptionTier, CapacityLimits> = {
     "learning-goals": 400,
     canvases: 100,
   },
+  // The school licence: one seat's allowances, deliberately at or above every
+  // other tier on every column so no licensed teacher or student loses
+  // anything against the plan they might otherwise buy — and still finite.
+  institutional: {
+    "classes-owned": 50,
+    "class-members": 500,
+    "study-activities": 2500,
+    "resource-lists": 500,
+    "learning-goals": 800,
+    canvases: 250,
+  },
 };
 
 export interface AccountEntitlements {
@@ -212,6 +243,7 @@ const STORED_PLAN_TO_TIER: Record<string, SubscriptionTier> = {
   [PLAN_STUDENT_PRO]: "student-pro",
   [PLAN_TEACHER_PLUS]: "teacher-plus",
   [PLAN_TEACHER_PRO]: "teacher-pro",
+  [PLAN_INSTITUTIONAL]: "institutional",
 };
 
 /**
@@ -253,8 +285,12 @@ export function entitlementsForPlan(
       "ai-discovery": true,
       "deep-research": true,
       // The explainable seating planner is a classroom feature and lives on
-      // the Pro level of the plans a teacher can actually hold.
-      "seating-planner": tier === PLAN_PRO || tier === PLAN_TEACHER_PRO,
+      // the Pro level of the plans a teacher can actually hold — which now
+      // includes the school licence.
+      "seating-planner":
+        tier === PLAN_PRO ||
+        tier === PLAN_TEACHER_PRO ||
+        tier === PLAN_INSTITUTIONAL,
     },
     capacity: { ...CAPACITY_BY_TIER[tier] },
   };
@@ -295,6 +331,11 @@ export function upgradeTargetFor(
   needed: number,
   currentTier: SubscriptionTier = PLAN_FREE,
 ): SubscriptionTier {
+  // Nothing self-serve sits above the school licence, so recommending a
+  // ladder step would be a downgrade dressed as an upsell. Naming the current
+  // tier makes the 402 read "you are at the top — extend the licence or free
+  // up room" instead of pointing at a smaller plan.
+  if (currentTier === PLAN_INSTITUTIONAL) return PLAN_INSTITUTIONAL;
   const ladder = upgradeLadderFor(accountRole).filter(
     (step) =>
       step !== currentTier &&
@@ -309,12 +350,14 @@ export function upgradeTargetFor(
 
 /**
  * Map a RevenueCat event's entitlement identifiers to the plan to store.
- * When several are active, the strongest wins: role-specific Pro plans first
- * (they are the most specialised product actually bought), then generic Pro
- * (and legacy premium), then the Plus level the same way.
+ * When several are active, the strongest wins: the school licence first (it
+ * exceeds everything), then role-specific Pro plans (the most specialised
+ * product actually bought), then generic Pro (and legacy premium), then the
+ * Plus level the same way.
  */
 export function planForEntitlementIds(ids: string[]): string | null {
   const active = new Set(ids);
+  if (active.has(INSTITUTIONAL_ENTITLEMENT)) return PLAN_INSTITUTIONAL;
   if (active.has(TEACHER_PRO_ENTITLEMENT)) return PLAN_TEACHER_PRO;
   if (active.has(STUDENT_PRO_ENTITLEMENT)) return PLAN_STUDENT_PRO;
   if (active.has(PRO_ENTITLEMENT) || active.has(PREMIUM_ENTITLEMENT)) {
@@ -335,6 +378,7 @@ export const KNOWN_ENTITLEMENTS: ReadonlySet<string> = new Set([
   STUDENT_PRO_ENTITLEMENT,
   TEACHER_PLUS_ENTITLEMENT,
   TEACHER_PRO_ENTITLEMENT,
+  INSTITUTIONAL_ENTITLEMENT,
 ]);
 
 export interface ResolvedAccountPlan {

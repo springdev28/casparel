@@ -19,7 +19,15 @@
 import type { Package, Purchases } from "@revenuecat/purchases-js";
 import type { PlanTier } from "./use-plan";
 
-export type PaidTier = Exclude<PlanTier, "free" | "administrator">;
+/**
+ * Tiers sellable through checkout. Institutional is excluded on purpose: the
+ * school licence is sales-led (per-seat, invoiced, granted as a promotional
+ * entitlement), never a store package.
+ */
+export type PaidTier = Exclude<
+  PlanTier,
+  "free" | "administrator" | "institutional"
+>;
 export type BillingPeriod = "monthly" | "annual" | "other";
 
 export interface WebPlanPackage {
@@ -72,22 +80,20 @@ function tierRole(tier: PaidTier): "student" | "teacher" | null {
 }
 
 /**
- * Roles never mix at the point of sale, on the web exactly as on mobile:
- * role-specific packages for the buyer's role are preferred, generic packages
- * appear only when the offering has none for that role, and the other role's
- * packages are never shown.
+ * Roles never mix at the point of sale, on the web exactly as on mobile: the
+ * other role's packages are never shown. The generic Plus and Pro packages
+ * are valid for every role and are always kept — they are the original plans
+ * and remain buyable alongside the role specialisations, so a student may
+ * choose Student Pro or plain Pro, but never a teacher plan.
  */
 export function webPackagesForRole(
   packages: WebPlanPackage[],
   role: "student" | "teacher" | null,
 ): WebPlanPackage[] {
-  const allowed = packages.filter((pkg) => {
+  return packages.filter((pkg) => {
     const pkgRole = tierRole(pkg.tier);
     return pkgRole === null || pkgRole === role;
   });
-  if (!role) return allowed;
-  const roleSpecific = allowed.filter((pkg) => tierRole(pkg.tier) === role);
-  return roleSpecific.length > 0 ? roleSpecific : allowed;
 }
 
 let instance: Purchases | null = null;

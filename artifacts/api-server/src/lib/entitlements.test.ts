@@ -40,6 +40,7 @@ const ALL_TIERS: SubscriptionTier[] = [
   "student-pro",
   "teacher-plus",
   "teacher-pro",
+  "institutional",
 ];
 
 const CAPACITIES: PlanCapacity[] = [
@@ -77,6 +78,7 @@ describe("isPlanActive", () => {
       "student-pro",
       "teacher-plus",
       "teacher-pro",
+      "institutional",
     ]) {
       expect(isPlanActive(plan, null)).toBe(true);
     }
@@ -107,6 +109,13 @@ describe("roles do not mix", () => {
       expect(normalizePlan("pro", null, role)).toBe("pro");
       expect(normalizePlan("premium", null, role)).toBe("pro");
     }
+  });
+
+  it("grants the school licence on any account role", () => {
+    for (const role of ["student", "teacher", "admin", null]) {
+      expect(normalizePlan("institutional", null, role)).toBe("institutional");
+    }
+    expect(planRoleRequirement("institutional")).toBeNull();
   });
 
   it("never leaks the seating planner to a student-held plan", () => {
@@ -227,6 +236,29 @@ describe("ladders are monotonic", () => {
     }
   });
 
+  it("puts the school licence at or above every tier on every allowance", () => {
+    for (const tier of ALL_TIERS.filter((t) => t !== "institutional")) {
+      for (const capacity of CAPACITIES) {
+        expect(
+          capacityLimitFor("institutional", capacity) as number,
+          `institutional vs ${tier} on ${capacity}`,
+        ).toBeGreaterThanOrEqual(capacityLimitFor(tier, capacity) as number);
+      }
+      const rates = AI_RATES_BY_TIER[tier];
+      const inst = AI_RATES_BY_TIER.institutional;
+      expect(inst.searchPerDay).toBeGreaterThanOrEqual(rates.searchPerDay);
+      expect(inst.deepPerDay).toBeGreaterThanOrEqual(rates.deepPerDay);
+      expect(inst.deepPerMonth).toBeGreaterThanOrEqual(rates.deepPerMonth);
+    }
+    // At the top and still finite: the "nothing is uncapped" suite already
+    // covers institutional through ALL_TIERS; this pins the seating planner.
+    expect(
+      entitlementsForPlan("institutional", null, "teacher").features[
+        "seating-planner"
+      ],
+    ).toBe(true);
+  });
+
   it("specialises each role's tiers against the generic level", () => {
     // Students buy study depth beyond the generic plan of the same level...
     expect(
@@ -286,6 +318,12 @@ describe("plan levels and upgrades", () => {
       upgradeTargetFor("study-activities", "student", 500, "student-plus"),
     ).toBe("student-pro");
   });
+
+  it("never recommends a smaller plan to a school-licensed account", () => {
+    expect(
+      upgradeTargetFor("classes-owned", "teacher", 60, "institutional"),
+    ).toBe("institutional");
+  });
 });
 
 describe("planForEntitlementIds", () => {
@@ -301,6 +339,9 @@ describe("planForEntitlementIds", () => {
     expect(planForEntitlementIds(["student-plus", "pro"])).toBe("pro");
     expect(planForEntitlementIds(["teacher-plus", "student-plus"])).toBe(
       "teacher-plus",
+    );
+    expect(planForEntitlementIds(["teacher-pro", "institutional"])).toBe(
+      "institutional",
     );
   });
 

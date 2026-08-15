@@ -19,7 +19,15 @@
  * checkout.
  */
 import { useCallback, useEffect, useState } from "react";
-import { CreditCard, Check, Crown, Loader2, Smartphone } from "lucide-react";
+import {
+  Building2,
+  CreditCard,
+  Check,
+  Crown,
+  Loader2,
+  Mail,
+  Smartphone,
+} from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetMeQueryKey, getGetMyUsageQueryKey, useGetMe } from "@workspace/api-client-react";
@@ -28,7 +36,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@workspace/edu-ds/comp
 import BrandIcon from "../components/BrandIcon";
 import { useSystemDark } from "../hooks/use-system-dark";
 import { usePlan, type PlanTier } from "../lib/use-plan";
-import { audienceForRole, TIER_CARDS, type TierCard } from "../lib/plan-copy";
+import {
+  audienceForRole,
+  INSTITUTIONAL_PLAN,
+  TIER_CARDS,
+  type PlanAudience,
+  type TierCard,
+} from "../lib/plan-copy";
 import { readSessionClaims } from "../lib/session";
 import {
   fetchWebPackages,
@@ -52,6 +66,15 @@ function levelOfTier(tier: PlanTier): "free" | "plus" | "pro" {
     return "plus";
   return "pro";
 }
+
+/** The account role a tier is reserved for; null when any role may hold it. */
+function roleOfTier(tier: PlanTier): "student" | "teacher" | null {
+  if (tier === "student-plus" || tier === "student-pro") return "student";
+  if (tier === "teacher-plus" || tier === "teacher-pro") return "teacher";
+  return null;
+}
+
+const SALES_EMAIL = "support@casparel.com";
 
 type CheckoutState =
   | { status: "unavailable" }
@@ -152,6 +175,24 @@ function TierColumn({
             </span>
           ) : null}
         </CardTitle>
+        {/* Reference prices in USD; live checkout buttons below show the
+            store's localised price, which is the one actually charged. */}
+        {card.price ? (
+          <p className="text-sm text-muted-foreground">
+            <span className="text-lg font-semibold text-foreground">
+              {card.price.monthly}
+            </span>{" "}
+            / month
+            <span className="block text-xs">
+              or {card.price.annual} / year — 2 months free
+            </span>
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            <span className="text-lg font-semibold text-foreground">US$0</span>{" "}
+            — free forever
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <section>
@@ -237,20 +278,36 @@ export default function PlansPage() {
   const queryClient = useQueryClient();
   const isAdmin = plan.tier === "administrator";
 
-  // Role accounts see exactly their ladder — roles never mix at the point of
-  // sale. Visitors and admins get a toggle, because "where are the student
-  // and teacher plans?" must never be answered with a generic table.
+  // Everyone gets all three ladders behind a toggle: the role plans AND the
+  // original Plus/Pro, which work on any account role and stay purchasable.
+  // Role accounts land on their own tab; the other role's tab is view-only
+  // for them, because roles never mix at the point of sale.
   const ownAudience = isLoggedIn ? audienceForRole(plan.accountRole) : "generic";
-  const [previewRole, setPreviewRole] = useState<"student" | "teacher">(
-    "student",
+  // The user's explicit tab choice; until they click, follow the account role
+  // as it loads (usage arrives async — a teacher must not be stranded on the
+  // student tab just because the role was still unknown on first render).
+  const [chosenAudience, setChosenAudience] = useState<PlanAudience | null>(
+    null,
   );
-  const audience = ownAudience === "generic" ? previewRole : ownAudience;
+  const audience =
+    chosenAudience ?? (ownAudience === "generic" ? "student" : ownAudience);
   const cards = TIER_CARDS[audience];
+  const accountRole =
+    plan.accountRole === "student" || plan.accountRole === "teacher"
+      ? plan.accountRole
+      : null;
+  // A signed-in role account looking at the other role's tab can only look.
+  const viewOnlyAudience =
+    isLoggedIn &&
+    !isAdmin &&
+    accountRole !== null &&
+    audience !== "generic" &&
+    audience !== accountRole;
 
   const checkout = useWebCheckout(
     isLoggedIn && !isAdmin ? (me?.id ?? null) : null,
     !isAdmin,
-    audience,
+    audience === "generic" ? null : audience,
   );
   const [busyPackageId, setBusyPackageId] = useState<string | null>(null);
   const [purchaseNote, setPurchaseNote] = useState<
@@ -336,7 +393,9 @@ export default function PlansPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {audience === "teacher"
                 ? "Teacher plans grow your classroom: more classes, bigger rosters, and the explainable seating planner on Teacher Pro."
-                : "Student plans grow your study space: more activities, goals, lists and canvases, and larger AI research allowances."}
+                : audience === "student"
+                  ? "Student plans grow your study space: more activities, goals, lists and canvases, and larger AI research allowances."
+                  : "Plus and Pro are the original plans and fit any account: balanced study and classroom allowances on one subscription, whichever role you hold."}
             </p>
             {isLoggedIn && !isAdmin ? (
               <p className="mt-1 text-sm text-muted-foreground">
@@ -351,36 +410,47 @@ export default function PlansPage() {
             {isAdmin ? (
               <p className="mt-1 text-sm text-muted-foreground">
                 Administrator accounts are uncapped and never need a plan; use
-                the toggle below to review what students and teachers are
-                offered.
+                the toggle below to review every ladder — student, teacher,
+                and the role-agnostic Plus and Pro.
               </p>
             ) : null}
           </div>
         </div>
 
-        {ownAudience === "generic" ? (
-          <div
-            className="mt-5 inline-flex rounded-lg border border-border p-1"
-            role="group"
-            aria-label="Choose which plans to view"
-          >
-            {(["student", "teacher"] as const).map((role) => (
-              <button
-                key={role}
-                type="button"
-                aria-pressed={previewRole === role}
-                onClick={() => setPreviewRole(role)}
-                className={
-                  "rounded-md px-4 py-1.5 text-sm font-medium transition-colors " +
-                  (previewRole === role
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground")
-                }
-              >
-                {role === "student" ? "For students" : "For teachers"}
-              </button>
-            ))}
-          </div>
+        <div
+          className="mt-5 inline-flex flex-wrap rounded-lg border border-border p-1"
+          role="group"
+          aria-label="Choose which plans to view"
+        >
+          {(["student", "teacher", "generic"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              aria-pressed={audience === tab}
+              onClick={() => setChosenAudience(tab)}
+              data-testid={`plans-tab-${tab}`}
+              className={
+                "rounded-md px-4 py-1.5 text-sm font-medium transition-colors " +
+                (audience === tab
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground")
+              }
+            >
+              {tab === "student"
+                ? "For students"
+                : tab === "teacher"
+                  ? "For teachers"
+                  : "For everyone"}
+            </button>
+          ))}
+        </div>
+
+        {viewOnlyAudience ? (
+          <p className="mt-3 text-sm text-muted-foreground" role="note">
+            {audience === "student"
+              ? "Student plans only apply to student accounts, so they are shown here for comparison. Your teacher account can subscribe to the teacher plans or to Plus and Pro under “For everyone”."
+              : "Teacher plans only apply to teacher accounts, so they are shown here for comparison. Your student account can subscribe to the student plans or to Plus and Pro under “For everyone”."}
+          </p>
         ) : null}
 
         {purchaseNote ? (
@@ -414,6 +484,10 @@ export default function PlansPage() {
                 !isAdmin &&
                 (!isLoggedIn ||
                   (!plan.pending &&
+                    // Role plans are only buyable on a matching account;
+                    // generic Plus/Pro are buyable on any role.
+                    (roleOfTier(card.tier) === null ||
+                      roleOfTier(card.tier) === accountRole) &&
                     LEVEL_RANK[levelOfTier(card.tier)] >
                       LEVEL_RANK[plan.level]))
               }
@@ -423,9 +497,102 @@ export default function PlansPage() {
           ))}
         </div>
 
-        <Card className="mt-6">
+        <Card
+          className={
+            "mt-6 " +
+            (isLoggedIn && plan.tier === "institutional"
+              ? "border-primary/50 bg-primary/5"
+              : "")
+          }
+        >
           <CardHeader className="pb-2">
             {/* A real h2, not CardTitle's div: the audit checks heading order. */}
+            <h2 className="flex items-center justify-between gap-2 text-base font-semibold leading-none tracking-tight">
+              <span className="flex items-center gap-2">
+                <Building2 className="size-4 text-primary-text" />
+                {INSTITUTIONAL_PLAN.name} — for schools and academies
+              </span>
+              {isLoggedIn && plan.tier === "institutional" ? (
+                <span
+                  className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary-text"
+                  data-testid="current-plan-institutional"
+                >
+                  Current plan
+                </span>
+              ) : null}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              <span className="text-lg font-semibold text-foreground">
+                {INSTITUTIONAL_PLAN.priceLine}
+              </span>
+              <span className="block text-xs">
+                {INSTITUTIONAL_PLAN.priceNote}
+              </span>
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <p className="text-muted-foreground">{INSTITUTIONAL_PLAN.blurb}</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Workspace, per seat
+                </h3>
+                <ul className="mt-1.5 space-y-1">
+                  {INSTITUTIONAL_PLAN.workspace.map((line) => (
+                    <li key={line} className="flex items-start gap-1.5">
+                      <Check className="mt-0.5 size-3.5 shrink-0 text-primary-text" />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  AI allowances, per seat
+                </h3>
+                <ul className="mt-1.5 space-y-1">
+                  {INSTITUTIONAL_PLAN.ai.map((line) => (
+                    <li key={line} className="flex items-start gap-1.5">
+                      <Check className="mt-0.5 size-3.5 shrink-0 text-primary-text" />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <section>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Also included
+                </h3>
+                <ul className="mt-1.5 space-y-1">
+                  {INSTITUTIONAL_PLAN.extras.map((line) => (
+                    <li key={line} className="flex items-start gap-1.5">
+                      <Check className="mt-0.5 size-3.5 shrink-0 text-primary-text" />
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 border-t pt-3">
+              <Button asChild>
+                <a
+                  href={`mailto:${SALES_EMAIL}?subject=Casparel%20Institutional%20licence`}
+                >
+                  <Mail className="size-4" />
+                  Contact us for a quote
+                </a>
+              </Button>
+              <p className="text-[11px] text-muted-foreground">
+                Tell us roughly how many teacher and student seats you need —
+                we reply from {SALES_EMAIL} and activate seats on your existing
+                accounts, so nobody re-registers.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader className="pb-2">
             <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
               <Smartphone className="size-4 text-primary-text" />
               How upgrading works
@@ -473,9 +640,16 @@ export default function PlansPage() {
             ) : null}
             <ul className="list-disc space-y-1 pl-5">
               <li>
-                Plans match your account role: a student plan does nothing on a
-                teacher account and the other way round, and checkout only
-                offers plans for your role.
+                Role plans match your account role: a student plan does nothing
+                on a teacher account and the other way round, so checkout never
+                offers you the other role&apos;s plans. The original Plus and
+                Pro plans work on any role, and the Institutional licence
+                covers whole schools, staff and students alike.
+              </li>
+              <li>
+                Prices on this page are USD reference prices; the checkout
+                button and the app stores show your local currency, which is
+                the amount actually charged.
               </li>
               <li>
                 Every allowance on every plan is finite; no subscription is

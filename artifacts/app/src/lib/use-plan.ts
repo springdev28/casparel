@@ -26,6 +26,7 @@ export type PlanTier =
   | "student-pro"
   | "teacher-plus"
   | "teacher-pro"
+  | "institutional"
   | "administrator";
 
 export interface PlanState {
@@ -77,6 +78,9 @@ const LEVELS: Record<PlanTier, "free" | "plus" | "pro"> = {
   pro: "pro",
   "student-pro": "pro",
   "teacher-pro": "pro",
+  // The school licence sits above Pro, but nothing self-serve is sold past
+  // it, so for CTA purposes ("is there an upgrade to offer?") it is Pro.
+  institutional: "pro",
   administrator: "pro",
 };
 
@@ -88,6 +92,7 @@ const TIER_VALUES: ReadonlySet<string> = new Set([
   "student-pro",
   "teacher-plus",
   "teacher-pro",
+  "institutional",
   "administrator",
 ]);
 
@@ -138,7 +143,10 @@ export function usePlan(enabled = true): PlanState {
         : null,
     unlimited,
     seatingPlanner:
-      tier === "pro" || tier === "teacher-pro" || tier === "administrator",
+      tier === "pro" ||
+      tier === "teacher-pro" ||
+      tier === "institutional" ||
+      tier === "administrator",
     aiSearch: {
       used: usage?.aiSearch?.used ?? 0,
       limit: unlimited ? null : (usage?.aiSearch?.limit ?? FALLBACK_SEARCH_LIMIT),

@@ -376,7 +376,7 @@ export const SwitchRoleResponse = zod.object({
  */
 export const GetMyUsageResponse = zod.object({
   "plan": zod.string(),
-  "tier": zod.enum(['free', 'plus', 'pro', 'student-plus', 'student-pro', 'teacher-plus', 'teacher-pro', 'administrator']).describe('Machine-readable tier. Role-specific plans only apply while the account\'s role matches; this field always reports the tier that is actually in effect.'),
+  "tier": zod.enum(['free', 'plus', 'pro', 'student-plus', 'student-pro', 'teacher-plus', 'teacher-pro', 'institutional', 'administrator']).describe('Machine-readable tier. Role-specific plans only apply while the account\'s role matches; this field always reports the tier that is actually in effect.'),
   "unlimited": zod.boolean(),
   "aiSearch": zod.object({
   "used": zod.int(),

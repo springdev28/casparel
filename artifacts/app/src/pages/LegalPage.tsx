@@ -121,18 +121,22 @@ export function TermsPage() {
           study allowances, Teacher Plus and Teacher Pro raise classroom
           allowances, and Teacher Pro adds explainable seating-plan
           suggestions. A student plan grants nothing on a teacher account and
-          the other way round; the earlier role-agnostic Plus and Pro plans
-          remain valid for the accounts that hold them. Every allowance on
-          every plan is finite — no subscription is unlimited — and your
-          current allowances and usage are always shown under Settings, then
-          Plan. Subscriptions can be bought in the mobile apps, billed by Apple
-          or Google, or on the web by card, billed through RevenueCat. All of
-          them renew automatically and attach to your Casparel account, so a
-          plan bought anywhere works everywhere you sign in. Cancel at any time
-          — in your App Store or Google Play account settings for app
-          purchases, or from the Manage billing link on the Plans page for
-          card purchases. Cancelling stops the next renewal; it does not
-          refund the period already paid for.
+          the other way round; the role-agnostic Plus and Pro plans remain on
+          sale and work on any account role. Schools can license Casparel
+          Institutional per seat — a sales-led licence, invoiced rather than
+          bought at checkout, that we activate on each licensed account and
+          that applies whatever the account&apos;s role. Every allowance on
+          every plan, the Institutional licence included, is finite — no
+          subscription is unlimited — and your current allowances and usage
+          are always shown under Settings, then Plan. Subscriptions can be
+          bought in the mobile apps, billed by Apple or Google, or on the web
+          by card, billed through RevenueCat. All of them renew automatically
+          and attach to your Casparel account, so a plan bought anywhere works
+          everywhere you sign in. Cancel at any time — in your App Store or
+          Google Play account settings for app purchases, or from the Manage
+          billing link on the Plans page for card purchases; Institutional
+          licences are cancelled by contacting us. Cancelling stops the next
+          renewal; it does not refund the period already paid for.
         </p>
         <p>
           If a subscription ends, nothing you have already created is deleted or

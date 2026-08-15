@@ -9,7 +9,12 @@
  */
 import { Platform } from 'react-native';
 
-/** Entitlement identifiers configured in RevenueCat. `premium` is legacy. */
+/**
+ * Entitlement identifiers configured in RevenueCat. `premium` is legacy.
+ * `institutional` is the sales-led school licence — granted as a promotional
+ * entitlement, never sold as a store package, so it appears in tier
+ * resolution but not in any paywall package list.
+ */
 export const PLUS_ENTITLEMENT = 'plus';
 export const PRO_ENTITLEMENT = 'pro';
 export const PREMIUM_ENTITLEMENT = 'premium';
@@ -17,6 +22,7 @@ export const STUDENT_PLUS_ENTITLEMENT = 'student-plus';
 export const STUDENT_PRO_ENTITLEMENT = 'student-pro';
 export const TEACHER_PLUS_ENTITLEMENT = 'teacher-plus';
 export const TEACHER_PRO_ENTITLEMENT = 'teacher-pro';
+export const INSTITUTIONAL_ENTITLEMENT = 'institutional';
 
 export type SubscriptionTier =
   | 'free'
@@ -25,7 +31,8 @@ export type SubscriptionTier =
   | 'student-plus'
   | 'student-pro'
   | 'teacher-plus'
-  | 'teacher-pro';
+  | 'teacher-pro'
+  | 'institutional';
 export type TierLevel = 'free' | 'plus' | 'pro';
 export type PlanRole = 'student' | 'teacher';
 
@@ -37,9 +44,14 @@ export const TIER_TITLES: Record<SubscriptionTier, string> = {
   'student-pro': 'Student Pro',
   'teacher-plus': 'Teacher Plus',
   'teacher-pro': 'Teacher Pro',
+  institutional: 'Institutional',
 };
 
-/** Collapse a tier to its price level, for upgrade logic and CTAs. */
+/**
+ * Collapse a tier to its price level, for upgrade logic and CTAs. The school
+ * licence reports 'pro': it sits above Pro, but there is nothing self-serve
+ * to sell past it, so every "offer an upgrade?" decision must answer no.
+ */
 export function tierLevel(tier: SubscriptionTier): TierLevel {
   if (tier === 'free') return 'free';
   if (tier === 'plus' || tier === 'student-plus' || tier === 'teacher-plus') return 'plus';
@@ -158,6 +170,7 @@ export async function loadPurchases(): Promise<PurchasesModule | null> {
 export function subscriptionTier(info: RCCustomerInfo | null | undefined): SubscriptionTier {
   if (!info) return 'free';
   const active = info.entitlements.active;
+  if (active[INSTITUTIONAL_ENTITLEMENT]?.isActive) return 'institutional';
   if (active[TEACHER_PRO_ENTITLEMENT]?.isActive) return 'teacher-pro';
   if (active[STUDENT_PRO_ENTITLEMENT]?.isActive) return 'student-pro';
   if (active[PRO_ENTITLEMENT]?.isActive || active[PREMIUM_ENTITLEMENT]?.isActive) return 'pro';
@@ -188,20 +201,17 @@ export function tierForPackage(pkg: RCPackage): Exclude<SubscriptionTier, 'free'
 }
 
 /**
- * The packages one account may actually buy. Role-specific packages for the
- * account's role are preferred; generic packages appear only when the
- * offering has no package for that role, so a student is never shown a
- * teacher plan and a teacher is never shown a student plan.
+ * The packages one account may actually buy: never the other role's plans,
+ * always the generic Plus/Pro alongside the role-specific ones. The generic
+ * plans are the original offering and stay purchasable on every role — a
+ * student may pick Student Pro or plain Pro, but never a teacher plan.
  */
 export function packagesForRole(
   packages: RCPackage[],
   role: PlanRole | null,
 ): RCPackage[] {
-  const allowed = packages.filter((pkg) => {
+  return packages.filter((pkg) => {
     const pkgRole = tierRole(tierForPackage(pkg));
     return pkgRole === null || pkgRole === role;
   });
-  if (!role) return allowed;
-  const roleSpecific = allowed.filter((pkg) => tierRole(tierForPackage(pkg)) === role);
-  return roleSpecific.length > 0 ? roleSpecific : allowed;
 }
