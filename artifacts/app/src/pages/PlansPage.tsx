@@ -30,9 +30,18 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { getGetMeQueryKey, getGetMyUsageQueryKey, useGetMe } from "@workspace/api-client-react";
+import {
+  getGetMeQueryKey,
+  getGetMyUsageQueryKey,
+  useGetMe,
+} from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@workspace/edu-ds/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@workspace/edu-ds/components/ui/card";
 import BrandIcon from "../components/BrandIcon";
 import { useSystemDark } from "../hooks/use-system-dark";
 import { usePlan, type PlanTier } from "../lib/use-plan";
@@ -75,6 +84,8 @@ function roleOfTier(tier: PlanTier): "student" | "teacher" | null {
 }
 
 const SALES_EMAIL = "support@casparel.com";
+
+type PlanView = PlanAudience | "institutional";
 
 type CheckoutState =
   | { status: "unavailable" }
@@ -278,20 +289,20 @@ export default function PlansPage() {
   const queryClient = useQueryClient();
   const isAdmin = plan.tier === "administrator";
 
-  // Everyone gets all three ladders behind a toggle: the role plans AND the
-  // original Plus/Pro, which work on any account role and stay purchasable.
+  // Everyone gets all four plan sections behind a toggle: the role plans, the
+  // original Plus/Pro, and the sales-led Institutional licence.
   // Role accounts land on their own tab; the other role's tab is view-only
   // for them, because roles never mix at the point of sale.
-  const ownAudience = isLoggedIn ? audienceForRole(plan.accountRole) : "generic";
+  const ownAudience = isLoggedIn
+    ? audienceForRole(plan.accountRole)
+    : "generic";
   // The user's explicit tab choice; until they click, follow the account role
   // as it loads (usage arrives async — a teacher must not be stranded on the
   // student tab just because the role was still unknown on first render).
-  const [chosenAudience, setChosenAudience] = useState<PlanAudience | null>(
-    null,
-  );
+  const [chosenAudience, setChosenAudience] = useState<PlanView | null>(null);
   const audience =
     chosenAudience ?? (ownAudience === "generic" ? "student" : ownAudience);
-  const cards = TIER_CARDS[audience];
+  const cards = audience === "institutional" ? [] : TIER_CARDS[audience];
   const accountRole =
     plan.accountRole === "student" || plan.accountRole === "teacher"
       ? plan.accountRole
@@ -302,17 +313,19 @@ export default function PlansPage() {
     !isAdmin &&
     accountRole !== null &&
     audience !== "generic" &&
+    audience !== "institutional" &&
     audience !== accountRole;
 
   const checkout = useWebCheckout(
     isLoggedIn && !isAdmin ? (me?.id ?? null) : null,
     !isAdmin,
-    audience === "generic" ? null : audience,
+    audience === "student" || audience === "teacher" ? audience : null,
   );
   const [busyPackageId, setBusyPackageId] = useState<string | null>(null);
-  const [purchaseNote, setPurchaseNote] = useState<
-    { kind: "success" | "error"; text: string } | null
-  >(null);
+  const [purchaseNote, setPurchaseNote] = useState<{
+    kind: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const handleBuy = useCallback(
     async (pkg: WebPlanPackage) => {
@@ -337,7 +350,9 @@ export default function PlansPage() {
         });
         // The entitlement is granted by the server when RevenueCat's webhook
         // arrives, not by this client — refetch now and again shortly after.
-        void queryClient.invalidateQueries({ queryKey: getGetMyUsageQueryKey() });
+        void queryClient.invalidateQueries({
+          queryKey: getGetMyUsageQueryKey(),
+        });
         setTimeout(() => {
           void queryClient.invalidateQueries({
             queryKey: getGetMyUsageQueryKey(),
@@ -360,7 +375,10 @@ export default function PlansPage() {
     >
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
-          <Link href="/" className="flex min-w-0 items-center text-primary-text">
+          <Link
+            href="/"
+            className="flex min-w-0 items-center text-primary-text"
+          >
             <BrandIcon className="mr-2 h-8 w-8 shrink-0" />
             <span className="text-lg font-bold tracking-tight text-foreground">
               Casparel
@@ -389,19 +407,26 @@ export default function PlansPage() {
         <div className="flex items-start gap-3">
           <Crown className="mt-1 size-6 shrink-0 text-primary-text" />
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Casparel plans</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Casparel plans
+            </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {audience === "teacher"
-                ? "Teacher plans grow your classroom: more classes, bigger rosters, and the explainable seating planner on Teacher Pro."
-                : audience === "student"
-                  ? "Student plans grow your study space: more activities, goals, lists and canvases, and larger AI research allowances."
-                  : "Plus and Pro are the original plans and fit any account: balanced study and classroom allowances on one subscription, whichever role you hold."}
+              {audience === "institutional"
+                ? "Institutional licensing gives schools and academies one annual, per-seat plan for teachers and students, with priority support."
+                : audience === "teacher"
+                  ? "Teacher plans grow your classroom: more classes, bigger rosters, and the explainable seating planner on Teacher Pro."
+                  : audience === "student"
+                    ? "Student plans grow your study space: more activities, goals, lists and canvases, and larger AI research allowances."
+                    : "Plus and Pro are the original plans and fit any account: balanced study and classroom allowances on one subscription, whichever role you hold."}
             </p>
             {isLoggedIn && !isAdmin ? (
               <p className="mt-1 text-sm text-muted-foreground">
                 You are on <b className="text-foreground">{plan.label}</b>. Your
                 live usage and allowances are in{" "}
-                <Link href="/settings" className="text-primary-text hover:underline">
+                <Link
+                  href="/settings"
+                  className="text-primary-text hover:underline"
+                >
                   Settings → Plan
                 </Link>
                 .
@@ -410,8 +435,8 @@ export default function PlansPage() {
             {isAdmin ? (
               <p className="mt-1 text-sm text-muted-foreground">
                 Administrator accounts are uncapped and never need a plan; use
-                the toggle below to review every ladder — student, teacher,
-                and the role-agnostic Plus and Pro.
+                the sections below to review every ladder — student, teacher,
+                role-agnostic Plus and Pro, and Institutional.
               </p>
             ) : null}
           </div>
@@ -422,27 +447,31 @@ export default function PlansPage() {
           role="group"
           aria-label="Choose which plans to view"
         >
-          {(["student", "teacher", "generic"] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              aria-pressed={audience === tab}
-              onClick={() => setChosenAudience(tab)}
-              data-testid={`plans-tab-${tab}`}
-              className={
-                "rounded-md px-4 py-1.5 text-sm font-medium transition-colors " +
-                (audience === tab
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground")
-              }
-            >
-              {tab === "student"
-                ? "For students"
-                : tab === "teacher"
-                  ? "For teachers"
-                  : "For everyone"}
-            </button>
-          ))}
+          {(["student", "teacher", "generic", "institutional"] as const).map(
+            (tab) => (
+              <button
+                key={tab}
+                type="button"
+                aria-pressed={audience === tab}
+                onClick={() => setChosenAudience(tab)}
+                data-testid={`plans-tab-${tab}`}
+                className={
+                  "rounded-md px-4 py-1.5 text-sm font-medium transition-colors " +
+                  (audience === tab
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                {tab === "student"
+                  ? "For students"
+                  : tab === "teacher"
+                    ? "For teachers"
+                    : tab === "generic"
+                      ? "For everyone"
+                      : "Institutional"}
+              </button>
+            ),
+          )}
         </div>
 
         {viewOnlyAudience ? (
@@ -467,129 +496,137 @@ export default function PlansPage() {
           </p>
         ) : null}
 
-        <h2 className="mt-6 text-lg font-semibold">Compare plans</h2>
-        <div className="mt-3 grid gap-4 md:grid-cols-3">
-          {cards.map((card, index) => (
-            <TierColumn
-              key={card.tier}
-              card={card}
-              isCurrent={isLoggedIn && plan.tier === card.tier}
-              highlight={index === 2}
-              packages={
-                checkout.status === "ready"
-                  ? checkout.packages.filter((pkg) => pkg.tier === card.tier)
-                  : []
-              }
-              buyable={
-                !isAdmin &&
-                (!isLoggedIn ||
-                  (!plan.pending &&
-                    // Role plans are only buyable on a matching account;
-                    // generic Plus/Pro are buyable on any role.
-                    (roleOfTier(card.tier) === null ||
-                      roleOfTier(card.tier) === accountRole) &&
-                    LEVEL_RANK[levelOfTier(card.tier)] >
-                      LEVEL_RANK[plan.level]))
-              }
-              busyPackageId={busyPackageId}
-              onBuy={handleBuy}
-            />
-          ))}
-        </div>
-
-        <Card
-          className={
-            "mt-6 " +
-            (isLoggedIn && plan.tier === "institutional"
-              ? "border-primary/50 bg-primary/5"
-              : "")
-          }
-        >
-          <CardHeader className="pb-2">
-            {/* A real h2, not CardTitle's div: the audit checks heading order. */}
-            <h2 className="flex items-center justify-between gap-2 text-base font-semibold leading-none tracking-tight">
-              <span className="flex items-center gap-2">
-                <Building2 className="size-4 text-primary-text" />
-                {INSTITUTIONAL_PLAN.name} — for schools and academies
-              </span>
-              {isLoggedIn && plan.tier === "institutional" ? (
-                <span
-                  className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary-text"
-                  data-testid="current-plan-institutional"
-                >
-                  Current plan
+        {audience === "institutional" ? (
+          <Card
+            className={
+              "mt-6 " +
+              (isLoggedIn && plan.tier === "institutional"
+                ? "border-primary/50 bg-primary/5"
+                : "")
+            }
+          >
+            <CardHeader className="pb-2">
+              {/* A real h2, not CardTitle's div: the audit checks heading order. */}
+              <h2 className="flex items-center justify-between gap-2 text-base font-semibold leading-none tracking-tight">
+                <span className="flex items-center gap-2">
+                  <Building2 className="size-4 text-primary-text" />
+                  {INSTITUTIONAL_PLAN.name} — for schools and academies
                 </span>
-              ) : null}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              <span className="text-lg font-semibold text-foreground">
-                {INSTITUTIONAL_PLAN.priceLine}
-              </span>
-              <span className="block text-xs">
-                {INSTITUTIONAL_PLAN.priceNote}
-              </span>
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <p className="text-muted-foreground">{INSTITUTIONAL_PLAN.blurb}</p>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Workspace, per seat
-                </h3>
-                <ul className="mt-1.5 space-y-1">
-                  {INSTITUTIONAL_PLAN.workspace.map((line) => (
-                    <li key={line} className="flex items-start gap-1.5">
-                      <Check className="mt-0.5 size-3.5 shrink-0 text-primary-text" />
-                      <span>{line}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  AI allowances, per seat
-                </h3>
-                <ul className="mt-1.5 space-y-1">
-                  {INSTITUTIONAL_PLAN.ai.map((line) => (
-                    <li key={line} className="flex items-start gap-1.5">
-                      <Check className="mt-0.5 size-3.5 shrink-0 text-primary-text" />
-                      <span>{line}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Also included
-                </h3>
-                <ul className="mt-1.5 space-y-1">
-                  {INSTITUTIONAL_PLAN.extras.map((line) => (
-                    <li key={line} className="flex items-start gap-1.5">
-                      <Check className="mt-0.5 size-3.5 shrink-0 text-primary-text" />
-                      <span>{line}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 border-t pt-3">
-              <Button asChild>
-                <a
-                  href={`mailto:${SALES_EMAIL}?subject=Casparel%20Institutional%20licence`}
-                >
-                  <Mail className="size-4" />
-                  Contact us for a quote
-                </a>
-              </Button>
-              <p className="text-[11px] text-muted-foreground">
-                Tell us roughly how many teacher and student seats you need —
-                we reply from {SALES_EMAIL} and activate seats on your existing
-                accounts, so nobody re-registers.
+                {isLoggedIn && plan.tier === "institutional" ? (
+                  <span
+                    className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary-text"
+                    data-testid="current-plan-institutional"
+                  >
+                    Current plan
+                  </span>
+                ) : null}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                <span className="text-lg font-semibold text-foreground">
+                  {INSTITUTIONAL_PLAN.priceLine}
+                </span>
+                <span className="block text-xs">
+                  {INSTITUTIONAL_PLAN.priceNote}
+                </span>
               </p>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <p className="text-muted-foreground">
+                {INSTITUTIONAL_PLAN.blurb}
+              </p>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Workspace, per seat
+                  </h3>
+                  <ul className="mt-1.5 space-y-1">
+                    {INSTITUTIONAL_PLAN.workspace.map((line) => (
+                      <li key={line} className="flex items-start gap-1.5">
+                        <Check className="mt-0.5 size-3.5 shrink-0 text-primary-text" />
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    AI allowances, per seat
+                  </h3>
+                  <ul className="mt-1.5 space-y-1">
+                    {INSTITUTIONAL_PLAN.ai.map((line) => (
+                      <li key={line} className="flex items-start gap-1.5">
+                        <Check className="mt-0.5 size-3.5 shrink-0 text-primary-text" />
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Also included
+                  </h3>
+                  <ul className="mt-1.5 space-y-1">
+                    {INSTITUTIONAL_PLAN.extras.map((line) => (
+                      <li key={line} className="flex items-start gap-1.5">
+                        <Check className="mt-0.5 size-3.5 shrink-0 text-primary-text" />
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 border-t pt-3">
+                <Button asChild>
+                  <a
+                    href={`mailto:${SALES_EMAIL}?subject=Casparel%20Institutional%20licence`}
+                  >
+                    <Mail className="size-4" />
+                    Contact us for a quote
+                  </a>
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Tell us roughly how many teacher and student seats you need —
+                  we reply from {SALES_EMAIL} and activate seats on your
+                  existing accounts, so nobody re-registers.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <h2 className="mt-6 text-lg font-semibold">Compare plans</h2>
+            <div className="mt-3 grid gap-4 md:grid-cols-3">
+              {cards.map((card, index) => (
+                <TierColumn
+                  key={card.tier}
+                  card={card}
+                  isCurrent={isLoggedIn && plan.tier === card.tier}
+                  highlight={index === 2}
+                  packages={
+                    checkout.status === "ready"
+                      ? checkout.packages.filter(
+                          (pkg) => pkg.tier === card.tier,
+                        )
+                      : []
+                  }
+                  buyable={
+                    !isAdmin &&
+                    (!isLoggedIn ||
+                      (!plan.pending &&
+                        // Role plans are only buyable on a matching account;
+                        // generic Plus/Pro are buyable on any role.
+                        (roleOfTier(card.tier) === null ||
+                          roleOfTier(card.tier) === accountRole) &&
+                        LEVEL_RANK[levelOfTier(card.tier)] >
+                          LEVEL_RANK[plan.level]))
+                  }
+                  busyPackageId={busyPackageId}
+                  onBuy={handleBuy}
+                />
+              ))}
             </div>
-          </CardContent>
-        </Card>
+          </>
+        )}
 
         <Card className="mt-6">
           <CardHeader className="pb-2">
@@ -643,13 +680,13 @@ export default function PlansPage() {
                 Role plans match your account role: a student plan does nothing
                 on a teacher account and the other way round, so checkout never
                 offers you the other role&apos;s plans. The original Plus and
-                Pro plans work on any role, and the Institutional licence
-                covers whole schools, staff and students alike.
+                Pro plans work on any role, and the Institutional licence covers
+                whole schools, staff and students alike.
               </li>
               <li>
                 Prices on this page are USD reference prices; the checkout
-                button and the app stores show your local currency, which is
-                the amount actually charged.
+                button and the app stores show your local currency, which is the
+                amount actually charged.
               </li>
               <li>
                 Every allowance on every plan is finite; no subscription is
@@ -658,15 +695,18 @@ export default function PlansPage() {
               </li>
               <li>
                 If a subscription ends, nothing you created is deleted or
-                hidden. You keep everything and simply cannot add more of a
-                kind you are over the limit on until there is room again.
+                hidden. You keep everything and simply cannot add more of a kind
+                you are over the limit on until there is room again.
               </li>
               <li>
                 Cancelling — in the App Store or Google Play for phone
-                purchases, or from Manage billing for card purchases — stops
-                the next renewal; it does not refund the period already paid.
-                See the{" "}
-                <Link href="/terms" className="text-primary-text hover:underline">
+                purchases, or from Manage billing for card purchases — stops the
+                next renewal; it does not refund the period already paid. See
+                the{" "}
+                <Link
+                  href="/terms"
+                  className="text-primary-text hover:underline"
+                >
                   Terms
                 </Link>{" "}
                 for the full wording.

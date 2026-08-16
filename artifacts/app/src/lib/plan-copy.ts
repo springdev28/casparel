@@ -254,7 +254,7 @@ export function audienceForRole(
 /**
  * The school licence. Sales-led, per-seat and invoiced — never a checkout
  * package, which is why it is not a TIER_CARDS column: the /plans page
- * renders it as its own section with a contact action instead of a Subscribe
+ * renders it in its own peer tab with a contact action instead of a Subscribe
  * button. Numbers mirror CAPACITY_BY_TIER.institutional and
  * AI_RATES_BY_TIER.institutional on the server, same rule as the cards above.
  */

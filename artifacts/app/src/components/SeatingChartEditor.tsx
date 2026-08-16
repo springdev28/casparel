@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { useLocation } from "wouter";
 import {
-  Armchair,
   Bot,
   ClipboardCopy,
   ClipboardPaste,
@@ -83,6 +82,11 @@ type InteractionState =
       startAngle: number;
       rotation: number;
     }
+  | {
+      type: "chair";
+      deskId: string;
+      seatIndex: number;
+    }
   | null;
 
 const SHAPES: ClassroomDesk["shape"][] = [
@@ -120,6 +124,63 @@ function shapeLabel(shape: ClassroomDesk["shape"]) {
     trapezoid: "Trapezoid table",
     polygon: "Polygon table",
   }[shape];
+}
+
+function defaultChairAngles(count: number) {
+  if (count <= 0) return [];
+  return Array.from({ length: count }, (_, index) =>
+    normalizeDegrees(90 + (index * 360) / count),
+  );
+}
+
+function chairAngles(element: ClassroomDesk) {
+  const count = clamp(Math.round(element.capacity), 0, 8);
+  const defaults = defaultChairAngles(count);
+  return Array.from({ length: count }, (_, index) => {
+    const saved = element.chairPositions?.[index];
+    return typeof saved === "number" && Number.isFinite(saved)
+      ? normalizeDegrees(saved)
+      : defaults[index];
+  });
+}
+
+function resizeChairAngles(element: ClassroomDesk, count: number) {
+  const result = chairAngles(element).slice(0, count);
+  while (result.length < count) {
+    if (result.length === 0) {
+      result.push(90);
+      continue;
+    }
+    const ordered = result
+      .map((angle) => (angle + 360) % 360)
+      .sort((a, b) => a - b);
+    let largestGap = -1;
+    let nextAngle = 90;
+    ordered.forEach((angle, index) => {
+      const following =
+        index === ordered.length - 1 ? ordered[0] + 360 : ordered[index + 1];
+      const gap = following - angle;
+      if (gap > largestGap) {
+        largestGap = gap;
+        nextAngle = angle + gap / 2;
+      }
+    });
+    result.push(normalizeDegrees(nextAngle));
+  }
+  return result;
+}
+
+function chairPlacement(angle: number) {
+  const radians = (angle * Math.PI) / 180;
+  const facingRotation = normalizeDegrees(angle - 90);
+  return {
+    facingRotation,
+    style: {
+      left: `${50 + Math.cos(radians) * 59}%`,
+      top: `${50 + Math.sin(radians) * 63}%`,
+      transform: `translate(-50%, -50%) rotate(${facingRotation}deg)`,
+    } satisfies CSSProperties,
+  };
 }
 
 function deskClipPath(element: ClassroomDesk) {
@@ -173,6 +234,7 @@ function createElement(
       width: shape === "round" ? 18 : shape === "oval" ? 28 : 22,
       height: shape === "round" ? 20 : 16,
       capacity,
+      chairPositions: defaultChairAngles(capacity),
       label: shape === "round" ? "Group table" : "Student table",
       ...(shape === "polygon" ? { sides: 6 } : {}),
       ...(shape === "trapezoid" ? { angle: 70 } : {}),
@@ -244,6 +306,7 @@ export function SeatingChartEditor({
   const [, setLocation] = useLocation();
   const canvasRef = useRef<HTMLDivElement>(null);
   const pasteCountRef = useRef(0);
+  const chairWasDraggedRef = useRef(false);
   const { data: chart, isLoading } = useGetSeatingChart(classId, {
     query: { queryKey: getGetSeatingChartQueryKey(classId) },
   });
@@ -402,6 +465,14 @@ export function SeatingChartEditor({
     );
   }
 
+  function assignSeatFromChair(target: { deskId: string; deskSeat: number }) {
+    if (chairWasDraggedRef.current) {
+      chairWasDraggedRef.current = false;
+      return;
+    }
+    assignSeat(target);
+  }
+
   function addElement(
     kind: ElementKind,
     shape: ClassroomDesk["shape"] = "rectangle",
@@ -451,7 +522,10 @@ export function SeatingChartEditor({
       0,
       8,
     );
-    updateElement({ capacity: nextCapacity });
+    updateElement({
+      capacity: nextCapacity,
+      chairPositions: resizeChairAngles(selectedElement, nextCapacity),
+    });
     setAssignments((old) =>
       old.map((item) =>
         item.deskId === selectedElement.id &&
@@ -491,6 +565,9 @@ export function SeatingChartEditor({
       x: clamp(element.x + offset, 0, 100 - element.width),
       y: clamp(element.y + offset, 0, 100 - element.height),
       label: element.label,
+      ...(element.chairPositions
+        ? { chairPositions: [...element.chairPositions] }
+        : {}),
     }));
     setDesks((old) => [...old, ...pasted]);
     setSelectedElementIds(pasted.map((element) => element.id));
@@ -594,6 +671,19 @@ export function SeatingChartEditor({
     });
   }
 
+  function beginChairMove(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    element: ClassroomDesk,
+    seatIndex: number,
+  ) {
+    if (readOnly || event.button !== 0) return;
+    event.stopPropagation();
+    chairWasDraggedRef.current = false;
+    setSelectedElementIds([element.id]);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setInteraction({ type: "chair", deskId: element.id, seatIndex });
+  }
+
   function movePointer(event: ReactPointerEvent<HTMLDivElement>) {
     if (!interaction) return;
     const point = canvasPoint(event);
@@ -640,6 +730,28 @@ export function SeatingChartEditor({
             ? { ...element, x: origin.x + dx, y: origin.y + dy }
             : element;
         }),
+      );
+      return;
+    }
+
+    if (interaction.type === "chair") {
+      const element = desks.find((item) => item.id === interaction.deskId);
+      if (!element) return;
+      const angle = normalizeDegrees(
+        pointerAngle(event, element) - element.rotation,
+      );
+      const positions = chairAngles(element);
+      const previous = positions[interaction.seatIndex];
+      if (Math.abs(normalizeDegrees(angle - previous)) > 0.8) {
+        chairWasDraggedRef.current = true;
+      }
+      positions[interaction.seatIndex] = angle;
+      setDesks((old) =>
+        old.map((item) =>
+          item.id === interaction.deskId
+            ? { ...item, chairPositions: positions }
+            : item,
+        ),
       );
       return;
     }
@@ -718,7 +830,14 @@ export function SeatingChartEditor({
           rows,
           columns,
           layoutMode,
-          desks: layoutMode === "custom" ? desks : [],
+          desks:
+            layoutMode === "custom"
+              ? desks.map((element) =>
+                  elementKind(element) === "desk"
+                    ? { ...element, chairPositions: chairAngles(element) }
+                    : element,
+                )
+              : [],
           assignments,
         },
       });
@@ -892,7 +1011,7 @@ export function SeatingChartEditor({
         <Card className="overflow-hidden">
           <CardContent className="space-y-4 p-4">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-              <PaletteGroup label="Add tables">
+              <PaletteGroup label="Add desks · chairs are connected">
                 {SHAPES.map((shape) => (
                   <PaletteButton
                     key={shape}
@@ -903,11 +1022,6 @@ export function SeatingChartEditor({
                 ))}
               </PaletteGroup>
               <PaletteGroup label="Add classroom elements">
-                <PaletteButton
-                  label="Chair"
-                  icon={<Armchair className="size-4" />}
-                  onClick={() => addElement("chair")}
-                />
                 <PaletteButton
                   label="Teacher place"
                   icon={<Presentation className="size-4" />}
@@ -1036,7 +1150,7 @@ export function SeatingChartEditor({
                       </select>
                     </div>
                     <div>
-                      <Label>Student places</Label>
+                      <Label>Chairs</Label>
                       <Input
                         type="number"
                         min={0}
@@ -1047,7 +1161,8 @@ export function SeatingChartEditor({
                         }
                       />
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        Use 0 for a furniture-only table.
+                        Use 0 for no chairs. Drag each chair around its desk; it
+                        will always face inward.
                       </p>
                     </div>
                   </>
@@ -1221,7 +1336,8 @@ export function SeatingChartEditor({
                 {!readOnly && (
                   <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Move className="size-3.5" />
-                    Drag furniture to move it. Drag on empty floor to select a
+                    Drag furniture to move it, or drag a chair around its desk.
+                    Chairs always face inward. Drag empty floor to select a
                     group.
                   </p>
                 )}
@@ -1261,9 +1377,10 @@ export function SeatingChartEditor({
                       students={students}
                       selectedStudentId={selectedId}
                       onBeginMove={beginMove}
+                      onBeginChairMove={beginChairMove}
                       onBeginResize={beginResize}
                       onBeginRotate={beginRotate}
-                      onAssignSeat={assignSeat}
+                      onAssignSeat={assignSeatFromChair}
                     />
                   ))}
                   {marqueeStyle && (
@@ -1550,6 +1667,7 @@ function ClassroomElement({
   students,
   selectedStudentId,
   onBeginMove,
+  onBeginChairMove,
   onBeginResize,
   onBeginRotate,
   onAssignSeat,
@@ -1564,6 +1682,11 @@ function ClassroomElement({
   onBeginMove: (
     event: ReactPointerEvent<HTMLDivElement>,
     element: ClassroomDesk,
+  ) => void;
+  onBeginChairMove: (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    element: ClassroomDesk,
+    seatIndex: number,
   ) => void;
   onBeginResize: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onBeginRotate: (event: ReactPointerEvent<HTMLButtonElement>) => void;
@@ -1597,16 +1720,21 @@ function ClassroomElement({
           const occupant = deskSeats.get(`${element.id}:${seatIndex}`);
           const student =
             occupant == null ? null : (students.get(occupant) ?? null);
-          const placement = seatPlacement(seatIndex, element.capacity);
+          const angle = chairAngles(element)[seatIndex];
+          const placement = chairPlacement(angle);
           return (
             <SeatControl
               key={seatIndex}
               style={placement.style}
-              side={placement.side}
+              facingRotation={placement.facingRotation}
               student={student}
               seatNumber={seatIndex + 1}
               selected={occupant === selectedStudentId}
               readOnly={readOnly}
+              connected
+              onPointerDown={(event) =>
+                onBeginChairMove(event, element, seatIndex)
+              }
               onClick={() =>
                 onAssignSeat({ deskId: element.id, deskSeat: seatIndex })
               }
@@ -1623,7 +1751,7 @@ function ClassroomElement({
             height: "58%",
             transform: "translate(-50%, -50%)",
           }}
-          side="bottom"
+          facingRotation={0}
           student={
             deskSeats.get(`${element.id}:0`) == null
               ? null
@@ -1671,12 +1799,7 @@ function ClassroomElement({
 function ElementGraphic({ element }: { element: ClassroomDesk }) {
   const kind = elementKind(element);
   if (kind === "chair") {
-    return (
-      <div className="absolute inset-0 rounded-[28%] border border-slate-400/70 bg-gradient-to-br from-slate-100 via-slate-200 to-slate-400 p-[9%] shadow-[0_7px_12px_-7px_rgba(15,23,42,0.7)] dark:from-slate-600 dark:via-slate-700 dark:to-slate-900">
-        <div className="absolute inset-x-[13%] top-[7%] h-[16%] rounded-full border border-slate-500/70 bg-slate-300 shadow-sm dark:bg-slate-700" />
-        <div className="absolute inset-x-[13%] bottom-[8%] h-[9%] rounded-full bg-slate-500/50" />
-      </div>
-    );
+    return <ChairGraphic />;
   }
   if (kind === "teacherDesk") {
     return (
@@ -1731,16 +1854,42 @@ function ElementGraphic({ element }: { element: ClassroomDesk }) {
         : "12px";
   return (
     <div
-      className="absolute inset-0 overflow-hidden border-2 border-emerald-800/55 bg-[linear-gradient(115deg,#d3a36b,#b97a43_45%,#8f572f)] shadow-[0_9px_18px_-10px_rgba(63,35,15,0.85)] dark:border-emerald-500/45 dark:bg-[linear-gradient(115deg,#93623a,#704226_55%,#4d2e1e)]"
+      className="absolute inset-0 overflow-hidden border-2 border-border bg-card shadow-md"
       style={{ borderRadius: rounding, clipPath: deskClipPath(element) }}
     >
       <div
-        className="absolute inset-[5%] border border-white/25"
+        className="absolute inset-[5%] border border-border/60 bg-muted/15"
         style={{ borderRadius: rounding }}
       />
-      <div className="absolute inset-x-[8%] top-[12%] h-px bg-white/30" />
       <ElementLabel label={element.label} />
     </div>
+  );
+}
+
+function ChairGraphic({
+  occupied = false,
+  selected = false,
+}: {
+  occupied?: boolean;
+  selected?: boolean;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-0 rounded-[28%] border-2 bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400 shadow-[0_7px_12px_-7px_rgba(15,23,42,0.75)] dark:from-slate-600 dark:via-slate-700 dark:to-slate-900 ${
+        selected
+          ? "border-primary ring-2 ring-primary/35"
+          : occupied
+            ? "border-primary/70"
+            : "border-slate-500/80"
+      }`}
+    >
+      <span className="absolute inset-x-[17%] top-[18%] bottom-[22%] rounded-[24%] border border-white/50 bg-white/25 shadow-inner dark:border-white/10" />
+      <span className="absolute left-1/2 top-[5%] h-0 w-0 -translate-x-1/2 border-x-[5px] border-b-[7px] border-x-transparent border-b-primary/80 drop-shadow-sm" />
+      <span className="absolute inset-x-[8%] bottom-[5%] h-[17%] rounded-full border border-slate-700/70 bg-slate-600 shadow-sm dark:bg-slate-950" />
+      <span className="absolute bottom-[14%] left-[11%] h-[18%] w-[7%] rounded-full bg-slate-600 dark:bg-slate-950" />
+      <span className="absolute bottom-[14%] right-[11%] h-[18%] w-[7%] rounded-full bg-slate-600 dark:bg-slate-950" />
+    </span>
   );
 }
 
@@ -1760,145 +1909,80 @@ function ElementLabel({
   );
 }
 
-function seatPlacement(
-  index: number,
-  count: number,
-): {
-  style: CSSProperties;
-  side: "top" | "right" | "bottom" | "left";
-} {
-  const layouts: Record<
-    number,
-    Array<[number, number, "top" | "right" | "bottom" | "left"]>
-  > = {
-    1: [[50, 106, "bottom"]],
-    2: [
-      [30, 106, "bottom"],
-      [70, 106, "bottom"],
-    ],
-    3: [
-      [50, -6, "top"],
-      [30, 106, "bottom"],
-      [70, 106, "bottom"],
-    ],
-    4: [
-      [30, -6, "top"],
-      [70, -6, "top"],
-      [30, 106, "bottom"],
-      [70, 106, "bottom"],
-    ],
-    5: [
-      [30, -6, "top"],
-      [70, -6, "top"],
-      [106, 50, "right"],
-      [30, 106, "bottom"],
-      [70, 106, "bottom"],
-    ],
-    6: [
-      [30, -6, "top"],
-      [70, -6, "top"],
-      [106, 50, "right"],
-      [70, 106, "bottom"],
-      [30, 106, "bottom"],
-      [-6, 50, "left"],
-    ],
-    7: [
-      [22, -6, "top"],
-      [50, -6, "top"],
-      [78, -6, "top"],
-      [106, 50, "right"],
-      [70, 106, "bottom"],
-      [30, 106, "bottom"],
-      [-6, 50, "left"],
-    ],
-    8: [
-      [22, -6, "top"],
-      [50, -6, "top"],
-      [78, -6, "top"],
-      [106, 50, "right"],
-      [78, 106, "bottom"],
-      [50, 106, "bottom"],
-      [22, 106, "bottom"],
-      [-6, 50, "left"],
-    ],
-  };
-  const [left, top, side] = (layouts[count] ?? layouts[8])[index] ?? [
-    50,
-    50,
-    "bottom",
-  ];
-  return {
-    side,
-    style: {
-      left: `${left}%`,
-      top: `${top}%`,
-      transform: "translate(-50%, -50%)",
-    },
-  };
-}
-
 function SeatControl({
   style,
-  side,
+  facingRotation,
   student,
   seatNumber,
   selected,
   readOnly,
   integrated = false,
+  connected = false,
+  onPointerDown,
   onClick,
 }: {
   style: CSSProperties;
-  side: "top" | "right" | "bottom" | "left";
+  facingRotation: number;
   student: SeatStudent | null;
   seatNumber: number;
   selected: boolean;
   readOnly: boolean;
   integrated?: boolean;
+  connected?: boolean;
+  onPointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onClick: () => void;
 }) {
-  const backrestClass = {
-    top: "-top-1 inset-x-1 h-1",
-    right: "-right-1 inset-y-1 w-1",
-    bottom: "-bottom-1 inset-x-1 h-1",
-    left: "-left-1 inset-y-1 w-1",
-  }[side];
+  const label = student?.name ?? `Empty chair ${seatNumber}`;
   return (
     <button
       type="button"
       disabled={readOnly}
-      onPointerDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        onPointerDown?.(event);
+      }}
       onClick={(event) => {
         event.stopPropagation();
         onClick();
       }}
-      title={student?.name ?? `Empty place ${seatNumber}`}
-      className={`absolute z-40 flex items-center justify-center overflow-visible border text-[9px] font-bold shadow-md transition disabled:cursor-default ${
-        integrated ? "rounded-[24%]" : "size-8 rounded-[28%]"
-      } ${
-        selected
-          ? "border-primary bg-primary text-primary-foreground ring-2 ring-primary/30"
-          : student
-            ? "border-slate-400 bg-background text-foreground hover:border-primary"
-            : "border-slate-400/80 bg-slate-100 text-slate-600 hover:border-primary dark:bg-slate-700 dark:text-slate-100"
+      title={connected ? `${label} · facing desk · drag to reposition` : label}
+      aria-label={
+        connected ? `${label}, facing desk. Drag to reposition.` : label
+      }
+      className={`absolute z-40 flex items-center justify-center overflow-visible text-[9px] font-bold transition disabled:cursor-default ${
+        connected
+          ? "size-9 cursor-grab border-0 bg-transparent shadow-none active:cursor-grabbing"
+          : integrated
+            ? "rounded-[24%] border border-slate-400 bg-background/80 shadow-sm"
+            : "size-8 rounded-[28%] border border-slate-400 bg-background shadow-md"
       }`}
       style={style}
     >
-      {!integrated && (
-        <span
-          className={`pointer-events-none absolute rounded-full bg-slate-500 ${backrestClass}`}
-        />
+      {connected && (
+        <ChairGraphic occupied={Boolean(student)} selected={selected} />
       )}
-      {student?.avatarUrl ? (
-        <img
-          src={student.avatarUrl}
-          alt=""
-          className="size-full rounded-[inherit] object-cover"
-        />
-      ) : student ? (
-        student.name.slice(0, 2).toUpperCase()
-      ) : (
-        seatNumber
-      )}
+      <span
+        className={`relative z-10 flex items-center justify-center ${
+          connected
+            ? "size-5 rounded-full bg-background/90 text-[8px] text-foreground shadow-sm"
+            : "size-full"
+        }`}
+        style={
+          connected ? { transform: `rotate(${-facingRotation}deg)` } : undefined
+        }
+      >
+        {student?.avatarUrl ? (
+          <img
+            src={student.avatarUrl}
+            alt=""
+            className="size-full rounded-[inherit] object-cover"
+          />
+        ) : student ? (
+          student.name.slice(0, 2).toUpperCase()
+        ) : (
+          seatNumber
+        )}
+      </span>
     </button>
   );
 }

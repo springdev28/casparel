@@ -910,6 +910,11 @@ export const getSeatingChartResponseDesksItemRotationMax = 180;
 export const getSeatingChartResponseDesksItemCapacityMin = 0;
 export const getSeatingChartResponseDesksItemCapacityMax = 8;
 
+export const getSeatingChartResponseDesksItemChairPositionsItemMin = -180;
+export const getSeatingChartResponseDesksItemChairPositionsItemMax = 180;
+
+export const getSeatingChartResponseDesksItemChairPositionsMax = 8;
+
 export const getSeatingChartResponseDesksItemLabelMax = 80;
 
 export const getSeatingChartResponseDesksItemTextMax = 300;
@@ -935,6 +940,7 @@ export const GetSeatingChartResponse = zod.object({
   "height": zod.number().min(getSeatingChartResponseDesksItemHeightMin).max(getSeatingChartResponseDesksItemHeightMax),
   "rotation": zod.number().min(getSeatingChartResponseDesksItemRotationMin).max(getSeatingChartResponseDesksItemRotationMax),
   "capacity": zod.int().min(getSeatingChartResponseDesksItemCapacityMin).max(getSeatingChartResponseDesksItemCapacityMax),
+  "chairPositions": zod.array(zod.number().min(getSeatingChartResponseDesksItemChairPositionsItemMin).max(getSeatingChartResponseDesksItemChairPositionsItemMax)).max(getSeatingChartResponseDesksItemChairPositionsMax).optional().describe('Optional angles for the chairs connected to a desk. Each angle is measured around the desk; the chair automatically faces inward. The array order matches seating-position indexes.'),
   "label": zod.string().max(getSeatingChartResponseDesksItemLabelMax),
   "text": zod.string().max(getSeatingChartResponseDesksItemTextMax).nullish()
 })),
@@ -990,6 +996,11 @@ export const updateSeatingChartBodyDesksItemRotationMax = 180;
 export const updateSeatingChartBodyDesksItemCapacityMin = 0;
 export const updateSeatingChartBodyDesksItemCapacityMax = 8;
 
+export const updateSeatingChartBodyDesksItemChairPositionsItemMin = -180;
+export const updateSeatingChartBodyDesksItemChairPositionsItemMax = 180;
+
+export const updateSeatingChartBodyDesksItemChairPositionsMax = 8;
+
 export const updateSeatingChartBodyDesksItemLabelMax = 80;
 
 export const updateSeatingChartBodyDesksItemTextMax = 300;
@@ -1016,6 +1027,7 @@ export const UpdateSeatingChartBody = zod.object({
   "height": zod.number().min(updateSeatingChartBodyDesksItemHeightMin).max(updateSeatingChartBodyDesksItemHeightMax),
   "rotation": zod.number().min(updateSeatingChartBodyDesksItemRotationMin).max(updateSeatingChartBodyDesksItemRotationMax),
   "capacity": zod.int().min(updateSeatingChartBodyDesksItemCapacityMin).max(updateSeatingChartBodyDesksItemCapacityMax),
+  "chairPositions": zod.array(zod.number().min(updateSeatingChartBodyDesksItemChairPositionsItemMin).max(updateSeatingChartBodyDesksItemChairPositionsItemMax)).max(updateSeatingChartBodyDesksItemChairPositionsMax).optional().describe('Optional angles for the chairs connected to a desk. Each angle is measured around the desk; the chair automatically faces inward. The array order matches seating-position indexes.'),
   "label": zod.string().max(updateSeatingChartBodyDesksItemLabelMax),
   "text": zod.string().max(updateSeatingChartBodyDesksItemTextMax).nullish()
 })).max(updateSeatingChartBodyDesksMax),
@@ -1054,6 +1066,11 @@ export const updateSeatingChartResponseDesksItemRotationMax = 180;
 export const updateSeatingChartResponseDesksItemCapacityMin = 0;
 export const updateSeatingChartResponseDesksItemCapacityMax = 8;
 
+export const updateSeatingChartResponseDesksItemChairPositionsItemMin = -180;
+export const updateSeatingChartResponseDesksItemChairPositionsItemMax = 180;
+
+export const updateSeatingChartResponseDesksItemChairPositionsMax = 8;
+
 export const updateSeatingChartResponseDesksItemLabelMax = 80;
 
 export const updateSeatingChartResponseDesksItemTextMax = 300;
@@ -1079,6 +1096,7 @@ export const UpdateSeatingChartResponse = zod.object({
   "height": zod.number().min(updateSeatingChartResponseDesksItemHeightMin).max(updateSeatingChartResponseDesksItemHeightMax),
   "rotation": zod.number().min(updateSeatingChartResponseDesksItemRotationMin).max(updateSeatingChartResponseDesksItemRotationMax),
   "capacity": zod.int().min(updateSeatingChartResponseDesksItemCapacityMin).max(updateSeatingChartResponseDesksItemCapacityMax),
+  "chairPositions": zod.array(zod.number().min(updateSeatingChartResponseDesksItemChairPositionsItemMin).max(updateSeatingChartResponseDesksItemChairPositionsItemMax)).max(updateSeatingChartResponseDesksItemChairPositionsMax).optional().describe('Optional angles for the chairs connected to a desk. Each angle is measured around the desk; the chair automatically faces inward. The array order matches seating-position indexes.'),
   "label": zod.string().max(updateSeatingChartResponseDesksItemLabelMax),
   "text": zod.string().max(updateSeatingChartResponseDesksItemTextMax).nullish()
 })),
@@ -1228,6 +1246,11 @@ export const suggestSeatingPlanResponseDesksItemRotationMax = 180;
 export const suggestSeatingPlanResponseDesksItemCapacityMin = 0;
 export const suggestSeatingPlanResponseDesksItemCapacityMax = 8;
 
+export const suggestSeatingPlanResponseDesksItemChairPositionsItemMin = -180;
+export const suggestSeatingPlanResponseDesksItemChairPositionsItemMax = 180;
+
+export const suggestSeatingPlanResponseDesksItemChairPositionsMax = 8;
+
 export const suggestSeatingPlanResponseDesksItemLabelMax = 80;
 
 export const suggestSeatingPlanResponseDesksItemTextMax = 300;
@@ -1250,6 +1273,7 @@ export const SuggestSeatingPlanResponse = zod.object({
   "height": zod.number().min(suggestSeatingPlanResponseDesksItemHeightMin).max(suggestSeatingPlanResponseDesksItemHeightMax),
   "rotation": zod.number().min(suggestSeatingPlanResponseDesksItemRotationMin).max(suggestSeatingPlanResponseDesksItemRotationMax),
   "capacity": zod.int().min(suggestSeatingPlanResponseDesksItemCapacityMin).max(suggestSeatingPlanResponseDesksItemCapacityMax),
+  "chairPositions": zod.array(zod.number().min(suggestSeatingPlanResponseDesksItemChairPositionsItemMin).max(suggestSeatingPlanResponseDesksItemChairPositionsItemMax)).max(suggestSeatingPlanResponseDesksItemChairPositionsMax).optional().describe('Optional angles for the chairs connected to a desk. Each angle is measured around the desk; the chair automatically faces inward. The array order matches seating-position indexes.'),
   "label": zod.string().max(suggestSeatingPlanResponseDesksItemLabelMax),
   "text": zod.string().max(suggestSeatingPlanResponseDesksItemTextMax).nullish()
 })),
