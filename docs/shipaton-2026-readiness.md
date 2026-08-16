@@ -121,7 +121,7 @@ Do not spend demo time listing every page. The repository's breadth is proof of 
 - Merge the audit fixes and require green CI.
 - Create/verify EAS project, Apple/Google identifiers, signing and store accounts.
 - Configure RevenueCat products, entitlement, offering, packages, public SDK keys and webhook secret.
-- Add persistent webhook event idempotency and correct transfer reconciliation.
+- ~~Add persistent webhook event idempotency and correct transfer reconciliation.~~ Done in code on 16 August, see the [audit follow-up](audit-report-2026-08-15.md#follow-up-16-august-2026). Still to be proven against real RevenueCat deliveries during the sandbox matrix below.
 - Produce internal iOS and Android builds; install on physical phones.
 - Freeze product truth: exact free allowance, Premium benefit and privacy disclosures.
 

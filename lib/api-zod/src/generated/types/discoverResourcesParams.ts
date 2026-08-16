@@ -5,13 +5,20 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { DiscoverResourcesAccessType } from './discoverResourcesAccessType';
+import type { DiscoverResourcesContentLength } from './discoverResourcesContentLength';
+import type { DiscoverResourcesDifficulty } from './discoverResourcesDifficulty';
 import type { DiscoverResourcesFormat } from './discoverResourcesFormat';
+import type { DiscoverResourcesFreshness } from './discoverResourcesFreshness';
 import type { DiscoverResourcesLanguage } from './discoverResourcesLanguage';
+import type { DiscoverResourcesLicense } from './discoverResourcesLicense';
 import type { DiscoverResourcesResultType } from './discoverResourcesResultType';
+import type { DiscoverResourcesSourceQuality } from './discoverResourcesSourceQuality';
 
 export type DiscoverResourcesParams = {
 /**
- * Search query
+ * Search query. Blank queries are rejected with 400
+ * @minLength 1
  */
 q: string;
 format?: DiscoverResourcesFormat;
@@ -22,7 +29,7 @@ gradeLevel?: string;
  */
 language?: DiscoverResourcesLanguage;
 /**
- * Page number for paginated results
+ * Page number. Each page resumes where the previous one ended, so a page past the stored results returns an empty list rather than repeating earlier ones
  * @minimum 1
  */
 page?: number;
@@ -30,4 +37,48 @@ page?: number;
  * Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
  */
 resultType?: DiscoverResourcesResultType;
+/**
+ * Title or description must contain this phrase, truncated to 160 characters
+ */
+exactPhrase?: string;
+/**
+ * Space-separated words to exclude, truncated to 160 characters; the first eight are applied
+ */
+exclude?: string;
+/**
+ * Restrict to providers whose name contains this text, truncated to 160 characters
+ */
+source?: string;
+/**
+ * How recent a result must be. The stored catalog filters on year and three_years; the shorter windows only steer AI discovery
+ */
+freshness?: DiscoverResourcesFreshness;
+/**
+ * Required source credibility
+ */
+sourceQuality?: DiscoverResourcesSourceQuality;
+/**
+ * Difficulty hint; applies to AI discovery only, content results only
+ */
+difficulty?: DiscoverResourcesDifficulty;
+/**
+ * Access requirement, content results only. The stored catalog filters on free and open; no_account only steers AI discovery
+ */
+accessType?: DiscoverResourcesAccessType;
+/**
+ * Require a stated licence, or one that permits reuse. Content results only
+ */
+license?: DiscoverResourcesLicense;
+/**
+ * Length hint; applies to AI discovery only, content results only
+ */
+contentLength?: DiscoverResourcesContentLength;
+/**
+ * Require captions, sent as the string true or false. Applies to AI discovery only, content results only
+ */
+captions?: boolean;
+/**
+ * Require a transcript, sent as the string true or false. Applies to AI discovery only, content results only
+ */
+transcript?: boolean;
 };

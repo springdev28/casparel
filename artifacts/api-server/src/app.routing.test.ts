@@ -43,6 +43,84 @@ const { default: app } = await import("./app");
 /** authLimiter allows 20 attempts per IP per 15 minutes. */
 const AUTH_BUDGET = 20;
 
+type RouteLayer = {
+  name?: string;
+  path?: unknown;
+  route?: { path?: unknown; methods?: Record<string, boolean> };
+  handle?: { stack?: RouteLayer[] };
+};
+
+/**
+ * Every `METHOD /path` the mounted app declares.
+ *
+ * Paths are router-relative: Express 5 keeps no static record of where a
+ * router was mounted. That is exact for this app because app.ts mounts every
+ * router under the same `/api` prefix, which the last test below pins.
+ */
+function declaredRoutes(stack: RouteLayer[]): string[] {
+  const declared: string[] = [];
+  for (const layer of stack) {
+    if (layer.route) {
+      const path = typeof layer.route.path === "string" ? layer.route.path : "";
+      for (const [method, enabled] of Object.entries(
+        layer.route.methods ?? {},
+      )) {
+        if (enabled) declared.push(`${method.toUpperCase()} ${path}`);
+      }
+      continue;
+    }
+    if (layer.handle?.stack)
+      declared.push(...declaredRoutes(layer.handle.stack));
+  }
+  return declared;
+}
+
+function appRoutes() {
+  return declaredRoutes(
+    (app as unknown as { router: { stack: RouteLayer[] } }).router.stack,
+  );
+}
+
+/**
+ * Paths two mounted routers are allowed to share, with the reason. Express
+ * serves whichever is mounted first and silently ignores the rest, so every
+ * entry here names a handler that provably never runs.
+ */
+const KNOWN_SHADOWED_ROUTES = new Map([
+  [
+    "POST /auth/login",
+    "loginCompat wins over routes/auth; the limiter sits on the mount point",
+  ],
+]);
+
+describe("no route is declared twice", () => {
+  it("has one mounted handler per path, apart from the documented compat route", () => {
+    const seen = new Set<string>();
+    const duplicates = appRoutes().filter(
+      (route) => !seen.add(route) && !KNOWN_SHADOWED_ROUTES.has(route),
+    );
+    // A second declaration of a live path is dead code at best. At worst it is
+    // the /auth/login defect again: the handler carrying the limiter, the
+    // quota check or the fix is the one Express throws away. /resources/discover
+    // was declared by two files this way, and the copy that lost carried
+    // neither the AI quota nor the rate limiter.
+    expect(duplicates).toEqual([]);
+  });
+
+  it("walks far enough into the app to see the real routes", () => {
+    // Guards the inverse mistake: an empty walk would pass the test above
+    // without checking anything.
+    expect(appRoutes()).toContain("GET /resources/discover");
+  });
+
+  it("serves those routes under /api, so relative paths are comparable", async () => {
+    // No query, so the handler rejects on validation before touching the
+    // database, the open providers or the AI.
+    const res = await request(app).get("/api/resources/discover");
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("credential rate limiting is not shadowed by route order", () => {
   it("throttles POST /api/auth/login once the budget is spent", async () => {
     let last = 0;

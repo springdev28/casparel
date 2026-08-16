@@ -1185,7 +1185,8 @@ paths:
           required: true
           schema:
             type: string
-          description: Search query
+            minLength: 1
+          description: Search query. Blank queries are rejected with 400
         - name: format
           in: query
           schema:
@@ -1212,7 +1213,10 @@ paths:
             type: integer
             minimum: 1
             default: 1
-          description: Page number for paginated results
+          description: >-
+            Page number. Each page resumes where the previous one ended, so a
+            page past the stored results returns an empty list rather than
+            repeating earlier ones
         - name: resultType
           in: query
           schema:
@@ -1220,6 +1224,71 @@ paths:
             enum: [content, source, people]
             default: content
           description: Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
+        - name: exactPhrase
+          in: query
+          schema:
+            type: string
+          description: Title or description must contain this phrase, truncated to 160 characters
+        - name: exclude
+          in: query
+          schema:
+            type: string
+          description: Space-separated words to exclude, truncated to 160 characters; the first eight are applied
+        - name: source
+          in: query
+          schema:
+            type: string
+          description: Restrict to providers whose name contains this text, truncated to 160 characters
+        - name: freshness
+          in: query
+          schema:
+            type: string
+            enum: [week, month, year, three_years]
+          description: >-
+            How recent a result must be. The stored catalog filters on year and
+            three_years; the shorter windows only steer AI discovery
+        - name: sourceQuality
+          in: query
+          schema:
+            type: string
+            enum: [academic, institutional, established, independent]
+          description: Required source credibility
+        - name: difficulty
+          in: query
+          schema:
+            type: string
+            enum: [beginner, intermediate, advanced, mixed]
+          description: Difficulty hint; applies to AI discovery only, content results only
+        - name: accessType
+          in: query
+          schema:
+            type: string
+            enum: [free, no_account, open]
+          description: >-
+            Access requirement, content results only. The stored catalog filters
+            on free and open; no_account only steers AI discovery
+        - name: license
+          in: query
+          schema:
+            type: string
+            enum: [known, reusable]
+          description: Require a stated licence, or one that permits reuse. Content results only
+        - name: contentLength
+          in: query
+          schema:
+            type: string
+            enum: [short, medium, long]
+          description: Length hint; applies to AI discovery only, content results only
+        - name: captions
+          in: query
+          schema:
+            type: boolean
+          description: Require captions, sent as the string true or false. Applies to AI discovery only, content results only
+        - name: transcript
+          in: query
+          schema:
+            type: boolean
+          description: Require a transcript, sent as the string true or false. Applies to AI discovery only, content results only
       responses:
         "200":
           description: Educational resources from the stored catalog

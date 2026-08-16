@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, not, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, ilike, not, or, sql, type SQL } from "drizzle-orm";
 import {
   catalogResourcesTable,
   catalogSyncStateTable,
@@ -19,6 +19,13 @@ export type CatalogSearchOptions = {
   language?: string;
   page?: number;
   limit?: number;
+  /**
+   * Row to start reading at, overriding the one derived from `page`. Callers
+   * that top the catalog up between two searches pass the offset resolved
+   * before the top-up so the newly stored rows extend the page instead of
+   * shifting it. See {@link resolveCatalogOffset}.
+   */
+  offset?: number;
   resultType?: "content" | "source" | "people";
   exactPhrase?: string;
   excludedWords?: string;
@@ -949,10 +956,7 @@ export async function ensureCuratedCatalog() {
 const filterTokens = (value: string) =>
   value.trim().split(/\s+/).filter(Boolean).slice(0, 8);
 
-export async function searchCatalog(
-  options: CatalogSearchOptions,
-): Promise<CatalogSearchItem[]> {
-  if (options.resultType === "people") return [];
+function catalogConditions(options: CatalogSearchOptions): SQL[] {
   const conditions: SQL[] = [];
   const searchTerms = meaningfulSearchTerms(options.query);
   if (searchTerms.length)
@@ -1039,8 +1043,62 @@ export async function searchCatalog(
       sql`coalesce(${catalogResourcesTable.publishedAt}, ${catalogResourcesTable.lastSyncedAt}) >= now() - interval '3 years'`,
     );
 
+  return conditions;
+}
+
+/** Cards asked for per page. */
+function catalogPageSize(options: CatalogSearchOptions) {
+  return Math.min(24, Math.max(1, options.limit ?? 16));
+}
+
+/**
+ * Rows read per page. Source mode collapses many rows into one card per
+ * provider, so it reads a wider window — and must therefore page by that
+ * window, not by the card count, or page 2 re-reads most of page 1.
+ */
+function catalogFetchWindow(options: CatalogSearchOptions) {
+  const pageSize = catalogPageSize(options);
+  return options.resultType === "source" ? pageSize * 4 : pageSize;
+}
+
+/**
+ * The row page N should start at.
+ *
+ * A plain `(page - 1) * window` overshoots as soon as the stored catalog runs
+ * out: page 2 of a six-row result set reads from row 16, returns nothing, and
+ * "Search more resources" looks broken even when a remote top-up has just
+ * added rows. Clamping to the number of rows that currently match resumes
+ * exactly where the catalog ended — no gap, and no repeat of rows an earlier
+ * page already showed.
+ *
+ * Resolve this once, before any top-up, and pass it to every searchCatalog
+ * call for that request: rows added in between get the highest ids and sort
+ * last, so a stale offset would skip them.
+ */
+export async function resolveCatalogOffset(
+  options: CatalogSearchOptions,
+): Promise<number> {
   const page = Math.max(1, options.page ?? 1);
-  const limit = Math.min(24, Math.max(1, options.limit ?? 16));
+  if (page === 1 || options.resultType === "people") return 0;
+  const conditions = catalogConditions(options);
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(catalogResourcesTable)
+    .where(conditions.length ? and(...conditions) : undefined);
+  const available = Number(row?.count ?? 0);
+  return Math.min((page - 1) * catalogFetchWindow(options), available);
+}
+
+export async function searchCatalog(
+  options: CatalogSearchOptions,
+): Promise<CatalogSearchItem[]> {
+  if (options.resultType === "people") return [];
+  const conditions = catalogConditions(options);
+
+  const page = Math.max(1, options.page ?? 1);
+  const limit = catalogPageSize(options);
+  const window = catalogFetchWindow(options);
+  const offset = Math.max(0, options.offset ?? (page - 1) * window);
   const query = options.query.trim();
   const relevance = query
     ? sql<number>`case when lower(${catalogResourcesTable.title}) = lower(${query}) then 0 when ${catalogResourcesTable.title} ilike ${`%${query}%`} then 1 when ${catalogResourcesTable.subject} ilike ${`%${query}%`} then 2 else 3 end`
@@ -1049,9 +1107,15 @@ export async function searchCatalog(
     .select()
     .from(catalogResourcesTable)
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(asc(relevance), desc(catalogResourcesTable.lastSyncedAt))
-    .limit(options.resultType === "source" ? limit * 4 : limit)
-    .offset((page - 1) * limit);
+    // Ascending id is the tie-break, not last_synced_at. Rows are upserted in
+    // batches that share a sync timestamp, so ordering by it left ties for
+    // Postgres to break however it liked and page 2 could hand back rows page
+    // 1 had already shown. Id is unique and never changes, so pages stay
+    // disjoint, and newly stored rows sort last — which is where a "search
+    // more" page is looking.
+    .orderBy(asc(relevance), asc(catalogResourcesTable.id))
+    .limit(window)
+    .offset(offset);
 
   if (options.resultType === "source") {
     const seen = new Set<string>();
@@ -1161,6 +1225,22 @@ function catalogUserAgent() {
     : "Casparel/1.0 (https://github.com/springdev28/schoolar)";
 }
 
+/**
+ * How far into a provider's own result set a top-up for this page should read.
+ *
+ * Without this every page asked Open Library and Wikibooks for their first
+ * results again, so "Search more resources" could only ever re-store what the
+ * catalog already had. Depth is capped because a client controls `page` and
+ * deep offsets are expensive for the upstream services; past the cap the
+ * stored catalog is the only source and the app says so.
+ */
+const REMOTE_PAGE_LIMIT = 8;
+
+function remoteWindowOffset(options: CatalogSearchOptions, windowSize: number) {
+  const page = Math.max(1, Math.min(REMOTE_PAGE_LIMIT, options.page ?? 1));
+  return (page - 1) * windowSize;
+}
+
 export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
   if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false") return 0;
   const query = [
@@ -1171,7 +1251,9 @@ export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
     .join(" ")
     .trim();
   if (query.length < 2) return 0;
-  const key = `${query.toLowerCase()}:${options.language ?? "en"}`;
+  if ((options.page ?? 1) > REMOTE_PAGE_LIMIT) return 0;
+  const offset = remoteWindowOffset(options, 20);
+  const key = `${query.toLowerCase()}:${options.language ?? "en"}:${offset}`;
   const existing = openLibraryInFlight.get(key);
   if (existing) return existing;
   const task = (async () => {
@@ -1188,6 +1270,7 @@ export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
         "key,title,author_name,first_publish_year,cover_i,subject,language,ebook_access,public_scan_b",
       );
       endpoint.searchParams.set("limit", "20");
+      if (offset) endpoint.searchParams.set("offset", String(offset));
       if (options.language && options.language !== "any")
         endpoint.searchParams.set("lang", options.language);
       const response = await fetch(endpoint, {
@@ -1322,7 +1405,9 @@ export async function searchWikibooksAndStore(options: CatalogSearchOptions) {
   const language = supportedLanguages.has(requestedLanguage)
     ? requestedLanguage
     : "en";
-  const key = `${language}:${query.toLowerCase()}`;
+  if ((options.page ?? 1) > REMOTE_PAGE_LIMIT) return 0;
+  const offset = remoteWindowOffset(options, 8);
+  const key = `${language}:${query.toLowerCase()}:${offset}`;
   const existing = wikibooksInFlight.get(key);
   if (existing) return existing;
 
@@ -1336,12 +1421,13 @@ export async function searchWikibooksAndStore(options: CatalogSearchOptions) {
 
       await waitForWikibooksSlot();
       const endpoint = new URL(`https://${language}.wikibooks.org/w/api.php`);
-      const params = {
+      const params: Record<string, string> = {
         action: "query",
         generator: "search",
         gsrsearch: query,
         gsrnamespace: "0",
         gsrlimit: "8",
+        ...(offset ? { gsroffset: String(offset) } : {}),
         prop: "extracts|info",
         exintro: "1",
         explaintext: "1",

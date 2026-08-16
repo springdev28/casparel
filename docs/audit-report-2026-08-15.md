@@ -194,3 +194,36 @@ Risks: no connected product analytics/error-monitoring evidence was found; old S
 Web/API: suitable for continued production use with normal monitoring; merge the audited fixes after CI.
 
 Mobile/Shipaton: not yet submission-ready. Treat the native build, RevenueCat transaction matrix, store publication and human usability pass as release gates. Do not spend the remaining runway adding broad new features until those gates are green.
+
+## Follow-up, 16 August 2026
+
+Work done against the list above since the report was written. The report itself is left as it was on 15 August; this section records what has moved.
+
+### Resource search paging
+
+"Search more resources" fetched a further page and, on a catalog that had run out, changed nothing on screen. Three separate causes, all now fixed and covered by tests:
+
+- **Paging was not over a total order.** `searchCatalog` ordered by relevance then `last_synced_at`, and catalog rows are upserted in batches that share a sync timestamp. Ties were left for Postgres to break however it liked, so page 2 could return rows page 1 had already shown, and the client deduplicated them away to nothing. The order now ends in the row id, which is unique and stable.
+- **Later pages started past the end.** Page 2 of a six-row result read from row 16. The offset is now resolved against the number of matching rows, so a later page resumes exactly where the catalog ended.
+- **Only page 1 could reach the open providers.** The Open Library and Wikibooks top-up was gated on `page === 1`, and asked both providers for their first results every time. It now runs for any thin page and reads the window matching the requested page, capped at page 8 so a client-controlled page number cannot drive deep upstream paging.
+
+Source-mode paging had a fourth fault: it read `limit * 4` rows to collapse into one card per provider but offset by the card count, so a second page of sources was almost all repeats. It now offsets by the window it reads.
+
+The UI no longer offers an action that does nothing. A page that adds no new results ends the list with a plain sentence, results already on screen survive a failed later page instead of being replaced by the error, and a search with no results says so rather than rendering an empty section.
+
+### Discover input validation
+
+`q` is a coerced string, so a request with no query arrived at the handler as the literal `"undefined"` and a blank one as `""`. Both parsed cleanly and were searched in full: a catalog query, two calls out to the open providers, and — with nothing stored to match — a spent AI allowance, for a query nobody typed. The handler now rejects a missing or blank `q` before any of that.
+
+### Duplicate route declaration
+
+`routes/discover.ts` declared `GET /resources/discover`, the same path as `routes/resources.ts`, and was never mounted — so the rate limiter, the AI quota and every fix lived in one file while a stale copy calling `gpt-4o` sat beside it. This is the `/auth/login` defect in a second place. The dead file is deleted, and `app.routing.test.ts` now walks the mounted app and fails on any path declared twice, with the one documented compat exception listed by name.
+
+### Findings closed
+
+| Was | Now |
+| --- | --- |
+| P1 RevenueCat transfer events are not reconciled authoritatively | Closed in code. Events are claimed by provider event id in a new `webhook_events` table before the plan is written, so a re-delivery is acknowledged without re-applying; a failed write releases the claim so the provider's retry still lands. `TRANSFER` used to be dropped entirely — it carries no `app_user_id` — and now moves the stored plan and expiry from the source accounts to the destination and drops the source to free, without unentitling an account that appears on both sides. Still unproven against real RevenueCat traffic; that remains part of the P0 above. |
+| P1 Newer API routes are outside OpenAPI | Advanced discovery is done: `exactPhrase`, `exclude`, `source`, `freshness`, `sourceQuality`, `difficulty`, `accessType`, `license`, `contentLength`, `captions` and `transcript` were accepted at runtime but absent from the spec, so no client type or schema covered them. They are in `openapi.yaml` now and the clients are regenerated, which typed six filter values in the web app that were plain strings before. Other domains are unchanged. |
+
+Everything else in the table above still stands.

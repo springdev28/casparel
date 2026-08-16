@@ -89,6 +89,12 @@ import {
   DiscoverResourcesLanguage,
   DiscoverResourcesResultType,
   UserRole,
+  type DiscoverResourcesAccessType,
+  type DiscoverResourcesContentLength,
+  type DiscoverResourcesDifficulty,
+  type DiscoverResourcesFreshness,
+  type DiscoverResourcesLicense,
+  type DiscoverResourcesSourceQuality,
   type DiscoveredResource,
   type SourceReview,
 } from "@workspace/api-client-react";
@@ -1120,6 +1126,20 @@ export default function ResourcesPage() {
   const [allWebResults, setAllWebResults] = useState<DiscoveredResource[]>(
     initialSearch.results,
   );
+  // Mirrors allWebResults so a finished page can be compared with what was
+  // already on screen without waiting for the state update. A page that adds
+  // nothing new is the end of the catalog, and the UI has to say so rather
+  // than leaving a button that visibly does nothing.
+  const accumulatedWebResultsRef = useRef<DiscoveredResource[]>(
+    initialSearch.results,
+  );
+  const mergedWebResponseRef = useRef<DiscoveredResource[] | null>(null);
+  const [webExhausted, setWebExhausted] = useState(false);
+
+  function replaceWebResults(next: DiscoveredResource[]) {
+    accumulatedWebResultsRef.current = next;
+    setAllWebResults(next);
+  }
   const [hiddenSourceUrls, setHiddenSourceUrls] = useState<string[]>([]);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const [continueGoalId, setContinueGoalId] = useState("");
@@ -1199,7 +1219,7 @@ export default function ResourcesPage() {
     if (typeof saved.activeQuery === "string")
       setActiveQuery(saved.activeQuery);
     if (Array.isArray(saved.results))
-      setAllWebResults(saved.results as DiscoveredResource[]);
+      replaceWebResults(saved.results as DiscoveredResource[]);
   }, [accountPreferences]);
 
   useEffect(() => {
@@ -1361,6 +1381,11 @@ export default function ResourcesPage() {
         isSameResourceWork(libraryResource, resource),
       ),
   );
+  const hasWebResults = visibleWebResults.length > 0;
+  // Results came back, but every one of them is already saved. That is a
+  // different answer from "the catalog has nothing", and saying the wrong one
+  // sends people off to re-search for what they already own.
+  const allWebResultsAlreadySaved = !hasWebResults && allWebResults.length > 0;
 
   const activeLearningGoals = (learningGoals ?? []).filter(
     (goal) => goal.status === "active",
@@ -1465,26 +1490,26 @@ export default function ResourcesPage() {
       ? { source: submittedSearch.sourceDomain }
       : {}),
     ...(submittedSearch?.freshness
-      ? { freshness: submittedSearch.freshness }
+      ? { freshness: submittedSearch.freshness as DiscoverResourcesFreshness }
       : {}),
     ...(submittedSearch?.sourceQuality
-      ? { sourceQuality: submittedSearch.sourceQuality }
+      ? { sourceQuality: submittedSearch.sourceQuality as DiscoverResourcesSourceQuality }
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.difficulty
-      ? { difficulty: submittedSearch.difficulty }
+      ? { difficulty: submittedSearch.difficulty as DiscoverResourcesDifficulty }
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.access
-      ? { accessType: submittedSearch.access }
+      ? { accessType: submittedSearch.access as DiscoverResourcesAccessType }
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.license
-      ? { license: submittedSearch.license }
+      ? { license: submittedSearch.license as DiscoverResourcesLicense }
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.contentLength
-      ? { contentLength: submittedSearch.contentLength }
+      ? { contentLength: submittedSearch.contentLength as DiscoverResourcesContentLength }
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.captions
@@ -1535,18 +1560,25 @@ export default function ResourcesPage() {
     if (previousActiveQueryRef.current === activeQuery) return;
     previousActiveQueryRef.current = activeQuery;
     setWebPage(1);
-    setAllWebResults([]);
+    replaceWebResults([]);
+    setWebExhausted(false);
     setHiddenSourceUrls([]);
   }, [activeQuery]);
 
   useEffect(() => {
-    if (!webResults || webResults.length === 0) return;
-    setAllWebResults((prev) =>
-      dedupeDiscoveredResources(
-        webPage === 1 ? webResults : [...prev, ...webResults],
-      ),
-    );
-  }, [webResults, webPage]);
+    if (webLoading || !webResults) return;
+    // Merge each response once. Folding the same page in twice would look
+    // like a page that returned nothing new, which is the signal used below
+    // to decide the catalog is exhausted.
+    if (mergedWebResponseRef.current === webResults) return;
+    mergedWebResponseRef.current = webResults;
+    const base = webPage === 1 ? [] : accumulatedWebResultsRef.current;
+    const merged = dedupeDiscoveredResources([...base, ...webResults]);
+    replaceWebResults(merged);
+    // The catalog is finite, and the response is a plain list with no "more"
+    // flag, so a page that adds nothing new is how the end announces itself.
+    setWebExhausted(merged.length === base.length);
+  }, [webResults, webPage, webLoading]);
 
   useEffect(() => {
     if (!isLoggedIn || !isSearching || webLoading) return;
@@ -3091,11 +3123,15 @@ export default function ResourcesPage() {
               <div className="py-6 text-center">
                 <p className="text-sm text-destructive-text font-medium">
                   {webAuthenticationRequired
-                    ? "The stored catalog has no matches. Sign in to use your AI discovery allowance."
+                    ? hasWebResults
+                      ? "The catalog has no more matches for this search. Sign in to use your AI discovery allowance."
+                      : "The stored catalog has no matches. Sign in to use your AI discovery allowance."
                     : webCreditsExhausted
                     ? isAdmin
                       ? "Optional AI fallback is unavailable because the OpenAI project has no credits."
                       : "Optional AI fallback is temporarily unavailable."
+                    : hasWebResults
+                    ? "Could not load more results, please try again."
                     : "Catalog search failed, please try again."}
                 </p>
                 {webAuthenticationRequired ? (
@@ -3123,7 +3159,10 @@ export default function ResourcesPage() {
               </div>
             )}
 
-            {!webError && visibleWebResults.length > 0 && (
+            {/* Results survive a failed later page: losing a screenful of
+                catalog cards because "Search more" hit a rate limit is worse
+                than the error itself. */}
+            {visibleWebResults.length > 0 && (
               <>
                 {!isSubmittedSourceMode && !isLoggedIn && (
                   <p className="text-xs text-muted-foreground mb-3">
@@ -3158,27 +3197,47 @@ export default function ResourcesPage() {
                     ),
                   )}
                 </div>
-                <div className="mt-4 text-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={webLoading}
-                    onClick={() => setWebPage((page) => page + 1)}
-                  >
-                    {webLoading ? (
-                      <>
-                        <Loader2 size={12} className="mr-1.5 animate-spin" />{" "}
-                        Loading…
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={12} className="mr-1.5" /> Search more{" "}
-                        {isSubmittedSourceMode ? "sources" : "resources"}
-                      </>
-                    )}
-                  </Button>
-                </div>
+                {/* Offering "Search more" after the catalog is spent is what
+                    made the button look broken: it fetched, found nothing new
+                    and left the page exactly as it was. */}
+                {webExhausted && !webLoading && !webError ? (
+                  <p className="mt-4 text-center text-xs text-muted-foreground">
+                    That is everything the open catalog has for "{activeQuery}".
+                    {!isLoggedIn
+                      ? " Sign in to search further with your AI discovery allowance."
+                      : " Try different words, or narrow the filters."}
+                  </p>
+                ) : webError ? null : (
+                  <div className="mt-4 text-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={webLoading}
+                      onClick={() => setWebPage((page) => page + 1)}
+                    >
+                      {webLoading ? (
+                        <>
+                          <Loader2 size={12} className="mr-1.5 animate-spin" />{" "}
+                          Loading…
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={12} className="mr-1.5" /> Search more{" "}
+                          {isSubmittedSourceMode ? "sources" : "resources"}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </>
+            )}
+
+            {!webError && !webLoading && !hasWebResults && (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                {allWebResultsAlreadySaved
+                  ? `Every open-catalog match for "${activeQuery}" is already in your library.`
+                  : `The open catalog has nothing for "${activeQuery}" yet. Try different words, clear a filter, or submit the resource yourself.`}
+              </p>
             )}
           </section>
 

@@ -1756,7 +1756,8 @@ export const ListResourcesSortBy = {
 
 export type DiscoverResourcesParams = {
 /**
- * Search query
+ * Search query. Blank queries are rejected with 400
+ * @minLength 1
  */
 q: string;
 format?: DiscoverResourcesFormat;
@@ -1767,7 +1768,7 @@ gradeLevel?: string;
  */
 language?: DiscoverResourcesLanguage;
 /**
- * Page number for paginated results
+ * Page number. Each page resumes where the previous one ended, so a page past the stored results returns an empty list rather than repeating earlier ones
  * @minimum 1
  */
 page?: number;
@@ -1775,6 +1776,50 @@ page?: number;
  * Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
  */
 resultType?: DiscoverResourcesResultType;
+/**
+ * Title or description must contain this phrase, truncated to 160 characters
+ */
+exactPhrase?: string;
+/**
+ * Space-separated words to exclude, truncated to 160 characters; the first eight are applied
+ */
+exclude?: string;
+/**
+ * Restrict to providers whose name contains this text, truncated to 160 characters
+ */
+source?: string;
+/**
+ * How recent a result must be. The stored catalog filters on year and three_years; the shorter windows only steer AI discovery
+ */
+freshness?: DiscoverResourcesFreshness;
+/**
+ * Required source credibility
+ */
+sourceQuality?: DiscoverResourcesSourceQuality;
+/**
+ * Difficulty hint; applies to AI discovery only, content results only
+ */
+difficulty?: DiscoverResourcesDifficulty;
+/**
+ * Access requirement, content results only. The stored catalog filters on free and open; no_account only steers AI discovery
+ */
+accessType?: DiscoverResourcesAccessType;
+/**
+ * Require a stated licence, or one that permits reuse. Content results only
+ */
+license?: DiscoverResourcesLicense;
+/**
+ * Length hint; applies to AI discovery only, content results only
+ */
+contentLength?: DiscoverResourcesContentLength;
+/**
+ * Require captions, sent as the string true or false. Applies to AI discovery only, content results only
+ */
+captions?: boolean;
+/**
+ * Require a transcript, sent as the string true or false. Applies to AI discovery only, content results only
+ */
+transcript?: boolean;
 };
 
 export type DiscoverResourcesFormat = typeof DiscoverResourcesFormat[keyof typeof DiscoverResourcesFormat];
@@ -1809,6 +1854,62 @@ export const DiscoverResourcesResultType = {
   content: 'content',
   source: 'source',
   people: 'people',
+} as const;
+
+export type DiscoverResourcesFreshness = typeof DiscoverResourcesFreshness[keyof typeof DiscoverResourcesFreshness];
+
+
+export const DiscoverResourcesFreshness = {
+  week: 'week',
+  month: 'month',
+  year: 'year',
+  three_years: 'three_years',
+} as const;
+
+export type DiscoverResourcesSourceQuality = typeof DiscoverResourcesSourceQuality[keyof typeof DiscoverResourcesSourceQuality];
+
+
+export const DiscoverResourcesSourceQuality = {
+  academic: 'academic',
+  institutional: 'institutional',
+  established: 'established',
+  independent: 'independent',
+} as const;
+
+export type DiscoverResourcesDifficulty = typeof DiscoverResourcesDifficulty[keyof typeof DiscoverResourcesDifficulty];
+
+
+export const DiscoverResourcesDifficulty = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+  mixed: 'mixed',
+} as const;
+
+export type DiscoverResourcesAccessType = typeof DiscoverResourcesAccessType[keyof typeof DiscoverResourcesAccessType];
+
+
+export const DiscoverResourcesAccessType = {
+  free: 'free',
+  no_account: 'no_account',
+  open: 'open',
+} as const;
+
+export type DiscoverResourcesLicense = typeof DiscoverResourcesLicense[keyof typeof DiscoverResourcesLicense];
+
+
+export const DiscoverResourcesLicense = {
+  known: 'known',
+  reusable: 'reusable',
+} as const;
+
+export type DiscoverResourcesContentLength = typeof DiscoverResourcesContentLength[keyof typeof DiscoverResourcesContentLength];
+
+
+export const DiscoverResourcesContentLength = {
+  short: 'short',
+  medium: 'medium',
+  long: 'long',
 } as const;
 
 export type GetResourceSourceReviewParams = {

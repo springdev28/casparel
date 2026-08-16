@@ -22,3 +22,4 @@ export * from "./catalogResources";
 export * from "./canvases";
 export * from "./directMessages";
 export * from "./workflowEvents";
+export * from "./webhookEvents";

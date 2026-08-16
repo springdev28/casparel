@@ -44,6 +44,7 @@ vi.mock("../lib/aiCostControls", () => ({
 vi.mock("../lib/adminAccess", () => ({ isAdminRequest: () => true }));
 vi.mock("../lib/catalog", () => ({
   searchCatalog: vi.fn().mockResolvedValue([]),
+  resolveCatalogOffset: vi.fn().mockResolvedValue(0),
   searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
   searchWikibooksAndStore: vi.fn().mockResolvedValue(0),
 }));
@@ -89,7 +90,12 @@ vi.mock("../lib/check-url-reachable", () => ({
 
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { filterReachableUrls } from "../lib/check-url-reachable";
-import { searchCatalog } from "../lib/catalog";
+import {
+  resolveCatalogOffset,
+  searchCatalog,
+  searchOpenLibraryAndStore,
+  searchWikibooksAndStore,
+} from "../lib/catalog";
 import resourcesRouter, { isDirectPeopleProfileUrl } from "./resources.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -214,6 +220,87 @@ describe("exact-person platform coverage", () => {
         item.url.includes("linkedin.com/in/"),
       ),
     ).toBe(true);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Paging, "Search more resources"
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("GET /api/resources/discover, paging", () => {
+  /** A stored-catalog row as searchCatalog returns it. */
+  function catalogRow(url: string) {
+    return {
+      title: "Open Algebra",
+      url,
+      description: "An open algebra course.",
+      format: "interactive" as const,
+      source: "Example University",
+      thumbnailUrl: null,
+      subject: "Mathematics",
+      gradeLevel: "Secondary education",
+    };
+  }
+
+  it("tops the catalog up from the open providers when a later page runs thin", async () => {
+    // Page 1 handed back six rows, so page 2 resumes at row six.
+    vi.mocked(resolveCatalogOffset).mockResolvedValueOnce(6);
+    vi.mocked(searchCatalog)
+      .mockResolvedValueOnce([]) // nothing stored past row six yet
+      .mockResolvedValueOnce([catalogRow("https://example.edu/algebra-2")]);
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra", page: 2 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    // The top-up used to be gated on page === 1, which left "Search more
+    // resources" with nothing new to return once the stored rows ran out.
+    expect(searchOpenLibraryAndStore).toHaveBeenCalledTimes(1);
+    expect(searchWikibooksAndStore).toHaveBeenCalledTimes(1);
+    // Providers are asked for the window matching the requested page.
+    expect(searchOpenLibraryAndStore).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 2 }),
+    );
+    // The AI allowance is never spent while the catalog can still answer.
+    expect(openai.responses.create).not.toHaveBeenCalled();
+  });
+
+  it("reads both catalog passes at the offset resolved before the top-up", async () => {
+    vi.mocked(resolveCatalogOffset).mockResolvedValueOnce(6);
+    vi.mocked(searchCatalog)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([catalogRow("https://example.edu/algebra-2")]);
+
+    await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra", page: 2 });
+
+    // Rows stored by the top-up get the highest ids and sort last. Re-deriving
+    // the offset from the grown catalog would step over exactly those rows.
+    const offsets = vi
+      .mocked(searchCatalog)
+      .mock.calls.map(([options]) => options.offset);
+    expect(offsets).toEqual([6, 6]);
+  });
+
+  it("leaves a full later page alone", async () => {
+    vi.mocked(resolveCatalogOffset).mockResolvedValueOnce(16);
+    vi.mocked(searchCatalog).mockResolvedValueOnce(
+      Array.from({ length: 16 }, (_, index) =>
+        catalogRow(`https://example.edu/algebra-${index}`),
+      ),
+    );
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra", page: 2 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(16);
+    expect(searchOpenLibraryAndStore).not.toHaveBeenCalled();
+    expect(searchCatalog).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -430,5 +517,24 @@ describe("GET /api/resources/discover, input validation", () => {
     expect(res.status).toBe(400);
     expect(openai.responses.create).not.toHaveBeenCalled();
     expect(filterReachableUrls).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing query instead of searching for \"undefined\"", async () => {
+    // q is a coerced string: a missing parameter used to reach the handler as
+    // the literal "undefined" and be searched for in full, remote calls and
+    // AI allowance included.
+    const res = await request(buildApp()).get("/api/resources/discover");
+
+    expect(res.status).toBe(400);
+    expect(searchCatalog).not.toHaveBeenCalled();
+    expect(searchOpenLibraryAndStore).not.toHaveBeenCalled();
+    expect(openai.responses.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a blank query", async () => {
+    const res = await request(buildApp()).get("/api/resources/discover?q=%20%20");
+
+    expect(res.status).toBe(400);
+    expect(searchCatalog).not.toHaveBeenCalled();
   });
 });

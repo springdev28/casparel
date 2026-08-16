@@ -59,6 +59,7 @@ import {
 } from "../lib/aiCostControls";
 import {
   canonicalCatalogUrl,
+  resolveCatalogOffset,
   searchCatalog,
   searchOpenLibraryAndStore,
   searchWikibooksAndStore,
@@ -1007,6 +1008,16 @@ router.get(
   "/resources/discover",
   discoverLimiter,
   async (req, res): Promise<void> => {
+    // Checked before the schema, not by it: `q` is a coerced string, so a
+    // missing parameter arrives as the literal "undefined" and a blank one as
+    // "". Both parsed cleanly and were searched for — a catalog query, two
+    // calls out to the open providers and, with nothing stored to match, a
+    // spent AI allowance, all for a query nobody typed.
+    const rawQuery = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (!rawQuery) {
+      res.status(400).json({ error: "Missing query parameter: q" });
+      return;
+    }
     const params = DiscoverResourcesQueryParams.safeParse(req.query);
     if (!params.success) {
       res.status(400).json({ error: "Missing query parameter: q" });
@@ -1031,6 +1042,10 @@ router.get(
     const license = queryString(req.query.license);
     const contentLength = queryString(req.query.contentLength);
     const sourceQuality = queryString(req.query.sourceQuality);
+    // Read from the raw query, not the parsed params: the generated schema
+    // coerces these, and Boolean("false") is true. queryBoolean reads the
+    // string the client actually sent. The strings above keep their 160-char
+    // cap for the same reason — they reach an ILIKE and an AI prompt.
     const captions = queryBoolean(req.query.captions);
     const transcript = queryBoolean(req.query.transcript);
     let discoverUserId: number | null = null;
@@ -1071,18 +1086,26 @@ router.get(
       license,
       sourceQuality,
     } as const;
-    let catalogItems = await searchCatalog(catalogOptions);
+    // Resolved before the top-up and reused after it: rows stored in between
+    // get the highest ids and sort last, so re-deriving the offset from the
+    // grown catalog would step straight over them.
+    const catalogOffset = await resolveCatalogOffset(catalogOptions);
+    const pagedCatalogOptions = { ...catalogOptions, offset: catalogOffset };
+    let catalogItems = await searchCatalog(pagedCatalogOptions);
     const remoteCatalogMatchesCredibility =
       !sourceQuality || sourceQuality === "established";
+    // "Search more resources" only means something if a later page can reach
+    // past what the catalog already holds, so a thin page tops up from the
+    // open providers whatever page it is. Page 1 keeps its lower bar: it is
+    // topped up while it still has room for the results, not only once empty.
     if (
       resultType === "content" &&
-      page === 1 &&
-      catalogItems.length < 8 &&
-      remoteCatalogMatchesCredibility
+      remoteCatalogMatchesCredibility &&
+      catalogItems.length < (page === 1 ? 8 : catalogOptions.limit)
     ) {
       await searchOpenLibraryAndStore(catalogOptions);
       await searchWikibooksAndStore(catalogOptions);
-      catalogItems = await searchCatalog(catalogOptions);
+      catalogItems = await searchCatalog(pagedCatalogOptions);
     }
     const availableCatalogItems = catalogItems
       .filter(isUnsavedResult)

@@ -37,6 +37,7 @@ vi.mock("../lib/catalog", () => ({
       gradeLevel: "Secondary education",
     },
   ]),
+  resolveCatalogOffset: vi.fn().mockResolvedValue(0),
   searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
   searchWikibooksAndStore: vi.fn().mockResolvedValue(0),
 }));

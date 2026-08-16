@@ -1871,19 +1871,31 @@ export const PrefetchResourceMetadataResponse = zod.object({
 /**
  * @summary Search the stored open-education catalog
  */
+
 export const discoverResourcesQueryLanguageDefault = `en`;
 export const discoverResourcesQueryPageDefault = 1;
 
 export const discoverResourcesQueryResultTypeDefault = `content`;
 
 export const DiscoverResourcesQueryParams = zod.object({
-  "q": zod.coerce.string().describe('Search query'),
+  "q": zod.coerce.string().min(1).describe('Search query. Blank queries are rejected with 400'),
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
   "language": zod.enum(['any', 'en', 'es', 'fr', 'de', 'pt', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Preferred catalog language, or any to avoid restricting language'),
-  "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number for paginated results'),
-  "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery')
+  "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number. Each page resumes where the previous one ended, so a page past the stored results returns an empty list rather than repeating earlier ones'),
+  "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery'),
+  "exactPhrase": zod.coerce.string().optional().describe('Title or description must contain this phrase, truncated to 160 characters'),
+  "exclude": zod.coerce.string().optional().describe('Space-separated words to exclude, truncated to 160 characters; the first eight are applied'),
+  "source": zod.coerce.string().optional().describe('Restrict to providers whose name contains this text, truncated to 160 characters'),
+  "freshness": zod.enum(['week', 'month', 'year', 'three_years']).optional().describe('How recent a result must be. The stored catalog filters on year and three_years; the shorter windows only steer AI discovery'),
+  "sourceQuality": zod.enum(['academic', 'institutional', 'established', 'independent']).optional().describe('Required source credibility'),
+  "difficulty": zod.enum(['beginner', 'intermediate', 'advanced', 'mixed']).optional().describe('Difficulty hint; applies to AI discovery only, content results only'),
+  "accessType": zod.enum(['free', 'no_account', 'open']).optional().describe('Access requirement, content results only. The stored catalog filters on free and open; no_account only steers AI discovery'),
+  "license": zod.enum(['known', 'reusable']).optional().describe('Require a stated licence, or one that permits reuse. Content results only'),
+  "contentLength": zod.enum(['short', 'medium', 'long']).optional().describe('Length hint; applies to AI discovery only, content results only'),
+  "captions": zod.coerce.boolean().optional().describe('Require captions, sent as the string true or false. Applies to AI discovery only, content results only'),
+  "transcript": zod.coerce.boolean().optional().describe('Require a transcript, sent as the string true or false. Applies to AI discovery only, content results only')
 })
 
 export const DiscoverResourcesResponseItem = zod.object({

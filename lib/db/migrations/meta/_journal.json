@@ -337,6 +337,13 @@
       "when": 1789372800005,
       "tag": "0047_cultured_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1789372800006,
+      "tag": "0048_wandering_vision",
+      "breakpoints": true
     }
   ]
 }
