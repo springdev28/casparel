@@ -22,7 +22,18 @@ describe("wordStartPattern", () => {
     // Postgres `\m`. Without it the pattern is a bare substring, and the two
     // letters of "AP" match "roadmAP" — which is how an AP Physics search
     // returned a full-stack web development roadmap.
-    expect(wordStartPattern("AP")).toBe("\\mAP");
+    expect(wordStartPattern("physic")).toBe("\\mphysic");
+  });
+
+  it("requires a short term to be the whole word", () => {
+    // A word-start match alone was not enough for two letters: "AP" still
+    // opened "Apps" and "APIs", so an AP Physics search returned GeoGebra Math
+    // Apps and a React course. `\M` closes the word.
+    expect(wordStartPattern("AP")).toBe("\\mAP\\M");
+    expect(wordStartPattern("ML")).toBe("\\mML\\M");
+    // Three letters is enough to mean something as a prefix: "bio" should
+    // still find "biology".
+    expect(wordStartPattern("bio")).toBe("\\mbio");
   });
 
   it("escapes punctuation so a query cannot be a broken regex", () => {

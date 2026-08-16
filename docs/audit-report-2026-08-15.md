@@ -217,6 +217,8 @@ A search for "AP Physics C: Electricity and Mechanics" returned a full-stack web
 
 Both paths now match at word starts (`column ~* '\mword'`), which still matches prefixes: "physic" finds "Physics", "algebra" finds "Pre-Algebra". Catalog results are additionally ordered by how many of the query's words a row matches, so a row matching one of four can still appear but never above a row matching three. Terms are regex-escaped, because `meaningfulSearchTerms` falls back to the raw query when nothing survives tokenising and an unescaped "C++" is not a valid regular expression.
 
+Anchoring to word starts was not enough on its own. Run against the live site afterwards, the same search still returned GeoGebra Math **Ap**ps and a React course teaching **AP**Is: two letters carry almost no meaning as a prefix. Terms of two characters or fewer now have to match a whole word (`\mAP\M`), which keeps "AP Physics" and drops the rest. Longer terms keep prefix matching, since "bio" finding "biology" is the point.
+
 Verified against a real Postgres rather than by inspection: `artifacts/api-server/src/searchRelevance.db.test.ts` seeds the roadmap alongside two physics resources and asserts it does not come back. It skips without `VERIFY_DATABASE_URL`, since CI has no database.
 
 ### Discover input validation

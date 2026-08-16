@@ -64,6 +64,34 @@ describe.skipIf(!url)("search relevance against a real database", () => {
         gradeLevel: "College",
         sourceKind: "curated",
       },
+      // Both of these came back from the live site for the AP Physics search
+      // after the word-start fix: "AP" opens "Apps" and "APIs" too.
+      {
+        provider: "GeoGebra",
+        providerUrl: "https://geogebra.org/",
+        externalId: "geogebra:apps",
+        canonicalUrl: "https://www.geogebra.org/apps",
+        title: "GeoGebra Math Apps",
+        description:
+          "Interactive graphing, geometry, 3D, probability, and algebra tools for mathematical exploration.",
+        format: "interactive",
+        subject: "Mathematics",
+        gradeLevel: "All levels",
+        sourceKind: "curated",
+      },
+      {
+        provider: "University of Helsinki",
+        providerUrl: "https://fullstackopen.com/",
+        externalId: "helsinki:fullstackopen",
+        canonicalUrl: "https://fullstackopen.com/en/",
+        title: "Full Stack Open",
+        description:
+          "A project-based course in modern JavaScript web development with React, Node.js, APIs, testing and TypeScript.",
+        format: "article",
+        subject: "Computer Science",
+        gradeLevel: "Higher education",
+        sourceKind: "curated",
+      },
     ]);
 
     const { searchCatalog } = await import("./lib/catalog");
@@ -76,6 +104,9 @@ describe.skipIf(!url)("search relevance against a real database", () => {
     expect(titles).not.toContain(
       "Full Stack Web Development Roadmap – GUVI (2026)",
     );
+    // "AP" is a whole word here, not the opening of "Apps" or "APIs".
+    expect(titles).not.toContain("GeoGebra Math Apps");
+    expect(titles).not.toContain("Full Stack Open");
     // Matches three of the four query words, so it ranks above the one that
     // matches only "Mechanics".
     expect(titles[0]).toBe("University Physics: Electricity and Magnetism");
