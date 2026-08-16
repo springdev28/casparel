@@ -49,6 +49,12 @@ import {
   ensureAccountCapacity,
   ensureClassMemberCapacity,
 } from "../lib/planCapacity";
+import {
+  depthPreferenceScore,
+  describeSeatDepth,
+  parseSeatingNote,
+  seatingPreferenceReasons,
+} from "../lib/seatingRules";
 
 async function resourceWithRating(id: number) {
   const [r] = await db
@@ -828,12 +834,19 @@ router.post("/classes/:id/seating-plan/suggest", contentLimiter, requireAuth, as
     : Array.from({ length: chart.rows * chart.columns }, (_, index) => { const row = Math.floor(index / chart.columns), column = index % chart.columns; return { row, column, deskId: null, deskSeat: null, front: chart.rows <= 1 ? 0 : row / (chart.rows - 1) * 100, label: `Row ${row + 1}` }; });
   if (chart.students.length > availableSeats.length) { res.status(400).json({ error: "The classroom needs more seats before a plan can be suggested" }); return; }
 
-  const frontPattern = /front|board|vision|hearing|attention|focus|near (the )?teacher/i;
-  const backPattern = /back|independent|self-directed|quiet work/i;
   const separatePattern = /talks? (a lot|too much)|distract|separate|apart|away from|conflict|avoid|not (sit|seat)/i;
   const togetherPattern = /works? well|support|partner|collaborat|help|sit with|seat with/i;
   const normalized = (value: string) => value.toLocaleLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
   const studentById = new Map(chart.students.map((student) => [student.userId, student]));
+  const noteSignals = new Map(
+    chart.students.map((student) => [
+      student.userId,
+      parseSeatingNote(student.teacherNote),
+    ]),
+  );
+  const seatFronts = availableSeats.map((seat) => seat.front);
+  const minimumFront = Math.min(...seatFronts);
+  const maximumFront = Math.max(...seatFronts);
   const avoid = new Map<number, Set<number>>(), prefer = new Map<number, Set<number>>();
   for (const student of chart.students) {
     const note = normalized(student.teacherNote ?? "");
@@ -851,20 +864,30 @@ router.post("/classes/:id/seating-plan/suggest", contentLimiter, requireAuth, as
   }
 
   const ranked = [...chart.students].sort((a, b) => {
-    const score = (note: string | null | undefined) => frontPattern.test(note ?? "") ? 0 : backPattern.test(note ?? "") ? 2 : 1;
-    return score(a.teacherNote) - score(b.teacherNote) || a.name.localeCompare(b.name);
+    const score = (userId: number) => {
+      const signals = noteSignals.get(userId)!;
+      return signals.wantsFront ? 0 : signals.wantsBack ? 2 : 1;
+    };
+    return score(a.userId) - score(b.userId) || a.name.localeCompare(b.name);
   });
   const remaining = [...availableSeats];
   const placed: Array<{ userId: number; row: number | null; column: number | null; deskId: string | null; deskSeat: number | null; front: number; label: string }> = [];
   for (const student of ranked) {
     const note = student.teacherNote ?? "";
+    const signals = noteSignals.get(student.userId)!;
     let bestIndex = 0, bestScore = Number.POSITIVE_INFINITY;
     remaining.forEach((seat, index) => {
       const deskMates = seat.deskId == null ? [] : placed.filter((item) => item.deskId === seat.deskId).map((item) => item.userId);
-      let score = frontPattern.test(note) ? seat.front * 4 : backPattern.test(note) ? (100 - seat.front) * 3 : Math.abs(seat.front - 48);
+      let score = depthPreferenceScore(
+        seat.front,
+        minimumFront,
+        maximumFront,
+        signals,
+      );
       if (deskMates.some((id) => avoid.get(student.userId)?.has(id))) score += 10000;
       if (deskMates.some((id) => prefer.get(student.userId)?.has(id))) score -= 500;
       if (separatePattern.test(note) && deskMates.length) score += 250;
+      if (signals.wantsQuiet && deskMates.length) score += 250;
       score += deskMates.length * 4;
       if (score < bestScore) { bestScore = score; bestIndex = index; }
     });
@@ -876,10 +899,14 @@ router.post("/classes/:id/seating-plan/suggest", contentLimiter, requireAuth, as
     const student = studentById.get(placement.userId)!;
     const mates = placement.deskId == null ? [] : placed.filter((item) => item.deskId === placement.deskId && item.userId !== placement.userId).map((item) => studentById.get(item.userId)?.name).filter(Boolean);
     const oldDesk = student.seatDeskId ? chart.desks.find((desk) => desk.id === student.seatDeskId) : null;
-    const position = placement.front <= 30 ? "near the front" : placement.front >= 70 ? "toward the back" : "in the middle area";
+    const signals = noteSignals.get(student.userId)!;
+    const position = describeSeatDepth(
+      placement.front,
+      minimumFront,
+      maximumFront,
+    );
     const reasons = [`Placed ${position}${custom ? ` at ${placement.label}` : ""}.`];
-    if (frontPattern.test(student.teacherNote ?? "")) reasons.push("The private note indicates closer teacher or board access may help.");
-    if (backPattern.test(student.teacherNote ?? "")) reasons.push("The private note indicates independent or quiet work may suit this student.");
+    reasons.push(...seatingPreferenceReasons(signals));
     const avoidedNames = [...(avoid.get(student.userId) ?? [])].map((id) => studentById.get(id)?.name).filter(Boolean);
     if (avoidedNames.length) reasons.push(`Kept apart from ${avoidedNames.join(", ")} because the current private note indicates a distraction or separation concern.`);
     if (mates.length) reasons.push(`Desk-mates: ${mates.join(", ")}.`); else if (custom) reasons.push("No desk-mate is assigned at this desk.");
@@ -888,7 +915,14 @@ router.post("/classes/:id/seating-plan/suggest", contentLimiter, requireAuth, as
   });
   const noted = chart.students.filter((student) => student.teacherNote?.trim()).length;
   const relationships = [...avoid.values()].reduce((sum, ids) => sum + ids.size, 0) / 2;
-  const considerations = [`Used private notes for ${noted} of ${chart.students.length} students.`, `Evaluated ${Math.ceil(relationships)} named separation relationship(s), desk-mates, and distance from the front.`, "The plan is a suggestion only and has not changed the saved classroom."];
+  const considerations = [
+    `Read private notes for ${noted} of ${chart.students.length} students.`,
+    "Evaluated desk-mates and relative distance from the front.",
+    ...(relationships > 0
+      ? [`Applied ${Math.ceil(relationships)} named separation relationship(s).`]
+      : []),
+    "The plan is a suggestion only and has not changed the saved classroom.",
+  ];
   if (body.data.priorities?.trim()) considerations.unshift(`Teacher priority: ${body.data.priorities.trim()}`);
   res.json(SuggestSeatingPlanResponse.parse({ rows: chart.rows, columns: chart.columns, layoutMode: chart.layoutMode, desks: chart.desks, summary: `Suggested a reviewable ${custom ? "custom classroom" : `${chart.rows} by ${chart.columns} grid`} plan for ${chart.students.length} students.`, considerations, assignments }));
 });
