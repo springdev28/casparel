@@ -40,6 +40,8 @@ export const classesTable = pgTable("classes", {
         height: number;
         rotation: number;
         capacity: number;
+        /** Angles for chairs connected to a desk, indexed like seat assignments. */
+        chairPositions?: number[];
         label: string;
         /** Annotation content for text elements. */
         text?: string | null;

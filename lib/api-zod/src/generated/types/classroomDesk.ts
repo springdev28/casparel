@@ -57,6 +57,13 @@ export interface ClassroomDesk {
      * @maximum 8
      */
   capacity: number;
+  /**
+     * Optional angles for the chairs connected to a desk. Each angle is measured around the desk; the chair automatically faces inward. The array order matches seating-position indexes.
+     * @maxItems 8
+     * @items.minimum -180
+     * @items.maximum 180
+     */
+  chairPositions?: number[];
   /** @maxLength 80 */
   label: string;
   /**
