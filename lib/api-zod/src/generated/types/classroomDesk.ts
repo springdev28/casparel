@@ -14,7 +14,7 @@ export interface ClassroomDesk {
      * @maxLength 80
      */
   id: string;
-  /** What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid. */
+  /** What this element is. Tables (desk) and chairs seat students; the teacher place, podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid. */
   kind?: ClassroomDeskKind;
   shape: ClassroomDeskShape;
   /**
