@@ -24,7 +24,13 @@ export const classesTable = pgTable("classes", {
       Array<{
         id: string;
         /** Absent means desk; podium/board/text are seatless room furniture. */
-        kind?: "desk" | "chair" | "podium" | "board" | "text";
+        kind?:
+          | "desk"
+          | "chair"
+          | "teacherDesk"
+          | "podium"
+          | "board"
+          | "text";
         shape: "rectangle" | "polygon" | "round" | "oval" | "trapezoid";
         angle?: number;
         sides?: number;

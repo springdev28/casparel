@@ -2767,10 +2767,11 @@ components:
         kind:
           description: >-
             What this element is. Tables (desk) and chairs seat students;
-            podium, board and text are room furniture and carry no seats.
+            the teacher place, podium, board and text are room furniture and
+            carry no seats.
             Absent means desk, which keeps every stored layout valid.
           type: string
-          enum: [desk, chair, podium, board, text]
+          enum: [desk, chair, teacherDesk, podium, board, text]
         shape:
           { type: string, enum: [rectangle, polygon, round, oval, trapezoid] }
         angle: { type: number, minimum: 25, maximum: 85 }

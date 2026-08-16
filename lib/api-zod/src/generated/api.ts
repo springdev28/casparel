@@ -925,7 +925,7 @@ export const GetSeatingChartResponse = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(getSeatingChartResponseDesksItemIdMax),
-  "kind": zod.enum(['desk', 'chair', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
+  "kind": zod.enum(['desk', 'chair', 'teacherDesk', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; the teacher place, podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
   "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
   "angle": zod.number().min(getSeatingChartResponseDesksItemAngleMin).max(getSeatingChartResponseDesksItemAngleMax).optional(),
   "sides": zod.int().min(getSeatingChartResponseDesksItemSidesMin).max(getSeatingChartResponseDesksItemSidesMax).optional(),
@@ -1006,7 +1006,7 @@ export const UpdateSeatingChartBody = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(updateSeatingChartBodyDesksItemIdMax),
-  "kind": zod.enum(['desk', 'chair', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
+  "kind": zod.enum(['desk', 'chair', 'teacherDesk', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; the teacher place, podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
   "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
   "angle": zod.number().min(updateSeatingChartBodyDesksItemAngleMin).max(updateSeatingChartBodyDesksItemAngleMax).optional(),
   "sides": zod.int().min(updateSeatingChartBodyDesksItemSidesMin).max(updateSeatingChartBodyDesksItemSidesMax).optional(),
@@ -1069,7 +1069,7 @@ export const UpdateSeatingChartResponse = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(updateSeatingChartResponseDesksItemIdMax),
-  "kind": zod.enum(['desk', 'chair', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
+  "kind": zod.enum(['desk', 'chair', 'teacherDesk', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; the teacher place, podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
   "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
   "angle": zod.number().min(updateSeatingChartResponseDesksItemAngleMin).max(updateSeatingChartResponseDesksItemAngleMax).optional(),
   "sides": zod.int().min(updateSeatingChartResponseDesksItemSidesMin).max(updateSeatingChartResponseDesksItemSidesMax).optional(),
@@ -1240,7 +1240,7 @@ export const SuggestSeatingPlanResponse = zod.object({
   "layoutMode": zod.enum(['grid', 'custom']),
   "desks": zod.array(zod.object({
   "id": zod.string().min(1).max(suggestSeatingPlanResponseDesksItemIdMax),
-  "kind": zod.enum(['desk', 'chair', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
+  "kind": zod.enum(['desk', 'chair', 'teacherDesk', 'podium', 'board', 'text']).optional().describe('What this element is. Tables (desk) and chairs seat students; the teacher place, podium, board and text are room furniture and carry no seats. Absent means desk, which keeps every stored layout valid.'),
   "shape": zod.enum(['rectangle', 'polygon', 'round', 'oval', 'trapezoid']),
   "angle": zod.number().min(suggestSeatingPlanResponseDesksItemAngleMin).max(suggestSeatingPlanResponseDesksItemAngleMax).optional(),
   "sides": zod.int().min(suggestSeatingPlanResponseDesksItemSidesMin).max(suggestSeatingPlanResponseDesksItemSidesMax).optional(),
