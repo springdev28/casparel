@@ -208,6 +208,18 @@ function makeElementId(kind: ElementKind) {
   return `${kind}-${suffix}`;
 }
 
+function nextDeskNumber(elements: ClassroomDesk[]) {
+  const deskLabels = elements
+    .filter((element) => elementKind(element) === "desk")
+    .map((element) => element.label.match(/^Desk\s+(\d+)$/i)?.[1])
+    .filter((value): value is string => Boolean(value))
+    .map(Number);
+  const deskCount = elements.filter(
+    (element) => elementKind(element) === "desk",
+  ).length;
+  return Math.max(deskCount, 0, ...deskLabels) + 1;
+}
+
 function createElement(
   kind: ElementKind,
   shape: ClassroomDesk["shape"],
@@ -395,6 +407,18 @@ export function SeatingChartEditor({
     return map;
   }, [assignments]);
 
+  const seatNumberStarts = useMemo(() => {
+    const starts = new Map<string, number>();
+    let nextSeatNumber = 1;
+    desks.forEach((element) => {
+      const kind = elementKind(element);
+      if (kind !== "desk" && kind !== "chair") return;
+      starts.set(element.id, nextSeatNumber);
+      nextSeatNumber += clamp(Math.round(element.capacity), 0, 8);
+    });
+    return starts;
+  }, [desks]);
+
   const unseated = (chart?.students ?? []).filter(
     (student) =>
       !assignments.some(
@@ -485,7 +509,11 @@ export function SeatingChartEditor({
       });
       return;
     }
-    const element = createElement(kind, shape, desks.length);
+    const created = createElement(kind, shape, desks.length);
+    const element =
+      kind === "desk"
+        ? { ...created, label: `Desk ${nextDeskNumber(desks)}` }
+        : created;
     setDesks((old) => [...old, element]);
     setSelectedElementIds([element.id]);
     requestAnimationFrame(() => canvasRef.current?.focus());
@@ -559,16 +587,20 @@ export function SeatingChartEditor({
     }
     const offset = 3 + (pasteCountRef.current % 4) * 2;
     pasteCountRef.current += 1;
-    const pasted = source.slice(0, available).map((element) => ({
-      ...element,
-      id: makeElementId(elementKind(element)),
-      x: clamp(element.x + offset, 0, 100 - element.width),
-      y: clamp(element.y + offset, 0, 100 - element.height),
-      label: element.label,
-      ...(element.chairPositions
-        ? { chairPositions: [...element.chairPositions] }
-        : {}),
-    }));
+    let pastedDeskNumber = nextDeskNumber(desks);
+    const pasted = source.slice(0, available).map((element) => {
+      const kind = elementKind(element);
+      return {
+        ...element,
+        id: makeElementId(kind),
+        x: clamp(element.x + offset, 0, 100 - element.width),
+        y: clamp(element.y + offset, 0, 100 - element.height),
+        label: kind === "desk" ? `Desk ${pastedDeskNumber++}` : element.label,
+        ...(element.chairPositions
+          ? { chairPositions: [...element.chairPositions] }
+          : {}),
+      };
+    });
     setDesks((old) => [...old, ...pasted]);
     setSelectedElementIds(pasted.map((element) => element.id));
     requestAnimationFrame(() => canvasRef.current?.focus());
@@ -1366,6 +1398,7 @@ export function SeatingChartEditor({
                     <ClassroomElement
                       key={element.id}
                       element={element}
+                      seatNumberStart={seatNumberStarts.get(element.id) ?? 1}
                       selected={selectedElementSet.has(element.id)}
                       showHandles={
                         !readOnly &&
@@ -1660,6 +1693,7 @@ function PaletteButton({
 
 function ClassroomElement({
   element,
+  seatNumberStart,
   selected,
   showHandles,
   readOnly,
@@ -1673,6 +1707,7 @@ function ClassroomElement({
   onAssignSeat,
 }: {
   element: ClassroomDesk;
+  seatNumberStart: number;
   selected: boolean;
   showHandles: boolean;
   readOnly: boolean;
@@ -1728,7 +1763,7 @@ function ClassroomElement({
               style={placement.style}
               facingRotation={placement.facingRotation}
               student={student}
-              seatNumber={seatIndex + 1}
+              seatNumber={seatNumberStart + seatIndex}
               selected={occupant === selectedStudentId}
               readOnly={readOnly}
               connected
@@ -1757,7 +1792,7 @@ function ClassroomElement({
               ? null
               : (students.get(deskSeats.get(`${element.id}:0`)!) ?? null)
           }
-          seatNumber={1}
+          seatNumber={seatNumberStart}
           selected={deskSeats.get(`${element.id}:0`) === selectedStudentId}
           readOnly={readOnly}
           integrated
@@ -1803,27 +1838,52 @@ function ElementGraphic({ element }: { element: ClassroomDesk }) {
   }
   if (kind === "teacherDesk") {
     return (
-      <div className="absolute inset-0 overflow-hidden rounded-xl border-2 border-amber-800/60 bg-[linear-gradient(105deg,#b7793f,#d7a66f_38%,#b9783f_70%,#8f552c)] shadow-[0_9px_18px_-10px_rgba(75,39,12,0.85)]">
-        <div className="absolute inset-x-0 top-[13%] h-px bg-white/35" />
-        <div className="absolute left-[11%] top-[19%] h-[38%] w-[30%] rounded-sm border border-slate-700 bg-gradient-to-br from-slate-700 to-slate-950 shadow-md">
-          <div className="absolute inset-[8%] rounded-sm bg-sky-200/70" />
+      <div className="absolute inset-[2%] overflow-hidden rounded-xl border-2 border-slate-500/90 bg-gradient-to-b from-slate-50 via-card to-slate-200 shadow-[0_8px_16px_-10px_rgba(15,23,42,0.75)] dark:from-slate-700 dark:via-slate-800 dark:to-slate-900">
+        <div className="absolute inset-[4%] rounded-lg border border-slate-400/65 bg-white/25 dark:border-slate-500/70 dark:bg-white/[0.03]" />
+        <div className="absolute left-[9%] top-[15%] h-[29%] w-[19%] -rotate-3 rounded-sm border border-slate-300 bg-white shadow-sm dark:border-slate-500 dark:bg-slate-200">
+          <div className="absolute inset-x-[18%] top-[28%] h-px bg-slate-300" />
+          <div className="absolute inset-x-[18%] top-[51%] h-px bg-slate-300" />
         </div>
-        <div className="absolute left-[24%] top-[57%] h-[13%] w-[5%] bg-slate-700" />
-        <div className="absolute right-[12%] top-[20%] h-[23%] w-[16%] rounded-full border-2 border-white/70 bg-slate-100/80 shadow-sm" />
-        <ElementLabel label={element.label} className="bottom-[8%]" />
+        <div className="absolute left-1/2 top-[9%] h-[34%] w-[28%] -translate-x-1/2 rounded-md border-2 border-slate-700 bg-slate-800 shadow-sm">
+          <div className="absolute inset-[8%] rounded-sm border border-sky-300/60 bg-gradient-to-br from-sky-100 to-slate-300" />
+          <div className="absolute left-1/2 top-[5%] size-[3%] -translate-x-1/2 rounded-full bg-slate-400" />
+        </div>
+        <div className="absolute left-1/2 top-[45%] h-[11%] w-[34%] -translate-x-1/2 rounded-sm border border-slate-500 bg-slate-300 shadow-sm dark:bg-slate-600">
+          <div className="absolute inset-x-[8%] top-1/2 border-t border-dashed border-slate-500/60" />
+        </div>
+        <div className="absolute right-[10%] top-[17%] size-[19%] rounded-full border-2 border-slate-400 bg-slate-100 shadow-sm dark:bg-slate-300">
+          <div className="absolute inset-[23%] rounded-full border border-slate-400/70 bg-slate-50" />
+          <div className="absolute -right-[19%] top-[31%] h-[38%] w-[28%] rounded-r-full border-2 border-l-0 border-slate-400" />
+        </div>
+        <span className="pointer-events-none absolute inset-x-[8%] bottom-[8%] truncate rounded-md border border-slate-400/60 bg-background/85 px-2 py-[3%] text-center text-[10px] font-bold text-foreground shadow-sm">
+          {element.label}
+        </span>
       </div>
     );
   }
   if (kind === "podium") {
     return (
-      <div className="absolute inset-[3%] overflow-hidden rounded-[18%] border-2 border-violet-700/65 bg-gradient-to-br from-violet-300 via-violet-500 to-violet-800 shadow-[0_8px_16px_-8px_rgba(76,29,149,0.8)] dark:from-violet-700 dark:via-violet-800 dark:to-violet-950">
-        <div className="absolute inset-x-[9%] top-[9%] h-[18%] rounded-md border border-white/30 bg-white/20" />
-        <div className="absolute left-1/2 top-[22%] h-[26%] w-px bg-white/50" />
-        <div className="absolute left-1/2 top-[18%] size-[7%] rounded-full bg-white/80" />
-        <ElementLabel
-          label={element.label}
-          className="bottom-[14%] text-white"
+      <div className="absolute inset-[3%] drop-shadow-[0_7px_7px_rgba(15,23,42,0.28)]">
+        <div
+          className="absolute inset-0 bg-slate-600 dark:bg-slate-400"
+          style={{ clipPath: "polygon(15% 0, 85% 0, 98% 100%, 2% 100%)" }}
         />
+        <div
+          className="absolute inset-[3%] overflow-hidden bg-gradient-to-b from-slate-50 via-card to-slate-300 dark:from-slate-700 dark:via-slate-800 dark:to-slate-950"
+          style={{ clipPath: "polygon(15% 0, 85% 0, 98% 100%, 2% 100%)" }}
+        >
+          <div className="absolute inset-x-[17%] top-[10%] h-[40%] rounded-md border border-slate-400/80 bg-background/80 shadow-inner">
+            <div className="absolute inset-y-[14%] left-[12%] right-[12%] -rotate-2 rounded-sm border border-slate-200 bg-white shadow-sm dark:bg-slate-200">
+              <div className="absolute inset-x-[17%] top-[35%] h-px bg-slate-300" />
+              <div className="absolute inset-x-[17%] top-[60%] h-px bg-slate-300" />
+            </div>
+          </div>
+          <div className="absolute right-[13%] top-[8%] h-[35%] w-[20%] rounded-tr-full border-r-2 border-t-2 border-primary/80" />
+          <div className="absolute right-[10%] top-[6%] size-[8%] rounded-full bg-primary shadow-sm" />
+          <span className="pointer-events-none absolute inset-x-[12%] bottom-[9%] truncate rounded-md border border-slate-400/60 bg-background/90 px-1.5 py-[4%] text-center text-[9px] font-bold text-foreground shadow-sm">
+            {element.label}
+          </span>
+        </div>
       </div>
     );
   }
