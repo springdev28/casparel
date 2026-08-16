@@ -209,7 +209,15 @@ Work done against the list above since the report was written. The report itself
 
 Source-mode paging had a fourth fault: it read `limit * 4` rows to collapse into one card per provider but offset by the card count, so a second page of sources was almost all repeats. It now offsets by the window it reads.
 
-The UI no longer offers an action that does nothing. A page that adds no new results ends the list with a plain sentence, results already on screen survive a failed later page instead of being replaced by the error, and a search with no results says so rather than rendering an empty section.
+The UI no longer offers an action that does nothing. A page that adds no new results ends the list with a plain sentence, results already on screen survive a failed later page instead of being replaced by the error, and a search with no results says so rather than rendering an empty section. Paging state is reset through one function, so a new search always restores the button — resetting the results while leaving the exhausted flag set was hiding it on searches that had not run yet, including a re-search of the same words with different filters.
+
+### Search relevance
+
+A search for "AP Physics C: Electricity and Mechanics" returned a full-stack web development roadmap, in both the library list and the open catalog. The query is split into words, the words are OR-ed, and each was tested as `column ILIKE '%word%'` — a substring match that does not respect word edges. "AP" matches inside "roadm**ap**", and one accidental hit out of four words was enough to return the row.
+
+Both paths now match at word starts (`column ~* '\mword'`), which still matches prefixes: "physic" finds "Physics", "algebra" finds "Pre-Algebra". Catalog results are additionally ordered by how many of the query's words a row matches, so a row matching one of four can still appear but never above a row matching three. Terms are regex-escaped, because `meaningfulSearchTerms` falls back to the raw query when nothing survives tokenising and an unescaped "C++" is not a valid regular expression.
+
+Verified against a real Postgres rather than by inspection: `artifacts/api-server/src/searchRelevance.db.test.ts` seeds the roadmap alongside two physics resources and asserts it does not come back. It skips without `VERIFY_DATABASE_URL`, since CI has no database.
 
 ### Discover input validation
 

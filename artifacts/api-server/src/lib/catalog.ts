@@ -5,7 +5,7 @@ import {
   db,
   type InsertCatalogResource,
 } from "@workspace/db";
-import { meaningfulSearchTerms } from "./searchTerms";
+import { meaningfulSearchTerms, wordStartPattern } from "./searchTerms";
 
 type ResourceFormat = InsertCatalogResource["format"];
 export type SourceCredibility =
@@ -956,24 +956,21 @@ export async function ensureCuratedCatalog() {
 const filterTokens = (value: string) =>
   value.trim().split(/\s+/).filter(Boolean).slice(0, 8);
 
+/** True when any searchable column has a word starting with `term`. */
+function catalogTermMatch(term: string): SQL {
+  const pattern = wordStartPattern(term);
+  return sql`(${catalogResourcesTable.title} ~* ${pattern}
+    or coalesce(${catalogResourcesTable.description}, '') ~* ${pattern}
+    or ${catalogResourcesTable.subject} ~* ${pattern}
+    or ${catalogResourcesTable.provider} ~* ${pattern}
+    or coalesce(${catalogResourcesTable.author}, '') ~* ${pattern})`;
+}
+
 function catalogConditions(options: CatalogSearchOptions): SQL[] {
   const conditions: SQL[] = [];
   const searchTerms = meaningfulSearchTerms(options.query);
   if (searchTerms.length)
-    conditions.push(
-      or(
-        ...searchTerms.map((token) => {
-          const pattern = `%${token}%`;
-          return or(
-            ilike(catalogResourcesTable.title, pattern),
-            ilike(catalogResourcesTable.description, pattern),
-            ilike(catalogResourcesTable.subject, pattern),
-            ilike(catalogResourcesTable.provider, pattern),
-            ilike(catalogResourcesTable.author, pattern),
-          )!;
-        }),
-      )!,
-    );
+    conditions.push(or(...searchTerms.map(catalogTermMatch))!);
   if (options.format)
     conditions.push(eq(catalogResourcesTable.format, options.format));
   if (options.subject)
@@ -1103,6 +1100,18 @@ export async function searchCatalog(
   const relevance = query
     ? sql<number>`case when lower(${catalogResourcesTable.title}) = lower(${query}) then 0 when ${catalogResourcesTable.title} ilike ${`%${query}%`} then 1 when ${catalogResourcesTable.subject} ilike ${`%${query}%`} then 2 else 3 end`
     : sql<number>`3`;
+  // How many of the query's words the row matches. The words are OR-ed, so a
+  // row matching one of four still comes back; without this it could come back
+  // *first*, above rows matching all four.
+  const searchTerms = meaningfulSearchTerms(options.query);
+  const missedTerms = searchTerms.length
+    ? sql<number>`(${sql.join(
+        searchTerms.map(
+          (term) => sql`case when ${catalogTermMatch(term)} then 0 else 1 end`,
+        ),
+        sql` + `,
+      )})`
+    : sql<number>`0`;
   const rows = await db
     .select()
     .from(catalogResourcesTable)
@@ -1113,7 +1122,7 @@ export async function searchCatalog(
     // 1 had already shown. Id is unique and never changes, so pages stay
     // disjoint, and newly stored rows sort last — which is where a "search
     // more" page is looking.
-    .orderBy(asc(relevance), asc(catalogResourcesTable.id))
+    .orderBy(asc(missedTerms), asc(relevance), asc(catalogResourcesTable.id))
     .limit(window)
     .offset(offset);
 

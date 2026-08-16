@@ -17,6 +17,28 @@ const GOAL_SEARCH_STOP_WORDS = new Set([
   "with",
 ]);
 
+/** Everything a POSIX regular expression treats as syntax. */
+const REGEX_SYNTAX = /[.^$*+?()[\]{}|\\-]/g;
+
+/**
+ * A Postgres regex matching `term` at the start of a word.
+ *
+ * Search used to test `column ILIKE '%term%'`, which matches anywhere inside a
+ * word: searching "AP Physics C: Electricity and Mechanics" returned a
+ * full-stack web development roadmap, because "roadmAP" contains "ap". Short
+ * tokens made almost every row a match, and since the tokens are OR-ed
+ * together one accidental hit was enough to return the row.
+ *
+ * `\m` anchors to a word start, so "ap" no longer matches "roadmap" while
+ * "physic" still matches "Physics" and "algebra" still matches "Pre-Algebra" —
+ * a hyphen ends a word. The term is escaped because the fallback branch of
+ * meaningfulSearchTerms can return punctuation, and an unescaped "C++" is not
+ * a valid regex.
+ */
+export function wordStartPattern(term: string) {
+  return `\\m${term.replace(REGEX_SYNTAX, "\\$&")}`;
+}
+
 export function meaningfulSearchTerms(value: string, limit = 8) {
   const terms = value
     .normalize("NFKC")

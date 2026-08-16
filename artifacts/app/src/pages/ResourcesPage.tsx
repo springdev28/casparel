@@ -1140,6 +1140,23 @@ export default function ResourcesPage() {
     accumulatedWebResultsRef.current = next;
     setAllWebResults(next);
   }
+
+  /**
+   * Put paging back to the start of a fresh search.
+   *
+   * Every caller has to clear all of this together. Resetting the results but
+   * not the exhausted flag is what leaves "Search more resources" replaced by
+   * "that is everything" on a search that has not run yet — including a
+   * re-search of the same words with different filters, which does not change
+   * activeQuery and so misses the reset effect below.
+   */
+  function resetWebSearch() {
+    setWebPage(1);
+    replaceWebResults([]);
+    mergedWebResponseRef.current = null;
+    setWebExhausted(false);
+    setHiddenSourceUrls([]);
+  }
   const [hiddenSourceUrls, setHiddenSourceUrls] = useState<string[]>([]);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const [continueGoalId, setContinueGoalId] = useState("");
@@ -1559,10 +1576,7 @@ export default function ResourcesPage() {
   useEffect(() => {
     if (previousActiveQueryRef.current === activeQuery) return;
     previousActiveQueryRef.current = activeQuery;
-    setWebPage(1);
-    replaceWebResults([]);
-    setWebExhausted(false);
-    setHiddenSourceUrls([]);
+    resetWebSearch();
   }, [activeQuery]);
 
   useEffect(() => {
@@ -1709,8 +1723,7 @@ export default function ResourcesPage() {
     setInputValue("");
     setActiveQuery("");
     setSubmittedSearch(null);
-    setAllWebResults([]);
-    setWebPage(1);
+    resetWebSearch();
     sessionStorage.removeItem(RESOURCE_SEARCH_STATE_KEY);
     updateAccountPreferences.mutate({ resourceSearchState: null });
     inputRef.current?.focus();
@@ -1782,9 +1795,7 @@ export default function ResourcesPage() {
         transcript: transcriptRequired,
       });
       setActiveQuery(q);
-      setWebPage(1);
-      setAllWebResults([]);
-      setHiddenSourceUrls([]);
+      resetWebSearch();
       setLibraryLimit(12); // reset pagination on new search
       if (me?.id) {
         const nextHistory = addSearchHistory(me.id, q);

@@ -65,7 +65,7 @@ import {
   searchWikibooksAndStore,
   type SourceCredibility,
 } from "../lib/catalog";
-import { meaningfulSearchTerms } from "../lib/searchTerms";
+import { meaningfulSearchTerms, wordStartPattern } from "../lib/searchTerms";
 import { logger } from "../lib/logger";
 import { getAccountEntitlements } from "../lib/entitlements";
 
@@ -275,14 +275,16 @@ router.get("/resources", async (req, res): Promise<void> => {
     conditions.push(
       or(
         ...tokens.map((token) => {
-          const pattern = "%" + token + "%";
-          return or(
-            ilike(resourcesTable.title, pattern),
-            ilike(resourcesTable.description, pattern),
-            ilike(resourcesTable.subject, pattern),
-            ilike(resourcesTable.gradeLevel, pattern),
-            ilike(resourcesTable.url, pattern),
-          )!;
+          // Word starts, not `%token%` anywhere inside a word. Searching "AP
+          // Physics C: Electricity and Mechanics" used to return a full-stack
+          // web development roadmap, because "roadmAP" contains "ap" — and one
+          // matched token out of four is enough, since they are OR-ed.
+          const pattern = wordStartPattern(token);
+          return sql`(${resourcesTable.title} ~* ${pattern}
+            or coalesce(${resourcesTable.description}, '') ~* ${pattern}
+            or ${resourcesTable.subject} ~* ${pattern}
+            or ${resourcesTable.gradeLevel} ~* ${pattern}
+            or ${resourcesTable.url} ~* ${pattern})`;
         }),
       )!,
     );
