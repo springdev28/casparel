@@ -55,8 +55,19 @@ import { usePlan } from "@/lib/use-plan";
 type LayoutMode = "grid" | "custom";
 type ElementKind = NonNullable<ClassroomDesk["kind"]>;
 type CanvasPoint = { x: number; y: number };
+type PointerCoordinates = {
+  clientX: number;
+  clientY: number;
+  shiftKey?: boolean;
+};
 type SeatStudent = { name: string; avatarUrl?: string | null };
 type MoveOrigin = Pick<ClassroomDesk, "x" | "y" | "width" | "height">;
+type SelectionBounds = { x: number; y: number; width: number; height: number };
+type GroupRotationOrigin = MoveOrigin & {
+  rotation: number;
+  centerX: number;
+  centerY: number;
+};
 type InteractionState =
   | {
       type: "move";
@@ -87,6 +98,17 @@ type InteractionState =
       deskId: string;
       seatIndex: number;
     }
+  | {
+      type: "group-resize";
+      bounds: SelectionBounds;
+      origins: Record<string, MoveOrigin>;
+    }
+  | {
+      type: "group-rotate";
+      center: CanvasPoint;
+      startAngle: number;
+      origins: Record<string, GroupRotationOrigin>;
+    }
   | null;
 
 const SHAPES: ClassroomDesk["shape"][] = [
@@ -110,7 +132,7 @@ function kindLabel(kind: ElementKind) {
     desk: "Student table",
     chair: "Chair",
     teacherDesk: "Teacher place",
-    podium: "Podium / lectern",
+    podium: "Podium",
     board: "Whiteboard / screen",
     text: "Text label",
   }[kind];
@@ -220,6 +242,19 @@ function nextDeskNumber(elements: ClassroomDesk[]) {
   return Math.max(deskCount, 0, ...deskLabels) + 1;
 }
 
+function selectionBounds(elements: MoveOrigin[]): SelectionBounds | null {
+  if (!elements.length) return null;
+  const left = Math.min(...elements.map((element) => element.x));
+  const top = Math.min(...elements.map((element) => element.y));
+  const right = Math.max(
+    ...elements.map((element) => element.x + element.width),
+  );
+  const bottom = Math.max(
+    ...elements.map((element) => element.y + element.height),
+  );
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
 function createElement(
   kind: ElementKind,
   shape: ClassroomDesk["shape"],
@@ -272,7 +307,7 @@ function createElement(
       y: 9,
       width: 14,
       height: 13,
-      label: "Podium / lectern",
+      label: "Podium",
     };
   }
   if (kind === "board") {
@@ -319,6 +354,9 @@ export function SeatingChartEditor({
   const canvasRef = useRef<HTMLDivElement>(null);
   const pasteCountRef = useRef(0);
   const chairWasDraggedRef = useRef(false);
+  const interactionRef = useRef<InteractionState>(null);
+  const pointerFrameRef = useRef<number | null>(null);
+  const pendingPointerRef = useRef<PointerCoordinates | null>(null);
   const { data: chart, isLoading } = useGetSeatingChart(classId, {
     query: { queryKey: getGetSeatingChartQueryKey(classId) },
   });
@@ -350,7 +388,14 @@ export function SeatingChartEditor({
     setRows(chart.rows);
     setColumns(chart.columns);
     setLayoutMode(chart.layoutMode);
-    setDesks(chart.desks);
+    setDesks(
+      chart.desks.map((element) =>
+        elementKind(element) === "podium" &&
+        element.label === "Podium / lectern"
+          ? { ...element, label: "Podium" }
+          : element,
+      ),
+    );
     setAssignments(
       chart.students.map((student) => ({
         userId: student.userId,
@@ -361,8 +406,17 @@ export function SeatingChartEditor({
       })),
     );
     setSelectedElementIds([]);
-    setInteraction(null);
+    cancelInteraction();
   }, [chart]);
+
+  useEffect(
+    () => () => {
+      if (pointerFrameRef.current != null) {
+        cancelAnimationFrame(pointerFrameRef.current);
+      }
+    },
+    [],
+  );
 
   const students = useMemo(
     () =>
@@ -381,6 +435,17 @@ export function SeatingChartEditor({
     selectedElementIds.length === 1
       ? (desks.find((desk) => desk.id === selectedElementIds[0]) ?? null)
       : null;
+  const selectedGroupElements = useMemo(
+    () =>
+      selectedElementIds.length > 1
+        ? desks.filter((element) => selectedElementSet.has(element.id))
+        : [],
+    [desks, selectedElementIds.length, selectedElementSet],
+  );
+  const selectedGroupBounds = useMemo(
+    () => selectionBounds(selectedGroupElements),
+    [selectedGroupElements],
+  );
 
   useEffect(
     () => setNote(selected?.teacherNote ?? ""),
@@ -441,16 +506,53 @@ export function SeatingChartEditor({
     event: { clientX: number; clientY: number },
     element: ClassroomDesk,
   ) {
+    return pointerAngleAt(event, {
+      x: element.x + element.width / 2,
+      y: element.y + element.height / 2,
+    });
+  }
+
+  function pointerAngleAt(
+    event: { clientX: number; clientY: number },
+    center: CanvasPoint,
+  ) {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return 0;
-    const centerX =
-      rect.left + ((element.x + element.width / 2) / 100) * rect.width;
-    const centerY =
-      rect.top + ((element.y + element.height / 2) / 100) * rect.height;
+    const centerX = rect.left + (center.x / 100) * rect.width;
+    const centerY = rect.top + (center.y / 100) * rect.height;
     return (
       (Math.atan2(event.clientY - centerY, event.clientX - centerX) * 180) /
       Math.PI
     );
+  }
+
+  function setActiveInteraction(next: InteractionState) {
+    interactionRef.current = next;
+    setInteraction(next);
+  }
+
+  function clearQueuedPointerMove() {
+    if (pointerFrameRef.current != null) {
+      cancelAnimationFrame(pointerFrameRef.current);
+      pointerFrameRef.current = null;
+    }
+    pendingPointerRef.current = null;
+  }
+
+  function cancelInteraction() {
+    clearQueuedPointerMove();
+    setActiveInteraction(null);
+  }
+
+  function finishInteraction() {
+    const pending = pendingPointerRef.current;
+    if (pointerFrameRef.current != null) {
+      cancelAnimationFrame(pointerFrameRef.current);
+      pointerFrameRef.current = null;
+    }
+    pendingPointerRef.current = null;
+    if (pending) applyPointerMove(pending);
+    setActiveInteraction(null);
   }
 
   function assignSeat(target: {
@@ -540,7 +642,7 @@ export function SeatingChartEditor({
       ),
     );
     setSelectedElementIds([]);
-    setInteraction(null);
+    cancelInteraction();
   }
 
   function changeCapacity(capacity: number) {
@@ -627,7 +729,7 @@ export function SeatingChartEditor({
     event.currentTarget.focus();
     event.currentTarget.setPointerCapture(event.pointerId);
     const additive = event.shiftKey || event.metaKey || event.ctrlKey;
-    setInteraction({
+    setActiveInteraction({
       type: "marquee",
       start: point,
       current: point,
@@ -671,7 +773,7 @@ export function SeatingChartEditor({
         ]),
     );
     event.currentTarget.setPointerCapture(event.pointerId);
-    setInteraction({ type: "move", start: point, origins });
+    setActiveInteraction({ type: "move", start: point, origins });
   }
 
   function beginResize(event: ReactPointerEvent<HTMLButtonElement>) {
@@ -681,7 +783,7 @@ export function SeatingChartEditor({
     const point = canvasPoint(event);
     if (!point) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    setInteraction({
+    setActiveInteraction({
       type: "resize",
       id: selectedElement.id,
       start: point,
@@ -695,7 +797,7 @@ export function SeatingChartEditor({
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    setInteraction({
+    setActiveInteraction({
       type: "rotate",
       id: selectedElement.id,
       startAngle: pointerAngle(event, selectedElement),
@@ -713,10 +815,79 @@ export function SeatingChartEditor({
     chairWasDraggedRef.current = false;
     setSelectedElementIds([element.id]);
     event.currentTarget.setPointerCapture(event.pointerId);
-    setInteraction({ type: "chair", deskId: element.id, seatIndex });
+    setActiveInteraction({ type: "chair", deskId: element.id, seatIndex });
+  }
+
+  function beginGroupResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (readOnly || !selectedGroupBounds) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setActiveInteraction({
+      type: "group-resize",
+      bounds: selectedGroupBounds,
+      origins: Object.fromEntries(
+        selectedGroupElements.map((element) => [
+          element.id,
+          {
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+          },
+        ]),
+      ),
+    });
+  }
+
+  function beginGroupRotate(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (readOnly || !selectedGroupBounds) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const center = {
+      x: selectedGroupBounds.x + selectedGroupBounds.width / 2,
+      y: selectedGroupBounds.y + selectedGroupBounds.height / 2,
+    };
+    setActiveInteraction({
+      type: "group-rotate",
+      center,
+      startAngle: pointerAngleAt(event, center),
+      origins: Object.fromEntries(
+        selectedGroupElements.map((element) => [
+          element.id,
+          {
+            x: element.x,
+            y: element.y,
+            width: element.width,
+            height: element.height,
+            rotation: element.rotation,
+            centerX: element.x + element.width / 2,
+            centerY: element.y + element.height / 2,
+          },
+        ]),
+      ),
+    });
   }
 
   function movePointer(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!interactionRef.current) return;
+    pendingPointerRef.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      shiftKey: event.shiftKey,
+    };
+    if (pointerFrameRef.current != null) return;
+    pointerFrameRef.current = requestAnimationFrame(() => {
+      pointerFrameRef.current = null;
+      const pending = pendingPointerRef.current;
+      pendingPointerRef.current = null;
+      if (pending) applyPointerMove(pending);
+    });
+  }
+
+  function applyPointerMove(event: PointerCoordinates) {
+    const interaction = interactionRef.current;
     if (!interaction) return;
     const point = canvasPoint(event);
     if (!point) return;
@@ -738,7 +909,7 @@ export function SeatingChartEditor({
       setSelectedElementIds([
         ...new Set([...interaction.baseSelection, ...hits]),
       ]);
-      setInteraction({ ...interaction, current: point });
+      setActiveInteraction({ ...interaction, current: point });
       return;
     }
 
@@ -760,6 +931,123 @@ export function SeatingChartEditor({
           const origin = interaction.origins[element.id];
           return origin
             ? { ...element, x: origin.x + dx, y: origin.y + dy }
+            : element;
+        }),
+      );
+      return;
+    }
+
+    if (interaction.type === "group-resize") {
+      const origins = Object.values(interaction.origins);
+      if (!origins.length) return;
+      const { bounds } = interaction;
+      const minimumScaleX = Math.max(
+        0.2,
+        ...origins.map((origin) => 8 / origin.width),
+      );
+      const minimumScaleY = Math.max(
+        0.2,
+        ...origins.map((origin) => 8 / origin.height),
+      );
+      const maximumScaleX = (100 - bounds.x) / bounds.width;
+      const maximumScaleY = (100 - bounds.y) / bounds.height;
+      let scaleX = clamp(
+        (point.x - bounds.x) / bounds.width,
+        minimumScaleX,
+        maximumScaleX,
+      );
+      let scaleY = clamp(
+        (point.y - bounds.y) / bounds.height,
+        minimumScaleY,
+        maximumScaleY,
+      );
+      if (event.shiftKey) {
+        const requested =
+          Math.abs(scaleX - 1) >= Math.abs(scaleY - 1) ? scaleX : scaleY;
+        const uniform = clamp(
+          requested,
+          Math.max(minimumScaleX, minimumScaleY),
+          Math.min(maximumScaleX, maximumScaleY),
+        );
+        scaleX = uniform;
+        scaleY = uniform;
+      }
+      setDesks((old) =>
+        old.map((element) => {
+          const origin = interaction.origins[element.id];
+          return origin
+            ? {
+                ...element,
+                x: bounds.x + (origin.x - bounds.x) * scaleX,
+                y: bounds.y + (origin.y - bounds.y) * scaleY,
+                width: origin.width * scaleX,
+                height: origin.height * scaleY,
+              }
+            : element;
+        }),
+      );
+      return;
+    }
+
+    if (interaction.type === "group-rotate") {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const delta = normalizeDegrees(
+        pointerAngleAt(event, interaction.center) - interaction.startAngle,
+      );
+      const radians = (delta * Math.PI) / 180;
+      const cosine = Math.cos(radians);
+      const sine = Math.sin(radians);
+      const proposed = new Map(
+        Object.entries(interaction.origins).map(([id, origin]) => {
+          const offsetX =
+            ((origin.centerX - interaction.center.x) / 100) * rect.width;
+          const offsetY =
+            ((origin.centerY - interaction.center.y) / 100) * rect.height;
+          const centerX =
+            interaction.center.x +
+            ((offsetX * cosine - offsetY * sine) / rect.width) * 100;
+          const centerY =
+            interaction.center.y +
+            ((offsetX * sine + offsetY * cosine) / rect.height) * 100;
+          return [
+            id,
+            {
+              x: centerX - origin.width / 2,
+              y: centerY - origin.height / 2,
+              width: origin.width,
+              height: origin.height,
+              rotation: normalizeDegrees(origin.rotation + delta),
+            },
+          ] as const;
+        }),
+      );
+      const proposedValues = [...proposed.values()];
+      const proposedBounds = selectionBounds(proposedValues);
+      const correctionX = proposedBounds
+        ? proposedBounds.x < 0
+          ? -proposedBounds.x
+          : proposedBounds.x + proposedBounds.width > 100
+            ? 100 - proposedBounds.x - proposedBounds.width
+            : 0
+        : 0;
+      const correctionY = proposedBounds
+        ? proposedBounds.y < 0
+          ? -proposedBounds.y
+          : proposedBounds.y + proposedBounds.height > 100
+            ? 100 - proposedBounds.y - proposedBounds.height
+            : 0
+        : 0;
+      setDesks((old) =>
+        old.map((element) => {
+          const next = proposed.get(element.id);
+          return next
+            ? {
+                ...element,
+                ...next,
+                x: next.x + correctionX,
+                y: next.y + correctionY,
+              }
             : element;
         }),
       );
@@ -847,7 +1135,7 @@ export function SeatingChartEditor({
         duplicateSelection();
       } else if (event.key === "Escape") {
         setSelectedElementIds([]);
-        setInteraction(null);
+        cancelInteraction();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -1130,8 +1418,10 @@ export function SeatingChartEditor({
               <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
                 <b>{selectedElementIds.length} elements selected.</b>{" "}
                 <span className="text-muted-foreground">
-                  Drag any selected element to move the group together, or use
-                  the actions above to copy, duplicate, and delete the group.
+                  Drag any selected element to move the group. Use the group
+                  handles on the canvas to rotate or resize it; hold Shift while
+                  resizing to preserve proportions, or resize freely to reshape
+                  the arrangement.
                 </span>
               </div>
             )}
@@ -1379,10 +1669,10 @@ export function SeatingChartEditor({
                   onPointerDown={beginCanvasSelection}
                   onPointerMove={readOnly ? undefined : movePointer}
                   onPointerUp={
-                    readOnly ? undefined : () => setInteraction(null)
+                    readOnly ? undefined : finishInteraction
                   }
                   onPointerCancel={
-                    readOnly ? undefined : () => setInteraction(null)
+                    readOnly ? undefined : cancelInteraction
                   }
                   className="relative h-[620px] touch-none overflow-hidden rounded-2xl border-2 bg-[linear-gradient(145deg,hsl(var(--background)),hsl(var(--muted)/0.38)),radial-gradient(circle_at_center,hsl(var(--border)/0.85)_1px,transparent_1px)] shadow-inner outline-none [background-size:auto,20px_20px] focus-visible:ring-2 focus-visible:ring-primary/50"
                   aria-label="Classroom layout canvas"
@@ -1416,6 +1706,39 @@ export function SeatingChartEditor({
                       onAssignSeat={assignSeatFromChair}
                     />
                   ))}
+                  {selectedGroupBounds && (
+                    <div
+                      className="pointer-events-none absolute z-40 border-2 border-primary bg-primary/[0.025] shadow-[0_0_0_3px_hsl(var(--primary)/0.12)]"
+                      style={{
+                        left: `${selectedGroupBounds.x}%`,
+                        top: `${selectedGroupBounds.y}%`,
+                        width: `${selectedGroupBounds.width}%`,
+                        height: `${selectedGroupBounds.height}%`,
+                      }}
+                      role="group"
+                      aria-label={`${selectedElementIds.length} selected classroom elements`}
+                    >
+                      <div className="absolute -top-9 left-1/2 h-8 w-px -translate-x-1/2 bg-primary" />
+                      <button
+                        type="button"
+                        onPointerDown={beginGroupRotate}
+                        className="pointer-events-auto absolute -top-12 left-1/2 flex size-8 -translate-x-1/2 items-center justify-center rounded-full border-2 border-primary bg-background text-primary shadow-md hover:scale-105"
+                        title="Rotate selected group"
+                        aria-label="Rotate selected group"
+                      >
+                        <RotateCw className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onPointerDown={beginGroupResize}
+                        className="pointer-events-auto absolute -bottom-3 -right-3 flex size-7 items-center justify-center rounded-md border-2 border-primary bg-background text-primary shadow-md hover:scale-105"
+                        title="Resize group · hold Shift to preserve proportions"
+                        aria-label="Resize or reshape selected group"
+                      >
+                        <Maximize2 className="size-3.5" />
+                      </button>
+                    </div>
+                  )}
                   {marqueeStyle && (
                     <div
                       className="pointer-events-none absolute z-50 border border-primary bg-primary/10 shadow-[0_0_0_1px_hsl(var(--primary)/0.15)]"
@@ -1863,27 +2186,86 @@ function ElementGraphic({ element }: { element: ClassroomDesk }) {
   }
   if (kind === "podium") {
     return (
-      <div className="absolute inset-[3%] drop-shadow-[0_7px_7px_rgba(15,23,42,0.28)]">
-        <div
-          className="absolute inset-0 bg-slate-600 dark:bg-slate-400"
-          style={{ clipPath: "polygon(15% 0, 85% 0, 98% 100%, 2% 100%)" }}
-        />
-        <div
-          className="absolute inset-[3%] overflow-hidden bg-gradient-to-b from-slate-50 via-card to-slate-300 dark:from-slate-700 dark:via-slate-800 dark:to-slate-950"
-          style={{ clipPath: "polygon(15% 0, 85% 0, 98% 100%, 2% 100%)" }}
+      <div className="absolute inset-[1%] drop-shadow-[0_8px_7px_rgba(15,23,42,0.3)]">
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 180 130"
+          preserveAspectRatio="none"
+          className="absolute inset-0 size-full overflow-visible"
         >
-          <div className="absolute inset-x-[17%] top-[10%] h-[40%] rounded-md border border-slate-400/80 bg-background/80 shadow-inner">
-            <div className="absolute inset-y-[14%] left-[12%] right-[12%] -rotate-2 rounded-sm border border-slate-200 bg-white shadow-sm dark:bg-slate-200">
-              <div className="absolute inset-x-[17%] top-[35%] h-px bg-slate-300" />
-              <div className="absolute inset-x-[17%] top-[60%] h-px bg-slate-300" />
-            </div>
-          </div>
-          <div className="absolute right-[13%] top-[8%] h-[35%] w-[20%] rounded-tr-full border-r-2 border-t-2 border-primary/80" />
-          <div className="absolute right-[10%] top-[6%] size-[8%] rounded-full bg-primary shadow-sm" />
-          <span className="pointer-events-none absolute inset-x-[12%] bottom-[9%] truncate rounded-md border border-slate-400/60 bg-background/90 px-1.5 py-[4%] text-center text-[9px] font-bold text-foreground shadow-sm">
-            {element.label}
-          </span>
-        </div>
+          <polygon
+            points="26,6 154,6 176,122 4,122"
+            fill="#6f3e24"
+            stroke="#422719"
+            strokeWidth="5"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <polygon
+            points="31,12 149,12 163,76 17,76"
+            fill="#b97945"
+            stroke="#d6a06f"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <polygon
+            points="17,76 163,76 169,116 11,116"
+            fill="#87502f"
+            stroke="#5d331f"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            d="M18 78 H162"
+            fill="none"
+            stroke="#e0ad79"
+            strokeWidth="4"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <g transform="rotate(-3 82 42)">
+            <rect
+              x="48"
+              y="21"
+              width="68"
+              height="42"
+              rx="4"
+              fill="#fffdf8"
+              stroke="#d8dee8"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d="M59 35 H104 M59 44 H101 M59 53 H91"
+              fill="none"
+              stroke="#a8b4c5"
+              strokeWidth="2"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+          <path
+            d="M137 55 C137 35 139 23 151 21"
+            fill="none"
+            stroke="#26364b"
+            strokeWidth="4"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <ellipse
+            cx="154"
+            cy="19"
+            rx="7"
+            ry="5"
+            fill="#26364b"
+            transform="rotate(-12 154 19)"
+          />
+        </svg>
+        <span className="pointer-events-none absolute inset-x-[15%] bottom-[10%] truncate text-center text-[10px] font-extrabold tracking-wide text-amber-50 drop-shadow-[0_1px_1px_rgba(30,15,8,0.9)]">
+          {element.label}
+        </span>
       </div>
     );
   }
