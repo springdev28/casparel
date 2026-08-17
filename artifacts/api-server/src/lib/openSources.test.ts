@@ -7,7 +7,12 @@
  * poisoned for every later search.
  */
 import { describe, expect, it } from "vitest";
-import { OPEN_SOURCES, openSourceIsExcluded, subjectFromTerms } from "./openSources";
+import {
+  OPEN_SOURCES,
+  openSourceIsExcluded,
+  queryWantsResearch,
+  subjectFromTerms,
+} from "./openSources";
 
 const source = (kind: string) =>
   OPEN_SOURCES.find((candidate) => candidate.kind === kind)!;
@@ -197,6 +202,35 @@ describe("subjectFromTerms", () => {
     // A wrong subject is worse than none: it is what a later search matches on.
     expect(subjectFromTerms([])).toBeNull();
     expect(subjectFromTerms(["TP500-660", "LCC"])).toBeNull();
+  });
+});
+
+describe("queryWantsResearch", () => {
+  it("says yes for a question in a field where a paper is a normal answer", () => {
+    for (const terms of [
+      ["photosynthesis"],
+      ["quantum", "error", "correction"],
+      ["organic", "chemistry"],
+      ["clinical", "trial", "design"],
+    ])
+      expect(queryWantsResearch(terms)).toBe(true);
+  });
+
+  it("says no for a question that wants the work, not papers about it", () => {
+    // The reported case: this returned six arXiv preprints analysing the play,
+    // ahead of the play.
+    for (const terms of [
+      ["hamlet", "soliloquy", "folio"],
+      ["pride", "prejudice", "austen"],
+      ["french", "revolution", "causes"],
+    ])
+      expect(queryWantsResearch(terms)).toBe(false);
+  });
+
+  it("says no when the query names nothing at all", () => {
+    // "how to revise for exams" wants study material, not a literature review.
+    expect(queryWantsResearch(["revise", "exams"])).toBe(false);
+    expect(queryWantsResearch([])).toBe(false);
   });
 });
 

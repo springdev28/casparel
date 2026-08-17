@@ -203,6 +203,8 @@ type Row = {
   description: string;
   subject: string;
   sourceKind?: "curated" | "wikibooks" | "wikipedia" | "wikiversity";
+  /** What kind of thing it is, which is what the paper delay reads. */
+  material?: string;
 };
 
 /**
@@ -282,6 +284,40 @@ const ROWS: Row[] = [
     description: "Interactive graphing, geometry and algebra tools.",
     subject: "Mathematics",
   },
+  // A literature question and a science question, each with a paper and a book,
+  // so which one comes first can be measured.
+  {
+    title: "Hamlet, Prince of Denmark",
+    provider: "Project Gutenberg",
+    url: "https://www.gutenberg.org/ebooks/27761",
+    description: "The full text of Hamlet by William Shakespeare.",
+    subject: "Literature",
+    material: "primary",
+  },
+  {
+    title: "Hamlet and the tragedy of revenge",
+    provider: "OpenAlex",
+    url: "https://example.org/hamlet-revenge-paper",
+    description: "A study of revenge structure in Hamlet.",
+    subject: "Literature",
+    material: "paper",
+  },
+  {
+    title: "Chemistry of the chlorophyll molecule",
+    provider: "Directory of Open Access Books",
+    url: "https://directory.doabooks.org/handle/chlorophyll-book",
+    description: "A book on the chemistry of chlorophyll and light capture.",
+    subject: "Chemistry",
+    material: "book",
+  },
+  {
+    title: "Chemistry of light capture in photosystem II",
+    provider: "Europe PMC",
+    url: "https://europepmc.org/article/PMC/chemistry-paper",
+    description: "A paper on the chemistry of photosystem II.",
+    subject: "Chemistry",
+    material: "paper",
+  },
   // Works about photosynthesis that are not named after it. Wikipedia's own
   // search returns these for "photosynthesis" and the importer stores them, but
   // a bar of two points on a one-word query meant only a title match counted,
@@ -349,6 +385,7 @@ describe.skipIf(!url)("search quality against a real database", () => {
         subject: row.subject,
         gradeLevel: "All levels",
         sourceKind: row.sourceKind ?? ("curated" as const),
+        ...(row.material ? { metadata: { material: row.material } } : {}),
       })),
     );
     ({ searchCatalog, resolveCatalogSearch } = await import("./lib/catalog"));
@@ -453,6 +490,49 @@ describe.skipIf(!url)("search quality against a real database", () => {
     expect(titled).toContain("Photosynthesis");
     expect(titled).not.toContain("Chlorophyll");
     expect(titled).not.toContain("Calvin cycle");
+  });
+
+
+  it("makes papers wait their turn on a question that is not asking for research", async () => {
+    // Reported from the live site: "hamlet soliloquy folio" came back with six
+    // arXiv preprints analysing the play out of sixteen results, ahead of the
+    // play itself.
+    const titles = (await searchCatalog({ query: "hamlet revenge" })).map(
+      (row) => row.title,
+    );
+    expect(titles).toContain("Hamlet, Prince of Denmark");
+    expect(titles).toContain("Hamlet and the tragedy of revenge");
+    // Nothing is dropped — the paper is still there, just behind the text.
+    expect(titles.indexOf("Hamlet, Prince of Denmark")).toBeLessThan(
+      titles.indexOf("Hamlet and the tragedy of revenge"),
+    );
+  });
+
+  it("leaves papers where they are for a question in a research field", async () => {
+    // "chemistry" names a field where a paper is a normal thing to be handed, so
+    // the delay must not apply: relevance decides, as it did before.
+    const rows = await searchCatalog({ query: "chemistry" });
+    const paper = rows.find((row) => row.source === "Europe PMC");
+    expect(paper).toBeDefined();
+    // Both are equally relevant, so the paper is not pushed behind the book.
+    const titles = rows.map((row) => row.title);
+    expect(
+      Math.abs(
+        titles.indexOf("Chemistry of light capture in photosystem II") -
+          titles.indexOf("Chemistry of the chlorophyll molecule"),
+      ),
+    ).toBeLessThanOrEqual(1);
+  });
+
+  it("never second-guesses a reader who asked for papers", async () => {
+    // An explicit filter is a decision, not a preference to be weighed.
+    const rows = await searchCatalog({
+      query: "hamlet revenge",
+      material: "paper",
+    });
+    expect(rows.map((row) => row.title)).toEqual([
+      "Hamlet and the tragedy of revenge",
+    ]);
   });
 
   it("widens rather than returning nothing when the strict pass finds none", async () => {

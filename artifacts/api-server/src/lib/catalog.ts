@@ -25,6 +25,7 @@ import {
 import {
   OPEN_SOURCES,
   openSourceIsExcluded,
+  queryWantsResearch,
   type OpenSource,
 } from "./openSources";
 import {
@@ -1363,6 +1364,15 @@ const CURSOR_PATTERN = /^(\d{2})\.(\d{4})\.(\d)\.(\d{12})$/;
  */
 export const SOURCE_BAND_SIZE = 2;
 
+/**
+ * How many turns the paper sources give up on a non-research question.
+ *
+ * Two, so every other kind of source has had its two results before the first
+ * paper appears. Part of the cursor's meaning, like the band size: change it and
+ * every cursor already in flight names a different place.
+ */
+export const PAPER_BAND_DELAY = 2;
+
 export function catalogCursor(
   band: number,
   score: number,
@@ -1518,10 +1528,28 @@ export async function searchCatalog(
   // The band is computed before the cursor is applied, so it means "this row's
   // place in the whole ranking" rather than "its place among what is left". A
   // cursor from an earlier page therefore still names the same place.
-  const band = sql<number>`((row_number() over (
+  // Papers wait their turn on a question that is not asking for research.
+  //
+  // Interleaving alone treats every source as equally wanted, and for a literature
+  // question that is wrong in a way a reader notices: "hamlet soliloquy folio"
+  // came back with six arXiv preprints analysing the play out of sixteen results,
+  // ahead of the play itself. Pushing the paper sources back two bands means the
+  // books, the encyclopedia and the primary texts each get their two first.
+  //
+  // Not a filter: nothing is dropped, and a reader who paged far enough would
+  // still reach the papers. And no penalty at all when the reader asked for
+  // papers — an explicit filter is not a preference to be second-guessed — or
+  // when the query names a field where a paper is the normal answer.
+  const wantsResearch =
+    queryWantsResearch(searchTerms) ||
+    filterValues(options.material).includes("paper");
+  const paperDelay = wantsResearch ? 0 : PAPER_BAND_DELAY;
+  const band = sql<number>`(((row_number() over (
     partition by ${catalogResourcesTable.provider}
     order by ${score} desc, ${relevance} asc, ${catalogResourcesTable.id} asc
-  ) - 1) / ${SOURCE_BAND_SIZE})::int`;
+  ) - 1) / ${SOURCE_BAND_SIZE})
+    + case when coalesce(${catalogResourcesTable.metadata}->>'material', '') = 'paper'
+      then ${paperDelay} else 0 end)::int`;
 
   const ranked = db
     // The band, score and relevance are selected alongside the row because they

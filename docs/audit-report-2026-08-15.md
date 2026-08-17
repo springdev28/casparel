@@ -418,3 +418,15 @@ Four bugs were caught by writing those tests, all of the silent kind:
 - `yearStart` read only strings, and OpenAlex sends `publication_year` as a number, so every OpenAlex record lost its date.
 - "Plant physiology" was not recognised as biology.
 - The material list in a test predated the video kind.
+
+### Papers wait their turn on a question that is not asking for research
+
+Reported from the live site: "hamlet soliloquy folio" returned six arXiv preprints analysing the play out of sixteen results — ahead of the play itself. Interleaving twelve sources evenly treats every source as equally wanted, and for a literature question that is wrong in a way a reader notices immediately.
+
+The band a source's results sit in now carries a delay for paper sources when the query is not asking for research: two bands, so the books, the encyclopedia articles and the primary texts each get their two results before the first paper appears. It is not a filter — nothing is dropped, and a reader who pages far enough still reaches the papers.
+
+Whether a query is asking for research is read from the same subject vocabulary the importers file works under, so the two cannot drift apart. A query naming astronomy, biology, chemistry, computer science, earth science, engineering, mathematics, medicine, physics or statistics wants papers by default; one naming literature, history, law, music or nothing at all does not. "How to revise for exams" wants study material, not a literature review.
+
+Two guards. A reader who explicitly filters for papers gets no delay at all — an explicit filter is a decision, not a preference to be second-guessed. And the delay is deterministic for a given query and filter set, so a cursor issued for page one still names the same place on page two; ordering and paging continue to agree, which is the constraint every change to this ranking has to satisfy.
+
+Not a judgement about which fields are serious. It is about what a reader asking a question in each field is for.

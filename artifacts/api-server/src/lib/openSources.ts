@@ -195,6 +195,41 @@ export function subjectFromTerms(terms: string[]): string | null {
   return null;
 }
 
+/**
+ * The subjects where a peer-reviewed paper is a normal thing to be handed.
+ *
+ * Not a judgement about which fields are serious. It is about what a reader
+ * asking a question in each field is *for*: someone searching "photosynthesis"
+ * is doing science and a paper belongs beside the textbook, while someone
+ * searching "hamlet soliloquy folio" wants the play, and six preprints analysing
+ * it — which is what they got — is the catalog answering a question nobody asked.
+ */
+const RESEARCH_SUBJECTS = new Set([
+  "Astronomy",
+  "Biology",
+  "Chemistry",
+  "Computer Science",
+  "Earth Science",
+  "Engineering",
+  "Mathematics",
+  "Medicine",
+  "Physics",
+  "Statistics",
+]);
+
+/**
+ * Whether a query is asking about a field where papers are wanted by default.
+ *
+ * Read from the same vocabulary the importers file works under, so the answer
+ * cannot drift from how the catalog is actually organised. A query naming
+ * nothing at all counts as not scientific: "how to revise for exams" wants study
+ * material, not literature reviews.
+ */
+export function queryWantsResearch(terms: string[]): boolean {
+  const subject = subjectFromTerms(terms);
+  return subject !== null && RESEARCH_SUBJECTS.has(subject);
+}
+
 /** Titles that are a placeholder rather than a work. */
 function isUsableTitle(title: string): boolean {
   if (title.length < 3 || title.length > 300) return false;
