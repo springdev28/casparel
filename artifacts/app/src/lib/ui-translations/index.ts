@@ -17,6 +17,7 @@ import TR from "./tr";
 import ES from "./es";
 import FR from "./fr";
 import PT from "./pt";
+import DE from "./de";
 
 /**
  * A language with no entry here is served English, unchanged — which is the
@@ -30,6 +31,7 @@ export const DICTIONARIES: Partial<Record<AuthLanguage, Record<string, string>>>
     es: ES,
     fr: FR,
     pt: PT,
+    de: DE,
   };
 
 /**
