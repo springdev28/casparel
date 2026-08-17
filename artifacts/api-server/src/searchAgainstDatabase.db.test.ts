@@ -449,6 +449,47 @@ function fillerRows(count: number): Row[] {
   }));
 }
 
+/**
+ * The French Revolution, and the many other revolutions the catalog holds.
+ *
+ * The proportion is the point, not the titles: "revolution" has to be a word
+ * this catalog is full of and "guillotine" a word it barely uses, or there is
+ * nothing for a rarity rule to tell apart.
+ */
+const REVOLUTIONS: Row[] = [
+  {
+    title: "Glossary of the French Revolution",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/Glossary_of_the_French_Revolution",
+    description: "Terms used during the French Revolution.",
+    subject: "History",
+  },
+  {
+    title: "The guillotine",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/Guillotine",
+    description:
+      "The device used for executions in France during the Revolution.",
+    subject: "History",
+  },
+  ...[
+    "Russian Revolution",
+    "American Revolution",
+    "Industrial Revolution",
+    "Chinese Revolution",
+    "Cuban Revolution",
+    "Scientific Revolution",
+    "Green Revolution",
+    "Digital Revolution",
+  ].map((title) => ({
+    title,
+    provider: "Wikiversity",
+    url: `https://en.wikiversity.org/wiki/${title.replace(/\s+/g, "_")}`,
+    description: `An open educational work about the ${title}.`,
+    subject: "History",
+  })),
+];
+
 describe.skipIf(!url)("search quality against a real database", () => {
   let searchCatalog: typeof import("./lib/catalog").searchCatalog;
   let resolveCatalogSearch: typeof import("./lib/catalog").resolveCatalogSearch;
@@ -457,7 +498,7 @@ describe.skipIf(!url)("search quality against a real database", () => {
     const { db, catalogResourcesTable } = await database();
     await db.delete(catalogResourcesTable);
     await db.insert(catalogResourcesTable).values(
-      [...ROWS, ...fillerRows(20)].map((row) => ({
+      [...ROWS, ...REVOLUTIONS, ...fillerRows(20)].map((row) => ({
         provider: row.provider,
         providerUrl: new URL(row.url).origin + "/",
         externalId: row.url,
@@ -471,8 +512,28 @@ describe.skipIf(!url)("search quality against a real database", () => {
         ...(row.material ? { metadata: { material: row.material } } : {}),
       })),
     );
-    ({ searchCatalog, resolveCatalogSearch } = await import("./lib/catalog"));
+    const catalog = await import("./lib/catalog");
+    // Word frequencies are cached, and this fixture has just replaced every row
+    // the catalog had. Without this the rarity rule reads the previous suite's
+    // counts and nothing it decides means anything.
+    catalog.clearTermFrequencyCache();
+    ({ searchCatalog, resolveCatalogSearch } = catalog);
   }, 60_000);
+
+  /** A search resolved the way the endpoint resolves one, then run. */
+  async function search(options: Parameters<typeof searchCatalog>[0]) {
+    const resolved = await resolveCatalogSearch(options);
+    return (
+      await searchCatalog({
+        ...options,
+        offset: resolved.offset,
+        minRelevanceScore: resolved.minRelevanceScore,
+        requireNarrowCoverage: resolved.requireNarrowCoverage,
+        requireTopicCoverage: resolved.requireTopicCoverage,
+        distinguishingTerms: resolved.distinguishingTerms,
+      })
+    ).map((r) => r.title);
+  }
 
   it("answers only with works that match more than one word of the query", async () => {
     const titles = (await searchCatalog({ query: AP_QUERY })).map(
@@ -569,6 +630,43 @@ describe.skipIf(!url)("search quality against a real database", () => {
       (r) => r.title,
     );
     expect(titles).toContain("Hamlet and the tragedy of revenge");
+  });
+
+  it("will not let a word the catalog is full of answer the question", async () => {
+    const titles = await search({ query: "french revolution" });
+
+    expect(titles).toContain("Glossary of the French Revolution");
+    // Ten works in this catalog have "revolution" in their title, so matching
+    // that word says almost nothing about which one answers the question.
+    // Every one of these came back from the live site for this search.
+    expect(titles).not.toContain("Russian Revolution");
+    expect(titles).not.toContain("American Revolution");
+    expect(titles).not.toContain("Industrial Revolution");
+  });
+
+  it("lets a word the catalog barely uses answer it alone", async () => {
+    // One work mentions the guillotine against ten revolutions, so the word
+    // pins the topic by itself — and this is the difference the rule turns on.
+    // A rule that simply demanded two matching words would lose this.
+    expect(await search({ query: "french revolution guillotine" })).toContain(
+      "The guillotine",
+    );
+  });
+
+  it("asks for both words when neither of them is rare", async () => {
+    // Nothing here is distinguishing, so the rule falls back to wanting both —
+    // which is the right reading of a two-word question in any case.
+    const titles = await search({ query: "physics mechanics" });
+    expect(titles.length).toBeGreaterThan(0);
+    expect(titles.every((title) => /physics/i.test(title))).toBe(true);
+  });
+
+  it("takes a single common word when it is all the catalog has", async () => {
+    // No work matches two words of this and none matches a rare one, so the
+    // rule steps aside rather than handing back an empty page.
+    expect(await search({ query: "revolution barricades" })).toContain(
+      "Russian Revolution",
+    );
   });
 
   it("still judges a query that is nothing but packaging", async () => {

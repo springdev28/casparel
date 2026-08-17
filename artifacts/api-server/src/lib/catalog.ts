@@ -112,6 +112,15 @@ export type CatalogSearchOptions = {
    * to true; dropped to widen a search that came back empty.
    */
   requireNarrowCoverage?: boolean;
+  /**
+   * Whether a row must match two words of the query, or one rare enough to
+   * carry it alone. Off unless a caller sets it, so a search that never
+   * resolved its distinguishing words is not silently held to a bar it has no
+   * way to clear.
+   */
+  requireTopicCoverage?: boolean;
+  /** The words rare enough to carry it, from resolveCatalogSearch. */
+  distinguishingTerms?: string[];
   resultType?: "content" | "source" | "people";
   exactPhrase?: string;
   excludedWords?: string;
@@ -1171,6 +1180,92 @@ const NARROW_MATERIALS = ["paper", "video"];
 /** Words of the query a narrow work has to match. */
 const MIN_NARROW_COVERAGE = 2;
 
+/** Words of the query any work has to match, absent a distinguishing one. */
+const MIN_TOPIC_COVERAGE = 2;
+
+/**
+ * How much rarer than the query's commonest word a word must be to answer the
+ * question on its own.
+ *
+ * "French revolution" was answered with the Russian Revolution, the American
+ * Revolution and the Armenian revolutionary movement, each matching
+ * "revolution" and nothing else, because a reference work's title being a
+ * topic name is normally the strongest evidence there is — and here it lands
+ * on a different topic that shares a word.
+ *
+ * Counting words cannot separate those from "Newton's laws of motion", which
+ * is the same shape and is wanted. What separates them is that the catalog is
+ * full of revolutions and thin on kinematics: a word the catalog uses
+ * constantly says almost nothing about which work answers the question, and a
+ * word it barely uses says almost everything.
+ *
+ * Measured against the query rather than against a fixed number of rows, so it
+ * needs no tuning as the catalog grows and cannot drift as its shape changes.
+ * When every word of a query is equally common — "french revolution", where
+ * neither word is rare — nothing is distinguishing and the rule falls back to
+ * asking for both, which is the right answer for a two-word question anyway.
+ */
+const RARITY_GAP = 4;
+
+/** How long a word's frequency is trusted before the catalog is asked again. */
+const FREQUENCY_TTL_MS = 5 * 60_000;
+
+const frequencyCache = new Map<string, { count: number; at: number }>();
+
+/** Test seam: frequencies outlive a fixture that replaces the whole catalog. */
+export function clearTermFrequencyCache() {
+  frequencyCache.clear();
+}
+
+/**
+ * How many works each word appears in.
+ *
+ * One aggregate for the whole query rather than one per word, and cached,
+ * because this runs before every search and the answer moves slowly: a word's
+ * share of the catalog is stable even while rows are being added to it.
+ */
+async function termDocumentFrequencies(
+  terms: string[],
+): Promise<Map<string, number>> {
+  const now = Date.now();
+  const frequencies = new Map<string, number>();
+  const uncounted: string[] = [];
+  for (const term of terms) {
+    const cached = frequencyCache.get(term.toLowerCase());
+    if (cached && now - cached.at < FREQUENCY_TTL_MS)
+      frequencies.set(term, cached.count);
+    else if (!uncounted.includes(term)) uncounted.push(term);
+  }
+  if (uncounted.length) {
+    const selection: Record<string, SQL<number>> = {};
+    uncounted.forEach((term, index) => {
+      selection[`df${index}`] =
+        sql<number>`count(*) filter (where ${catalogTermScore(term)} > 0)::int`;
+    });
+    const [row] = await db.select(selection).from(catalogResourcesTable);
+    uncounted.forEach((term, index) => {
+      const count = Number(
+        (row as Record<string, unknown> | undefined)?.[`df${index}`] ?? 0,
+      );
+      frequencyCache.set(term.toLowerCase(), { count, at: now });
+      frequencies.set(term, count);
+    });
+  }
+  return frequencies;
+}
+
+/** The words of a query rare enough to answer it without help. */
+export function rareEnoughToStandAlone(
+  frequencies: Map<string, number>,
+): string[] {
+  const counts = [...frequencies.values()];
+  if (!counts.length) return [];
+  const commonest = Math.max(...counts);
+  return [...frequencies.entries()]
+    .filter(([, count]) => count * RARITY_GAP <= commonest)
+    .map(([term]) => term);
+}
+
 function catalogConditions(options: CatalogSearchOptions): SQL[] {
   const conditions: SQL[] = [];
   const searchTerms = meaningfulSearchTerms(options.query);
@@ -1197,6 +1292,22 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
           sql`, `,
         )})
         or ${catalogCoverage(judged)} >= ${MIN_NARROW_COVERAGE})`);
+    // And for every kind of work: a row that matched one word, where that word
+    // is one the catalog is full of, has not answered a question made of
+    // several. Matching a word the catalog barely uses is enough on its own —
+    // that is what tells "Basic kinematics" from "Russian Revolution", which
+    // are otherwise the same shape.
+    if (options.requireTopicCoverage && judged.length >= MIN_TOPIC_COVERAGE) {
+      const distinguishing = (options.distinguishingTerms ?? []).filter(
+        (term) => judged.includes(term),
+      );
+      conditions.push(
+        distinguishing.length
+          ? sql`(${catalogCoverage(judged)} >= ${MIN_TOPIC_COVERAGE}
+              or ${catalogRelevanceScore(distinguishing)} > 0)`
+          : sql`${catalogCoverage(judged)} >= ${MIN_TOPIC_COVERAGE}`,
+      );
+    }
     // "In the title" means the topic *is* what the work is about, not something
     // it mentions. A description match is worth one point and a title or subject
     // match two, so requiring the strong score on a word is the whole rule.
@@ -1499,6 +1610,10 @@ export type ResolvedCatalogSearch = {
   minRelevanceScore: number;
   /** Whether narrow works must match more than one word, likewise once. */
   requireNarrowCoverage: boolean;
+  /** Whether a row must match two words, or one rare enough to stand alone. */
+  requireTopicCoverage: boolean;
+  /** The words of this query that are rare enough to stand alone. */
+  distinguishingTerms: string[];
   /** Row this page starts at. */
   offset: number;
   /** Rows matching before any top-up. */
@@ -1527,42 +1642,58 @@ export async function resolveCatalogSearch(
     return {
       minRelevanceScore: 1,
       requireNarrowCoverage: false,
+      requireTopicCoverage: false,
+      distinguishingTerms: [],
       offset: 0,
       total: 0,
     };
 
   // The same words the conditions will judge against, or the count and the
   // fetch disagree about what the bar is and page two reads from the wrong row.
-  let minRelevanceScore = requiredRelevanceScore(
-    relevanceTerms(meaningfulSearchTerms(options.query)),
-  );
+  const judged = relevanceTerms(meaningfulSearchTerms(options.query));
+  let minRelevanceScore = requiredRelevanceScore(judged);
+  // Which of them are rare enough to answer the question alone. Counted once,
+  // here, for the same reason the bar is: every page of a query has to be
+  // measured against the same ruler or the offsets stop lining up.
+  const distinguishingTerms =
+    judged.length >= MIN_TOPIC_COVERAGE
+      ? rareEnoughToStandAlone(await termDocumentFrequencies(judged))
+      : [];
+  let requireTopicCoverage = judged.length >= MIN_TOPIC_COVERAGE;
   let requireNarrowCoverage = true;
-  let total = await countCatalogMatches({
-    ...options,
-    minRelevanceScore,
-    requireNarrowCoverage,
-  });
+
+  const count = () =>
+    countCatalogMatches({
+      ...options,
+      minRelevanceScore,
+      requireNarrowCoverage,
+      requireTopicCoverage,
+      distinguishingTerms,
+    });
+
+  // Loosened one rule at a time, strongest first, and only ever because the
+  // stricter reading found nothing at all. An empty page is the one result
+  // worse than a loose one.
+  let total = await count();
+  if (total === 0 && requireTopicCoverage) {
+    // Nothing matches two words of this question and nothing matches a rare
+    // one. Whatever shares a single common word is all there is.
+    requireTopicCoverage = false;
+    total = await count();
+  }
   if (total === 0) {
     // Only papers and videos share a word with this question, so the rule that
     // one shared word is not enough for them has nothing left to keep. Sooner
     // than an empty page, take them — this is the query where a paper on
     // micro-Doppler radar is the best the catalog has.
     requireNarrowCoverage = false;
-    total = await countCatalogMatches({
-      ...options,
-      minRelevanceScore,
-      requireNarrowCoverage,
-    });
+    total = await count();
   }
   if (total === 0 && minRelevanceScore > 1) {
     // Nothing is *about* the query. Rather than an empty page, accept works
     // that mention it — for every page of this query, so paging stays whole.
     minRelevanceScore = 1;
-    total = await countCatalogMatches({
-      ...options,
-      minRelevanceScore,
-      requireNarrowCoverage,
-    });
+    total = await count();
   }
 
   const page = Math.max(1, options.page ?? 1);
@@ -1573,7 +1704,14 @@ export async function resolveCatalogSearch(
     page === 1
       ? 0
       : Math.min((page - 1) * catalogFetchWindow(options), total);
-  return { minRelevanceScore, requireNarrowCoverage, offset, total };
+  return {
+    minRelevanceScore,
+    requireNarrowCoverage,
+    requireTopicCoverage,
+    distinguishingTerms,
+    offset,
+    total,
+  };
 }
 
 export async function searchCatalog(

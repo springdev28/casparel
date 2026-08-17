@@ -52,7 +52,14 @@ vi.mock("../lib/catalog", () => ({
   searchCatalog: vi.fn().mockResolvedValue([]),
   resolveCatalogSearch: vi
     .fn()
-    .mockResolvedValue({ minRelevanceScore: 1, requireNarrowCoverage: true, offset: 0, total: 0 }),
+    .mockResolvedValue({
+      minRelevanceScore: 1,
+      requireNarrowCoverage: true,
+      requireTopicCoverage: false,
+      distinguishingTerms: [],
+      offset: 0,
+      total: 0,
+    }),
   searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
   searchOpenWikisAndStore: vi.fn().mockResolvedValue(0),
   searchOpenSourcesAndStore: vi.fn().mockResolvedValue(0),
@@ -204,7 +211,14 @@ beforeEach(() => {
   vi.mocked(searchCatalog).mockReset().mockResolvedValue([]);
   vi.mocked(resolveCatalogSearch)
     .mockReset()
-    .mockResolvedValue({ minRelevanceScore: 1, requireNarrowCoverage: true, offset: 0, total: 0 });
+    .mockResolvedValue({
+      minRelevanceScore: 1,
+      requireNarrowCoverage: true,
+      requireTopicCoverage: false,
+      distinguishingTerms: [],
+      offset: 0,
+      total: 0,
+    });
   vi.mocked(searchOpenLibraryAndStore).mockReset().mockResolvedValue(0);
   vi.mocked(searchOpenWikisAndStore).mockReset().mockResolvedValue(0);
   vi.mocked(searchOpenSourcesAndStore).mockReset().mockResolvedValue(0);
@@ -280,6 +294,8 @@ describe("GET /api/resources/discover, paging", () => {
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
       requireNarrowCoverage: true,
+      requireTopicCoverage: false,
+      distinguishingTerms: [],
       offset: 6,
       total: 6,
     });
@@ -316,6 +332,8 @@ describe("GET /api/resources/discover, paging", () => {
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
       requireNarrowCoverage: true,
+      requireTopicCoverage: false,
+      distinguishingTerms: [],
       offset: 0,
       total: 2,
     });
@@ -346,6 +364,8 @@ describe("GET /api/resources/discover, paging", () => {
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
       requireNarrowCoverage: true,
+      requireTopicCoverage: false,
+      distinguishingTerms: [],
       offset: 0,
       total: 1,
     });
@@ -368,6 +388,8 @@ describe("GET /api/resources/discover, paging", () => {
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
       requireNarrowCoverage: true,
+      requireTopicCoverage: false,
+      distinguishingTerms: [],
       offset: 6,
       total: 6,
     });
@@ -394,6 +416,8 @@ describe("GET /api/resources/discover, paging", () => {
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
       requireNarrowCoverage: true,
+      requireTopicCoverage: false,
+      distinguishingTerms: [],
       offset: 16,
       total: 40,
     });
