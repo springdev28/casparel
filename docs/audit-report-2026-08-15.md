@@ -395,3 +395,26 @@ One reusable `MultiSelectFilter` component carries all five multi-value filters 
 Two things worth recording from the implementation. `ResourceFormat` was `InsertCatalogResource["format"]`, and because the column has a database default that type includes `undefined` — which quietly put `undefined` into every list of formats; it is `NonNullable<…>` now. And `filterValues` initially lived in `catalog.ts`, which the route tests mock wholesale, so every request 500'd in tests while typechecking cleanly; it belongs in `searchTerms.ts` with the other query-string helpers.
 
 The browser audit covers the headline case directly: it ticks pdf and video, checks the trigger reads "2 formats", and checks the request carries `format=pdf,video`.
+
+### Twelve sources
+
+Five more, on the principle that a key-free source should just be added rather than described:
+
+- **arXiv** — preprints in physics, maths and computer science, free in full. It answers in Atom, and the reader here understands the flat shape arXiv actually sends rather than pulling in an XML parser for one source; an entry it cannot read is dropped rather than half-parsed.
+- **OpenAlex**, filtered to `is_oa:true` — the broadest scholarly index with a trustworthy open-access flag. That flag is exactly why Crossref is still absent: Crossref indexes everything, most of it paywalled, with no reliable way to tell from the metadata whether a reader can open it.
+- **Project Gutenberg**, through Gutendex — public-domain literature in full text, filed as primary source material.
+- **Internet Archive**, restricted to `mediatype:texts` and outside the lending collections. A book with a waiting list is a paywall with extra steps.
+- **YouTube** — the only source not open by licence, and it earns its place: a video explanation is what a stuck fourteen-year-old wants and no wiki has one. The key comes from `YOUTUBE_API_KEY` and is never stored in the repository. Ten thousand quota units a day at a hundred per search is about a hundred fresh searches, which is why results are stored: the catalog answers the second reader for nothing.
+
+A sixth material kind, **video**, joins book, course, reference, paper and primary in the filter.
+
+Two things had to be bounded once there were twelve sources. Each source may take six seconds, or longer if it asks — DOAB needs ten and Gutendex nine, both genuinely slow and both worth it. And the *page* now has a wall-clock budget of nine seconds on top of its round budget: a round is as slow as its slowest provider, and twelve providers means twelve chances to be the slow one. Before that budget existed, one cold search against twelve sources ran for ten minutes.
+
+Measured locally against the live services, cold catalog, one query: nine sources stored 261 rows and page one showed fifteen results drawn from seven of them in 6.0s. DOAB, Gutendex, Open Library and OpenAlex did not deliver *in the build sandbox* — the first two exceeded their timeout with twelve requests contending for one metered egress proxy, Open Library is blocked there, and OpenAlex is rate-limited by the proxy rather than by OpenAlex. All four answer correctly to a direct request, and all four parsers are covered by tests built from real payloads.
+
+Four bugs were caught by writing those tests, all of the silent kind:
+
+- The arXiv link picker matched on a tag name carrying an attribute, which never matches, so every paper fell back to its `id` — an `http://` URL for a site that serves https.
+- `yearStart` read only strings, and OpenAlex sends `publication_year` as a number, so every OpenAlex record lost its date.
+- "Plant physiology" was not recognised as biology.
+- The material list in a test predated the video kind.

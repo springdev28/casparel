@@ -2251,6 +2251,9 @@ export async function searchOpenSourceAndStore(
 ): Promise<number> {
   if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false") return 0;
   if (providerIsResting(source.kind)) return 0;
+  // A source needing a key that is not configured is skipped rather than asked
+  // and failing: an unconfigured source is not an outage.
+  if (source.available && !source.available()) return 0;
   const query = meaningfulSearchTerms(options.query).join(" ");
   if (query.length < 2) return 0;
   if ((options.page ?? 1) > REMOTE_PAGE_LIMIT) return 0;
@@ -2274,15 +2277,29 @@ export async function searchOpenSourceAndStore(
         source.endpoint(query, offset, source.pageSize),
         {
           headers: {
-            accept: "application/json",
+            accept:
+              source.responseType === "text"
+                ? "application/atom+xml, application/xml, text/xml"
+                : "application/json",
+            // Who is asking, and where to complain. OpenAlex and Crossref both
+            // give an identified client better rate limits for it, and it is
+            // simple courtesy to a service nobody is charging us for.
             "user-agent": catalogUserAgent(),
           },
-          signal: AbortSignal.timeout(9000),
+          // A source that cannot answer in time is not worth a reader waiting
+          // for: there are eleven others, and the page is topped up again on the
+          // next search anyway. A source may ask for longer if it is slow and
+          // worth it.
+          signal: AbortSignal.timeout(source.timeoutMs ?? 6000),
         },
       );
       if (!response.ok)
         throw new Error(`${source.provider} returned ${response.status}`);
-      const parsed = source.parse(await response.json());
+      const parsed = source.parse(
+        source.responseType === "text"
+          ? await response.text()
+          : await response.json(),
+      );
 
       const now = new Date().toISOString();
       const items: InsertCatalogResource[] = parsed

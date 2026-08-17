@@ -51,6 +51,9 @@ export const catalogResourcesTable = pgTable(
         | "crossref"
         | "europepmc"
         | "openalex"
+        | "gutenberg"
+        | "internet-archive"
+        | "youtube"
       >()
       .notNull(),
     metadata: jsonb("metadata")

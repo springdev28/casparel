@@ -24,11 +24,25 @@
 import type { InsertCatalogResource } from "@workspace/db";
 
 /** What kind of thing a source produces, for the reader's material filter. */
-export type MaterialKind = "book" | "course" | "reference" | "paper" | "primary";
+export type MaterialKind =
+  | "book"
+  | "course"
+  | "reference"
+  | "paper"
+  | "primary"
+  | "video";
 
 export type OpenSource = {
   /** Stored in source_kind, and the cooldown key. */
-  kind: "doab" | "doaj" | "europepmc";
+  kind:
+    | "doab"
+    | "doaj"
+    | "europepmc"
+    | "arxiv"
+    | "openalex"
+    | "gutenberg"
+    | "internet-archive"
+    | "youtube";
   /** Provider name as a reader sees it. */
   provider: string;
   providerUrl: string;
@@ -39,8 +53,26 @@ export type OpenSource = {
   pageSize: number;
   /** The request for one window of a query. */
   endpoint(query: string, offset: number, pageSize: number): URL;
-  /** Rows from one response body. Anything unusable is dropped, never guessed. */
+  /**
+   * Rows from one response body. Anything unusable is dropped, never guessed.
+   *
+   * Given text rather than parsed JSON when `responseType` says so, because one
+   * of these sources answers in Atom.
+   */
   parse(body: unknown): ParsedResource[];
+  /** How to hand the response to `parse`. JSON unless stated. */
+  responseType?: "json" | "text";
+  /**
+   * How long this source may take. Six seconds unless stated: a source that
+   * cannot answer in that is not worth a reader waiting for when eleven others
+   * can. Raised only where the service is genuinely slow *and* worth it.
+   */
+  timeoutMs?: number;
+  /**
+   * Whether this source can be asked at all. A source needing a key that is not
+   * configured is skipped rather than asked and failing.
+   */
+  available?(): boolean;
 };
 
 /** A row as a source describes it, before the shared fields are filled in. */
@@ -68,9 +100,14 @@ function clamp(value: string, max = MAX_DESCRIPTION): string {
   return value.length > max ? value.slice(0, max) : value;
 }
 
-/** A year on its own is not a timestamp; Postgres needs a real instant. */
+/**
+ * A year on its own is not a timestamp; Postgres needs a real instant.
+ *
+ * Accepts a number as well as a string: OpenAlex sends `publication_year: 2018`
+ * and reading only strings silently dropped the date off every record.
+ */
 function yearStart(year: unknown): string | null {
-  const parsed = Number(text(year));
+  const parsed = Number(typeof year === "number" ? year : text(year));
   return Number.isInteger(parsed) && parsed > 1000 && parsed <= 2200
     ? `${parsed}-01-01T00:00:00.000Z`
     : null;
@@ -111,7 +148,10 @@ const KNOWN_SUBJECTS = [
 
 /** Words a source's own classification uses for a subject the catalog knows. */
 const SUBJECT_HINTS: Array<[RegExp, string]> = [
-  [/\b(?:botany|plant sciences?|zoolog|genetic|ecolog|biolog|biochem|microbiol)/i, "Biology"],
+  [
+    /\b(?:botany|plant|physiolog|zoolog|genetic|ecolog|biolog|biochem|microbiol|photosynth|cell)/i,
+    "Biology",
+  ],
   [/\b(?:chemistr|chemical)/i, "Chemistry"],
   [/\b(?:physics|astrophys|quantum)/i, "Physics"],
   [/\b(?:astronom|cosmolog)/i, "Astronomy"],
@@ -173,9 +213,14 @@ const doab: OpenSource = {
   providerUrl: "https://directory.doabooks.org/",
   host: "directory.doabooks.org",
   material: "book",
-  // The response carries the full Dublin Core record for every hit, so a large
-  // window is megabytes. Twenty is plenty for a page of sixteen.
-  pageSize: 20,
+  // The response carries the full Dublin Core record for every hit, so the
+  // window size decides the payload: twenty records is over a megabyte and took
+  // longer than the timeout allows, ten is 120KB and answers in about three
+  // seconds. Ten is plenty when eleven other sources are also contributing.
+  pageSize: 10,
+  // Slow even so, and worth waiting for: it is the only source here that is
+  // entirely open academic books.
+  timeoutMs: 10_000,
   endpoint(query, offset, pageSize) {
     const url = new URL("https://directory.doabooks.org/rest/search");
     url.searchParams.set("query", query);
@@ -383,7 +428,453 @@ const europePmc: OpenSource = {
   },
 };
 
-export const OPEN_SOURCES: OpenSource[] = [doab, doaj, europePmc];
+
+/**
+ * Reading one field out of an Atom or XML element.
+ *
+ * arXiv answers in Atom and nothing here pulls in an XML parser for one source.
+ * That is a deliberate trade with a real limit: this understands the shape arXiv
+ * actually sends — flat elements, no nesting, no CDATA — and an entry it cannot
+ * read is dropped rather than half-parsed.
+ */
+function xmlField(entry: string, tag: string): string {
+  const match = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`).exec(entry);
+  return match ? unescapeXml(match[1]) : "";
+}
+
+/**
+ * The href of the `<link>` with a given rel.
+ *
+ * arXiv gives an entry several links — the abstract page, the pdf, sometimes a
+ * DOI — and which one a reader should follow depends on the rel, not on the
+ * order. Picking by position or falling back to `<id>` hands out an http:// URL
+ * for a site that serves https.
+ */
+function xmlLinkHref(entry: string, rel: string): string {
+  for (const match of entry.matchAll(/<link\b([^>]*)\/?>/g)) {
+    const attributes = match[1] ?? "";
+    if (!new RegExp(`\\brel="${rel}"`).test(attributes)) continue;
+    const href = /\bhref="([^"]*)"/.exec(attributes);
+    if (href) return unescapeXml(href[1] ?? "");
+  }
+  return "";
+}
+
+function unescapeXml(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * arXiv.
+ *
+ * Preprints in physics, mathematics and computer science, every one of them free
+ * to read in full. Where the wikis stop being useful for an advanced student.
+ */
+const arxiv: OpenSource = {
+  kind: "arxiv",
+  provider: "arXiv",
+  providerUrl: "https://arxiv.org/",
+  host: "export.arxiv.org",
+  material: "paper",
+  pageSize: 25,
+  responseType: "text",
+  endpoint(query, offset, pageSize) {
+    const url = new URL("https://export.arxiv.org/api/query");
+    url.searchParams.set("search_query", `all:${query}`);
+    url.searchParams.set("start", String(offset));
+    url.searchParams.set("max_results", String(pageSize));
+    return url;
+  },
+  parse(body) {
+    if (typeof body !== "string") return [];
+    const rows: ParsedResource[] = [];
+    for (const chunk of body.split("<entry>").slice(1)) {
+      const entry = chunk.split("</entry>")[0] ?? "";
+      const title = xmlField(entry, "title");
+      // The abstract page, not the pdf: it carries the abstract, the authors and
+      // a link to every format the paper is available in.
+      const link =
+        xmlLinkHref(entry, "alternate") ||
+        // The id is a last resort: arXiv writes it with an http:// scheme.
+        xmlField(entry, "id").replace(/^http:/, "https:");
+      if (!isUsableTitle(title) || !/^https?:\/\//i.test(link)) continue;
+      const summary = xmlField(entry, "summary");
+      const categories = [...entry.matchAll(/<category[^>]*\bterm="([^"]*)"/g)].map(
+        (match) => match[1] ?? "",
+      );
+      rows.push({
+        externalId: `arxiv:${xmlField(entry, "id") || link}`,
+        url: link,
+        title,
+        description: summary
+          ? clamp(summary)
+          : "A preprint on arXiv, free to read in full.",
+        author: [...entry.matchAll(/<name>([\s\S]*?)<\/name>/g)]
+          .map((match) => unescapeXml(match[1] ?? ""))
+          .filter(Boolean)
+          .slice(0, 6)
+          .join(", "),
+        subject: subjectFromTerms([...categories, ...ARXIV_CATEGORY_HINTS(categories)]),
+        language: "en",
+        license: "arXiv distribution licence; see the paper",
+        publishedAt: yearStart(xmlField(entry, "published").slice(0, 4)),
+        format: "pdf",
+      });
+    }
+    return rows;
+  },
+};
+
+/**
+ * arXiv files papers under its own codes, which name a field but not in words.
+ */
+const ARXIV_CATEGORY_HINTS = (categories: string[]): string[] =>
+  categories.map((category) => {
+    const prefix = category.split(".")[0] ?? "";
+    return (
+      {
+        "astro-ph": "Astronomy",
+        "cond-mat": "Physics",
+        "gr-qc": "Physics",
+        "hep-ex": "Physics",
+        "hep-lat": "Physics",
+        "hep-ph": "Physics",
+        "hep-th": "Physics",
+        "math-ph": "Physics",
+        "nucl-ex": "Physics",
+        "nucl-th": "Physics",
+        "quant-ph": "Physics",
+        physics: "Physics",
+        math: "Mathematics",
+        cs: "Computer Science",
+        "q-bio": "Biology",
+        "q-fin": "Economics",
+        stat: "Statistics",
+        econ: "Economics",
+        eess: "Engineering",
+      }[prefix] ?? ""
+    );
+  }).filter(Boolean);
+
+/**
+ * OpenAlex, restricted to what is open.
+ *
+ * The broadest scholarly index with a trustworthy open-access flag, which is why
+ * it is here and Crossref is not: Crossref indexes everything, most of it behind
+ * a paywall, and there is no reliable way to tell from its metadata whether a
+ * reader can actually open the thing.
+ */
+const openalex: OpenSource = {
+  kind: "openalex",
+  provider: "OpenAlex",
+  providerUrl: "https://openalex.org/",
+  host: "api.openalex.org",
+  material: "paper",
+  pageSize: 25,
+  endpoint(query, offset, pageSize) {
+    const url = new URL("https://api.openalex.org/works");
+    url.searchParams.set("search", query);
+    // is_oa is the whole reason this belongs in an open catalog.
+    url.searchParams.set("filter", "is_oa:true");
+    url.searchParams.set("per-page", String(pageSize));
+    url.searchParams.set("page", String(Math.floor(offset / pageSize) + 1));
+    if (process.env.CATALOG_CONTACT_EMAIL)
+      url.searchParams.set("mailto", process.env.CATALOG_CONTACT_EMAIL);
+    return url;
+  },
+  parse(body) {
+    const results = (body as { results?: unknown[] })?.results;
+    if (!Array.isArray(results)) return [];
+    const rows: ParsedResource[] = [];
+    for (const entry of results) {
+      const work = entry as Record<string, unknown>;
+      const title = text(work.display_name ?? work.title);
+      const access = (work.best_oa_location ?? work.primary_location ?? {}) as {
+        landing_page_url?: unknown;
+        pdf_url?: unknown;
+      };
+      const url =
+        text(access.landing_page_url) ||
+        text(access.pdf_url) ||
+        text(work.doi);
+      if (!isUsableTitle(title) || !/^https?:\/\//i.test(url)) continue;
+      const concepts = (
+        Array.isArray(work.concepts) ? work.concepts : []
+      ).map((concept) => text((concept as { display_name?: unknown })?.display_name));
+      rows.push({
+        externalId: `openalex:${text(work.id) || url}`,
+        url,
+        title,
+        // OpenAlex often has no abstract it may redistribute, so the description
+        // says what the record is rather than inventing prose for it.
+        description: clamp(
+          text(work.abstract) ||
+            `An open access ${text(work.type) || "work"}${
+              text(
+                (work.primary_location as { source?: { display_name?: unknown } })
+                  ?.source?.display_name,
+              )
+                ? ` in ${text((work.primary_location as { source?: { display_name?: unknown } }).source?.display_name)}`
+                : ""
+            }.`,
+        ),
+        author: (Array.isArray(work.authorships) ? work.authorships : [])
+          .map((authorship) =>
+            text((authorship as { author?: { display_name?: unknown } })?.author?.display_name),
+          )
+          .filter(Boolean)
+          .slice(0, 6)
+          .join(", "),
+        subject: subjectFromTerms(concepts),
+        language: text(work.language) === "en" ? "en" : null,
+        license: text(
+          (work.best_oa_location as { license?: unknown })?.license,
+        ) || "Open access; see the work for its licence",
+        publishedAt: yearStart(work.publication_year),
+        format: "article",
+      });
+    }
+    return rows;
+  },
+};
+
+/**
+ * Project Gutenberg, through Gutendex.
+ *
+ * Public-domain literature in full text — the plays, novels and speeches a
+ * literature or history question wants to read rather than read about, and the
+ * one source here that a fourteen-year-old will use as often as a researcher.
+ */
+const gutenberg: OpenSource = {
+  kind: "gutenberg",
+  provider: "Project Gutenberg",
+  providerUrl: "https://www.gutenberg.org/",
+  host: "gutendex.com",
+  material: "primary",
+  pageSize: 32,
+  // Redirects once and answers in about three seconds.
+  timeoutMs: 9000,
+  endpoint(query, offset, pageSize) {
+    const url = new URL("https://gutendex.com/books");
+    url.searchParams.set("search", query);
+    url.searchParams.set("page", String(Math.floor(offset / pageSize) + 1));
+    return url;
+  },
+  parse(body) {
+    const results = (body as { results?: unknown[] })?.results;
+    if (!Array.isArray(results)) return [];
+    const rows: ParsedResource[] = [];
+    for (const entry of results) {
+      const book = entry as Record<string, unknown>;
+      const title = text(book.title);
+      const id = Number(book.id);
+      if (!isUsableTitle(title) || !Number.isInteger(id)) continue;
+      const authors = (Array.isArray(book.authors) ? book.authors : [])
+        .map((author) => text((author as { name?: unknown })?.name))
+        .filter(Boolean);
+      const subjects = (
+        Array.isArray(book.subjects) ? book.subjects : []
+      ).map(text);
+      // Gutenberg subjects are Library of Congress strings like "Denmark --
+      // Drama", so the part before the dashes is the only usable half.
+      const shelves = (Array.isArray(book.bookshelves) ? book.bookshelves : [])
+        .map(text)
+        .concat(subjects.map((subject) => subject.split("--")[0]?.trim() ?? ""));
+      const covers = (book.formats ?? {}) as Record<string, unknown>;
+      rows.push({
+        externalId: `gutenberg:${id}`,
+        url: `https://www.gutenberg.org/ebooks/${id}`,
+        title,
+        description: `${authors.length ? `${authors.join(", ")}. ` : ""}Free full text from Project Gutenberg${subjects.length ? `. ${subjects.slice(0, 3).join("; ")}` : ""}.`.slice(
+          0,
+          MAX_DESCRIPTION,
+        ),
+        author: authors.slice(0, 4).join(", ") || null,
+        subject: subjectFromTerms(shelves),
+        language: (Array.isArray(book.languages) ? book.languages : []).some(
+          (code) => text(code) === "en",
+        )
+          ? "en"
+          : null,
+        license: "Public domain in the United States; see the book",
+        publishedAt: null,
+        thumbnailUrl: text(covers["image/jpeg"]) || null,
+        format: "pdf",
+      });
+    }
+    return rows;
+  },
+};
+
+/**
+ * Internet Archive, texts only.
+ *
+ * Scanned books, journals and reports. Restricted to `mediatype:texts` and to
+ * items outside the lending collection: a book you have to join a waiting list
+ * for is a paywall with extra steps, and this catalog promises the link opens.
+ */
+const internetArchive: OpenSource = {
+  kind: "internet-archive",
+  provider: "Internet Archive",
+  providerUrl: "https://archive.org/",
+  host: "archive.org",
+  material: "book",
+  pageSize: 25,
+  endpoint(query, offset, pageSize) {
+    const url = new URL("https://archive.org/advancedsearch.php");
+    url.searchParams.set(
+      "q",
+      `${query} AND mediatype:texts AND -collection:inlibrary AND -collection:printdisabled`,
+    );
+    for (const field of [
+      "identifier",
+      "title",
+      "creator",
+      "year",
+      "subject",
+      "description",
+      "language",
+    ])
+      url.searchParams.append("fl[]", field);
+    url.searchParams.set("rows", String(pageSize));
+    url.searchParams.set("page", String(Math.floor(offset / pageSize) + 1));
+    url.searchParams.set("output", "json");
+    return url;
+  },
+  parse(body) {
+    const docs = (body as { response?: { docs?: unknown[] } })?.response?.docs;
+    if (!Array.isArray(docs)) return [];
+    const rows: ParsedResource[] = [];
+    for (const entry of docs) {
+      const item = entry as Record<string, unknown>;
+      const identifier = text(item.identifier);
+      const title = text(Array.isArray(item.title) ? item.title[0] : item.title);
+      if (!identifier || !isUsableTitle(title)) continue;
+      const subjects = (
+        Array.isArray(item.subject) ? item.subject : [item.subject]
+      ).map(text);
+      const description = text(
+        Array.isArray(item.description) ? item.description[0] : item.description,
+      );
+      rows.push({
+        externalId: `ia:${identifier}`,
+        url: `https://archive.org/details/${identifier}`,
+        title,
+        description: description
+          ? clamp(description)
+          : "A scanned text in the Internet Archive, free to read.",
+        author: text(
+          Array.isArray(item.creator) ? item.creator[0] : item.creator,
+        ) || null,
+        subject: subjectFromTerms(subjects),
+        language: /^(?:eng|en)$/i.test(
+          text(Array.isArray(item.language) ? item.language[0] : item.language),
+        )
+          ? "en"
+          : null,
+        license: "Rights vary by item; see the item page",
+        publishedAt: yearStart(item.year),
+        format: "pdf",
+      });
+    }
+    return rows;
+  },
+};
+
+/**
+ * YouTube, needing a key.
+ *
+ * The only source here that is not open by licence, and it earns its place
+ * anyway: a video explanation is what a stuck fourteen-year-old actually wants,
+ * and no wiki has one.
+ *
+ * The key comes from the environment and is never stored in the repository. The
+ * free quota is ten thousand units a day and a search costs a hundred, so about
+ * a hundred fresh searches — which is why every result is stored: the catalog
+ * answers the second reader for nothing.
+ */
+const youtube: OpenSource = {
+  kind: "youtube",
+  provider: "YouTube",
+  providerUrl: "https://www.youtube.com/",
+  host: "www.googleapis.com",
+  material: "video",
+  pageSize: 25,
+  available: () => Boolean(process.env.YOUTUBE_API_KEY),
+  endpoint(query, _offset, pageSize) {
+    const url = new URL("https://www.googleapis.com/youtube/v3/search");
+    url.searchParams.set("part", "snippet");
+    url.searchParams.set("q", query);
+    url.searchParams.set("type", "video");
+    // Only videos their owner has allowed to be embedded and reused, and only
+    // ones long enough to teach something.
+    url.searchParams.set("videoEmbeddable", "true");
+    url.searchParams.set("videoDuration", "medium");
+    url.searchParams.set("relevanceLanguage", "en");
+    url.searchParams.set("safeSearch", "strict");
+    url.searchParams.set("maxResults", String(Math.min(50, pageSize)));
+    url.searchParams.set("key", process.env.YOUTUBE_API_KEY ?? "");
+    return url;
+  },
+  parse(body) {
+    const items = (body as { items?: unknown[] })?.items;
+    if (!Array.isArray(items)) return [];
+    const rows: ParsedResource[] = [];
+    for (const entry of items) {
+      const item = entry as {
+        id?: { videoId?: unknown };
+        snippet?: Record<string, unknown>;
+      };
+      const videoId = text(item.id?.videoId);
+      const snippet = item.snippet ?? {};
+      const title = text(snippet.title);
+      if (!videoId || !isUsableTitle(title)) continue;
+      const thumbnails = (snippet.thumbnails ?? {}) as Record<
+        string,
+        { url?: unknown }
+      >;
+      rows.push({
+        externalId: `youtube:${videoId}`,
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        title,
+        description: clamp(
+          text(snippet.description) ||
+            `A video from ${text(snippet.channelTitle) || "YouTube"}.`,
+        ),
+        author: text(snippet.channelTitle) || null,
+        // A video carries no subject classification, and guessing one from its
+        // title is how the catalog poisoned itself before.
+        subject: null,
+        language: "en",
+        license: "Standard YouTube licence unless the video says otherwise",
+        publishedAt: text(snippet.publishedAt) || null,
+        thumbnailUrl:
+          text(thumbnails.high?.url) || text(thumbnails.medium?.url) || null,
+        format: "video",
+      });
+    }
+    return rows;
+  },
+};
+
+export const OPEN_SOURCES: OpenSource[] = [
+  doab,
+  doaj,
+  europePmc,
+  arxiv,
+  openalex,
+  gutenberg,
+  internetArchive,
+  youtube,
+];
+
 
 /** Whether a reader's exclusion covers this source. */
 export function openSourceIsExcluded(

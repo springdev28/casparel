@@ -888,6 +888,16 @@ const SOURCE_SHARE_PER_PAGE = 2;
 const TOP_UP_ROUNDS = 2;
 
 /**
+ * How long a thin page may spend filling itself.
+ *
+ * The round budget bounds how hard it tries; this bounds what the reader waits.
+ * Without it, adding sources made the worst case worse every time: one search
+ * against twelve providers, two rounds each, ran for ten minutes before this
+ * existed.
+ */
+const TOP_UP_BUDGET_MS = 9000;
+
+/**
  * AI searches one account may start in a minute.
  *
  * The number the route limiter used to enforce against every request, kept as
@@ -904,7 +914,14 @@ const FORMAT_VALUES = [
   "interactive",
   "other",
 ];
-const MATERIAL_VALUES = ["book", "course", "reference", "paper", "primary"];
+const MATERIAL_VALUES = [
+  "book",
+  "course",
+  "reference",
+  "paper",
+  "primary",
+  "video",
+];
 
 const DISCOVER_MIN_RESULTS = 3;
 const DISCOVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -1298,10 +1315,19 @@ router.get(
       // Each round reads the next window from every provider at once. They are
       // independent services answering one request at a time each, so a round
       // costs about as long as its slowest provider rather than the sum.
+      // A wall-clock budget as well as a round budget. Rounds bound how *hard*
+      // the page tries; this bounds how long a reader waits, which is the thing
+      // they actually experience. It matters more with every source added: a
+      // round is as slow as its slowest provider, and twelve providers means
+      // twelve chances to be the slow one. Whatever has been stored by the
+      // deadline is what the page shows, and the next search picks up the rest.
+      const topUpDeadline = Date.now() + TOP_UP_BUDGET_MS;
       let window = page;
       for (
         let round = 0;
-        round < TOP_UP_ROUNDS && catalogItems.length < catalogOptions.limit;
+        round < TOP_UP_ROUNDS &&
+        catalogItems.length < catalogOptions.limit &&
+        Date.now() < topUpDeadline;
         round += 1
       ) {
         const before = catalogItems.length;
@@ -1322,7 +1348,7 @@ router.get(
         // the results looser.
         if (catalogItems.length === before) {
           const broadened = broadenedQueries(q);
-          if (!broadened.length) break;
+          if (!broadened.length || Date.now() >= topUpDeadline) break;
           await topUp(broadened.map((query) => ({ query, page: 1 })));
           if (catalogItems.length === before) break;
         }
@@ -1493,6 +1519,7 @@ router.get(
               reference: "encyclopedia and reference articles",
               paper: "peer-reviewed research papers",
               primary: "primary source texts",
+              video: "video lessons",
             }[materialFilter] ?? materialFilter
           }.`
         : "",

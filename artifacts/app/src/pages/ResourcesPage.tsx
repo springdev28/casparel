@@ -2733,6 +2733,7 @@ export default function ResourcesPage() {
                         { value: "reference", label: "Encyclopedia and reference" },
                         { value: "paper", label: "Peer-reviewed papers" },
                         { value: "primary", label: "Primary source texts" },
+                        { value: "video", label: "Video lessons" },
                       ]}
                       label="materials"
                       allLabel="Any material"

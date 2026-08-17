@@ -218,6 +218,225 @@ describe("openSourceIsExcluded", () => {
   });
 });
 
+
+describe("arXiv", () => {
+  const arxiv = source("arxiv");
+  // Trimmed from a real Atom response. Flat elements, two links, no CDATA —
+  // exactly the shape the hand-rolled reader is scoped to.
+  const feed = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/1107.0191v1</id>
+    <title>Energy conversion in Purple Bacteria Photosynthesis</title>
+    <published>2011-07-01T10:54:23Z</published>
+    <link href="https://arxiv.org/abs/1107.0191v1" rel="alternate" type="text/html"/>
+    <link href="https://arxiv.org/pdf/1107.0191v1" rel="related" type="application/pdf" title="pdf"/>
+    <summary>The study of how photosynthetic organisms convert light offers
+    insight into nature&apos;s evolutionary process.</summary>
+    <author><name>F. Fassioli</name></author>
+    <author><name>A. Olaya-Castro</name></author>
+    <category term="physics.bio-ph" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="q-bio.BM" scheme="http://arxiv.org/schemas/atom"/>
+  </entry>
+</feed>`;
+
+  it("reads an Atom entry without an XML parser", () => {
+    const [row] = arxiv.parse(feed);
+    expect(row.title).toBe("Energy conversion in Purple Bacteria Photosynthesis");
+    // The abstract page, not the pdf: it carries the abstract and every format.
+    expect(row.url).toBe("https://arxiv.org/abs/1107.0191v1");
+    expect(row.author).toBe("F. Fassioli, A. Olaya-Castro");
+    expect(row.publishedAt).toBe("2011-01-01T00:00:00.000Z");
+    // Entities are decoded, not left as escapes for a reader to see.
+    expect(row.description).toContain("nature's evolutionary process");
+  });
+
+  it("turns an arXiv category code into a subject the catalog uses", () => {
+    // "physics.bio-ph" names a field, but not in a word anyone searches for.
+    expect(arxiv.parse(feed)[0].subject).toBe("Physics");
+  });
+
+  it("is told to read text, since it does not answer in JSON", () => {
+    expect(arxiv.responseType).toBe("text");
+  });
+
+  it("drops an entry it cannot read rather than half-parsing it", () => {
+    expect(arxiv.parse("<feed><entry><title>No link at all</title></entry></feed>")).toEqual(
+      [],
+    );
+    expect(arxiv.parse("not xml")).toEqual([]);
+  });
+
+  it("pages by result offset, which is what arXiv accepts", () => {
+    const url = arxiv.endpoint("photosynthesis", 50, 25);
+    expect(url.searchParams.get("start")).toBe("50");
+    expect(url.searchParams.get("search_query")).toBe("all:photosynthesis");
+  });
+});
+
+describe("OpenAlex", () => {
+  const openalex = source("openalex");
+  const body = {
+    results: [
+      {
+        id: "https://openalex.org/W2741809807",
+        display_name: "The state of OA: a large-scale analysis",
+        publication_year: 2018,
+        language: "en",
+        type: "article",
+        best_oa_location: {
+          landing_page_url: "https://peerj.com/articles/4375/",
+          license: "cc-by",
+        },
+        authorships: [{ author: { display_name: "Heather Piwowar" } }],
+        concepts: [{ display_name: "Computer science" }],
+      },
+    ],
+  };
+
+  it("links to the open copy and records its licence", () => {
+    const [row] = openalex.parse(body);
+    expect(row.url).toBe("https://peerj.com/articles/4375/");
+    expect(row.license).toBe("cc-by");
+    expect(row.subject).toBe("Computer Science");
+    expect(row.publishedAt).toBe("2018-01-01T00:00:00.000Z");
+  });
+
+  it("only ever asks for open access works", () => {
+    // Without this it would fill an open catalog with paywalls, which is the
+    // reason Crossref is not a source at all.
+    expect(openalex.endpoint("x", 0, 25).searchParams.get("filter")).toBe(
+      "is_oa:true",
+    );
+  });
+
+  it("describes the record rather than inventing prose it does not have", () => {
+    // OpenAlex often may not redistribute an abstract.
+    expect(openalex.parse(body)[0].description).toBe("An open access article.");
+  });
+});
+
+describe("Project Gutenberg", () => {
+  const gutenberg = source("gutenberg");
+  const body = {
+    results: [
+      {
+        id: 27761,
+        title: "Hamlet",
+        authors: [{ name: "Shakespeare, William" }],
+        subjects: ["Denmark -- Drama", "Revenge -- Drama"],
+        bookshelves: ["Browsing: Literature"],
+        languages: ["en"],
+        formats: { "image/jpeg": "https://www.gutenberg.org/cache/epub/27761/pg27761.cover.medium.jpg" },
+      },
+    ],
+  };
+
+  it("links to the book's own page and keeps its cover", () => {
+    const [row] = gutenberg.parse(body);
+    expect(row.url).toBe("https://www.gutenberg.org/ebooks/27761");
+    expect(row.author).toBe("Shakespeare, William");
+    expect(row.thumbnailUrl).toContain("pg27761.cover");
+  });
+
+  it("reads a subject out of a Library of Congress string", () => {
+    // "Denmark -- Drama" is a cataloguer's string; only the half before the
+    // dashes is a subject anyone would search for.
+    expect(gutenberg.parse(body)[0].subject).toBe("Literature");
+  });
+
+  it("is filed as a primary text, which is what it is", () => {
+    expect(gutenberg.material).toBe("primary");
+  });
+});
+
+describe("Internet Archive", () => {
+  const ia = source("internet-archive");
+  const body = {
+    response: {
+      docs: [
+        {
+          identifier: "photosynthesisin00rabi",
+          title: "Photosynthesis and related processes",
+          creator: "Rabinowitch, Eugene",
+          year: "1945",
+          subject: ["Photosynthesis", "Plant physiology"],
+          description: "A survey of the photochemistry of green plants.",
+          language: "eng",
+        },
+      ],
+    },
+  };
+
+  it("links to the item page", () => {
+    const [row] = ia.parse(body);
+    expect(row.url).toBe("https://archive.org/details/photosynthesisin00rabi");
+    expect(row.subject).toBe("Biology");
+    expect(row.language).toBe("en");
+    expect(row.publishedAt).toBe("1945-01-01T00:00:00.000Z");
+  });
+
+  it("asks only for texts, and not for the lending collection", () => {
+    // A book with a waiting list is a paywall with extra steps, and this catalog
+    // promises that the link opens the thing.
+    const asked = ia.endpoint("photosynthesis", 0, 25).searchParams.get("q") ?? "";
+    expect(asked).toContain("mediatype:texts");
+    expect(asked).toContain("-collection:inlibrary");
+  });
+});
+
+describe("YouTube", () => {
+  const youtube = source("youtube");
+  const body = {
+    items: [
+      {
+        id: { videoId: "sQK3Yr4Sc_k" },
+        snippet: {
+          title: "Photosynthesis: Crash Course Biology",
+          description: "Hank explains the extremely complex series of reactions.",
+          channelTitle: "CrashCourse",
+          publishedAt: "2012-03-19T21:00:00Z",
+          thumbnails: { high: { url: "https://i.ytimg.com/vi/sQK3Yr4Sc_k/hq.jpg" } },
+        },
+      },
+    ],
+  };
+
+  it("reads a video into something a reader can watch", () => {
+    const [row] = youtube.parse(body);
+    expect(row.url).toBe("https://www.youtube.com/watch?v=sQK3Yr4Sc_k");
+    expect(row.author).toBe("CrashCourse");
+    expect(row.format).toBe("video");
+    expect(row.thumbnailUrl).toContain("i.ytimg.com");
+  });
+
+  it("does not guess a subject from a video's title", () => {
+    // Guessing is how the catalog poisoned itself: a wrong subject is what a
+    // later search matches on.
+    expect(youtube.parse(body)[0].subject).toBeNull();
+  });
+
+  it("is skipped entirely when no key is configured", () => {
+    // An unconfigured source is not an outage, and asking without a key would
+    // burn a cooldown on every search.
+    const key = process.env.YOUTUBE_API_KEY;
+    delete process.env.YOUTUBE_API_KEY;
+    expect(youtube.available?.()).toBe(false);
+    process.env.YOUTUBE_API_KEY = "test-key-not-real";
+    expect(youtube.available?.()).toBe(true);
+    if (key === undefined) delete process.env.YOUTUBE_API_KEY;
+    else process.env.YOUTUBE_API_KEY = key;
+  });
+
+  it("asks only for embeddable videos of a useful length", () => {
+    process.env.YOUTUBE_API_KEY = "test-key-not-real";
+    const url = youtube.endpoint("photosynthesis", 0, 25);
+    expect(url.searchParams.get("videoEmbeddable")).toBe("true");
+    expect(url.searchParams.get("safeSearch")).toBe("strict");
+    delete process.env.YOUTUBE_API_KEY;
+  });
+});
+
 describe("every source", () => {
   it("declares what it is and asks over https", () => {
     for (const candidate of OPEN_SOURCES) {
@@ -227,9 +446,14 @@ describe("every source", () => {
       );
       // The material is what the reader's filter matches on, so a source without
       // one is invisible to a filtered search.
-      expect(["book", "course", "reference", "paper", "primary"]).toContain(
-        candidate.material,
-      );
+      expect([
+        "book",
+        "course",
+        "reference",
+        "paper",
+        "primary",
+        "video",
+      ]).toContain(candidate.material);
     }
   });
 
