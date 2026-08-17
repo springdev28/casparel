@@ -1775,6 +1775,9 @@ export const RespondToClassInvitationResponse = zod.object({
  */
 export const listResourcesQueryMinRatingMax = 5;
 
+export const listResourcesQueryMinReviewsMin = 0;
+export const listResourcesQueryMinReviewsMax = 10000;
+
 export const listResourcesQueryLimitDefault = 12;
 export const listResourcesQueryLimitMax = 50;
 
@@ -1790,6 +1793,15 @@ export const ListResourcesQueryParams = zod.object({
   "gradeLevel": zod.coerce.string().optional(),
   "sortBy": zod.enum(['newest', 'top_rated', 'most_reviewed']).optional().describe('Sort order for results'),
   "minRating": zod.coerce.number().int().min(1).max(listResourcesQueryMinRatingMax).optional().describe('Only return resources with avgRating >= this value'),
+  "exactPhrase": zod.coerce.string().optional().describe('Title, description or subject must contain this phrase, truncated to 160 characters'),
+  "exclude": zod.coerce.string().optional().describe('Space-separated words to exclude, truncated to 160 characters; the first eight are applied'),
+  "source": zod.coerce.string().optional().describe('Restrict to resources whose link contains this text, truncated to 160 characters'),
+  "excludeSource": zod.coerce.string().optional().describe('Drop resources whose link contains this text, truncated to 160 characters'),
+  "dateAdded": zod.enum(['week', 'month', 'year']).optional().describe('Only resources added within this window'),
+  "minReviews": zod.coerce.number().int().min(listResourcesQueryMinReviewsMin).max(listResourcesQueryMinReviewsMax).optional().describe('Minimum number of reviews'),
+  "hasThumbnail": zod.coerce.boolean().optional().describe('Require, or require the absence of, a thumbnail. Sent as the string true or false'),
+  "librarySort": zod.coerce.string().optional().describe('Secondary ordering applied within the library listing'),
+  "verification": zod.enum(['pending', 'rejected']).optional().describe('Narrow to the caller\'s own submissions awaiting review or rejected. Asking for anyone else\'s returns nothing rather than leaking them'),
   "limit": zod.coerce.number().int().min(1).max(listResourcesQueryLimitMax).default(listResourcesQueryLimitDefault).describe('Maximum number of results to return'),
   "offset": zod.coerce.number().int().min(listResourcesQueryOffsetMin).default(listResourcesQueryOffsetDefault).describe('Number of results to skip')
 })
@@ -1876,6 +1888,11 @@ export const discoverResourcesQueryLanguageDefault = `en`;
 export const discoverResourcesQueryPageDefault = 1;
 
 export const discoverResourcesQueryResultTypeDefault = `content`;
+export const discoverResourcesQueryAfterMax = 40;
+
+export const discoverResourcesQuerySinceIdMin = 0;
+
+
 
 export const DiscoverResourcesQueryParams = zod.object({
   "q": zod.coerce.string().min(1).describe('Search query. Blank queries are rejected with 400'),
@@ -1888,6 +1905,9 @@ export const DiscoverResourcesQueryParams = zod.object({
   "exactPhrase": zod.coerce.string().optional().describe('Title or description must contain this phrase, truncated to 160 characters'),
   "exclude": zod.coerce.string().optional().describe('Space-separated words to exclude, truncated to 160 characters; the first eight are applied'),
   "source": zod.coerce.string().optional().describe('Restrict to providers whose name contains this text, truncated to 160 characters'),
+  "excludeSource": zod.coerce.string().optional().describe('Drop results whose provider, link or provider site contains this text, truncated to 160 characters. Matched against all three so \"Wikipedia\" and \"wikipedia.org\" exclude the same results'),
+  "after": zod.coerce.string().max(discoverResourcesQueryAfterMax).optional().describe('Resume after this point in the ranking, as the largest `cursor` the client already holds. Preferred over `page` for reading further into the stored catalog: the catalog grows while a reader pages, and a positional offset then hands back results an earlier page already showed. Ignored when it does not parse'),
+  "sinceId": zod.coerce.number().int().min(discoverResourcesQuerySinceIdMin).optional().describe('The largest `catalogId` the client already holds. Sent with `after`: works stored while the client was reading can rank above the point it has read to, and would otherwise never be offered. Rows newer than this are returned whatever their rank'),
   "freshness": zod.enum(['week', 'month', 'year', 'three_years']).optional().describe('How recent a result must be. The stored catalog filters on year and three_years; the shorter windows only steer AI discovery'),
   "sourceQuality": zod.enum(['academic', 'institutional', 'established', 'independent']).optional().describe('Required source credibility'),
   "difficulty": zod.enum(['beginner', 'intermediate', 'advanced', 'mixed']).optional().describe('Difficulty hint; applies to AI discovery only, content results only'),
@@ -1907,6 +1927,8 @@ export const DiscoverResourcesResponseItem = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "subject": zod.string().nullish(),
   "gradeLevel": zod.string().nullish(),
+  "cursor": zod.string().optional().describe('Where this result sits in the ranking for the query that returned it. Sortable as plain text, so a client asking for more results sends back the largest cursor it holds as the `after` parameter. Absent on results that did not come from the stored catalog.'),
+  "catalogId": zod.int().optional().describe('The stored catalog row this result came from. A client asking for more results sends back the largest one it holds as `sinceId`, so works stored while it was reading are offered even though they rank above the point it has read to. Absent on results that did not come from the stored catalog.'),
   "provenanceLevel": zod.enum(['institutional', 'established', 'independent', 'unknown']).optional(),
   "provenanceSignals": zod.array(zod.string()).optional(),
   "linkChecked": zod.boolean().optional(),

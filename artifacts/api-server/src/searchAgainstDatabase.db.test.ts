@@ -1,0 +1,548 @@
+/**
+ * What a search returns, checked against a real Postgres.
+ *
+ * These cover the defects a mocked database cannot see, because they live in
+ * what `~*` and `ILIKE` actually match and in how the endpoint assembles a
+ * page: unrelated results, the same work more than once, and a "search more"
+ * that hands back almost nothing.
+ *
+ * CI has no database, so they skip unless one is provided. Every other test in
+ * this package mocks the database and must keep doing so.
+ *
+ *   VERIFY_DATABASE_URL=postgres://…/throwaway \
+ *     pnpm --filter @workspace/api-server exec vitest run src/searchAgainstDatabase.db.test.ts
+ *
+ * Catalog rows, resources and users are all emptied, so point this at a
+ * throwaway database.
+ *
+ * One file on purpose. Each suite needs a catalog it fully controls, and Vitest
+ * runs separate files in parallel workers: as two files these truncated each
+ * other's fixtures mid-run, and the paging suite read the relevance suite's
+ * three rows and reported that "physics mechanics" had two results. Suites
+ * within one file run in order, so each seed survives its own assertions.
+ */
+import { beforeAll, describe, expect, it } from "vitest";
+
+const url = process.env.VERIFY_DATABASE_URL;
+
+/** The query that started all of this, typed exactly as a reader typed it. */
+const AP_QUERY = "AP Physics C: Electricity and Mechanics";
+
+async function database() {
+  process.env.DATABASE_URL = url;
+  const db = await import("@workspace/db");
+  await db.runMigrations();
+  return db;
+}
+
+describe.skipIf(!url)("search relevance against a real database", () => {
+  /**
+   * The rows that came back from the live site for an AP Physics search and
+   * should not have. The query is tokenised and the tokens are OR-ed, so
+   * `%AP%` matched inside "roadmAP", and a word-start match alone still opened
+   * "Apps" and "APIs".
+   */
+  beforeAll(async () => {
+    const { db, catalogResourcesTable } = await database();
+    await db.delete(catalogResourcesTable);
+    await db.insert(catalogResourcesTable).values([
+      {
+        provider: "GUVI",
+        providerUrl: "https://guvi.in/",
+        externalId: "guvi:roadmap",
+        canonicalUrl: "https://guvi.in/blog/full-stack-roadmap",
+        title: "Full Stack Web Development Roadmap – GUVI (2026)",
+        description:
+          "Roadmap and learning path for becoming a modern full-stack developer with multiple tracks.",
+        format: "article",
+        subject: "Full-Stack Web Development",
+        gradeLevel: "Adult",
+        sourceKind: "curated",
+      },
+      {
+        provider: "OpenStax",
+        providerUrl: "https://openstax.org/",
+        externalId: "openstax:physics",
+        canonicalUrl: "https://openstax.org/details/books/university-physics",
+        title: "University Physics: Electricity and Magnetism",
+        description:
+          "Electricity, magnetism and mechanics for calculus-based courses.",
+        format: "pdf",
+        subject: "Physics",
+        gradeLevel: "College",
+        sourceKind: "curated",
+      },
+      {
+        provider: "MIT OpenCourseWare",
+        providerUrl: "https://ocw.mit.edu/",
+        externalId: "mit:mechanics",
+        canonicalUrl: "https://ocw.mit.edu/courses/8-01-classical-mechanics",
+        title: "Classical Mechanics",
+        description: "Newtonian mechanics for first-year undergraduates.",
+        format: "video",
+        subject: "Physics",
+        gradeLevel: "College",
+        sourceKind: "curated",
+      },
+      {
+        provider: "GeoGebra",
+        providerUrl: "https://geogebra.org/",
+        externalId: "geogebra:apps",
+        canonicalUrl: "https://www.geogebra.org/apps",
+        title: "GeoGebra Math Apps",
+        description:
+          "Interactive graphing, geometry, 3D, probability, and algebra tools for mathematical exploration.",
+        format: "interactive",
+        subject: "Mathematics",
+        gradeLevel: "All levels",
+        sourceKind: "curated",
+      },
+      {
+        provider: "University of Helsinki",
+        providerUrl: "https://fullstackopen.com/",
+        externalId: "helsinki:fullstackopen",
+        canonicalUrl: "https://fullstackopen.com/en/",
+        title: "Full Stack Open",
+        description:
+          "A project-based course in modern JavaScript web development with React, Node.js, APIs, testing and TypeScript.",
+        format: "article",
+        subject: "Computer Science",
+        gradeLevel: "Higher education",
+        sourceKind: "curated",
+      },
+    ]);
+  }, 60_000);
+
+  it("does not answer an AP Physics search with a full-stack roadmap", async () => {
+    const { searchCatalog } = await import("./lib/catalog");
+    const titles = (await searchCatalog({ query: AP_QUERY })).map(
+      (r) => r.title,
+    );
+
+    expect(titles).not.toContain(
+      "Full Stack Web Development Roadmap – GUVI (2026)",
+    );
+    // "AP" is a whole word here, not the opening of "Apps" or "APIs".
+    expect(titles).not.toContain("GeoGebra Math Apps");
+    expect(titles).not.toContain("Full Stack Open");
+    // Matches three of the four query words, so it ranks above the one that
+    // matches only "Mechanics".
+    expect(titles[0]).toBe("University Physics: Electricity and Magnetism");
+    expect(titles).toContain("Classical Mechanics");
+  });
+
+  it("still matches a whole word from a prefix, and survives punctuation", async () => {
+    const { searchCatalog } = await import("./lib/catalog");
+    expect(
+      (await searchCatalog({ query: "physic" })).map((r) => r.subject),
+    ).toContain("Physics");
+    await expect(searchCatalog({ query: "C++" })).resolves.toBeInstanceOf(Array);
+  });
+});
+
+describe.skipIf(!url)("the library listing against a real database", () => {
+  beforeAll(async () => {
+    const { db, resourcesTable, usersTable } = await database();
+    await db.delete(resourcesTable);
+    await db.delete(usersTable);
+    const [author] = await db
+      .insert(usersTable)
+      .values({
+        email: "verify@example.invalid",
+        passwordHash: "x",
+        name: "Verify",
+        role: "student",
+      })
+      .returning({ id: usersTable.id });
+    await db.insert(resourcesTable).values([
+      {
+        title: "Full Stack Web Development Roadmap – GUVI (2026)",
+        url: "https://guvi.in/blog/full-stack-roadmap",
+        description:
+          "Roadmap and learning path for becoming a modern full-stack developer.",
+        format: "article",
+        subject: "Full-Stack Web Development",
+        gradeLevel: "Adult",
+        submittedById: author.id,
+        verificationStatus: "verified",
+      },
+      {
+        title: "Classical Mechanics",
+        url: "https://ocw.mit.edu/courses/8-01-classical-mechanics",
+        description: "Newtonian mechanics for first-year undergraduates.",
+        format: "video",
+        subject: "Physics",
+        gradeLevel: "College",
+        submittedById: author.id,
+        verificationStatus: "verified",
+      },
+    ]);
+  }, 60_000);
+
+  it("does not answer an AP Physics library search with a full-stack roadmap", async () => {
+    const express = (await import("express")).default;
+    const request = (await import("supertest")).default;
+    const { default: resourcesRouter } = await import("./routes/resources.js");
+    const app = express();
+    app.use(express.json());
+    app.use("/api", resourcesRouter);
+
+    const res = await request(app).get("/api/resources").query({ q: AP_QUERY });
+
+    expect(res.status).toBe(200);
+    expect((res.body as { title: string }[]).map((r) => r.title)).toEqual([
+      "Classical Mechanics",
+    ]);
+  });
+});
+
+type Row = {
+  title: string;
+  provider: string;
+  url: string;
+  description: string;
+  subject: string;
+  sourceKind?: "curated" | "wikibooks" | "wikipedia" | "wikiversity";
+};
+
+/**
+ * A slice of a realistic catalog: the works that should answer an AP Physics
+ * search, the near-misses that should not, and the shapes that used to arrive
+ * twice.
+ */
+const ROWS: Row[] = [
+  {
+    title: "AP Physics C: Mechanics",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/AP_Physics_C:_Mechanics",
+    description:
+      "Advanced Placement Physics C: Mechanics is a calculus-based physics course covering kinematics, forces and energy.",
+    subject: "Physics",
+  },
+  {
+    title: "AP Physics C: Electricity and Magnetism",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/AP_Physics_C:_Electricity_and_Magnetism",
+    description:
+      "A calculus-based course covering electricity, magnetism, circuits and electrostatics.",
+    subject: "Physics",
+  },
+  {
+    title: "AP Physics 1",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/AP_Physics_1",
+    description: "An algebra-based physics course covering mechanics and waves.",
+    subject: "Physics",
+  },
+  {
+    title: "AP Physics B",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/AP_Physics_B",
+    description: "A retired algebra-based physics course covering mechanics.",
+    subject: "Physics",
+  },
+  // Same work, two links: this is what put a book and its print version on
+  // one page as separate cards.
+  {
+    title: "AP Physics C",
+    provider: "Wikibooks",
+    url: "https://en.wikibooks.org/wiki/AP_Physics_C",
+    description: "A book covering topics in AP physics mechanics and E/M.",
+    subject: "Physics",
+  },
+  {
+    title: "AP Physics C",
+    provider: "Wikibooks",
+    url: "https://en.wikibooks.org/wiki/AP_Physics_C_(print)",
+    description: "An open educational work from en.wikibooks.org.",
+    subject: "Physics",
+  },
+  // Matches exactly one word of the query and nothing else. A Florida high
+  // school came back for AP Physics because its article mentions AP courses.
+  {
+    title: "Horizon High School",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/Horizon_High_School",
+    description:
+      "A public high school offering AP courses, athletics and performing arts.",
+    subject: "Interdisciplinary",
+  },
+  {
+    title: "General Astronomy",
+    provider: "Wikibooks",
+    url: "https://en.wikibooks.org/wiki/General_Astronomy",
+    description:
+      "Astronomy is the scientific study of celestial bodies in the visible universe.",
+    subject: "Astronomy",
+  },
+  {
+    title: "GeoGebra Math Apps",
+    provider: "GeoGebra",
+    url: "https://www.geogebra.org/apps",
+    description: "Interactive graphing, geometry and algebra tools.",
+    subject: "Mathematics",
+  },
+  // Works about photosynthesis that are not named after it. Wikipedia's own
+  // search returns these for "photosynthesis" and the importer stores them, but
+  // a bar of two points on a one-word query meant only a title match counted,
+  // so they were in the catalog and unreachable.
+  {
+    title: "Chlorophyll",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/Chlorophyll",
+    description:
+      "Chlorophyll is the pigment that absorbs light for photosynthesis in plants, algae and cyanobacteria.",
+    subject: "Biology",
+  },
+  {
+    title: "Calvin cycle",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/Calvin_cycle",
+    description:
+      "A series of redox reactions that fix carbon during the light-independent stage of photosynthesis.",
+    subject: "Biology",
+  },
+  {
+    title: "Photosynthesis",
+    provider: "Wikibooks",
+    url: "https://en.wikibooks.org/wiki/Photosynthesis",
+    description: "How plants turn light into chemical energy.",
+    subject: "Biology",
+  },
+  {
+    title: "Full Stack Open",
+    provider: "University of Helsinki",
+    url: "https://fullstackopen.com/en/",
+    description:
+      "A project-based course in modern JavaScript web development with React, Node.js and APIs.",
+    subject: "Computer Science",
+  },
+];
+
+/** Enough distinct physics works to fill more than one page. */
+function fillerRows(count: number): Row[] {
+  return Array.from({ length: count }, (_, index) => ({
+    title: `Physics Mechanics Workbook ${index + 1}`,
+    provider: "Wikibooks",
+    url: `https://en.wikibooks.org/wiki/Physics_Mechanics_Workbook_${index + 1}`,
+    description: `Worked problems in physics and mechanics, volume ${index + 1}.`,
+    subject: "Physics",
+  }));
+}
+
+describe.skipIf(!url)("search quality against a real database", () => {
+  let searchCatalog: typeof import("./lib/catalog").searchCatalog;
+  let resolveCatalogSearch: typeof import("./lib/catalog").resolveCatalogSearch;
+
+  beforeAll(async () => {
+    const { db, catalogResourcesTable } = await database();
+    await db.delete(catalogResourcesTable);
+    await db.insert(catalogResourcesTable).values(
+      [...ROWS, ...fillerRows(20)].map((row) => ({
+        provider: row.provider,
+        providerUrl: new URL(row.url).origin + "/",
+        externalId: row.url,
+        canonicalUrl: row.url,
+        title: row.title,
+        description: row.description,
+        format: "article" as const,
+        subject: row.subject,
+        gradeLevel: "All levels",
+        sourceKind: row.sourceKind ?? ("curated" as const),
+      })),
+    );
+    ({ searchCatalog, resolveCatalogSearch } = await import("./lib/catalog"));
+  }, 60_000);
+
+  it("answers only with works that match more than one word of the query", async () => {
+    const titles = (await searchCatalog({ query: AP_QUERY })).map(
+      (r) => r.title,
+    );
+
+    expect(titles).toContain("AP Physics C: Mechanics");
+    expect(titles).toContain("AP Physics C: Electricity and Magnetism");
+    // One word of four is a coincidence, not a match.
+    expect(titles).not.toContain("Horizon High School");
+    expect(titles).not.toContain("General Astronomy");
+    expect(titles).not.toContain("GeoGebra Math Apps");
+    expect(titles).not.toContain("Full Stack Open");
+  });
+
+  it("ranks a work matching more of the query higher", async () => {
+    const titles = (await searchCatalog({ query: AP_QUERY })).map(
+      (r) => r.title,
+    );
+    expect(titles.indexOf("AP Physics C: Mechanics")).toBeLessThan(
+      titles.indexOf("AP Physics B"),
+    );
+  });
+
+  it("answers a one-word search with the works about it, not only those named after it", async () => {
+    const results = await searchCatalog({ query: "photosynthesis" });
+    const titles = results.map((r) => r.title);
+
+    expect(titles).toContain("Photosynthesis");
+    // The reason "photosynthesis" ran dry on page two: these are what a reader
+    // wants next, and demanding the word in the title hid them.
+    expect(titles).toContain("Chlorophyll");
+    expect(titles).toContain("Calvin cycle");
+    // The work named after the topic still comes first.
+    expect(titles[0]).toBe("Photosynthesis");
+    // Widening the bar is not the same as dropping it.
+    expect(titles).not.toContain("Full Stack Open");
+    expect(titles).not.toContain("GeoGebra Math Apps");
+  });
+
+  it("keeps a lone abbreviation strict", async () => {
+    // "AP" is two letters: appearing somewhere is not a topic, so a high
+    // school's article does not become a physics result.
+    const titles = (await searchCatalog({ query: "AP" })).map((r) => r.title);
+    expect(titles).not.toContain("Horizon High School");
+  });
+
+  it("widens rather than returning nothing when the strict pass finds none", async () => {
+    const strict = await searchCatalog({ query: "astronomy celestial bodies" });
+    const loose = await searchCatalog({
+      query: "astronomy celestial bodies",
+      minRelevanceScore: 1,
+    });
+    expect(strict.length).toBeLessThanOrEqual(loose.length);
+    expect(loose.map((r) => r.title)).toContain("General Astronomy");
+  });
+
+  it("never puts the same work on a page twice", async () => {
+    const { dedupeByWork } = await import("@workspace/resource-identity");
+    const page = dedupeByWork(await searchCatalog({ query: AP_QUERY }));
+
+    const urls = page.map((r) => r.url.toLowerCase());
+    expect(new Set(urls).size).toBe(urls.length);
+    // The book and its print version are one work, and the version with a
+    // real description is the one kept.
+    const apPhysicsC = page.filter((r) => r.title === "AP Physics C");
+    expect(apPhysicsC).toHaveLength(1);
+    expect(apPhysicsC[0].description).not.toMatch(/^An open educational work/);
+  });
+
+  it("gives a later page results the first page did not have", async () => {
+    const options = { query: "physics mechanics", limit: 8 };
+    const first = await searchCatalog({
+      ...options,
+      page: 1,
+      ...(await resolveCatalogSearch({ ...options, page: 1 })),
+    });
+    const second = await searchCatalog({
+      ...options,
+      page: 2,
+      ...(await resolveCatalogSearch({ ...options, page: 2 })),
+    });
+
+    expect(first).toHaveLength(8);
+    expect(second.length).toBeGreaterThan(0);
+    const firstUrls = new Set(first.map((r) => r.url));
+    // Every result on page two is new. Overlapping pages were deduplicated
+    // away in the client, which is what made "search more" look broken.
+    expect(second.every((r) => !firstUrls.has(r.url))).toBe(true);
+  });
+
+  it("keeps a later page whole while the catalog is still filling up", async () => {
+    // The defect this covers is the reason "search more" felt empty. This
+    // endpoint stores works as it finds them, so the result set grows between
+    // one page and the next, and a work stored during page two can belong on
+    // page one — pushing everything below it down, straight back into a window
+    // page one already showed. Measured against the live wikis, a third of every
+    // "search more" page was results the reader already had.
+    const { db, catalogResourcesTable } = await database();
+    const options = { query: "physics mechanics", limit: 8 };
+
+    const first = await searchCatalog({
+      ...options,
+      ...(await resolveCatalogSearch({ ...options, page: 1 })),
+    });
+    expect(first).toHaveLength(8);
+    const readTo = first.reduce(
+      (furthest, row) => ({
+        after: row.cursor! > furthest.after ? row.cursor! : furthest.after,
+        sinceId: Math.max(furthest.sinceId, row.catalogId!),
+      }),
+      { after: "", sinceId: 0 },
+    );
+
+    // Exactly what a top-up does between two pages: works stored now, ranking
+    // at the very top because the query is their title.
+    await db.insert(catalogResourcesTable).values(
+      ["Physics Mechanics", "Physics Mechanics Explained"].map((title) => ({
+        provider: "Wikiversity",
+        providerUrl: "https://en.wikiversity.org/",
+        externalId: `late:${title}`,
+        canonicalUrl: `https://en.wikiversity.org/wiki/${title.replace(/ /g, "_")}`,
+        title,
+        description: "Stored while the reader was reading.",
+        format: "article" as const,
+        subject: "Physics",
+        gradeLevel: "All levels",
+        sourceKind: "curated" as const,
+      })),
+    );
+
+    const second = await searchCatalog({ ...options, ...readTo });
+
+    // Nothing the reader already had.
+    const firstUrls = new Set(first.map((row) => row.url));
+    expect(second.filter((row) => firstUrls.has(row.url))).toEqual([]);
+    // A full page, not the thin remainder an offset would have left.
+    expect(second).toHaveLength(8);
+    // The work that now ranks top is offered even though it sits above the point
+    // the reader had read to. A cursor on its own buries it for good, which is
+    // how paging a cold catalog ended up with each page thinner than the last.
+    expect(second.map((row) => row.title)).toContain("Physics Mechanics");
+
+    // And nothing else is lost: paging on reaches every remaining row exactly
+    // once, the late arrival included. Compared by link, because the fixture
+    // holds one work under two links on purpose.
+    const seen = new Set([...first, ...second].map((row) => row.url));
+    const titles = new Set([...first, ...second].map((row) => row.title));
+    let cursor = [...first, ...second].reduce(
+      (furthest, row) => ({
+        after: row.cursor! > furthest.after ? row.cursor! : furthest.after,
+        sinceId: Math.max(furthest.sinceId, row.catalogId!),
+      }),
+      { after: "", sinceId: 0 },
+    );
+    for (let more = 0; more < 4; more += 1) {
+      const page = await searchCatalog({ ...options, ...cursor });
+      if (!page.length) break;
+      for (const row of page) {
+        expect(seen.has(row.url)).toBe(false);
+        seen.add(row.url);
+        titles.add(row.title);
+      }
+      cursor = page.reduce(
+        (furthest, row) => ({
+          after: row.cursor! > furthest.after ? row.cursor! : furthest.after,
+          sinceId: Math.max(furthest.sinceId, row.catalogId!),
+        }),
+        cursor,
+      );
+    }
+    expect(titles).toContain("Physics Mechanics Explained");
+    expect(titles).toContain("Physics Mechanics Workbook 20");
+  });
+
+  it("keeps paging until the catalog is genuinely spent", async () => {
+    const options = { query: "physics mechanics", limit: 8 };
+    const seen = new Set<string>();
+    for (let page = 1; page <= 6; page += 1) {
+      const results = await searchCatalog({
+        ...options,
+        page,
+        ...(await resolveCatalogSearch({ ...options, page })),
+      });
+      for (const row of results) {
+        // No page ever repeats a row an earlier page showed.
+        expect(seen.has(row.url)).toBe(false);
+        seen.add(row.url);
+      }
+    }
+    expect(seen.size).toBeGreaterThan(16);
+  });
+});

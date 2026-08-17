@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { canonicalResultUrl, dedupeResults, isSameWork } from "./resultDedupe";
+import {
+  balanceBySource,
+  canonicalResourceUrl,
+  dedupeByWork,
+  isSameWork,
+  sourceFamily,
+} from "@workspace/resource-identity";
 
 const work = (title: string, url: string, description = "A real description of the work.") => ({
   title,
@@ -8,18 +14,18 @@ const work = (title: string, url: string, description = "A real description of t
   thumbnailUrl: null as string | null,
 });
 
-describe("canonicalResultUrl", () => {
+describe("canonicalResourceUrl", () => {
   it("treats the same link written differently as one link", () => {
-    expect(canonicalResultUrl("https://WWW.Example.org/Book/")).toBe(
-      canonicalResultUrl("https://example.org/Book"),
+    expect(canonicalResourceUrl("https://WWW.Example.org/Book/")).toBe(
+      canonicalResourceUrl("https://example.org/Book"),
     );
-    expect(canonicalResultUrl("https://example.org/a?utm_source=x#top")).toBe(
+    expect(canonicalResourceUrl("https://example.org/a?utm_source=x#top")).toBe(
       "https://example.org/a",
     );
   });
 
   it("does not throw on something that is not a URL", () => {
-    expect(canonicalResultUrl("not a url")).toBe("not a url");
+    expect(canonicalResourceUrl("not a url")).toBe("not a url");
   });
 });
 
@@ -107,9 +113,9 @@ describe("isSameWork", () => {
   });
 });
 
-describe("dedupeResults", () => {
+describe("dedupeByWork", () => {
   it("returns one card per work, in the order given", () => {
-    const results = dedupeResults([
+    const results = dedupeByWork([
       work("Calculus", "https://en.wikibooks.org/wiki/Calculus"),
       work("Physics", "https://en.wikibooks.org/wiki/Physics"),
       work("Calculus", "https://en.wikibooks.org/wiki/Calculus/"),
@@ -130,11 +136,11 @@ describe("dedupeResults", () => {
       "https://en.wikibooks.org/wiki/Calculus/",
       "A complete calculus course covering limits, derivatives and integrals.",
     );
-    expect(dedupeResults([placeholder, described])[0].description).toBe(
+    expect(dedupeByWork([placeholder, described])[0].description).toBe(
       described.description,
     );
     // And the other way round: order must not decide it.
-    expect(dedupeResults([described, placeholder])[0].description).toBe(
+    expect(dedupeByWork([described, placeholder])[0].description).toBe(
       described.description,
     );
   });
@@ -144,6 +150,45 @@ describe("dedupeResults", () => {
       work("A", "https://a.example.org/1"),
       work("B", "https://b.example.org/2"),
     ];
-    expect(dedupeResults(items)).toHaveLength(2);
+    expect(dedupeByWork(items)).toHaveLength(2);
+  });
+});
+
+describe("balanceBySource", () => {
+  const from = (host: string, n: number) =>
+    Array.from({ length: n }, (_, index) => ({
+      title: `${host} item ${index + 1}`,
+      url: `https://en.${host}/wiki/item_${index + 1}`,
+      description: "A described work.",
+      thumbnailUrl: null as string | null,
+    }));
+
+  it("stops one source owning the page", () => {
+    // Wikipedia has an article on everything, so relevance alone gave it every
+    // slot and a full page read as the same thing over and over.
+    const balanced = balanceBySource(
+      [...from("wikipedia.org", 10), ...from("wikibooks.org", 3)],
+      3,
+    );
+    const firstSix = balanced.slice(0, 6).map((r) => sourceFamily(r.url));
+    expect(new Set(firstSix).size).toBe(2);
+    expect(firstSix.filter((f) => f === "wikipedia.org")).toHaveLength(3);
+  });
+
+  it("keeps the best result first", () => {
+    const items = [...from("wikipedia.org", 4), ...from("wikibooks.org", 2)];
+    expect(balanceBySource(items, 3)[0]).toBe(items[0]);
+  });
+
+  it("loses nothing", () => {
+    const items = [...from("wikipedia.org", 9), ...from("wikiversity.org", 2)];
+    const balanced = balanceBySource(items, 3);
+    expect(balanced).toHaveLength(items.length);
+    expect(new Set(balanced.map((r) => r.url)).size).toBe(items.length);
+  });
+
+  it("leaves a single-source page in ranked order", () => {
+    const items = from("wikipedia.org", 5);
+    expect(balanceBySource(items, 3)).toEqual(items);
   });
 });

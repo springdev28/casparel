@@ -182,6 +182,14 @@ const userPreferencesPatch = z
         z.object({
           query: z.string().trim().min(1).max(300),
           searchedAt: z.iso.datetime(),
+          // The filters the search ran with. Without them here a zod object
+          // strips the key, and a recent search replays as its words alone.
+          filters: z
+            .record(
+              z.string().max(40),
+              z.union([z.string().max(160), z.number(), z.boolean()]),
+            )
+            .optional(),
         }),
       )
       .max(12)

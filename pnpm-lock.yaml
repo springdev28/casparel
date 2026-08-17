@@ -200,6 +200,9 @@ importers:
       '@workspace/integrations-openai-ai-server':
         specifier: workspace:*
         version: link:../../lib/integrations-openai-ai-server
+      '@workspace/resource-identity':
+        specifier: workspace:*
+        version: link:../../lib/resource-identity
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -279,6 +282,9 @@ importers:
       '@revenuecat/purchases-js':
         specifier: ^1.52.3
         version: 1.52.3
+      '@workspace/resource-identity':
+        specifier: workspace:*
+        version: link:../../lib/resource-identity
       '@xyflow/react':
         specifier: ^12.11.2
         version: 12.11.2(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -890,6 +896,8 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5
+
+  lib/resource-identity: {}
 
   scripts:
     devDependencies:

@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, ilike, not, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  ilike,
+  not,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import {
   catalogResourcesTable,
   catalogSyncStateTable,
@@ -37,6 +48,20 @@ export type CatalogSearchOptions = {
    */
   offset?: number;
   /**
+   * Point in the ranking to resume after, as a cursor from an earlier result.
+   * Takes precedence over `offset` and `page`, and is the only way to page a
+   * catalog that is still growing without repeating rows. See
+   * {@link catalogCursor}.
+   */
+  after?: string;
+  /**
+   * Highest catalog row the caller already holds. Read together with `after`:
+   * rows newer than this are returned whatever they rank, because a work stored
+   * while the reader was reading can belong above the point they have read to
+   * and would otherwise never be offered.
+   */
+  sinceId?: number;
+  /**
    * Relevance a row must reach to be a result. Defaults to the standard bar;
    * callers lower it to widen a search that came back empty.
    */
@@ -45,6 +70,8 @@ export type CatalogSearchOptions = {
   exactPhrase?: string;
   excludedWords?: string;
   source?: string;
+  /** Provider or domain the reader does not want to see. */
+  excludeSource?: string;
   freshness?: string;
   accessType?: string;
   license?: string;
@@ -61,6 +88,10 @@ export type CatalogSearchItem = {
   subject: string | null;
   gradeLevel: string | null;
   sourceCredibility?: SourceCredibility;
+  /** Where this row sits in the ranking. See {@link catalogCursor}. */
+  cursor?: string;
+  /** The stored row this came from, so a later page can ask for newer ones. */
+  catalogId?: number;
 };
 
 export function canonicalCatalogUrl(rawUrl: string) {
@@ -999,6 +1030,31 @@ const MIN_RELEVANCE_SCORE = 2;
  */
 const SUBSTANTIVE_TERM_LENGTH = 3;
 
+/**
+ * The bar for *this* query.
+ *
+ * A flat two points is backwards for short queries. Against a four-word query
+ * two points is a third of the query and rightly permissive; against a
+ * one-word query it is the maximum score, so it demands the word be in the
+ * title or the subject and nothing else will do. That is what made a search for
+ * "photosynthesis" stop at the dozen works with the word in their name, and
+ * "mitosis" run dry on page two, while the works actually *about* the topic —
+ * chlorophyll, the Calvin cycle, the cell cycle — sat in the catalog and could
+ * not be reached at all. When the whole query is one real word, a work that
+ * mentions it is an answer.
+ *
+ * A lone abbreviation stays strict. "AP" appearing somewhere is not a topic,
+ * and relaxing that is how a Florida high school answered an AP Physics search.
+ */
+function requiredRelevanceScore(terms: string[]): number {
+  const substantive = terms.filter(
+    (term) => term.length >= SUBSTANTIVE_TERM_LENGTH,
+  );
+  return terms.length === 1 && substantive.length === 1
+    ? WEAK_FIELD_SCORE
+    : MIN_RELEVANCE_SCORE;
+}
+
 function catalogTermScore(term: string): SQL<number> {
   const pattern = wordStartPattern(term);
   return sql<number>`case
@@ -1022,7 +1078,8 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
   const conditions: SQL[] = [];
   const searchTerms = meaningfulSearchTerms(options.query);
   if (searchTerms.length) {
-    const required = options.minRelevanceScore ?? MIN_RELEVANCE_SCORE;
+    const required =
+      options.minRelevanceScore ?? requiredRelevanceScore(searchTerms);
     conditions.push(sql`${catalogRelevanceScore(searchTerms)} >= ${required}`);
     // …and at least one word of real length has to be among the ones matched,
     // or "AP Physics" is answered by anything whose title contains "AP" and
@@ -1052,6 +1109,21 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
     conditions.push(
       ilike(catalogResourcesTable.provider, `%${options.source}%`),
     );
+  // Matched against the provider *and* the link, so both "Wikipedia" and
+  // "wikipedia.org" drop the same results — a reader excluding a source should
+  // not have to guess which of the two the catalog stored.
+  if (options.excludeSource) {
+    const pattern = `%${options.excludeSource}%`;
+    conditions.push(
+      not(
+        or(
+          ilike(catalogResourcesTable.provider, pattern),
+          ilike(catalogResourcesTable.canonicalUrl, pattern),
+          ilike(catalogResourcesTable.providerUrl, pattern),
+        )!,
+      ),
+    );
+  }
   if (options.exactPhrase)
     conditions.push(
       or(
@@ -1121,6 +1193,55 @@ function catalogFetchWindow(options: CatalogSearchOptions) {
 }
 
 /**
+ * Where a row sits in the ranking, as sortable text.
+ *
+ * Positional paging cannot survive a catalog that grows while a reader reads it.
+ * The order is by relevance, so a work stored during the reader's third page can
+ * belong on their first, and every row below it shifts down — straight back into
+ * a window an earlier page already showed. Measured on a cold catalog, a third
+ * of every "search more" page was results the reader already had; on a catalog
+ * that had stopped growing, none of it was.
+ *
+ * A cursor fixes that by naming a place in the ranking rather than counting rows
+ * to skip. Rows inserted after the reader passed that place are simply behind
+ * them, and rows inserted ahead of it come back on the next page. The fields are
+ * fixed-width and in sort order — score descending, then relevance, then id — so
+ * plain text comparison is the ranking comparison, and a client that reordered
+ * or filtered its results can still find the furthest one it holds by taking the
+ * largest string.
+ */
+const CURSOR_SCORE_CEILING = 9999;
+const CURSOR_PATTERN = /^(\d{4})\.(\d)\.(\d{12})$/;
+
+export function catalogCursor(
+  score: number,
+  relevance: number,
+  id: number,
+): string {
+  const inverted = Math.max(
+    0,
+    Math.min(CURSOR_SCORE_CEILING, CURSOR_SCORE_CEILING - Math.trunc(score)),
+  );
+  return [
+    String(inverted).padStart(4, "0"),
+    String(Math.max(0, Math.min(9, Math.trunc(relevance)))),
+    String(Math.max(0, Math.trunc(id))).padStart(12, "0"),
+  ].join(".");
+}
+
+export function parseCatalogCursor(
+  value: string | undefined,
+): { score: number; relevance: number; id: number } | null {
+  const match = CURSOR_PATTERN.exec(value?.trim() ?? "");
+  if (!match) return null;
+  return {
+    score: CURSOR_SCORE_CEILING - Number(match[1]),
+    relevance: Number(match[2]),
+    id: Number(match[3]),
+  };
+}
+
+/**
  * The row page N should start at.
  *
  * A plain `(page - 1) * window` overshoots as soon as the stored catalog runs
@@ -1175,7 +1296,9 @@ export async function resolveCatalogSearch(
   if (options.resultType === "people")
     return { minRelevanceScore: 1, offset: 0, total: 0 };
 
-  let minRelevanceScore = MIN_RELEVANCE_SCORE;
+  let minRelevanceScore = requiredRelevanceScore(
+    meaningfulSearchTerms(options.query),
+  );
   let total = await countCatalogMatches({ ...options, minRelevanceScore });
   if (total === 0 && minRelevanceScore > 1) {
     // Nothing is *about* the query. Rather than an empty page, accept works
@@ -1204,7 +1327,6 @@ export async function searchCatalog(
   const page = Math.max(1, options.page ?? 1);
   const limit = catalogPageSize(options);
   const window = catalogFetchWindow(options);
-  const offset = Math.max(0, options.offset ?? (page - 1) * window);
   const query = options.query.trim();
   const relevance = query
     ? sql<number>`case when lower(${catalogResourcesTable.title}) = lower(${query}) then 0 when ${catalogResourcesTable.title} ilike ${`%${query}%`} then 1 when ${catalogResourcesTable.subject} ilike ${`%${query}%`} then 2 else 3 end`
@@ -1213,10 +1335,49 @@ export async function searchCatalog(
   // the topic must not outrank one whose title is the topic.
   const searchTerms = meaningfulSearchTerms(options.query);
   const score = catalogRelevanceScore(searchTerms);
+
+  // A cursor names a place in the ranking, so it replaces the offset rather
+  // than adding to it: everything strictly after that place, in the same order.
+  //
+  // Or newer than everything the reader holds. That second half is what makes
+  // the cursor an improvement rather than a trade: this endpoint stores works as
+  // it finds them, and a work stored during the reader's second page can belong
+  // on their first. Ranking alone would put it behind them forever, and paging
+  // "shakespeare" lost a third of its results that way — each page thinner than
+  // the last while newly stored plays and sonnets piled up out of reach.
+  const resume = parseCatalogCursor(options.after);
+  const sinceId = Number.isFinite(options.sinceId)
+    ? Math.max(0, Math.trunc(options.sinceId!))
+    : null;
+  const offset = resume ? 0 : Math.max(0, options.offset ?? (page - 1) * window);
+  const afterCursor = resume
+    ? sql`(${score} < ${resume.score}
+        or (${score} = ${resume.score}
+          and (${relevance} > ${resume.relevance}
+            or (${relevance} = ${resume.relevance}
+              and ${catalogResourcesTable.id} > ${resume.id}))))`
+    : null;
+  const storedSince =
+    resume && sinceId !== null
+      ? sql`${catalogResourcesTable.id} > ${sinceId}`
+      : null;
+  const unread =
+    afterCursor && storedSince
+      ? sql`(${afterCursor} or ${storedSince})`
+      : afterCursor;
+  const where = unread ? [...conditions, unread] : conditions;
+
   const rows = await db
-    .select()
+    // The score and the relevance band are selected alongside the row because
+    // they are what the cursor is made of: recomputing them anywhere else would
+    // be a second copy of the ranking, free to disagree with this one.
+    .select({
+      ...getTableColumns(catalogResourcesTable),
+      score,
+      relevance,
+    })
     .from(catalogResourcesTable)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(where.length ? and(...where) : undefined)
     // Ascending id is the tie-break, not last_synced_at. Rows are upserted in
     // batches that share a sync timestamp, so ordering by it left ties for
     // Postgres to break however it liked and page 2 could hand back rows page
@@ -1257,6 +1418,8 @@ export async function searchCatalog(
     subject: row.subject,
     gradeLevel: row.gradeLevel,
     sourceCredibility: readSourceCredibility(row.metadata),
+    cursor: catalogCursor(Number(row.score), Number(row.relevance), row.id),
+    catalogId: row.id,
   }));
 }
 

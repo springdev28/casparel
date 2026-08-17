@@ -77,7 +77,12 @@ vi.mock("@workspace/db", async () => {
 });
 
 import { catalogResourcesTable } from "@workspace/db";
-import { resolveCatalogSearch, searchCatalog } from "./catalog";
+import {
+  catalogCursor,
+  parseCatalogCursor,
+  resolveCatalogSearch,
+  searchCatalog,
+} from "./catalog";
 
 /** The offset half of the resolution, which is what these cover. */
 const resolveCatalogSearchOffset = async (
@@ -185,5 +190,67 @@ describe("searchCatalog", () => {
   it("reads the wide window for source results", async () => {
     await searchCatalog({ query: "algebra", limit: 12, resultType: "source" });
     expect(selects[0].limit).toBe(48);
+  });
+
+  it("reads from the start when the caller gives a cursor instead of a page", async () => {
+    // A cursor names a place in the ranking, so it goes in the WHERE clause.
+    // Keeping the page's offset as well would skip a page's worth of results
+    // past the place the reader actually stopped.
+    await searchCatalog({
+      query: "algebra",
+      page: 4,
+      after: catalogCursor(2, 1, 91),
+    });
+    expect(selects[0].offset).toBe(0);
+  });
+
+  it("ignores a cursor it did not write", async () => {
+    await searchCatalog({ query: "algebra", page: 3, after: "../../etc/passwd" });
+    expect(selects[0].offset).toBe(32);
+  });
+});
+
+describe("catalogCursor", () => {
+  it("survives a round trip", () => {
+    expect(parseCatalogCursor(catalogCursor(6, 2, 12345))).toEqual({
+      score: 6,
+      relevance: 2,
+      id: 12345,
+    });
+  });
+
+  it("sorts as text in the order the results are ranked", () => {
+    // The client holds a page it has reordered and filtered, and finds how far
+    // it has read by taking the largest cursor. That only works if plain text
+    // comparison is the ranking comparison: score descending, then relevance
+    // ascending, then row id ascending.
+    const ranked = [
+      catalogCursor(6, 0, 4), // best score
+      catalogCursor(6, 1, 2),
+      catalogCursor(6, 1, 3),
+      catalogCursor(2, 0, 1),
+      catalogCursor(1, 3, 900), // weakest
+    ];
+    expect([...ranked].sort()).toEqual(ranked);
+    expect(ranked.reduce((a, b) => (a > b ? a : b))).toBe(ranked.at(-1));
+  });
+
+  it("refuses anything it did not write", () => {
+    for (const value of [
+      undefined,
+      "",
+      "0",
+      "9997.1.1",
+      "abcd.1.000000000001",
+      "9997.1.000000000001; drop table",
+    ])
+      expect(parseCatalogCursor(value)).toBeNull();
+  });
+
+  it("clamps rather than producing a cursor that sorts wrongly", () => {
+    // A score above the ceiling or a negative id would otherwise widen the
+    // field and break text ordering for every other cursor.
+    expect(catalogCursor(1e9, 99, -5)).toBe("0000.9.000000000000");
+    expect(catalogCursor(-1, 0, 1)).toBe("9999.0.000000000001");
   });
 });

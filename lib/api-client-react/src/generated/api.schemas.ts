@@ -1070,6 +1070,10 @@ export interface DiscoveredResource {
   subject?: string | null;
   /** @nullable */
   gradeLevel?: string | null;
+  /** Where this result sits in the ranking for the query that returned it. Sortable as plain text, so a client asking for more results sends back the largest cursor it holds as the `after` parameter. Absent on results that did not come from the stored catalog. */
+  cursor?: string;
+  /** The stored catalog row this result came from. A client asking for more results sends back the largest one it holds as `sinceId`, so works stored while it was reading are offered even though they rank above the point it has read to. Absent on results that did not come from the stored catalog. */
+  catalogId?: number;
   provenanceLevel?: DiscoveredResourceProvenanceLevel;
   provenanceSignals?: string[];
   linkChecked?: boolean;
@@ -1721,6 +1725,44 @@ sortBy?: ListResourcesSortBy;
  */
 minRating?: number;
 /**
+ * Title, description or subject must contain this phrase, truncated to 160 characters
+ */
+exactPhrase?: string;
+/**
+ * Space-separated words to exclude, truncated to 160 characters; the first eight are applied
+ */
+exclude?: string;
+/**
+ * Restrict to resources whose link contains this text, truncated to 160 characters
+ */
+source?: string;
+/**
+ * Drop resources whose link contains this text, truncated to 160 characters
+ */
+excludeSource?: string;
+/**
+ * Only resources added within this window
+ */
+dateAdded?: ListResourcesDateAdded;
+/**
+ * Minimum number of reviews
+ * @minimum 0
+ * @maximum 10000
+ */
+minReviews?: number;
+/**
+ * Require, or require the absence of, a thumbnail. Sent as the string true or false
+ */
+hasThumbnail?: boolean;
+/**
+ * Secondary ordering applied within the library listing
+ */
+librarySort?: string;
+/**
+ * Narrow to the caller's own submissions awaiting review or rejected. Asking for anyone else's returns nothing rather than leaking them
+ */
+verification?: ListResourcesVerification;
+/**
  * Maximum number of results to return
  * @minimum 1
  * @maximum 50
@@ -1752,6 +1794,23 @@ export const ListResourcesSortBy = {
   newest: 'newest',
   top_rated: 'top_rated',
   most_reviewed: 'most_reviewed',
+} as const;
+
+export type ListResourcesDateAdded = typeof ListResourcesDateAdded[keyof typeof ListResourcesDateAdded];
+
+
+export const ListResourcesDateAdded = {
+  week: 'week',
+  month: 'month',
+  year: 'year',
+} as const;
+
+export type ListResourcesVerification = typeof ListResourcesVerification[keyof typeof ListResourcesVerification];
+
+
+export const ListResourcesVerification = {
+  pending: 'pending',
+  rejected: 'rejected',
 } as const;
 
 export type DiscoverResourcesParams = {
@@ -1788,6 +1847,20 @@ exclude?: string;
  * Restrict to providers whose name contains this text, truncated to 160 characters
  */
 source?: string;
+/**
+ * Drop results whose provider, link or provider site contains this text, truncated to 160 characters. Matched against all three so "Wikipedia" and "wikipedia.org" exclude the same results
+ */
+excludeSource?: string;
+/**
+ * Resume after this point in the ranking, as the largest `cursor` the client already holds. Preferred over `page` for reading further into the stored catalog: the catalog grows while a reader pages, and a positional offset then hands back results an earlier page already showed. Ignored when it does not parse
+ * @maxLength 40
+ */
+after?: string;
+/**
+ * The largest `catalogId` the client already holds. Sent with `after`: works stored while the client was reading can rank above the point it has read to, and would otherwise never be offered. Rows newer than this are returned whatever their rank
+ * @minimum 0
+ */
+sinceId?: number;
 /**
  * How recent a result must be. The stored catalog filters on year and three_years; the shorter windows only steer AI discovery
  */

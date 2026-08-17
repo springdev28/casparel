@@ -121,6 +121,30 @@ describe("no route is declared twice", () => {
   });
 });
 
+describe("paging results is not rationed as if it were an AI search", () => {
+  it("serves a long run of pages without refusing one", async () => {
+    // No provider calls and no AI: the stored catalog answers, which is the
+    // path a reader pressing "Search more resources" is on.
+    process.env.CATALOG_REMOTE_SEARCH_ENABLED = "false";
+    delete process.env.AI_RESOURCE_SEARCH_ENABLED;
+
+    const statuses: number[] = [];
+    // Well past the old budget of five. That budget was written when every
+    // request called OpenAI; once the catalog answered first it became a cap on
+    // reading, and the fifth press of "Search more resources" was refused with
+    // a message about AI searches the request had never made.
+    for (let page = 1; page <= 12; page += 1) {
+      const res = await request(app)
+        .get("/api/resources/discover")
+        .query({ q: "photosynthesis", page });
+      statuses.push(res.status);
+    }
+
+    expect(statuses).not.toContain(429);
+    expect(statuses.at(-1)).toBe(200);
+  }, 30_000);
+});
+
 describe("credential rate limiting is not shadowed by route order", () => {
   it("throttles POST /api/auth/login once the budget is spent", async () => {
     let last = 0;

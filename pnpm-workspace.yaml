@@ -46,6 +46,7 @@ packages:
   - lib/api-client-react
   - lib/api-zod
   - lib/db
+  - lib/resource-identity
   - lib/integrations-openai-ai-server
   - scripts
 

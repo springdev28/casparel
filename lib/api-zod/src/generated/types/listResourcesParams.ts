@@ -5,8 +5,10 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { ListResourcesDateAdded } from './listResourcesDateAdded';
 import type { ListResourcesFormat } from './listResourcesFormat';
 import type { ListResourcesSortBy } from './listResourcesSortBy';
+import type { ListResourcesVerification } from './listResourcesVerification';
 
 export type ListResourcesParams = {
 /**
@@ -26,6 +28,44 @@ sortBy?: ListResourcesSortBy;
  * @maximum 5
  */
 minRating?: number;
+/**
+ * Title, description or subject must contain this phrase, truncated to 160 characters
+ */
+exactPhrase?: string;
+/**
+ * Space-separated words to exclude, truncated to 160 characters; the first eight are applied
+ */
+exclude?: string;
+/**
+ * Restrict to resources whose link contains this text, truncated to 160 characters
+ */
+source?: string;
+/**
+ * Drop resources whose link contains this text, truncated to 160 characters
+ */
+excludeSource?: string;
+/**
+ * Only resources added within this window
+ */
+dateAdded?: ListResourcesDateAdded;
+/**
+ * Minimum number of reviews
+ * @minimum 0
+ * @maximum 10000
+ */
+minReviews?: number;
+/**
+ * Require, or require the absence of, a thumbnail. Sent as the string true or false
+ */
+hasThumbnail?: boolean;
+/**
+ * Secondary ordering applied within the library listing
+ */
+librarySort?: string;
+/**
+ * Narrow to the caller's own submissions awaiting review or rejected. Asking for anyone else's returns nothing rather than leaking them
+ */
+verification?: ListResourcesVerification;
 /**
  * Maximum number of results to return
  * @minimum 1

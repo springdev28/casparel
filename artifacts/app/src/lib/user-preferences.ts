@@ -10,6 +10,8 @@ export type InterfaceColorsPreference = {
 export type SearchHistoryPreference = {
   query: string;
   searchedAt: string;
+  /** Filters the search ran with, so a recent search can be replayed whole. */
+  filters?: Record<string, string | number | boolean>;
 };
 
 export type UserPreferences = {

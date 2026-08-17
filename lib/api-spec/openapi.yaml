@@ -1109,6 +1109,57 @@ paths:
             minimum: 1
             maximum: 5
           description: Only return resources with avgRating >= this value
+        - name: exactPhrase
+          in: query
+          schema:
+            type: string
+          description: Title, description or subject must contain this phrase, truncated to 160 characters
+        - name: exclude
+          in: query
+          schema:
+            type: string
+          description: Space-separated words to exclude, truncated to 160 characters; the first eight are applied
+        - name: source
+          in: query
+          schema:
+            type: string
+          description: Restrict to resources whose link contains this text, truncated to 160 characters
+        - name: excludeSource
+          in: query
+          schema:
+            type: string
+          description: Drop resources whose link contains this text, truncated to 160 characters
+        - name: dateAdded
+          in: query
+          schema:
+            type: string
+            enum: [week, month, year]
+          description: Only resources added within this window
+        - name: minReviews
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+          description: Minimum number of reviews
+        - name: hasThumbnail
+          in: query
+          schema:
+            type: boolean
+          description: Require, or require the absence of, a thumbnail. Sent as the string true or false
+        - name: librarySort
+          in: query
+          schema:
+            type: string
+          description: Secondary ordering applied within the library listing
+        - name: verification
+          in: query
+          schema:
+            type: string
+            enum: [pending, rejected]
+          description: >-
+            Narrow to the caller's own submissions awaiting review or rejected.
+            Asking for anyone else's returns nothing rather than leaking them
         - name: limit
           in: query
           schema:
@@ -1239,6 +1290,35 @@ paths:
           schema:
             type: string
           description: Restrict to providers whose name contains this text, truncated to 160 characters
+        - name: excludeSource
+          in: query
+          schema:
+            type: string
+          description: >-
+            Drop results whose provider, link or provider site contains this
+            text, truncated to 160 characters. Matched against all three so
+            "Wikipedia" and "wikipedia.org" exclude the same results
+        - name: after
+          in: query
+          schema:
+            type: string
+            maxLength: 40
+          description: >-
+            Resume after this point in the ranking, as the largest `cursor` the
+            client already holds. Preferred over `page` for reading further into
+            the stored catalog: the catalog grows while a reader pages, and a
+            positional offset then hands back results an earlier page already
+            showed. Ignored when it does not parse
+        - name: sinceId
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+          description: >-
+            The largest `catalogId` the client already holds. Sent with `after`:
+            works stored while the client was reading can rank above the point it
+            has read to, and would otherwise never be offered. Rows newer than
+            this are returned whatever their rank
         - name: freshness
           in: query
           schema:
@@ -3078,6 +3158,21 @@ components:
         subject: { type: ["string", "null"] }
         gradeLevel: { type: ["string", "null"] }
 
+        cursor:
+          type: string
+          description: >-
+            Where this result sits in the ranking for the query that returned it.
+            Sortable as plain text, so a client asking for more results sends
+            back the largest cursor it holds as the `after` parameter. Absent on
+            results that did not come from the stored catalog.
+        catalogId:
+          type: integer
+          description: >-
+            The stored catalog row this result came from. A client asking for more
+            results sends back the largest one it holds as `sinceId`, so works
+            stored while it was reading are offered even though they rank above
+            the point it has read to. Absent on results that did not come from the
+            stored catalog.
         provenanceLevel:
           {
             type: string,

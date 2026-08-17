@@ -59,16 +59,25 @@ export const authLimiter = rateLimit({
 });
 
 /**
- * Discover limiter, 5 requests per minute per IP.
- * Applied to GET /resources/discover which calls OpenAI with web_search_preview
- * on every request, making it expensive to abuse.
+ * Discover limiter, 30 requests per minute per IP.
+ *
+ * This used to be five, set when GET /resources/discover called OpenAI with
+ * web_search_preview on every request. It no longer does: the stored catalog
+ * answers first and AI is a fallback reached only when the catalog has nothing.
+ * Five stopped being a guard on an expensive call and became a cap on reading —
+ * a reader who searches once and then presses "Search more resources" four
+ * times was refused on the fifth press, and told "you can run up to 5 AI web
+ * searches per minute" about a search that never went near an AI. Paging
+ * through results is what the page is for, so the cap has to be a browsing
+ * cap; the AI's own per-minute allowance now lives with the AI call, where it
+ * only counts requests that actually make one.
  */
 export const discoverLimiter = rateLimit({
   skip: isAdminRequest,
   requestPropertyName: "discoverRateLimit",
   validate: { singleCount: false },
   windowMs: 60 * 1000,
-  max: 5,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   store: buildRateLimitStore("discover"),
@@ -79,7 +88,7 @@ export const discoverLimiter = rateLimit({
       : Math.ceil(options.windowMs / 1000);
     res.setHeader("Retry-After", retryAfter);
     res.status(429).json({
-      error: "Search limit reached. You can run up to 5 AI web searches per minute.",
+      error: "You're searching very quickly. Please wait a moment and try again.",
       retryAfter,
     });
   },

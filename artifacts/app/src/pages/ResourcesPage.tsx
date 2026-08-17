@@ -84,6 +84,8 @@ import {
   getListLearningGoalsQueryKey,
   ListResourcesFormat,
   ListResourcesSortBy,
+  type ListResourcesDateAdded,
+  type ListResourcesVerification,
   ResourceInputFormat,
   DiscoverResourcesFormat,
   DiscoverResourcesLanguage,
@@ -110,130 +112,27 @@ import {
   addSearchHistory,
   deleteSearchHistory,
   getSearchHistory,
+  type SearchHistoryFilters,
   type SearchHistoryItem,
 } from "../lib/searchHistory";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
 } from "../lib/user-preferences";
+// One definition of "the same work", shared with the API. Keeping a copy here
+// is what let the two drift: a fix to the API's similarity left this side still
+// scoring a contained title as a perfect match, and a page of sixteen results
+// rendered three cards.
+import {
+  canonicalResourceUrl,
+  dedupeByWork,
+  isSameWork,
+} from "@workspace/resource-identity";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
 const RESOURCE_SEARCH_STATE_KEY = "schoolar_resource_search_state";
-const MULTIPART_SOURCE_SUFFIXES = new Set([
-  "ac.uk",
-  "co.uk",
-  "gov.uk",
-  "com.tr",
-  "edu.tr",
-  "gov.tr",
-  "org.tr",
-]);
-
-function canonicalSearchUrl(value: string) {
-  try {
-    const url = new URL(value);
-    url.hash = "";
-    for (const key of [...url.searchParams.keys()]) {
-      if (key.startsWith("utm_") || ["si", "fbclid", "gclid"].includes(key))
-        url.searchParams.delete(key);
-    }
-    return url.toString().replace(/\/$/, "").toLocaleLowerCase();
-  } catch {
-    return value.trim().replace(/\/$/, "").toLocaleLowerCase();
-  }
-}
-
-function titleWords(value: string) {
-  const ignored = new Set([
-    "the",
-    "a",
-    "an",
-    "and",
-    "or",
-    "of",
-    "to",
-    "for",
-    "in",
-    "with",
-    "lesson",
-    "video",
-    "pdf",
-    "ebook",
-  ]);
-  return (
-    value
-      .toLocaleLowerCase()
-      .replace(/[^a-z0-9\s]/g, " ")
-      .split(/\s+/)
-      // Single letters are kept, not just single digits. In course titles they
-      // carry the whole distinction: dropping them made "AP Physics C" and
-      // "AP Physics B" the same two words, and one of two real courses
-      // disappeared from the results.
-      .filter((word) => word.length > 0 && !ignored.has(word))
-  );
-}
-
-function sourceFamily(value: string) {
-  try {
-    const host = new URL(value).hostname.replace(/^www\./, "").toLowerCase();
-    const parts = host.split(".");
-    const suffix = parts.slice(-2).join(".");
-    const size = MULTIPART_SOURCE_SUFFIXES.has(suffix) ? 3 : 2;
-    return parts.length > size ? parts.slice(-size).join(".") : host;
-  } catch {
-    return "";
-  }
-}
-
-function isResourceCollection(title: string) {
-  return /\b(course|curriculum|playlist|series|syllabus|learning path)\b/i.test(
-    title,
-  );
-}
-
-function isSameResourceWork(
-  first: { title: string; url: string },
-  second: { title: string; url: string },
-) {
-  if (canonicalSearchUrl(first.url) === canonicalSearchUrl(second.url))
-    return true;
-  const firstDomain = sourceFamily(first.url);
-  if (!firstDomain || firstDomain !== sourceFamily(second.url)) return false;
-  const firstWords = titleWords(first.title);
-  const secondWords = titleWords(second.title);
-  if (!firstWords.length || !secondWords.length) return false;
-  const overlap = firstWords.filter((word) =>
-    secondWords.includes(word),
-  ).length;
-  // Measured against the longer title, matching how the API deduplicates.
-  // Against the shorter one, containment scored as a perfect match: every
-  // "AP Physics <something>" collapsed into "AP Physics", and a first page of
-  // sixteen results rendered fourteen cards. The old escape hatch for
-  // collection titles went the same way — two shared words was enough to merge
-  // "Khan Academy Algebra Course" into "Khan Academy Geometry Course".
-  return overlap / Math.max(1, firstWords.length, secondWords.length) >= 0.8;
-}
-
-function dedupeResourcesByWork<T extends { title: string; url: string }>(
-  items: T[],
-) {
-  const kept: T[] = [];
-  for (const item of items) {
-    const duplicateIndex = kept.findIndex((candidate) =>
-      isSameResourceWork(candidate, item),
-    );
-    if (duplicateIndex < 0) kept.push(item);
-    else if (
-      isResourceCollection(item.title) &&
-      !isResourceCollection(kept[duplicateIndex].title)
-    )
-      kept[duplicateIndex] = item;
-  }
-  return kept;
-}
-
 function dedupeDiscoveredResources(items: DiscoveredResource[]) {
-  return dedupeResourcesByWork(items);
+  return dedupeByWork(items);
 }
 
 function storedResourceSearch() {
@@ -258,8 +157,12 @@ function storedResourceSearch() {
   }
 }
 
-type SubmittedResourceSearch = {
-  query: string;
+/**
+ * The filter half of a search, separate from the words so a recent search can
+ * be replayed exactly. A chip that restores only the text silently runs a
+ * different search from the one it is showing.
+ */
+type SubmittedResourceFilters = {
   format: string;
   subject: string;
   gradeLevel: string;
@@ -270,6 +173,7 @@ type SubmittedResourceSearch = {
   exactPhrase: string;
   excludedWords: string;
   sourceDomain: string;
+  excludeSource: string;
   dateAdded: string;
   minReviews: string;
   thumbnail: string;
@@ -283,6 +187,8 @@ type SubmittedResourceSearch = {
   captions: boolean;
   transcript: boolean;
 };
+
+type SubmittedResourceSearch = SubmittedResourceFilters & { query: string };
 
 function continueStudyingStorageKey(userId: number, goalId: number) {
   return `schoolar_continue_studying:${userId}:${goalId}`;
@@ -1142,6 +1048,39 @@ export default function ResourcesPage() {
   );
   const mergedWebResponseRef = useRef<DiscoveredResource[] | null>(null);
   const [webExhausted, setWebExhausted] = useState(false);
+  /**
+   * How far these results have read into the open catalog: the furthest point in
+   * the ranking, and the newest stored work.
+   *
+   * Set when the reader asks for more, never while a response is being folded
+   * in: it is part of the request, so changing it re-runs the request, and a
+   * cursor that moved on its own would refetch the page currently on screen and
+   * then replace the results with whatever came back.
+   */
+  const [webCursor, setWebCursor] = useState<{ after: string; sinceId: number }>(
+    { after: "", sinceId: 0 },
+  );
+
+  /**
+   * How far a set of results reaches.
+   *
+   * The largest of each, not the last: the server spreads sources across the
+   * page and the page then dedupes and hides results, so the item at the end of
+   * the list is neither the furthest into the ranking nor the most recently
+   * stored. Cursors are built to sort as text for exactly this reason.
+   */
+  function readTo(results: DiscoveredResource[]) {
+    return results.reduce(
+      (furthest, result) => ({
+        after:
+          result.cursor && result.cursor > furthest.after
+            ? result.cursor
+            : furthest.after,
+        sinceId: Math.max(furthest.sinceId, result.catalogId ?? 0),
+      }),
+      { after: "", sinceId: 0 },
+    );
+  }
 
   function replaceWebResults(next: DiscoveredResource[]) {
     accumulatedWebResultsRef.current = next;
@@ -1159,10 +1098,23 @@ export default function ResourcesPage() {
    */
   function resetWebSearch() {
     setWebPage(1);
+    setWebCursor({ after: "", sinceId: 0 });
     replaceWebResults([]);
     mergedWebResponseRef.current = null;
     setWebExhausted(false);
     setHiddenSourceUrls([]);
+  }
+
+  /**
+   * Ask for the next page, telling the server where this one got to.
+   *
+   * Both parts move together. The page number chooses which window of each open
+   * provider is read; the cursor is where the stored catalog resumes, and it has
+   * to be taken from the results now on screen rather than recomputed later.
+   */
+  function loadMoreWebResults() {
+    setWebCursor(readTo(accumulatedWebResultsRef.current));
+    setWebPage((page) => page + 1);
   }
   const [hiddenSourceUrls, setHiddenSourceUrls] = useState<string[]>([]);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
@@ -1174,6 +1126,7 @@ export default function ResourcesPage() {
   const [exactPhraseFilter, setExactPhraseFilter] = useState("");
   const [excludedWordsFilter, setExcludedWordsFilter] = useState("");
   const [sourceDomainFilter, setSourceDomainFilter] = useState("");
+  const [excludeSourceFilter, setExcludeSourceFilter] = useState("");
   const [dateAddedFilter, setDateAddedFilter] = useState("");
   const [minReviewsFilter, setMinReviewsFilter] = useState("");
   const [thumbnailFilter, setThumbnailFilter] = useState("");
@@ -1313,8 +1266,11 @@ export default function ResourcesPage() {
     ...(submittedSearch?.sourceDomain
       ? { source: submittedSearch.sourceDomain }
       : {}),
+    ...(submittedSearch?.excludeSource
+      ? { excludeSource: submittedSearch.excludeSource }
+      : {}),
     ...(submittedSearch?.dateAdded
-      ? { dateAdded: submittedSearch.dateAdded }
+      ? { dateAdded: submittedSearch.dateAdded as ListResourcesDateAdded }
       : {}),
     ...(submittedSearch?.minReviews
       ? { minReviews: Number(submittedSearch.minReviews) }
@@ -1360,7 +1316,11 @@ export default function ResourcesPage() {
   // capped at 50 rows, so an author with a large library would not find their
   // pending items client-side.
   const gatedParams = {
-    verification: verificationFilter,
+    // Only when set: the empty string is "no filter", not a value the API
+    // accepts.
+    ...(verificationFilter
+      ? { verification: verificationFilter as ListResourcesVerification }
+      : {}),
     limit: 50,
     offset: 0,
   };
@@ -1385,24 +1345,24 @@ export default function ResourcesPage() {
   // shared catalogue. Scope the grid to the current account so it only shows
   // (and offers Remove on) resources this user actually owns; browsing the
   // full catalogue is what the Search view is for.
-  const uniqueLibraryCatalog = dedupeResourcesByWork(
+  const uniqueLibraryCatalog = dedupeByWork(
     (libraryCatalog ?? []).filter(
       (resource) => resource.submittedById === me?.id,
     ),
   );
-  const uniqueLibraryResults = dedupeResourcesByWork(libraryResults ?? []);
-  const uniqueStarterResults = dedupeResourcesByWork(starterResults ?? []);
+  const uniqueLibraryResults = dedupeByWork(libraryResults ?? []);
+  const uniqueStarterResults = dedupeByWork(starterResults ?? []);
   const savedLibraryUrls = new Set(
     (libraryCatalog ?? [])
       .filter((resource) => resource.submittedById === me?.id)
-      .map((resource) => canonicalSearchUrl(resource.url)),
+      .map((resource) => canonicalResourceUrl(resource.url)),
   );
   const visibleWebResults = dedupeDiscoveredResources(allWebResults).filter(
     (resource) =>
       !hiddenSourceUrls.includes(resource.url) &&
-      !savedLibraryUrls.has(canonicalSearchUrl(resource.url)) &&
+      !savedLibraryUrls.has(canonicalResourceUrl(resource.url)) &&
       !uniqueLibraryResults.some((libraryResource) =>
-        isSameResourceWork(libraryResource, resource),
+        isSameWork(libraryResource, resource),
       ),
   );
   const hasWebResults = visibleWebResults.length > 0;
@@ -1502,6 +1462,15 @@ export default function ResourcesPage() {
       : {}),
     language: submittedSearch?.language ?? searchLanguage,
     page: webPage,
+    // Where the last page got to, so the next one resumes from there. Sent as
+    // well as the page, not instead of it: the page number still decides which
+    // window of each open provider is read, while the cursor decides where the
+    // stored catalog resumes. Without it a "search more" page was measured
+    // handing back a third of what the reader already had, because the catalog
+    // keeps growing underneath a positional offset.
+    ...(webCursor.after
+      ? { after: webCursor.after, sinceId: webCursor.sinceId }
+      : {}),
     resultType:
       submittedSearch?.resultType ?? DiscoverResourcesResultType.content,
     ...(submittedSearch?.exactPhrase
@@ -1512,6 +1481,9 @@ export default function ResourcesPage() {
       : {}),
     ...(submittedSearch?.sourceDomain
       ? { source: submittedSearch.sourceDomain }
+      : {}),
+    ...(submittedSearch?.excludeSource
+      ? { excludeSource: submittedSearch.excludeSource }
       : {}),
     ...(submittedSearch?.freshness
       ? { freshness: submittedSearch.freshness as DiscoverResourcesFreshness }
@@ -1740,6 +1712,7 @@ export default function ResourcesPage() {
     setExactPhraseFilter("");
     setExcludedWordsFilter("");
     setSourceDomainFilter("");
+    setExcludeSourceFilter("");
     setDateAddedFilter("");
     setMinReviewsFilter("");
     setThumbnailFilter("");
@@ -1758,6 +1731,7 @@ export default function ResourcesPage() {
     exactPhraseFilter,
     excludedWordsFilter,
     sourceDomainFilter,
+    excludeSourceFilter,
     dateAddedFilter,
     minReviewsFilter,
     thumbnailFilter,
@@ -1772,44 +1746,153 @@ export default function ResourcesPage() {
     transcriptRequired,
   ].filter(Boolean).length;
 
+  /** Everything except the words: what the filter controls currently say. */
+  function currentSearchFilters(): SubmittedResourceFilters {
+    return {
+      format: formatFilter,
+      subject: subjectFilter.trim(),
+      gradeLevel: gradeLevelFilter,
+      language: searchLanguage,
+      resultType: resultTypeFilter,
+      sortBy: sortByFilter,
+      minRating: minRatingFilter,
+      exactPhrase: exactPhraseFilter.trim(),
+      excludedWords: excludedWordsFilter.trim(),
+      sourceDomain: sourceDomainFilter.trim(),
+      excludeSource: excludeSourceFilter.trim(),
+      dateAdded: dateAddedFilter,
+      minReviews: minReviewsFilter,
+      thumbnail: thumbnailFilter,
+      librarySort: librarySortFilter,
+      freshness: freshnessFilter,
+      difficulty: difficultyFilter,
+      access: accessFilter,
+      license: licenseFilter,
+      contentLength: contentLengthFilter,
+      sourceQuality: sourceQualityFilter,
+      captions: captionsRequired,
+      transcript: transcriptRequired,
+    };
+  }
+
+  /** Put the filter controls back to a remembered set. */
+  function applySearchFilters(filters: SubmittedResourceFilters) {
+    setFormatFilter(filters.format);
+    setSubjectFilter(filters.subject);
+    setGradeLevelFilter(filters.gradeLevel);
+    setSearchLanguage(filters.language);
+    setResultTypeFilter(filters.resultType);
+    setSortByFilter(filters.sortBy);
+    setMinRatingFilter(filters.minRating);
+    setExactPhraseFilter(filters.exactPhrase);
+    setExcludedWordsFilter(filters.excludedWords);
+    setSourceDomainFilter(filters.sourceDomain);
+    setExcludeSourceFilter(filters.excludeSource);
+    setDateAddedFilter(filters.dateAdded);
+    setMinReviewsFilter(filters.minReviews);
+    setThumbnailFilter(filters.thumbnail);
+    setLibrarySortFilter(filters.librarySort);
+    setFreshnessFilter(filters.freshness);
+    setDifficultyFilter(filters.difficulty);
+    setAccessFilter(filters.access);
+    setLicenseFilter(filters.license);
+    setContentLengthFilter(filters.contentLength);
+    setSourceQualityFilter(filters.sourceQuality);
+    setCaptionsRequired(filters.captions);
+    setTranscriptRequired(filters.transcript);
+  }
+
+  /**
+   * Run a search for these words and these filters.
+   *
+   * Both the form and the recent-search chips come through here, and the
+   * filters are passed in rather than read from state. A chip has to set the
+   * controls *and* search with the same values, and React applies the setters
+   * after this function returns — reading state would search with whatever the
+   * previous search had.
+   */
+  function runSearch(query: string, filters: SubmittedResourceFilters) {
+    const q = query.trim();
+    if (!q) return;
+    setInputValue(q);
+    setSubmittedSearch({ query: q, ...filters });
+    setActiveQuery(q);
+    resetWebSearch();
+    setLibraryLimit(12); // reset pagination on new search
+    if (me?.id) {
+      // The filters travel with the query, so the chip can put the reader back
+      // in the search they actually ran rather than only its words.
+      const nextHistory = addSearchHistory(me.id, q, filters);
+      setSearchHistory(nextHistory);
+      updateAccountPreferences.mutate({ searchHistory: nextHistory });
+    }
+  }
+
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const q = inputValue.trim();
-    if (q) {
-      setSubmittedSearch({
-        query: q,
-        format: formatFilter,
-        subject: subjectFilter.trim(),
-        gradeLevel: gradeLevelFilter,
-        language: searchLanguage,
-        resultType: resultTypeFilter,
-        sortBy: sortByFilter,
-        minRating: minRatingFilter,
-        exactPhrase: exactPhraseFilter.trim(),
-        excludedWords: excludedWordsFilter.trim(),
-        sourceDomain: sourceDomainFilter.trim(),
-        dateAdded: dateAddedFilter,
-        minReviews: minReviewsFilter,
-        thumbnail: thumbnailFilter,
-        librarySort: librarySortFilter,
-        freshness: freshnessFilter,
-        difficulty: difficultyFilter,
-        access: accessFilter,
-        license: licenseFilter,
-        contentLength: contentLengthFilter,
-        sourceQuality: sourceQualityFilter,
-        captions: captionsRequired,
-        transcript: transcriptRequired,
-      });
-      setActiveQuery(q);
-      resetWebSearch();
-      setLibraryLimit(12); // reset pagination on new search
-      if (me?.id) {
-        const nextHistory = addSearchHistory(me.id, q);
-        setSearchHistory(nextHistory);
-        updateAccountPreferences.mutate({ searchHistory: nextHistory });
-      }
-    }
+    runSearch(inputValue, currentSearchFilters());
+  }
+
+  /**
+   * Rebuild a complete filter set from a stored history entry.
+   *
+   * Stored entries are untrusted: defaults were dropped to keep them small,
+   * older ones predate some filters, and the value came back through the API.
+   * Anything missing or unrecognised falls back to the default rather than
+   * being trusted into a filter control.
+   */
+  function filtersFromHistory(
+    stored: SearchHistoryFilters,
+  ): SubmittedResourceFilters {
+    const text = (name: string) =>
+      typeof stored[name] === "string" ? (stored[name] as string) : "";
+    const oneOf = <T extends string>(name: string, allowed: readonly T[]) => {
+      const value = text(name);
+      return (allowed as readonly string[]).includes(value)
+        ? (value as T)
+        : undefined;
+    };
+    return {
+      format: text("format"),
+      subject: text("subject"),
+      gradeLevel: text("gradeLevel"),
+      language:
+        oneOf(
+          "language",
+          SEARCH_LANGUAGE_OPTIONS.map((option) => option.code),
+        ) ?? searchLanguage,
+      resultType:
+        oneOf("resultType", Object.values(DiscoverResourcesResultType)) ??
+        DiscoverResourcesResultType.content,
+      sortBy: oneOf("sortBy", Object.values(ListResourcesSortBy)) ?? "",
+      minRating:
+        typeof stored.minRating === "number" ? stored.minRating : "",
+      exactPhrase: text("exactPhrase"),
+      excludedWords: text("excludedWords"),
+      sourceDomain: text("sourceDomain"),
+      excludeSource: text("excludeSource"),
+      dateAdded: text("dateAdded"),
+      minReviews: text("minReviews"),
+      thumbnail: text("thumbnail"),
+      librarySort: text("librarySort"),
+      freshness: text("freshness"),
+      difficulty: text("difficulty"),
+      access: text("access"),
+      license: text("license"),
+      contentLength: text("contentLength"),
+      sourceQuality: text("sourceQuality"),
+      captions: stored.captions === true,
+      transcript: stored.transcript === true,
+    };
+  }
+
+  /** Re-run a search from the recent list, filters and all. */
+  function runSearchFromHistory(item: SearchHistoryItem) {
+    const filters = item.filters
+      ? filtersFromHistory(item.filters)
+      : currentSearchFilters();
+    applySearchFilters(filters);
+    runSearch(item.query, filters);
   }
 
   function resetForm() {
@@ -2401,6 +2484,21 @@ export default function ResourcesPage() {
                       placeholder="e.g. mit.edu"
                     />
                   </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="exclude-source-filter" className="text-xs">
+                      Exclude a website, publisher, or creator
+                    </Label>
+                    <Input
+                      id="exclude-source-filter"
+                      className="h-9 text-sm"
+                      value={excludeSourceFilter}
+                      onChange={(event) =>
+                        setExcludeSourceFilter(event.target.value)
+                      }
+                      placeholder="e.g. wikipedia"
+                      data-testid="exclude-source-filter"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -2669,10 +2767,7 @@ export default function ResourcesPage() {
                 <button
                   type="button"
                   className="px-3 py-1.5 text-sm hover:text-primary-text"
-                  onClick={() => {
-                    setInputValue(item.query);
-                    inputRef.current?.focus();
-                  }}
+                  onClick={() => runSearchFromHistory(item)}
                 >
                   {item.query}
                 </button>
@@ -3245,7 +3340,7 @@ export default function ResourcesPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setWebPage((page) => page + 1)}
+                      onClick={loadMoreWebResults}
                     >
                       <Sparkles size={12} className="mr-1.5" /> Search more{" "}
                       {isSubmittedSourceMode ? "sources" : "resources"}

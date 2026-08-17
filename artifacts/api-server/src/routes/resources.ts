@@ -2,6 +2,7 @@ import { Router, type IRouter, type Response } from "express";
 import {
   eq,
   ne,
+  not,
   sql,
   ilike,
   and,
@@ -19,7 +20,10 @@ import {
   catalogResourcesTable,
 } from "@workspace/db";
 import { publicResourceColumns } from "../lib/resourceColumns";
-import { dedupeResults } from "../lib/resultDedupe";
+import {
+  balanceBySource,
+  dedupeByWork,
+} from "@workspace/resource-identity";
 import {
   resourceVisibilityCondition,
   visibilityForRequest,
@@ -306,6 +310,13 @@ router.get("/resources", async (req, res): Promise<void> => {
   if (gradeLevel) conditions.push(eq(resourcesTable.gradeLevel, gradeLevel));
   if (sourceFilter)
     conditions.push(ilike(resourcesTable.url, `%${sourceFilter}%`));
+  // A saved resource records only its link, and the host is what the reader
+  // sees on the card, so that is what an exclusion matches here.
+  const excludeSourceFilter = queryString(req.query.excludeSource);
+  if (excludeSourceFilter)
+    conditions.push(
+      not(ilike(resourcesTable.url, `%${excludeSourceFilter}%`)),
+    );
   if (exactPhrase) {
     const pattern = `%${exactPhrase}%`;
     conditions.push(
@@ -828,6 +839,15 @@ async function callDiscoverAI(
 }
 
 /**
+ * How many results one source takes before it yields to the others.
+ *
+ * Relevance alone gives the whole page to whichever provider is biggest —
+ * Wikipedia has an article on everything — and a full page from one source
+ * reads as "few results" however many there are.
+ */
+const SOURCE_SHARE_PER_PAGE = 3;
+
+/**
  * Extra provider windows read before calling a page empty.
  *
  * Only ever paid on a page that has nothing, which is exactly when the reader
@@ -835,6 +855,14 @@ async function callDiscoverAI(
  * further on.
  */
 const EXHAUSTION_PROOF_WINDOWS = 2;
+
+/**
+ * AI searches one account may start in a minute.
+ *
+ * The number the route limiter used to enforce against every request, kept as
+ * the guard on the call it was written for.
+ */
+const AI_SEARCHES_PER_MINUTE = 5;
 
 const DISCOVER_MIN_RESULTS = 3;
 const DISCOVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -1032,7 +1060,7 @@ function sendDiscoverResults<T extends { title: string; url: string }>(
   res: Response,
   items: T[],
 ) {
-  res.json(dedupeResults(items));
+  res.json(balanceBySource(dedupeByWork(items), SOURCE_SHARE_PER_PAGE));
 }
 
 router.get(
@@ -1067,6 +1095,12 @@ router.get(
     const exactPhrase = queryString(req.query.exactPhrase);
     const excludedWords = queryString(req.query.exclude);
     const sourceFilter = queryString(req.query.source);
+    const excludeSourceFilter = queryString(req.query.excludeSource);
+    // Where the reader has read to: the furthest point in the ranking, and the
+    // newest row they hold. Both are validated by the catalog, which ignores
+    // anything it did not write.
+    const after = queryString(req.query.after)?.slice(0, 40);
+    const sinceId = Number(queryString(req.query.sinceId));
     const freshness = queryString(req.query.freshness);
     const difficulty = queryString(req.query.difficulty);
     const accessType = queryString(req.query.accessType);
@@ -1112,6 +1146,9 @@ router.get(
       exactPhrase,
       excludedWords,
       source: sourceFilter,
+      excludeSource: excludeSourceFilter,
+      after,
+      ...(Number.isSafeInteger(sinceId) && sinceId >= 0 ? { sinceId } : {}),
       freshness,
       accessType,
       license,
@@ -1121,6 +1158,10 @@ router.get(
     // both are settled before the top-up: rows stored in between get the
     // highest ids and sort last, so re-deriving either from the grown catalog
     // would step straight over them.
+    //
+    // The offset is the fallback. When the reader sent a cursor the catalog
+    // resumes from the place it names, which is the only way to page a catalog
+    // that is still being filled without handing back rows the reader has.
     const resolved = await resolveCatalogSearch(catalogOptions);
     const pagedCatalogOptions = {
       ...catalogOptions,
@@ -1172,8 +1213,16 @@ router.get(
       // All of it goes out together. Each provider still answers one request
       // at a time, so several searches cost about as long as one — where doing
       // them in sequence multiplied the wait on the last page of every search.
+      //
+      // Three: the providers' *first* window may never have been read for this
+      // query. A page that arrived full was never topped up, so page two asked
+      // the providers for results twenty onwards and the twenty before them
+      // were never fetched. Asking for the first window here costs one request
+      // per provider and is what a reader means by "search more".
       if (catalogItems.length === 0)
         await topUp([
+          // Page one has just read its own window; any later page has not.
+          ...(page > 1 ? [{ query: q, page: 1 }] : []),
           ...Array.from({ length: EXHAUSTION_PROOF_WINDOWS }, (_, index) => ({
             query: q,
             page: page + index + 1,
@@ -1214,6 +1263,23 @@ router.get(
           ? Math.floor(parsed)
           : fallback;
       };
+      // The per-minute guard on the AI call, counted here rather than at the
+      // route. At the route it counted every stored-catalog search too, so
+      // paging through results ran out of "AI searches" without making one.
+      const burst = await consumeAiQuota(
+        "discover-ai-user-minute",
+        `user:${discoverUserId}`,
+        60 * 1000,
+        AI_SEARCHES_PER_MINUTE,
+      );
+      if (!burst.allowed) {
+        res.setHeader("Retry-After", burst.retryAfter);
+        res.status(429).json({
+          error: `Search limit reached. You can run up to ${AI_SEARCHES_PER_MINUTE} AI web searches per minute.`,
+          retryAfter: burst.retryAfter,
+        });
+        return;
+      }
       const entitlements = await getAccountEntitlements(discoverUserId);
       const userBudget = await consumeAiQuota(
         "discover-ai-user-day",
@@ -1265,6 +1331,7 @@ router.get(
       exactPhrase,
       excludedWords,
       sourceFilter,
+      excludeSourceFilter,
       freshness,
       difficulty,
       accessType,
@@ -1312,6 +1379,9 @@ router.get(
         : "",
       excludedWords
         ? `Exclude results about any of these terms: ${excludedWords}.`
+        : "",
+      excludeSourceFilter
+        ? `Never use results from this website, publisher, creator, or domain: ${excludeSourceFilter}.`
         : "",
       sourceFilter
         ? `Only use results from this website, publisher, creator, or domain: ${sourceFilter}.`

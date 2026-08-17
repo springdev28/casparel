@@ -50,6 +50,20 @@ exclude?: string;
  */
 source?: string;
 /**
+ * Drop results whose provider, link or provider site contains this text, truncated to 160 characters. Matched against all three so "Wikipedia" and "wikipedia.org" exclude the same results
+ */
+excludeSource?: string;
+/**
+ * Resume after this point in the ranking, as the largest `cursor` the client already holds. Preferred over `page` for reading further into the stored catalog: the catalog grows while a reader pages, and a positional offset then hands back results an earlier page already showed. Ignored when it does not parse
+ * @maxLength 40
+ */
+after?: string;
+/**
+ * The largest `catalogId` the client already holds. Sent with `after`: works stored while the client was reading can rank above the point it has read to, and would otherwise never be offered. Rows newer than this are returned whatever their rank
+ * @minimum 0
+ */
+sinceId?: number;
+/**
  * How recent a result must be. The stored catalog filters on year and three_years; the shorter windows only steer AI discovery
  */
 freshness?: DiscoverResourcesFreshness;

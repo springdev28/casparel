@@ -41,7 +41,13 @@ vi.mock("../lib/aiCostControls", () => ({
     .mockResolvedValue({ allowed: true, remaining: 10, retryAfter: 60 }),
 }));
 
-vi.mock("../lib/adminAccess", () => ({ isAdminRequest: () => true }));
+// Admin by default, so the quota checks stay out of the way of the tests that
+// are about the search itself. One test below turns it off, because the guard on
+// the AI call is only reachable for an ordinary reader.
+let requestIsAdmin = true;
+vi.mock("../lib/adminAccess", () => ({
+  isAdminRequest: () => requestIsAdmin,
+}));
 vi.mock("../lib/catalog", () => ({
   searchCatalog: vi.fn().mockResolvedValue([]),
   resolveCatalogSearch: vi
@@ -55,8 +61,19 @@ vi.mock("../lib/catalog", () => ({
 
 vi.mock("@workspace/db", () => {
   const stub = (name: string) => ({ _name: name });
+  // Any query chain resolves to an empty result set. A signed-in reader's
+  // request reads their own saved resources before searching, so `select` has to
+  // be chainable or the route fails with a 500 before reaching the search.
+  const chain: Record<string | symbol, unknown> = {};
+  const emptyQuery: unknown = new Proxy(chain, {
+    get(_target, property) {
+      if (property === "then")
+        return (resolve: (value: unknown[]) => unknown) => resolve([]);
+      return () => emptyQuery;
+    },
+  });
   const db = {
-    select: vi.fn(),
+    select: vi.fn(() => emptyQuery),
     update: vi.fn(),
     delete: vi.fn(),
     insert: vi.fn(),
@@ -98,6 +115,8 @@ import {
   searchOpenLibraryAndStore,
   searchOpenWikisAndStore,
 } from "../lib/catalog";
+import { consumeAiQuota } from "../lib/aiCostControls";
+import { issueToken } from "../lib/auth";
 import resourcesRouter, { isDirectPeopleProfileUrl } from "./resources.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -178,6 +197,7 @@ function makeItem(overrides: { url?: string; title?: string } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  requestIsAdmin = true;
   process.env.AI_RESOURCE_SEARCH_ENABLED = "true";
   process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED = "true";
 });
@@ -558,5 +578,130 @@ describe("GET /api/resources/discover, input validation", () => {
 
     expect(res.status).toBe(400);
     expect(searchCatalog).not.toHaveBeenCalled();
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Excluding a source
+// ══════════════════════════════════════════════════════════════════════════════
+
+describe("GET /api/resources/discover, excluding a source", () => {
+  it("passes the exclusion to the stored catalog", async () => {
+    // A full page, or the handler tops up from the providers and the
+    // assertion would be about the wrong call.
+    vi.mocked(searchCatalog).mockResolvedValue(
+      Array.from({ length: 8 }, (_, index) =>
+        makeItem({
+          url: `https://example.edu/algebra-${index}`,
+          title: `Open Algebra, unit ${index}`,
+        }),
+      ),
+    );
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra", excludeSource: "wikipedia" });
+
+    expect(res.status).toBe(200);
+    expect(searchCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ excludeSource: "wikipedia" }),
+    );
+  });
+
+  it("tells the AI what not to use as well as what to prefer", async () => {
+    vi.mocked(searchCatalog).mockResolvedValue([]);
+    vi.mocked(openai.responses.create).mockResolvedValueOnce(
+      fakeAIResponse([makeItem()]),
+    );
+    vi.mocked(filterReachableUrls).mockResolvedValueOnce([makeItem()]);
+
+    await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra", excludeSource: "wikipedia" });
+
+    const prompt = (
+      vi.mocked(openai.responses.create).mock.calls[0][0] as { input: string }
+    ).input;
+    expect(prompt).toContain("Never use results from");
+    expect(prompt).toContain("wikipedia");
+  });
+});
+
+describe("GET /api/resources/discover, one source per page", () => {
+  it("does not let a single site take every slot", async () => {
+    // Relevance alone gave the biggest provider the whole page, which reads as
+    // "few results" however many there are.
+    vi.mocked(searchCatalog).mockResolvedValue([
+      ...Array.from({ length: 7 }, (_, index) =>
+        makeItem({
+          url: `https://en.wikipedia.org/wiki/topic_${index}`,
+          title: `Wikipedia topic ${index}`,
+        }),
+      ),
+      makeItem({
+        url: "https://en.wikibooks.org/wiki/Algebra",
+        title: "Algebra",
+      }),
+    ]);
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra" });
+
+    const hosts = (res.body as { url: string }[]).map(
+      (item) => new URL(item.url).hostname,
+    );
+    expect(hosts).toHaveLength(8);
+    // The Wikibooks result is pulled up rather than left in last place.
+    expect(hosts.indexOf("en.wikibooks.org")).toBeLessThan(7);
+  });
+});
+
+describe("GET /api/resources/discover, the AI's own per-minute allowance", () => {
+  /**
+   * The guard that used to sit on the route, counting every request. It now
+   * counts only requests that reach the AI, so paging the stored catalog can no
+   * longer spend an allowance it never uses — but the AI still has one.
+   */
+  it("refuses a sixth AI search in a minute, and says which limit was hit", async () => {
+    requestIsAdmin = false;
+    // The catalog has nothing, so the request falls through to the AI.
+    vi.mocked(searchCatalog).mockResolvedValue([]);
+    vi.mocked(consumeAiQuota).mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      retryAfter: 42,
+    });
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .set("authorization", `Bearer ${issueToken(7, "student")}`)
+      .query({ q: "algebra" });
+
+    expect(res.status).toBe(429);
+    expect(res.body.error).toContain("AI web searches per minute");
+    expect(res.headers["retry-after"]).toBe("42");
+    expect(consumeAiQuota).toHaveBeenCalledWith(
+      "discover-ai-user-minute",
+      "user:7",
+      60 * 1000,
+      5,
+    );
+    // Nothing was spent on the AI itself.
+    expect(openai.responses.create).not.toHaveBeenCalled();
+  });
+
+  it("lets an ordinary reader page the catalog without touching that allowance", async () => {
+    requestIsAdmin = false;
+    vi.mocked(searchCatalog).mockResolvedValue([
+      makeItem({ url: "https://en.wikibooks.org/wiki/Algebra", title: "Algebra" }),
+    ]);
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra", page: 4 });
+
+    expect(res.status).toBe(200);
+    expect(consumeAiQuota).not.toHaveBeenCalled();
   });
 });

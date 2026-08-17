@@ -27,9 +27,18 @@ const ROOT = path.resolve(
 const PORT = Number(process.env.AUDIT_PORT ?? 4329);
 const QUERY = "AP Physics C: Electricity and Mechanics";
 
-/** A page of results shaped exactly as /resources/discover returns them. */
-function discoverPage(titles) {
-  return titles.map((title) => ({
+/**
+ * A page of results shaped exactly as /resources/discover returns them,
+ * cursors included.
+ *
+ * The cursors deliberately do not run in the order the results do, and the row
+ * ids deliberately do not peak on the last result. Asking for more has to send
+ * the *largest* of each, and a client that lazily sent the last result's values
+ * would page from the wrong place — which on a growing catalog means handing the
+ * reader results they already have.
+ */
+function discoverPage(titles, firstId = 1) {
+  return titles.map((title, index) => ({
     title,
     url: `https://en.wikipedia.org/wiki/${title.replace(/[^A-Za-z0-9]+/g, "_")}`,
     description: `${title} is an open educational resource covering physics, electricity and mechanics for students.`,
@@ -38,11 +47,29 @@ function discoverPage(titles) {
     thumbnailUrl: null,
     subject: "Physics",
     gradeLevel: "All levels",
+    cursor: `${String(9995 + (index % 4)).padStart(4, "0")}.${index % 3}.${String(
+      firstId + index,
+    ).padStart(12, "0")}`,
+    catalogId: firstId + ((index + 3) % titles.length),
     provenanceLevel: "established",
     provenanceSignals: ["Established publishing platform"],
     linkChecked: true,
     checkedAt: "2026-08-17T00:00:00.000Z",
   }));
+}
+
+/** The values a client that has read `results` must send to read further. */
+function readTo(results) {
+  return {
+    after: results.reduce(
+      (furthest, item) => (item.cursor > furthest ? item.cursor : furthest),
+      "",
+    ),
+    sinceId: results.reduce(
+      (highest, item) => Math.max(highest, item.catalogId),
+      0,
+    ),
+  };
 }
 
 const FIRST_PAGE = discoverPage([
@@ -63,16 +90,19 @@ const FIRST_PAGE = discoverPage([
   "Theoretical physics",
   "Molecular physics",
 ]);
-const SECOND_PAGE = discoverPage([
-  "IB Physics",
-  "A-level Physics",
-  "VCE Physics",
-  "High school physics",
-  "Experimental physics",
-  "Medical physics",
-  "Particle physics",
-  "Solid state physics",
-]);
+const SECOND_PAGE = discoverPage(
+  [
+    "IB Physics",
+    "A-level Physics",
+    "VCE Physics",
+    "High school physics",
+    "Experimental physics",
+    "Medical physics",
+    "Particle physics",
+    "Solid state physics",
+  ],
+  FIRST_PAGE.length + 1,
+);
 
 function contentType(file) {
   if (file.endsWith(".js")) return "text/javascript; charset=utf-8";
@@ -130,10 +160,22 @@ try {
   await installSession(context);
 
   // Fixture the search itself: page 1 and page 2 of the open catalog.
+  const discoverRequests = [];
   await context.route(
     (url) => url.pathname === "/api/resources/discover",
     async (route) => {
-      const page = new URL(route.request().url()).searchParams.get("page") ?? "1";
+      const requested = new URL(route.request().url());
+      discoverRequests.push(Object.fromEntries(requested.searchParams));
+      const page = requested.searchParams.get("page") ?? "1";
+      const asked = requested.searchParams.get("q") ?? "";
+      if (!asked.toLowerCase().includes("physics")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(discoverPage(["Photosynthesis", "Calvin cycle"])),
+        });
+        return;
+      }
       // A real later page goes out to the open providers, so the loading state
       // is on screen for seconds. Without the delay it is never observable and
       // the check that placed the placeholders would pass vacuously.
@@ -236,6 +278,78 @@ try {
   check(
     secondCount === FIRST_PAGE.length + SECOND_PAGE.length,
     `appending keeps both pages: ${secondCount} of ${FIRST_PAGE.length + SECOND_PAGE.length} cards`,
+  );
+
+  // The further page has to say where the reader got to. Paging by position
+  // alone is what made a third of every "search more" page results the reader
+  // already had: this endpoint stores works as it searches, so the positions
+  // move underneath it.
+  const expected = readTo(FIRST_PAGE);
+  const morePage = discoverRequests.find((request) => request.page === "2");
+  check(
+    morePage?.after === expected.after,
+    `asking for more resumes from where the page got to (after=${morePage?.after ?? "absent"})`,
+  );
+  check(
+    morePage?.sinceId === String(expected.sinceId),
+    `and from the newest work it holds (sinceId=${morePage?.sinceId ?? "absent"})`,
+  );
+  // ── A recent search has to replay the search, not just its words ───────────
+  const excludeField = page.locator('[data-testid="exclude-source-filter"]');
+  await page.locator('[data-testid="advanced-filters-toggle"]').click();
+  await excludeField.waitFor({ state: "visible", timeout: 10_000 });
+  await excludeField.fill("wikipedia");
+  await input.fill(QUERY);
+  await input.press("Enter");
+  await page.waitForFunction(
+    () => document.querySelectorAll('[data-testid="web-result-card"]').length > 0,
+    undefined,
+    { timeout: 15_000 },
+  );
+  check(
+    discoverRequests.at(-1)?.excludeSource === "wikipedia",
+    `an excluded source reaches the API (excludeSource=${discoverRequests.at(-1)?.excludeSource})`,
+  );
+
+  // Search something else, so the chip has to restore rather than coincide.
+  // The panel stays open; toggling it again would close it.
+  await excludeField.fill("");
+  await input.fill("photosynthesis");
+  await input.press("Enter");
+  await page.waitForTimeout(800);
+  check(
+    !discoverRequests.at(-1)?.excludeSource,
+    "clearing the exclusion drops it from the request",
+  );
+
+  const chip = page.getByRole("button", { name: QUERY, exact: true }).first();
+  check(await chip.isVisible(), "the earlier search is offered as a chip");
+  await chip.click();
+  await page.waitForTimeout(1200);
+  const heading = await page
+    .locator("h2", { hasText: /open education catalog/i })
+    .first()
+    .textContent();
+  check(
+    (heading ?? "").includes(QUERY),
+    `the chip re-runs its own search (heading: ${(heading ?? "").trim().slice(0, 60)})`,
+  );
+  check(
+    (await excludeField.inputValue()) === "wikipedia",
+    "the chip restores the filters it was searched with",
+  );
+  // The results are the ones that search returns, not the ones left over from
+  // the search in between.
+  const shown = await cards.first().textContent();
+  check(
+    /AP Physics/i.test(shown ?? ""),
+    `the results are that search's results (first card: ${(shown ?? "").trim().slice(0, 26)})`,
+  );
+  // Whatever request the replay makes, if it makes one, carries the filters.
+  const replayed = discoverRequests.findLast?.((r) => r.q === QUERY);
+  check(
+    !replayed || replayed.excludeSource === "wikipedia",
+    "every request for that search carried its exclusion",
   );
 } finally {
   await browser.close();

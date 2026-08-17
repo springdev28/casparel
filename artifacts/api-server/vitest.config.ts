@@ -17,6 +17,9 @@ export default defineConfig({
     alias: {
       "@workspace/db": workspacePath("../../lib/db/src/index.ts"),
       "@workspace/api-zod": workspacePath("../../lib/api-zod/src/index.ts"),
+      "@workspace/resource-identity": workspacePath(
+        "../../lib/resource-identity/src/index.ts",
+      ),
       "@workspace/integrations-openai-ai-server": workspacePath(
         "../../lib/integrations-openai-ai-server/src/index.ts",
       ),
