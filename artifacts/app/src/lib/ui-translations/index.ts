@@ -14,6 +14,8 @@
  */
 import type { AuthLanguage } from "../auth-locale";
 import TR from "./tr";
+import ES from "./es";
+import FR from "./fr";
 
 /**
  * A language with no entry here is served English, unchanged — which is the
@@ -24,6 +26,8 @@ import TR from "./tr";
 export const DICTIONARIES: Partial<Record<AuthLanguage, Record<string, string>>> =
   {
     tr: TR,
+    es: ES,
+    fr: FR,
   };
 
 /**
