@@ -1,0 +1,24 @@
+-- Discard every remotely imported catalog row.
+--
+-- The importers filed each imported work under the *searcher's* query rather
+-- than under what the work is about: a book imported while someone searched
+-- "AP Physics C" was stored with subject "AP", and the upsert overwrote that
+-- subject again on every later import. So the catalog learned to answer
+-- future "AP ..." searches with whatever had been imported during an earlier
+-- one, and "AP Physics C: Electricity and Mechanics" came back with the
+-- history of wireless telegraphy in Australia. Those rows also carry a
+-- placeholder description ("A complete open educational book from ...")
+-- because only a root page's extract was ever kept.
+--
+-- Nothing references catalog_resources — it is a cache of public sources, not
+-- user data, and no resource, review or list points at it. Saved resources
+-- live in `resources` and are untouched. So the honest repair is to drop the
+-- rows whose metadata was never trustworthy and let the corrected importers
+-- refill them, with subjects taken from the source and real descriptions.
+--
+-- Curated rows are hand-written in the repository and keep their metadata.
+DELETE FROM catalog_resources WHERE source_kind <> 'curated';
+--> statement-breakpoint
+-- Providers re-sync on demand; clearing the state stops the next sync being
+-- judged against counts for rows that no longer exist.
+DELETE FROM catalog_sync_state;

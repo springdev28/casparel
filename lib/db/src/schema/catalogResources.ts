@@ -35,7 +35,13 @@ export const catalogResourcesTable = pgTable(
       mode: "string",
     }),
     sourceKind: text("source_kind")
-      .$type<"curated" | "open-library" | "wikibooks">()
+      .$type<
+        | "curated"
+        | "open-library"
+        | "wikibooks"
+        | "wikiversity"
+        | "wikipedia"
+      >()
       .notNull(),
     metadata: jsonb("metadata")
       .$type<CatalogResourceMetadata>()

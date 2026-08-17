@@ -1,4 +1,4 @@
-import { and, asc, eq, ilike, not, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, not, or, sql, type SQL } from "drizzle-orm";
 import {
   catalogResourcesTable,
   catalogSyncStateTable,
@@ -6,6 +6,16 @@ import {
   type InsertCatalogResource,
 } from "@workspace/db";
 import { meaningfulSearchTerms, wordStartPattern } from "./searchTerms";
+import {
+  MEDIAWIKI_SITES,
+  isWorkTitle,
+  siteHost,
+  siteLanguage,
+  subjectFromCategories,
+  wikiSearchQuery,
+  workTitle,
+  type MediaWikiSite,
+} from "./mediawiki";
 
 type ResourceFormat = InsertCatalogResource["format"];
 export type SourceCredibility =
@@ -26,6 +36,11 @@ export type CatalogSearchOptions = {
    * shifting it. See {@link resolveCatalogOffset}.
    */
   offset?: number;
+  /**
+   * Relevance a row must reach to be a result. Defaults to the standard bar;
+   * callers lower it to widen a search that came back empty.
+   */
+  minRelevanceScore?: number;
   resultType?: "content" | "source" | "people";
   exactPhrase?: string;
   excludedWords?: string;
@@ -956,21 +971,68 @@ export async function ensureCuratedCatalog() {
 const filterTokens = (value: string) =>
   value.trim().split(/\s+/).filter(Boolean).slice(0, 8);
 
-/** True when any searchable column has a word starting with `term`. */
-function catalogTermMatch(term: string): SQL {
+/**
+ * What one query word is worth against a row.
+ *
+ * A word in the title or the subject says the work *is about* that; the same
+ * word in a description says only that it came up. Scoring those the same is
+ * how "AP Physics C: Electricity and Mechanics" was answered with a
+ * physicist's biography, a Florida high school and the history of nuclear
+ * power — each mentions one of those words in passing. Weighting the fields
+ * separates a resource on the topic from one that merely name-drops it.
+ */
+const STRONG_FIELD_SCORE = 2;
+const WEAK_FIELD_SCORE = 1;
+
+/**
+ * The bar a row clears to be a result at all: one query word in the title or
+ * subject, or two mentioned anywhere. Anything less is a coincidence.
+ */
+const MIN_RELEVANCE_SCORE = 2;
+
+/**
+ * Words short enough to be an abbreviation do not carry a topic.
+ *
+ * Matching only "AP" is not a reason to return anything — a high school's
+ * article mentions AP courses, and that was enough to answer a physics search.
+ * At least one word of real length has to be among the ones matched.
+ */
+const SUBSTANTIVE_TERM_LENGTH = 3;
+
+function catalogTermScore(term: string): SQL<number> {
   const pattern = wordStartPattern(term);
-  return sql`(${catalogResourcesTable.title} ~* ${pattern}
-    or coalesce(${catalogResourcesTable.description}, '') ~* ${pattern}
-    or ${catalogResourcesTable.subject} ~* ${pattern}
-    or ${catalogResourcesTable.provider} ~* ${pattern}
-    or coalesce(${catalogResourcesTable.author}, '') ~* ${pattern})`;
+  return sql<number>`case
+    when ${catalogResourcesTable.title} ~* ${pattern}
+      or ${catalogResourcesTable.subject} ~* ${pattern}
+      then ${STRONG_FIELD_SCORE}
+    when coalesce(${catalogResourcesTable.description}, '') ~* ${pattern}
+      or ${catalogResourcesTable.provider} ~* ${pattern}
+      or coalesce(${catalogResourcesTable.author}, '') ~* ${pattern}
+      then ${WEAK_FIELD_SCORE}
+    else 0 end`;
+}
+
+/** How well a row answers the whole query. */
+function catalogRelevanceScore(terms: string[]): SQL<number> {
+  if (!terms.length) return sql<number>`0`;
+  return sql<number>`(${sql.join(terms.map(catalogTermScore), sql` + `)})`;
 }
 
 function catalogConditions(options: CatalogSearchOptions): SQL[] {
   const conditions: SQL[] = [];
   const searchTerms = meaningfulSearchTerms(options.query);
-  if (searchTerms.length)
-    conditions.push(or(...searchTerms.map(catalogTermMatch))!);
+  if (searchTerms.length) {
+    const required = options.minRelevanceScore ?? MIN_RELEVANCE_SCORE;
+    conditions.push(sql`${catalogRelevanceScore(searchTerms)} >= ${required}`);
+    // …and at least one word of real length has to be among the ones matched,
+    // or "AP Physics" is answered by anything whose title contains "AP" and
+    // which never mentions physics at all.
+    const substantive = searchTerms.filter(
+      (term) => term.length >= SUBSTANTIVE_TERM_LENGTH,
+    );
+    if (substantive.length && substantive.length < searchTerms.length)
+      conditions.push(sql`${catalogRelevanceScore(substantive)} >= 1`);
+  }
   if (options.format)
     conditions.push(eq(catalogResourcesTable.format, options.format));
   if (options.subject)
@@ -1072,18 +1134,65 @@ function catalogFetchWindow(options: CatalogSearchOptions) {
  * call for that request: rows added in between get the highest ids and sort
  * last, so a stale offset would skip them.
  */
-export async function resolveCatalogOffset(
+async function countCatalogMatches(
   options: CatalogSearchOptions,
 ): Promise<number> {
-  const page = Math.max(1, options.page ?? 1);
-  if (page === 1 || options.resultType === "people") return 0;
   const conditions = catalogConditions(options);
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(catalogResourcesTable)
     .where(conditions.length ? and(...conditions) : undefined);
-  const available = Number(row?.count ?? 0);
-  return Math.min((page - 1) * catalogFetchWindow(options), available);
+  return Number(row?.count ?? 0);
+}
+
+export type ResolvedCatalogSearch = {
+  /** Relevance bar for this query, decided once for every page of it. */
+  minRelevanceScore: number;
+  /** Row this page starts at. */
+  offset: number;
+  /** Rows matching before any top-up. */
+  total: number;
+};
+
+/**
+ * Settle how strict this search is and where the page starts.
+ *
+ * Both decisions belong to the query, not the page. A long query demands two
+ * matching words, which is right when the catalog holds something on the topic
+ * and wrong when it holds one loosely related thing — so it relaxes, but it
+ * relaxes for *every* page or not at all. Deciding per page is what made page
+ * three repeat page two almost entirely: page one found seven strict matches
+ * and stopped there, later pages found none, relaxed, and each re-read the
+ * same loose rows from an offset measured against the strict set.
+ *
+ * Resolve this once, before any top-up, and pass both values to every
+ * searchCatalog call for the request: rows stored in between get the highest
+ * ids and sort last, so a re-derived offset would step over them.
+ */
+export async function resolveCatalogSearch(
+  options: CatalogSearchOptions,
+): Promise<ResolvedCatalogSearch> {
+  if (options.resultType === "people")
+    return { minRelevanceScore: 1, offset: 0, total: 0 };
+
+  let minRelevanceScore = MIN_RELEVANCE_SCORE;
+  let total = await countCatalogMatches({ ...options, minRelevanceScore });
+  if (total === 0 && minRelevanceScore > 1) {
+    // Nothing is *about* the query. Rather than an empty page, accept works
+    // that mention it — for every page of this query, so paging stays whole.
+    minRelevanceScore = 1;
+    total = await countCatalogMatches({ ...options, minRelevanceScore });
+  }
+
+  const page = Math.max(1, options.page ?? 1);
+  // Clamped to what matched: a plain (page - 1) * window overshoots as soon as
+  // the catalog runs out, so page 2 of a six-row result read from row 16 and
+  // returned nothing even after a top-up had just added rows.
+  const offset =
+    page === 1
+      ? 0
+      : Math.min((page - 1) * catalogFetchWindow(options), total);
+  return { minRelevanceScore, offset, total };
 }
 
 export async function searchCatalog(
@@ -1100,18 +1209,10 @@ export async function searchCatalog(
   const relevance = query
     ? sql<number>`case when lower(${catalogResourcesTable.title}) = lower(${query}) then 0 when ${catalogResourcesTable.title} ilike ${`%${query}%`} then 1 when ${catalogResourcesTable.subject} ilike ${`%${query}%`} then 2 else 3 end`
     : sql<number>`3`;
-  // How many of the query's words the row matches. The words are OR-ed, so a
-  // row matching one of four still comes back; without this it could come back
-  // *first*, above rows matching all four.
+  // Clearing the bar is a floor, not a ranking: a work that merely mentions
+  // the topic must not outrank one whose title is the topic.
   const searchTerms = meaningfulSearchTerms(options.query);
-  const missedTerms = searchTerms.length
-    ? sql<number>`(${sql.join(
-        searchTerms.map(
-          (term) => sql`case when ${catalogTermMatch(term)} then 0 else 1 end`,
-        ),
-        sql` + `,
-      )})`
-    : sql<number>`0`;
+  const score = catalogRelevanceScore(searchTerms);
   const rows = await db
     .select()
     .from(catalogResourcesTable)
@@ -1122,7 +1223,7 @@ export async function searchCatalog(
     // 1 had already shown. Id is unique and never changes, so pages stay
     // disjoint, and newly stored rows sort last — which is where a "search
     // more" page is looking.
-    .orderBy(asc(missedTerms), asc(relevance), asc(catalogResourcesTable.id))
+    .orderBy(desc(score), asc(relevance), asc(catalogResourcesTable.id))
     .limit(window)
     .offset(offset);
 
@@ -1184,9 +1285,21 @@ type OpenLibraryDocument = {
 let nextOpenLibraryRequestAt = 0;
 let openLibraryQueue: Promise<void> = Promise.resolve();
 const openLibraryInFlight = new Map<string, Promise<number>>();
-const wikibooksInFlight = new Map<string, Promise<number>>();
-let nextWikibooksRequestAt = 0;
-let wikibooksQueue: Promise<void> = Promise.resolve();
+const mediaWikiInFlight = new Map<string, Promise<number>>();
+/** One politeness queue per wiki host: they are separate services. */
+const mediaWikiQueues = new Map<
+  string,
+  { queue: Promise<void>; nextAt: number }
+>();
+/**
+ * Works requested per wiki, per page.
+ *
+ * Three wikis at twenty works each is sixty candidates for a page that shows
+ * sixteen — deliberate headroom, because a result only survives if it matches
+ * enough of the query, and a thin import made "Search more resources" run out
+ * after one page.
+ */
+const MEDIAWIKI_PAGE_SIZE = 20;
 
 function catalogItemLimit() {
   const configured = Number(process.env.CATALOG_MAX_ITEMS);
@@ -1215,17 +1328,57 @@ async function waitForOpenLibrarySlot() {
   release();
 }
 
-async function waitForWikibooksSlot() {
+/**
+ * Wait for this host's turn, one request per second per wiki.
+ *
+ * Per host rather than one shared queue: Wikibooks, Wikiversity and Wikipedia
+ * are separate services, and making them queue behind each other would triple
+ * the time an import takes for no one's benefit.
+ */
+async function waitForMediaWikiSlot(host: string) {
+  const state = mediaWikiQueues.get(host) ?? {
+    queue: Promise.resolve(),
+    nextAt: 0,
+  };
+  mediaWikiQueues.set(host, state);
   let release = () => {};
-  const previous = wikibooksQueue;
-  wikibooksQueue = new Promise<void>((resolve) => {
+  const previous = state.queue;
+  state.queue = new Promise<void>((resolve) => {
     release = resolve;
   });
   await previous;
-  const waitMs = Math.max(0, nextWikibooksRequestAt - Date.now());
+  const waitMs = Math.max(0, state.nextAt - Date.now());
   if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
-  nextWikibooksRequestAt = Date.now() + 1100;
+  state.nextAt = Date.now() + 1100;
   release();
+}
+
+/** Record the outcome of one provider sync. */
+async function recordCatalogSync(
+  provider: string,
+  attemptedAt: string,
+  itemCount: number,
+  error?: string,
+) {
+  const succeededAt = error ? null : new Date().toISOString();
+  await db
+    .insert(catalogSyncStateTable)
+    .values({
+      provider,
+      lastAttemptedAt: attemptedAt,
+      ...(succeededAt ? { lastSuccessfulAt: succeededAt } : {}),
+      itemCount,
+      error: error ?? null,
+    })
+    .onConflictDoUpdate({
+      target: catalogSyncStateTable.provider,
+      set: {
+        lastAttemptedAt: attemptedAt,
+        ...(succeededAt ? { lastSuccessfulAt: succeededAt } : {}),
+        itemCount,
+        error: error ?? null,
+      },
+    });
 }
 
 function catalogUserAgent() {
@@ -1391,171 +1544,203 @@ export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
   return task;
 }
 
-type WikibooksPage = {
+type MediaWikiPage = {
   pageid?: number;
   title?: string;
   extract?: string;
   fullurl?: string;
+  categories?: { title?: string }[];
+  thumbnail?: { source?: string };
+  pageprops?: { disambiguation?: string };
 };
 
-export async function searchWikibooksAndStore(options: CatalogSearchOptions) {
-  if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false") return 0;
-  const query = [
-    meaningfulSearchTerms(options.query).join(" "),
-    options.subject,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
-  if (query.length < 2) return 0;
+type MediaWikiPayload = {
+  error?: { info?: string };
+  query?: { pages?: MediaWikiPage[] };
+};
 
-  const supportedLanguages = new Set(["de", "en", "es", "fr", "pt", "tr"]);
-  const requestedLanguage = options.language?.toLowerCase() ?? "en";
-  const language = supportedLanguages.has(requestedLanguage)
-    ? requestedLanguage
-    : "en";
+async function mediaWikiRequest(
+  host: string,
+  params: Record<string, string>,
+): Promise<MediaWikiPage[]> {
+  const endpoint = new URL(`https://${host}/w/api.php`);
+  for (const [name, value] of Object.entries({
+    action: "query",
+    format: "json",
+    formatversion: "2",
+    maxlag: "2",
+    ...params,
+  }))
+    endpoint.searchParams.set(name, value);
+
+  const response = await fetch(endpoint, {
+    signal: AbortSignal.timeout(9000),
+    headers: { Accept: "application/json", "User-Agent": catalogUserAgent() },
+  });
+  if (!response.ok) throw new Error(`${host} returned ${response.status}`);
+  const payload = (await response.json()) as MediaWikiPayload;
+  if (payload.error) throw new Error(payload.error.info ?? `${host} API error`);
+  return payload.query?.pages ?? [];
+}
+
+/**
+ * Import open educational works from one MediaWiki site.
+ *
+ * Two requests, and the second is the one that matters. The search generator
+ * returns whatever page happened to match — usually a chapter, sometimes a
+ * print version, occasionally a shelf index — so its titles are rolled up to
+ * the work and looked up again. That second call is where the real title,
+ * description, subject and cover come from: the wiki's own answer about the
+ * book, rather than an assumption made from the search that found it.
+ */
+export async function searchMediaWikiAndStore(
+  site: MediaWikiSite,
+  options: CatalogSearchOptions,
+): Promise<number> {
+  if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false") return 0;
+  const query = wikiSearchQuery(options.query, options.subject);
+  if (query.length < 2) return 0;
   if ((options.page ?? 1) > REMOTE_PAGE_LIMIT) return 0;
-  const offset = remoteWindowOffset(options, 8);
-  const key = `${language}:${query.toLowerCase()}:${offset}`;
-  const existing = wikibooksInFlight.get(key);
+
+  const language = siteLanguage(site, options.language);
+  const host = siteHost(site, language);
+  const offset = remoteWindowOffset(options, MEDIAWIKI_PAGE_SIZE);
+  const key = `${host}:${query.toLowerCase()}:${offset}`;
+  const existing = mediaWikiInFlight.get(key);
   if (existing) return existing;
 
   const task = (async () => {
     const attemptedAt = new Date().toISOString();
-    const syncProvider = `Wikibooks (${language})`;
+    const syncProvider = `${site.provider} (${language})`;
     try {
-      const currentSize = await currentCatalogSize();
-      const remainingCapacity = Math.max(0, catalogItemLimit() - currentSize);
+      const remainingCapacity = Math.max(
+        0,
+        catalogItemLimit() - (await currentCatalogSize()),
+      );
       if (!remainingCapacity) return 0;
 
-      await waitForWikibooksSlot();
-      const endpoint = new URL(`https://${language}.wikibooks.org/w/api.php`);
-      const params: Record<string, string> = {
-        action: "query",
+      await waitForMediaWikiSlot(host);
+      const found = await mediaWikiRequest(host, {
         generator: "search",
         gsrsearch: query,
         gsrnamespace: "0",
-        gsrlimit: "8",
+        gsrlimit: String(MEDIAWIKI_PAGE_SIZE),
         ...(offset ? { gsroffset: String(offset) } : {}),
-        prop: "extracts|info",
+        prop: "info",
+        inprop: "url",
+      });
+
+      // Roll chapters up to their work and drop shelves, indexes and print
+      // versions, then keep the order the wiki ranked them in.
+      const works: string[] = [];
+      for (const page of found) {
+        if (!page.title) continue;
+        const work = workTitle(page.title, site.rollUpSubpages);
+        if (!work || !isWorkTitle(work)) continue;
+        if (!works.some((seen) => seen.toLowerCase() === work.toLowerCase()))
+          works.push(work);
+      }
+      if (!works.length) {
+        await recordCatalogSync(syncProvider, attemptedAt, 0);
+        return 0;
+      }
+
+      await waitForMediaWikiSlot(host);
+      const described = await mediaWikiRequest(host, {
+        titles: works.slice(0, MEDIAWIKI_PAGE_SIZE).join("|"),
+        prop: "extracts|categories|info|pageimages|pageprops",
         exintro: "1",
         explaintext: "1",
-        exsentences: "2",
+        // More prose per work: the description is both what a reader reads
+        // and what the search matches on, so a three-sentence stub made
+        // genuinely relevant works fail to match their own topic.
+        exsentences: "6",
+        cllimit: "max",
+        clshow: "!hidden",
+        piprop: "thumbnail",
+        pithumbsize: "480",
+        ppprop: "disambiguation",
         inprop: "url",
-        format: "json",
-        formatversion: "2",
-        maxlag: "2",
-      };
-      for (const [name, value] of Object.entries(params))
-        endpoint.searchParams.set(name, value);
-
-      const response = await fetch(endpoint, {
-        signal: AbortSignal.timeout(7000),
-        headers: {
-          Accept: "application/json",
-          "User-Agent": catalogUserAgent(),
-        },
       });
-      if (!response.ok)
-        throw new Error(`Wikibooks returned ${response.status}`);
-      const payload = (await response.json()) as {
-        error?: { info?: string };
-        query?: { pages?: WikibooksPage[] };
-      };
-      if (payload.error)
-        throw new Error(payload.error.info ?? "Wikibooks API error");
 
       const now = new Date().toISOString();
-      const items = (payload.query?.pages ?? [])
+      const items = described
         .filter(
-          (
-            page,
-          ): page is Required<
-            Pick<WikibooksPage, "pageid" | "title" | "fullurl">
-          > &
-            WikibooksPage =>
-            Number.isInteger(page.pageid) &&
+          (page): page is MediaWikiPage & { title: string; fullurl: string } =>
             Boolean(page.title) &&
-            Boolean(page.fullurl),
+            Boolean(page.fullurl) &&
+            Number.isInteger(page.pageid) &&
+            isWorkTitle(page.title!) &&
+            // A disambiguation page is a list of links, not something to
+            // study, and the wiki says so itself.
+            page.pageprops?.disambiguation === undefined,
         )
-        .slice(0, Math.min(8, remainingCapacity))
+        .slice(0, Math.min(MEDIAWIKI_PAGE_SIZE, remainingCapacity))
         .map((page): InsertCatalogResource => {
-          const rootTitle = page.title.split("/")[0]?.trim() || page.title;
-          const rootUrl = new URL(page.fullurl);
-          rootUrl.pathname = `/wiki/${rootTitle.replace(/ /g, "_")}`;
-          rootUrl.search = "";
+          const categories = (page.categories ?? [])
+            .map((category) => category.title ?? "")
+            .filter(Boolean);
+          const subject = subjectFromCategories(categories);
+          const extract = page.extract?.replace(/\s+/g, " ").trim();
           return {
-            provider: "Wikibooks",
-            providerUrl: `https://${language}.wikibooks.org/`,
-            externalId: `${language}:${rootTitle.toLocaleLowerCase()}`,
-            canonicalUrl: canonicalCatalogUrl(rootUrl.toString()),
-            title: rootTitle,
+            provider: site.provider,
+            providerUrl: `https://${host}/`,
+            externalId: `${language}:${page.title.toLocaleLowerCase()}`,
+            canonicalUrl: canonicalCatalogUrl(page.fullurl),
+            title: page.title,
             description:
-              page.title === rootTitle && page.extract
-                ? page.extract.replace(/\s+/g, " ").trim().slice(0, 600)
-                : `A complete open educational book from ${language}.wikibooks.org.`,
-            format: "article",
-            subject: (
-              options.subject ||
-              meaningfulSearchTerms(options.query)[0] ||
-              "Interdisciplinary"
-            ).slice(0, 160),
-            gradeLevel: options.gradeLevel || "All levels",
+              extract && extract.length > 20
+                ? extract.slice(0, 600)
+                : `An open educational work from ${host}.`,
+            format: site.format,
+            // Never options.subject and never a word from the query: those
+            // describe the search, not the work.
+            subject: (subject ?? "Interdisciplinary").slice(0, 160),
+            gradeLevel: "All levels",
             language,
-            license: "CC BY-SA and GFDL; see page history for attribution",
-            author: "Wikibooks contributors",
-            thumbnailUrl: null,
+            license: site.license,
+            author: `${site.provider} contributors`,
+            thumbnailUrl: page.thumbnail?.source ?? null,
             publishedAt: null,
-            sourceKind: "wikibooks",
+            sourceKind: site.sourceKind,
             metadata: {
               accessType: "free",
               credibility: "established",
               contentScope: "whole-work",
               pageId: page.pageid,
-              matchedPage: page.title,
+              categories: categories.slice(0, 12),
             },
             lastSyncedAt: now,
           };
         });
+
       const count = await upsertCatalogResources(items);
-      await db
-        .insert(catalogSyncStateTable)
-        .values({
-          provider: syncProvider,
-          lastAttemptedAt: attemptedAt,
-          lastSuccessfulAt: now,
-          itemCount: count,
-          error: null,
-        })
-        .onConflictDoUpdate({
-          target: catalogSyncStateTable.provider,
-          set: {
-            lastAttemptedAt: attemptedAt,
-            lastSuccessfulAt: now,
-            itemCount: count,
-            error: null,
-          },
-        });
+      await recordCatalogSync(syncProvider, attemptedAt, count);
       return count;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await db
-        .insert(catalogSyncStateTable)
-        .values({
-          provider: syncProvider,
-          lastAttemptedAt: attemptedAt,
-          itemCount: 0,
-          error: message,
-        })
-        .onConflictDoUpdate({
-          target: catalogSyncStateTable.provider,
-          set: { lastAttemptedAt: attemptedAt, error: message },
-        });
+      await recordCatalogSync(syncProvider, attemptedAt, 0, message);
       return 0;
     } finally {
-      wikibooksInFlight.delete(key);
+      mediaWikiInFlight.delete(key);
     }
   })();
-  wikibooksInFlight.set(key, task);
+  mediaWikiInFlight.set(key, task);
   return task;
 }
+
+/** Kept for callers and tests that name the original importer. */
+export function searchWikibooksAndStore(options: CatalogSearchOptions) {
+  return searchMediaWikiAndStore(MEDIAWIKI_SITES[0], options);
+}
+
+/** Every wiki importer, run together. */
+export async function searchOpenWikisAndStore(options: CatalogSearchOptions) {
+  const counts = await Promise.all(
+    MEDIAWIKI_SITES.map((site) =>
+      searchMediaWikiAndStore(site, options).catch(() => 0),
+    ),
+  );
+  return counts.reduce((total, count) => total + count, 0);
+}
+

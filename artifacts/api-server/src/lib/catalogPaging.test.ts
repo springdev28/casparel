@@ -77,7 +77,12 @@ vi.mock("@workspace/db", async () => {
 });
 
 import { catalogResourcesTable } from "@workspace/db";
-import { resolveCatalogOffset, searchCatalog } from "./catalog";
+import { resolveCatalogSearch, searchCatalog } from "./catalog";
+
+/** The offset half of the resolution, which is what these cover. */
+const resolveCatalogSearchOffset = async (
+  options: Parameters<typeof resolveCatalogSearch>[0],
+) => (await resolveCatalogSearch(options)).offset;
 
 beforeEach(() => {
   selects.length = 0;
@@ -85,10 +90,29 @@ beforeEach(() => {
   matchingRows = 0;
 });
 
-describe("resolveCatalogOffset", () => {
-  it("starts page one at the beginning without counting anything", async () => {
-    expect(await resolveCatalogOffset({ query: "algebra", page: 1 })).toBe(0);
-    expect(selects).toHaveLength(0);
+describe("resolveCatalogSearch", () => {
+  it("starts page one at the beginning", async () => {
+    expect(await resolveCatalogSearchOffset({ query: "algebra", page: 1 })).toBe(0);
+  });
+
+  it("relaxes a long query only when nothing matches strictly", async () => {
+    // Strictness belongs to the query, not the page. Deciding it per page is
+    // what made page three re-read page two: page one matched strictly and
+    // stopped, later pages found none, relaxed, and each read the same loose
+    // rows from an offset measured against the strict set.
+    matchingRows = 4;
+    const strict = await resolveCatalogSearch({
+      query: "ap physics electricity mechanics",
+      page: 1,
+    });
+    expect(strict.minRelevanceScore).toBe(2);
+
+    matchingRows = 0;
+    const relaxed = await resolveCatalogSearch({
+      query: "ap physics electricity mechanics",
+      page: 1,
+    });
+    expect(relaxed.minRelevanceScore).toBe(1);
   });
 
   it("resumes where the stored catalog ran out instead of overshooting it", async () => {
@@ -96,13 +120,13 @@ describe("resolveCatalogOffset", () => {
     // would read from row 16 and return nothing, which is what made "Search
     // more resources" do nothing at all.
     matchingRows = 6;
-    expect(await resolveCatalogOffset({ query: "algebra", page: 2 })).toBe(6);
+    expect(await resolveCatalogSearchOffset({ query: "algebra", page: 2 })).toBe(6);
   });
 
   it("pages normally while rows remain", async () => {
     matchingRows = 40;
-    expect(await resolveCatalogOffset({ query: "algebra", page: 2 })).toBe(16);
-    expect(await resolveCatalogOffset({ query: "algebra", page: 3 })).toBe(32);
+    expect(await resolveCatalogSearchOffset({ query: "algebra", page: 2 })).toBe(16);
+    expect(await resolveCatalogSearchOffset({ query: "algebra", page: 3 })).toBe(32);
   });
 
   it("pages source mode by the wide window it actually reads", async () => {
@@ -111,7 +135,7 @@ describe("resolveCatalogOffset", () => {
     // page, so a second page of sources was almost entirely duplicates.
     matchingRows = 500;
     expect(
-      await resolveCatalogOffset({
+      await resolveCatalogSearchOffset({
         query: "algebra",
         page: 2,
         limit: 12,
@@ -122,7 +146,7 @@ describe("resolveCatalogOffset", () => {
 
   it("has nothing to page through for people results", async () => {
     expect(
-      await resolveCatalogOffset({
+      await resolveCatalogSearchOffset({
         query: "ada lovelace",
         page: 3,
         resultType: "people",

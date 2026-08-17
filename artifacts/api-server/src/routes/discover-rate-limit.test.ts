@@ -37,9 +37,11 @@ vi.mock("../lib/catalog", () => ({
       gradeLevel: "Secondary education",
     },
   ]),
-  resolveCatalogOffset: vi.fn().mockResolvedValue(0),
+  resolveCatalogSearch: vi
+    .fn()
+    .mockResolvedValue({ minRelevanceScore: 1, offset: 0, total: 0 }),
   searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
-  searchWikibooksAndStore: vi.fn().mockResolvedValue(0),
+  searchOpenWikisAndStore: vi.fn().mockResolvedValue(0),
 }));
 vi.mock("@workspace/integrations-openai-ai-server", () => ({
   openai: { responses: { create: vi.fn() } },

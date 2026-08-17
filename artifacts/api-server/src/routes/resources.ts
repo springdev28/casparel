@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import {
   eq,
   ne,
@@ -19,6 +19,7 @@ import {
   catalogResourcesTable,
 } from "@workspace/db";
 import { publicResourceColumns } from "../lib/resourceColumns";
+import { dedupeResults } from "../lib/resultDedupe";
 import {
   resourceVisibilityCondition,
   visibilityForRequest,
@@ -59,10 +60,10 @@ import {
 } from "../lib/aiCostControls";
 import {
   canonicalCatalogUrl,
-  resolveCatalogOffset,
+  resolveCatalogSearch,
   searchCatalog,
   searchOpenLibraryAndStore,
-  searchWikibooksAndStore,
+  searchOpenWikisAndStore,
   type SourceCredibility,
 } from "../lib/catalog";
 import { meaningfulSearchTerms, wordStartPattern } from "../lib/searchTerms";
@@ -822,6 +823,15 @@ async function callDiscoverAI(
   }
 }
 
+/**
+ * Extra provider windows read before calling a page empty.
+ *
+ * Only ever paid on a page that has nothing, which is exactly when the reader
+ * would otherwise be told the search is finished while results remain a window
+ * further on.
+ */
+const EXHAUSTION_PROOF_WINDOWS = 3;
+
 const DISCOVER_MIN_RESULTS = 3;
 const DISCOVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const discoverCache = new Map<
@@ -1006,6 +1016,21 @@ function addProvenance<
   }
 }
 
+/**
+ * Send a discover response with duplicate works collapsed.
+ *
+ * Every branch below goes through this. The catalog, the remote importers,
+ * the cache and the AI fallback can each surface the same work, and a reader
+ * who asked one question should not be handed the same answer twice —
+ * whichever of them found it, and whichever client is reading.
+ */
+function sendDiscoverResults<T extends { title: string; url: string }>(
+  res: Response,
+  items: T[],
+) {
+  res.json(dedupeResults(items));
+}
+
 router.get(
   "/resources/discover",
   discoverLimiter,
@@ -1088,11 +1113,16 @@ router.get(
       license,
       sourceQuality,
     } as const;
-    // Resolved before the top-up and reused after it: rows stored in between
-    // get the highest ids and sort last, so re-deriving the offset from the
-    // grown catalog would step straight over them.
-    const catalogOffset = await resolveCatalogOffset(catalogOptions);
-    const pagedCatalogOptions = { ...catalogOptions, offset: catalogOffset };
+    // Strictness and offset both belong to the query rather than the page, and
+    // both are settled before the top-up: rows stored in between get the
+    // highest ids and sort last, so re-deriving either from the grown catalog
+    // would step straight over them.
+    const resolved = await resolveCatalogSearch(catalogOptions);
+    const pagedCatalogOptions = {
+      ...catalogOptions,
+      offset: resolved.offset,
+      minRelevanceScore: resolved.minRelevanceScore,
+    };
     let catalogItems = await searchCatalog(pagedCatalogOptions);
     const remoteCatalogMatchesCredibility =
       !sourceQuality || sourceQuality === "established";
@@ -1105,9 +1135,39 @@ router.get(
       remoteCatalogMatchesCredibility &&
       catalogItems.length < (page === 1 ? 8 : catalogOptions.limit)
     ) {
-      await searchOpenLibraryAndStore(catalogOptions);
-      await searchWikibooksAndStore(catalogOptions);
-      catalogItems = await searchCatalog(pagedCatalogOptions);
+      // Every provider at once. They are independent services, and running
+      // them in sequence made a thin page wait out the slowest one before the
+      // reader saw anything from the fastest.
+      const topUp = async (windows: number[]) => {
+        await Promise.all(
+          windows.flatMap((window) => {
+            const windowOptions = { ...catalogOptions, page: window };
+            return [
+              searchOpenLibraryAndStore(windowOptions).catch(() => 0),
+              searchOpenWikisAndStore(windowOptions),
+            ];
+          }),
+        );
+        catalogItems = await searchCatalog(pagedCatalogOptions);
+      };
+      await topUp([page]);
+      // An empty page has to mean the search is spent, because that is what
+      // the app tells the reader before it stops offering "Search more
+      // resources". One quiet window is not proof: window two of a provider
+      // can hold nothing while window three still has something, and stopping
+      // there strands results the reader can no longer reach.
+      //
+      // The remaining windows go out together rather than one after another.
+      // Each provider still answers one request at a time, so asking for three
+      // windows costs about as long as asking for one — where doing it in
+      // sequence tripled the wait on the last page of every search.
+      if (catalogItems.length === 0)
+        await topUp(
+          Array.from(
+            { length: EXHAUSTION_PROOF_WINDOWS },
+            (_, index) => page + index + 1,
+          ),
+        );
     }
     const availableCatalogItems = catalogItems
       .filter(isUnsavedResult)
@@ -1119,7 +1179,7 @@ router.get(
     if (availableCatalogItems.length > 0 || !aiFallbackEnabled) {
       res.setHeader("X-Search-Provider", "stored-catalog");
       res.setHeader("X-Search-Cache", "DATABASE");
-      res.json(availableCatalogItems);
+      sendDiscoverResults(res, availableCatalogItems);
       return;
     }
 
@@ -1207,7 +1267,7 @@ router.get(
       const cached = discoverCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
         res.setHeader("X-Search-Cache", "HIT");
-        res.json(cached.items.filter(isUnsavedResult));
+        sendDiscoverResults(res, cached.items.filter(isUnsavedResult));
         return;
       }
       if (cached) discoverCache.delete(cacheKey);
@@ -1380,7 +1440,8 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
             ),
           });
         res.setHeader("X-Search-Cache", "MISS");
-        res.json(
+        sendDiscoverResults(
+          res,
           reachable.map((item) => addProvenance(item, resultType !== "people")),
         );
         return;
@@ -1395,7 +1456,8 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       if (!paidRetryAllowed()) {
         if (reachable.length > 0) {
           res.setHeader("X-Search-Cache", "MISS");
-          res.json(
+          sendDiscoverResults(
+            res,
             reachable.map((item) =>
               addProvenance(item, resultType !== "people"),
             ),
@@ -1461,7 +1523,8 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
           ),
         });
       res.setHeader("X-Search-Cache", "MISS");
-      res.json(
+      sendDiscoverResults(
+        res,
         merged.map((item) => addProvenance(item, resultType !== "people")),
       );
     } catch (err) {
@@ -1472,7 +1535,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       const stale = discoverCache.get(cacheKey);
       if (stale?.items.length) {
         res.setHeader("X-Search-Cache", "STALE");
-        res.json(stale.items);
+        sendDiscoverResults(res, stale.items);
         return;
       }
 

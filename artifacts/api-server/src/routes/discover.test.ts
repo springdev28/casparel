@@ -44,9 +44,11 @@ vi.mock("../lib/aiCostControls", () => ({
 vi.mock("../lib/adminAccess", () => ({ isAdminRequest: () => true }));
 vi.mock("../lib/catalog", () => ({
   searchCatalog: vi.fn().mockResolvedValue([]),
-  resolveCatalogOffset: vi.fn().mockResolvedValue(0),
+  resolveCatalogSearch: vi
+    .fn()
+    .mockResolvedValue({ minRelevanceScore: 1, offset: 0, total: 0 }),
   searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
-  searchWikibooksAndStore: vi.fn().mockResolvedValue(0),
+  searchOpenWikisAndStore: vi.fn().mockResolvedValue(0),
 }));
 
 // ── DB mock (not used by discover but required for the module to load) ─────────
@@ -91,10 +93,10 @@ vi.mock("../lib/check-url-reachable", () => ({
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { filterReachableUrls } from "../lib/check-url-reachable";
 import {
-  resolveCatalogOffset,
+  resolveCatalogSearch,
   searchCatalog,
   searchOpenLibraryAndStore,
-  searchWikibooksAndStore,
+  searchOpenWikisAndStore,
 } from "../lib/catalog";
 import resourcesRouter, { isDirectPeopleProfileUrl } from "./resources.js";
 
@@ -244,7 +246,11 @@ describe("GET /api/resources/discover, paging", () => {
 
   it("tops the catalog up from the open providers when a later page runs thin", async () => {
     // Page 1 handed back six rows, so page 2 resumes at row six.
-    vi.mocked(resolveCatalogOffset).mockResolvedValueOnce(6);
+    vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
+      minRelevanceScore: 1,
+      offset: 6,
+      total: 6,
+    });
     vi.mocked(searchCatalog)
       .mockResolvedValueOnce([]) // nothing stored past row six yet
       .mockResolvedValueOnce([catalogRow("https://example.edu/algebra-2")]);
@@ -258,7 +264,7 @@ describe("GET /api/resources/discover, paging", () => {
     // The top-up used to be gated on page === 1, which left "Search more
     // resources" with nothing new to return once the stored rows ran out.
     expect(searchOpenLibraryAndStore).toHaveBeenCalledTimes(1);
-    expect(searchWikibooksAndStore).toHaveBeenCalledTimes(1);
+    expect(searchOpenWikisAndStore).toHaveBeenCalledTimes(1);
     // Providers are asked for the window matching the requested page.
     expect(searchOpenLibraryAndStore).toHaveBeenCalledWith(
       expect.objectContaining({ page: 2 }),
@@ -268,7 +274,11 @@ describe("GET /api/resources/discover, paging", () => {
   });
 
   it("reads both catalog passes at the offset resolved before the top-up", async () => {
-    vi.mocked(resolveCatalogOffset).mockResolvedValueOnce(6);
+    vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
+      minRelevanceScore: 1,
+      offset: 6,
+      total: 6,
+    });
     vi.mocked(searchCatalog)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([catalogRow("https://example.edu/algebra-2")]);
@@ -286,11 +296,18 @@ describe("GET /api/resources/discover, paging", () => {
   });
 
   it("leaves a full later page alone", async () => {
-    vi.mocked(resolveCatalogOffset).mockResolvedValueOnce(16);
+    vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
+      minRelevanceScore: 1,
+      offset: 16,
+      total: 40,
+    });
     vi.mocked(searchCatalog).mockResolvedValueOnce(
-      Array.from({ length: 16 }, (_, index) =>
-        catalogRow(`https://example.edu/algebra-${index}`),
-      ),
+      // Distinct titles: the response collapses duplicate works, so sixteen
+      // rows sharing one title would legitimately arrive as a single card.
+      Array.from({ length: 16 }, (_, index) => ({
+        ...catalogRow(`https://example.edu/algebra-${index}`),
+        title: `Open Algebra, unit ${index}`,
+      })),
     );
 
     const res = await request(buildApp())
@@ -335,7 +352,10 @@ describe("GET /api/resources/discover, filtering", () => {
 
   it("returns all results when every URL is reachable", async () => {
     const items = Array.from({ length: 8 }, (_, index) =>
-      makeItem({ url: `https://khanacademy.org/${index + 1}` }),
+      makeItem({
+        url: `https://khanacademy.org/${index + 1}`,
+        title: `Khan Academy, lesson ${index + 1}`,
+      }),
     );
 
     vi.mocked(openai.responses.create).mockResolvedValueOnce(
@@ -393,14 +413,16 @@ describe("GET /api/resources/discover, filtering", () => {
 
 describe("GET /api/resources/discover, retry when too few results survive", () => {
   it("calls the AI a second time when fewer than 3 URLs survive", async () => {
+    // Distinct titles per item: same-titled pages on one domain are one work
+    // as far as the response is concerned, and would arrive as one card.
     const firstItems = [
-      makeItem({ url: "https://a.example.com" }),
-      makeItem({ url: "https://b.example.com" }),
+      makeItem({ url: "https://a.example.com", title: "Chemistry basics" }),
+      makeItem({ url: "https://b.example.com", title: "Chemistry reactions" }),
     ];
     const secondItems = [
-      makeItem({ url: "https://c.example.com" }),
-      makeItem({ url: "https://d.example.com" }),
-      makeItem({ url: "https://e.example.com" }),
+      makeItem({ url: "https://c.example.com", title: "Organic chemistry" }),
+      makeItem({ url: "https://d.example.com", title: "Periodic table guide" }),
+      makeItem({ url: "https://e.example.com", title: "Stoichiometry drills" }),
     ];
 
     vi.mocked(openai.responses.create)

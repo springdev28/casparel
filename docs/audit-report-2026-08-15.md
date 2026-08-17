@@ -221,6 +221,35 @@ Anchoring to word starts was not enough on its own. Run against the live site af
 
 Verified against a real Postgres rather than by inspection: `artifacts/api-server/src/searchRelevance.db.test.ts` seeds the roadmap alongside two physics resources and asserts it does not come back. It skips without `VERIFY_DATABASE_URL`, since CI has no database.
 
+### The catalog was recording the question, not the answer
+
+Follow-up on the above, after the fix reached production and the same search still returned a Florida high school, the history of wireless telegraphy in Australia, and books on acoustics and nanotechnology.
+
+The remote importers stored each imported work under `meaningfulSearchTerms(query)[0]` — the searcher's own first word. Every book imported while someone searched "AP Physics C" was filed as subject **"AP"**, and the upsert rewrote that subject on every later import. So the catalog learned to answer future "AP …" searches with whatever had been imported during an earlier one. Six of the sixteen rows the live site returned had `subject = "AP"`. Their descriptions were the placeholder "A complete open educational book from en.wikibooks.org", because only a root page's extract was ever kept and the search generator returns chapters.
+
+Both are now fixed at the source, and the rows already written were purged in migration `0049` — the catalog is a cache of public sources, nothing references it, and saved resources live in a different table.
+
+- **Subjects come from the work.** A second request asks the wiki what the page actually is, and the subject is read from its own `Shelf:`/category list, accepted only when it names a subject the catalog already knows. A wiki's categories are written for editors, so taking the first available filed the Advanced Placement article under "1955 establishments in the United States". No match now means no subject rather than a wrong one — a wrong subject is what a later search matches on.
+- **Descriptions come from the work.** The same request fetches the intro extract, so a card says what the book is about instead of repeating its host.
+- **Chapters roll up to the book.** "FHSST Physics/Electrostatics/Charge" and "Acoustics/Print version" are stored as the works they belong to, and shelves, indexes and disambiguation pages are dropped — the wiki flags the last of those itself.
+
+### Relevance is scored, not counted
+
+Word-start matching removed the accidental substring hits, but every match still counted the same. A query word in the title or subject says the work *is about* that; the same word in a description says only that it came up — which is how one physics search returned a physicist's biography, a high school and the history of nuclear power.
+
+Each query word now scores 2 in the title or subject, 1 in the description, provider or author. A row needs 2 to appear at all: one word in the title, or two mentioned anywhere. At least one word of real length must be among them, so "AP" alone never qualifies a result. Results are ordered by that score, so a work matching three words outranks one matching two.
+
+Measured against a real catalog, "AP Physics C: Electricity and Mechanics" goes from 16 results — six of them unrelated — to 13, all of them AP physics or physics resources, with the two matching AP Physics C courses first.
+
+### Reach and paging
+
+- **Three wikis instead of one.** Wikibooks, Wikiversity and Wikipedia share one importer, run in parallel, and each is asked for 20 works per page rather than 8.
+- **Strictness belongs to the query, not the page.** Relaxing an over-strict search per page made page three re-read page two: page one matched strictly and stopped, later pages found none, relaxed, and each read the same loose rows from an offset measured against the strict set. It is now decided once, by counting, for every page of a query.
+- **An empty page means the search is spent.** The app stops offering "Search more resources" on an empty page, so an empty page must be the truth. One quiet provider window is not proof, and stopping there stranded results a window further on. The remaining windows are read together, so proving exhaustion costs about one extra round rather than one per window.
+- **One card per work, in the API.** Deduplication used to live only in the web client, so the mobile app and the API saw the raw list. Similarity is measured against the longer title: measured against the shorter, every subset scored a perfect match, and "Linear algebra" swallowed "Numerical linear algebra" and "Kernel (linear algebra)" — a first page of sixteen collapsed to four.
+
+A cold "linear algebra" search now returns 16, 16 and 16 across three pages, where the same search previously returned four.
+
 ### Discover input validation
 
 `q` is a coerced string, so a request with no query arrived at the handler as the literal `"undefined"` and a blank one as `""`. Both parsed cleanly and were searched in full: a catalog query, two calls out to the open providers, and — with nothing stored to match — a spent AI allowance, for a query nobody typed. The handler now rejects a missing or blank `q` before any of that.
