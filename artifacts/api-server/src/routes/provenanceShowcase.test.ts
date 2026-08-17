@@ -4,6 +4,8 @@
  *  • signed in with saves → that account's own saves, personalised
  *  • signed in with no saves → falls back to the platform view, not an
  *    empty card
+ *  • nothing saved anywhere → the catalogue itself, so a young library is
+ *    never illustrated with the client's hardcoded examples
  *  • verdicts come from the URL (institutional/established/independent), the
  *    same registry rule the resource pages use, with no AI and no outbound
  *    request
@@ -16,6 +18,12 @@ import request from "supertest";
 
 /** Rows the mocked query chain resolves to, set per test. */
 let rows: Array<Record<string, unknown>> = [];
+/**
+ * Rows per successive query, when a test needs the fallback chain to differ
+ * between calls (saves → platform → catalogue). Falls back to `rows`.
+ */
+let rowsByCall: Array<Array<Record<string, unknown>>> | null = null;
+let callIndex = 0;
 let failWith: Error | null = null;
 /** Whether the built query joined resource_lists, i.e. asked for one owner. */
 let joinedLists = false;
@@ -80,7 +88,12 @@ function mockQueryChain() {
     chain.then = (
       resolve: (value: unknown) => unknown,
       reject: (reason: unknown) => unknown,
-    ) => (failWith ? reject(failWith) : resolve(rows));
+    ) => {
+      if (failWith) return reject(failWith);
+      const next = rowsByCall ? (rowsByCall[callIndex] ?? []) : rows;
+      callIndex += 1;
+      return resolve(next);
+    };
     return chain as unknown as ReturnType<typeof db.select>;
   });
 }
@@ -98,6 +111,8 @@ beforeEach(() => {
   failWith = null;
   joinedLists = false;
   rows = [];
+  rowsByCall = null;
+  callIndex = 0;
   mockQueryChain();
 });
 
@@ -154,15 +169,55 @@ describe("GET /resources/provenance-showcase", () => {
 
   it("falls back to the platform view for an account that saved nothing", async () => {
     viewerId = 42;
-    rows = [];
+    // Empty personal saves, then a platform row on the second query.
+    rowsByCall = [
+      [],
+      [
+        {
+          id: 9,
+          title: "Shared favourite",
+          url: "https://openstax.org/books/x",
+          subject: "Physics",
+          savedCount: 4,
+        },
+      ],
+    ];
     const res = await request(buildApp()).get(
       "/api/resources/provenance-showcase",
     );
     expect(res.status).toBe(200);
-    // Both queries ran and both came back empty, so it reports the platform
-    // view rather than claiming these are the user's saves.
+    // Not the user's own saves, so it must not claim to be personalised.
     expect(res.body.personalised).toBe(false);
-    expect(res.body.entries).toEqual([]);
+    expect(res.body.entries[0].title).toBe("Shared favourite");
+  });
+
+  it("shows the catalogue when nothing has been saved to any list", async () => {
+    // A young platform: resources exist, no list has been built yet. The hero
+    // must show the real library rather than falling through to the client's
+    // hardcoded examples.
+    rowsByCall = [
+      [],
+      [
+        {
+          id: 11,
+          title: "Android Programlama",
+          url: "https://tr.wikibooks.org/wiki/Android_Programlama",
+          subject: "Okumak",
+          savedCount: 0,
+        },
+      ],
+    ];
+    const res = await request(buildApp()).get(
+      "/api/resources/provenance-showcase",
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.personalised).toBe(false);
+    expect(res.body.entries).toHaveLength(1);
+    expect(res.body.entries[0]).toMatchObject({
+      title: "Android Programlama",
+      host: "tr.wikibooks.org",
+      savedCount: 0,
+    });
   });
 
   it("reads the verdict off the URL, the same rule the resource pages use", async () => {
