@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
+  AlertTriangle,
   Apple,
   ArrowRight,
   BookOpen,
@@ -56,6 +58,97 @@ const CAPABILITIES = [
     body: "AI source research tells you who is behind a resource and how much to trust it: a quick check anytime, or deep live-web research on demand.",
   },
 ];
+
+/**
+ * The hero's source-research card, illustrated with more than one answer.
+ *
+ * It used to show a single hardcoded example, which read as a rubber stamp —
+ * the point of the feature is that different sources get different verdicts,
+ * so the card cycles through a high-trust institution, an established
+ * platform, a community source and an unverifiable one. The examples are
+ * illustrative copy, not live output: named organisations only carry claims
+ * that are publicly true of them, and the cautionary example names nobody.
+ */
+const SOURCE_EXAMPLES = [
+  {
+    name: "MIT OpenCourseWare",
+    kind: "University · open courseware",
+    verdict: "High trust",
+    tone: "high" as const,
+    summary:
+      "Published by a major research university, openly licensed, and maintained with course materials from the original faculty.",
+    signals: [
+      "Primary source, not a re-upload",
+      "Openly licensed for reuse",
+      "Reviewed before listing",
+    ],
+  },
+  {
+    name: "Khan Academy",
+    kind: "Nonprofit learning platform",
+    verdict: "High trust",
+    tone: "high" as const,
+    summary:
+      "An established nonprofit publisher with a long public track record of original lessons and named authorship.",
+    signals: [
+      "Original lessons by a named organisation",
+      "Established publishing platform",
+      "Free to use",
+    ],
+  },
+  {
+    name: "Wikibooks",
+    kind: "Community textbooks · Wikimedia",
+    verdict: "Community — check history",
+    tone: "community" as const,
+    summary:
+      "Openly licensed textbooks written in public. Quality varies by book, and every change is logged, so the history shows what to double-check.",
+    signals: [
+      "Openly licensed for reuse",
+      "Every edit is public and reversible",
+      "Backed by the Wikimedia Foundation",
+    ],
+  },
+  {
+    name: "Anonymous study blog",
+    kind: "Independent website · no named author",
+    verdict: "Limited signals",
+    tone: "limited" as const,
+    summary:
+      "No author, institution or licence is stated. It may still be useful — but nothing here can be verified, so treat its claims with care.",
+    signals: [
+      "No named author or institution",
+      "Licence and sources not stated",
+      "Availability not guaranteed",
+    ],
+  },
+];
+
+const VERDICT_STYLES = {
+  high: {
+    badge:
+      "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    signal: "text-emerald-600 dark:text-emerald-400",
+    BadgeIcon: ShieldCheck,
+    SignalIcon: Check,
+  },
+  community: {
+    badge: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-400",
+    signal: "text-sky-600 dark:text-sky-400",
+    BadgeIcon: Users,
+    SignalIcon: Check,
+  },
+  limited: {
+    badge:
+      "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+    signal: "text-amber-600 dark:text-amber-400",
+    BadgeIcon: AlertTriangle,
+    SignalIcon: AlertTriangle,
+  },
+} as const;
+
+/** How long each example holds before the card moves to the next. */
+const SOURCE_EXAMPLE_MS = 4500;
 
 /**
  * Credentials, what earns a learner's trust. Deliberately capability claims
@@ -148,6 +241,23 @@ export default function LandingPage() {
     : inDesktopShell
       ? "Browse the library"
       : "Continue in browser";
+
+  // The hero card cycles through the source examples; a random start means
+  // even a quick visit sees a different one than last time. The .rise class
+  // on the swapped content is inert under prefers-reduced-motion, so the
+  // change is a plain swap there rather than a movement.
+  const [exampleIndex, setExampleIndex] = useState(() =>
+    Math.floor(Math.random() * SOURCE_EXAMPLES.length),
+  );
+  useEffect(() => {
+    const timer = setInterval(
+      () => setExampleIndex((index) => (index + 1) % SOURCE_EXAMPLES.length),
+      SOURCE_EXAMPLE_MS,
+    );
+    return () => clearInterval(timer);
+  }, []);
+  const example = SOURCE_EXAMPLES[exampleIndex];
+  const verdictStyle = VERDICT_STYLES[example.tone];
 
   return (
     <div
@@ -259,39 +369,54 @@ export default function LandingPage() {
             style={{ animationDelay: "320ms" }}
             aria-hidden="true"
           >
-            <div className="flex items-center gap-2 border-b border-border pb-3">
-              <ScanSearch className="size-4 text-primary-text" />
-              <span className="text-sm font-semibold">AI source research</span>
-            </div>
-            <div className="mt-4 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate font-semibold">MIT OpenCourseWare</p>
-                <p className="text-xs text-muted-foreground">
-                  University · open courseware
-                </p>
-              </div>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
-                <ShieldCheck className="size-3" /> High trust
+            <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
+              <span className="flex items-center gap-2">
+                <ScanSearch className="size-4 text-primary-text" />
+                <span className="text-sm font-semibold">AI source research</span>
+              </span>
+              {/* Progress dots, so the card visibly holds more than one answer. */}
+              <span className="flex items-center gap-1">
+                {SOURCE_EXAMPLES.map((_, index) => (
+                  <span
+                    key={index}
+                    className={
+                      "size-1.5 rounded-full transition-colors " +
+                      (index === exampleIndex ? "bg-primary" : "bg-border")
+                    }
+                  />
+                ))}
               </span>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Published by a major research university, openly licensed, and
-              maintained with course materials from the original faculty.
-            </p>
-            <div className="mt-4 space-y-2">
-              {[
-                "Primary source, not a re-upload",
-                "Openly licensed for reuse",
-                "Reviewed before listing",
-              ].map((line) => (
-                <p
-                  key={line}
-                  className="flex items-start gap-2 text-xs text-muted-foreground"
+            {/* Keyed on the example so each swap replays the entry animation;
+                min-height covers the tallest example so the hero never jumps. */}
+            <div key={example.name} className="rise min-h-[13.5rem]">
+              <div className="mt-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{example.name}</p>
+                  <p className="text-xs text-muted-foreground">{example.kind}</p>
+                </div>
+                <span
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${verdictStyle.badge}`}
                 >
-                  <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                  {line}
-                </p>
-              ))}
+                  <verdictStyle.BadgeIcon className="size-3" /> {example.verdict}
+                </span>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                {example.summary}
+              </p>
+              <div className="mt-4 space-y-2">
+                {example.signals.map((line) => (
+                  <p
+                    key={line}
+                    className="flex items-start gap-2 text-xs text-muted-foreground"
+                  >
+                    <verdictStyle.SignalIcon
+                      className={`mt-0.5 size-3.5 shrink-0 ${verdictStyle.signal}`}
+                    />
+                    {line}
+                  </p>
+                ))}
+              </div>
             </div>
           </div>
         </section>
