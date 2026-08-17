@@ -55,6 +55,7 @@ vi.mock("../lib/catalog", () => ({
     .mockResolvedValue({ minRelevanceScore: 1, offset: 0, total: 0 }),
   searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
   searchOpenWikisAndStore: vi.fn().mockResolvedValue(0),
+  searchOpenSourcesAndStore: vi.fn().mockResolvedValue(0),
 }));
 
 // ── DB mock (not used by discover but required for the module to load) ─────────
@@ -113,6 +114,7 @@ import {
   resolveCatalogSearch,
   searchCatalog,
   searchOpenLibraryAndStore,
+  searchOpenSourcesAndStore,
   searchOpenWikisAndStore,
 } from "../lib/catalog";
 import { consumeAiQuota } from "../lib/aiCostControls";
@@ -205,6 +207,7 @@ beforeEach(() => {
     .mockResolvedValue({ minRelevanceScore: 1, offset: 0, total: 0 });
   vi.mocked(searchOpenLibraryAndStore).mockReset().mockResolvedValue(0);
   vi.mocked(searchOpenWikisAndStore).mockReset().mockResolvedValue(0);
+  vi.mocked(searchOpenSourcesAndStore).mockReset().mockResolvedValue(0);
   requestIsAdmin = true;
   process.env.AI_RESOURCE_SEARCH_ENABLED = "true";
   process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED = "true";

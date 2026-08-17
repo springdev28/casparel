@@ -42,6 +42,7 @@ vi.mock("../lib/catalog", () => ({
     .mockResolvedValue({ minRelevanceScore: 1, offset: 0, total: 0 }),
   searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
   searchOpenWikisAndStore: vi.fn().mockResolvedValue(0),
+  searchOpenSourcesAndStore: vi.fn().mockResolvedValue(0),
 }));
 vi.mock("@workspace/integrations-openai-ai-server", () => ({
   openai: { responses: { create: vi.fn() } },

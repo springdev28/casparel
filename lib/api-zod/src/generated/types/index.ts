@@ -75,6 +75,7 @@ export * from './discoverResourcesFormat';
 export * from './discoverResourcesFreshness';
 export * from './discoverResourcesLanguage';
 export * from './discoverResourcesLicense';
+export * from './discoverResourcesMaterial';
 export * from './discoverResourcesParams';
 export * from './discoverResourcesResultType';
 export * from './discoverResourcesSourceQuality';

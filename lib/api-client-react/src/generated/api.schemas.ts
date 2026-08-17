@@ -1852,6 +1852,10 @@ source?: string;
  */
 excludeSource?: string;
 /**
+ * Kind of material wanted. The catalog holds encyclopedia articles, textbooks, courses, primary texts and peer-reviewed papers, and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one
+ */
+material?: DiscoverResourcesMaterial;
+/**
  * Resume after this point in the ranking, as the largest `cursor` the client already holds. Preferred over `page` for reading further into the stored catalog: the catalog grows while a reader pages, and a positional offset then hands back results an earlier page already showed. Ignored when it does not parse
  * @maxLength 40
  */
@@ -1927,6 +1931,17 @@ export const DiscoverResourcesResultType = {
   content: 'content',
   source: 'source',
   people: 'people',
+} as const;
+
+export type DiscoverResourcesMaterial = typeof DiscoverResourcesMaterial[keyof typeof DiscoverResourcesMaterial];
+
+
+export const DiscoverResourcesMaterial = {
+  book: 'book',
+  course: 'course',
+  reference: 'reference',
+  paper: 'paper',
+  primary: 'primary',
 } as const;
 
 export type DiscoverResourcesFreshness = typeof DiscoverResourcesFreshness[keyof typeof DiscoverResourcesFreshness];

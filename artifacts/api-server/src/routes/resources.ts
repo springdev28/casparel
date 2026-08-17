@@ -67,6 +67,7 @@ import {
   resolveCatalogSearch,
   searchCatalog,
   searchOpenLibraryAndStore,
+  searchOpenSourcesAndStore,
   searchOpenWikisAndStore,
   type SourceCredibility,
 } from "../lib/catalog";
@@ -844,8 +845,12 @@ async function callDiscoverAI(
  * Relevance alone gives the whole page to whichever provider is biggest —
  * Wikipedia has an article on everything — and a full page from one source
  * reads as "few results" however many there are.
+ *
+ * Two rather than three now that there are seven live sources: at three,
+ * Wikipedia still took eleven of the fifteen slots on a page that had books,
+ * courses and papers waiting behind it.
  */
-const SOURCE_SHARE_PER_PAGE = 3;
+const SOURCE_SHARE_PER_PAGE = 2;
 
 /**
  * Rounds of provider reads a thin page will spend filling itself.
@@ -1099,6 +1104,7 @@ router.get(
     const excludedWords = queryString(req.query.exclude);
     const sourceFilter = queryString(req.query.source);
     const excludeSourceFilter = queryString(req.query.excludeSource);
+    const materialFilter = queryString(req.query.material);
     // Where the reader has read to: the furthest point in the ranking, and the
     // newest row they hold. Both are validated by the catalog, which ignores
     // anything it did not write.
@@ -1150,6 +1156,7 @@ router.get(
       excludedWords,
       source: sourceFilter,
       excludeSource: excludeSourceFilter,
+      material: materialFilter,
       after,
       ...(Number.isSafeInteger(sinceId) && sinceId >= 0 ? { sinceId } : {}),
       freshness,
@@ -1193,6 +1200,7 @@ router.get(
             return [
               searchOpenLibraryAndStore(windowOptions).catch(() => 0),
               searchOpenWikisAndStore(windowOptions),
+              searchOpenSourcesAndStore(windowOptions),
             ];
           }),
         );
@@ -1340,6 +1348,7 @@ router.get(
       excludedWords,
       sourceFilter,
       excludeSourceFilter,
+      materialFilter,
       freshness,
       difficulty,
       accessType,
@@ -1387,6 +1396,17 @@ router.get(
         : "",
       excludedWords
         ? `Exclude results about any of these terms: ${excludedWords}.`
+        : "",
+      materialFilter
+        ? `Only return ${
+            {
+              book: "books and textbooks",
+              course: "courses and lesson series",
+              reference: "encyclopedia and reference articles",
+              paper: "peer-reviewed research papers",
+              primary: "primary source texts",
+            }[materialFilter] ?? materialFilter
+          }.`
         : "",
       excludeSourceFilter
         ? `Never use results from this website, publisher, creator, or domain: ${excludeSourceFilter}.`

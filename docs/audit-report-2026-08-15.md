@@ -320,3 +320,34 @@ The rule for when two results are the same work existed twice, in the API and in
 - An exclude-source filter, on the library listing and the open catalog alike, matched against the provider name, the link and the provider site so "Wikipedia" and "wikipedia.org" both work.
 - A recent search replays its filters, not only its words. The account-synced copy needed the field adding to the preferences schema as well, or zod stripped it on the way through.
 - The two database-backed test files are one file. Vitest runs separate files in parallel workers and each truncated the other's fixtures mid-run, which is why the paging suite reported that "physics mechanics" had two results.
+
+### Seven live sources, and a filter to choose between them
+
+Reported: "Everything Google can show, casparel must show", after a search with Wikipedia excluded returned nothing.
+
+The catalog had four live sources and all four were MediaWiki. Wikipedia was 58% of the stored rows, so excluding it removed most of every page — and because the exclusion was applied when *reading* the catalog rather than when importing, the round's whole budget went on fetching rows that were then filtered away. A reader who excluded it got five results and a "Search more" button that vanished.
+
+Three sources are added, all genuinely open access, so a link a reader follows opens the thing rather than a paywall:
+
+- **Directory of Open Access Books** — academic books, free in full. The closest thing to a textbook shelf.
+- **Directory of Open Access Journals** — peer-reviewed articles in fully open journals.
+- **Europe PMC**, restricted to `OPEN_ACCESS:Y` — life sciences and medicine, where the wikis are thinnest on anything current.
+
+Plus **Wikisource** as a fourth wiki, for the speeches, treaties and literature a history question wants to read rather than read about. Crossref is deliberately absent despite dwarfing all of these: it indexes everything, most of it paywalled.
+
+They share one importer. Pacing, the cooldown after a failure, collapsing concurrent identical requests, the size cap and the sync record were already written twice; a source now says only how to ask and how to read the answer.
+
+Measured on a cold catalog, one query's first window: 206 rows across seven providers.
+
+Because the catalog now holds five kinds of thing, a **material** filter chooses between them — books, courses, reference, peer-reviewed papers, primary texts. It is not only a filter on the read: a source that cannot produce the material asked for is not imported either, the same waste the exclusion fix removed. Measured on "photosynthesis": any → 15 mixed, book → 14 books, paper → 16 papers, course → 2, primary → 0. The last is correct rather than broken: Wikisource holds no primary text that genuinely matches, and returning seventeen unrelated volumes of *Popular Science Monthly* would be the older defect all over again.
+
+Three things had to get faster to afford seven sources. A thin page now keeps reading windows until it is full instead of stopping after one round; windows went from twenty works to fifty, which is the most the MediaWiki API returns in one request; the gap between requests to one host went from 1100ms to 350ms, since requests to a host are serialised and that gap was the floor on an import. A provider that fails now rests for a minute, so an outage costs its timeout once rather than on every round of every search.
+
+Cold first page, Wikipedia excluded: was 5 results and no way to continue; now 16, 16, 16, 16 at 4.5s for the first page and about 40ms for the rest.
+
+### Still open
+
+- **arXiv and OpenAlex** are written up but not built: arXiv returns Atom XML rather than JSON, and OpenAlex could not be verified from the build sandbox (the egress proxy meters it). Both are key-free and worth adding.
+- **DPLA, Europeana, OER Commons, LibreTexts and YouTube** all need an API key or a different protocol. They are the next real step up in breadth and need credentials to proceed.
+- **The catalog's size cap** is 50,000 rows by default (`CATALOG_MAX_ITEMS`, up to 250,000). Seven sources fill that far faster than four; at roughly 1.5KB a row, 250,000 rows is under half a gigabyte, so the cap is a deliberate choice rather than a storage limit.
+- **Page one is Wikipedia-heavy** even at a share of two per source, because the balance reorders the window rather than choosing it. Fetching a source-diverse window needs per-source quotas in the SQL.

@@ -18,6 +18,7 @@
  */
 
 import { meaningfulSearchTerms } from "./searchTerms";
+import type { MaterialKind } from "./openSources";
 
 export type MediaWikiSite = {
   /** Provider name as stored, without the language suffix. */
@@ -36,6 +37,12 @@ export type MediaWikiSite = {
    */
   rollUpSubpages: boolean;
   sourceKind: "wikibooks" | "wikiversity" | "wikipedia" | "wikisource";
+  /**
+   * What a reader is getting. A search for a school topic wants a textbook and
+   * an encyclopedia article for different reasons, and now that the catalog also
+   * holds peer-reviewed papers a reader has to be able to say which.
+   */
+  material: MaterialKind;
 };
 
 export const MEDIAWIKI_SITES: MediaWikiSite[] = [
@@ -47,6 +54,7 @@ export const MEDIAWIKI_SITES: MediaWikiSite[] = [
     license: "CC BY-SA and GFDL; see page history for attribution",
     rollUpSubpages: true,
     sourceKind: "wikibooks",
+    material: "book",
   },
   {
     provider: "Wikiversity",
@@ -56,6 +64,7 @@ export const MEDIAWIKI_SITES: MediaWikiSite[] = [
     license: "CC BY-SA; see page history for attribution",
     rollUpSubpages: true,
     sourceKind: "wikiversity",
+    material: "course",
   },
   {
     provider: "Wikipedia",
@@ -65,6 +74,7 @@ export const MEDIAWIKI_SITES: MediaWikiSite[] = [
     license: "CC BY-SA; see page history for attribution",
     rollUpSubpages: false,
     sourceKind: "wikipedia",
+    material: "reference",
   },
   // Primary sources: the speeches, treaties, papers and literature a history or
   // literature question wants to read rather than read *about*. Subpages are
@@ -77,6 +87,7 @@ export const MEDIAWIKI_SITES: MediaWikiSite[] = [
     license: "CC BY-SA and public domain; see the page for the work's status",
     rollUpSubpages: true,
     sourceKind: "wikisource",
+    material: "primary",
   },
 ];
 

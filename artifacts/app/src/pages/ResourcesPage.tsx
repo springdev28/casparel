@@ -97,6 +97,7 @@ import {
   type DiscoverResourcesFreshness,
   type DiscoverResourcesLicense,
   type DiscoverResourcesSourceQuality,
+  type DiscoverResourcesMaterial,
   type DiscoveredResource,
   type SourceReview,
 } from "@workspace/api-client-react";
@@ -184,6 +185,7 @@ type SubmittedResourceFilters = {
   license: string;
   contentLength: string;
   sourceQuality: string;
+  material: string;
   captions: boolean;
   transcript: boolean;
 };
@@ -1143,6 +1145,14 @@ export default function ResourcesPage() {
   const [licenseFilter, setLicenseFilter] = useState("");
   const [contentLengthFilter, setContentLengthFilter] = useState("");
   const [sourceQualityFilter, setSourceQualityFilter] = useState("");
+  /**
+   * What kind of thing the reader wants back.
+   *
+   * The catalog holds encyclopedia articles, textbooks, courses, primary texts
+   * and peer-reviewed papers now. Those answer different questions, and without
+   * this a revision search and a dissertation search get the same page.
+   */
+  const [materialFilter, setMaterialFilter] = useState("");
   const [captionsRequired, setCaptionsRequired] = useState(false);
   const [transcriptRequired, setTranscriptRequired] = useState(false);
   const [submittedSearch, setSubmittedSearch] =
@@ -1491,6 +1501,9 @@ export default function ResourcesPage() {
     ...(submittedSearch?.sourceQuality
       ? { sourceQuality: submittedSearch.sourceQuality as DiscoverResourcesSourceQuality }
       : {}),
+    ...(submittedSearch?.material
+      ? { material: submittedSearch.material as DiscoverResourcesMaterial }
+      : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.difficulty
       ? { difficulty: submittedSearch.difficulty as DiscoverResourcesDifficulty }
@@ -1723,6 +1736,7 @@ export default function ResourcesPage() {
     setLicenseFilter("");
     setContentLengthFilter("");
     setSourceQualityFilter("");
+    setMaterialFilter("");
     setCaptionsRequired(false);
     setTranscriptRequired(false);
   }
@@ -1742,6 +1756,7 @@ export default function ResourcesPage() {
     licenseFilter,
     contentLengthFilter,
     sourceQualityFilter,
+    materialFilter,
     captionsRequired,
     transcriptRequired,
   ].filter(Boolean).length;
@@ -1770,6 +1785,7 @@ export default function ResourcesPage() {
       license: licenseFilter,
       contentLength: contentLengthFilter,
       sourceQuality: sourceQualityFilter,
+      material: materialFilter,
       captions: captionsRequired,
       transcript: transcriptRequired,
     };
@@ -1798,6 +1814,7 @@ export default function ResourcesPage() {
     setLicenseFilter(filters.license);
     setContentLengthFilter(filters.contentLength);
     setSourceQualityFilter(filters.sourceQuality);
+    setMaterialFilter(filters.material);
     setCaptionsRequired(filters.captions);
     setTranscriptRequired(filters.transcript);
   }
@@ -2597,6 +2614,38 @@ export default function ResourcesPage() {
                         <SelectItem value="year">Past year</SelectItem>
                         <SelectItem value="three_years">
                           Past 3 years
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Material</Label>
+                    <Select
+                      value={materialFilter || "any"}
+                      onValueChange={(value) =>
+                        setMaterialFilter(value === "any" ? "" : value)
+                      }
+                    >
+                      <SelectTrigger
+                        className="h-9"
+                        data-testid="material-filter"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any">Any material</SelectItem>
+                        <SelectItem value="book">Books and textbooks</SelectItem>
+                        <SelectItem value="course">
+                          Courses and lesson series
+                        </SelectItem>
+                        <SelectItem value="reference">
+                          Encyclopedia and reference
+                        </SelectItem>
+                        <SelectItem value="paper">
+                          Peer-reviewed papers
+                        </SelectItem>
+                        <SelectItem value="primary">
+                          Primary source texts
                         </SelectItem>
                       </SelectContent>
                     </Select>

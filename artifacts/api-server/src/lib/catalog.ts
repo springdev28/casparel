@@ -18,6 +18,11 @@ import {
 } from "@workspace/db";
 import { meaningfulSearchTerms, wordStartPattern } from "./searchTerms";
 import {
+  OPEN_SOURCES,
+  openSourceIsExcluded,
+  type OpenSource,
+} from "./openSources";
+import {
   MEDIAWIKI_SITES,
   isWorkTitle,
   siteHost,
@@ -72,6 +77,8 @@ export type CatalogSearchOptions = {
   source?: string;
   /** Provider or domain the reader does not want to see. */
   excludeSource?: string;
+  /** Kind of material wanted: book, course, reference, paper or primary. */
+  material?: string;
   freshness?: string;
   accessType?: string;
   license?: string;
@@ -1143,6 +1150,16 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
       ),
     );
   }
+  // What kind of thing the reader wants. The catalog now holds encyclopedia
+  // articles, textbooks, courses, primary texts and peer-reviewed papers, and
+  // those answer different questions: a GCSE revision search and a dissertation
+  // search want opposite ends of that list. Rows stored before a source declared
+  // its material have none, so they are absent from a filtered result rather
+  // than guessed into one.
+  if (options.material)
+    conditions.push(
+      sql`coalesce(${catalogResourcesTable.metadata}->>'material', '') = ${options.material}`,
+    );
   if (["free", "open"].includes(options.accessType ?? ""))
     conditions.push(
       sql`coalesce(${catalogResourcesTable.metadata}->>'accessType', '') = 'free'`,
@@ -1620,6 +1637,8 @@ export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
   // A provider that just failed is not asked again for a minute. It would cost
   // its whole timeout, once per round, on a page the reader is waiting for.
   if (providerIsResting("open-library")) return 0;
+  // Open Library holds book records and nothing else.
+  if (options.material && options.material !== "book") return 0;
   const query = [
     meaningfulSearchTerms(options.query).join(" "),
     options.subject,
@@ -1707,6 +1726,7 @@ export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
             publishedAt: year ? `${year}-01-01T00:00:00.000Z` : null,
             sourceKind: "open-library",
             metadata: {
+              material: "book",
               accessType: "free",
               credibility: "established",
               contentScope: "whole-work",
@@ -1924,6 +1944,7 @@ export async function searchMediaWikiAndStore(
               accessType: "free",
               credibility: "established",
               contentScope: "whole-work",
+              material: site.material,
               pageId: page.pageid,
               categories: categories.slice(0, 12),
             },
@@ -1974,10 +1995,27 @@ export function siteIsExcluded(
   );
 }
 
+/**
+ * Whether asking this source could produce what the reader asked for.
+ *
+ * A reader who wants primary texts gets nothing from Wikipedia however deeply it
+ * is read, and a reader who wants papers gets nothing from any of the wikis.
+ * Reading them anyway spends the round's budget on rows the filter then removes
+ * — the same waste as importing a source the reader has excluded.
+ */
+export function siteMatchesMaterial(
+  site: MediaWikiSite,
+  material: string | undefined,
+): boolean {
+  return !material || site.material === material;
+}
+
 /** Every wiki importer the reader has not excluded, run together. */
 export async function searchOpenWikisAndStore(options: CatalogSearchOptions) {
   const wanted = MEDIAWIKI_SITES.filter(
-    (site) => !siteIsExcluded(site, options.excludeSource),
+    (site) =>
+      !siteIsExcluded(site, options.excludeSource) &&
+      siteMatchesMaterial(site, options.material),
   );
   const counts = await Promise.all(
     wanted.map((site) => searchMediaWikiAndStore(site, options).catch(() => 0)),
@@ -1985,3 +2023,150 @@ export async function searchOpenWikisAndStore(options: CatalogSearchOptions) {
   return counts.reduce((total, count) => total + count, 0);
 }
 
+
+// ── Open-access sources beyond the wikis ─────────────────────────────────────
+
+/**
+ * One queue per open source, so two services never wait on each other.
+ *
+ * Same shape as the wiki queues and for the same reason: these are independent
+ * services, and serialising them all behind one queue would multiply the time a
+ * thin page takes by the number of sources.
+ */
+const openSourceQueues = new Map<
+  string,
+  { queue: Promise<void>; nextAt: number }
+>();
+const OPEN_SOURCE_REQUEST_GAP_MS = 350;
+const openSourceInFlight = new Map<string, Promise<number>>();
+
+async function waitForOpenSourceSlot(host: string) {
+  const state = openSourceQueues.get(host) ?? {
+    queue: Promise.resolve(),
+    nextAt: 0,
+  };
+  openSourceQueues.set(host, state);
+  let release = () => {};
+  const previous = state.queue;
+  state.queue = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  const waitMs = Math.max(0, state.nextAt - Date.now());
+  if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  state.nextAt = Date.now() + OPEN_SOURCE_REQUEST_GAP_MS;
+  release();
+}
+
+/**
+ * Read one window of one open source and store what it holds.
+ *
+ * Everything general lives here — pacing, the cooldown after a failure,
+ * collapsing concurrent identical requests, the catalog's size cap, recording
+ * the outcome — and everything particular to a source lives in its own
+ * description in openSources.ts. Adding the fourth and fifth source should be a
+ * matter of saying how to ask and how to read the answer, not another copy of
+ * this.
+ */
+export async function searchOpenSourceAndStore(
+  source: OpenSource,
+  options: CatalogSearchOptions,
+): Promise<number> {
+  if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false") return 0;
+  if (providerIsResting(source.kind)) return 0;
+  const query = meaningfulSearchTerms(options.query).join(" ");
+  if (query.length < 2) return 0;
+  if ((options.page ?? 1) > REMOTE_PAGE_LIMIT) return 0;
+
+  const offset = remoteWindowOffset(options, source.pageSize);
+  const key = `${source.kind}:${query.toLowerCase()}:${offset}`;
+  const existing = openSourceInFlight.get(key);
+  if (existing) return existing;
+
+  const task = (async () => {
+    const attemptedAt = new Date().toISOString();
+    try {
+      const remainingCapacity = Math.max(
+        0,
+        catalogItemLimit() - (await currentCatalogSize()),
+      );
+      if (!remainingCapacity) return 0;
+
+      await waitForOpenSourceSlot(source.host);
+      const response = await fetch(
+        source.endpoint(query, offset, source.pageSize),
+        {
+          headers: {
+            accept: "application/json",
+            "user-agent": catalogUserAgent(),
+          },
+          signal: AbortSignal.timeout(9000),
+        },
+      );
+      if (!response.ok)
+        throw new Error(`${source.provider} returned ${response.status}`);
+      const parsed = source.parse(await response.json());
+
+      const now = new Date().toISOString();
+      const items: InsertCatalogResource[] = parsed
+        .slice(0, Math.min(source.pageSize, remainingCapacity))
+        .map((row) => ({
+          provider: source.provider,
+          providerUrl: source.providerUrl,
+          externalId: row.externalId,
+          canonicalUrl: canonicalCatalogUrl(row.url),
+          title: row.title,
+          description: row.description,
+          format: row.format,
+          // Never the query and never the reader's filters: those describe the
+          // search, not the work. "Interdisciplinary" is the honest answer when
+          // the source's own classification named nothing the catalog knows.
+          subject: (row.subject ?? "Interdisciplinary").slice(0, 160),
+          gradeLevel: source.material === "paper" ? "Higher education" : "All levels",
+          language: row.language ?? "en",
+          license: row.license ?? null,
+          author: row.author ?? null,
+          thumbnailUrl: row.thumbnailUrl ?? null,
+          publishedAt: row.publishedAt ?? null,
+          sourceKind: source.kind,
+          metadata: {
+            accessType: "free",
+            credibility: source.material === "paper" ? "academic" : "institutional",
+            contentScope: "whole-work",
+            material: source.material,
+          },
+          lastSyncedAt: now,
+        }));
+
+      const count = await upsertCatalogResources(items);
+      await recordCatalogSync(source.provider, attemptedAt, count);
+      return count;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      restProvider(source.kind);
+      await recordCatalogSync(source.provider, attemptedAt, 0, message);
+      return 0;
+    } finally {
+      openSourceInFlight.delete(key);
+    }
+  })();
+  openSourceInFlight.set(key, task);
+  return task;
+}
+
+/** Every open source the reader has not excluded, read together. */
+export async function searchOpenSourcesAndStore(
+  options: CatalogSearchOptions,
+): Promise<number> {
+  const wanted = OPEN_SOURCES.filter(
+    (source) =>
+      !openSourceIsExcluded(source, options.excludeSource) &&
+      (!options.material || source.material === options.material),
+  );
+  const counts = await Promise.all(
+    wanted.map((source) =>
+      searchOpenSourceAndStore(source, options).catch(() => 0),
+    ),
+  );
+  return counts.reduce((total, count) => total + count, 0);
+}

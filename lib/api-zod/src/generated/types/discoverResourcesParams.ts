@@ -12,6 +12,7 @@ import type { DiscoverResourcesFormat } from './discoverResourcesFormat';
 import type { DiscoverResourcesFreshness } from './discoverResourcesFreshness';
 import type { DiscoverResourcesLanguage } from './discoverResourcesLanguage';
 import type { DiscoverResourcesLicense } from './discoverResourcesLicense';
+import type { DiscoverResourcesMaterial } from './discoverResourcesMaterial';
 import type { DiscoverResourcesResultType } from './discoverResourcesResultType';
 import type { DiscoverResourcesSourceQuality } from './discoverResourcesSourceQuality';
 
@@ -53,6 +54,10 @@ source?: string;
  * Drop results whose provider, link or provider site contains this text, truncated to 160 characters. Matched against all three so "Wikipedia" and "wikipedia.org" exclude the same results
  */
 excludeSource?: string;
+/**
+ * Kind of material wanted. The catalog holds encyclopedia articles, textbooks, courses, primary texts and peer-reviewed papers, and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one
+ */
+material?: DiscoverResourcesMaterial;
 /**
  * Resume after this point in the ranking, as the largest `cursor` the client already holds. Preferred over `page` for reading further into the stored catalog: the catalog grows while a reader pages, and a positional offset then hands back results an earlier page already showed. Ignored when it does not parse
  * @maxLength 40
