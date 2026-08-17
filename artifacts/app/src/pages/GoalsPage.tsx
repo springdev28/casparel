@@ -660,7 +660,7 @@ export default function GoalsPage() {
                       {path.level}
                     </Badge>
                   </div>
-                  <CardTitle className="mt-2 text-base">{path.title}</CardTitle>
+                  <CardTitle translate="no" className="mt-2 text-base">{path.title}</CardTitle>
                   <p className="text-xs text-muted-foreground">
                     Shared by {path.creatorName} · Used {path.useCount} times
                   </p>
@@ -735,7 +735,7 @@ export default function GoalsPage() {
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <CardTitle className="text-lg">{goal.title}</CardTitle>
+                      <CardTitle translate="no" className="text-lg">{goal.title}</CardTitle>
                       <div className="mt-2 flex flex-wrap gap-2">
                         <Badge variant="secondary">{goal.subject}</Badge>
                         <Badge variant="outline" className="capitalize">

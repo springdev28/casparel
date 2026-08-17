@@ -1081,7 +1081,7 @@ export default function ResourceDetailPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex-1 min-w-0">
-              <CardTitle className="text-xl">{resource.title}</CardTitle>
+              <CardTitle translate="no" className="text-xl">{resource.title}</CardTitle>
               <CardDescription className="mt-1">
                 {metaLine(resource.subject, resource.gradeLevel)}
               </CardDescription>

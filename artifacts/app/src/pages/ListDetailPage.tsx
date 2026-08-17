@@ -383,7 +383,7 @@ export default function ListDetailPage() {
 
       {/* List Info */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{list.name}</h1>
+        <h1 translate="no" className="text-2xl font-bold text-foreground">{list.name}</h1>
         {list.description && <p className="text-muted-foreground text-sm mt-1">{list.description}</p>}
         <p className="text-xs text-muted-foreground mt-1">{list.itemCount} item{list.itemCount !== 1 ? 's' : ''}</p>
       </div>
