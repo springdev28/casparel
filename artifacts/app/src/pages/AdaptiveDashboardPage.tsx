@@ -37,6 +37,7 @@ import { cn } from "@workspace/edu-ds/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { getDashboardGoalId, pendingCheckInKey } from "../lib/dashboardGoal";
+import { describeApiError } from "../lib/api-error";
 import { TodayAssignments } from "../components/TodayAssignments";
 import { ContinueWorkflows } from "../components/ContinueWorkflows";
 import {
@@ -156,17 +157,30 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
   const progress = path.length ? (completedSteps.size / path.length) * 100 : 0;
   async function togglePathStep(stepId: string) {
     if (!activeGoal) return;
-    await updateGoal.mutateAsync({
-      id: activeGoal.id,
-      data: {
-        pathSteps: activeGoal.pathSteps.map((step) =>
-          step.id === stepId ? { ...step, completed: !step.completed } : step,
+    try {
+      await updateGoal.mutateAsync({
+        id: activeGoal.id,
+        data: {
+          pathSteps: activeGoal.pathSteps.map((step) =>
+            step.id === stepId ? { ...step, completed: !step.completed } : step,
+          ),
+        },
+      });
+      await queryClient.invalidateQueries({
+        queryKey: getListLearningGoalsQueryKey(),
+      });
+    } catch (error) {
+      // The row is drawn from server state, so a failed save leaves the step
+      // looking exactly as it did. Without this the click was a silent no-op.
+      toast({
+        title: "Step was not updated",
+        description: describeApiError(
+          error,
+          "Your progress was not saved. Try again in a moment.",
         ),
-      },
-    });
-    await queryClient.invalidateQueries({
-      queryKey: getListLearningGoalsQueryKey(),
-    });
+        variant: "destructive",
+      });
+    }
   }
   const nextStepIndex = path.findIndex(
     (step) => !completedSteps.has(step.concept),

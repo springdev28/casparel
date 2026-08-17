@@ -7,6 +7,7 @@ import {
   ilike,
   and,
   or,
+  desc,
   inArray,
   notInArray,
 } from "drizzle-orm";
@@ -2136,6 +2137,27 @@ router.get("/resources/provenance-showcase", async (req, res): Promise<void> => 
       .limit(6);
   }
 
+  /**
+   * The catalogue itself, newest first, for a platform where nothing has been
+   * saved to a list yet. Without this the hero falls back to its hardcoded
+   * examples on exactly the deployments that most need to show real material,
+   * so a young library is illustrated with sources it does not hold.
+   */
+  async function catalogueRows() {
+    return db
+      .select({
+        id: resourcesTable.id,
+        title: resourcesTable.title,
+        url: resourcesTable.url,
+        subject: resourcesTable.subject,
+        savedCount: sql<number>`0`,
+      })
+      .from(resourcesTable)
+      .where(visibility)
+      .orderBy(desc(resourcesTable.createdAt))
+      .limit(6);
+  }
+
   try {
     let personalised = viewerId !== null;
     let rows = personalised ? await showcaseRows(true) : [];
@@ -2145,6 +2167,8 @@ router.get("/resources/provenance-showcase", async (req, res): Promise<void> => 
       personalised = false;
       rows = await showcaseRows(false);
     }
+    // Nobody has saved anything yet: show the library rather than fiction.
+    if (rows.length === 0) rows = await catalogueRows();
 
     const entries = rows.map((row) => {
       // linkChecked=false: this endpoint never makes outbound requests, so it

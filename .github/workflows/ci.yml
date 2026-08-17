@@ -84,6 +84,13 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-search-results.mjs
 
+      # An empty state must never stand in for a loading one: "Your library is
+      # empty" is a claim about the account, and painting it mid-load tells a
+      # returning user their work is gone.
+      - name: Audit loading states
+        working-directory: artifacts/app
+        run: node scripts/audit-loading.mjs
+
       # Drives auth state rather than rendering: an expired or server-rejected
       # session must return the user to the login page, and a valid one must
       # not be ejected.
