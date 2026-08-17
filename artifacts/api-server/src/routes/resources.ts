@@ -243,6 +243,24 @@ async function topRatedResources(limit = 12, viewerId: number | null = null) {
   return resourcesWithRatings(rows.map((r) => r.id));
 }
 
+/**
+ * GET /discover/capabilities
+ *
+ * Both AI searches sit behind server flags that default to OFF. Without a way
+ * to ask, the app rendered "No verified public profiles found" for a search it
+ * had never run: the same sentence it shows when a search ran and matched
+ * nobody. Those are different facts and a user can only act on one of them.
+ *
+ * Public: it reports configuration, not data, and the sign-in prompt for AI
+ * discovery is a separate check further down.
+ */
+router.get("/discover/capabilities", (_req, res): void => {
+  res.json({
+    publicProfileSearch: process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED === "true",
+    resourceSearch: process.env.AI_RESOURCE_SEARCH_ENABLED === "true",
+  });
+});
+
 // ── GET /resources, public ───────────────────────────────────────────────────
 
 router.get("/resources", async (req, res): Promise<void> => {

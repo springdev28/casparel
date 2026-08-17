@@ -1716,6 +1716,13 @@ export interface LearningSignals {
   signals: LearningSignalItem[];
 }
 
+export type GetDiscoverCapabilities200 = {
+  /** AI search of public profiles on the open web. */
+  publicProfileSearch: boolean;
+  /** AI fallback when the stored catalog has no match. */
+  resourceSearch: boolean;
+};
+
 export type UploadAvatarBody = {
   file: Blob;
 };

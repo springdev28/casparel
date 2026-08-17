@@ -95,6 +95,16 @@ export const LogoutResponse = zod.void()
 
 
 /**
+ * Both AI-backed searches are behind server flags that default to off. Without this the app cannot tell "switched off" from "found nothing", and reported an empty result for a search it never ran.
+ * @summary Which discovery searches this server can actually run
+ */
+export const GetDiscoverCapabilitiesResponse = zod.object({
+  "publicProfileSearch": zod.boolean().describe('AI search of public profiles on the open web.'),
+  "resourceSearch": zod.boolean().describe('AI fallback when the stored catalog has no match.')
+})
+
+
+/**
  * @summary Get the authenticated user
  */
 export const GetMeResponse = zod.object({

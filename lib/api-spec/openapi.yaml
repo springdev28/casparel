@@ -98,6 +98,30 @@ paths:
         "204":
           description: Logged out
 
+  /discover/capabilities:
+    get:
+      operationId: getDiscoverCapabilities
+      tags: [resources]
+      summary: Which discovery searches this server can actually run
+      description: >-
+        Both AI-backed searches are behind server flags that default to off.
+        Without this the app cannot tell "switched off" from "found nothing",
+        and reported an empty result for a search it never ran.
+      responses:
+        "200":
+          description: Capabilities
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [publicProfileSearch, resourceSearch]
+                properties:
+                  publicProfileSearch:
+                    type: boolean
+                    description: AI search of public profiles on the open web.
+                  resourceSearch:
+                    type: boolean
+                    description: AI fallback when the stored catalog has no match.
   /users/me:
     get:
       operationId: getMe
