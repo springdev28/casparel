@@ -1,21 +1,28 @@
 /**
- * Every sentence describeApiError can show must exist in the Turkish dictionary.
+ * Every sentence describeApiError can show must exist in every dictionary.
  *
  * UiTranslationBridge is a MutationObserver that rewrites exact English strings
- * to Turkish across the signed-in app. Matching is whole-string, so a sentence
- * absent from the dictionary is simply left in English, silently and only for
- * the users who cannot read it.
+ * across the signed-in app. Matching is whole-string, so a sentence absent from
+ * a dictionary is simply left in English, silently and only for the users who
+ * cannot read it.
  *
  * That makes improving an error message quietly regressive: replacing a toast
  * that said "Error" (translated) with a better English sentence (untranslated)
- * is a net loss for a Turkish reader. It nearly happened here - the web-ux fix
- * introduced ten new strings on top of two the dictionary already covered.
+ * is a net loss for a reader of that language. It nearly happened here — the
+ * web-ux fix introduced ten new strings on top of two already covered.
  *
- * Reading both files as text is deliberate. They are in another package, and
- * the point is to check what a reader of those files actually sees.
+ * The dictionaries are found by listing the directory rather than by naming the
+ * languages. They used to live inside the bridge itself and this file read it
+ * by path; when they moved out into one module per language the test kept
+ * reading the bridge, found no sentences in it and failed on all five — the
+ * translations were there the whole time. A sixth language should be covered
+ * the day it is added, not the day someone remembers this file.
+ *
+ * Reading them as text is deliberate. They are in another package, and the
+ * point is to check what a reader of those files actually sees.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,10 +31,15 @@ const appSrc = resolve(
   "../../../app/src",
 );
 const errors = readFileSync(resolve(appSrc, "lib/api-error.ts"), "utf8");
-const dictionary = readFileSync(
-  resolve(appSrc, "components/UiTranslationBridge.ts"),
-  "utf8",
-);
+
+const dictionaryDir = resolve(appSrc, "lib/ui-translations");
+/** One module per language, plus an index that wires them together. */
+const languages = readdirSync(dictionaryDir)
+  .filter((name) => name.endsWith(".ts") && name !== "index.ts")
+  .map((name) => ({
+    language: name.replace(/\.ts$/, ""),
+    text: readFileSync(resolve(dictionaryDir, name), "utf8"),
+  }));
 
 /**
  * The literals describeApiError returns. Template literals are skipped on
@@ -44,7 +56,7 @@ function returnedSentences(): string[] {
     .filter((s) => s.length > 12);
 }
 
-describe("Turkish covers the error sentences users are shown", () => {
+describe("every language covers the error sentences users are shown", () => {
   const sentences = returnedSentences();
 
   it("finds the sentences to check", () => {
@@ -53,10 +65,19 @@ describe("Turkish covers the error sentences users are shown", () => {
     expect(sentences.length).toBeGreaterThanOrEqual(5);
   });
 
+  it("finds the dictionaries to check them against", () => {
+    // Same reason: a moved directory must fail loudly here rather than leave
+    // nothing to iterate over and report success.
+    expect(languages.length).toBeGreaterThanOrEqual(1);
+  });
+
   it.each(sentences)("translates %s", (sentence) => {
+    const missing = languages
+      .filter(({ text }) => !text.includes(`"${sentence}":`))
+      .map(({ language }) => language);
     expect(
-      dictionary.includes(`"${sentence}":`),
-      `UiTranslationBridge has no Turkish for "${sentence}", so Turkish readers see it in English`,
-    ).toBe(true);
+      missing,
+      `no translation of "${sentence}" in ${missing.join(", ")}, so those readers see it in English`,
+    ).toEqual([]);
   });
 });
