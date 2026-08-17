@@ -277,3 +277,46 @@ Two client-side faults, both invisible to every check that existed. The API retu
 | P1 Newer API routes are outside OpenAPI | Advanced discovery is done: `exactPhrase`, `exclude`, `source`, `freshness`, `sourceQuality`, `difficulty`, `accessType`, `license`, `contentLength`, `captions` and `transcript` were accepted at runtime but absent from the spec, so no client type or schema covered them. They are in `openapi.yaml` now and the clients are regenerated, which typed six filter values in the web app that were plain strings before. Other domains are unchanged. |
 
 Everything else in the table above still stands.
+
+## Follow-up, 17 August 2026
+
+Reported: "Still so few results, even with the search for more." Measured on the live site before the work below, over three pages: `photosynthesis` returned 10, then 2, then 0; `mitosis` 16, then 1, then 0. Three independent causes.
+
+### The relevance bar was backwards for short queries
+
+A row had to score two points to be a result at all. Against a four-word query that is a third of the query and rightly permissive. Against a one-word query it is the *maximum* score, so it demanded the word appear in the title or the subject and nothing else would do — and the works actually about the topic were in the catalog, unreachable. Every one of the twelve results the live site had for `photosynthesis` had the word in its title; chlorophyll, the Calvin cycle and the photosystems were stored and could not be returned.
+
+The bar now belongs to the query rather than being a constant: when the whole query is one word of real length, a work that mentions it is an answer. A lone abbreviation stays strict, because "AP" appearing somewhere is not a topic — that is what answered an AP Physics search with a Florida high school.
+
+### Paging was positional, over a set that grows while it is read
+
+This endpoint stores works as it finds them, so the result set is bigger on page two than it was on page one, and a work stored during page two can rank on page one. Everything below it shifts down — back into a window page one already showed. Measured against the live wikis on a cold catalog, a third of every "search more" page was results the reader already had. Measured against the same catalog once it had stopped growing: none of it was. Positional paging is correct over a stable set and cannot be over this one.
+
+Results now carry a `cursor` — where the row sits in the ranking, as fixed-width sortable text — and the `catalogId` they came from. Asking for more sends back the largest of each, and the read is everything after that place in the ranking *or* stored since. Both halves are necessary: the cursor alone buries the late arrivals for good, and each page came back thinner than the one before it (`shakespeare` fell from 38 distinct results to 32); the `sinceId` alone cannot say where the reader stopped. Together they guarantee that a page repeats nothing and loses nothing.
+
+The client sends the *largest* cursor it holds, not the last one: the server spreads sources across a page and the client then dedupes and hides results, so the final card is not the furthest into the ranking. The audit fixtures deliberately rank out of order to hold that.
+
+### The route's rate limit was rationing reading
+
+`discoverLimiter` allowed five requests a minute, set when the endpoint called OpenAI on every request. It no longer does — the stored catalog answers first and the AI is a fallback reached only when the catalog has nothing. Five had stopped guarding an expensive call and become a cap on reading: search once, press "Search more resources" four times, and the fifth press was refused with "you can run up to 5 AI web searches per minute" about a request that never went near an AI. The browsing cap is thirty; the AI's own five-a-minute allowance is now taken at the AI call, where it counts only requests that make one.
+
+Measured after all three, over four pages against the live site: `photosynthesis` 64 distinct results with no repeats (was 12), `mitosis` 57 (was 17).
+
+### Every page claimed to be the home page
+
+Search Console had four pages indexed, one reported as a redirect and three as "discovered — currently not indexed". The cause is in the HTML: the app renders client-side, so one shell was served for every address, and that shell contains `<link rel="canonical" href="https://casparel.com/">`. A canonical tag is not a hint but a declaration that this page *is* that other page, so `/resources` — the page the product is about — told Google it was a duplicate of the front page, as did `/terms`, `/privacy` and both auth routes.
+
+The shell is now filled in per route before it is sent: its own title, description, canonical, Open Graph and Twitter tags, and its own `<h1>` for a reader without JavaScript. The route list lives in the frontend build (`scripts/generate-seo.mjs` writes `_seo/routes.json` beside the sitemap it is derived from) so the sitemap and the pages it points at cannot disagree, and a bundle predating the file gets the old behaviour instead of an error. Both spellings of a path are served rather than redirected, because a redirect is itself an "excluded" verdict. The two auth routes are served with real titles but marked `noindex` and dropped from the sitemap: a sign-in form has nothing to rank, and asking for it to be indexed spends crawl budget to be told no.
+
+`app.crawlable.test.ts` drives the production branch of `app.ts` against the real shell and the real metadata file, so the failure mode — HTTP 200, a perfectly good page, and only the part a search engine reads is wrong — is covered by something that fails.
+
+### One shared definition of a duplicate work
+
+The rule for when two results are the same work existed twice, in the API and in the browser, and the copies had drifted. `lib/resource-identity` is now the only copy, imported by both.
+
+### Also in this pass
+
+- No single source takes a whole page. Wikipedia has an article on everything, so it won every slot and sixteen results read as the same thing over and over.
+- An exclude-source filter, on the library listing and the open catalog alike, matched against the provider name, the link and the provider site so "Wikipedia" and "wikipedia.org" both work.
+- A recent search replays its filters, not only its words. The account-synced copy needed the field adding to the preferences schema as well, or zod stripped it on the way through.
+- The two database-backed test files are one file. Vitest runs separate files in parallel workers and each truncated the other's fixtures mid-run, which is why the paging suite reported that "physics mechanics" had two results.

@@ -1,0 +1,43 @@
+{
+  "origin": "https://casparel.com",
+  "routes": {
+    "/": {
+      "title": "Casparel: Student & Teacher App",
+      "description": "Discover resources, manage classes, and stay organised as a student or teacher.",
+      "heading": "Casparel: learn, organise, study",
+      "canonical": "https://casparel.com/"
+    },
+    "/resources": {
+      "title": "Open education library — Casparel",
+      "description": "Search a free library of open textbooks, courses and videos drawn from Wikibooks, Wikiversity, Open Library and other open sources.",
+      "heading": "The open education library",
+      "canonical": "https://casparel.com/resources"
+    },
+    "/terms": {
+      "title": "Terms of Service — Casparel",
+      "description": "The terms you agree to when you use Casparel.",
+      "heading": "Terms of Service",
+      "canonical": "https://casparel.com/terms"
+    },
+    "/privacy": {
+      "title": "Privacy Policy — Casparel",
+      "description": "What Casparel stores about you, why, and how to have it deleted.",
+      "heading": "Privacy Policy",
+      "canonical": "https://casparel.com/privacy"
+    },
+    "/auth/login": {
+      "title": "Sign in — Casparel",
+      "description": "Sign in to Casparel.",
+      "heading": "Sign in to Casparel",
+      "canonical": "https://casparel.com/auth/login",
+      "noindex": true
+    },
+    "/auth/register": {
+      "title": "Create a free account — Casparel",
+      "description": "Create a free Casparel account to save resources, plan classes and track what you are studying.",
+      "heading": "Create a free Casparel account",
+      "canonical": "https://casparel.com/auth/register",
+      "noindex": true
+    }
+  }
+}

@@ -8,6 +8,11 @@ import router from "./routes";
 import loginCompatRouter from "./routes/loginCompat";
 import { logger } from "./lib/logger";
 import { authLimiter, globalLimiter } from "./lib/limiters";
+import {
+  parseRouteMetadata,
+  renderRouteShell,
+  routeKey,
+} from "./lib/routeMetadata";
 
 const app: Express = express();
 const configuredOrigins = new Set(
@@ -113,10 +118,13 @@ app.use("/api", loginCompatRouter);
 app.use("/api", router);
 
 if (process.env.NODE_ENV === "production") {
-  const publicDir = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "public",
-  );
+  // FRONTEND_PUBLIC_DIR exists so this branch can be tested. Everything about
+  // how a page is served to a crawler lives in here, and it used to be
+  // unreachable from a test: the directory was pinned next to the bundle, which
+  // only exists after a full build.
+  const publicDir = process.env.FRONTEND_PUBLIC_DIR
+    ? path.resolve(process.env.FRONTEND_PUBLIC_DIR)
+    : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "public");
   const indexFile = path.join(publicDir, "index.html");
 
   if (!fs.existsSync(indexFile)) {
@@ -147,6 +155,24 @@ if (process.env.NODE_ENV === "production") {
       }
     },
   }));
+
+  // What each address is, written by the frontend build alongside the sitemap
+  // it is derived from. Read once: the file ships with the bundle and cannot
+  // change while the process runs. Missing file means an older bundle, and the
+  // shell is served exactly as it was before.
+  const routeMetadata = (() => {
+    const file = path.join(publicDir, "_seo", "routes.json");
+    try {
+      return parseRouteMetadata(fs.readFileSync(file, "utf8"));
+    } catch {
+      logger.warn(
+        { file },
+        "No per-route page metadata; every address will claim to be the home page",
+      );
+      return {};
+    }
+  })();
+
   app.get("/{*path}", (req, res, next) => {
     if (req.path.startsWith("/api")) {
       next();
@@ -159,6 +185,22 @@ if (process.env.NODE_ENV === "production") {
         expected: "dist/public/index.html",
       });
       return;
+    }
+
+    // Filled in for this route: its own title, description and canonical. Sent
+    // as a body rather than sendFile because the bytes differ per address —
+    // which is the whole point, and why the shell must not be cached publicly.
+    const metadata = routeMetadata[routeKey(req.path)];
+    if (metadata) {
+      try {
+        res.setHeader("Cache-Control", "no-cache");
+        res.type("html").send(
+          renderRouteShell(fs.readFileSync(indexFile, "utf8"), metadata),
+        );
+        return;
+      } catch (error) {
+        logger.error({ err: error, path: req.path }, "Could not render the shell");
+      }
     }
 
     res.sendFile(indexFile, (err) => {

@@ -27,19 +27,78 @@ const rawSiteUrl = process.env.SITE_URL ?? "https://casparel.com";
 const origin = rawSiteUrl.replace(/\/+$/, "");
 
 /**
- * Publicly reachable, crawlable routes (see App.tsx <Router/>).
- * Authenticated-only routes are intentionally excluded: they redirect to
- * login and hold no indexable content. Individual /resources/:id pages are
- * data-driven; a static build cannot enumerate them, so they are covered by
- * the /resources hub here and can be appended later from an API export.
+ * Publicly reachable routes (see App.tsx <Router/>), and what each one is.
+ *
+ * The titles and descriptions are here, not only in index.html, because a
+ * client-rendered app serves one HTML shell for every address. Every route
+ * therefore claimed the same title, the same description and — worst of all —
+ * `<link rel="canonical" href="https://casparel.com/">`. A canonical tag is a
+ * declaration that a page *is* another page, so Search Console had a handful of
+ * addresses reported as a redirect or "discovered, currently not indexed" while
+ * only the home page was ever indexed. The server fills these in per route (see
+ * app.ts), so /resources says it is /resources.
+ *
+ * `sitemap: false` means the page is served with its own title but is not
+ * offered for indexing. A sign-in form has nothing to rank, and asking for it to
+ * be indexed spends crawl budget to be told no.
+ *
+ * Authenticated-only routes are absent altogether: they redirect to login and
+ * hold no indexable content. Individual /resources/:id pages are data-driven; a
+ * static build cannot enumerate them, so they are covered by the /resources hub
+ * and can be appended later from an API export.
  */
 const routes = [
-  { path: "/", changefreq: "daily", priority: "1.0" },
-  { path: "/resources", changefreq: "daily", priority: "0.9" },
-  { path: "/terms", changefreq: "yearly", priority: "0.3" },
-  { path: "/privacy", changefreq: "yearly", priority: "0.3" },
-  { path: "/auth/login", changefreq: "monthly", priority: "0.4" },
-  { path: "/auth/register", changefreq: "monthly", priority: "0.4" },
+  {
+    path: "/",
+    changefreq: "daily",
+    priority: "1.0",
+    // Matches index.html exactly, so the home page is served untouched.
+    title: "Casparel: Student & Teacher App",
+    description:
+      "Discover resources, manage classes, and stay organised as a student or teacher.",
+    heading: "Casparel: learn, organise, study",
+  },
+  {
+    path: "/resources",
+    changefreq: "daily",
+    priority: "0.9",
+    title: "Open education library — Casparel",
+    description:
+      "Search a free library of open textbooks, courses and videos drawn from Wikibooks, Wikiversity, Open Library and other open sources.",
+    heading: "The open education library",
+  },
+  {
+    path: "/terms",
+    changefreq: "yearly",
+    priority: "0.3",
+    title: "Terms of Service — Casparel",
+    description: "The terms you agree to when you use Casparel.",
+    heading: "Terms of Service",
+  },
+  {
+    path: "/privacy",
+    changefreq: "yearly",
+    priority: "0.3",
+    title: "Privacy Policy — Casparel",
+    description:
+      "What Casparel stores about you, why, and how to have it deleted.",
+    heading: "Privacy Policy",
+  },
+  {
+    path: "/auth/login",
+    sitemap: false,
+    title: "Sign in — Casparel",
+    description: "Sign in to Casparel.",
+    heading: "Sign in to Casparel",
+  },
+  {
+    path: "/auth/register",
+    sitemap: false,
+    title: "Create a free account — Casparel",
+    description:
+      "Create a free Casparel account to save resources, plan classes and track what you are studying.",
+    heading: "Create a free Casparel account",
+  },
 ];
 
 /**
@@ -73,6 +132,7 @@ const lastmod =
 const lastmodTag = `\n    <lastmod>${lastmod}</lastmod>`;
 
 const urls = routes
+  .filter((route) => route.sitemap !== false)
   .map(
     ({ path, changefreq, priority }) =>
       `  <url>\n    <loc>${origin}${path}</loc>${lastmodTag}\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`,
@@ -85,13 +145,43 @@ ${urls}
 </urlset>
 `;
 
+/**
+ * What the server needs to fill the HTML shell in for each route.
+ *
+ * Written into the build output rather than compiled into the server so the
+ * route list has one home. A deploy whose bundle predates this file simply gets
+ * the old behaviour — one shell, one canonical — instead of failing.
+ */
+const routeMetadata = {
+  origin,
+  routes: Object.fromEntries(
+    routes.map(({ path, title, description, heading, sitemap: inSitemap }) => [
+      path,
+      {
+        title,
+        description,
+        heading,
+        canonical: `${origin}${path}`,
+        ...(inSitemap === false ? { noindex: true } : {}),
+      },
+    ]),
+  ),
+};
+
 // Note: robots.txt is intentionally NOT emitted as a static file. On the
 // production host a static robots.txt at the web root gets served directly by
 // the CDN/static layer, which shadowed the app and pinned an old
 // "Disallow: /". Instead the API app owns GET /robots.txt (see api-server
 // app.ts), so removing the static file here lets every request reach that
 // route, the same way sitemap.xml is already served by the app.
-await mkdir(publicDir, { recursive: true });
+await mkdir(resolve(publicDir, "_seo"), { recursive: true });
 await writeFile(resolve(publicDir, "sitemap.xml"), sitemap, "utf8");
+await writeFile(
+  resolve(publicDir, "_seo", "routes.json"),
+  `${JSON.stringify(routeMetadata, null, 2)}\n`,
+  "utf8",
+);
 
-console.log(`[seo] wrote sitemap.xml for ${origin} (robots.txt is served by the API app)`);
+console.log(
+  `[seo] wrote sitemap.xml (${routes.filter((r) => r.sitemap !== false).length} urls) and _seo/routes.json (${routes.length} routes) for ${origin}; robots.txt is served by the API app`,
+);
