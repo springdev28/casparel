@@ -24,7 +24,12 @@ import { readSessionClaims } from "../lib/session";
 import { isDesktopShell } from "../lib/platform";
 import { useReveal } from "../lib/use-reveal";
 import { LetterDrop } from "../components/LetterDrop";
-import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import {
+  useGetMe,
+  getGetMeQueryKey,
+  useListProvenanceShowcase,
+  getListProvenanceShowcaseQueryKey,
+} from "@workspace/api-client-react";
 
 /**
  * Public store listings. Left null until the apps are actually live, a dead
@@ -60,14 +65,18 @@ const CAPABILITIES = [
 ];
 
 /**
- * The hero's source-research card, illustrated with more than one answer.
+ * Fallback examples for the hero's source-research card.
  *
- * It used to show a single hardcoded example, which read as a rubber stamp —
- * the point of the feature is that different sources get different verdicts,
- * so the card cycles through a high-trust institution, an established
- * platform, a community source and an unverifiable one. The examples are
- * illustrative copy, not live output: named organisations only carry claims
- * that are publicly true of them, and the cautionary example names nobody.
+ * The card shows real catalogue sources with their real verdicts (see
+ * `useShowcaseSources` below) — the account's own saved resources when
+ * someone is signed in, the platform's most-saved otherwise. These four are
+ * only what it renders before that request answers, or when the catalogue has
+ * nothing to show: a brand-new deployment, or a visitor on a cold cache.
+ *
+ * They stay because a hero that starts empty is worse than one that starts
+ * illustrative. They are clearly illustrative copy, not live output: named
+ * organisations carry only claims that are publicly true of them, and the
+ * cautionary example names nobody.
  */
 const SOURCE_EXAMPLES = [
   {
@@ -149,6 +158,63 @@ const VERDICT_STYLES = {
 
 /** How long each example holds before the card moves to the next. */
 const SOURCE_EXAMPLE_MS = 4500;
+
+type ShowcaseCard = (typeof SOURCE_EXAMPLES)[number];
+
+/** How the server's provenance levels read on the card. */
+const PROVENANCE_PRESENTATION = {
+  institutional: { verdict: "High trust", tone: "high" as const },
+  established: { verdict: "Established source", tone: "high" as const },
+  independent: { verdict: "Independent — check it", tone: "community" as const },
+  unknown: { verdict: "Limited signals", tone: "limited" as const },
+} as const;
+
+/**
+ * Real sources for the hero card, with the built-in examples as the fallback.
+ *
+ * Signed-in visitors see their own saved resources judged; everyone else sees
+ * the platform's most-saved. The endpoint is public, cheap and AI-free (the
+ * provenance verdict is a deterministic registry check), and any failure or
+ * empty catalogue simply leaves the built-in examples in place — the landing
+ * page must never depend on this call to render.
+ */
+function useShowcaseSources(): {
+  cards: ShowcaseCard[];
+  personalised: boolean;
+} {
+  const { data } = useListProvenanceShowcase({
+    query: {
+      queryKey: getListProvenanceShowcaseQueryKey(),
+      staleTime: 5 * 60_000,
+      retry: false,
+    },
+  });
+
+  const entries = data?.entries ?? [];
+  if (entries.length === 0) {
+    return { cards: SOURCE_EXAMPLES, personalised: false };
+  }
+  return {
+    personalised: data?.personalised === true,
+    cards: entries.map((entry) => {
+      const presentation =
+        PROVENANCE_PRESENTATION[entry.provenanceLevel] ??
+        PROVENANCE_PRESENTATION.unknown;
+      const saves = entry.savedCount ?? 0;
+      return {
+        name: entry.title,
+        kind: [entry.host, entry.subject].filter(Boolean).join(" · "),
+        verdict: presentation.verdict,
+        tone: presentation.tone,
+        summary:
+          saves > 1
+            ? `Saved to ${saves} lists on Casparel. The checks below come from the source itself, not from how popular it is.`
+            : "Checked against the source registry: who publishes it, how it is licensed, and how it is served.",
+        signals: entry.provenanceSignals ?? [],
+      };
+    }),
+  };
+}
 
 /**
  * Credentials, what earns a learner's trust. Deliberately capability claims
@@ -242,21 +308,25 @@ export default function LandingPage() {
       ? "Browse the library"
       : "Continue in browser";
 
-  // The hero card cycles through the source examples; a random start means
-  // even a quick visit sees a different one than last time. The .rise class
-  // on the swapped content is inert under prefers-reduced-motion, so the
-  // change is a plain swap there rather than a movement.
+  // The hero card cycles through real sources; a random start means even a
+  // quick visit sees a different one than last time. The .rise class on the
+  // swapped content is inert under prefers-reduced-motion, so the change is a
+  // plain swap there rather than a movement.
+  const { cards: sourceCards, personalised } = useShowcaseSources();
   const [exampleIndex, setExampleIndex] = useState(() =>
     Math.floor(Math.random() * SOURCE_EXAMPLES.length),
   );
   useEffect(() => {
     const timer = setInterval(
-      () => setExampleIndex((index) => (index + 1) % SOURCE_EXAMPLES.length),
+      () => setExampleIndex((index) => index + 1),
       SOURCE_EXAMPLE_MS,
     );
     return () => clearInterval(timer);
   }, []);
-  const example = SOURCE_EXAMPLES[exampleIndex];
+  // Wrapped at read time rather than in the timer: the list length changes
+  // when the fetched sources replace the fallbacks, and a stored index past
+  // the new end would blank the card for one interval.
+  const example = sourceCards[exampleIndex % sourceCards.length];
   const verdictStyle = VERDICT_STYLES[example.tone];
 
   return (
@@ -372,16 +442,20 @@ export default function LandingPage() {
             <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
               <span className="flex items-center gap-2">
                 <ScanSearch className="size-4 text-primary-text" />
-                <span className="text-sm font-semibold">AI source research</span>
+                <span className="text-sm font-semibold">
+                  {personalised ? "From your saved sources" : "AI source research"}
+                </span>
               </span>
               {/* Progress dots, so the card visibly holds more than one answer. */}
               <span className="flex items-center gap-1">
-                {SOURCE_EXAMPLES.map((_, index) => (
+                {sourceCards.map((card, index) => (
                   <span
-                    key={index}
+                    key={card.name}
                     className={
                       "size-1.5 rounded-full transition-colors " +
-                      (index === exampleIndex ? "bg-primary" : "bg-border")
+                      (index === exampleIndex % sourceCards.length
+                        ? "bg-primary"
+                        : "bg-border")
                     }
                   />
                 ))}

@@ -18,6 +18,8 @@ import {
   learningGoalsTable,
   activityLogTable,
   catalogResourcesTable,
+  listItemsTable,
+  resourceListsTable,
 } from "@workspace/db";
 import { publicResourceColumns } from "../lib/resourceColumns";
 import {
@@ -25,6 +27,7 @@ import {
   dedupeByWork,
 } from "@workspace/resource-identity";
 import {
+  optionalViewerId,
   resourceVisibilityCondition,
   visibilityForRequest,
 } from "../lib/resourceVisibility";
@@ -44,6 +47,7 @@ import {
   DiscoverResourcesQueryParams,
   DiscoverResourcesResponse,
   PrefetchResourceMetadataBody,
+  ListProvenanceShowcaseResponse,
 } from "@workspace/api-zod";
 import {
   requireAuth,
@@ -2038,6 +2042,119 @@ async function fetchOembedThumbnail(oembedUrl: string): Promise<string | null> {
     clearTimeout(timer);
   }
 }
+
+/**
+ * GET /resources/provenance-showcase — real sources, with real verdicts.
+ * Must stay above /resources/:id.
+ *
+ * The landing hero illustrates "research any source" with a card. It used to
+ * hold hardcoded examples, which meant the page always showed the same source
+ * with the same approving verdict. This serves the catalogue instead:
+ *
+ *  • signed in → the sources on this account's own saved lists, so a returning
+ *    visitor sees what they actually saved, judged;
+ *  • signed out → the most-saved resources across the platform.
+ *
+ * Provenance here is the same deterministic registry classification the
+ * resource pages use (`addProvenance`), so no AI runs and nothing is spent to
+ * render a marketing card. Only fields already public on a resource are
+ * returned, and unverified submissions stay hidden by the usual visibility
+ * rule, so an unauthenticated caller cannot use this to enumerate the queue.
+ */
+router.get("/resources/provenance-showcase", async (req, res): Promise<void> => {
+  const viewerId = optionalViewerId(req);
+  const visibility = resourceVisibilityCondition(
+    viewerId,
+    isAdminRequest(req),
+  );
+  const savedCount = sql<number>`cast(count(distinct ${listItemsTable.listId}) as int)`;
+
+  /** Rows for the hero, newest-saved first for a viewer, most-saved globally. */
+  async function showcaseRows(personalised: boolean) {
+    const base = db
+      .select({
+        id: resourcesTable.id,
+        title: resourcesTable.title,
+        url: resourcesTable.url,
+        subject: resourcesTable.subject,
+        savedCount,
+      })
+      .from(listItemsTable)
+      .innerJoin(
+        resourcesTable,
+        eq(listItemsTable.resourceId, resourcesTable.id),
+      );
+    if (personalised) {
+      // The viewer's own lists only. Their saves are theirs to see, but the
+      // visibility rule still applies: a list may hold a resource that was
+      // since rejected, and the hero is not the place to resurface it.
+      return base
+        .innerJoin(
+          resourceListsTable,
+          eq(listItemsTable.listId, resourceListsTable.id),
+        )
+        .where(
+          visibility
+            ? and(eq(resourceListsTable.ownerId, viewerId as number), visibility)
+            : eq(resourceListsTable.ownerId, viewerId as number),
+        )
+        .groupBy(resourcesTable.id)
+        .orderBy(sql`max(${listItemsTable.addedAt}) desc`)
+        .limit(6);
+    }
+    return base
+      .where(visibility)
+      .groupBy(resourcesTable.id)
+      .orderBy(sql`count(distinct ${listItemsTable.listId}) desc`, resourcesTable.id)
+      .limit(6);
+  }
+
+  try {
+    let personalised = viewerId !== null;
+    let rows = personalised ? await showcaseRows(true) : [];
+    // A signed-in account that has saved nothing yet gets the platform view
+    // rather than an empty card.
+    if (rows.length === 0) {
+      personalised = false;
+      rows = await showcaseRows(false);
+    }
+
+    const entries = rows.map((row) => {
+      // linkChecked=false: this endpoint never makes outbound requests, so it
+      // must not claim the link was checked just now.
+      const provenance = addProvenance({ url: row.url }, false);
+      let host = "";
+      try {
+        host = new URL(row.url).hostname.replace(/^www\./, "");
+      } catch {
+        host = "";
+      }
+      return {
+        id: row.id,
+        title: row.title,
+        host,
+        subject: row.subject ?? null,
+        provenanceLevel: provenance.provenanceLevel,
+        provenanceSignals: provenance.provenanceSignals,
+        savedCount: Number(row.savedCount ?? 0),
+      };
+    });
+
+    res.json(
+      ListProvenanceShowcaseResponse.parse({ personalised, entries }),
+    );
+  } catch (error) {
+    // The hero has its own built-in examples to fall back on, so a failure
+    // here must degrade the card, never the landing page.
+    logger.error({ err: error }, "Could not build the provenance showcase");
+    res.json(
+      ListProvenanceShowcaseResponse.parse({
+        personalised: false,
+        entries: [],
+      }),
+    );
+  }
+});
 
 router.get("/resources/oembed", async (req, res): Promise<void> => {
   const rawUrl = req.query.url as string | undefined;

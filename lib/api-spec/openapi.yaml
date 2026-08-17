@@ -1473,6 +1473,35 @@ paths:
                 items:
                   $ref: "#/components/schemas/Resource"
 
+  /resources/provenance-showcase:
+    get:
+      operationId: listProvenanceShowcase
+      tags: [resources]
+      summary: Sources with their provenance verdicts, for the landing hero
+      description: >-
+        Real catalogue sources with the same registry-based provenance verdict
+        the resource pages show. Personalised to the caller's own saved
+        resources when an auth header is present, otherwise the most-saved
+        resources across the platform. Public and unauthenticated-safe: it
+        returns only fields already public on a resource, and no AI is
+        involved (provenance is a deterministic registry check).
+      responses:
+        "200":
+          description: Showcase entries, most relevant first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [personalised, entries]
+                properties:
+                  personalised:
+                    type: boolean
+                    description: True when drawn from the caller's own saves.
+                  entries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProvenanceShowcaseEntry"
+
   /resources/{id}:
     get:
       operationId: getResource
@@ -3129,6 +3158,29 @@ components:
             enum: [article, video, pdf, podcast, interactive, other],
           }
         thumbnailUrl: { type: ["string", "null"] }
+
+    ProvenanceShowcaseEntry:
+      type: object
+      description: >-
+        One source and what the provenance check says about it. Mirrors the
+        registry-based classification used on resource pages; never AI output.
+      required: [id, title, host, provenanceLevel, provenanceSignals, savedCount]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        host:
+          type: string
+          description: Display host, e.g. "ocw.mit.edu".
+        subject: { type: ["string", "null"] }
+        provenanceLevel:
+          type: string
+          enum: [institutional, established, independent, unknown]
+        provenanceSignals:
+          type: array
+          items: { type: string }
+        savedCount:
+          type: integer
+          description: How many lists across the platform hold this resource.
 
     Resource:
       type: object

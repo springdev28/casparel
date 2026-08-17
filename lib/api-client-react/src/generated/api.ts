@@ -67,6 +67,7 @@ import type {
   LearningSignals,
   ListItem,
   ListItemInput,
+  ListProvenanceShowcase200,
   ListResourcesParams,
   ListScheduleBlocksParams,
   LoginInput,
@@ -4426,6 +4427,84 @@ export function useListFeaturedResources<TData = Awaited<ReturnType<typeof listF
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListFeaturedResourcesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListProvenanceShowcaseUrl = () => {
+
+
+
+
+  return `/api/resources/provenance-showcase`
+}
+
+/**
+ * Real catalogue sources with the same registry-based provenance verdict the resource pages show. Personalised to the caller's own saved resources when an auth header is present, otherwise the most-saved resources across the platform. Public and unauthenticated-safe: it returns only fields already public on a resource, and no AI is involved (provenance is a deterministic registry check).
+ * @summary Sources with their provenance verdicts, for the landing hero
+ */
+export const listProvenanceShowcase = async ( options?: Parameters<typeof customFetch>[1]): Promise<ListProvenanceShowcase200> => {
+
+  return customFetch<ListProvenanceShowcase200>(getListProvenanceShowcaseUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProvenanceShowcaseQueryKey = () => {
+    return [
+    `/api/resources/provenance-showcase`
+    ] as const;
+    }
+
+
+export const getListProvenanceShowcaseQueryOptions = <TData = Awaited<ReturnType<typeof listProvenanceShowcase>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProvenanceShowcase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProvenanceShowcaseQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProvenanceShowcase>>> = ({ signal }) => listProvenanceShowcase({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProvenanceShowcase>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProvenanceShowcaseQueryResult = NonNullable<Awaited<ReturnType<typeof listProvenanceShowcase>>>
+export type ListProvenanceShowcaseQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Sources with their provenance verdicts, for the landing hero
+ */
+
+export function useListProvenanceShowcase<TData = Awaited<ReturnType<typeof listProvenanceShowcase>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProvenanceShowcase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProvenanceShowcaseQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
