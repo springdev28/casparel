@@ -8,6 +8,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * and the landing page had just been cut from ~1.6MB to ~490KB of JavaScript.
  * Adding ~90KB of engine to tumble eight letters would give most of that back.
  *
+ * The settled state must read CASPAREL. Each letter has a home slot in reading
+ * order and a gentle spring pulls it there whenever the sim is awake, so the
+ * drop is chaotic but the rest state is the brand — the first version let the
+ * pile settle wherever it liked, and on phone widths the collisions reshuffled
+ * it into "CAASEPLR"-style gibberish. The spring also means a thrown letter
+ * finds its way back, so the toy self-heals instead of leaving the wordmark
+ * scrambled for the rest of the visit.
+ *
  * You can grab a letter and fling it: pointer drags move the body directly and
  * the release velocity is taken from the last few pointer samples, so a quick
  * flick throws it. The hues cycle continuously, which also means the sim can
@@ -30,6 +38,10 @@ const MAX_STEP = 1 / 30; // clamp so a backgrounded tab cannot explode the sim
 // trigger. Freeze the physics after this long: it bounds CPU, and by then the
 // pile has visually settled. Dragging wakes it straight back up.
 const MAX_RUN_MS = 4200;
+// Spring toward each letter's home slot, px/s² per px of offset. Weak against
+// gravity (2100) so the fall still looks like a fall, strong enough to slide a
+// grounded letter home through the floor friction within the run window.
+const HOME_PULL = 8;
 const HUE_SPEED = 26; // degrees per second
 const HUE_SPREAD = 26; // degrees between neighbouring letters
 // Lightness per theme. The hue sweeps the whole wheel, so these are chosen for
@@ -53,23 +65,31 @@ interface Body {
   h: number;
   r: number;
   hue: number;
+  /** The slot this letter belongs to in reading order; the spring's target. */
+  homeX: number;
   /** Set while this body is being dragged; physics is suspended for it. */
   held: boolean;
   el: HTMLSpanElement | null;
 }
 
 function makeBodies(letters: HTMLSpanElement[], width: number): Body[] {
+  // One lane per letter across most of the width, in reading order. The lanes
+  // are the home slots the settle spring pulls toward, so the band must be
+  // wide enough for the letters to actually stand side by side — the original
+  // 55%-width band made phone lanes narrower than the glyphs, and the
+  // separation pass reshuffled the pile into gibberish.
+  const band = Math.min(width * 0.92, 640);
+  const slot = band / letters.length;
   return letters.map((el, i) => {
     const w = el.offsetWidth || 40;
     const h = el.offsetHeight || 56;
-    // Drop within a centred band rather than one lane each, so they collide on
-    // the way down and settle into a pile instead of a tidy row.
-    const band = Math.min(width * 0.55, 520);
-    const slot = band / letters.length;
+    const homeX = (width - band) / 2 + slot * (i + 0.5);
     return {
-      x: (width - band) / 2 + slot * (i + 0.5) + (Math.random() - 0.5) * slot * 0.6,
+      // Spawn near the slot with enough jitter and sideways drift that the
+      // letters still knock into each other on the way down.
+      x: homeX + (Math.random() - 0.5) * slot * 0.5,
       y: -h - i * 90 - 40,
-      vx: (Math.random() - 0.5) * 120,
+      vx: (Math.random() - 0.5) * Math.min(120, slot * 1.2),
       vy: 0,
       angle: (Math.random() - 0.5) * 0.6,
       spin: (Math.random() - 0.5) * 1.1,
@@ -77,6 +97,7 @@ function makeBodies(letters: HTMLSpanElement[], width: number): Body[] {
       h,
       r: Math.hypot(w, h) / 2,
       hue: i * HUE_SPREAD,
+      homeX,
       held: false,
       el,
     };
@@ -93,6 +114,9 @@ export function LetterDrop({ className = "" }: { className?: string }) {
   // separate flags. `simUntil` is the wall-clock deadline for the physics.
   const simActiveRef = useRef(false);
   const simUntilRef = useRef(0);
+  // Bounded deadline extensions, so a letter still walking home when the run
+  // window closes gets to finish without the loop becoming unbounded CPU.
+  const extendsLeftRef = useRef(0);
   const calmRef = useRef(0);
   const lastFrameRef = useRef(0);
   const onScreenRef = useRef(false);
@@ -130,6 +154,7 @@ export function LetterDrop({ className = "" }: { className?: string }) {
   const wake = useCallback((ms = MAX_RUN_MS) => {
     simActiveRef.current = true;
     simUntilRef.current = performance.now() + ms;
+    extendsLeftRef.current = 4;
     calmRef.current = 0;
   }, []);
 
@@ -160,11 +185,21 @@ export function LetterDrop({ className = "" }: { className?: string }) {
         for (const b of bodies) {
           if (b.held) continue;
           b.vy += GRAVITY * dt;
+          // Pull toward the letter's slot so the rest state spells the word.
+          // Grounded letters slide home through the per-frame floor friction;
+          // mid-air the pull is small next to gravity, so a fall still falls
+          // and a thrown letter still flies before it comes back.
+          b.vx += (b.homeX - b.x) * HOME_PULL * dt;
           b.vx *= AIR;
           b.x += b.vx * dt;
           b.y += b.vy * dt;
           b.angle += b.spin * dt;
           b.spin *= ANGULAR_DAMP;
+          // Ease the tilt out as a letter nears home, so the settled wordmark
+          // reads upright instead of freezing mid-topple.
+          if (Math.abs(b.homeX - b.x) < b.w && Math.abs(b.vy) < 60) {
+            b.angle *= 1 - Math.min(1, 2.4 * dt);
+          }
 
           // Floor: bounce, lose tangential speed, and convert some of the
           // impact into rotation so letters topple instead of landing flat.
@@ -198,21 +233,40 @@ export function LetterDrop({ className = "" }: { className?: string }) {
           }
         }
 
-        // Pairwise separation. Circle approximation: cheap, and with eight
-        // bodies it produces a convincing pile without a full SAT solver.
+        // Pairwise separation. Ellipse approximation rather than circles: the
+        // glyphs are taller than they are wide, and a circle radius wide
+        // enough for stacking demanded more side-by-side room than narrow
+        // screens have — neighbours at rest in their slots were perpetually
+        // shoved apart, which is what scrambled the word on phones. The
+        // direction-dependent distance lets letters stand shoulder to
+        // shoulder while still piling convincingly when stacked.
         for (let i = 0; i < bodies.length; i++) {
           for (let j = i + 1; j < bodies.length; j++) {
             const a = bodies[i];
             const c = bodies[j];
+            // Letters out of reading order pass through each other instead of
+            // colliding: a thrown letter walking home would otherwise wedge
+            // against the first settled neighbour it met and freeze the word
+            // misspelled, and a mid-pile swap could never un-swap. Held
+            // letters keep full collision so shoving the pile around still
+            // works.
+            if (a.x > c.x && !a.held && !c.held) continue;
             let dx = c.x - a.x;
             let dy = c.y - a.y;
-            const minDist = (a.r + c.r) * 0.72;
             let dist = Math.hypot(dx, dy);
             if (dist === 0) {
               dx = Math.random() - 0.5;
               dy = -1;
               dist = 1;
             }
+            const nxd = dx / dist;
+            const nyd = dy / dist;
+            const halfW = (a.w + c.w) / 2;
+            const halfH = (a.h + c.h) / 2;
+            // Contact distance along this direction on an ellipse with those
+            // half-extents; 0.84 allows the slight visual overlap letterforms
+            // can take.
+            const minDist = 0.84 / Math.hypot(nxd / halfW, nyd / halfH);
             if (dist < minDist) {
               const nx = dx / dist;
               const ny = dy / dist;
@@ -255,13 +309,30 @@ export function LetterDrop({ className = "" }: { className?: string }) {
         );
         calmRef.current = calm ? calmRef.current + 1 : 0;
         if (calmRef.current > 24 || now > simUntilRef.current) {
-          for (const b of bodies) {
-            if (b.held) continue;
-            b.vx = 0;
-            b.vy = 0;
-            b.spin = 0;
+          // A letter can outrun the deadline when a hard throw sends it the
+          // full width of the box — freezing there would leave the word
+          // misspelled, which is the one thing the rest state must never be.
+          // Grant it a little more time, a bounded number of times.
+          const allHome = bodies.every(
+            (b) => b.held || Math.abs(b.homeX - b.x) < b.w * 1.5,
+          );
+          if (
+            now > simUntilRef.current &&
+            calmRef.current <= 24 &&
+            !allHome &&
+            extendsLeftRef.current > 0
+          ) {
+            extendsLeftRef.current -= 1;
+            simUntilRef.current = now + 1500;
+          } else {
+            for (const b of bodies) {
+              if (b.held) continue;
+              b.vx = 0;
+              b.vy = 0;
+              b.spin = 0;
+            }
+            simActiveRef.current = false;
           }
-          simActiveRef.current = false;
         }
       }
 
@@ -383,7 +454,9 @@ export function LetterDrop({ className = "" }: { className?: string }) {
         drag.body.spin = (drag.body.vx / 1400) * (Math.random() * 0.8 + 0.6);
       }
       drag.body.held = false;
-      wake();
+      // A throw can cross the whole box and then needs the walk back; give it
+      // a longer window than a plain drop so the deadline rarely interferes.
+      wake(MAX_RUN_MS + 2400);
     },
     [wake],
   );
@@ -493,8 +566,8 @@ export function LetterDrop({ className = "" }: { className?: string }) {
         ))}
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Grab a letter and throw it. Click the space around them, or press R, to
-        drop them again.
+        Grab a letter and throw it — it finds its way back. Click the space
+        around them, or press R, to drop them again.
       </p>
     </div>
   );
