@@ -2158,17 +2158,53 @@ router.get("/resources/provenance-showcase", async (req, res): Promise<void> => 
       .limit(6);
   }
 
+  /**
+   * Each tier stands on its own: a tier that fails is logged and treated as
+   * empty so the next one still gets its turn.
+   *
+   * This is not defensive padding, it is the fix for how this endpoint failed
+   * in production. One try block around the whole chain meant an error in the
+   * saves query — the tier that reads two tables the catalogue tier never
+   * touches — aborted the request before the catalogue was ever consulted, on
+   * a site whose catalogue was full and whose lists were empty. The tiers are
+   * independent by design, so their failures must be independent too.
+   */
+  let attempted = 0;
+  let failed = 0;
+  async function tier<T>(name: string, run: () => Promise<T[]>): Promise<T[]> {
+    attempted += 1;
+    try {
+      return await run();
+    } catch (error) {
+      failed += 1;
+      logger.error(
+        { err: error, tier: name },
+        "Provenance showcase tier failed",
+      );
+      return [];
+    }
+  }
+
   try {
     let personalised = viewerId !== null;
-    let rows = personalised ? await showcaseRows(true) : [];
+    let rows = personalised
+      ? await tier("saved", () => showcaseRows(true))
+      : [];
     // A signed-in account that has saved nothing yet gets the platform view
     // rather than an empty card.
     if (rows.length === 0) {
       personalised = false;
-      rows = await showcaseRows(false);
+      rows = await tier("platform", () => showcaseRows(false));
     }
     // Nobody has saved anything yet: show the library rather than fiction.
-    if (rows.length === 0) rows = await catalogueRows();
+    if (rows.length === 0) rows = await tier("catalogue", catalogueRows);
+    // Every tier that ran blew up: that is a failure, not an empty catalogue.
+    if (rows.length === 0 && attempted > 0 && failed === attempted) {
+      res
+        .status(500)
+        .json({ error: "Could not build the provenance showcase." });
+      return;
+    }
 
     const entries = rows.map((row) => {
       // linkChecked=false: this endpoint never makes outbound requests, so it
@@ -2195,15 +2231,16 @@ router.get("/resources/provenance-showcase", async (req, res): Promise<void> => 
       ListProvenanceShowcaseResponse.parse({ personalised, entries }),
     );
   } catch (error) {
-    // The hero has its own built-in examples to fall back on, so a failure
-    // here must degrade the card, never the landing page.
+    // Answer 500 rather than an empty showcase. The hero falls back to its
+    // built-in examples on a failed request exactly as it does on an empty
+    // one, so the page is no worse off either way — but an empty 200 is
+    // indistinguishable from an empty catalogue, and that ambiguity hid a
+    // real production failure behind a plausible-looking response. A failure
+    // that cannot be told apart from success is not a safe default.
     logger.error({ err: error }, "Could not build the provenance showcase");
-    res.json(
-      ListProvenanceShowcaseResponse.parse({
-        personalised: false,
-        entries: [],
-      }),
-    );
+    res
+      .status(500)
+      .json({ error: "Could not build the provenance showcase." });
   }
 });
 

@@ -9,8 +9,9 @@
  *  • verdicts come from the URL (institutional/established/independent), the
  *    same registry rule the resource pages use, with no AI and no outbound
  *    request
- *  • a database failure answers 200 with no entries, because the hero has its
- *    own fallback examples and must never be broken by this call
+ *  • a database failure answers 500, not an empty card: the hero falls back
+ *    to its own examples either way, and an empty 200 is indistinguishable
+ *    from an empty catalogue — which is how a real failure stayed hidden
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import express from "express";
@@ -25,6 +26,8 @@ let rows: Array<Record<string, unknown>> = [];
 let rowsByCall: Array<Array<Record<string, unknown>>> | null = null;
 let callIndex = 0;
 let failWith: Error | null = null;
+/** Which query calls should throw, by index; overrides `failWith` when set. */
+let failByCall: Array<Error | null> | null = null;
 /** Whether the built query joined resource_lists, i.e. asked for one owner. */
 let joinedLists = false;
 
@@ -89,9 +92,11 @@ function mockQueryChain() {
       resolve: (value: unknown) => unknown,
       reject: (reason: unknown) => unknown,
     ) => {
-      if (failWith) return reject(failWith);
+      const perCall = failByCall ? (failByCall[callIndex] ?? null) : null;
+      const boom = perCall ?? failWith;
       const next = rowsByCall ? (rowsByCall[callIndex] ?? []) : rows;
       callIndex += 1;
+      if (boom) return reject(boom);
       return resolve(next);
     };
     return chain as unknown as ReturnType<typeof db.select>;
@@ -112,6 +117,7 @@ beforeEach(() => {
   joinedLists = false;
   rows = [];
   rowsByCall = null;
+  failByCall = null;
   callIndex = 0;
   mockQueryChain();
 });
@@ -263,14 +269,40 @@ describe("GET /resources/provenance-showcase", () => {
     );
   });
 
-  it("degrades to an empty showcase when the query fails", async () => {
+  it("still shows the catalogue when the saves query fails", async () => {
+    // The production failure: one try block around the whole chain let an
+    // error in the saves tier abort the request before the catalogue tier
+    // ran, on a site whose catalogue was full and whose lists were empty.
+    failByCall = [new Error("relation \"list_items\" is unavailable")];
+    rowsByCall = [
+      [],
+      [
+        {
+          id: 21,
+          title: "Android Programlama",
+          url: "https://tr.wikibooks.org/wiki/Android_Programlama",
+          subject: "Okumak",
+          savedCount: 0,
+        },
+      ],
+    ];
+    const res = await request(buildApp()).get(
+      "/api/resources/provenance-showcase",
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.entries).toHaveLength(1);
+    expect(res.body.entries[0].title).toBe("Android Programlama");
+  });
+
+  it("reports a failure instead of pretending the catalogue is empty", async () => {
     failWith = new Error("database is away");
     const res = await request(buildApp()).get(
       "/api/resources/provenance-showcase",
     );
-    // 200, not 500: the hero falls back to its built-in examples, and a
-    // marketing card must never take the landing page down with it.
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ personalised: false, entries: [] });
+    // The hero degrades to its built-in examples on an error response just as
+    // it does on an empty one, so the page is fine either way; what matters
+    // is that a failure is visible rather than disguised as "no data".
+    expect(res.status).toBe(500);
+    expect(res.body.entries).toBeUndefined();
   });
 });
