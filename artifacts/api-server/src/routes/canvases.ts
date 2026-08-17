@@ -292,6 +292,70 @@ router.get("/canvases/:id", requireAuth, async (req, res): Promise<void> => {
   res.json(await decorateCanvas(canvas, access));
 });
 
+/**
+ * POST /canvases/:id/copy
+ *
+ * Your own copy of a canvas you can see, for the same reason as activities:
+ * people want to build on someone else's board without editing theirs, and
+ * without needing edit rights they were never given.
+ *
+ * The copy is private and detached. No classId, so it is not shared back into
+ * the class it came from; no shareToken, so the original link cannot reach it;
+ * no collaborators, so the people on the source board have no rights on yours.
+ * The document is copied by value, so neither board can change the other
+ * afterwards.
+ */
+router.post(
+  "/canvases/:id/copy",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, accountRole } = req as AuthenticatedRequest;
+    const canvasId = Number(req.params.id);
+    if (!Number.isInteger(canvasId) || canvasId <= 0) {
+      res.status(400).json({ error: "Invalid canvas id" });
+      return;
+    }
+    const [source] = await db
+      .select()
+      .from(canvasesTable)
+      .where(eq(canvasesTable.id, canvasId));
+    if (!source) {
+      res.status(404).json({ error: "Canvas not found" });
+      return;
+    }
+    // Reuse the same access rules the rest of the file uses, so a copy can
+    // never reach further than a view can.
+    const access = await accessForCanvas(source, userId, accountRole);
+    if (!access?.canView) {
+      res.status(403).json({ error: "You do not have access to this canvas" });
+      return;
+    }
+    if (!(await ensureAccountCapacity(res, userId, "canvases"))) return;
+
+    const [copy] = await db
+      .insert(canvasesTable)
+      .values({
+        title: source.title,
+        description: source.description,
+        ownerId: userId,
+        classId: null,
+        visibility: "private",
+        classAccess: "view",
+        shareToken: null,
+        document: source.document,
+      })
+      .returning();
+    const ownerAccess: CanvasAccess = {
+      canView: true,
+      canEdit: true,
+      canManage: true,
+      role: "owner",
+    };
+    res.status(201).json(await decorateCanvas(copy, ownerAccess));
+  },
+);
+
 router.patch(
   "/canvases/:id",
   contentLimiter,

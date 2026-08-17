@@ -24,6 +24,7 @@ import {
   X,
   FileUp,
   BookCheck,
+  Copy,
 } from "lucide-react";
 import { useParams, useSearch } from "wouter";
 import { getListClassesQueryKey, useListClasses } from "@workspace/api-client-react";
@@ -273,6 +274,39 @@ export default function ActivitiesPage({
     query: { enabled: !shared, queryKey: getListClassesQueryKey() },
   });
   const viewOnly = readOnly || shared;
+  const [copying, setCopying] = useState(false);
+
+  /**
+   * Take your own copy of an activity you are only viewing.
+   *
+   * The server does the work and owns the rules: it re-checks that you may see
+   * the source, and drops the class and share link so the copy is private to
+   * you. Here we only need to refresh the list and say where it went.
+   */
+  async function copyToMyAccount(activity: StudyActivity) {
+    setCopying(true);
+    try {
+      const copy = (await activityRequest(`/study-activities/${activity.id}/copy`, {
+        method: "POST",
+      })) as StudyActivity | null;
+      await loadActivities();
+      toast({
+        title: "Saved to your activities",
+        description: `"${copy?.title ?? activity.title}" is yours now. Editing it will not change the original.`,
+      });
+    } catch (error: unknown) {
+      toast({
+        title: "Could not save a copy",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCopying(false);
+    }
+  }
   const importRef = useRef<HTMLInputElement>(null);
   const handledWorkflowSource = useRef<number | null>(null);
   const [activities, setActivities] = useState<StudyActivity[]>([]);
@@ -1154,6 +1188,21 @@ export default function ActivitiesPage({
                     {selected.subject ?? "General"} · {selected.cards.length} cards
                   </p>
                 </div>
+                {viewOnly && (
+                  /* The one action that makes sense on someone else's
+                     activity. Feedback: people study from a shared deck, want
+                     to change a card, and either cannot or would be editing it
+                     for everyone. A copy is theirs and detached. */
+                  <Button
+                    variant="outline"
+                    onClick={() => void copyToMyAccount(selected)}
+                    disabled={copying}
+                    className="gap-2"
+                  >
+                    <Copy className="size-4" />
+                    {copying ? "Copying..." : "Save a copy"}
+                  </Button>
+                )}
                 {!viewOnly && <div className="flex gap-2">
                   <Button variant="outline" size="icon" onClick={() => setShareOpen(true)} aria-label="Share activity" title="Share activity"><Share2 className="size-4" /></Button>
                   <Button variant="outline" size="icon" onClick={() => void duplicateSet(selected)} aria-label="Duplicate activity" title="Duplicate activity"><CopyPlus className="size-4" /></Button>

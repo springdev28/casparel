@@ -413,6 +413,41 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canEdit = canvas?.permissions.canEdit === true && !shared;
   const canManage = canvas?.permissions.canManage === true && !shared;
+  const [copying, setCopying] = useState(false);
+
+  /**
+   * Take your own copy of a canvas you can only view.
+   *
+   * A shared board is loaded through the public token route, which needs no
+   * session, but copying does: it writes into your account. Sending an
+   * unauthenticated visitor to sign in is better than a 401 they cannot read.
+   */
+  async function copyToMyAccount() {
+    if (!canvas) return;
+    setCopying(true);
+    try {
+      const copy = await canvasRequest<SchoolarCanvas>(
+        `/canvases/${canvas.id}/copy`,
+        { method: "POST" },
+      );
+      toast({
+        title: "Saved to your canvases",
+        description: `"${copy.title}" is yours now. Editing it will not change the original.`,
+      });
+      setLocation(`/canvas/${copy.id}`);
+    } catch (error: unknown) {
+      toast({
+        title: "Could not save a copy",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCopying(false);
+    }
+  }
   const pageHeight = shared ? "h-[calc(100dvh-3.5625rem)]" : "h-[calc(100dvh-3rem)]";
 
   nodesRef.current = nodes;
@@ -743,6 +778,10 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
           <div className="flex shrink-0 items-center gap-2">
             {!shared ? <div className="hidden items-center gap-1.5 border border-white/15 bg-slate-950/90 px-3 py-2 text-xs text-slate-300 backdrop-blur sm:flex" style={{ borderRadius: 8 }}>{status === "saving" ? <Loader2 className="size-3.5 animate-spin" /> : status === "saved" ? <Check className="size-3.5 text-emerald-400" /> : <Save className="size-3.5 text-amber-400" />}{saveLabel(status)}</div> : <Badge className="bg-slate-900 text-white">View only</Badge>}
             {canManage ? <Button className="border border-white/15 bg-slate-950/90 text-white hover:bg-slate-800" variant="outline" onClick={() => void openSharing()}><Share2 className="mr-2 size-4" /><span className="hidden sm:inline">Share</span></Button> : null}
+            {/* Offered exactly when you cannot edit what you are looking at:
+                someone else's board, or a shared link. The copy is yours and
+                detached, so building on it cannot disturb theirs. */}
+            {!canEdit ? <Button className="border border-white/15 bg-slate-950/90 text-white hover:bg-slate-800" variant="outline" disabled={copying} onClick={() => void copyToMyAccount()}><Copy className="mr-2 size-4" /><span className="hidden sm:inline">{copying ? "Copying..." : "Save a copy"}</span></Button> : null}
           </div>
         </header>
 
