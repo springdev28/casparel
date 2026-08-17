@@ -10,15 +10,24 @@
  * CI has no database, so this skips unless one is provided:
  *
  *   VERIFY_DATABASE_URL=postgres://…/throwaway \
- *     pnpm --filter @workspace/api-server exec vitest run src/provenanceShowcase.db.test.ts
+ *     pnpm --filter @workspace/api-server exec vitest run
+ *
+ * Naming this file alone works too, but the whole suite is the useful run: the
+ * db files take turns rather than racing, so nothing is gained by running them
+ * one at a time.
  *
  * Points at a throwaway database: resources and users are emptied.
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import express, { type Express } from "express";
 import request from "supertest";
+import { useExclusiveDatabase } from "./dbTestLock.js";
 
 const url = process.env.VERIFY_DATABASE_URL;
+
+// This file empties users and resources. Another db test file doing the same
+// in a parallel worker would seed over the top of these fixtures.
+useExclusiveDatabase();
 
 let app: Express;
 
