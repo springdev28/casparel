@@ -66,7 +66,11 @@ import {
   searchOpenWikisAndStore,
   type SourceCredibility,
 } from "../lib/catalog";
-import { meaningfulSearchTerms, wordStartPattern } from "../lib/searchTerms";
+import {
+  broadenedQueries,
+  meaningfulSearchTerms,
+  wordStartPattern,
+} from "../lib/searchTerms";
 import { logger } from "../lib/logger";
 import { getAccountEntitlements } from "../lib/entitlements";
 
@@ -830,7 +834,7 @@ async function callDiscoverAI(
  * would otherwise be told the search is finished while results remain a window
  * further on.
  */
-const EXHAUSTION_PROOF_WINDOWS = 3;
+const EXHAUSTION_PROOF_WINDOWS = 2;
 
 const DISCOVER_MIN_RESULTS = 3;
 const DISCOVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -1138,10 +1142,10 @@ router.get(
       // Every provider at once. They are independent services, and running
       // them in sequence made a thin page wait out the slowest one before the
       // reader saw anything from the fastest.
-      const topUp = async (windows: number[]) => {
+      const topUp = async (targets: { query: string; page: number }[]) => {
         await Promise.all(
-          windows.flatMap((window) => {
-            const windowOptions = { ...catalogOptions, page: window };
+          targets.flatMap((target) => {
+            const windowOptions = { ...catalogOptions, ...target };
             return [
               searchOpenLibraryAndStore(windowOptions).catch(() => 0),
               searchOpenWikisAndStore(windowOptions),
@@ -1150,24 +1154,32 @@ router.get(
         );
         catalogItems = await searchCatalog(pagedCatalogOptions);
       };
-      await topUp([page]);
-      // An empty page has to mean the search is spent, because that is what
-      // the app tells the reader before it stops offering "Search more
-      // resources". One quiet window is not proof: window two of a provider
-      // can hold nothing while window three still has something, and stopping
-      // there strands results the reader can no longer reach.
+      await topUp([{ query: q, page }]);
+      // Out of results for this page. Two reasons it could be empty, and both
+      // are worth a second look before telling the reader the search is spent
+      // — which is what an empty page makes the app do.
       //
-      // The remaining windows go out together rather than one after another.
-      // Each provider still answers one request at a time, so asking for three
-      // windows costs about as long as asking for one — where doing it in
-      // sequence tripled the wait on the last page of every search.
+      // One: a provider's next window can be quiet while the one after it
+      // still holds something, so stopping at the first quiet window strands
+      // results the reader can no longer reach.
+      //
+      // Two: the providers have only ever been asked for the exact phrase
+      // typed. A course name is narrow and its subjects are not, so the topic
+      // words are asked for on their own as well. Whatever that finds still
+      // has to earn its place against the reader's real query, so reaching
+      // wider cannot make the results looser.
+      //
+      // All of it goes out together. Each provider still answers one request
+      // at a time, so several searches cost about as long as one — where doing
+      // them in sequence multiplied the wait on the last page of every search.
       if (catalogItems.length === 0)
-        await topUp(
-          Array.from(
-            { length: EXHAUSTION_PROOF_WINDOWS },
-            (_, index) => page + index + 1,
-          ),
-        );
+        await topUp([
+          ...Array.from({ length: EXHAUSTION_PROOF_WINDOWS }, (_, index) => ({
+            query: q,
+            page: page + index + 1,
+          })),
+          ...broadenedQueries(q).map((query) => ({ query, page: 1 })),
+        ]);
     }
     const availableCatalogItems = catalogItems
       .filter(isUnsavedResult)

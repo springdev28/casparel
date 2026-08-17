@@ -51,6 +51,42 @@ export function wordStartPattern(term: string) {
     : `\\m${escaped}`;
 }
 
+/**
+ * Progressively broader searches for the same intent.
+ *
+ * Providers are only ever asked for the exact phrase someone typed, so the
+ * catalog ends up as narrow as the first search that built it: after someone
+ * looked for "AP Physics C: Electricity and Mechanics" the catalog held
+ * fourteen works, and a later search for plain "physics mechanics" found the
+ * same fourteen and nothing else. A course name is a narrow phrase; the
+ * subjects inside it are not.
+ *
+ * Used when a page has run out, to reach past the original phrasing: first the
+ * topic words together, then each on its own. Whatever comes back still has to
+ * earn its place against the reader's actual query, so broadening the import
+ * cannot loosen the results.
+ */
+export function broadenedQueries(value: string, limit = 3): string[] {
+  const terms = meaningfulSearchTerms(value);
+  const substantive = terms.filter((term) => term.length >= 3);
+  if (!substantive.length) return [];
+
+  const ladder: string[] = [];
+  if (substantive.length < terms.length) ladder.push(substantive.join(" "));
+  if (substantive.length > 1) ladder.push(...substantive);
+
+  const seen = new Set([terms.join(" ").toLowerCase()]);
+  const broader: string[] = [];
+  for (const candidate of ladder) {
+    const key = candidate.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    broader.push(candidate);
+    if (broader.length === limit) break;
+  }
+  return broader;
+}
+
 export function meaningfulSearchTerms(value: string, limit = 8) {
   const terms = value
     .normalize("NFKC")

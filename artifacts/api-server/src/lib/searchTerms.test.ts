@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { meaningfulSearchTerms, wordStartPattern } from "./searchTerms";
+import {
+  broadenedQueries,
+  meaningfulSearchTerms,
+  wordStartPattern,
+} from "./searchTerms";
 
 describe("meaningfulSearchTerms", () => {
   it("turns a goal title into flexible library terms", () => {
@@ -42,5 +46,35 @@ describe("wordStartPattern", () => {
     // regular expression and Postgres rejects the whole query.
     expect(wordStartPattern("C++")).toBe("\\mC\\+\\+");
     expect(wordStartPattern("A(B)")).toBe("\\mA\\(B\\)");
+  });
+});
+
+describe("broadenedQueries", () => {
+  it("widens a course name to its topics, then to each one", () => {
+    // Providers were only ever asked for the exact phrase, so after someone
+    // searched this the catalog held fourteen works and a later search for
+    // plain "physics mechanics" found the same fourteen and nothing more.
+    expect(broadenedQueries("AP Physics C: Electricity and Mechanics")).toEqual([
+      "Physics Electricity Mechanics",
+      "Physics",
+      "Electricity",
+    ]);
+  });
+
+  it("never repeats the query it is widening", () => {
+    // Asking a provider the same thing again is a wasted request.
+    expect(broadenedQueries("photosynthesis")).toEqual([]);
+    expect(broadenedQueries("linear algebra")).toEqual(["linear", "algebra"]);
+  });
+
+  it("has nothing to widen when no word carries a topic", () => {
+    expect(broadenedQueries("AP")).toEqual([]);
+    expect(broadenedQueries("")).toEqual([]);
+  });
+
+  it("stays within the limit it is given", () => {
+    expect(
+      broadenedQueries("photosynthesis chlorophyll chloroplast stroma", 2),
+    ).toHaveLength(2);
   });
 });

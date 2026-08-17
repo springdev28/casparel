@@ -248,7 +248,9 @@ Measured against a real catalog, "AP Physics C: Electricity and Mechanics" goes 
 - **An empty page means the search is spent.** The app stops offering "Search more resources" on an empty page, so an empty page must be the truth. One quiet provider window is not proof, and stopping there stranded results a window further on. The remaining windows are read together, so proving exhaustion costs about one extra round rather than one per window.
 - **One card per work, in the API.** Deduplication used to live only in the web client, so the mobile app and the API saw the raw list. Similarity is measured against the longer title: measured against the shorter, every subset scored a perfect match, and "Linear algebra" swallowed "Numerical linear algebra" and "Kernel (linear algebra)" — a first page of sixteen collapsed to four.
 
-A cold "linear algebra" search now returns 16, 16 and 16 across three pages, where the same search previously returned four.
+- **"Search more" widens the search.** Providers were only ever asked for the exact phrase typed, so the catalog stayed as narrow as the first search that built it: after someone looked for "AP Physics C: Electricity and Mechanics" the catalog held fourteen works, and a later search for plain "physics mechanics" found the same fourteen and nothing else — it never imported, because its page was not thin. A page that has run out now also asks for the topic words together and then each on its own. A course name is a narrow phrase; the subjects inside it are not. Whatever that finds still has to earn its place against the reader's real query, so reaching wider cannot make the results looser.
+
+A cold "linear algebra" search now returns 16, 16 and 16 across three pages, where the same search previously returned four. The AP Physics search returns 13, then 16, then 16 — Newton's laws, University Physics, quantum mechanics, A-level and IB Physics, Electromagnetism, Electricity — 40 distinct works where the button previously produced nothing at all.
 
 ### Discover input validation
 
