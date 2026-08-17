@@ -1898,6 +1898,7 @@ export default function ResourcesPage() {
       license: text("license"),
       contentLength: text("contentLength"),
       sourceQuality: text("sourceQuality"),
+      material: text("material"),
       captions: stored.captions === true,
       transcript: stored.transcript === true,
     };
