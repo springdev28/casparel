@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   broadenedQueries,
   meaningfulSearchTerms,
+  topicalSearchTerms,
   wordStartPattern,
 } from "./searchTerms";
 
@@ -76,5 +77,43 @@ describe("broadenedQueries", () => {
     expect(
       broadenedQueries("photosynthesis chlorophyll chloroplast stroma", 2),
     ).toHaveLength(2);
+  });
+
+  it("never asks a provider for a packaging word on its own", () => {
+    // This is where the t-shirt videos came from. The ladder took a physics
+    // query that had run dry and asked YouTube for plain "tutorial", which is
+    // a question about heat presses, screen printing and Illustrator, and the
+    // answers were stored in the catalog as though they were physics.
+    const widened = broadenedQueries("kinematics projectile motion tutorial");
+    expect(widened).not.toContain("tutorial");
+    expect(widened[0]).toBe("kinematics projectile motion");
+  });
+
+  it("has nothing to widen when the query is all packaging", () => {
+    expect(broadenedQueries("practice problems worksheet")).toEqual([]);
+  });
+});
+
+describe("topicalSearchTerms", () => {
+  it("keeps the words that name a subject", () => {
+    expect(
+      topicalSearchTerms(["kinematics", "projectile", "motion", "tutorial"]),
+    ).toEqual(["kinematics", "projectile", "motion"]);
+  });
+
+  it("drops abbreviations, which are too short to be a topic", () => {
+    expect(topicalSearchTerms(["AP", "Physics"])).toEqual(["Physics"]);
+  });
+
+  it("is empty when nothing in the query names a subject", () => {
+    // Not a failure: "past papers" is a real search, and the caller falls back
+    // to judging it on the whole query rather than matching nothing.
+    expect(topicalSearchTerms(["practice", "problems"])).toEqual([]);
+  });
+
+  it("matches packaging words whatever their case", () => {
+    expect(topicalSearchTerms(["Calculus", "PDF", "Notes"])).toEqual([
+      "Calculus",
+    ]);
   });
 });

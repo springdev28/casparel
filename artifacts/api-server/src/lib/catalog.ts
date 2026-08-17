@@ -18,8 +18,10 @@ import {
   type InsertCatalogResource,
 } from "@workspace/db";
 import {
+  SUBSTANTIVE_TERM_LENGTH,
   filterValues,
   meaningfulSearchTerms,
+  topicalSearchTerms,
   wordStartPattern,
 } from "./searchTerms";
 import {
@@ -1065,13 +1067,26 @@ const WEAK_FIELD_SCORE = 1;
 const MIN_RELEVANCE_SCORE = 2;
 
 /**
- * Words short enough to be an abbreviation do not carry a topic.
+ * The words a row is actually judged against.
  *
- * Matching only "AP" is not a reason to return anything — a high school's
- * article mentions AP courses, and that was enough to answer a physics search.
- * At least one word of real length has to be among the ones matched.
+ * Not every word someone types is a claim about the subject. "kinematics
+ * projectile motion tutorial" is three words about physics and one about the
+ * shape of the answer, and scoring all four alike let a t-shirt printing video
+ * clear the bar on "tutorial" alone — a quarter of the query, worth the full
+ * two points because it happened to be in the title.
+ *
+ * So the bar is set against the topic words and met by the topic words. The
+ * packaging words still count towards the *ranking* further down, where
+ * preferring the tutorial among two works on kinematics is exactly right.
+ *
+ * A query made only of packaging is left whole. "practice problems" is a real
+ * search, and the alternative to judging it on those words is not judging it
+ * at all.
  */
-const SUBSTANTIVE_TERM_LENGTH = 3;
+function relevanceTerms(terms: string[]): string[] {
+  const topical = topicalSearchTerms(terms);
+  return topical.length ? topical : terms;
+}
 
 /**
  * The bar for *this* query.
@@ -1121,22 +1136,19 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
   const conditions: SQL[] = [];
   const searchTerms = meaningfulSearchTerms(options.query);
   if (searchTerms.length) {
+    // Scored against the topic words only, which subsumes the old rule that at
+    // least one word of real length be among those matched: an abbreviation is
+    // too short to be a topic word, so "AP Physics" can no longer be answered
+    // by anything with "AP" in its title that never mentions physics.
+    const judged = relevanceTerms(searchTerms);
     const required =
-      options.minRelevanceScore ?? requiredRelevanceScore(searchTerms);
-    conditions.push(sql`${catalogRelevanceScore(searchTerms)} >= ${required}`);
-    // …and at least one word of real length has to be among the ones matched,
-    // or "AP Physics" is answered by anything whose title contains "AP" and
-    // which never mentions physics at all.
-    const substantive = searchTerms.filter(
-      (term) => term.length >= SUBSTANTIVE_TERM_LENGTH,
-    );
-    if (substantive.length && substantive.length < searchTerms.length)
-      conditions.push(sql`${catalogRelevanceScore(substantive)} >= 1`);
+      options.minRelevanceScore ?? requiredRelevanceScore(judged);
+    conditions.push(sql`${catalogRelevanceScore(judged)} >= ${required}`);
     // "In the title" means the topic *is* what the work is about, not something
     // it mentions. A description match is worth one point and a title or subject
     // match two, so requiring the strong score on a word is the whole rule.
     if (options.titleOnly)
-      for (const term of substantive.length ? substantive : searchTerms)
+      for (const term of judged)
         conditions.push(
           sql`${catalogTermScore(term)} = ${STRONG_FIELD_SCORE}`,
         );
@@ -1459,8 +1471,10 @@ export async function resolveCatalogSearch(
   if (options.resultType === "people")
     return { minRelevanceScore: 1, offset: 0, total: 0 };
 
+  // The same words the conditions will judge against, or the count and the
+  // fetch disagree about what the bar is and page two reads from the wrong row.
   let minRelevanceScore = requiredRelevanceScore(
-    meaningfulSearchTerms(options.query),
+    relevanceTerms(meaningfulSearchTerms(options.query)),
   );
   let total = await countCatalogMatches({ ...options, minRelevanceScore });
   if (total === 0 && minRelevanceScore > 1) {

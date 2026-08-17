@@ -17,6 +17,133 @@ const GOAL_SEARCH_STOP_WORDS = new Set([
   "with",
 ]);
 
+/**
+ * Words short enough to be an abbreviation do not carry a topic.
+ *
+ * Matching only "AP" is not a reason to return anything — a high school's
+ * article mentions AP courses, and that was enough to answer a physics search.
+ */
+export const SUBSTANTIVE_TERM_LENGTH = 3;
+
+/**
+ * Words that name the *packaging* of a resource rather than its topic.
+ *
+ * These are what someone adds to say what kind of thing they want back, and on
+ * their own they are evidence of nothing. A search for "kinematics projectile
+ * motion tutorial" came back as fifteen t-shirt printing videos, every one of
+ * them matching "tutorial" and nothing else: one word out of four, in the
+ * title, was worth the two points the bar asked for.
+ *
+ * They had been imported for the same reason. The broadening ladder takes a
+ * query that has run dry and asks the providers for each of its words alone,
+ * and "tutorial" alone is a question about t-shirts, screen printing and
+ * Illustrator. So the catalog was poisoned by the ladder and then the poison
+ * cleared the relevance bar.
+ *
+ * Listed here, they stop doing both. They still count towards a row's *rank* —
+ * between two works on kinematics the one that is a tutorial should come first
+ * when that is what was asked for — they just cannot be the only thing a row
+ * matched, and they are never sent to a provider on their own.
+ */
+const PACKAGING_TERMS = new Set([
+  "advanced",
+  "answer",
+  "answers",
+  "basic",
+  "basics",
+  "beginner",
+  "beginners",
+  "best",
+  "book",
+  "books",
+  "chapter",
+  "class",
+  "classes",
+  "complete",
+  "course",
+  "courses",
+  "crash",
+  "curriculum",
+  "definition",
+  "doc",
+  "docs",
+  "download",
+  "easy",
+  "ebook",
+  "example",
+  "examples",
+  "exercise",
+  "exercises",
+  "explained",
+  "explanation",
+  "free",
+  "guide",
+  "guides",
+  "help",
+  "how",
+  "intro",
+  "introduction",
+  "lecture",
+  "lectures",
+  "lesson",
+  "lessons",
+  "meaning",
+  "note",
+  "notes",
+  "online",
+  "overview",
+  "part",
+  "pdf",
+  "playlist",
+  "ppt",
+  "practice",
+  "problem",
+  "problems",
+  "quick",
+  "quiz",
+  "quizzes",
+  "revision",
+  "simple",
+  "slides",
+  "solution",
+  "solutions",
+  "step",
+  "steps",
+  "summary",
+  "syllabus",
+  "textbook",
+  "textbooks",
+  "tips",
+  "tricks",
+  "tutorial",
+  "tutorials",
+  "video",
+  "videos",
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "why",
+  "worksheet",
+  "worksheets",
+]);
+
+/**
+ * The words in a query that carry its topic.
+ *
+ * Empty is a real answer: "practice problems" and "past papers" are things
+ * people genuinely search for, and there is no topic in either. Callers fall
+ * back to the whole query rather than matching nothing at all.
+ */
+export function topicalSearchTerms(terms: string[]): string[] {
+  return terms.filter(
+    (term) =>
+      term.length >= SUBSTANTIVE_TERM_LENGTH &&
+      !PACKAGING_TERMS.has(term.toLocaleLowerCase()),
+  );
+}
+
 /** Everything a POSIX regular expression treats as syntax. */
 const REGEX_SYNTAX = /[.^$*+?()[\]{}|\\-]/g;
 
@@ -65,10 +192,15 @@ export function wordStartPattern(term: string) {
  * topic words together, then each on its own. Whatever comes back still has to
  * earn its place against the reader's actual query, so broadening the import
  * cannot loosen the results.
+ *
+ * Only the topic words, never the packaging ones. Asking a provider for
+ * "tutorial" on its own is not a broader version of the question — it is a
+ * different question, and the answers to it are what filled the catalog with
+ * t-shirt printing videos.
  */
 export function broadenedQueries(value: string, limit = 3): string[] {
   const terms = meaningfulSearchTerms(value);
-  const substantive = terms.filter((term) => term.length >= 3);
+  const substantive = topicalSearchTerms(terms);
   if (!substantive.length) return [];
 
   const ladder: string[] = [];

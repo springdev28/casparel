@@ -353,6 +353,44 @@ const ROWS: Row[] = [
       "A project-based course in modern JavaScript web development with React, Node.js and APIs.",
     subject: "Computer Science",
   },
+  // The live catalog's own rows, verbatim. A physics search returned fifteen of
+  // these and nothing else: the broadening ladder had asked YouTube for plain
+  // "tutorial", which is a question about t-shirts, and every answer then
+  // cleared a two-point bar on that one word being in its title.
+  {
+    title: "How To Heat Press A T-Shirt 101 ~ Easy Tutorial",
+    provider: "YouTube",
+    url: "https://www.youtube.com/watch?v=cIgQpkEkhXA",
+    description:
+      "How to heat press a t-shirt is a popular thing to google because many people are getting into the t-shirt making business.",
+    subject: "Interdisciplinary",
+    material: "video",
+  },
+  {
+    title: "Retro Sunset T-Shirt Design Tutorial | Adobe Illustrator",
+    provider: "YouTube",
+    url: "https://www.youtube.com/watch?v=QUpsay-6aEk",
+    description: "A step-by-step t-shirt design tutorial in Adobe Illustrator.",
+    subject: "Interdisciplinary",
+    material: "video",
+  },
+  // What that search was actually asking for.
+  {
+    title: "Projectile motion",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/Projectile_motion",
+    description:
+      "The motion of an object thrown near the surface of the Earth, moving along a curved path under gravity alone.",
+    subject: "Physics",
+  },
+  {
+    title: "Kinematics",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/Kinematics",
+    description:
+      "The branch of physics describing the motion of points and bodies without considering the forces that cause them to move.",
+    subject: "Physics",
+  },
 ];
 
 /** Enough distinct physics works to fill more than one page. */
@@ -428,6 +466,33 @@ describe.skipIf(!url)("search quality against a real database", () => {
     // Widening the bar is not the same as dropping it.
     expect(titles).not.toContain("Full Stack Open");
     expect(titles).not.toContain("GeoGebra Math Apps");
+  });
+
+  it("does not let a word about the shape of the answer carry the query", async () => {
+    const titles = (
+      await searchCatalog({ query: "kinematics projectile motion tutorial" })
+    ).map((r) => r.title);
+
+    expect(titles).toContain("Projectile motion");
+    expect(titles).toContain("Kinematics");
+    // "Tutorial" is not a topic. Fifteen of these came back for this search on
+    // the live site, and they were the entire page.
+    expect(titles).not.toContain("How To Heat Press A T-Shirt 101 ~ Easy Tutorial");
+    expect(titles).not.toContain(
+      "Retro Sunset T-Shirt Design Tutorial | Adobe Illustrator",
+    );
+  });
+
+  it("still judges a query that is nothing but packaging", async () => {
+    // Dropping every word would leave no bar at all, so the whole query stands.
+    // "Worked problems in physics" is what these workbooks say they are.
+    const titles = (await searchCatalog({ query: "worked problems" })).map(
+      (r) => r.title,
+    );
+    expect(titles.length).toBeGreaterThan(0);
+    expect(titles.every((title) => title.startsWith("Physics Mechanics"))).toBe(
+      true,
+    );
   });
 
   it("keeps a lone abbreviation strict", async () => {
