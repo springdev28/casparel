@@ -1810,6 +1810,7 @@ export function SeatingChartEditor({
                             ? "border-primary bg-primary text-primary-foreground"
                             : "bg-background hover:border-primary/50"
                         }`}
+                        translate="no"
                       >
                         {student.name}
                       </button>
@@ -2450,7 +2451,7 @@ function StudentSeat({ student }: { student?: SeatStudent | null }) {
           <UserRound className="size-4" />
         </span>
       )}
-      <span className="line-clamp-2 text-xs font-semibold">{student.name}</span>
+      <span translate="no" className="line-clamp-2 text-xs font-semibold">{student.name}</span>
     </div>
   );
 }

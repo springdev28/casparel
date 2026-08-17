@@ -181,6 +181,10 @@ export const FIXTURES = {
     adminContact: "support@casparel.com",
   },
   "/api/resources": [RESOURCE],
+  // The detail page: its own strings are a large share of the product, and
+  // without a fixture the audit renders an error page and reports nothing.
+  "/api/resources/101": RESOURCE,
+  "/api/resources/101/reviews": [],
   "/api/learning-goals": [LEARNING_GOAL],
   "/api/learning-evidence": [],
   "/api/assignments/today": [],

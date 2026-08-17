@@ -477,7 +477,7 @@ function LibraryCard({
       )}
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base line-clamp-2">
+          <CardTitle translate="no" className="text-base line-clamp-2">
             {resource.title}
           </CardTitle>
           <FormatBadge format={resource.format} />

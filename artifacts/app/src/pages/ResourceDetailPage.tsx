@@ -270,6 +270,13 @@ type ResourceFilterProfile = {
   reviewCount: number;
 };
 
+/**
+ * How many unknown fields make the grid worth summarising instead of printing.
+ * Well under the row count on purpose: a source with two or three known facts
+ * is still mostly a wall of blanks to read.
+ */
+const FACTS_MOSTLY_UNKNOWN = 10;
+
 function knownBoolean(value: boolean | null) {
   return value === null ? "Not available" : value ? "Yes" : "No";
 }
@@ -499,45 +506,85 @@ function SourceReviewPanel({
               </div>
             )}
 
-            {profile && (
+            {profile && (() => {
+            // One list, read twice: once to count what is unknown and once to
+            // render. Two copies would drift and the notice would start
+            // describing a grid that no longer matches it.
+            const factRows: [string, string | null][] =
+            [
+            ["Uploaded / published", profile.uploadTime],
+            ["Last edited", profile.lastEdited],
+            ["Added to Casparel", schoolarDate(profile.addedToSchoolar)],
+            ["Subject", profile.subject],
+            ["Grade", profile.gradeLevel],
+            ["Format", profile.format],
+            ["Language", profile.language],
+            ["Difficulty", profile.difficulty],
+            ["Access", profile.accessType],
+            ["Usage rights", profile.license],
+            ["Duration", profile.duration],
+            ["Reading time", profile.readingTime],
+            ["Captions", knownBoolean(profile.captions)],
+            ["Transcript", knownBoolean(profile.transcript)],
+            ["Author / uploader", profile.author],
+            ["Provider", profile.provider],
+            ["Source domain", profile.sourceDomain],
+            ["Audience", profile.audience],
+            ["Preview image", profile.hasThumbnail ? "Yes" : "No"],
+            [
+            "Casparel rating",
+            profile.avgRating > 0
+            ? `${profile.avgRating.toFixed(1)} / 5`
+            : "Not rated",
+            ],
+            ["Casparel reviews", String(profile.reviewCount)],
+            [
+            "Keywords",
+            profile.keywords.length > 0
+            ? profile.keywords.join(", ")
+            : null,
+            ],
+            ["Source quality", trust.label],
+            ];
+            const unknownFactCount = factRows.filter(
+              ([, value]) => !value || value === "Not available",
+            ).length;
+            return (
               <section className="border-y py-4" data-testid="resource-facts">
                 <h3 className="mb-3 text-sm font-semibold">Resource facts</h3>
+                {/* A quick review reads maintained provenance and never touches
+                    the live web, so a source outside the catalogue genuinely
+                    has nothing to show. Printing fifteen rows of "Not
+                    available" states that fifteen times and reads as broken
+                    software rather than an honest "we do not know this
+                    source". Say it once, point at the thing that CAN answer,
+                    and keep the grid available for anyone who wants to see
+                    exactly which fields were checked. */}
+                {unknownFactCount >= FACTS_MOSTLY_UNKNOWN ? (
+                  <div className="mb-3 rounded-md border border-dashed p-3">
+                    <p className="text-sm font-medium text-foreground">
+                      Casparel holds no maintained details for this source
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      A quick review only reads provenance we already maintain,
+                      and this source is not in the catalogue, so{" "}
+                      {unknownFactCount} of {factRows.length} fields are unknown
+                      rather than empty. Deep research reads the live web and
+                      cites what it finds.
+                    </p>
+                    {mode === "quick" ? (
+                      <Button
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => handleModeSelect("deep")}
+                      >
+                        Run deep research
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
                 <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {[
-                    ["Uploaded / published", profile.uploadTime],
-                    ["Last edited", profile.lastEdited],
-                    ["Added to Casparel", schoolarDate(profile.addedToSchoolar)],
-                    ["Subject", profile.subject],
-                    ["Grade", profile.gradeLevel],
-                    ["Format", profile.format],
-                    ["Language", profile.language],
-                    ["Difficulty", profile.difficulty],
-                    ["Access", profile.accessType],
-                    ["Usage rights", profile.license],
-                    ["Duration", profile.duration],
-                    ["Reading time", profile.readingTime],
-                    ["Captions", knownBoolean(profile.captions)],
-                    ["Transcript", knownBoolean(profile.transcript)],
-                    ["Author / uploader", profile.author],
-                    ["Provider", profile.provider],
-                    ["Source domain", profile.sourceDomain],
-                    ["Audience", profile.audience],
-                    ["Preview image", profile.hasThumbnail ? "Yes" : "No"],
-                    [
-                      "Casparel rating",
-                      profile.avgRating > 0
-                        ? `${profile.avgRating.toFixed(1)} / 5`
-                        : "Not rated",
-                    ],
-                    ["Casparel reviews", String(profile.reviewCount)],
-                    [
-                      "Keywords",
-                      profile.keywords.length > 0
-                        ? profile.keywords.join(", ")
-                        : null,
-                    ],
-                    ["Source quality", trust.label],
-                  ].map(([label, value]) => (
+                  {factRows.map(([label, value]) => (
                     <div key={label} className="min-w-0">
                       <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                         {label}
@@ -549,7 +596,8 @@ function SourceReviewPanel({
                   ))}
                 </dl>
               </section>
-            )}
+            );
+            })()}
 
             {!profile && <Separator />}
 
@@ -1081,7 +1129,7 @@ export default function ResourceDetailPage() {
         <CardHeader>
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex-1 min-w-0">
-              <CardTitle className="text-xl">{resource.title}</CardTitle>
+              <CardTitle translate="no" className="text-xl">{resource.title}</CardTitle>
               <CardDescription className="mt-1">
                 {metaLine(resource.subject, resource.gradeLevel)}
               </CardDescription>

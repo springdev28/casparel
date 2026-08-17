@@ -28,6 +28,8 @@ import {
   useDiscoverResources,
   useSearchUsers,
   type DiscoveredResource,
+  useGetDiscoverCapabilities,
+  useGetMe,
 } from "@workspace/api-client-react";
 import {
   Avatar,
@@ -275,6 +277,14 @@ export default function PeoplePage() {
   const [query, setQuery] = useState("");
   const [subject, setSubject] = useState("");
   const [role, setRole] = useState<"all" | SearchUsersRole>("all");
+  // Whether each AI search is switched on at all, and how findable this
+  // account itself is. Both empty states below are wrong without them.
+  const { data: capabilities } = useGetDiscoverCapabilities();
+  const { data: me } = useGetMe();
+  const publicProfileSearchOff = capabilities?.publicProfileSearch === false;
+  const myProfileIsPrivate =
+    me !== undefined && me.profileVisibility !== "everyone";
+
   const [profileSource, setProfileSource] = useState<"schoolar" | "social">(
     "schoolar",
   );
@@ -545,12 +555,30 @@ export default function PeoplePage() {
         ) : !allSocialPeople.length ? (
           <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground">
             <Globe2 className="mx-auto mb-3 size-9 opacity-40" />
-            <p className="font-medium text-foreground">
-              No verified public profiles found
-            </p>
-            <p className="mt-1 text-sm">
-              Try a name together with a subject or profession.
-            </p>
+            {publicProfileSearchOff ? (
+              <>
+                {/* Not "we found nobody": this search never ran. Saying it
+                    found nothing sends the reader off to rewrite a query that
+                    was never going to be answered. */}
+                <p className="font-medium text-foreground">
+                  Searching the web for profiles is turned off
+                </p>
+                <p className="mx-auto mt-1 max-w-md text-sm">
+                  This Casparel server has public profile search disabled, so no
+                  search was run. Switch to Casparel accounts to find people
+                  here, or ask an administrator to enable it.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-foreground">
+                  No verified public profiles found
+                </p>
+                <p className="mt-1 text-sm">
+                  Try a name together with a subject or profession.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -606,9 +634,28 @@ export default function PeoplePage() {
         <div className="rounded-xl border border-dashed py-14 text-center text-muted-foreground">
           <Users className="mx-auto mb-3 size-9 opacity-40" />
           <p className="font-medium text-foreground">No matching people yet</p>
-          <p className="mt-1 text-sm">
-            Try a broader subject, interest, or role.
+          {/* Searching everyone only ever returns accounts whose profile is set
+              to Everyone, and the default is Classmates. So an empty result
+              usually means nobody has opted in, not that the query was wrong,
+              and "try a broader subject" sends the reader in circles. */}
+          <p className="mx-auto mt-1 max-w-md text-sm">
+            Only accounts that have set their profile to Everyone appear here,
+            and new accounts start visible to classmates only. Try a broader
+            subject or role, or invite the person to your class.
           </p>
+          {myProfileIsPrivate ? (
+            <p className="mx-auto mt-3 max-w-md text-sm">
+              Your own profile is not public either, so others cannot find you
+              this way.{" "}
+              <Link
+                href="/settings"
+                className="text-primary-text font-medium hover:underline"
+              >
+                Change who can see your profile
+              </Link>
+              .
+            </p>
+          ) : null}
         </div>
       ) : (
         <>

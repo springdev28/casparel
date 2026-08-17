@@ -1,609 +1,47 @@
 import { useEffect } from "react";
 import { AUTH_LANGUAGE_KEY, type AuthLanguage } from "../lib/auth-locale";
+import { translateUiString } from "../lib/ui-translations";
+
+/**
+ * Translates the rendered UI in place, for every language that has a
+ * dictionary.
+ *
+ * The app is written in English and this bridge rewrites the DOM after React
+ * paints, which is why it is a bridge and not an i18n framework: it needs no
+ * change at every call site, and a string it does not know is left in English
+ * rather than mangled.
+ *
+ * What it must never translate, and how that is enforced:
+ *
+ *  • **User input and names.** A class called "Practice", a person called
+ *    "Match", a resource titled "Forum" — each is a dictionary key, and
+ *    translating it would rewrite something a person typed or is called.
+ *    Content that comes from the database is marked `translate="no"` (see
+ *    `NO_TRANSLATE_SELECTOR`), the HTML-standard way to say "leave this
+ *    alone", and this walker skips those subtrees entirely.
+ *  • **Fields being typed in.** Inputs, textareas and contenteditable regions
+ *    are skipped, so translation can never fight the caret.
+ *  • **Code and machine text.** `<code>`, `<pre>` and `<script>` are skipped:
+ *    a snippet is not prose.
+ *
+ * The DOM is walked rather than the React tree because third-party components
+ * (menus, toasts, the design system) render text this app never sees as a
+ * string, and those were exactly the surfaces users found untranslated.
+ */
 
 const LANGUAGE_EVENT = "schoolar-language-change";
 
-const TR: Record<string, string> = {
-  "Activities": "Etkinlikler",
-  "Activity complete": "Etkinlik tamamlandı",
-  "Activity created": "Etkinlik oluşturuldu",
-  "Activity deleted": "Etkinlik silindi",
-  "Activity type": "Etkinlik türü",
-  "Activity updated": "Etkinlik güncellendi",
-  "Add at least two complete cards": "En az iki tamamlanmış öğe ekleyin",
-  "Add at least two term-and-answer pairs.": "En az iki soru-cevap çifti ekleyin.",
-  "Add card": "Öğe ekle",
-  "All topics": "Tüm konular",
-  "Answer": "Cevap",
-  "Attach file": "Dosya ekle",
-  "Attach image": "Görsel ekle",
-  "Choose a PNG, JPEG, or WebP image.": "PNG, JPEG veya WebP görseli seçin.",
-  "Class activities": "Sınıf etkinlikleri",
-  "Class forum": "Sınıf forumu",
-  "Comment": "Yorum",
-  "Comments": "Yorumlar",
-  "Correct": "Doğru",
-  "Could not load activities": "Etkinlikler yüklenemedi",
-  "Could not load posts": "Gönderiler yüklenemedi",
-  "Could not publish": "Yayınlanamadı",
-  "Could not publish comment": "Yorum yayınlanamadı",
-  "Create activity": "Etkinlik oluştur",
-  "Create study activity": "Çalışma etkinliği oluştur",
-  "Delete activity": "Etkinliği sil",
-  "Delete post": "Gönderiyi sil",
-  "Duplicate activity": "Etkinliği çoğalt",
-  "Edit activity": "Etkinliği düzenle",
-  "Edit study activity": "Çalışma etkinliğini düzenle",
-  "Education forum": "Eğitim forumu",
-  "Everything": "Her şey",
-  "False": "Yanlış",
-  "File": "Dosya",
-  "Flashcards": "Bilgi kartları",
-  "Forum": "Forum",
-  "Hide": "Gizle",
-  "Image description": "Görsel açıklaması",
-  "Import CSV / Quizlet": "CSV / Quizlet içe aktar",
-  "Loading posts...": "Gönderiler yükleniyor...",
-  "Match": "Eşleştirme",
-  "Matched": "Eşleştirildi",
-  "Missing word": "Eksik kelime",
-  "New activity": "Yeni etkinlik",
-  "No comments yet.": "Henüz yorum yok.",
-  "No posts match these filters.": "Bu filtrelerle eşleşen gönderi yok.",
-  "No study activities yet": "Henüz çalışma etkinliği yok",
-  "Not deleted": "Silinmedi",
-  "Not saved to your library": "Kütüphanenize kaydedilmedi",
-  "Open material": "Materyali aç",
-  "Pick a card": "Bir kart seç",
-  "Picking…": "Seçiliyor…",
-  "Popular topics": "Popüler konular",
-  "Post": "Gönderi",
-  "Post published": "Gönderi yayınlandı",
-  "Posts": "Gönderiler",
-  "Practice": "Alıştırma",
-  "Practice again": "Tekrar alıştırma yap",
-  "Practice complete": "Alıştırma tamamlandı",
-  "Practice with activity sets shared in this class.": "Bu sınıfta paylaşılan etkinliklerle pratik yapın.",
-  "Quiz": "Test",
-  "Random picker": "Rastgele seçici",
-  "Remove image": "Görseli kaldır",
-  "Report post": "Gönderiyi bildir",
-  "Resource was not submitted": "Kaynak gönderilmedi",
-  "Restart": "Yeniden başlat",
-  "Reveal answer": "Cevabı göster",
-  "Round complete": "Tur tamamlandı",
-  "Save changes": "Değişiklikleri kaydet",
-  "Scramble": "Harf karıştırma",
-  "Scramble complete": "Harf karıştırma tamamlandı",
-  "Search posts": "Gönderilerde ara",
-  "Search the feed...": "Akışta ara...",
-  "Share a question, idea, or update...": "Bir soru, fikir veya güncelleme paylaş...",
-  "Shuffle": "Karıştır",
-  "Something went wrong on our side. Try again in a moment.": "Bizim tarafımızda bir sorun oluştu. Birazdan tekrar deneyin.",
-  "Step was not updated": "Adım güncellenmedi",
-  "Study activities": "Çalışma etkinlikleri",
-  "Survey": "Anket",
-  "Survey options": "Anket seçenekleri",
-  "Survey published": "Anket yayınlandı",
-  "Surveys": "Anketler",
-  "Allow multiple selections": "Birden fazla seçime izin ver",
-  "That item no longer exists. Refresh the page to see the latest.": "Bu öğe artık mevcut değil. En güncel hâli için sayfayı yenileyin.",
-  "Too many requests. Wait a moment and try again.": "Çok fazla istek gönderildi. Biraz bekleyip tekrar deneyin.",
-  "Voters can choose one or more options.": "Katılımcılar bir veya birden fazla seçenek seçebilir.",
-  "Choose one option.": "Bir seçenek seçin.",
-  "Choose one or more options.": "Bir veya birden fazla seçenek seçin.",
-  "Term": "Terim",
-  "Term or question": "Terim veya soru",
-  "True": "Doğru",
-  "True / false": "Doğru / yanlış",
-  "Try again": "Tekrar dene",
-  "Unscrambled answer": "Düzeltilmiş cevap",
-  "Use photo": "Fotoğrafı kullan",
-  "View comments": "Yorumları görüntüle",
-  "Write a comment or reply...": "Yorum veya yanıt yaz...",
-  "(not set up)": "(kurulmadı)",
-  "(optional)": "(isteğe bağlı)",
-  "A page error occurred. Reload the app to try again.": "Bir sayfa hatası oluştu. Tekrar denemek için uygulamayı yenileyin.",
-  "Accent color": "Vurgu rengi",
-  "Accepted": "Kabul edildi",
-  "Access and account limits": "Erişim ve hesap sınırları",
-  "Active": "Etkin",
-  "Add": "Ekle",
-  "Add a desk above to begin designing.": "Tasarlamaya başlamak için yukarıdan bir sıra ekleyin.",
-  "Add a Member": "Üye ekle",
-  "Add a path step…": "Yol adımı ekle…",
-  "Add a student or teacher to this class by email": "Bu sınıfa e-postayla öğrenci veya öğretmen ekleyin",
-  "Add a subject…": "Ders ekle…",
-  "Add desk:": "Sıra ekle:",
-  "Add Schedule Block": "Program bloğu ekle",
-  "Add this resource to a class resource list for your students.": "Bu kaynağı öğrencileriniz için bir sınıf kaynak listesine ekleyin.",
-  "Add to a List": "Listeye ekle",
-  "Added to list!": "Listeye eklendi!",
-  "Additional profiles could not be loaded.": "Ek profiller yüklenemedi.",
-  "Admin": "Yönetici",
-  "Administrator panel": "Yönetici paneli",
-  "Administrators": "Yöneticiler",
-  "Administrators can access libraries for moderation regardless of this setting.": "Yöneticiler bu ayardan bağımsız olarak denetim için kütüphanelere erişebilir.",
-  "Advanced": "İleri",
-  "AI search": "Yapay zekâ araması",
-  "AI searches": "Yapay zekâ aramaları",
-  "AI fallback": "Yapay zekâ yedeği",
-  "AI usage by user": "Kullanıcıya göre yapay zekâ kullanımı",
-  "All formats": "Tüm biçimler",
-  "All grades": "Tüm sınıf düzeyleri",
-  "Any language": "Tüm diller",
-  "Any rating": "Tüm puanlar",
-  "Assign to class": "Sınıfa ata",
-  "Assign to Class": "Sınıfa ata",
-  "Assigned!": "Atandı!",
-  "Audience": "Hedef kitle",
-  "Avatar updated": "Avatar güncellendi",
-  "Back": "Geri",
-  "Back to Classes": "Sınıflara dön",
-  "Back to Lists": "Listelere dön",
-  "Back to Resources": "Kaynaklara dön",
-  "Background animation intensity": "Arka plan animasyonu yoğunluğu",
-  "Be specific about the outcome you want, not just the subject.": "Yalnızca konuyu değil, ulaşmak istediğiniz sonucu da açıkça belirtin.",
-  "Beginner": "Başlangıç",
-  "Block added!": "Blok eklendi!",
-  "Block deleted": "Blok silindi",
-  "Block out time for studying, classes, or assignments": "Çalışma, ders veya ödevler için zaman ayırın",
-  "Blocking is private. Blocked users cannot view your profile or join collaborative study sessions with you.": "Engelleme gizlidir. Engellenen kullanıcılar profilinizi göremez veya sizinle ortak çalışma oturumlarına katılamaz.",
-  "Brand color": "Marka rengi",
-  "Browse resources and add them to this list.": "Kaynaklara göz atın ve bu listeye ekleyin.",
-  "Bibliography citation": "Kaynakça atfı",
-  "Catalog search failed, please try again.": "Katalog araması başarısız oldu, lütfen tekrar deneyin.",
-  "Copy bibliography": "Kaynakçayı kopyala",
-  "Copy in-text": "Metin içi atfı kopyala",
-  "Build the room, place students, and let the assistant reason about proximity and desk-mates.": "Sınıfı oluşturun, öğrencileri yerleştirin ve asistanın yakınlık ile sıra arkadaşlarını değerlendirmesini sağlayın.",
-  "Built around your goal and updated as you learn.": "Hedefinize göre oluşturulur ve öğrendikçe güncellenir.",
-  "Cached research reports": "Önbelleğe alınmış araştırma raporları",
-  "Calendar Subscription (iCal)": "Takvim aboneliği (iCal)",
-  "Cancel": "İptal",
-  "Canvas": "Tuval",
-  "Canvas details": "Tuval ayrıntıları",
-  "Canvas settings updated": "Tuval ayarları güncellendi",
-  "Canvas unavailable": "Tuval kullanılamıyor",
-  "Class Canvas": "Sınıf Tuvali",
-  "Class access": "Sınıf erişimi",
-  "Class canvases": "Sınıf tuvalleri",
-  "New canvas": "Yeni tuval",
-  "New heading": "Yeni başlık",
-  "New link": "Yeni bağlantı",
-  "New note": "Yeni not",
-  "No matching library resources.": "Eşleşen kütüphane kaynağı yok.",
-  "People with access": "Erişimi olan kişiler",
-  "Personal and shared": "Kişisel ve paylaşılan",
-  "Personal canvas": "Kişisel tuval",
-  "Resource": "Kaynak",
-  "Save details": "Ayrıntıları kaydet",
-  "Saved": "Kaydedildi",
-  "Saving": "Kaydediliyor",
-  "Share": "Paylaş",
-  "Share canvas": "Tuvali paylaş",
-  "Start with a blank canvas": "Boş bir tuvalle başlayın",
-  "Students can edit": "Öğrenciler düzenleyebilir",
-  "Students can view": "Öğrenciler görüntüleyebilir",
-  "This canvas is ready": "Bu tuval hazır",
-  "View only": "Yalnızca görüntüleme",
-  "Viewer": "Görüntüleyici",
-  "Visual study spaces": "Görsel çalışma alanları",
-  "Cards and panels": "Kartlar ve paneller",
-  "Cards, dialogs, and menus.": "Kartlar, iletişim kutuları ve menüler.",
-  "Cells": "Hücreler",
-  "Check-ins are paused for this goal. Reopen the dashboard later or select another goal.": "Bu hedef için kontroller duraklatıldı. Daha sonra ana sayfayı açın veya başka bir hedef seçin.",
-  "Choose a preset, or upload a PNG, JPEG, or WebP image up to 2 MB.": "Bir hazır avatar seçin veya 2 MB'a kadar PNG, JPEG ya da WebP görseli yükleyin.",
-  "Choose an avatar": "Avatar seç",
-  "Choose how thoroughly to research this source:": "Bu kaynağın ne kadar ayrıntılı araştırılacağını seçin:",
-  "Choose which list to add this resource to": "Bu kaynağın ekleneceği listeyi seçin",
-  "Choose your colors. Text contrast updates automatically for readability.": "Renklerinizi seçin. Metin karşıtlığı okunabilirlik için otomatik güncellenir.",
-  "Class": "Sınıf",
-  "Class created!": "Sınıf oluşturuldu!",
-  "Class deleted": "Sınıf silindi",
-  "Class imported!": "Sınıf içe aktarıldı!",
-  "Class knowledge map": "Sınıf bilgi haritası",
-  "Class name": "Sınıf adı",
-  "Class not found": "Sınıf bulunamadı",
-  "Class Resources": "Sınıf kaynakları",
-  "Classes": "Sınıflar",
-  "Classmates only": "Yalnızca sınıf arkadaşları",
-  "Classmates only, shared classes required": "Yalnızca sınıf arkadaşları, ortak sınıf gerekir",
-  "CLASSROOM COPILOT": "SINIF ASİSTANI",
-  "Classroom designer": "Sınıf düzenleyici",
-  "Classroom saved": "Sınıf düzeni kaydedildi",
-  "Close": "Kapat",
-  "Collaborative": "Ortak çalışma",
-  "Columns": "Sütunlar",
-  "Comment (optional)": "Yorum (isteğe bağlı)",
-  "Complete": "Tamamla",
-  "Completed": "Tamamlandı",
-  "Concerns and caveats": "Endişeler ve sınırlamalar",
-  "Connect Google Classroom": "Google Classroom'a bağlan",
-  "Connect Google Classroom first": "Önce Google Classroom'a bağlanın",
-  "Connect Google Classroom to sync the roster": "Öğrenci listesini eşitlemek için Google Classroom'a bağlanın",
-  "Connect ideas, resources, and questions.": "Fikirleri, kaynakları ve soruları bağlayın.",
-  "Connect notes, links, and Casparel resources in a flexible workspace.": "Notları, bağlantıları ve Casparel kaynaklarını esnek bir çalışma alanında birleştirin.",
-  "Connect to automatically sync your schedule blocks and study sessions to Google Calendar.": "Program bloklarınızı ve çalışma oturumlarınızı Google Takvim ile otomatik eşitlemek için bağlanın.",
-  "Continue check-ins": "Kontrollere devam et",
-  "Could not assign the resource.": "Kaynak atanamadı.",
-  "Could not cancel session": "Oturum iptal edilemedi",
-  "Could not create goal": "Hedef oluşturulamadı",
-  "Could not delete class": "Sınıf silinemedi",
-  "Could not disconnect": "Bağlantı kesilemedi",
-  "Could not disconnect Google Classroom": "Google Classroom bağlantısı kesilemedi",
-  "Could not generate seating suggestion": "Oturma düzeni önerisi oluşturulamadı",
-  "Could not leave class": "Sınıftan çıkılamadı",
-  "Could not load profile.": "Profil yüklenemedi.",
-  "Could not recommend resource": "Kaynak önerilemedi",
-  "Could not remove member": "Üye kaldırılamadı",
-  "Could not remove the resource.": "Kaynak kaldırılamadı.",
-  "Could not retrieve source information. Please try again later.": "Kaynak bilgileri alınamadı. Lütfen daha sonra tekrar deneyin.",
-  "Could not review recommendation": "Öneri incelenemedi",
-  "Could not save check-in": "Kontrol kaydedilemedi",
-  "Could not save classroom": "Sınıf düzeni kaydedilemedi",
-  "Could not save note": "Not kaydedilemedi",
-  "Could not save private note": "Özel not kaydedilemedi",
-  "Could not save profile": "Profil kaydedilemedi",
-  "Could not share with the class.": "Sınıfla paylaşılamadı.",
-  "Could not start Google authorization": "Google yetkilendirmesi başlatılamadı",
-  "Could not start Google Calendar connection": "Google Takvim bağlantısı başlatılamadı",
-  "Could not submit report": "Bildirim gönderilemedi",
-  "Could not switch role. Please try again.": "Rol değiştirilemedi. Lütfen tekrar deneyin.",
-  "Could not update avatar": "Avatar güncellenemedi",
-  "Could not update block": "Blok güncellenemedi",
-  "Could not update RSVP": "Katılım durumu güncellenemedi",
-  "Could not upload avatar": "Avatar yüklenemedi",
-  "Create a Class": "Sınıf oluştur",
-  "Create a goal to build your first checklist.": "İlk kontrol listenizi oluşturmak için bir hedef ekleyin.",
-  "Create a learning goal": "Öğrenme hedefi oluştur",
-  "Create a learning goal and its first checklist will appear here and on your dashboard.": "Bir öğrenme hedefi oluşturun; ilk kontrol listesi burada ve ana sayfanızda görünsün.",
-  "Create a List": "Liste oluştur",
-  "Create account": "Hesap oluştur",
-  "Create canvas": "Tuval oluştur",
-  "Create your first list to start organizing resources.": "Kaynakları düzenlemeye başlamak için ilk listenizi oluşturun.",
-  "Curate and organize your resources": "Kaynaklarınızı seçin ve düzenleyin",
-  "Current level": "Mevcut düzey",
-  "Current plan": "Mevcut plan",
-  "Customize interface colors": "Arayüz renklerini özelleştir",
-  "Dashboard": "Ana sayfa",
-  "Dashboard goal updated": "Ana sayfa hedefi güncellendi",
-  "Date": "Tarih",
-  "Deep": "Derin",
-  "Deep research": "Derin araştırma",
-  "Delete list?": "Liste silinsin mi?",
-  "Description (optional)": "Açıklama (isteğe bağlı)",
-  "Desk": "Sıra",
-  "Disconnect Google Classroom": "Google Classroom bağlantısını kes",
-  "Discover students with shared interests and educators or professionals in their subject.": "Ortak ilgi alanlarına sahip öğrencileri ve alanlarındaki eğitimci ya da uzmanları keşfedin.",
-  "Display name": "Görünen ad",
-  "Done": "Bitti",
-  "Duration (minutes)": "Süre (dakika)",
-  "Each goal builds a path you can complete, or undo, one step at a time.": "Her hedef, adım adım tamamlayabileceğiniz veya geri alabileceğiniz bir yol oluşturur.",
-  "Edit all": "Tümünü düzenle",
-  "Educators & professionals": "Eğitimciler ve uzmanlar",
-  "Email address": "E-posta adresi",
-  "Empty seat": "Boş koltuk",
-  "End time": "Bitiş saati",
-  "Enter the Google Classroom course ID to pull its student roster.": "Öğrenci listesini almak için Google Classroom ders kimliğini girin.",
-  "Equivalent values": "Eşdeğer değerler",
-  "Error": "Hata",
-  "Est. cost": "Tahmini maliyet",
-  "Estimated AI cost": "Tahmini yapay zekâ maliyeti",
-  "Everyone": "Herkes",
-  "Anyone with the link can view": "Bağlantıya sahip herkes görüntüleyebilir",
-  "Everyone, shown in global people search": "Herkes, genel kişi aramasında gösterilir",
-  "Everyone has a place.": "Herkesin bir yeri var.",
-  "Evidence-backed strengths": "Kanıta dayalı güçlü yönler",
-  "Evolving the seating planner into coordinated classroom decisions.": "Oturma planını koordineli sınıf kararlarına dönüştürün.",
-  "Explainable classroom copilot": "Açıklanabilir sınıf asistanı",
-  "Explainable recommendation": "Açıklanabilir öneri",
-  "Explore class map": "Sınıf haritasını keşfet",
-  "Export to Calendar": "Takvime aktar",
-  "Failed to create study session": "Çalışma oturumu oluşturulamadı",
-  "Failed to save new order": "Yeni sıralama kaydedilemedi",
-  "Fetch Roster": "Öğrenci listesini getir",
-  "Format": "Biçim",
-  "Fractions": "Kesirler",
-  "Front · Board · Teacher": "Ön · Tahta · Öğretmen",
-  "Future seating suggestions will use the updated note.": "Gelecekteki oturma önerileri güncellenen notu kullanacak.",
-  "Generally Trusted": "Genellikle güvenilir",
-  "Globe": "Küre",
-  "Goals": "Hedefler",
-  "Google Calendar": "Google Takvim",
-  "Google Calendar disconnected": "Google Takvim bağlantısı kesildi",
-  "Google Classroom connected!": "Google Classroom bağlandı!",
-  "Google Classroom connection failed": "Google Classroom bağlantısı başarısız",
-  "Google Classroom Course ID": "Google Classroom ders kimliği",
-  "Google Classroom credentials are not configured on this server. Contact your admin.": "Google Classroom bilgileri bu sunucuda yapılandırılmamış. Yöneticinizle iletişime geçin.",
-  "Google Classroom disconnected": "Google Classroom bağlantısı kesildi",
-  "Google Classroom linked": "Google Classroom bağlı",
-  "Grade level": "Sınıf düzeyi",
-  "Grade Level": "Sınıf düzeyi",
-  "Halo": "Hale",
-  "Harassment": "Taciz",
-  "Here's what your learners' evidence suggests doing next.": "Öğrenci kanıtları bir sonraki adım için şunu öneriyor.",
-  "Hidden fields are removed from profile results and cannot be used to find you.": "Gizli alanlar profil sonuçlarından kaldırılır ve sizi bulmak için kullanılamaz.",
-  "Highly Trusted": "Yüksek güvenilirlik",
-  "Impersonation": "Kimliğe bürünme",
-  "Import as Class": "Sınıf olarak içe aktar",
-  "Intensity": "Yoğunluk",
-  "Interface colors": "Arayüz renkleri",
-  "Intermediate": "Orta",
-  "Item removed": "Öğe kaldırıldı",
-  "Join Meeting": "Toplantıya katıl",
-  "Label": "Etiket",
-  "Language": "Dil",
-  "Last 30 days": "Son 30 gün",
-  "Learn more": "Daha fazla bilgi",
-  "Learning goal created": "Öğrenme hedefi oluşturuldu",
-  "Learning goals": "Öğrenme hedefleri",
-  "Learning path": "Öğrenme yolu",
-  "Learning signals": "Öğrenme sinyalleri",
-  "LinkedIn": "LinkedIn",
-  "List": "Liste",
-  "List created!": "Liste oluşturuldu!",
-  "List deleted": "Liste silindi",
-  "List name": "Liste adı",
-  "List not found": "Liste bulunamadı",
-  "Lists": "Listeler",
-  "Live web research across forums, comments, reviews, articles, and other mentions.": "Forumlar, yorumlar, değerlendirmeler, makaleler ve diğer kaynaklarda canlı web araştırması.",
-  "Loading administrator panel...": "Yönetici paneli yükleniyor...",
-  "Make sure you are a teacher in at least one active course.": "En az bir etkin derste öğretmen olduğunuzdan emin olun.",
-  "Make this list visible to all members of a class.": "Bu listeyi sınıfın tüm üyelerine görünür yapın.",
-  "Manage and join your classes": "Sınıflarınızı yönetin ve katılın",
-  "Manage your weekly study plan": "Haftalık çalışma planınızı yönetin",
-  "Mark complete": "Tamamlandı olarak işaretle",
-  "Mathematics": "Matematik",
-  "Member added!": "Üye eklendi!",
-  "Member removed": "Üye kaldırıldı",
-  "Members": "Üyeler",
-  "Metadata": "Üst veri",
-  "More profiles could not be loaded. Your current results are still shown.": "Daha fazla profil yüklenemedi. Mevcut sonuçlarınız gösterilmeye devam ediyor.",
-  "Most reviewed": "En çok değerlendirilen",
-  "My Profile": "Profilim",
-  "Net": "Ağ",
-  "New schedule blocks and study sessions will automatically sync to your primary Google Calendar.": "Yeni program blokları ve çalışma oturumları birincil Google Takviminizle otomatik eşitlenir.",
-  "New Study Session": "Yeni çalışma oturumu",
-  "Newest first": "En yeniler önce",
-  "No active courses found in Google Classroom.": "Google Classroom'da etkin ders bulunamadı.",
-  "No active Google Classroom courses found.": "Etkin Google Classroom dersi bulunamadı.",
-  "No bio yet.": "Henüz biyografi yok.",
-  "No classes found. Create a class first.": "Sınıf bulunamadı. Önce bir sınıf oluşturun.",
-  "No classes yet": "Henüz sınıf yok",
-  "No items yet": "Henüz öğe yok",
-  "No lists yet": "Henüz liste yok",
-  "No lists yet. Create one first.": "Henüz liste yok. Önce bir liste oluşturun.",
-  "No matching people yet": "Henüz eşleşen kişi yok",
-  "No members yet.": "Henüz üye yok.",
-  "No new source found": "Yeni kaynak bulunamadı",
-  "No people found": "Kişi bulunamadı",
-  "No reading lists found": "Okuma listesi bulunamadı",
-  "No resources assigned yet": "Henüz kaynak atanmadı",
-  "No resources found": "Kaynak bulunamadı",
-  "No reviews yet. Be the first!": "Henüz değerlendirme yok. İlk siz olun!",
-  "No student goals in this class yet.": "Bu sınıfta henüz öğrenci hedefi yok.",
-  "No students found in this course.": "Bu derste öğrenci bulunamadı.",
-  "No subjects added yet.": "Henüz ders eklenmedi.",
-  "No tracked AI provider usage yet.": "Henüz izlenen yapay zekâ sağlayıcı kullanımı yok.",
-  "No verified public profiles found": "Doğrulanmış herkese açık profil bulunamadı",
-  "Not available on this server": "Bu sunucuda kullanılamıyor",
-  "Not connected": "Bağlı değil",
-  "Not now": "Şimdi değil",
-  "Not set": "Ayarlanmadı",
-  "Note (optional)": "Not (isteğe bağlı)",
-  "Notes (optional)": "Notlar (isteğe bağlı)",
-  "Off": "Kapalı",
-  "Only teachers of this class can see this note. The seating assistant uses its latest saved wording, including named relationships.": "Bu notu yalnızca sınıf öğretmenleri görebilir. Oturma asistanı, belirtilen ilişkiler dâhil son kaydedilen metni kullanır.",
-  "Open in Google Classroom": "Google Classroom'da aç",
-  "Open education catalog": "Açık eğitim kataloğu",
-  "Open profile": "Profili aç",
-  "In-text citation": "Metin içi atıf",
-  "Searching the education catalog…": "Eğitim kataloğunda aranıyor…",
-  "Sources & channels": "Kaynaklar ve kanallar",
-  "Optional context for the moderation team…": "Denetim ekibi için isteğe bağlı açıklama…",
-  "Optional priorities…": "İsteğe bağlı öncelikler…",
-  "Organize resources into a curated list": "Kaynakları seçilmiş bir listede düzenleyin",
-  "Other": "Diğer",
-  "Outcome": "Sonuç",
-  "Page background": "Sayfa arka planı",
-  "Participants": "Katılımcılar",
-  "Parts of a whole": "Bir bütünün parçaları",
-  "Patterns from reflections and comprehension checks, not clicks.": "Tıklamalardan değil, düşünme ve anlama kontrollerinden elde edilen örüntüler.",
-  "Paused": "Duraklatıldı",
-  "Pending": "Bekliyor",
-  "People": "Kişiler",
-  "People search could not be loaded. Please try again.": "Kişi araması yüklenemedi. Lütfen tekrar deneyin.",
-  "Planning estimate based on configured models and search tools.": "Yapılandırılmış modellere ve arama araçlarına dayalı planlama tahmini.",
-  "Platform activity at a glance. Administrator AI discovery and deep research are not subject to regular account quotas.": "Platform etkinliğini bir bakışta görün. Yönetici yapay zekâ keşfi ve derin araştırması normal hesap kotalarına tabi değildir.",
-  "Platform-wide AI activity": "Platform genelinde yapay zekâ etkinliği",
-  "Please choose 1–5 stars.": "Lütfen 1–5 yıldız seçin.",
-  "Please try again or connect from the Classes page.": "Lütfen tekrar deneyin veya Sınıflar sayfasından bağlanın.",
-  "Private": "Özel",
-  "Private, hidden from search and other users": "Özel, aramadan ve diğer kullanıcılardan gizli",
-  "Private note saved": "Özel not kaydedildi",
-  "Private student note saved": "Özel öğrenci notu kaydedildi",
-  "Profile": "Profil",
-  "Profile completeness": "Profil tamamlanma durumu",
-  "Profile saved": "Profil kaydedildi",
-  "Public profile search could not be loaded. Try a more specific name or subject.": "Herkese açık profil araması yüklenemedi. Daha belirgin bir ad veya konu deneyin.",
-  "Public web & scholar profiles": "Herkese açık web ve akademisyen profilleri",
-  "Public profiles (optional AI)": "Herkese açık profiller (isteğe bağlı yapay zekâ)",
-  "Publisher provenance and link availability do not verify every claim in the content.": "Yayıncı kaynağı ve bağlantı erişilebilirliği, içerikteki her iddiayı doğrulamaz.",
-  "Quick": "Hızlı",
-  "Quick check-in": "Hızlı kontrol",
-  "Reading list (optional)": "Okuma listesi (isteğe bağlı)",
-  "Recent searches": "Son aramalar",
-  "Recommend to Class": "Sınıfa öner",
-  "Recommendation sent": "Öneri gönderildi",
-  "Reload app": "Uygulamayı yenile",
-  "Remove from library": "Kütüphaneden kaldır",
-  "Remove this resource?": "Bu kaynak kaldırılsın mı?",
-  "Removed": "Kaldırıldı",
-  "Reopen": "Yeniden aç",
-  "Report received": "Bildirim alındı",
-  "Research scope and limitations": "Araştırma kapsamı ve sınırlamaları",
-  "Resource (optional)": "Kaynak (isteğe bağlı)",
-  "Resource added to class resource list.": "Kaynak sınıf kaynak listesine eklendi.",
-  "Resource Lists": "Kaynak listeleri",
-  "Resource not found": "Kaynak bulunamadı",
-  "Resource removed from class.": "Kaynak sınıftan kaldırıldı.",
-  "Resource removed from library.": "Kaynak kütüphaneden kaldırıldı.",
-  "Resource submitted!": "Kaynak gönderildi!",
-  "Resources": "Kaynaklar",
-  "Resume a goal to show its path.": "Yolunu göstermek için bir hedefi sürdürün.",
-  "Retry": "Tekrar dene",
-  "Review": "Değerlendir",
-  "Review and update goals for students in your classes.": "Sınıflarınızdaki öğrencilerin hedeflerini inceleyin ve güncelleyin.",
-  "Review every relationship and reason before applying it.": "Uygulamadan önce her ilişkiyi ve gerekçeyi inceleyin.",
-  "Review student suggestions before they become class resources.": "Öğrenci önerilerini sınıf kaynağı olmadan önce inceleyin.",
-  "Review submitted!": "Değerlendirme gönderildi!",
-  "Reviews": "Değerlendirmeler",
-  "Rings": "Halkalar",
-  "Role": "Rol",
-  "Roster synced!": "Öğrenci listesi eşitlendi!",
-  "Rows": "Satırlar",
-  "Save private note": "Özel notu kaydet",
-  "Saved to library!": "Kütüphaneye kaydedildi!",
-  "Saving the layout is still required.": "Düzenin ayrıca kaydedilmesi gerekir.",
-  "Schedule": "Program",
-  "Schedule a collaborative session with classmates or people you follow": "Sınıf arkadaşlarınızla veya takip ettiğiniz kişilerle ortak çalışma oturumu planlayın",
-  "Casparel accounts": "Casparel hesapları",
-  "Casparel could not load": "Casparel yüklenemedi",
-  "Search": "Ara",
-  "Search by name, interest, department, or experience…": "Ad, ilgi alanı, bölüm veya deneyime göre ara…",
-  "Search classmates or people to invite…": "Davet edilecek sınıf arkadaşlarını veya kişileri ara…",
-  "Search limit reached, you can run up to 5 AI web searches per minute.": "Arama sınırına ulaşıldı, dakikada en fazla 5 yapay zekâ web araması yapabilirsiniz.",
-  "Search LinkedIn for this person": "Bu kişiyi LinkedIn'de ara",
-  "Search more accounts": "Daha fazla hesap ara",
-  "Search reading lists…": "Okuma listelerinde ara…",
-  "Search resets hourly · Research resets daily": "Arama saatlik · Araştırma günlük sıfırlanır",
-  "Search resources…": "Kaynaklarda ara…",
-  "Seating suggestion ready": "Oturma düzeni önerisi hazır",
-  "Select a class": "Sınıf seç",
-  "Select a class…": "Sınıf seç…",
-  "Select a list…": "Liste seç…",
-  "Select a rating": "Puan seç",
-  "Select a student to manage their note and placement.": "Notunu ve yerleşimini yönetmek için bir öğrenci seçin.",
-  "Select timezone…": "Saat dilimi seç…",
-  "Selected and highlighted items.": "Seçilen ve vurgulanan öğeler.",
-  "Session cancelled": "Oturum iptal edildi",
-  "Set a goal": "Hedef belirle",
-  "Set up a new class for your students": "Öğrencileriniz için yeni bir sınıf oluşturun",
-  "Shape": "Şekil",
-  "Share a learning resource with the community": "Toplulukla bir öğrenme kaynağı paylaşın",
-  "Share with Class": "Sınıfla paylaş",
-  "Share your thoughts…": "Düşüncelerinizi paylaşın…",
-  "Shared": "Paylaşıldı",
-  "Shared to Google Classroom!": "Google Classroom'da paylaşıldı!",
-  "Shared with class!": "Sınıfla paylaşıldı!",
-  "Show more results": "Daha fazla sonuç göster",
-  "Buttons, links, and focus rings.": "Düğmeler, bağlantılar ve odak halkaları.",
-  "Sign in": "Giriş yap",
-  "Sign in to write a review and help others find great resources.": "Değerlendirme yazmak ve başkalarının iyi kaynaklar bulmasına yardımcı olmak için giriş yapın.",
-  "Source Review": "Kaynak incelemesi",
-  "Source: specific content": "Kaynak: belirli içerik",
-  "Source: websites & channels": "Kaynak: web siteleri ve kanallar",
-  "Spam": "İstenmeyen içerik",
-  "Start from learning evidence, with every decision visible and editable.": "Her kararın görünür ve düzenlenebilir olduğu öğrenme kanıtlarından başlayın.",
-  "Start time": "Başlangıç saati",
-  "Student": "Öğrenci",
-  "Student goal updated": "Öğrenci hedefi güncellendi",
-  "Student recommendations": "Öğrenci önerileri",
-  "Students": "Öğrenciler",
-  "Students can now see this list on the class page.": "Öğrenciler artık bu listeyi sınıf sayfasında görebilir.",
-  "Study session created!": "Çalışma oturumu oluşturuldu!",
-  "Subject": "Konu",
-  "Subject or interest…": "Konu veya ilgi alanı…",
-  "Subject…": "Konu…",
-  "Submit a Resource": "Kaynak gönder",
-  "Subscribe to your schedule in Apple Calendar, Outlook, or any calendar app. The feed updates automatically.": "Programınıza Apple Takvim, Outlook veya başka bir takvim uygulamasından abone olun. Akış otomatik güncellenir.",
-  "Suggested next move": "Önerilen sonraki adım",
-  "Suggestion loaded as an editable draft": "Öneri düzenlenebilir taslak olarak yüklendi",
-  "Switch mode": "Mod değiştir",
-  "Sync Google Classroom Roster": "Google Classroom öğrenci listesini eşitle",
-  "Teacher": "Öğretmen",
-  "Teachers": "Öğretmenler",
-  "Tell others about yourself…": "Kendinizden bahsedin…",
-  "Thanks. This was submitted privately for moderation review.": "Teşekkürler. Bu bildirim denetim incelemesi için gizli olarak gönderildi.",
-  "The class and its class list were removed.": "Sınıf ve sınıf listesi kaldırıldı.",
-  "The main workspace canvas.": "Ana çalışma alanı.",
-  "They can no longer view your profile or collaborate with you.": "Artık profilinizi göremez veya sizinle ortak çalışamaz.",
-  "They will lose access to this class and its shared resources. You can add them again later.": "Bu sınıfa ve paylaşılan kaynaklarına erişimlerini kaybederler. Daha sonra yeniden ekleyebilirsiniz.",
-  "This feature is on the roadmap.": "Bu özellik geliştirme planında.",
-  "This permanently deletes the class, its memberships, and its class resource list. Original resources remain available.": "Bu işlem sınıfı, üyeliklerini ve sınıf kaynak listesini kalıcı olarak siler. Asıl kaynaklar kullanılabilir kalır.",
-  "This shapes what comes next.": "Bu, sonraki adımı şekillendirir.",
-  "This user has not added anything to their library yet.": "Bu kullanıcı henüz kütüphanesine bir şey eklememiş.",
-  "This user’s library is private or limited to classmates.": "Bu kullanıcının kütüphanesi özel veya sınıf arkadaşlarıyla sınırlı.",
-  "This week's blocks": "Bu haftanın blokları",
-  "Timezone": "Saat dilimi",
-  "Title": "Başlık",
-  "Today": "Bugün",
-  "Top rated": "En yüksek puanlı",
-  "Topology": "Topoloji",
-  "Total": "Toplam",
-  "Total accounts": "Toplam hesap",
-  "Total AI requests": "Toplam yapay zekâ isteği",
-  "Tracked provider calls; cache hits are free and excluded.": "İzlenen sağlayıcı çağrıları; önbellek isabetleri ücretsizdir ve hariç tutulur.",
-  "Trust Unknown": "Güvenilirliği bilinmiyor",
-  "Try a broader subject, interest, or role.": "Daha geniş bir konu, ilgi alanı veya rol deneyin.",
-  "Try a name together with a subject or profession.": "Bir adı konu veya meslekle birlikte aramayı deneyin.",
-  "Try adding interests or an active learning goal.": "İlgi alanları veya etkin bir öğrenme hedefi eklemeyi deneyin.",
-  "Understand quadratic equations": "İkinci dereceden denklemleri anla",
-  "University profile": "Üniversite profili",
-  "Unlimited": "Sınırsız",
-  "Unsafe content": "Güvenli olmayan içerik",
-  "Unseat": "Yerinden kaldır",
-  "Usage today": "Bugünkü kullanım",
-  "Use as editable draft": "Düzenlenebilir taslak olarak kullan",
-  "Use with Caution": "Dikkatli kullanın",
-  "User": "Kullanıcı",
-  "User blocked": "Kullanıcı engellendi",
-  "User Library": "Kullanıcı kütüphanesi",
-  "User not found.": "Kullanıcı bulunamadı.",
-  "User unblocked": "Kullanıcının engeli kaldırıldı",
-  "Rule-based, not an AI model: it reads current positions, front distance, desk-mates, and private notes only when requested, and explains every placement.": "Kural tabanlıdır, bir yapay zeka modeli değildir: yalnızca istendiğinde mevcut konumları, ön sıraya uzaklığı, sıra arkadaşlarını ve özel notları okur ve her yerleşimi açıklar.",
-  "The seating planner is included with Teacher Pro. You can still design and assign every seat manually on any plan.": "Oturma planlayıcısı Teacher Pro'ya dahildir. Her planda tüm sıraları elle tasarlamaya ve atamaya devam edebilirsiniz.",
-  "Uses the AI's built-in knowledge. Fast results, no web search.": "Yapay zekânın yerleşik bilgisini kullanır. Hızlı sonuç verir, web araması yapmaz.",
-  "View": "Görüntüle",
-  "View in Google Classroom": "Google Classroom'da görüntüle",
-  "Website": "Web sitesi",
-  "What others say": "Başkaları ne diyor",
-  "What success looks like, what you already know, or what is difficult…": "Başarının nasıl göründüğü, bildikleriniz veya zorlandığınız noktalar…",
-  "What will you study?": "Ne çalışacaksınız?",
-  "Who can find and open your Casparel profile?": "Casparel profilinizi kim bulabilir ve açabilir?",
-  "Who can see your User Library?": "Kullanıcı kütüphanenizi kim görebilir?",
-  "Why do you recommend it? (optional)": "Neden öneriyorsunuz? (isteğe bağlı)",
-  "Why this label?": "Neden bu etiket?",
-  "Why this resource?": "Neden bu kaynak?",
-  "Write a Review": "Değerlendirme yaz",
-  "You appear to be offline. Check your connection and try again.": "Çevrimdışı görünüyorsunuz. Bağlantınızı kontrol edip tekrar deneyin.",
-  "You can now import courses and share resource lists.": "Artık dersleri içe aktarabilir ve kaynak listelerini paylaşabilirsiniz.",
-  "You do not have permission to do that.": "Bunu yapma izniniz yok.",
-  "You don't have any classes yet.": "Henüz sınıfınız yok.",
-  "You left the class": "Sınıftan ayrıldınız",
-  "You will lose access to class resources. Class owners must have another teacher available for ownership transfer.": "Sınıf kaynaklarına erişiminizi kaybedeceksiniz. Sınıf sahiplerinin devri alabilecek başka bir öğretmeni olmalıdır.",
-  "You're not in any classes yet.": "Henüz hiçbir sınıfta değilsiniz.",
-  "Your checklist is ready.": "Kontrol listeniz hazır.",
-  "Your expressive avatar is now your profile picture.": "Seçtiğiniz avatar artık profil resminiz.",
-  "Your Google Classroom connection has expired or been revoked. Reconnect to continue importing courses.": "Google Classroom bağlantınızın süresi doldu veya bağlantı iptal edildi. Dersleri içe aktarmaya devam etmek için yeniden bağlanın.",
-  "Your Google Classroom connection has expired or been revoked. Reconnect to share resource lists.": "Google Classroom bağlantınızın süresi doldu veya bağlantı iptal edildi. Kaynak listelerini paylaşmak için yeniden bağlanın.",
-  "YOUR LEARNING JOURNEY": "ÖĞRENME YOLCULUĞUNUZ",
-  "Your name": "Adınız",
-  "Your path": "Yolunuz",
-  "Your path adapted after yesterday's reflection. Here's the best next step.": "Yolunuz dünkü değerlendirmenize göre uyarlandı. İşte en iyi sonraki adım.",
-  "Your path is empty": "Yolunuz boş",
-  "Your rating": "Puanınız",
-  "Your session has expired. Sign in again to continue.": "Oturumunuz sona erdi. Devam etmek için tekrar giriş yapın.",
-  "Your teacher must approve this suggestion before it appears in class resources.": "Bu önerinin sınıf kaynaklarında görünmesi için öğretmeninizin onaylaması gerekir.",
-  "Your teacher was notified and can approve it.": "Öğretmeninize bildirim gönderildi ve öneriyi onaylayabilir.",
-  "Zoom": "Yakınlaştır",
-  "active": "etkin",
-  "admin": "yönetici",
-  "completed": "tamamlandı",
-  "paused": "duraklatıldı",
-  "student": "öğrenci",
-  "teacher": "öğretmen",
-};
+/**
+ * Subtrees this bridge leaves alone.
+ *
+ * `translate="no"` is the standard attribute for it, honoured by browser
+ * translation too, so marking user content with it fixes Google Translate as
+ * well as this bridge. `data-user-content` is the same intent spelled for
+ * readers of this codebase, and both are accepted so a component can use
+ * whichever reads better at the call site.
+ */
+const NO_TRANSLATE_SELECTOR =
+  '[translate="no"], [data-user-content], script, style, code, pre, textarea, input, [contenteditable="true"]';
 
 const TEXT_ORIGINALS = new WeakMap<Text, string>();
 const ATTRIBUTE_ORIGINALS = new WeakMap<Element, Map<string, string>>();
@@ -617,41 +55,37 @@ function currentLanguage(): AuthLanguage {
   }
 }
 
-function translateValue(value: string, language: AuthLanguage): string {
-  if (language !== "tr") return value;
-  const leading = value.match(/^\s*/)?.[0] ?? "";
-  const trailing = value.match(/\s*$/)?.[0] ?? "";
-  const key = value.trim();
-  if (TR[key]) return leading + TR[key] + trailing;
-  const patterns: Array<[RegExp, (...parts: string[]) => string]> = [
-    [/^(\d+) cards$/, (count) => `${count} kart`],
-    [/^(\d+) items$/, (count) => `${count} öğe`],
-    [/^(\d+) of (\d+)$/, (current, total) => `${current} / ${total}`],
-    [/^(\d+) votes?$/, (count) => `${count} oy`],
-    [/^(\d+) views$/, (count) => `${count} görüntülenme`],
-    [/^(\d+) likes$/, (count) => `${count} beğeni`],
-    [/^(\d+) comments$/, (count) => `${count} yorum`],
-  ];
-  for (const [pattern, replacement] of patterns) {
-    const match = pattern.exec(key);
-    if (match) return leading + replacement(...match.slice(1)) + trailing;
-  }
-  return value;
+/** True when this node sits inside something that must not be translated. */
+function isProtected(node: Node): boolean {
+  const element =
+    node instanceof Element ? node : (node.parentElement as Element | null);
+  return element?.closest(NO_TRANSLATE_SELECTOR) != null;
+}
+
+/**
+ * Re-read the source when the app itself changed the text.
+ *
+ * The original English is remembered per node so switching languages
+ * translates from English again rather than from the previous translation. A
+ * re-render that writes new content must replace that memory — but the write
+ * this bridge just made must not, or the translation becomes the new
+ * "original" and the string is frozen in one language.
+ */
+function sourceFor(
+  current: string,
+  remembered: string | undefined,
+  language: AuthLanguage,
+): string {
+  if (remembered === undefined) return current;
+  if (current === remembered) return remembered;
+  if (current === translateUiString(remembered, language)) return remembered;
+  return current;
 }
 
 function translateText(node: Text, language: AuthLanguage) {
-  let source = TEXT_ORIGINALS.get(node);
-  if (source === undefined) {
-    source = node.data;
-    TEXT_ORIGINALS.set(node, source);
-  } else {
-    const previousTranslation = translateValue(source, "tr");
-    if (node.data !== source && node.data !== previousTranslation) {
-      source = node.data;
-      TEXT_ORIGINALS.set(node, source);
-    }
-  }
-  const next = translateValue(source, language);
+  const source = sourceFor(node.data, TEXT_ORIGINALS.get(node), language);
+  TEXT_ORIGINALS.set(node, source);
+  const next = translateUiString(source, language);
   if (node.data !== next) node.data = next;
 }
 
@@ -664,37 +98,39 @@ function translateAttributes(element: Element, language: AuthLanguage) {
   for (const attribute of TRANSLATED_ATTRIBUTES) {
     const current = element.getAttribute(attribute);
     if (current === null) continue;
-    let source = originals.get(attribute);
-    if (source === undefined) {
-      source = current;
-      originals.set(attribute, source);
-    } else {
-      const previousTranslation = translateValue(source, "tr");
-      if (current !== source && current !== previousTranslation) {
-        source = current;
-        originals.set(attribute, source);
-      }
-    }
-    const next = translateValue(source, language);
+    const source = sourceFor(current, originals.get(attribute), language);
+    originals.set(attribute, source);
+    const next = translateUiString(source, language);
     if (current !== next) element.setAttribute(attribute, next);
   }
 }
 
 function translateSubtree(root: Node, language: AuthLanguage) {
   if (root instanceof Text) {
-    translateText(root, language);
+    if (!isProtected(root)) translateText(root, language);
     return;
   }
   if (!(root instanceof Element)) return;
+  if (root.matches(NO_TRANSLATE_SELECTOR)) return;
   translateAttributes(root, language);
-  if (root.matches("script, style, textarea, [contenteditable='true']")) return;
   const walker = document.createTreeWalker(
     root,
     NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+    {
+      // Reject rather than skip: rejecting an element prunes its whole
+      // subtree, which is the point — a protected container protects
+      // everything inside it, however deeply nested.
+      acceptNode(node) {
+        if (node instanceof Element && node.matches(NO_TRANSLATE_SELECTOR)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
   );
   let node = walker.nextNode();
   while (node) {
-    if (node instanceof Text && !(node.parentElement?.matches("script, style, textarea, [contenteditable='true']"))) translateText(node, language);
+    if (node instanceof Text) translateText(node, language);
     else if (node instanceof Element) translateAttributes(node, language);
     node = walker.nextNode();
   }

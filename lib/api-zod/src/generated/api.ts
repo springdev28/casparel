@@ -95,6 +95,16 @@ export const LogoutResponse = zod.void()
 
 
 /**
+ * Both AI-backed searches are behind server flags that default to off. Without this the app cannot tell "switched off" from "found nothing", and reported an empty result for a search it never ran.
+ * @summary Which discovery searches this server can actually run
+ */
+export const GetDiscoverCapabilitiesResponse = zod.object({
+  "publicProfileSearch": zod.boolean().describe('AI search of public profiles on the open web.'),
+  "resourceSearch": zod.boolean().describe('AI fallback when the stored catalog has no match.')
+})
+
+
+/**
  * @summary Get the authenticated user
  */
 export const GetMeResponse = zod.object({
@@ -1912,7 +1922,7 @@ export const DiscoverResourcesQueryParams = zod.object({
   "exclude": zod.coerce.string().optional().describe('Space-separated words to exclude, truncated to 160 characters; the first eight are applied'),
   "source": zod.coerce.string().optional().describe('Restrict to providers whose name contains this text, truncated to 160 characters'),
   "excludeSource": zod.coerce.string().optional().describe('Drop results whose provider, link or provider site contains this text, truncated to 160 characters. Matched against all three so \"Wikipedia\" and \"wikipedia.org\" exclude the same results'),
-  "material": zod.coerce.string().optional().describe('Kinds of material wanted, comma-separated: book, course, reference, paper, primary. The catalog holds all five and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one'),
+  "material": zod.coerce.string().optional().describe('Kinds of material wanted, comma-separated: book, course, reference, paper, primary, video. The catalog holds all six and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one'),
   "excludeSubjects": zod.coerce.string().optional().describe('Comma-separated subjects to drop, up to twelve. Distinct from `exclude`, which matches anywhere: this one is about how a work is filed'),
   "author": zod.coerce.string().optional().describe('Author or contributor name to match, truncated to 160 characters'),
   "titleOnly": zod.coerce.boolean().optional().describe('Require the query to match a work\'s own title or subject rather than its description, so the topic is what the work is about instead of something it mentions. Sent as the string true or false'),

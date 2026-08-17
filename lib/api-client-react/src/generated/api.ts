@@ -55,6 +55,7 @@ import type {
   GCShareInput,
   GCShareResult,
   GCStatus,
+  GetDiscoverCapabilities200,
   GetResourceSourceReviewParams,
   HealthStatus,
   JoinClassInput,
@@ -432,6 +433,84 @@ export const useLogout = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getLogoutMutationOptions(options));
     }
+
+export const getGetDiscoverCapabilitiesUrl = () => {
+
+
+
+
+  return `/api/discover/capabilities`
+}
+
+/**
+ * Both AI-backed searches are behind server flags that default to off. Without this the app cannot tell "switched off" from "found nothing", and reported an empty result for a search it never ran.
+ * @summary Which discovery searches this server can actually run
+ */
+export const getDiscoverCapabilities = async ( options?: Parameters<typeof customFetch>[1]): Promise<GetDiscoverCapabilities200> => {
+
+  return customFetch<GetDiscoverCapabilities200>(getGetDiscoverCapabilitiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDiscoverCapabilitiesQueryKey = () => {
+    return [
+    `/api/discover/capabilities`
+    ] as const;
+    }
+
+
+export const getGetDiscoverCapabilitiesQueryOptions = <TData = Awaited<ReturnType<typeof getDiscoverCapabilities>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDiscoverCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDiscoverCapabilitiesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDiscoverCapabilities>>> = ({ signal }) => getDiscoverCapabilities({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDiscoverCapabilities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDiscoverCapabilitiesQueryResult = NonNullable<Awaited<ReturnType<typeof getDiscoverCapabilities>>>
+export type GetDiscoverCapabilitiesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Which discovery searches this server can actually run
+ */
+
+export function useGetDiscoverCapabilities<TData = Awaited<ReturnType<typeof getDiscoverCapabilities>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDiscoverCapabilities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDiscoverCapabilitiesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMeUrl = () => {
 

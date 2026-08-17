@@ -56,7 +56,7 @@ source?: string;
  */
 excludeSource?: string;
 /**
- * Kinds of material wanted, comma-separated: book, course, reference, paper, primary. The catalog holds all five and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one
+ * Kinds of material wanted, comma-separated: book, course, reference, paper, primary, video. The catalog holds all six and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one
  */
 material?: string;
 /**
