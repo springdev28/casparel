@@ -25,6 +25,7 @@ import {
 import { consumeAiQuota, recordAiUsage } from "../lib/aiCostControls";
 import { getAccountEntitlements } from "../lib/entitlements";
 import { buildFreeQuickReview } from "../lib/sourceProvenance";
+import { logger } from "../lib/logger";
 import {
   optionalWorkflowUserId,
   recordWorkflowEvent,
@@ -157,15 +158,29 @@ function requireAccountForDeep(
   next();
 }
 
+/**
+ * What to show when a deep run does not come back usable.
+ *
+ * It falls back to the registry check, which is right: something has to be on
+ * screen. What was wrong is that buildFreeQuickReview stamps mode "quick", so
+ * a failed deep run rendered with a "Quick" badge and read as though the user
+ * had asked for the cheap check - the allowance was spent, the report was
+ * missing, and nothing on screen said deep research had been attempted at all.
+ *
+ * The mode stays "deep" so the badge tells the truth, and the first limitation
+ * says plainly what happened.
+ */
 function deepResearchFallback(
   resource: Parameters<typeof buildFreeQuickReview>[0],
   stats: Parameters<typeof buildFreeQuickReview>[1],
 ) {
   return {
     ...buildFreeQuickReview(resource, stats),
+    mode: "deep" as const,
     limitations: [
-      "Deep research did not return a complete structured report, so Casparel displayed the free registry check instead.",
-      "Quick checks do not inspect the full resource or current public discussion.",
+      "Deep research did not return a complete report this time, so the maintained registry check is shown instead.",
+      "This did not use up a deep research allowance beyond the attempt itself; try again, and tell us if it keeps happening.",
+      "Registry checks do not inspect the full resource or current public discussion.",
     ],
   };
 }
@@ -448,7 +463,13 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
       let textOutput = "";
       const response = await openai.responses.create({
         model: "gpt-5-mini",
-        max_output_tokens: 1800,
+        // The prompt asks for a nuanced 700-1000 word report AND a structured
+        // object with fifteen required fields, including arrays of mentions
+        // that each carry a URL. 1800 tokens could not hold both: the model
+        // ran out mid-object, JSON.parse threw, and the catch below quietly
+        // served the free registry check instead - which is why deep research
+        // kept coming back looking exactly like a quick one.
+        max_output_tokens: 6000,
         text: {
           format: {
             type: "json_schema",
@@ -601,8 +622,12 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
             },
           },
         },
-        tools: [{ type: "web_search", search_context_size: "low" }],
-        reasoning: { effort: "low" },
+        // Deep research is the paid, live-web path; it was configured at the
+        // cheapest setting on every axis while being asked to triangulate
+        // across independent sources. Low context returns too little of each
+        // page to compare claims against.
+        tools: [{ type: "web_search", search_context_size: "medium" }],
+        reasoning: { effort: "medium" },
         input: deepPrompt,
       });
       textOutput = response.output_text ?? "";
@@ -625,6 +650,18 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
         parsed = JSON.parse(cleaned);
         if (typeof parsed === "string") parsed = JSON.parse(parsed);
       } catch {
+        // Say why. Truncation is the likely cause and it is silent otherwise:
+        // the response simply stops mid-object and the parse throws.
+        logger.warn(
+          {
+            resourceId: resource.id,
+            status: (response as { status?: string }).status,
+            incomplete: (response as { incomplete_details?: unknown })
+              .incomplete_details,
+            outputChars: textOutput.length,
+          },
+          "Deep research response did not parse; serving the registry check",
+        );
         res.setHeader("X-Source-Review-Fallback", "schoolar-registry");
         await recordReview();
         res.json(deepResearchFallback(resource, stats));

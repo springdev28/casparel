@@ -328,7 +328,13 @@ describe("GET /api/resources/:id/source-review, edge cases", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(res.body.mode).toBe("quick");
+    // "deep", not "quick". The fallback serves the registry check, which is
+    // right - something has to be on screen - but it used to relabel itself
+    // quick, so a deep run that failed rendered with a Quick badge and read as
+    // though the cheap check was what had been asked for. The allowance was
+    // spent, the report was missing, and nothing said so.
+    expect(res.body.mode).toBe("deep");
+    expect(res.body.limitations[0]).toMatch(/deep research did not return/i);
     expect(res.headers["x-source-review-fallback"]).toBe(
       "schoolar-registry",
     );
