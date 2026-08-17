@@ -1228,9 +1228,36 @@ function catalogFetchWindow(options: CatalogSearchOptions) {
  * largest string.
  */
 const CURSOR_SCORE_CEILING = 9999;
-const CURSOR_PATTERN = /^(\d{4})\.(\d)\.(\d{12})$/;
+/**
+ * Four fields, and the band comes first.
+ *
+ * The band is what stops one provider owning a page. Relevance alone hands every
+ * slot to whichever source is biggest — Wikipedia has an article on everything,
+ * so a page with books, courses and papers waiting behind it showed eleven
+ * Wikipedia articles out of fifteen. Reordering the page after the fact could not
+ * fix that: the window had already been chosen by relevance, so the other sources
+ * were never fetched. The band puts the interleaving into the ordering itself, so
+ * the *window* is diverse rather than just its arrangement.
+ *
+ * A three-field cursor is one this code wrote before the band existed. It is
+ * rejected rather than reinterpreted: read as a banded cursor it would name a
+ * different place in a different order, and paging from the wrong place is
+ * exactly the defect the cursor was introduced to remove. A rejected cursor falls
+ * back to positional paging for that one request, which is what the reader would
+ * have had anyway.
+ */
+const CURSOR_PATTERN = /^(\d{2})\.(\d{4})\.(\d)\.(\d{12})$/;
+
+/**
+ * How many results one source contributes before yielding to the others.
+ *
+ * Part of the cursor's meaning, so it is a constant rather than a per-request
+ * option: change it and every cursor already in flight names a different place.
+ */
+export const SOURCE_BAND_SIZE = 2;
 
 export function catalogCursor(
+  band: number,
   score: number,
   relevance: number,
   id: number,
@@ -1240,6 +1267,7 @@ export function catalogCursor(
     Math.min(CURSOR_SCORE_CEILING, CURSOR_SCORE_CEILING - Math.trunc(score)),
   );
   return [
+    String(Math.max(0, Math.min(99, Math.trunc(band)))).padStart(2, "0"),
     String(inverted).padStart(4, "0"),
     String(Math.max(0, Math.min(9, Math.trunc(relevance)))),
     String(Math.max(0, Math.trunc(id))).padStart(12, "0"),
@@ -1248,13 +1276,14 @@ export function catalogCursor(
 
 export function parseCatalogCursor(
   value: string | undefined,
-): { score: number; relevance: number; id: number } | null {
+): { band: number; score: number; relevance: number; id: number } | null {
   const match = CURSOR_PATTERN.exec(value?.trim() ?? "");
   if (!match) return null;
   return {
-    score: CURSOR_SCORE_CEILING - Number(match[1]),
-    relevance: Number(match[2]),
-    id: Number(match[3]),
+    band: Number(match[1]),
+    score: CURSOR_SCORE_CEILING - Number(match[2]),
+    relevance: Number(match[3]),
+    id: Number(match[4]),
   };
 }
 
@@ -1367,41 +1396,77 @@ export async function searchCatalog(
     ? Math.max(0, Math.trunc(options.sinceId!))
     : null;
   const offset = resume ? 0 : Math.max(0, options.offset ?? (page - 1) * window);
+
+  // Each source's own position in its own results, turned into a band: its two
+  // best answers are band 0, its next two band 1, and so on. Ordering by band
+  // first interleaves the sources *before* the window is cut, which is the whole
+  // point — reordering afterwards can only rearrange rows relevance had already
+  // chosen, and relevance chose eleven Wikipedia articles out of fifteen.
+  //
+  // Ascending id is the tie-break throughout, not last_synced_at. Rows are
+  // upserted in batches that share a sync timestamp, so ordering by it left ties
+  // for Postgres to break however it liked and page 2 could hand back rows page 1
+  // had already shown. Id is unique and never changes.
+  //
+  // The band is computed before the cursor is applied, so it means "this row's
+  // place in the whole ranking" rather than "its place among what is left". A
+  // cursor from an earlier page therefore still names the same place.
+  const band = sql<number>`((row_number() over (
+    partition by ${catalogResourcesTable.provider}
+    order by ${score} desc, ${relevance} asc, ${catalogResourcesTable.id} asc
+  ) - 1) / ${SOURCE_BAND_SIZE})::int`;
+
+  const ranked = db
+    // The band, score and relevance are selected alongside the row because they
+    // are what the cursor is made of: recomputing them anywhere else would be a
+    // second copy of the ranking, free to disagree with this one.
+    .select({
+      ...getTableColumns(catalogResourcesTable),
+      // Aliased explicitly: a computed field cannot be referenced from outside a
+      // subquery without a name, and the outer query orders and filters by all
+      // three of these.
+      score: score.as("score"),
+      relevance: relevance.as("relevance"),
+      band: band.as("band"),
+    })
+    .from(catalogResourcesTable)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .as("ranked");
+
+  // Everything strictly after the place the cursor names, in the same order.
+  //
+  // Or newer than everything the reader holds. That second half is what makes
+  // the cursor an improvement rather than a trade: this endpoint stores works as
+  // it finds them, and a work stored during the reader's second page can belong
+  // on their first. Ranking alone would put it behind them forever, and paging
+  // "shakespeare" lost a third of its results that way — each page thinner than
+  // the last while newly stored plays and sonnets piled up out of reach.
   const afterCursor = resume
-    ? sql`(${score} < ${resume.score}
-        or (${score} = ${resume.score}
-          and (${relevance} > ${resume.relevance}
-            or (${relevance} = ${resume.relevance}
-              and ${catalogResourcesTable.id} > ${resume.id}))))`
+    ? sql`(${ranked.band} > ${resume.band}
+        or (${ranked.band} = ${resume.band}
+          and (${ranked.score} < ${resume.score}
+            or (${ranked.score} = ${resume.score}
+              and (${ranked.relevance} > ${resume.relevance}
+                or (${ranked.relevance} = ${resume.relevance}
+                  and ${ranked.id} > ${resume.id}))))))`
     : null;
   const storedSince =
-    resume && sinceId !== null
-      ? sql`${catalogResourcesTable.id} > ${sinceId}`
-      : null;
+    resume && sinceId !== null ? sql`${ranked.id} > ${sinceId}` : null;
   const unread =
     afterCursor && storedSince
       ? sql`(${afterCursor} or ${storedSince})`
       : afterCursor;
-  const where = unread ? [...conditions, unread] : conditions;
 
   const rows = await db
-    // The score and the relevance band are selected alongside the row because
-    // they are what the cursor is made of: recomputing them anywhere else would
-    // be a second copy of the ranking, free to disagree with this one.
-    .select({
-      ...getTableColumns(catalogResourcesTable),
-      score,
-      relevance,
-    })
-    .from(catalogResourcesTable)
-    .where(where.length ? and(...where) : undefined)
-    // Ascending id is the tie-break, not last_synced_at. Rows are upserted in
-    // batches that share a sync timestamp, so ordering by it left ties for
-    // Postgres to break however it liked and page 2 could hand back rows page
-    // 1 had already shown. Id is unique and never changes, so pages stay
-    // disjoint, and newly stored rows sort last — which is where a "search
-    // more" page is looking.
-    .orderBy(desc(score), asc(relevance), asc(catalogResourcesTable.id))
+    .select()
+    .from(ranked)
+    .where(unread ?? undefined)
+    .orderBy(
+      asc(ranked.band),
+      desc(ranked.score),
+      asc(ranked.relevance),
+      asc(ranked.id),
+    )
     .limit(window)
     .offset(offset);
 
@@ -1435,7 +1500,12 @@ export async function searchCatalog(
     subject: row.subject,
     gradeLevel: row.gradeLevel,
     sourceCredibility: readSourceCredibility(row.metadata),
-    cursor: catalogCursor(Number(row.score), Number(row.relevance), row.id),
+    cursor: catalogCursor(
+      Number(row.band),
+      Number(row.score),
+      Number(row.relevance),
+      row.id,
+    ),
     catalogId: row.id,
   }));
 }

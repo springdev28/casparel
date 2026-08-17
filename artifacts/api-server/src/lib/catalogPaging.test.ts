@@ -27,6 +27,10 @@ vi.mock("@workspace/db", async () => {
   // query drizzle builds, so the columns have to be the genuine ones.
   const actual =
     await vi.importActual<typeof import("@workspace/db")>("@workspace/db");
+  // Drizzle's own sql helper, for the aliased subquery columns below. It is not
+  // re-exported by @workspace/db.
+  const { sql } =
+    await vi.importActual<typeof import("drizzle-orm")>("drizzle-orm");
 
   function chain(record: SelectRecord) {
     const isCount =
@@ -48,6 +52,17 @@ vi.mock("@workspace/db", async () => {
         record.offset = value;
         return builder;
       },
+      // The ranking is computed in a subquery so each source's band can be, and
+      // the outer query pages over it. A fake that cannot be aliased would fail
+      // every test here for a reason that has nothing to do with paging.
+      as: (name: string) =>
+        new Proxy(
+          {},
+          {
+            get: (_target, property) =>
+              sql.raw(`"${name}"."${String(property)}"`),
+          },
+        ),
       then: (
         resolve: (value: unknown[]) => unknown,
         reject?: (reason: unknown) => unknown,
@@ -164,32 +179,34 @@ describe("resolveCatalogSearch", () => {
 describe("searchCatalog", () => {
   it("reads one page at the caller's offset", async () => {
     await searchCatalog({ query: "algebra", page: 2, offset: 6 });
-    expect(selects).toHaveLength(1);
-    expect(selects[0].limit).toBe(16);
-    expect(selects[0].offset).toBe(6);
+    // Two selects now: the ranking, and the page taken from it.
+    expect(selects.at(-1)!.limit).toBe(16);
+    expect(selects.at(-1)!.offset).toBe(6);
   });
 
   it("falls back to the page when no offset is given", async () => {
     await searchCatalog({ query: "algebra", page: 3 });
-    expect(selects[0].offset).toBe(32);
+    expect(selects.at(-1)!.offset).toBe(32);
   });
 
-  it("orders by a unique column so pages cannot overlap", async () => {
+  it("orders by the band first, then relevance, then a unique column", async () => {
     await searchCatalog({ query: "algebra" });
-    // Rows are upserted in batches that share last_synced_at. Ordering by it
-    // alone left ties for Postgres to break however it liked, so page 2 could
-    // hand back rows page 1 had already shown.
-    const orderedByRowId = (selects[0].orderBy ?? []).some((term) =>
-      ((term as { queryChunks?: unknown[] }).queryChunks ?? []).includes(
-        catalogResourcesTable.id,
-      ),
+    // The band is what stops one source owning the page, and it has to come
+    // first or relevance chooses the window before the interleaving is applied.
+    // Rows are upserted in batches sharing last_synced_at, so the row id is the
+    // final tie-break: ordering by the timestamp left ties for Postgres to break
+    // however it liked and page 2 could repeat page 1.
+    const order = (selects.at(-1)!.orderBy ?? []).map((term) =>
+      JSON.stringify(term),
     );
-    expect(orderedByRowId).toBe(true);
+    expect(order).toHaveLength(4);
+    expect(order[0]).toContain("band");
+    expect(order.at(-1)).toContain("id");
   });
 
   it("reads the wide window for source results", async () => {
     await searchCatalog({ query: "algebra", limit: 12, resultType: "source" });
-    expect(selects[0].limit).toBe(48);
+    expect(selects.at(-1)!.limit).toBe(48);
   });
 
   it("reads from the start when the caller gives a cursor instead of a page", async () => {
@@ -199,20 +216,21 @@ describe("searchCatalog", () => {
     await searchCatalog({
       query: "algebra",
       page: 4,
-      after: catalogCursor(2, 1, 91),
+      after: catalogCursor(0, 2, 1, 91),
     });
-    expect(selects[0].offset).toBe(0);
+    expect(selects.at(-1)!.offset).toBe(0);
   });
 
   it("ignores a cursor it did not write", async () => {
     await searchCatalog({ query: "algebra", page: 3, after: "../../etc/passwd" });
-    expect(selects[0].offset).toBe(32);
+    expect(selects.at(-1)!.offset).toBe(32);
   });
 });
 
 describe("catalogCursor", () => {
   it("survives a round trip", () => {
-    expect(parseCatalogCursor(catalogCursor(6, 2, 12345))).toEqual({
+    expect(parseCatalogCursor(catalogCursor(3, 6, 2, 12345))).toEqual({
+      band: 3,
       score: 6,
       relevance: 2,
       id: 12345,
@@ -222,14 +240,16 @@ describe("catalogCursor", () => {
   it("sorts as text in the order the results are ranked", () => {
     // The client holds a page it has reordered and filtered, and finds how far
     // it has read by taking the largest cursor. That only works if plain text
-    // comparison is the ranking comparison: score descending, then relevance
-    // ascending, then row id ascending.
+    // comparison is the ranking comparison: band ascending, then score
+    // descending, then relevance ascending, then row id ascending. The band
+    // leading means a source's second helping sorts after everyone's first,
+    // however relevant it is.
     const ranked = [
-      catalogCursor(6, 0, 4), // best score
-      catalogCursor(6, 1, 2),
-      catalogCursor(6, 1, 3),
-      catalogCursor(2, 0, 1),
-      catalogCursor(1, 3, 900), // weakest
+      catalogCursor(0, 6, 0, 4), // first band, best score
+      catalogCursor(0, 6, 1, 2),
+      catalogCursor(0, 2, 0, 1),
+      catalogCursor(1, 9, 0, 5), // a second helping from some source
+      catalogCursor(1, 1, 3, 900), // weakest
     ];
     expect([...ranked].sort()).toEqual(ranked);
     expect(ranked.reduce((a, b) => (a > b ? a : b))).toBe(ranked.at(-1));
@@ -240,9 +260,13 @@ describe("catalogCursor", () => {
       undefined,
       "",
       "0",
-      "9997.1.1",
-      "abcd.1.000000000001",
-      "9997.1.000000000001; drop table",
+      "00.9997.1.1",
+      "ab.9997.1.000000000001",
+      "00.9997.1.000000000001; drop table",
+      // A cursor from before the band existed. Reinterpreting it would name a
+      // different place in a different order, so it is refused and the request
+      // falls back to positional paging.
+      "9997.1.000000000001",
     ])
       expect(parseCatalogCursor(value)).toBeNull();
   });
@@ -250,7 +274,7 @@ describe("catalogCursor", () => {
   it("clamps rather than producing a cursor that sorts wrongly", () => {
     // A score above the ceiling or a negative id would otherwise widen the
     // field and break text ordering for every other cursor.
-    expect(catalogCursor(1e9, 99, -5)).toBe("0000.9.000000000000");
-    expect(catalogCursor(-1, 0, 1)).toBe("9999.0.000000000001");
+    expect(catalogCursor(1e9, 1e9, 99, -5)).toBe("99.0000.9.000000000000");
+    expect(catalogCursor(-1, -1, 0, 1)).toBe("00.9999.0.000000000001");
   });
 });

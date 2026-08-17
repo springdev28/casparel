@@ -351,3 +351,23 @@ Cold first page, Wikipedia excluded: was 5 results and no way to continue; now 1
 - **DPLA, Europeana, OER Commons, LibreTexts and YouTube** all need an API key or a different protocol. They are the next real step up in breadth and need credentials to proceed.
 - **The catalog's size cap** is 50,000 rows by default (`CATALOG_MAX_ITEMS`, up to 250,000). Seven sources fill that far faster than four; at roughly 1.5KB a row, 250,000 rows is under half a gigabyte, so the cap is a deliberate choice rather than a storage limit.
 - **Page one is Wikipedia-heavy** even at a share of two per source, because the balance reorders the window rather than choosing it. Fetching a source-diverse window needs per-source quotas in the SQL.
+
+### Per-source quotas, in the SQL rather than after it
+
+Page one still leaned on the largest source: eleven Wikipedia articles out of fifteen for "photosynthesis", with books, courses and papers waiting behind them. Balancing the response could not fix that, and it is worth being precise about why. Relevance chose the *window* — sixteen rows — before anything was rearranged, so the other sources were never fetched. Reordering sixteen Wikipedia articles produces sixteen Wikipedia articles in a different order.
+
+The interleaving is now part of the ordering. Each row carries a band: its source's two best answers are band 0, the next two band 1, and so on, from `row_number() over (partition by provider order by score desc, relevance asc, id asc)`. The page orders by band first, so a source's third answer waits behind everyone's first and second, and the window itself is diverse.
+
+The band had to be reconciled with the cursor, because ordering and paging have to agree. The cursor gained a leading two-digit band field, and the band is computed *before* the cursor predicate is applied — so it means "this row's place in the whole ranking" rather than "its place among what is left", and a cursor issued for an earlier page still names the same place. A three-field cursor, written before the band existed, is refused rather than reinterpreted: read as a banded cursor it would name a different place in a different order, which is the defect the cursor was introduced to remove. A refused cursor falls back to positional paging for that one request.
+
+Response-level balancing still runs, but only for results that carry no cursor — the AI fallback. Applying it to catalog rows would undo an order chosen with the whole result set in view.
+
+Measured on a cold catalog, four pages:
+
+| | before | after |
+| --- | --- | --- |
+| "photosynthesis", page 1 | Wikipedia ×11 of 15 | Wikipedia ×4, DOAJ ×4, Europe PMC ×4, Wikiversity ×2, DOAB ×1 |
+| "photosynthesis", 4 pages | — | 61 sent, 61 distinct, 0% repeats |
+| "AP Physics C…" excluding Wikipedia | 5 results, then nothing | six sources per page; 63 sent, 63 distinct, 0% repeats |
+
+The diversity did not cost paging accuracy, which was the thing worth checking: a banded order over a growing set could have reintroduced the repeats the cursor was built to remove, and measured across four cold-catalog pages it did not.

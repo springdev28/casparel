@@ -1064,11 +1064,23 @@ function addProvenance<
  * who asked one question should not be handed the same answer twice —
  * whichever of them found it, and whichever client is reading.
  */
-function sendDiscoverResults<T extends { title: string; url: string }>(
-  res: Response,
-  items: T[],
-) {
-  res.json(balanceBySource(dedupeByWork(items), SOURCE_SHARE_PER_PAGE));
+function sendDiscoverResults<
+  T extends { title: string; url: string; cursor?: string },
+>(res: Response, items: T[]) {
+  const collapsed = dedupeByWork(items);
+  // Stored-catalog rows arrive already interleaved: the SQL bands each source's
+  // results so the *window* is diverse, not merely its arrangement. Balancing
+  // them again would only undo an order that was chosen with the whole result set
+  // in view rather than the sixteen rows that survived it.
+  //
+  // AI results have no such order, so they still get balanced here.
+  const alreadyBanded =
+    collapsed.length > 0 && collapsed.every((item) => Boolean(item.cursor));
+  res.json(
+    alreadyBanded
+      ? collapsed
+      : balanceBySource(collapsed, SOURCE_SHARE_PER_PAGE),
+  );
 }
 
 router.get(
