@@ -53,3 +53,43 @@ export function getApiError(err: unknown): ApiErrorInfo {
     offline: status === undefined,
   };
 }
+
+/**
+ * Turn a failed API call into a sentence the user can act on.
+ *
+ * `getApiError` says what happened; this says what to put on screen. Pages
+ * were reaching for `err.message`, which the generated client formats for logs
+ * as "HTTP 400 Bad Request: <body>" - and several routes put a raw Zod issue
+ * array in that body, so a rejected submission rendered a JSON blob inside a
+ * toast.
+ *
+ * The server's `error` string is deliberately not returned. It is unlocalized
+ * English written for API consumers, and on 400 it may be machine output, so
+ * echoing it is what produced the problem in the first place. `fallback` is
+ * the calling page's own sentence for "this particular action failed", read
+ * whenever the status is not one there are better words for.
+ */
+export function describeApiError(err: unknown, fallback: string): string {
+  const { status, retryAfter, offline } = getApiError(err);
+  if (offline) {
+    return "You appear to be offline. Check your connection and try again.";
+  }
+  if (status === 401) {
+    return "Your session has expired. Sign in again to continue.";
+  }
+  if (status === 403) {
+    return "You do not have permission to do that.";
+  }
+  if (status === 404) {
+    return "That item no longer exists. Refresh the page to see the latest.";
+  }
+  if (status === 429) {
+    return retryAfter
+      ? `Too many requests. Try again in ${retryAfter} second${retryAfter === 1 ? "" : "s"}.`
+      : "Too many requests. Wait a moment and try again.";
+  }
+  if (status !== undefined && status >= 500) {
+    return "Something went wrong on our side. Try again in a moment.";
+  }
+  return fallback;
+}

@@ -103,6 +103,7 @@ import {
 import { VerificationBadge } from "../components/VerificationBadge";
 import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
+import { describeApiError } from "../lib/api-error";
 import { AUTH_LANGUAGES, useAuthLanguage } from "../lib/auth-locale";
 import {
   CitationDialog,
@@ -1249,7 +1250,7 @@ export default function ResourcesPage() {
     submittedSearch?.resultType === DiscoverResourcesResultType.source;
 
   // Auth
-  const { data: me } = useGetMe({
+  const { data: me, isLoading: meLoading } = useGetMe({
     query: { retry: false, queryKey: getGetMeQueryKey() },
   });
   const isLoggedIn = !!me;
@@ -1363,12 +1364,13 @@ export default function ResourcesPage() {
   );
 
   const libraryCatalogParams = { limit: 50, offset: 0 };
-  const { data: libraryCatalog } = useListResources(libraryCatalogParams, {
-    query: {
-      enabled: isLoggedIn,
-      queryKey: getListResourcesQueryKey(libraryCatalogParams),
-    },
-  });
+  const { data: libraryCatalog, isLoading: libraryCatalogLoading } =
+    useListResources(libraryCatalogParams, {
+      query: {
+        enabled: isLoggedIn,
+        queryKey: getListResourcesQueryKey(libraryCatalogParams),
+      },
+    });
   // A user's library is the set of resources they submitted, not the entire
   // shared catalogue. Scope the grid to the current account so it only shows
   // (and offers Remove on) resources this user actually owns; browsing the
@@ -1663,6 +1665,12 @@ export default function ResourcesPage() {
   const prefetchMetadata = usePrefetchResourceMetadata();
 
   async function handleRemoveCard(resourceId: number, title: string) {
+    // DELETE /resources is permanent and cascades to the resource's reviews,
+    // so the trash icon must not be a single-click action.
+    const confirmed = window.confirm(
+      `Remove "${title}" from the library?\n\nThe resource and its reviews are deleted permanently. This cannot be undone.`,
+    );
+    if (!confirmed) return;
     try {
       await deleteResource.mutateAsync({ id: resourceId });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
@@ -1676,10 +1684,14 @@ export default function ResourcesPage() {
         title: "Removed",
         description: `"${title}" has been removed from the library.`,
       });
-    } catch {
+    } catch (err: unknown) {
+      // The trash icon is offered on search results to any signed-in user, not
+      // only the submitter, so 403 is a routine outcome here and "Could not
+      // remove the resource" told that user nothing about why. The helper this
+      // patch introduces already has the right sentence for it.
       toast({
         title: "Error",
-        description: "Could not remove the resource.",
+        description: describeApiError(err, "Could not remove the resource."),
         variant: "destructive",
       });
     }
@@ -2006,8 +2018,11 @@ export default function ResourcesPage() {
       setDialogOpen(false);
     } catch (err) {
       toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed",
+        title: "Resource was not submitted",
+        description: describeApiError(
+          err,
+          "Check the title, URL, subject and grade level, then try again.",
+        ),
         variant: "destructive",
       });
     }
@@ -2045,8 +2060,11 @@ export default function ResourcesPage() {
       return true;
     } catch (err) {
       toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed",
+        title: "Not saved to your library",
+        description: describeApiError(
+          err,
+          `"${resource.title}" could not be saved. Try again in a moment.`,
+        ),
         variant: "destructive",
       });
       return false;
@@ -3217,6 +3235,15 @@ export default function ResourcesPage() {
                 ))}
               </div>
             )
+          ) : meLoading || libraryCatalogLoading ? (
+            // Both flags, not just the catalog's. The catalog query is gated on
+            // isLoggedIn, which is derived from /users/me, so while that call is
+            // in flight the catalog is DISABLED and reports loading false - and
+            // the empty state painted for the whole round trip. Skeletons for
+            // the catalog alone only narrowed the window; this closes it.
+            // useGetMe has retry: false, so a signed-out visitor's 401 settles
+            // at once and they still reach the empty state promptly.
+            <CardSkeletons count={3} />
           ) : !uniqueLibraryCatalog.length ? (
             <div className="border-y py-12 text-center">
               <BookOpen className="mx-auto mb-3 size-8 text-muted-foreground" />

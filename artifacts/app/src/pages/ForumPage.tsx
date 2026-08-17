@@ -685,10 +685,24 @@ export default function ForumPage({
 
   async function remove(type: "material" | "post" | "comment", id: number) {
     if (!window.confirm("Delete this " + type + "?")) return;
-    await forumRequest(
-      "/forum/" + (type === "comment" ? "comments" : type + "s") + "/" + id,
-      { method: "DELETE" },
-    );
+    try {
+      await forumRequest(
+        "/forum/" + (type === "comment" ? "comments" : type + "s") + "/" + id,
+        { method: "DELETE" },
+      );
+    } catch {
+      // Nothing has been taken off screen yet, so the item just stays put -
+      // which was previously the only signal the user got.
+      toast({
+        title: "Not deleted",
+        description:
+          "This " +
+          type +
+          " is still here. You may not have permission to delete it, or the request did not reach the server.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (type === "material") await loadMaterials();
     if (type === "post") setPosts((current) => current.filter((post) => post.id !== id));
   }
