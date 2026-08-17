@@ -2,38 +2,38 @@
   "origin": "https://casparel.com",
   "routes": {
     "/": {
-      "title": "Casparel: Student & Teacher App",
-      "description": "Discover resources, manage classes, and stay organised as a student or teacher.",
-      "heading": "Casparel: learn, organise, study",
+      "title": "Casparel: Knowledge is treasure",
+      "description": "An intelligent education platform that brings classes, resources, research, planning, and progress into one connected workspace.",
+      "heading": "Knowledge is treasure",
       "canonical": "https://casparel.com/"
     },
     "/resources": {
-      "title": "Open education library — Casparel",
+      "title": "Casparel: Open education library",
       "description": "Search a free library of open textbooks, courses and videos drawn from Wikibooks, Wikiversity, Open Library and other open sources.",
       "heading": "The open education library",
       "canonical": "https://casparel.com/resources"
     },
     "/terms": {
-      "title": "Terms of Service — Casparel",
+      "title": "Casparel: Terms of Service",
       "description": "The terms you agree to when you use Casparel.",
       "heading": "Terms of Service",
       "canonical": "https://casparel.com/terms"
     },
     "/privacy": {
-      "title": "Privacy Policy — Casparel",
+      "title": "Casparel: Privacy Policy",
       "description": "What Casparel stores about you, why, and how to have it deleted.",
       "heading": "Privacy Policy",
       "canonical": "https://casparel.com/privacy"
     },
     "/auth/login": {
-      "title": "Sign in — Casparel",
+      "title": "Casparel: Sign in",
       "description": "Sign in to Casparel.",
       "heading": "Sign in to Casparel",
       "canonical": "https://casparel.com/auth/login",
       "noindex": true
     },
     "/auth/register": {
-      "title": "Create a free account — Casparel",
+      "title": "Casparel: Create a free account",
       "description": "Create a free Casparel account to save resources, plan classes and track what you are studying.",
       "heading": "Create a free Casparel account",
       "canonical": "https://casparel.com/auth/register",

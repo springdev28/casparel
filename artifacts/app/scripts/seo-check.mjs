@@ -148,6 +148,73 @@ if (!ld) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// The per-route metadata the SERVER substitutes into the shell.
+//
+// index.html alone does not decide what Google shows. api-server fills the
+// shell in per address from _seo/routes.json (see lib/routeMetadata.ts), so a
+// correct index.html and a stale route table still produce a stale search
+// result for every page including the home page. Checking only the shell is
+// how a title can look fixed and ship unfixed.
+// ---------------------------------------------------------------------------
+const ROUTES = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../dist/public/_seo/routes.json",
+);
+
+if (!fs.existsSync(ROUTES)) {
+  problems.push(`route metadata missing at ${ROUTES}`);
+} else {
+  let routeFile;
+  try {
+    routeFile = JSON.parse(fs.readFileSync(ROUTES, "utf8"));
+  } catch (error) {
+    problems.push(`route metadata does not parse: ${error.message}`);
+  }
+  const routes = routeFile?.routes ?? {};
+  const home = routes["/"];
+  if (!home) {
+    problems.push("route metadata has no entry for the home page");
+  } else {
+    check(
+      "served home title does not carry the key phrase",
+      typeof home.title === "string" && home.title.includes(SLOGAN),
+      home.title,
+    );
+    check(
+      "served home description is not the key sentence",
+      home.description === DESCRIPTION,
+      home.description,
+    );
+    check(
+      "served home title disagrees with index.html",
+      home.title === title,
+      `${home.title} vs ${title}`,
+    );
+  }
+
+  for (const [route, meta] of Object.entries(routes)) {
+    if (typeof meta?.title === "string") {
+      if (/[—–]/.test(meta.title)) {
+        problems.push(`${route} title contains an em or en dash: ${meta.title}`);
+      }
+      if (meta.title.length > MAX_TITLE) {
+        problems.push(`${route} title is ${meta.title.length} chars, over ${MAX_TITLE}`);
+      }
+    }
+    if (typeof meta?.description === "string") {
+      if (/[—–]/.test(meta.description)) {
+        problems.push(`${route} description contains an em or en dash`);
+      }
+      if (meta.description.length > MAX_DESCRIPTION) {
+        problems.push(
+          `${route} description is ${meta.description.length} chars, over ${MAX_DESCRIPTION}`,
+        );
+      }
+    }
+  }
+}
+
 console.log("\nSearch result preview\n");
 console.log(`  ${title ?? "(no title)"}`);
 console.log("  https://casparel.com");

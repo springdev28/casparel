@@ -56,7 +56,12 @@ describe("renderRouteShell", () => {
       '<meta property="og:url" content="https://casparel.com/resources" />',
     );
     // The shell's own values are gone, not merely joined by the new ones.
-    expect(html).not.toContain("Casparel: Student &amp; Teacher App");
+    // Read the title out of the shell rather than naming it: hardcoding it
+    // meant that renaming the product turned this into an assertion that
+    // passes no matter what the substitution does.
+    const shellTitle = SHELL.match(/<title>([^<]*)<\/title>/)?.[1];
+    expect(shellTitle).toBeTruthy();
+    expect(html).not.toContain(`<title>${shellTitle}</title>`);
   });
 
   it("replaces the heading a reader without JavaScript sees", () => {
