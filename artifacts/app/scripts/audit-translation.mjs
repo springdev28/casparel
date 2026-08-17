@@ -35,7 +35,15 @@ const BUDGET = Number(process.env.AUDIT_TRANSLATION_MAX ?? 0);
 const PAGES = (
   process.env.AUDIT_PAGES ??
   "/,/resources,/support,/plans,/auth/login,/auth/register,/terms,/privacy"
-).split(",");
+)
+  .split(",")
+  .filter(Boolean);
+// NOTE: /resources/<id> is deliberately absent. Its fixtures are in place
+// (see audit-fixtures.mjs) but the detail page requests more endpoints than
+// they cover and renders its error boundary, which would report the error
+// page's own strings as translation gaps. Its strings were added to every
+// dictionary by hand; wiring the remaining fixtures is the way to cover it
+// here properly.
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
   "/dashboard,/profile,/resources,/catalog,/settings,/plans"
