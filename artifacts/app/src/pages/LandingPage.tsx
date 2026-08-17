@@ -108,7 +108,7 @@ const SOURCE_EXAMPLES = [
   {
     name: "Wikibooks",
     kind: "Community textbooks · Wikimedia",
-    verdict: "Community — check history",
+    verdict: "Community, check history",
     tone: "community" as const,
     summary:
       "Openly licensed textbooks written in public. Quality varies by book, and every change is logged, so the history shows what to double-check.",
@@ -124,7 +124,7 @@ const SOURCE_EXAMPLES = [
     verdict: "Limited signals",
     tone: "limited" as const,
     summary:
-      "No author, institution or licence is stated. It may still be useful — but nothing here can be verified, so treat its claims with care.",
+      "No author, institution or licence is stated. It may still be useful, but nothing here can be verified, so treat its claims with care.",
     signals: [
       "No named author or institution",
       "Licence and sources not stated",
@@ -165,7 +165,7 @@ type ShowcaseCard = (typeof SOURCE_EXAMPLES)[number];
 const PROVENANCE_PRESENTATION = {
   institutional: { verdict: "High trust", tone: "high" as const },
   established: { verdict: "Established source", tone: "high" as const },
-  independent: { verdict: "Independent — check it", tone: "community" as const },
+  independent: { verdict: "Independent, check it", tone: "community" as const },
   unknown: { verdict: "Limited signals", tone: "limited" as const },
 } as const;
 

@@ -125,6 +125,51 @@ const A11Y = `(() => {
   return { namelessControls, unlabelledFields, headingSkips };
 })()`;
 
+/**
+ * Runs in the page: em and en dashes in copy a user actually reads.
+ *
+ * They arrive by copy-paste from a document and by habit, they read as
+ * machine-written, and one had already reached a live Google result for this
+ * site. A grep over source cannot tell body copy from a code comment or a URL;
+ * reading the rendered text can.
+ *
+ * Ranges are the legitimate use, so a closed-up dash is left alone.
+ *
+ * The reach is what the audit renders, and no more. Copy that only appears in
+ * a state these renders do not reach - a verdict label for one classification,
+ * a branch behind a filter - is not covered, and reintroducing a dash there
+ * will not fail this. Treat it as a net under the paths users actually walk,
+ * not as proof the product contains none.
+ */
+const DASHES = `(() => {
+  const skip = new Set(['SCRIPT','STYLE','NOSCRIPT','CODE','PRE','SVG']);
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const out = [];
+  const seen = new Set();
+  let node;
+  while ((node = walker.nextNode())) {
+    if (skip.has(node.parentElement?.tagName)) continue;
+    const el = node.parentElement;
+    if (!el) continue;
+    const style = getComputedStyle(el);
+    if (style.visibility === 'hidden' || style.display === 'none') continue;
+    const text = node.textContent || '';
+    // Ranges are the legitimate use, and they are written closed up: A\u2013Z,
+    // 1\u201310, Mon\u2013Fri. Prose dashes are spaced. Keying on the spacing rather
+    // than on token length matters: a length rule matches the last few
+    // characters of ANY word, so "per seat \u2014 a licence" looked like the range
+    // "at-a" and the real offender was silently excused.
+    const prose = text.replace(/(\\w)[\u2013\u2014](\\w)/g, '$1-$2');
+    if (!/[\u2013\u2014]/.test(prose)) continue;
+    const around = prose.match(/.{0,34}[\u2013\u2014].{0,34}/);
+    const snippet = (around ? around[0] : prose).replace(/\\s+/g, ' ').trim();
+    if (seen.has(snippet)) continue;
+    seen.add(snippet);
+    out.push(snippet);
+  }
+  return out;
+})()`;
+
 /** Runs in the page: WCAG contrast for every leaf text element. */
 const CONTRAST = `(() => {
   const lum = (c) => { const [r,g,b] = c.map(v => { v/=255; return v<=0.04045 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); });
@@ -224,6 +269,7 @@ async function audit(pathname, colorScheme, width, options = {}) {
   const a11y = await page.evaluate(A11Y);
   const findings = {
     lowContrast: await page.evaluate(CONTRAST),
+    dashes: await page.evaluate(DASHES),
     ...a11y,
     invisibleAfterScroll: await page.$$eval(".reveal", (els) =>
       els
@@ -265,6 +311,7 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
           palette: options.palette,
           findings: {
             lowContrast: [],
+            dashes: [],
             invisibleAfterScroll: [],
             imagesMissingAlt: 0,
             horizontalOverflow: false,
@@ -364,6 +411,7 @@ for (const {
       (c) => `form field has no label: ${c}`,
     ),
     ...(findings.headingSkips ?? []).map((s) => `heading level skips ${s}`),
+    ...(findings.dashes ?? []).map((t) => `em or en dash in copy: "${t}"`),
     ...findings.pageErrors.map((e) => `page error: ${e}`),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind

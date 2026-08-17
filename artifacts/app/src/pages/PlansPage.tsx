@@ -195,13 +195,13 @@ function TierColumn({
             </span>{" "}
             / month
             <span className="block text-xs">
-              or {card.price.annual} / year — 2 months free
+              or {card.price.annual} / year, 2 months free
             </span>
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">
             <span className="text-lg font-semibold text-foreground">US$0</span>{" "}
-            — free forever
+            free forever
           </p>
         )}
       </CardHeader>
@@ -435,7 +435,7 @@ export default function PlansPage() {
             {isAdmin ? (
               <p className="mt-1 text-sm text-muted-foreground">
                 Administrator accounts are uncapped and never need a plan; use
-                the sections below to review every ladder — student, teacher,
+                the sections below to review every ladder: student, teacher,
                 role-agnostic Plus and Pro, and Institutional.
               </p>
             ) : null}
@@ -510,7 +510,7 @@ export default function PlansPage() {
               <h2 className="flex items-center justify-between gap-2 text-base font-semibold leading-none tracking-tight">
                 <span className="flex items-center gap-2">
                   <Building2 className="size-4 text-primary-text" />
-                  {INSTITUTIONAL_PLAN.name} — for schools and academies
+                  {INSTITUTIONAL_PLAN.name}, for schools and academies
                 </span>
                 {isLoggedIn && plan.tier === "institutional" ? (
                   <span
@@ -638,8 +638,8 @@ export default function PlansPage() {
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             {checkout.status === "ready" ? (
               <p>
-                Subscribe right here with a card — checkout is handled by
-                RevenueCat{!isLoggedIn ? " after you sign in" : ""} — or in the
+                Subscribe right here with a card. Checkout is handled by
+                RevenueCat{!isLoggedIn ? " after you sign in" : ""}. Or use the
                 Casparel mobile app billed by Apple or Google (
                 <b className="text-foreground">Profile → Plan</b>). Either way
                 the subscription attaches to your Casparel account and works on
@@ -671,7 +671,7 @@ export default function PlansPage() {
                 >
                   Manage billing
                 </a>{" "}
-                — invoices, card details and cancellation for a subscription
+                covers invoices, card details and cancellation for a subscription
                 bought on the web.
               </p>
             ) : null}
@@ -699,8 +699,8 @@ export default function PlansPage() {
                 you are over the limit on until there is room again.
               </li>
               <li>
-                Cancelling — in the App Store or Google Play for phone
-                purchases, or from Manage billing for card purchases — stops the
+                Cancelling, in the App Store or Google Play for phone
+                purchases, or from Manage billing for card purchases, stops the
                 next renewal; it does not refund the period already paid. See
                 the{" "}
                 <Link
