@@ -61,6 +61,7 @@ import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { Checkbox } from "@workspace/edu-ds/components/ui/checkbox";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -87,7 +88,6 @@ import {
   type ListResourcesDateAdded,
   type ListResourcesVerification,
   ResourceInputFormat,
-  DiscoverResourcesFormat,
   DiscoverResourcesLanguage,
   DiscoverResourcesResultType,
   UserRole,
@@ -97,7 +97,6 @@ import {
   type DiscoverResourcesFreshness,
   type DiscoverResourcesLicense,
   type DiscoverResourcesSourceQuality,
-  type DiscoverResourcesMaterial,
   type DiscoveredResource,
   type SourceReview,
 } from "@workspace/api-client-react";
@@ -131,6 +130,14 @@ import {
 } from "@workspace/resource-identity";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
+const GRADE_LEVEL_OPTIONS = [
+  "K–5",
+  "6–8",
+  "9–12",
+  "College",
+  "Adult",
+  "All Ages",
+];
 const RESOURCE_SEARCH_STATE_KEY = "schoolar_resource_search_state";
 function dedupeDiscoveredResources(items: DiscoveredResource[]) {
   return dedupeByWork(items);
@@ -186,6 +193,11 @@ type SubmittedResourceFilters = {
   contentLength: string;
   sourceQuality: string;
   material: string;
+  excludeSubjects: string;
+  author: string;
+  titleOnly: boolean;
+  publishedFrom: string;
+  publishedTo: string;
   captions: boolean;
   transcript: boolean;
 };
@@ -1153,6 +1165,12 @@ export default function ResourcesPage() {
    * this a revision search and a dissertation search get the same page.
    */
   const [materialFilter, setMaterialFilter] = useState("");
+  const [excludeSubjectsFilter, setExcludeSubjectsFilter] = useState("");
+  const [authorFilter, setAuthorFilter] = useState("");
+  /** Require the topic to be what a work is about, not something it mentions. */
+  const [titleOnlyFilter, setTitleOnlyFilter] = useState(false);
+  const [publishedFromFilter, setPublishedFromFilter] = useState("");
+  const [publishedToFilter, setPublishedToFilter] = useState("");
   const [captionsRequired, setCaptionsRequired] = useState(false);
   const [transcriptRequired, setTranscriptRequired] = useState(false);
   const [submittedSearch, setSubmittedSearch] =
@@ -1463,7 +1481,7 @@ export default function ResourcesPage() {
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.format &&
     submittedSearch.format !== "all"
-      ? { format: submittedSearch.format as DiscoverResourcesFormat }
+      ? { format: submittedSearch.format }
       : {}),
     ...(submittedSearch?.subject ? { subject: submittedSearch.subject } : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
@@ -1502,7 +1520,18 @@ export default function ResourcesPage() {
       ? { sourceQuality: submittedSearch.sourceQuality as DiscoverResourcesSourceQuality }
       : {}),
     ...(submittedSearch?.material
-      ? { material: submittedSearch.material as DiscoverResourcesMaterial }
+      ? { material: submittedSearch.material }
+      : {}),
+    ...(submittedSearch?.excludeSubjects
+      ? { excludeSubjects: submittedSearch.excludeSubjects }
+      : {}),
+    ...(submittedSearch?.author ? { author: submittedSearch.author } : {}),
+    ...(submittedSearch?.titleOnly ? { titleOnly: true } : {}),
+    ...(submittedSearch?.publishedFrom
+      ? { publishedFrom: Number(submittedSearch.publishedFrom) }
+      : {}),
+    ...(submittedSearch?.publishedTo
+      ? { publishedTo: Number(submittedSearch.publishedTo) }
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.difficulty
@@ -1737,6 +1766,11 @@ export default function ResourcesPage() {
     setContentLengthFilter("");
     setSourceQualityFilter("");
     setMaterialFilter("");
+    setExcludeSubjectsFilter("");
+    setAuthorFilter("");
+    setTitleOnlyFilter(false);
+    setPublishedFromFilter("");
+    setPublishedToFilter("");
     setCaptionsRequired(false);
     setTranscriptRequired(false);
   }
@@ -1757,6 +1791,11 @@ export default function ResourcesPage() {
     contentLengthFilter,
     sourceQualityFilter,
     materialFilter,
+    excludeSubjectsFilter,
+    authorFilter,
+    titleOnlyFilter,
+    publishedFromFilter,
+    publishedToFilter,
     captionsRequired,
     transcriptRequired,
   ].filter(Boolean).length;
@@ -1786,6 +1825,11 @@ export default function ResourcesPage() {
       contentLength: contentLengthFilter,
       sourceQuality: sourceQualityFilter,
       material: materialFilter,
+      excludeSubjects: excludeSubjectsFilter,
+      author: authorFilter,
+      titleOnly: titleOnlyFilter,
+      publishedFrom: publishedFromFilter,
+      publishedTo: publishedToFilter,
       captions: captionsRequired,
       transcript: transcriptRequired,
     };
@@ -1815,6 +1859,11 @@ export default function ResourcesPage() {
     setContentLengthFilter(filters.contentLength);
     setSourceQualityFilter(filters.sourceQuality);
     setMaterialFilter(filters.material);
+    setExcludeSubjectsFilter(filters.excludeSubjects);
+    setAuthorFilter(filters.author);
+    setTitleOnlyFilter(filters.titleOnly);
+    setPublishedFromFilter(filters.publishedFrom);
+    setPublishedToFilter(filters.publishedTo);
     setCaptionsRequired(filters.captions);
     setTranscriptRequired(filters.transcript);
   }
@@ -1899,6 +1948,11 @@ export default function ResourcesPage() {
       contentLength: text("contentLength"),
       sourceQuality: text("sourceQuality"),
       material: text("material"),
+      excludeSubjects: text("excludeSubjects"),
+      author: text("author"),
+      titleOnly: stored.titleOnly === true,
+      publishedFrom: text("publishedFrom"),
+      publishedTo: text("publishedTo"),
       captions: stored.captions === true,
       transcript: stored.transcript === true,
     };
@@ -2304,26 +2358,15 @@ export default function ResourcesPage() {
             </Select>
             {!isSourceMode && (
               <>
-                <Select
-                  value={formatFilter || "all"}
-                  onValueChange={(v) => setFormatFilter(v === "all" ? "" : v)}
-                >
-                  <SelectTrigger
-                    className="w-36 h-8 text-xs"
-                    data-testid="format-filter"
-                    aria-label="Format"
-                  >
-                    <SelectValue placeholder="All formats" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All formats</SelectItem>
-                    {FORMAT_OPTIONS.map((f) => (
-                      <SelectItem key={f} value={f} className="capitalize">
-                        {f}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  value={formatFilter}
+                  onChange={setFormatFilter}
+                  options={FORMAT_OPTIONS.map((f) => ({ value: f, label: f }))}
+                  label="formats"
+                  allLabel="All formats"
+                  className="w-36 h-8 text-xs"
+                  testId="format-filter"
+                />
                 <Input
                   className="w-36 h-8 text-xs"
                   aria-label="Subject"
@@ -2332,30 +2375,18 @@ export default function ResourcesPage() {
                   onChange={(e) => setSubjectFilter(e.target.value)}
                   data-testid="subject-filter"
                 />
-                <Select
-                  value={gradeLevelFilter || "all"}
-                  onValueChange={(v) =>
-                    setGradeLevelFilter(v === "all" ? "" : v)
-                  }
-                >
-                  <SelectTrigger
-                    className="w-36 h-8 text-xs"
-                    data-testid="grade-filter"
-                    aria-label="Grade level"
-                  >
-                    <SelectValue placeholder="All grades" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All grades</SelectItem>
-                    {["K–5", "6–8", "9–12", "College", "Adult", "All Ages"].map(
-                      (g) => (
-                        <SelectItem key={g} value={g}>
-                          {g}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  value={gradeLevelFilter}
+                  onChange={setGradeLevelFilter}
+                  options={GRADE_LEVEL_OPTIONS.map((g) => ({
+                    value: g,
+                    label: g,
+                  }))}
+                  label="grades"
+                  allLabel="All grades"
+                  className="w-36 h-8 text-xs"
+                  testId="grade-filter"
+                />
                 <Select
                   value={
                     minRatingFilter === "" ? "any" : String(minRatingFilter)
@@ -2503,6 +2534,78 @@ export default function ResourcesPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
+                    <Label htmlFor="author-filter" className="text-xs">
+                      Author or contributor
+                    </Label>
+                    <Input
+                      id="author-filter"
+                      className="h-9 text-sm"
+                      value={authorFilter}
+                      onChange={(event) => setAuthorFilter(event.target.value)}
+                      placeholder="e.g. Feynman"
+                      data-testid="author-filter"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="exclude-subjects-filter" className="text-xs">
+                      Exclude subjects
+                    </Label>
+                    <Input
+                      id="exclude-subjects-filter"
+                      className="h-9 text-sm"
+                      value={excludeSubjectsFilter}
+                      onChange={(event) =>
+                        setExcludeSubjectsFilter(event.target.value)
+                      }
+                      placeholder="e.g. Medicine, Law"
+                      data-testid="exclude-subjects-filter"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Published between</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        className="h-9 text-sm"
+                        inputMode="numeric"
+                        value={publishedFromFilter}
+                        onChange={(event) =>
+                          setPublishedFromFilter(
+                            event.target.value.replace(/\D/g, "").slice(0, 4),
+                          )
+                        }
+                        placeholder="From"
+                        aria-label="Published from year"
+                        data-testid="published-from-filter"
+                      />
+                      <span className="text-xs text-muted-foreground">–</span>
+                      <Input
+                        className="h-9 text-sm"
+                        inputMode="numeric"
+                        value={publishedToFilter}
+                        onChange={(event) =>
+                          setPublishedToFilter(
+                            event.target.value.replace(/\D/g, "").slice(0, 4),
+                          )
+                        }
+                        placeholder="To"
+                        aria-label="Published to year"
+                        data-testid="published-to-filter"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={titleOnlyFilter}
+                        onCheckedChange={(checked) =>
+                          setTitleOnlyFilter(checked === true)
+                        }
+                        data-testid="title-only-filter"
+                      />
+                      <span>Topic must be in the title</span>
+                    </label>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label htmlFor="exclude-source-filter" className="text-xs">
                       Exclude a website, publisher, or creator
                     </Label>
@@ -2621,66 +2724,38 @@ export default function ResourcesPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Material</Label>
-                    <Select
-                      value={materialFilter || "any"}
-                      onValueChange={(value) =>
-                        setMaterialFilter(value === "any" ? "" : value)
-                      }
-                    >
-                      <SelectTrigger
-                        className="h-9"
-                        data-testid="material-filter"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="any">Any material</SelectItem>
-                        <SelectItem value="book">Books and textbooks</SelectItem>
-                        <SelectItem value="course">
-                          Courses and lesson series
-                        </SelectItem>
-                        <SelectItem value="reference">
-                          Encyclopedia and reference
-                        </SelectItem>
-                        <SelectItem value="paper">
-                          Peer-reviewed papers
-                        </SelectItem>
-                        <SelectItem value="primary">
-                          Primary source texts
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <MultiSelectFilter
+                      value={materialFilter}
+                      onChange={setMaterialFilter}
+                      options={[
+                        { value: "book", label: "Books and textbooks" },
+                        { value: "course", label: "Courses and lesson series" },
+                        { value: "reference", label: "Encyclopedia and reference" },
+                        { value: "paper", label: "Peer-reviewed papers" },
+                        { value: "primary", label: "Primary source texts" },
+                      ]}
+                      label="materials"
+                      allLabel="Any material"
+                      className="h-9 w-full text-sm"
+                      testId="material-filter"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Source credibility</Label>
-                    <Select
-                      value={sourceQualityFilter || "any"}
-                      onValueChange={(value) =>
-                        setSourceQualityFilter(value === "any" ? "" : value)
-                      }
-                    >
-                      <SelectTrigger
-                        className="h-9"
-                        data-testid="source-credibility-filter"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="any">Any credibility</SelectItem>
-                        <SelectItem value="academic">
-                          Academic and peer-reviewed
-                        </SelectItem>
-                        <SelectItem value="institutional">
-                          Universities and institutions
-                        </SelectItem>
-                        <SelectItem value="established">
-                          Established learning platforms
-                        </SelectItem>
-                        <SelectItem value="independent">
-                          Vetted independent sources
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <MultiSelectFilter
+                      value={sourceQualityFilter}
+                      onChange={setSourceQualityFilter}
+                      options={[
+                        { value: "academic", label: "Academic and peer-reviewed" },
+                        { value: "institutional", label: "Universities and institutions" },
+                        { value: "established", label: "Established learning platforms" },
+                        { value: "independent", label: "Vetted independent sources" },
+                      ]}
+                      label="tiers"
+                      allLabel="Any credibility"
+                      className="h-9 w-full text-sm"
+                      testId="source-credibility-filter"
+                    />
                   </div>
                   {!isSourceMode && (
                     <>

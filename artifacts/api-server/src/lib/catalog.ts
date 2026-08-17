@@ -5,6 +5,7 @@ import {
   eq,
   getTableColumns,
   ilike,
+  inArray,
   not,
   or,
   sql,
@@ -16,7 +17,11 @@ import {
   db,
   type InsertCatalogResource,
 } from "@workspace/db";
-import { meaningfulSearchTerms, wordStartPattern } from "./searchTerms";
+import {
+  filterValues,
+  meaningfulSearchTerms,
+  wordStartPattern,
+} from "./searchTerms";
 import {
   OPEN_SOURCES,
   openSourceIsExcluded,
@@ -33,15 +38,43 @@ import {
   type MediaWikiSite,
 } from "./mediawiki";
 
-type ResourceFormat = InsertCatalogResource["format"];
+// NonNullable because the column has a database default, so the *insert* type
+// makes it optional — which quietly put `undefined` in every list of formats.
+type ResourceFormat = NonNullable<InsertCatalogResource["format"]>;
+/** Every format a stored row can have, so a filter value can be checked. */
+const CATALOG_FORMATS: ResourceFormat[] = [
+  "article",
+  "video",
+  "pdf",
+  "podcast",
+  "interactive",
+  "other",
+];
 export type SourceCredibility =
   "academic" | "institutional" | "established" | "independent";
 
 export type CatalogSearchOptions = {
   query: string;
-  format?: ResourceFormat;
+  /**
+   * Comma-separated where more than one answer makes sense. A reader looking for
+   * something to watch or read tonight wants video *and* pdf, and being made to
+   * search twice to see both is the filter panel getting in the way of the
+   * question.
+   */
+  format?: string;
   subject?: string;
   gradeLevel?: string;
+  /** Subjects the reader does not want, comma-separated. */
+  excludeSubjects?: string;
+  /** Only match the query against titles and subjects, not descriptions. */
+  titleOnly?: boolean;
+  /** Earliest and latest publication year, inclusive. */
+  publishedFrom?: number;
+  publishedTo?: number;
+  /** Author or contributor name to match. */
+  author?: string;
+  /** Require, or require the absence of, a preview image. */
+  hasThumbnail?: boolean;
   language?: string;
   page?: number;
   limit?: number;
@@ -77,11 +110,12 @@ export type CatalogSearchOptions = {
   source?: string;
   /** Provider or domain the reader does not want to see. */
   excludeSource?: string;
-  /** Kind of material wanted: book, course, reference, paper or primary. */
+  /** Kinds of material wanted, comma-separated: book, course, reference, paper, primary. */
   material?: string;
   freshness?: string;
   accessType?: string;
   license?: string;
+  /** Credibility tiers wanted, comma-separated. */
   sourceQuality?: string;
 };
 
@@ -1009,6 +1043,7 @@ export async function ensureCuratedCatalog() {
 const filterTokens = (value: string) =>
   value.trim().split(/\s+/).filter(Boolean).slice(0, 8);
 
+
 /**
  * What one query word is worth against a row.
  *
@@ -1096,20 +1131,82 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
     );
     if (substantive.length && substantive.length < searchTerms.length)
       conditions.push(sql`${catalogRelevanceScore(substantive)} >= 1`);
+    // "In the title" means the topic *is* what the work is about, not something
+    // it mentions. A description match is worth one point and a title or subject
+    // match two, so requiring the strong score on a word is the whole rule.
+    if (options.titleOnly)
+      for (const term of substantive.length ? substantive : searchTerms)
+        conditions.push(
+          sql`${catalogTermScore(term)} = ${STRONG_FIELD_SCORE}`,
+        );
   }
-  if (options.format)
-    conditions.push(eq(catalogResourcesTable.format, options.format));
-  if (options.subject)
+  // Each of these accepts a list. Asked for one value they behave exactly as
+  // they did; asked for several they widen, which is what a reader means by
+  // ticking two boxes rather than being made to search twice.
+  const formats = filterValues(options.format).filter((value) =>
+    CATALOG_FORMATS.includes(value as ResourceFormat),
+  ) as ResourceFormat[];
+  // An OR of equalities rather than inArray: drizzle's enum-column overloads do
+  // not accept a plain array of the enum's own values, and this reads the same.
+  if (formats.length)
     conditions.push(
-      ilike(catalogResourcesTable.subject, `%${options.subject}%`),
+      or(...formats.map((value) => eq(catalogResourcesTable.format, value)))!,
     );
-  if (options.gradeLevel)
+
+  const subjects = filterValues(options.subject);
+  if (subjects.length)
     conditions.push(
       or(
-        ilike(catalogResourcesTable.gradeLevel, `%${options.gradeLevel}%`),
+        ...subjects.map((subject) =>
+          ilike(catalogResourcesTable.subject, `%${subject}%`),
+        ),
+      )!,
+    );
+
+  const gradeLevels = filterValues(options.gradeLevel);
+  if (gradeLevels.length)
+    conditions.push(
+      or(
+        ...gradeLevels.map((level) =>
+          ilike(catalogResourcesTable.gradeLevel, `%${level}%`),
+        ),
+        // A work marked for all levels answers every grade, so it is never the
+        // thing a grade filter is trying to remove.
         ilike(catalogResourcesTable.gradeLevel, "%All levels%"),
       )!,
     );
+
+  // Subjects the reader is tired of. Separate from excluded *words*, which match
+  // anywhere: this one is about how the work is filed.
+  for (const subject of filterValues(options.excludeSubjects))
+    conditions.push(
+      not(ilike(catalogResourcesTable.subject, `%${subject}%`)),
+    );
+
+  if (options.author)
+    conditions.push(
+      ilike(
+        sql`coalesce(${catalogResourcesTable.author}, '')`,
+        `%${options.author}%`,
+      ),
+    );
+
+  // A year on its own, compared against the stored instant. A work with no
+  // publication date is not silently kept: a reader asking for recent material
+  // does not want everything of unknown age.
+  if (Number.isFinite(options.publishedFrom))
+    conditions.push(
+      sql`${catalogResourcesTable.publishedAt} >= ${`${Math.trunc(options.publishedFrom!)}-01-01T00:00:00.000Z`}`,
+    );
+  if (Number.isFinite(options.publishedTo))
+    conditions.push(
+      sql`${catalogResourcesTable.publishedAt} < ${`${Math.trunc(options.publishedTo!) + 1}-01-01T00:00:00.000Z`}`,
+    );
+
+  if (options.hasThumbnail === true)
+    conditions.push(sql`${catalogResourcesTable.thumbnailUrl} is not null`);
+  if (options.hasThumbnail === false)
+    conditions.push(sql`${catalogResourcesTable.thumbnailUrl} is null`);
   if (options.language && options.language !== "any")
     conditions.push(eq(catalogResourcesTable.language, options.language));
   if (options.source)
@@ -1156,9 +1253,15 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
   // search want opposite ends of that list. Rows stored before a source declared
   // its material have none, so they are absent from a filtered result rather
   // than guessed into one.
-  if (options.material)
+  const materials = filterValues(options.material);
+  if (materials.length)
     conditions.push(
-      sql`coalesce(${catalogResourcesTable.metadata}->>'material', '') = ${options.material}`,
+      or(
+        ...materials.map(
+          (material) =>
+            sql`coalesce(${catalogResourcesTable.metadata}->>'material', '') = ${material}`,
+        ),
+      )!,
     );
   if (["free", "open"].includes(options.accessType ?? ""))
     conditions.push(
@@ -1174,13 +1277,17 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
         ilike(catalogResourcesTable.license, "%public domain%"),
       )!,
     );
-  if (
-    ["academic", "institutional", "established", "independent"].includes(
-      options.sourceQuality ?? "",
-    )
-  )
+  const credibilities = filterValues(options.sourceQuality).filter((value) =>
+    ["academic", "institutional", "established", "independent"].includes(value),
+  );
+  if (credibilities.length)
     conditions.push(
-      sql`coalesce(${catalogResourcesTable.metadata}->>'credibility', '') = ${options.sourceQuality}`,
+      or(
+        ...credibilities.map(
+          (credibility) =>
+            sql`coalesce(${catalogResourcesTable.metadata}->>'credibility', '') = ${credibility}`,
+        ),
+      )!,
     );
   if (options.freshness === "year")
     conditions.push(

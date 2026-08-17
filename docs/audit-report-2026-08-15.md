@@ -371,3 +371,27 @@ Measured on a cold catalog, four pages:
 | "AP Physics C…" excluding Wikipedia | 5 results, then nothing | six sources per page; 63 sent, 63 distinct, 0% repeats |
 
 The diversity did not cost paging accuracy, which was the thing worth checking: a banded order over a growing set could have reintroduced the repeats the cursor was built to remove, and measured across four cold-catalog pages it did not.
+
+### Filters that were asking the wrong question
+
+Reported: "some filters aren't even complete, like you cannot select more than one type of resource like pdf and video".
+
+The panel was single-select throughout. That is not a missing convenience, it changes the question: a reader who wants something to watch *or* read had to search twice and compare two pages by hand, and there was no way at all to ask for two subjects. Every filter was audited and split into two kinds — alternatives, which should take several answers, and ladders, which should not.
+
+Now accepting more than one value, as a comma-separated list on the wire: **format**, **subject**, **grade level**, **material** and **source credibility**. One value behaves exactly as it did. Deliberately left single: access, licence, freshness, date added, minimum rating and minimum reviews are all "at least this much" rather than alternatives, and language, result type and the sort orders are single by nature.
+
+The list filters are validated rather than filtered. An unknown `format` or `material` value is a 400 with the allowed values, not a search that quietly ignores the filter and hands back everything — the same class of silent wrongness as the rest of this report.
+
+Five filters are new, all of them backed by data the catalog already stores rather than guessed:
+
+- **Published between**, two years. A work with no recorded publication date is excluded rather than assumed recent.
+- **Author or contributor**, matched against the stored author.
+- **Exclude subjects**, a list. Distinct from excluded *words*, which match anywhere: this one is about how a work is filed.
+- **Topic must be in the title** — requires the strong-field score on every substantive query word, so the topic is what the work is about rather than something it mentions. The inverse of the widened one-word bar, and the reader can now choose between them.
+- **Preview image** on the open catalog, not only the saved library.
+
+One reusable `MultiSelectFilter` component carries all five multi-value filters — a popover of checkboxes whose value is the same comma-separated string the search sends, the history stores and the URL would carry, so there is nowhere for an array and a string to disagree.
+
+Two things worth recording from the implementation. `ResourceFormat` was `InsertCatalogResource["format"]`, and because the column has a database default that type includes `undefined` — which quietly put `undefined` into every list of formats; it is `NonNullable<…>` now. And `filterValues` initially lived in `catalog.ts`, which the route tests mock wholesale, so every request 500'd in tests while typechecking cleanly; it belongs in `searchTerms.ts` with the other query-string helpers.
+
+The browser audit covers the headline case directly: it ticks pdf and video, checks the trigger reads "2 formats", and checks the request carries `format=pdf,video`.

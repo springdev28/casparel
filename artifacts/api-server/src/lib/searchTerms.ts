@@ -99,3 +99,24 @@ export function meaningfulSearchTerms(value: string, limit = 8) {
   const fallback = value.trim().replace(/\s+/g, " ");
   return fallback ? [fallback] : [];
 }
+
+/**
+ * The values of a filter that accepts more than one.
+ *
+ * Comma-separated, because a query string is what the browser sends and repeated
+ * keys are read inconsistently by proxies and by the generated client. Bounded,
+ * so a filter cannot become a way to make the database do arbitrary work.
+ *
+ * Here rather than beside the catalog query it feeds: this is about reading a
+ * query string, and the route needs it in tests that mock the catalog away —
+ * where importing it from there left it undefined and every request a 500.
+ */
+const FILTER_VALUE_LIMIT = 12;
+
+export function filterValues(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, FILTER_VALUE_LIMIT);
+}

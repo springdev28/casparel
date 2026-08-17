@@ -1888,6 +1888,12 @@ export const discoverResourcesQueryLanguageDefault = `en`;
 export const discoverResourcesQueryPageDefault = 1;
 
 export const discoverResourcesQueryResultTypeDefault = `content`;
+export const discoverResourcesQueryPublishedFromMin = 1000;
+export const discoverResourcesQueryPublishedFromMax = 2200;
+
+export const discoverResourcesQueryPublishedToMin = 1000;
+export const discoverResourcesQueryPublishedToMax = 2200;
+
 export const discoverResourcesQueryAfterMax = 40;
 
 export const discoverResourcesQuerySinceIdMin = 0;
@@ -1896,7 +1902,7 @@ export const discoverResourcesQuerySinceIdMin = 0;
 
 export const DiscoverResourcesQueryParams = zod.object({
   "q": zod.coerce.string().min(1).describe('Search query. Blank queries are rejected with 400'),
-  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']).optional(),
+  "format": zod.coerce.string().optional().describe('Formats wanted, comma-separated from article, video, pdf, podcast, interactive and other. One value behaves as it always did; several widen, because a reader who wants a video or a pdf should not have to search twice'),
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
   "language": zod.enum(['any', 'en', 'es', 'fr', 'de', 'pt', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Preferred catalog language, or any to avoid restricting language'),
@@ -1906,7 +1912,13 @@ export const DiscoverResourcesQueryParams = zod.object({
   "exclude": zod.coerce.string().optional().describe('Space-separated words to exclude, truncated to 160 characters; the first eight are applied'),
   "source": zod.coerce.string().optional().describe('Restrict to providers whose name contains this text, truncated to 160 characters'),
   "excludeSource": zod.coerce.string().optional().describe('Drop results whose provider, link or provider site contains this text, truncated to 160 characters. Matched against all three so \"Wikipedia\" and \"wikipedia.org\" exclude the same results'),
-  "material": zod.enum(['book', 'course', 'reference', 'paper', 'primary']).optional().describe('Kind of material wanted. The catalog holds encyclopedia articles, textbooks, courses, primary texts and peer-reviewed papers, and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one'),
+  "material": zod.coerce.string().optional().describe('Kinds of material wanted, comma-separated: book, course, reference, paper, primary. The catalog holds all five and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one'),
+  "excludeSubjects": zod.coerce.string().optional().describe('Comma-separated subjects to drop, up to twelve. Distinct from `exclude`, which matches anywhere: this one is about how a work is filed'),
+  "author": zod.coerce.string().optional().describe('Author or contributor name to match, truncated to 160 characters'),
+  "titleOnly": zod.coerce.boolean().optional().describe('Require the query to match a work\'s own title or subject rather than its description, so the topic is what the work is about instead of something it mentions. Sent as the string true or false'),
+  "hasThumbnail": zod.coerce.boolean().optional().describe('Require, or require the absence of, a preview image. Sent as the string true or false'),
+  "publishedFrom": zod.coerce.number().int().min(discoverResourcesQueryPublishedFromMin).max(discoverResourcesQueryPublishedFromMax).optional().describe('Earliest publication year, inclusive. Works with no recorded publication date are excluded rather than assumed recent'),
+  "publishedTo": zod.coerce.number().int().min(discoverResourcesQueryPublishedToMin).max(discoverResourcesQueryPublishedToMax).optional().describe('Latest publication year, inclusive'),
   "after": zod.coerce.string().max(discoverResourcesQueryAfterMax).optional().describe('Resume after this point in the ranking, as the largest `cursor` the client already holds. Preferred over `page` for reading further into the stored catalog: the catalog grows while a reader pages, and a positional offset then hands back results an earlier page already showed. Ignored when it does not parse'),
   "sinceId": zod.coerce.number().int().min(discoverResourcesQuerySinceIdMin).optional().describe('The largest `catalogId` the client already holds. Sent with `after`: works stored while the client was reading can rank above the point it has read to, and would otherwise never be offered. Rows newer than this are returned whatever their rank'),
   "freshness": zod.enum(['week', 'month', 'year', 'three_years']).optional().describe('How recent a result must be. The stored catalog filters on year and three_years; the shorter windows only steer AI discovery'),

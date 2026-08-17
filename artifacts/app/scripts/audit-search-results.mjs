@@ -280,6 +280,29 @@ try {
     `appending keeps both pages: ${secondCount} of ${FIRST_PAGE.length + SECOND_PAGE.length} cards`,
   );
 
+  // Two formats at once. The panel was single-select throughout, which turned
+  // the question into the wrong question: a reader who wants something to watch
+  // *or* read had to search twice and compare two pages by hand.
+  const formatFilter = page.locator('[data-testid="format-filter"]');
+  await formatFilter.click();
+  for (const format of ["pdf", "video"])
+    await page.getByRole("checkbox", { name: format, exact: true }).click();
+  await page.keyboard.press("Escape");
+  check(
+    (await formatFilter.textContent())?.includes("2 formats") === true,
+    `two formats can be chosen at once (trigger reads "${(await formatFilter.textContent())?.trim()}")`,
+  );
+  await input.fill(QUERY);
+  await input.press("Enter");
+  await page.waitForTimeout(1200);
+  check(
+    discoverRequests.at(-1)?.format === "pdf,video",
+    `both formats reach the API (format=${discoverRequests.at(-1)?.format})`,
+  );
+  await formatFilter.click();
+  await page.getByRole("button", { name: /^clear$/i }).click();
+  await page.keyboard.press("Escape");
+
   // The further page has to say where the reader got to. Paging by position
   // alone is what made a third of every "search more" page results the reader
   // already had: this endpoint stores works as it searches, so the positions

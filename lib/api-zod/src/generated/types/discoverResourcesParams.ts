@@ -8,11 +8,9 @@
 import type { DiscoverResourcesAccessType } from './discoverResourcesAccessType';
 import type { DiscoverResourcesContentLength } from './discoverResourcesContentLength';
 import type { DiscoverResourcesDifficulty } from './discoverResourcesDifficulty';
-import type { DiscoverResourcesFormat } from './discoverResourcesFormat';
 import type { DiscoverResourcesFreshness } from './discoverResourcesFreshness';
 import type { DiscoverResourcesLanguage } from './discoverResourcesLanguage';
 import type { DiscoverResourcesLicense } from './discoverResourcesLicense';
-import type { DiscoverResourcesMaterial } from './discoverResourcesMaterial';
 import type { DiscoverResourcesResultType } from './discoverResourcesResultType';
 import type { DiscoverResourcesSourceQuality } from './discoverResourcesSourceQuality';
 
@@ -22,7 +20,10 @@ export type DiscoverResourcesParams = {
  * @minLength 1
  */
 q: string;
-format?: DiscoverResourcesFormat;
+/**
+ * Formats wanted, comma-separated from article, video, pdf, podcast, interactive and other. One value behaves as it always did; several widen, because a reader who wants a video or a pdf should not have to search twice
+ */
+format?: string;
 subject?: string;
 gradeLevel?: string;
 /**
@@ -55,9 +56,37 @@ source?: string;
  */
 excludeSource?: string;
 /**
- * Kind of material wanted. The catalog holds encyclopedia articles, textbooks, courses, primary texts and peer-reviewed papers, and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one
+ * Kinds of material wanted, comma-separated: book, course, reference, paper, primary. The catalog holds all five and a revision search and a research search want opposite ends of that list. Results stored before their source declared a material are absent from a filtered result rather than guessed into one
  */
-material?: DiscoverResourcesMaterial;
+material?: string;
+/**
+ * Comma-separated subjects to drop, up to twelve. Distinct from `exclude`, which matches anywhere: this one is about how a work is filed
+ */
+excludeSubjects?: string;
+/**
+ * Author or contributor name to match, truncated to 160 characters
+ */
+author?: string;
+/**
+ * Require the query to match a work's own title or subject rather than its description, so the topic is what the work is about instead of something it mentions. Sent as the string true or false
+ */
+titleOnly?: boolean;
+/**
+ * Require, or require the absence of, a preview image. Sent as the string true or false
+ */
+hasThumbnail?: boolean;
+/**
+ * Earliest publication year, inclusive. Works with no recorded publication date are excluded rather than assumed recent
+ * @minimum 1000
+ * @maximum 2200
+ */
+publishedFrom?: number;
+/**
+ * Latest publication year, inclusive
+ * @minimum 1000
+ * @maximum 2200
+ */
+publishedTo?: number;
 /**
  * Resume after this point in the ranking, as the largest `cursor` the client already holds. Preferred over `page` for reading further into the stored catalog: the catalog grows while a reader pages, and a positional offset then hands back results an earlier page already showed. Ignored when it does not parse
  * @maxLength 40

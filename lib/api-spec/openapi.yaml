@@ -1242,7 +1242,11 @@ paths:
           in: query
           schema:
             type: string
-            enum: [article, video, pdf, podcast, interactive, other]
+          description: >-
+            Formats wanted, comma-separated from article, video, pdf, podcast,
+            interactive and other. One value behaves as it always did; several
+            widen, because a reader who wants a video or a pdf should not have
+            to search twice
         - name: subject
           in: query
           schema:
@@ -1302,13 +1306,56 @@ paths:
           in: query
           schema:
             type: string
-            enum: [book, course, reference, paper, primary]
           description: >-
-            Kind of material wanted. The catalog holds encyclopedia articles,
-            textbooks, courses, primary texts and peer-reviewed papers, and a
-            revision search and a research search want opposite ends of that
-            list. Results stored before their source declared a material are
-            absent from a filtered result rather than guessed into one
+            Kinds of material wanted, comma-separated: book, course, reference,
+            paper, primary. The catalog holds all five and a revision search and
+            a research search want opposite ends of that list. Results stored
+            before their source declared a material are absent from a filtered
+            result rather than guessed into one
+        - name: excludeSubjects
+          in: query
+          schema:
+            type: string
+          description: >-
+            Comma-separated subjects to drop, up to twelve. Distinct from
+            `exclude`, which matches anywhere: this one is about how a work is
+            filed
+        - name: author
+          in: query
+          schema:
+            type: string
+          description: Author or contributor name to match, truncated to 160 characters
+        - name: titleOnly
+          in: query
+          schema:
+            type: boolean
+          description: >-
+            Require the query to match a work's own title or subject rather than
+            its description, so the topic is what the work is about instead of
+            something it mentions. Sent as the string true or false
+        - name: hasThumbnail
+          in: query
+          schema:
+            type: boolean
+          description: >-
+            Require, or require the absence of, a preview image. Sent as the
+            string true or false
+        - name: publishedFrom
+          in: query
+          schema:
+            type: integer
+            minimum: 1000
+            maximum: 2200
+          description: >-
+            Earliest publication year, inclusive. Works with no recorded
+            publication date are excluded rather than assumed recent
+        - name: publishedTo
+          in: query
+          schema:
+            type: integer
+            minimum: 1000
+            maximum: 2200
+          description: Latest publication year, inclusive
         - name: after
           in: query
           schema:

@@ -400,6 +400,61 @@ describe.skipIf(!url)("search quality against a real database", () => {
     expect(titles).not.toContain("Horizon High School");
   });
 
+  it("takes more than one value for the filters that are alternatives", async () => {
+    // The panel was single-select throughout, which turned the question into the
+    // wrong question: a reader who wants something to watch *or* read had to
+    // search twice and compare two pages by hand.
+    const physicsOrMaths = await searchCatalog({
+      query: "physics mechanics",
+      subject: "Physics,Mathematics",
+    });
+    expect(physicsOrMaths.length).toBeGreaterThan(0);
+    expect(
+      physicsOrMaths.every((row) =>
+        ["Physics", "Mathematics"].includes(row.subject ?? ""),
+      ),
+    ).toBe(true);
+
+    // One value still behaves exactly as it did before lists were accepted.
+    const onlyPhysics = await searchCatalog({
+      query: "physics mechanics",
+      subject: "Physics",
+    });
+    expect(onlyPhysics.length).toBeGreaterThan(0);
+    expect(onlyPhysics.length).toBeLessThanOrEqual(physicsOrMaths.length);
+  });
+
+  it("drops the subjects a reader is tired of", async () => {
+    const withAstronomy = await searchCatalog({
+      query: "astronomy celestial bodies",
+      minRelevanceScore: 1,
+    });
+    expect(withAstronomy.map((r) => r.subject)).toContain("Astronomy");
+    const without = await searchCatalog({
+      query: "astronomy celestial bodies",
+      minRelevanceScore: 1,
+      excludeSubjects: "Astronomy",
+    });
+    expect(without.map((r) => r.subject)).not.toContain("Astronomy");
+  });
+
+  it("can insist the topic is what a work is about, not something it mentions", async () => {
+    // Chlorophyll is genuinely about photosynthesis and is exactly what the
+    // widened one-word bar was added to reach. A reader who wants the works
+    // *named* after the topic has to be able to say so.
+    const mentions = (await searchCatalog({ query: "photosynthesis" })).map(
+      (r) => r.title,
+    );
+    expect(mentions).toContain("Chlorophyll");
+
+    const titled = (
+      await searchCatalog({ query: "photosynthesis", titleOnly: true })
+    ).map((r) => r.title);
+    expect(titled).toContain("Photosynthesis");
+    expect(titled).not.toContain("Chlorophyll");
+    expect(titled).not.toContain("Calvin cycle");
+  });
+
   it("widens rather than returning nothing when the strict pass finds none", async () => {
     const strict = await searchCatalog({ query: "astronomy celestial bodies" });
     const loose = await searchCatalog({

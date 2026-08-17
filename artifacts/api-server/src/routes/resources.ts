@@ -73,6 +73,7 @@ import {
 } from "../lib/catalog";
 import {
   broadenedQueries,
+  filterValues,
   meaningfulSearchTerms,
   wordStartPattern,
 } from "../lib/searchTerms";
@@ -299,16 +300,38 @@ router.get("/resources", async (req, res): Promise<void> => {
       )!,
     );
   }
-  if (format)
+  // The saved library takes the same lists the open catalog does, so ticking two
+  // formats does not mean two different things on the two halves of the page.
+  type SavedFormat =
+    "article" | "video" | "pdf" | "podcast" | "interactive" | "other";
+  const formats = filterValues(format) as SavedFormat[];
+  // An OR of equalities rather than inArray: drizzle's enum-column overloads do
+  // not accept a plain array of the enum's own values, and this reads the same.
+  if (formats.length)
     conditions.push(
-      eq(
-        resourcesTable.format,
-        format as
-          "article" | "video" | "pdf" | "podcast" | "interactive" | "other",
-      ),
+      or(...formats.map((value) => eq(resourcesTable.format, value)))!,
     );
-  if (subject) conditions.push(ilike(resourcesTable.subject, `%${subject}%`));
-  if (gradeLevel) conditions.push(eq(resourcesTable.gradeLevel, gradeLevel));
+
+  const subjects = filterValues(subject);
+  if (subjects.length)
+    conditions.push(
+      or(
+        ...subjects.map((value) => ilike(resourcesTable.subject, `%${value}%`)),
+      )!,
+    );
+
+  const gradeLevels = filterValues(gradeLevel);
+  if (gradeLevels.length)
+    conditions.push(
+      or(
+        ...gradeLevels.map((value) =>
+          ilike(resourcesTable.gradeLevel, `%${value}%`),
+        ),
+      )!,
+    );
+
+  for (const value of filterValues(queryString(req.query.excludeSubjects)))
+    conditions.push(not(ilike(resourcesTable.subject, `%${value}%`)));
   if (sourceFilter)
     conditions.push(ilike(resourcesTable.url, `%${sourceFilter}%`));
   // A saved resource records only its link, and the host is what the reader
@@ -872,6 +895,17 @@ const TOP_UP_ROUNDS = 2;
  */
 const AI_SEARCHES_PER_MINUTE = 5;
 
+/** The values the two list filters accept, so a typo is an error not a no-op. */
+const FORMAT_VALUES = [
+  "article",
+  "video",
+  "pdf",
+  "podcast",
+  "interactive",
+  "other",
+];
+const MATERIAL_VALUES = ["book", "course", "reference", "paper", "primary"];
+
 const DISCOVER_MIN_RESULTS = 3;
 const DISCOVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const discoverCache = new Map<
@@ -1112,11 +1146,41 @@ router.get(
       page = 1,
       resultType = "content",
     } = params.data;
+    const formatValues = filterValues(queryString(req.query.format));
     const exactPhrase = queryString(req.query.exactPhrase);
     const excludedWords = queryString(req.query.exclude);
     const sourceFilter = queryString(req.query.source);
     const excludeSourceFilter = queryString(req.query.excludeSource);
     const materialFilter = queryString(req.query.material);
+    // These two are lists of enum values, so the generated schema can only check
+    // that they are strings. Checking them here keeps a mistyped filter an error
+    // rather than a search that quietly ignores it and returns everything.
+    const badFilter = (
+      [
+        ["format", formatValues, FORMAT_VALUES],
+        ["material", filterValues(materialFilter), MATERIAL_VALUES],
+      ] as const
+    ).find(([, given, allowed]) =>
+      given.some((value) => !allowed.includes(value)),
+    );
+    if (badFilter) {
+      res.status(400).json({
+        error: `Unknown ${badFilter[0]} value. Allowed: ${badFilter[2].join(", ")}.`,
+      });
+      return;
+    }
+    const excludeSubjectsFilter = queryString(req.query.excludeSubjects);
+    const authorFilter = queryString(req.query.author);
+    const titleOnly = queryBoolean(req.query.titleOnly) === true;
+    const hasThumbnail = queryBoolean(req.query.hasThumbnail);
+    const year = (value: unknown) => {
+      const parsed = Number(queryString(value));
+      return Number.isInteger(parsed) && parsed >= 1000 && parsed <= 2200
+        ? parsed
+        : undefined;
+    };
+    const publishedFrom = year(req.query.publishedFrom);
+    const publishedTo = year(req.query.publishedTo);
     // Where the reader has read to: the furthest point in the ranking, and the
     // newest row they hold. Both are validated by the catalog, which ignores
     // anything it did not write.
@@ -1169,6 +1233,12 @@ router.get(
       source: sourceFilter,
       excludeSource: excludeSourceFilter,
       material: materialFilter,
+      excludeSubjects: excludeSubjectsFilter,
+      author: authorFilter,
+      ...(titleOnly ? { titleOnly } : {}),
+      ...(hasThumbnail === undefined ? {} : { hasThumbnail }),
+      ...(publishedFrom === undefined ? {} : { publishedFrom }),
+      ...(publishedTo === undefined ? {} : { publishedTo }),
       after,
       ...(Number.isSafeInteger(sinceId) && sinceId >= 0 ? { sinceId } : {}),
       freshness,
@@ -1361,6 +1431,12 @@ router.get(
       sourceFilter,
       excludeSourceFilter,
       materialFilter,
+      excludeSubjectsFilter,
+      authorFilter,
+      titleOnly,
+      hasThumbnail,
+      publishedFrom,
+      publishedTo,
       freshness,
       difficulty,
       accessType,
@@ -1420,6 +1496,15 @@ router.get(
             }[materialFilter] ?? materialFilter
           }.`
         : "",
+      excludeSubjectsFilter
+        ? `Never return anything in these subjects: ${excludeSubjectsFilter}.`
+        : "",
+      authorFilter ? `Prefer works by ${authorFilter}.` : "",
+      titleOnly
+        ? "Only return works whose own title is about the topic, not works that merely mention it."
+        : "",
+      publishedFrom ? `Nothing published before ${publishedFrom}.` : "",
+      publishedTo ? `Nothing published after ${publishedTo}.` : "",
       excludeSourceFilter
         ? `Never use results from this website, publisher, creator, or domain: ${excludeSourceFilter}.`
         : "",
