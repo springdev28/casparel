@@ -197,6 +197,14 @@ function makeItem(overrides: { url?: string; title?: string } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks forgets calls but keeps implementations, so a test that sets a
+  // persistent mockResolvedValue would otherwise answer every later test too.
+  vi.mocked(searchCatalog).mockReset().mockResolvedValue([]);
+  vi.mocked(resolveCatalogSearch)
+    .mockReset()
+    .mockResolvedValue({ minRelevanceScore: 1, offset: 0, total: 0 });
+  vi.mocked(searchOpenLibraryAndStore).mockReset().mockResolvedValue(0);
+  vi.mocked(searchOpenWikisAndStore).mockReset().mockResolvedValue(0);
   requestIsAdmin = true;
   process.env.AI_RESOURCE_SEARCH_ENABLED = "true";
   process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED = "true";
@@ -273,7 +281,7 @@ describe("GET /api/resources/discover, paging", () => {
     });
     vi.mocked(searchCatalog)
       .mockResolvedValueOnce([]) // nothing stored past row six yet
-      .mockResolvedValueOnce([catalogRow("https://example.edu/algebra-2")]);
+      .mockResolvedValue([catalogRow("https://example.edu/algebra-2")]);
 
     const res = await request(buildApp())
       .get("/api/resources/discover")
@@ -283,14 +291,71 @@ describe("GET /api/resources/discover, paging", () => {
     expect(res.body).toHaveLength(1);
     // The top-up used to be gated on page === 1, which left "Search more
     // resources" with nothing new to return once the stored rows ran out.
-    expect(searchOpenLibraryAndStore).toHaveBeenCalledTimes(1);
-    expect(searchOpenWikisAndStore).toHaveBeenCalledTimes(1);
+    expect(searchOpenWikisAndStore).toHaveBeenCalled();
     // Providers are asked for the window matching the requested page.
     expect(searchOpenLibraryAndStore).toHaveBeenCalledWith(
       expect.objectContaining({ page: 2 }),
     );
+    // And for the query's first window, which a full page one never read.
+    expect(searchOpenLibraryAndStore).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1 }),
+    );
     // The AI allowance is never spent while the catalog can still answer.
     expect(openai.responses.create).not.toHaveBeenCalled();
+  });
+
+  it("keeps reading windows while the page is still short", async () => {
+    // One round used to be the entire effort, and only a completely empty page
+    // got a second look — so a page that came back with five results kept them
+    // and offered nothing more. That is what a reader who had excluded a source
+    // was left with, because the exclusion removed most of what the round found.
+    vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
+      minRelevanceScore: 1,
+      offset: 0,
+      total: 2,
+    });
+    const unit = (slug: string) => ({
+      ...catalogRow(`https://example.edu/${slug}`),
+      title: `Open Algebra, unit ${slug}`,
+    });
+    vi.mocked(searchCatalog)
+      .mockResolvedValueOnce([unit("a")])
+      .mockResolvedValueOnce([unit("a"), unit("b")])
+      .mockResolvedValue([unit("a"), unit("b"), unit("c")]);
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra" });
+
+    expect(res.status).toBe(200);
+    // Each round added something, so it kept going and the reader got all three.
+    expect(res.body).toHaveLength(3);
+    expect(vi.mocked(searchOpenWikisAndStore).mock.calls.length).toBeGreaterThan(
+      1,
+    );
+  });
+
+  it("stops asking once a whole round adds nothing", async () => {
+    // The budget is there to fill a thin page, not to hammer the providers for a
+    // query they have nothing for.
+    vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
+      minRelevanceScore: 1,
+      offset: 0,
+      total: 1,
+    });
+    vi.mocked(searchCatalog).mockResolvedValue([
+      catalogRow("https://example.edu/a"),
+    ]);
+
+    await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra" });
+
+    // One round of windows, then one attempt at the broadened queries, then it
+    // gives up rather than spending the whole budget.
+    expect(
+      vi.mocked(searchOpenWikisAndStore).mock.calls.length,
+    ).toBeLessThanOrEqual(3);
   });
 
   it("reads both catalog passes at the offset resolved before the top-up", async () => {
@@ -301,18 +366,21 @@ describe("GET /api/resources/discover, paging", () => {
     });
     vi.mocked(searchCatalog)
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([catalogRow("https://example.edu/algebra-2")]);
+      .mockResolvedValue([catalogRow("https://example.edu/algebra-2")]);
 
     await request(buildApp())
       .get("/api/resources/discover")
       .query({ q: "algebra", page: 2 });
 
     // Rows stored by the top-up get the highest ids and sort last. Re-deriving
-    // the offset from the grown catalog would step over exactly those rows.
+    // the offset from the grown catalog would step over exactly those rows — and
+    // the page reads more than twice now, so *every* read has to use the offset
+    // resolved before the first one, not just the second.
     const offsets = vi
       .mocked(searchCatalog)
       .mock.calls.map(([options]) => options.offset);
-    expect(offsets).toEqual([6, 6]);
+    expect(offsets.length).toBeGreaterThan(1);
+    expect(new Set(offsets)).toEqual(new Set([6]));
   });
 
   it("leaves a full later page alone", async () => {

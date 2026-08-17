@@ -34,6 +34,9 @@ export const catalogResourcesTable = pgTable(
       withTimezone: true,
       mode: "string",
     }),
+    // Where the row came from. Plain text rather than a database enum on
+    // purpose: adding an importer should not need a migration, and the value is
+    // only ever compared, never ordered.
     sourceKind: text("source_kind")
       .$type<
         | "curated"
@@ -41,6 +44,13 @@ export const catalogResourcesTable = pgTable(
         | "wikibooks"
         | "wikiversity"
         | "wikipedia"
+        | "wikisource"
+        | "doaj"
+        | "doab"
+        | "arxiv"
+        | "crossref"
+        | "europepmc"
+        | "openalex"
       >()
       .notNull(),
     metadata: jsonb("metadata")

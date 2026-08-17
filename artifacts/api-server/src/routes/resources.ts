@@ -848,13 +848,16 @@ async function callDiscoverAI(
 const SOURCE_SHARE_PER_PAGE = 3;
 
 /**
- * Extra provider windows read before calling a page empty.
+ * Rounds of provider reads a thin page will spend filling itself.
  *
- * Only ever paid on a page that has nothing, which is exactly when the reader
- * would otherwise be told the search is finished while results remain a window
- * further on.
+ * Each round asks every provider for its next window at once, so the cost is
+ * one provider round-trip rather than several, and the loop stops the moment the
+ * page is full or a whole round adds nothing. Two rounds of fifty-work windows
+ * is a hundred candidates per source, which fills a page of sixteen even when
+ * the reader has excluded the largest source — and keeps the wait a reader
+ * actually experiences to a few seconds rather than twenty.
  */
-const EXHAUSTION_PROOF_WINDOWS = 2;
+const TOP_UP_ROUNDS = 2;
 
 /**
  * AI searches one account may start in a minute.
@@ -1195,40 +1198,45 @@ router.get(
         );
         catalogItems = await searchCatalog(pagedCatalogOptions);
       };
-      await topUp([{ query: q, page }]);
-      // Out of results for this page. Two reasons it could be empty, and both
-      // are worth a second look before telling the reader the search is spent
-      // — which is what an empty page makes the app do.
+      // Keep going until the page is full, the providers stop producing, or the
+      // round budget runs out. One round used to be the whole effort, and only a
+      // completely *empty* page got a second look — so a page that came back
+      // with five results kept them and offered nothing else. That is the state
+      // a reader who excluded a source was left in: the exclusion removed most
+      // of what the round found, and nothing went back for more.
       //
-      // One: a provider's next window can be quiet while the one after it
-      // still holds something, so stopping at the first quiet window strands
-      // results the reader can no longer reach.
-      //
-      // Two: the providers have only ever been asked for the exact phrase
-      // typed. A course name is narrow and its subjects are not, so the topic
-      // words are asked for on their own as well. Whatever that finds still
-      // has to earn its place against the reader's real query, so reaching
-      // wider cannot make the results looser.
-      //
-      // All of it goes out together. Each provider still answers one request
-      // at a time, so several searches cost about as long as one — where doing
-      // them in sequence multiplied the wait on the last page of every search.
-      //
-      // Three: the providers' *first* window may never have been read for this
-      // query. A page that arrived full was never topped up, so page two asked
-      // the providers for results twenty onwards and the twenty before them
-      // were never fetched. Asking for the first window here costs one request
-      // per provider and is what a reader means by "search more".
-      if (catalogItems.length === 0)
+      // Each round reads the next window from every provider at once. They are
+      // independent services answering one request at a time each, so a round
+      // costs about as long as its slowest provider rather than the sum.
+      let window = page;
+      for (
+        let round = 0;
+        round < TOP_UP_ROUNDS && catalogItems.length < catalogOptions.limit;
+        round += 1
+      ) {
+        const before = catalogItems.length;
+        // The first window of the query as well, on any page past the first: a
+        // page that arrived full was never topped up, so page two would ask the
+        // providers for results fifty onwards and the fifty before them were
+        // never fetched at all.
         await topUp([
-          // Page one has just read its own window; any later page has not.
-          ...(page > 1 ? [{ query: q, page: 1 }] : []),
-          ...Array.from({ length: EXHAUSTION_PROOF_WINDOWS }, (_, index) => ({
-            query: q,
-            page: page + index + 1,
-          })),
-          ...broadenedQueries(q).map((query) => ({ query, page: 1 })),
+          { query: q, page: window },
+          ...(round === 0 && page > 1 ? [{ query: q, page: 1 }] : []),
         ]);
+        window += 1;
+        // Still nothing after a whole round means the exact phrase is spent.
+        // The providers have only ever been asked for what the reader typed, and
+        // a course name is narrow while its subjects are not, so ask for the
+        // topic words on their own. Whatever that finds still has to earn its
+        // place against the reader's real query, so reaching wider cannot make
+        // the results looser.
+        if (catalogItems.length === before) {
+          const broadened = broadenedQueries(q);
+          if (!broadened.length) break;
+          await topUp(broadened.map((query) => ({ query, page: 1 })));
+          if (catalogItems.length === before) break;
+        }
+      }
     }
     const availableCatalogItems = catalogItems
       .filter(isUnsavedResult)

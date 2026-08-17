@@ -1455,14 +1455,21 @@ const mediaWikiQueues = new Map<
   { queue: Promise<void>; nextAt: number }
 >();
 /**
- * Works requested per wiki, per page.
+ * Works requested per wiki, per window.
  *
- * Three wikis at twenty works each is sixty candidates for a page that shows
- * sixteen — deliberate headroom, because a result only survives if it matches
- * enough of the query, and a thin import made "Search more resources" run out
- * after one page.
+ * Fifty is the most the MediaWiki search API will return to an ordinary client
+ * in one request, and also the most titles its query API will describe at once,
+ * so this is the largest window that costs two requests rather than four.
+ *
+ * It was twenty, which read as generous — four wikis at twenty is eighty
+ * candidates for a page of sixteen. It is not, because candidates are not
+ * results: a work only survives if it matches enough of the query, near-misses
+ * collapse into each other, and a reader who has excluded a source loses that
+ * source's whole share. Excluding Wikipedia used to take fifty-eight per cent of
+ * the catalog with nothing to replace it, and the page came back with five
+ * results and no way to ask for more.
  */
-const MEDIAWIKI_PAGE_SIZE = 20;
+const MEDIAWIKI_PAGE_SIZE = 50;
 
 function catalogItemLimit() {
   const configured = Number(process.env.CATALOG_MAX_ITEMS);
@@ -1492,11 +1499,25 @@ async function waitForOpenLibrarySlot() {
 }
 
 /**
- * Wait for this host's turn, one request per second per wiki.
+ * Gap between two requests to one wiki.
  *
- * Per host rather than one shared queue: Wikibooks, Wikiversity and Wikipedia
- * are separate services, and making them queue behind each other would triple
- * the time an import takes for no one's benefit.
+ * Requests to a host are serialised, so this is also the floor on how long an
+ * import takes: each window costs a search request and a describe request, and a
+ * page that needs several windows pays the gap for every one of them. At 1100ms
+ * a reader waiting for a thin page to fill waited eight seconds in gaps alone.
+ *
+ * Wikimedia asks anonymous clients to keep concurrency low rather than to leave
+ * a particular gap; serialised requests at roughly three a second are well
+ * inside that, and the API rate-limits by itself if it disagrees.
+ */
+const MEDIAWIKI_REQUEST_GAP_MS = 350;
+
+/**
+ * Wait for this host's turn.
+ *
+ * Per host rather than one shared queue: Wikibooks, Wikiversity, Wikisource and
+ * Wikipedia are separate services, and making them queue behind each other would
+ * multiply the time an import takes for no one's benefit.
  */
 async function waitForMediaWikiSlot(host: string) {
   const state = mediaWikiQueues.get(host) ?? {
@@ -1512,8 +1533,36 @@ async function waitForMediaWikiSlot(host: string) {
   await previous;
   const waitMs = Math.max(0, state.nextAt - Date.now());
   if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
-  state.nextAt = Date.now() + 1100;
+  state.nextAt = Date.now() + MEDIAWIKI_REQUEST_GAP_MS;
   release();
+}
+
+/**
+ * Providers that have just failed, and when to try them again.
+ *
+ * A provider that is down still costs its full timeout, and a thin page asks
+ * several times — so one unreachable service added its timeout to every round of
+ * every search. Open Library being unreachable was seven seconds a round, paid by
+ * a reader who would not have noticed its absence.
+ */
+const PROVIDER_COOLDOWN_MS = 60_000;
+const providerCooldowns = new Map<string, number>();
+
+export function providerIsResting(provider: string): boolean {
+  const until = providerCooldowns.get(provider);
+  if (until === undefined) return false;
+  if (until > Date.now()) return true;
+  providerCooldowns.delete(provider);
+  return false;
+}
+
+export function restProvider(provider: string) {
+  providerCooldowns.set(provider, Date.now() + PROVIDER_COOLDOWN_MS);
+}
+
+/** Test seam: forget every cooldown. */
+export function clearProviderCooldowns() {
+  providerCooldowns.clear();
 }
 
 /** Record the outcome of one provider sync. */
@@ -1568,6 +1617,9 @@ function remoteWindowOffset(options: CatalogSearchOptions, windowSize: number) {
 
 export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
   if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false") return 0;
+  // A provider that just failed is not asked again for a minute. It would cost
+  // its whole timeout, once per round, on a page the reader is waiting for.
+  if (providerIsResting("open-library")) return 0;
   const query = [
     meaningfulSearchTerms(options.query).join(" "),
     options.subject,
@@ -1686,6 +1738,7 @@ export async function searchOpenLibraryAndStore(options: CatalogSearchOptions) {
       return count;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      restProvider("open-library");
       await db
         .insert(catalogSyncStateTable)
         .values({
@@ -1767,6 +1820,7 @@ export async function searchMediaWikiAndStore(
 
   const language = siteLanguage(site, options.language);
   const host = siteHost(site, language);
+  if (providerIsResting(host)) return 0;
   const offset = remoteWindowOffset(options, MEDIAWIKI_PAGE_SIZE);
   const key = `${host}:${query.toLowerCase()}:${offset}`;
   const existing = mediaWikiInFlight.get(key);
@@ -1882,6 +1936,7 @@ export async function searchMediaWikiAndStore(
       return count;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      restProvider(host);
       await recordCatalogSync(syncProvider, attemptedAt, 0, message);
       return 0;
     } finally {
@@ -1897,12 +1952,35 @@ export function searchWikibooksAndStore(options: CatalogSearchOptions) {
   return searchMediaWikiAndStore(MEDIAWIKI_SITES[0], options);
 }
 
-/** Every wiki importer, run together. */
+/**
+ * Whether a reader who excluded a source would keep anything this site returns.
+ *
+ * Importing a source the reader has excluded is work whose entire result is then
+ * filtered away. Wikipedia is the biggest of the wikis, so a reader who excluded
+ * it lost the majority of every page and the import budget that could have
+ * reached further into the sources they *did* want went on fetching rows nobody
+ * would see.
+ */
+export function siteIsExcluded(
+  site: MediaWikiSite,
+  excludeSource: string | undefined,
+): boolean {
+  const needle = excludeSource?.trim().toLowerCase();
+  if (!needle) return false;
+  return (
+    site.provider.toLowerCase().includes(needle) ||
+    site.host.toLowerCase().includes(needle) ||
+    site.sourceKind.includes(needle)
+  );
+}
+
+/** Every wiki importer the reader has not excluded, run together. */
 export async function searchOpenWikisAndStore(options: CatalogSearchOptions) {
+  const wanted = MEDIAWIKI_SITES.filter(
+    (site) => !siteIsExcluded(site, options.excludeSource),
+  );
   const counts = await Promise.all(
-    MEDIAWIKI_SITES.map((site) =>
-      searchMediaWikiAndStore(site, options).catch(() => 0),
-    ),
+    wanted.map((site) => searchMediaWikiAndStore(site, options).catch(() => 0)),
   );
   return counts.reduce((total, count) => total + count, 0);
 }

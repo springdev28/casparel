@@ -35,7 +35,7 @@ export type MediaWikiSite = {
    * and their slashes are part of the title.
    */
   rollUpSubpages: boolean;
-  sourceKind: "wikibooks" | "wikiversity" | "wikipedia";
+  sourceKind: "wikibooks" | "wikiversity" | "wikipedia" | "wikisource";
 };
 
 export const MEDIAWIKI_SITES: MediaWikiSite[] = [
@@ -65,6 +65,18 @@ export const MEDIAWIKI_SITES: MediaWikiSite[] = [
     license: "CC BY-SA; see page history for attribution",
     rollUpSubpages: false,
     sourceKind: "wikipedia",
+  },
+  // Primary sources: the speeches, treaties, papers and literature a history or
+  // literature question wants to read rather than read *about*. Subpages are
+  // chapters of a work, as on Wikibooks.
+  {
+    provider: "Wikisource",
+    host: "{lang}.wikisource.org",
+    languages: new Set(["de", "en", "es", "fr", "pt"]),
+    format: "article",
+    license: "CC BY-SA and public domain; see the page for the work's status",
+    rollUpSubpages: true,
+    sourceKind: "wikisource",
   },
 ];
 

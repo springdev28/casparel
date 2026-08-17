@@ -1,4 +1,37 @@
 import { describe, expect, it } from "vitest";
+import { MEDIAWIKI_SITES } from "./mediawiki";
+import { siteIsExcluded } from "./catalog";
+
+describe("siteIsExcluded", () => {
+  const site = (provider: string) =>
+    MEDIAWIKI_SITES.find((candidate) => candidate.provider === provider)!;
+
+  it("skips importing a source the reader has excluded", () => {
+    // Wikipedia is the largest of the wikis. Importing it for a reader who has
+    // excluded it spent the round's whole budget on rows that were then filtered
+    // away, and the page came back with a handful of results and no way to ask
+    // for more.
+    expect(siteIsExcluded(site("Wikipedia"), "wikipedia")).toBe(true);
+    expect(siteIsExcluded(site("Wikipedia"), "Wikipedia")).toBe(true);
+    // Either spelling, matching what the stored catalog excludes: a reader
+    // should not have to guess whether the app filed it under a name or a
+    // domain.
+    expect(siteIsExcluded(site("Wikipedia"), "wikipedia.org")).toBe(true);
+    expect(siteIsExcluded(site("Wikipedia"), "en.wikipedia.org")).toBe(false);
+  });
+
+  it("keeps the sources the exclusion did not name", () => {
+    // The point of skipping Wikipedia is to spend that budget here instead.
+    for (const provider of ["Wikibooks", "Wikiversity", "Wikisource"])
+      expect(siteIsExcluded(site(provider), "wikipedia")).toBe(false);
+  });
+
+  it("imports everything when nothing is excluded", () => {
+    for (const value of [undefined, "", "   "])
+      for (const candidate of MEDIAWIKI_SITES)
+        expect(siteIsExcluded(candidate, value)).toBe(false);
+  });
+});
 import {
   isWorkTitle,
   subjectFromCategories,
