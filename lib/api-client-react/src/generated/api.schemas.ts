@@ -988,6 +988,32 @@ export interface PrefetchResourceResponse {
   thumbnailUrl?: string | null;
 }
 
+export type ProvenanceShowcaseEntryProvenanceLevel = typeof ProvenanceShowcaseEntryProvenanceLevel[keyof typeof ProvenanceShowcaseEntryProvenanceLevel];
+
+
+export const ProvenanceShowcaseEntryProvenanceLevel = {
+  institutional: 'institutional',
+  established: 'established',
+  independent: 'independent',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * One source and what the provenance check says about it. Mirrors the registry-based classification used on resource pages; never AI output.
+ */
+export interface ProvenanceShowcaseEntry {
+  id: number;
+  title: string;
+  /** Display host, e.g. "ocw.mit.edu". */
+  host: string;
+  /** @nullable */
+  subject?: string | null;
+  provenanceLevel: ProvenanceShowcaseEntryProvenanceLevel;
+  provenanceSignals: string[];
+  /** How many lists across the platform hold this resource. */
+  savedCount: number;
+}
+
 export type ResourceInputFormat = typeof ResourceInputFormat[keyof typeof ResourceInputFormat];
 
 
@@ -2007,6 +2033,12 @@ export const DiscoverResourcesContentLength = {
   medium: 'medium',
   long: 'long',
 } as const;
+
+export type ListProvenanceShowcase200 = {
+  /** True when drawn from the caller's own saves. */
+  personalised: boolean;
+  entries: ProvenanceShowcaseEntry[];
+};
 
 export type GetResourceSourceReviewParams = {
 /**

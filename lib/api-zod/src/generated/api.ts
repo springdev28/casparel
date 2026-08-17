@@ -1995,6 +1995,24 @@ export const ListFeaturedResourcesResponse = zod.array(ListFeaturedResourcesResp
 
 
 /**
+ * Real catalogue sources with the same registry-based provenance verdict the resource pages show. Personalised to the caller's own saved resources when an auth header is present, otherwise the most-saved resources across the platform. Public and unauthenticated-safe: it returns only fields already public on a resource, and no AI is involved (provenance is a deterministic registry check).
+ * @summary Sources with their provenance verdicts, for the landing hero
+ */
+export const ListProvenanceShowcaseResponse = zod.object({
+  "personalised": zod.boolean().describe('True when drawn from the caller\'s own saves.'),
+  "entries": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "host": zod.string().describe('Display host, e.g. \"ocw.mit.edu\".'),
+  "subject": zod.string().nullish(),
+  "provenanceLevel": zod.enum(['institutional', 'established', 'independent', 'unknown']),
+  "provenanceSignals": zod.array(zod.string()),
+  "savedCount": zod.int().describe('How many lists across the platform hold this resource.')
+}).describe('One source and what the provenance check says about it. Mirrors the registry-based classification used on resource pages; never AI output.'))
+})
+
+
+/**
  * @summary Get a resource by ID
  */
 export const GetResourceParams = zod.object({
