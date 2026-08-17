@@ -359,6 +359,75 @@ router.post(
   },
 );
 
+/**
+ * POST /study-activities/:id/copy
+ *
+ * Take your own copy of an activity you can see. Feedback asked for this
+ * directly: people study from a classmate's or teacher's deck, want to change
+ * a card, and either cannot (they do not own it) or edit the shared original
+ * for everyone.
+ *
+ * The copy is yours and nobody else's. It lands with no classId, so it is not
+ * shared back into the class it came from, and no shareToken, so the original
+ * owner's link cannot reach it. Editing it cannot touch the source, and the
+ * source changing later cannot touch it: the cards are copied by value.
+ *
+ * It counts against your plan like any activity you made yourself - it is a
+ * new row in your account, and pretending otherwise would make the limit
+ * meaningless.
+ */
+router.post(
+  "/study-activities/:id/copy",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const activityId = positiveId(req.params.id);
+    if (!activityId) {
+      res.status(400).json({ error: "Invalid activity id" });
+      return;
+    }
+    const [source] = await db
+      .select()
+      .from(studyActivitiesTable)
+      .where(eq(studyActivitiesTable.id, activityId));
+    if (!source) {
+      res.status(404).json({ error: "Activity not found" });
+      return;
+    }
+    // You may copy what you may see: your own, anything shared with a class
+    // you are in, or anything reachable by its share link.
+    const visible =
+      source.ownerId === userId ||
+      (source.classId != null &&
+        ((await isClassMember(source.classId, userId)) ||
+          (await isClassTeacher(source.classId, userId)))) ||
+      source.shareToken != null;
+    if (!visible) {
+      res.status(403).json({ error: "You do not have access to this activity" });
+      return;
+    }
+    if (!(await ensureAccountCapacity(res, userId, "study-activities"))) return;
+
+    const [copy] = await db
+      .insert(studyActivitiesTable)
+      .values({
+        ownerId: userId,
+        workspaceRole: activeWorkspaceRole(userRole),
+        // Deliberately not the source's class or share token: a copy is
+        // private to the person who took it until they choose otherwise.
+        classId: null,
+        shareToken: null,
+        title: source.title,
+        subject: source.subject,
+        mode: source.mode,
+        cards: source.cards,
+      })
+      .returning();
+    res.status(201).json(copy);
+  },
+);
+
 router.patch(
   "/study-activities/:id",
   contentLimiter,
