@@ -374,13 +374,58 @@ const ROWS: Row[] = [
     subject: "Interdisciplinary",
     material: "video",
   },
-  // What that search was actually asking for.
+  // Papers and a video that share exactly one word with that same search, all
+  // of them live rows it returned. "Motion" is the word, and it is the only one.
+  {
+    title:
+      "Strabismic imaging for correcting in-plane motion distortion in scanning microscopy",
+    provider: "Europe PMC",
+    url: "https://europepmc.org/article/PMC/strabismic-motion",
+    description: "A paper on correcting motion distortion during imaging.",
+    subject: "Biology",
+    material: "paper",
+  },
+  {
+    title: "Quadratic Motion Polynomials with Irregular Factorizations",
+    provider: "Europe PMC",
+    url: "https://europepmc.org/article/PMC/quadratic-motion",
+    description: "A paper on the factorization of motion polynomials.",
+    subject: "Biology",
+    material: "paper",
+  },
+  {
+    title: "Claude Design FINALLY Solved Motion Graphics",
+    provider: "YouTube",
+    url: "https://www.youtube.com/watch?v=motion-graphics",
+    description: "A video about motion graphics in a design tool.",
+    subject: "Interdisciplinary",
+    material: "video",
+  },
+  // What that search was actually asking for. The first two match two words of
+  // it; the third matches one, in its title, and is the reason the rule cannot
+  // simply demand two of everything.
   {
     title: "Projectile motion",
     provider: "Wikipedia",
     url: "https://en.wikipedia.org/wiki/Projectile_motion",
     description:
       "The motion of an object thrown near the surface of the Earth, moving along a curved path under gravity alone.",
+    subject: "Physics",
+  },
+  {
+    title: "Kinematics of projectiles",
+    provider: "PhET Interactive Simulations",
+    url: "https://phet.colorado.edu/en/simulation/projectile-motion",
+    description: "An interactive simulation of a projectile's flight.",
+    subject: "Physics",
+    material: "reference",
+  },
+  {
+    title: "Newton's laws of motion",
+    provider: "Wikipedia",
+    url: "https://en.wikipedia.org/wiki/Newton%27s_laws_of_motion",
+    description:
+      "Three laws relating the forces acting on a body to its movement.",
     subject: "Physics",
   },
   {
@@ -481,6 +526,49 @@ describe.skipIf(!url)("search quality against a real database", () => {
     expect(titles).not.toContain(
       "Retro Sunset T-Shirt Design Tutorial | Adobe Illustrator",
     );
+  });
+
+  it("asks a paper or a video for more than one word in common", async () => {
+    const titles = (
+      await searchCatalog({ query: "kinematics projectile motion" })
+    ).map((r) => r.title);
+
+    // Matching "motion" alone. Every one of these came back from the live site
+    // for this search, above works that are actually about the topic.
+    expect(titles).not.toContain(
+      "Strabismic imaging for correcting in-plane motion distortion in scanning microscopy",
+    );
+    expect(titles).not.toContain(
+      "Quadratic Motion Polynomials with Irregular Factorizations",
+    );
+    expect(titles).not.toContain("Claude Design FINALLY Solved Motion Graphics");
+
+    // A reference work matching that same single word is kept: its title is a
+    // topic name, so the one word is the strongest evidence there is. This is
+    // what a flat "two words of everything" rule would have thrown away.
+    expect(titles).toContain("Newton's laws of motion");
+    expect(titles).toContain("Projectile motion");
+    expect(titles).toContain("Kinematics of projectiles");
+  });
+
+  it("takes the papers anyway when they are all the catalog has", async () => {
+    // Nothing but papers shares a word with this, so the rule has nothing left
+    // to keep and an empty page is the worse answer.
+    const titles = (
+      await searchCatalog({ query: "strabismic polynomials factorizations" })
+    ).map((r) => r.title);
+    expect(titles).toContain(
+      "Quadratic Motion Polynomials with Irregular Factorizations",
+    );
+  });
+
+  it("never asks a one-word search for two words", async () => {
+    // Two is impossible against one, so the rule must not apply at all — this
+    // would otherwise empty every single-word search of papers and videos.
+    const titles = (await searchCatalog({ query: "hamlet" })).map(
+      (r) => r.title,
+    );
+    expect(titles).toContain("Hamlet and the tragedy of revenge");
   });
 
   it("still judges a query that is nothing but packaging", async () => {

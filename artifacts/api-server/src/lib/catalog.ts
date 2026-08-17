@@ -107,6 +107,11 @@ export type CatalogSearchOptions = {
    * callers lower it to widen a search that came back empty.
    */
   minRelevanceScore?: number;
+  /**
+   * Whether a narrow work must match more than one word of the query. Defaults
+   * to true; dropped to widen a search that came back empty.
+   */
+  requireNarrowCoverage?: boolean;
   resultType?: "content" | "source" | "people";
   exactPhrase?: string;
   excludedWords?: string;
@@ -1132,6 +1137,40 @@ function catalogRelevanceScore(terms: string[]): SQL<number> {
   return sql<number>`(${sql.join(terms.map(catalogTermScore), sql` + `)})`;
 }
 
+/** How many of the query's words a row matches at all, regardless of where. */
+function catalogCoverage(terms: string[]): SQL<number> {
+  if (!terms.length) return sql<number>`0`;
+  return sql<number>`(${sql.join(
+    terms.map(
+      (term) => sql<number>`case when ${catalogTermScore(term)} > 0 then 1 else 0 end`,
+    ),
+    sql` + `,
+  )})`;
+}
+
+/**
+ * Works narrow enough that one word in common is a coincidence.
+ *
+ * A paper and a video are single, specific things with descriptive titles, and
+ * the catalog holds them in bulk. "Kinematics projectile motion" turned up
+ * eight papers on strabismic imaging, micro-Doppler radar and adversarial
+ * synthetic data — each matching "motion" and nothing else — alongside a video
+ * about motion graphics in a design tool.
+ *
+ * Reference works are the opposite: their titles *are* topic names, so a
+ * single word matching "Kinematics" or "Newton's laws of motion" is the
+ * strongest evidence there is. Holding those two kinds to the same rule is
+ * what forces the choice between keeping the papers and losing the articles.
+ *
+ * Measured against the live catalog before it was written: of twenty-seven
+ * videos returned for four ordinary questions, twenty-five already matched two
+ * words or more. The rule costs almost nothing and removes almost all of it.
+ */
+const NARROW_MATERIALS = ["paper", "video"];
+
+/** Words of the query a narrow work has to match. */
+const MIN_NARROW_COVERAGE = 2;
+
 function catalogConditions(options: CatalogSearchOptions): SQL[] {
   const conditions: SQL[] = [];
   const searchTerms = meaningfulSearchTerms(options.query);
@@ -1144,6 +1183,20 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
     const required =
       options.minRelevanceScore ?? requiredRelevanceScore(judged);
     conditions.push(sql`${catalogRelevanceScore(judged)} >= ${required}`);
+    // A question with several words in it can tell a work about the topic from
+    // one that happens to share a word — but only for the works narrow enough
+    // that sharing one word means nothing. Skipped for a one-word question,
+    // where matching two is impossible.
+    if (
+      judged.length >= MIN_NARROW_COVERAGE &&
+      options.requireNarrowCoverage !== false
+    )
+      conditions.push(sql`(
+        coalesce(${catalogResourcesTable.metadata}->>'material', '') not in (${sql.join(
+          NARROW_MATERIALS.map((material) => sql`${material}`),
+          sql`, `,
+        )})
+        or ${catalogCoverage(judged)} >= ${MIN_NARROW_COVERAGE})`);
     // "In the title" means the topic *is* what the work is about, not something
     // it mentions. A description match is worth one point and a title or subject
     // match two, so requiring the strong score on a word is the whole rule.
@@ -1444,6 +1497,8 @@ async function countCatalogMatches(
 export type ResolvedCatalogSearch = {
   /** Relevance bar for this query, decided once for every page of it. */
   minRelevanceScore: number;
+  /** Whether narrow works must match more than one word, likewise once. */
+  requireNarrowCoverage: boolean;
   /** Row this page starts at. */
   offset: number;
   /** Rows matching before any top-up. */
@@ -1469,19 +1524,45 @@ export async function resolveCatalogSearch(
   options: CatalogSearchOptions,
 ): Promise<ResolvedCatalogSearch> {
   if (options.resultType === "people")
-    return { minRelevanceScore: 1, offset: 0, total: 0 };
+    return {
+      minRelevanceScore: 1,
+      requireNarrowCoverage: false,
+      offset: 0,
+      total: 0,
+    };
 
   // The same words the conditions will judge against, or the count and the
   // fetch disagree about what the bar is and page two reads from the wrong row.
   let minRelevanceScore = requiredRelevanceScore(
     relevanceTerms(meaningfulSearchTerms(options.query)),
   );
-  let total = await countCatalogMatches({ ...options, minRelevanceScore });
+  let requireNarrowCoverage = true;
+  let total = await countCatalogMatches({
+    ...options,
+    minRelevanceScore,
+    requireNarrowCoverage,
+  });
+  if (total === 0) {
+    // Only papers and videos share a word with this question, so the rule that
+    // one shared word is not enough for them has nothing left to keep. Sooner
+    // than an empty page, take them — this is the query where a paper on
+    // micro-Doppler radar is the best the catalog has.
+    requireNarrowCoverage = false;
+    total = await countCatalogMatches({
+      ...options,
+      minRelevanceScore,
+      requireNarrowCoverage,
+    });
+  }
   if (total === 0 && minRelevanceScore > 1) {
     // Nothing is *about* the query. Rather than an empty page, accept works
     // that mention it — for every page of this query, so paging stays whole.
     minRelevanceScore = 1;
-    total = await countCatalogMatches({ ...options, minRelevanceScore });
+    total = await countCatalogMatches({
+      ...options,
+      minRelevanceScore,
+      requireNarrowCoverage,
+    });
   }
 
   const page = Math.max(1, options.page ?? 1);
@@ -1492,7 +1573,7 @@ export async function resolveCatalogSearch(
     page === 1
       ? 0
       : Math.min((page - 1) * catalogFetchWindow(options), total);
-  return { minRelevanceScore, offset, total };
+  return { minRelevanceScore, requireNarrowCoverage, offset, total };
 }
 
 export async function searchCatalog(

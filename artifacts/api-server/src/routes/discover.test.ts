@@ -52,7 +52,7 @@ vi.mock("../lib/catalog", () => ({
   searchCatalog: vi.fn().mockResolvedValue([]),
   resolveCatalogSearch: vi
     .fn()
-    .mockResolvedValue({ minRelevanceScore: 1, offset: 0, total: 0 }),
+    .mockResolvedValue({ minRelevanceScore: 1, requireNarrowCoverage: true, offset: 0, total: 0 }),
   searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
   searchOpenWikisAndStore: vi.fn().mockResolvedValue(0),
   searchOpenSourcesAndStore: vi.fn().mockResolvedValue(0),
@@ -204,7 +204,7 @@ beforeEach(() => {
   vi.mocked(searchCatalog).mockReset().mockResolvedValue([]);
   vi.mocked(resolveCatalogSearch)
     .mockReset()
-    .mockResolvedValue({ minRelevanceScore: 1, offset: 0, total: 0 });
+    .mockResolvedValue({ minRelevanceScore: 1, requireNarrowCoverage: true, offset: 0, total: 0 });
   vi.mocked(searchOpenLibraryAndStore).mockReset().mockResolvedValue(0);
   vi.mocked(searchOpenWikisAndStore).mockReset().mockResolvedValue(0);
   vi.mocked(searchOpenSourcesAndStore).mockReset().mockResolvedValue(0);
@@ -279,6 +279,7 @@ describe("GET /api/resources/discover, paging", () => {
     // Page 1 handed back six rows, so page 2 resumes at row six.
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
+      requireNarrowCoverage: true,
       offset: 6,
       total: 6,
     });
@@ -314,6 +315,7 @@ describe("GET /api/resources/discover, paging", () => {
     // was left with, because the exclusion removed most of what the round found.
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
+      requireNarrowCoverage: true,
       offset: 0,
       total: 2,
     });
@@ -343,6 +345,7 @@ describe("GET /api/resources/discover, paging", () => {
     // query they have nothing for.
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
+      requireNarrowCoverage: true,
       offset: 0,
       total: 1,
     });
@@ -364,6 +367,7 @@ describe("GET /api/resources/discover, paging", () => {
   it("reads both catalog passes at the offset resolved before the top-up", async () => {
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
+      requireNarrowCoverage: true,
       offset: 6,
       total: 6,
     });
@@ -389,6 +393,7 @@ describe("GET /api/resources/discover, paging", () => {
   it("leaves a full later page alone", async () => {
     vi.mocked(resolveCatalogSearch).mockResolvedValueOnce({
       minRelevanceScore: 1,
+      requireNarrowCoverage: true,
       offset: 16,
       total: 40,
     });

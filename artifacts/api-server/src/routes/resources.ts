@@ -1299,6 +1299,7 @@ router.get(
       ...catalogOptions,
       offset: resolved.offset,
       minRelevanceScore: resolved.minRelevanceScore,
+      requireNarrowCoverage: resolved.requireNarrowCoverage,
     };
     let catalogItems = await searchCatalog(pagedCatalogOptions);
     const remoteCatalogMatchesCredibility =
