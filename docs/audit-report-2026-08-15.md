@@ -252,6 +252,15 @@ Measured against a real catalog, "AP Physics C: Electricity and Mechanics" goes 
 
 A cold "linear algebra" search now returns 16, 16 and 16 across three pages, where the same search previously returned four. The AP Physics search returns 13, then 16, then 16 — Newton's laws, University Physics, quantum mechanics, A-level and IB Physics, Electromagnetism, Electricity — 40 distinct works where the button previously produced nothing at all.
 
+### The page was losing results the API had sent
+
+Two client-side faults, both invisible to every check that existed. The API returned sixteen results and the page rendered three; clicking "Search more resources" threw the results already on screen two thousand pixels down the page.
+
+- **The web client had its own deduplication, with the containment bug still in it.** Fixing similarity in the API left the browser measuring overlap against the *shorter* title, where containment scores as a perfect match: every "AP Physics *something*" collapsed into "AP Physics". It also discarded single letters while keeping single digits, so "AP Physics C" and "AP Physics B" became the same two words. And a separate escape hatch merged any two titles sharing two words when either mentioned a course — enough to fold "Khan Academy Algebra Course" into "Khan Academy Geometry Course". The client now measures against the longer title, keeps single characters, and has no escape hatch, matching the API exactly.
+- **Loading placeholders stood in for results that were already there.** A full screen of skeletons rendered above the grid whenever a page was loading — including a *further* page, when the reader was looking at results. They now appear under the results, where the new ones will land, and the button is replaced rather than duplicated.
+
+`artifacts/app/scripts/audit-search-results.mjs` drives the search in a real browser and covers both: it counts the cards a page of sixteen produces, and measures the results' position against their own heading while a further page loads. Restoring either fault fails it — the first as "15 of 16 cards", the second as "gap 36px then 512px". It runs in CI and before every deploy, alongside the page and session audits.
+
 ### Discover input validation
 
 `q` is a coerced string, so a request with no query arrived at the handler as the literal `"undefined"` and a blank one as `""`. Both parsed cleanly and were searched in full: a catalog query, two calls out to the open providers, and — with nothing stored to match — a spent AI allowance, for a query nobody typed. The handler now rejects a missing or blank `q` before any of that.

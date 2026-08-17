@@ -160,13 +160,17 @@ function titleWords(value: string) {
     "pdf",
     "ebook",
   ]);
-  return value
-    .toLocaleLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter(
-      (word) => (word.length > 1 || /^\d+$/.test(word)) && !ignored.has(word),
-    );
+  return (
+    value
+      .toLocaleLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      // Single letters are kept, not just single digits. In course titles they
+      // carry the whole distinction: dropping them made "AP Physics C" and
+      // "AP Physics B" the same two words, and one of two real courses
+      // disappeared from the results.
+      .filter((word) => word.length > 0 && !ignored.has(word))
+  );
 }
 
 function sourceFamily(value: string) {
@@ -197,17 +201,17 @@ function isSameResourceWork(
   if (!firstDomain || firstDomain !== sourceFamily(second.url)) return false;
   const firstWords = titleWords(first.title);
   const secondWords = titleWords(second.title);
+  if (!firstWords.length || !secondWords.length) return false;
   const overlap = firstWords.filter((word) =>
     secondWords.includes(word),
   ).length;
-  const similarity =
-    overlap / Math.max(1, Math.min(firstWords.length, secondWords.length));
-  return (
-    similarity >= 0.8 ||
-    ((isResourceCollection(first.title) ||
-      isResourceCollection(second.title)) &&
-      overlap >= 2)
-  );
+  // Measured against the longer title, matching how the API deduplicates.
+  // Against the shorter one, containment scored as a perfect match: every
+  // "AP Physics <something>" collapsed into "AP Physics", and a first page of
+  // sixteen results rendered fourteen cards. The old escape hatch for
+  // collection titles went the same way — two shared words was enough to merge
+  // "Khan Academy Algebra Course" into "Khan Academy Geometry Course".
+  return overlap / Math.max(1, firstWords.length, secondWords.length) >= 0.8;
 }
 
 function dedupeResourcesByWork<T extends { title: string; url: string }>(
@@ -904,7 +908,10 @@ function WebCard({
     : (oembedThumb ?? resource.thumbnailUrl ?? null);
   const showImg = !!thumb && thumb !== failedThumb;
   return (
-    <Card className="render-later flex flex-col overflow-hidden">
+    <Card
+      className="render-later flex flex-col overflow-hidden"
+      data-testid="web-result-card"
+    >
       {showImg && (
         <div className="w-full h-36 overflow-hidden bg-black shrink-0">
           <img
@@ -1069,7 +1076,7 @@ function CardSkeletons({ count = 6 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {Array.from({ length: count }).map((_, i) => (
-        <Card key={i}>
+        <Card key={i} data-testid="card-skeleton">
           <CardHeader>
             <Skeleton className="h-5 w-3/4" />
             <Skeleton className="h-4 w-1/2 mt-1" />
@@ -3100,7 +3107,12 @@ export default function ResourcesPage() {
               , "{activeQuery}"
             </h2>
 
-            {webLoading && (
+            {/* Placeholders only stand in for results that are not there yet.
+                While a further page loads there are already results on screen,
+                and putting a screenful of placeholders above them shoved
+                everything the reader was looking at two thousand pixels down
+                the page. That case is handled under the grid instead. */}
+            {webLoading && !hasWebResults && (
               <div className="space-y-3">
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                   <Loader2 size={12} className="animate-spin" /> Searching the
@@ -3208,10 +3220,20 @@ export default function ResourcesPage() {
                     ),
                   )}
                 </div>
-                {/* Offering "Search more" after the catalog is spent is what
-                    made the button look broken: it fetched, found nothing new
-                    and left the page exactly as it was. */}
-                {webExhausted && !webLoading && !webError ? (
+                {/* A further page loads where it will appear: under the
+                    results, never above them. */}
+                {webLoading ? (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Loader2 size={12} className="animate-spin" /> Looking for
+                      more…
+                    </p>
+                    <CardSkeletons count={3} />
+                  </div>
+                ) : /* Offering "Search more" after the catalog is spent is what
+                      made the button look broken: it fetched, found nothing new
+                      and left the page exactly as it was. */
+                webExhausted && !webError ? (
                   <p className="mt-4 text-center text-xs text-muted-foreground">
                     That is everything the open catalog has for "{activeQuery}".
                     {!isLoggedIn
@@ -3223,20 +3245,10 @@ export default function ResourcesPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={webLoading}
                       onClick={() => setWebPage((page) => page + 1)}
                     >
-                      {webLoading ? (
-                        <>
-                          <Loader2 size={12} className="mr-1.5 animate-spin" />{" "}
-                          Loading…
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={12} className="mr-1.5" /> Search more{" "}
-                          {isSubmittedSourceMode ? "sources" : "resources"}
-                        </>
-                      )}
+                      <Sparkles size={12} className="mr-1.5" /> Search more{" "}
+                      {isSubmittedSourceMode ? "sources" : "resources"}
                     </Button>
                   </div>
                 )}

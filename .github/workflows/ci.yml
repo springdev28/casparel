@@ -67,6 +67,15 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-pages.mjs
 
+      # The page audit renders pages; this one drives the search and checks what
+      # the reader ends up with. Both failures it exists for were invisible to
+      # an API check: a first page of sixteen results rendered fourteen cards,
+      # and appending a page put the loading placeholders above the results
+      # already on screen, shoving them off the page.
+      - name: Audit search results
+        working-directory: artifacts/app
+        run: node scripts/audit-search-results.mjs
+
       # Drives auth state rather than rendering: an expired or server-rejected
       # session must return the user to the login page, and a valid one must
       # not be ejected.
