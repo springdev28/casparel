@@ -8,13 +8,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * and the landing page had just been cut from ~1.6MB to ~490KB of JavaScript.
  * Adding ~90KB of engine to tumble eight letters would give most of that back.
  *
- * The settled state must read CASPAREL. Each letter has a home slot in reading
- * order and a gentle spring pulls it there whenever the sim is awake, so the
- * drop is chaotic but the rest state is the brand — the first version let the
- * pile settle wherever it liked, and on phone widths the collisions reshuffled
- * it into "CAASEPLR"-style gibberish. The spring also means a thrown letter
- * finds its way back, so the toy self-heals instead of leaving the wordmark
- * scrambled for the rest of the visit.
+ * A fresh drop must settle reading CASPAREL. Each letter has a home slot in
+ * reading order and, while the drop is assembling, a gentle spring pulls it
+ * there — the first version let the pile settle wherever it liked, and on
+ * phone widths the collisions reshuffled it into "CAASEPLR"-style gibberish.
+ * The spring is only for the drop: the moment a letter is grabbed the sim is
+ * pure physics, so a thrown letter stays where it lands, and re-dropping
+ * (click the empty space, or press R) is what re-forms the word.
  *
  * You can grab a letter and fling it: pointer drags move the body directly and
  * the release velocity is taken from the last few pointer samples, so a quick
@@ -38,9 +38,11 @@ const MAX_STEP = 1 / 30; // clamp so a backgrounded tab cannot explode the sim
 // trigger. Freeze the physics after this long: it bounds CPU, and by then the
 // pile has visually settled. Dragging wakes it straight back up.
 const MAX_RUN_MS = 4200;
-// Spring toward each letter's home slot, px/s² per px of offset. Weak against
-// gravity (2100) so the fall still looks like a fall, strong enough to slide a
-// grounded letter home through the floor friction within the run window.
+// Spring toward each letter's home slot while a fresh drop assembles, px/s²
+// per px of offset. Weak against gravity (2100) so the fall still looks like
+// a fall, strong enough to slide a grounded letter home through the floor
+// friction within the run window. Never applied once the user has grabbed a
+// letter — play is pure physics.
 const HOME_PULL = 8;
 const HUE_SPEED = 26; // degrees per second
 const HUE_SPREAD = 26; // degrees between neighbouring letters
@@ -114,6 +116,10 @@ export function LetterDrop({ className = "" }: { className?: string }) {
   // separate flags. `simUntil` is the wall-clock deadline for the physics.
   const simActiveRef = useRef(false);
   const simUntilRef = useRef(0);
+  // True while a fresh drop is assembling into reading order. Cleared the
+  // moment the user grabs a letter: from then on the sim is pure physics and
+  // letters rest wherever play leaves them, until the next re-drop.
+  const assembleRef = useRef(true);
   // Bounded deadline extensions, so a letter still walking home when the run
   // window closes gets to finish without the loop becoming unbounded CPU.
   const extendsLeftRef = useRef(0);
@@ -182,22 +188,25 @@ export function LetterDrop({ className = "" }: { className?: string }) {
       for (const b of bodies) b.hue += HUE_SPEED * dt;
 
       if (simActiveRef.current) {
+        const assembling = assembleRef.current;
         for (const b of bodies) {
           if (b.held) continue;
           b.vy += GRAVITY * dt;
-          // Pull toward the letter's slot so the rest state spells the word.
-          // Grounded letters slide home through the per-frame floor friction;
-          // mid-air the pull is small next to gravity, so a fall still falls
-          // and a thrown letter still flies before it comes back.
-          b.vx += (b.homeX - b.x) * HOME_PULL * dt;
+          if (assembling) {
+            // Pull toward the letter's slot so the fresh drop settles
+            // spelling the word. Grounded letters slide home through the
+            // per-frame floor friction; mid-air the pull is small next to
+            // gravity, so the fall still looks like a fall.
+            b.vx += (b.homeX - b.x) * HOME_PULL * dt;
+          }
           b.vx *= AIR;
           b.x += b.vx * dt;
           b.y += b.vy * dt;
           b.angle += b.spin * dt;
           b.spin *= ANGULAR_DAMP;
-          // Ease the tilt out as a letter nears home, so the settled wordmark
-          // reads upright instead of freezing mid-topple.
-          if (Math.abs(b.homeX - b.x) < b.w && Math.abs(b.vy) < 60) {
+          // Ease the tilt out as a letter nears home, so the assembled
+          // wordmark reads upright instead of freezing mid-topple.
+          if (assembling && Math.abs(b.homeX - b.x) < b.w && Math.abs(b.vy) < 60) {
             b.angle *= 1 - Math.min(1, 2.4 * dt);
           }
 
@@ -244,13 +253,12 @@ export function LetterDrop({ className = "" }: { className?: string }) {
           for (let j = i + 1; j < bodies.length; j++) {
             const a = bodies[i];
             const c = bodies[j];
-            // Letters out of reading order pass through each other instead of
-            // colliding: a thrown letter walking home would otherwise wedge
-            // against the first settled neighbour it met and freeze the word
-            // misspelled, and a mid-pile swap could never un-swap. Held
-            // letters keep full collision so shoving the pile around still
-            // works.
-            if (a.x > c.x && !a.held && !c.held) continue;
+            // While assembling, letters out of reading order pass through
+            // each other instead of colliding: a swapped pair could never
+            // un-swap otherwise — the one sliding home would wedge against
+            // its settled neighbour and freeze the word misspelled. During
+            // play every pair collides, exactly as before.
+            if (assembling && a.x > c.x && !a.held && !c.held) continue;
             let dx = c.x - a.x;
             let dy = c.y - a.y;
             let dist = Math.hypot(dx, dy);
@@ -309,13 +317,15 @@ export function LetterDrop({ className = "" }: { className?: string }) {
         );
         calmRef.current = calm ? calmRef.current + 1 : 0;
         if (calmRef.current > 24 || now > simUntilRef.current) {
-          // A letter can outrun the deadline when a hard throw sends it the
-          // full width of the box — freezing there would leave the word
-          // misspelled, which is the one thing the rest state must never be.
-          // Grant it a little more time, a bounded number of times.
-          const allHome = bodies.every(
-            (b) => b.held || Math.abs(b.homeX - b.x) < b.w * 1.5,
-          );
+          // While assembling, a letter can still be walking to its slot when
+          // the run window closes — freezing there would leave the word
+          // misspelled. Grant it a little more time, a bounded number of
+          // times. Play never extends: letters freeze wherever they lie.
+          const allHome =
+            !assembling ||
+            bodies.every(
+              (b) => b.held || Math.abs(b.homeX - b.x) < b.w * 1.5,
+            );
           if (
             now > simUntilRef.current &&
             calmRef.current <= 24 &&
@@ -355,6 +365,7 @@ export function LetterDrop({ className = "" }: { className?: string }) {
     for (const b of bodiesRef.current) {
       if (b.el) b.el.style.opacity = "1";
     }
+    assembleRef.current = true;
     wake();
     run();
   }, [run, wake]);
@@ -393,6 +404,9 @@ export function LetterDrop({ className = "" }: { className?: string }) {
         reset();
         return;
       }
+      // The word has been touched: from here on the sim is pure physics, and
+      // letters rest wherever play leaves them until the next re-drop.
+      assembleRef.current = false;
       body.held = true;
       body.vx = 0;
       body.vy = 0;
@@ -454,9 +468,7 @@ export function LetterDrop({ className = "" }: { className?: string }) {
         drag.body.spin = (drag.body.vx / 1400) * (Math.random() * 0.8 + 0.6);
       }
       drag.body.held = false;
-      // A throw can cross the whole box and then needs the walk back; give it
-      // a longer window than a plain drop so the deadline rarely interferes.
-      wake(MAX_RUN_MS + 2400);
+      wake();
     },
     [wake],
   );
@@ -566,8 +578,8 @@ export function LetterDrop({ className = "" }: { className?: string }) {
         ))}
       </div>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Grab a letter and throw it — it finds its way back. Click the space
-        around them, or press R, to drop them again.
+        Grab a letter and throw it. Click the space around them, or press R, to
+        drop them again.
       </p>
     </div>
   );
