@@ -51,19 +51,20 @@ beforeAll(async () => {
       origin: "https://casparel.com",
       routes: {
         "/": {
-          title: "Casparel: Student & Teacher App",
-          description: "Discover resources, manage classes, and stay organised.",
-          heading: "Casparel: learn, organise, study",
+          title: "Casparel: Knowledge is treasure",
+          description:
+            "An intelligent education platform that brings classes, resources, research, planning, and progress into one connected workspace.",
+          heading: "Knowledge is treasure",
           canonical: "https://casparel.com/",
         },
         "/resources": {
-          title: "Open education library — Casparel",
+          title: "Casparel: Open education library",
           description: "Search a free library of open textbooks and courses.",
           heading: "The open education library",
           canonical: "https://casparel.com/resources",
         },
         "/auth/login": {
-          title: "Sign in — Casparel",
+          title: "Casparel: Sign in",
           description: "Sign in to Casparel.",
           canonical: "https://casparel.com/auth/login",
           noindex: true,
@@ -90,7 +91,7 @@ describe("a page a search engine asks for", () => {
     expect(res.text).toContain(
       '<link rel="canonical" href="https://casparel.com/resources" />',
     );
-    expect(res.text).toContain("<title>Open education library — Casparel</title>");
+    expect(res.text).toContain("<title>Casparel: Open education library</title>");
   });
 
   it("says the same thing with a trailing slash, without a redirect", async () => {
@@ -111,7 +112,7 @@ describe("a page a search engine asks for", () => {
   it("still serves the home page as the home page", async () => {
     const res = await request(app).get("/");
     expect(res.text).toContain('<link rel="canonical" href="https://casparel.com/" />');
-    expect(res.text).toContain("<title>Casparel: Student &amp; Teacher App</title>");
+    expect(res.text).toContain("<title>Casparel: Knowledge is treasure</title>");
   });
 
   it("serves an address it has no metadata for", async () => {

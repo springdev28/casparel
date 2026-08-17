@@ -209,20 +209,23 @@ export default function LandingPage() {
             <GraduationCap className="size-3.5 text-primary-text" />
             Built for students and teachers
           </p>
+          {/* The h1 and the sentence under it are the product's key phrase, and
+              they are deliberately the same words used in the page title, the
+              meta description and the structured data. A visitor arriving from
+              a search result should read the line they clicked, not a variation
+              of it. */}
           <h1
             className="rise max-w-3xl text-balance text-4xl font-bold leading-[1.08] tracking-tight sm:text-6xl"
             style={{ animationDelay: "80ms" }}
           >
-            Good learning starts with{" "}
-            <span className="text-primary-text">sources you can trust</span>.
+            Knowledge is <span className="text-primary-text">treasure</span>.
           </h1>
           <p
             className="rise mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground"
             style={{ animationDelay: "160ms" }}
           >
-            Casparel is a free, vetted library of open education, with the
-            classes, schedules and study tools to actually get through it, and
-            AI that tells you who is behind any source before you rely on it.
+            An intelligent education platform that brings classes, resources,
+            research, planning, and progress into one connected workspace.
           </p>
 
           <div className="rise mt-9" style={{ animationDelay: "240ms" }}>

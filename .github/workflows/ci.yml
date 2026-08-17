@@ -63,6 +63,14 @@ jobs:
             artifacts/app/node_modules/playwright-core
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
 
+      # The built index.html IS the search result: the app renders client-side,
+      # so these tags are all a crawler reads. Check the key phrase survived the
+      # build, that the share card agrees with it, and that nothing is long
+      # enough for Google to truncate mid-word.
+      - name: Check the search preview
+        working-directory: artifacts/app
+        run: node scripts/seo-check.mjs
+
       - name: Audit the app in a real browser
         working-directory: artifacts/app
         run: node scripts/audit-pages.mjs

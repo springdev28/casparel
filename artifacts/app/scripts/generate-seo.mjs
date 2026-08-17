@@ -29,6 +29,11 @@ const origin = rawSiteUrl.replace(/\/+$/, "");
 /**
  * Publicly reachable routes (see App.tsx <Router/>), and what each one is.
  *
+ * Every title is "Casparel: something", with a colon rather than a dash. An em
+ * dash survives a copy-paste out of a document, renders as a stray glyph in a
+ * search result, and reads as machine-written; one had already reached a live
+ * Google result for this site.
+ *
  * The titles and descriptions are here, not only in index.html, because a
  * client-rendered app serves one HTML shell for every address. Every route
  * therefore claimed the same title, the same description and — worst of all —
@@ -53,16 +58,16 @@ const routes = [
     changefreq: "daily",
     priority: "1.0",
     // Matches index.html exactly, so the home page is served untouched.
-    title: "Casparel: Student & Teacher App",
+    title: "Casparel: Knowledge is treasure",
     description:
-      "Discover resources, manage classes, and stay organised as a student or teacher.",
-    heading: "Casparel: learn, organise, study",
+      "An intelligent education platform that brings classes, resources, research, planning, and progress into one connected workspace.",
+    heading: "Knowledge is treasure",
   },
   {
     path: "/resources",
     changefreq: "daily",
     priority: "0.9",
-    title: "Open education library — Casparel",
+    title: "Casparel: Open education library",
     description:
       "Search a free library of open textbooks, courses and videos drawn from Wikibooks, Wikiversity, Open Library and other open sources.",
     heading: "The open education library",
@@ -71,7 +76,7 @@ const routes = [
     path: "/terms",
     changefreq: "yearly",
     priority: "0.3",
-    title: "Terms of Service — Casparel",
+    title: "Casparel: Terms of Service",
     description: "The terms you agree to when you use Casparel.",
     heading: "Terms of Service",
   },
@@ -79,7 +84,7 @@ const routes = [
     path: "/privacy",
     changefreq: "yearly",
     priority: "0.3",
-    title: "Privacy Policy — Casparel",
+    title: "Casparel: Privacy Policy",
     description:
       "What Casparel stores about you, why, and how to have it deleted.",
     heading: "Privacy Policy",
@@ -87,14 +92,14 @@ const routes = [
   {
     path: "/auth/login",
     sitemap: false,
-    title: "Sign in — Casparel",
+    title: "Casparel: Sign in",
     description: "Sign in to Casparel.",
     heading: "Sign in to Casparel",
   },
   {
     path: "/auth/register",
     sitemap: false,
-    title: "Create a free account — Casparel",
+    title: "Casparel: Create a free account",
     description:
       "Create a free Casparel account to save resources, plan classes and track what you are studying.",
     heading: "Create a free Casparel account",
