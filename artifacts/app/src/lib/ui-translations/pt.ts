@@ -7,6 +7,7 @@
  */
 const PT: Record<string, string> = {
   "Activities": "Atividades",
+  "No plans": "Sem planos",
   "Activity complete": "Atividade concluída",
   "Activity created": "Atividade criada",
   "Activity deleted": "Atividade excluída",

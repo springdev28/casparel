@@ -7,6 +7,7 @@
  */
 const FR: Record<string, string> = {
   "Activities": "Activités",
+  "No plans": "Rien de prévu",
   "Activity complete": "Activité terminée",
   "Activity created": "Activité créée",
   "Activity deleted": "Activité supprimée",

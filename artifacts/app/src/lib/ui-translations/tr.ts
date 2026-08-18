@@ -7,6 +7,7 @@
  */
 const TR: Record<string, string> = {
   "Activities": "Etkinlikler",
+  "No plans": "Plan yok",
   "Activity complete": "Etkinlik tamamlandı",
   "Activity created": "Etkinlik oluşturuldu",
   "Activity deleted": "Etkinlik silindi",

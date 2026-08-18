@@ -1448,7 +1448,14 @@ export default function SchedulePage() {
                 <div className="space-y-1.5 min-h-24">
                   {dayBlocks.length === 0 && daySessions.length === 0 ? (
                     <div className="text-xs text-muted-foreground text-center py-3">
-                      , 
+                      {/*
+                        This said ", " -- a bare comma, rendered once per empty
+                        day. An untouched week showed seven stray commas under
+                        the day names and read as a broken grid rather than an
+                        empty one, which is what every new account sees on
+                        opening the schedule.
+                      */}
+                      No plans
                     </div>
                   ) : (
                     <>
