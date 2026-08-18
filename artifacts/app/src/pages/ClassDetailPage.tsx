@@ -504,7 +504,7 @@ export default function ClassDetailPage() {
               )}              {isTeacher && (
                 <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                   <DialogTrigger asChild><Button size="sm" variant="destructive" data-testid="delete-class-button"><Trash2 size={14} className="mr-1" /> Delete Class</Button></DialogTrigger>
-                  <DialogContent><DialogHeader><DialogTitle>Delete {cls.name}?</DialogTitle><DialogDescription>This permanently deletes the class, its memberships, and its class resource list. Original resources remain available.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button><Button variant="destructive" onClick={handleDeleteClass} disabled={deleteClass.isPending} data-testid="delete-class-confirm">{deleteClass.isPending ? "Deleting…" : "Delete Class"}</Button></DialogFooter></DialogContent>
+                  <DialogContent><DialogHeader><DialogTitle>Delete {cls.name}?</DialogTitle><DialogDescription>Deletes the class, its members, its shared list, its assignments, and the whole class discussion, including your students&apos; posts. Activities and canvases shared with the class are kept: they go back to whoever made them. This cannot be undone.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button><Button variant="destructive" onClick={handleDeleteClass} disabled={deleteClass.isPending} data-testid="delete-class-confirm">{deleteClass.isPending ? "Deleting…" : "Delete Class"}</Button></DialogFooter></DialogContent>
                 </Dialog>
               )}
             </div>

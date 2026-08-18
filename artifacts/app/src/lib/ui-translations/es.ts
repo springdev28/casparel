@@ -536,7 +536,7 @@ const ES: Record<string, string> = {
   "They can no longer view your profile or collaborate with you.": "Ya no podrán ver tu perfil ni colaborar contigo.",
   "They will lose access to this class and its shared resources. You can add them again later.": "Perderán el acceso a esta clase y sus recursos compartidos. Puedes volver a añadirlos más tarde.",
   "This feature is on the roadmap.": "Esta función está en la hoja de ruta.",
-  "This permanently deletes the class, its memberships, and its class resource list. Original resources remain available.": "Esto elimina permanentemente la clase, sus membresías y su lista de recursos de clase. Los recursos originales seguirán disponibles.",
+  "Deletes the class, its members, its shared list, its assignments, and the whole class discussion, including your students' posts. Activities and canvases shared with the class are kept: they go back to whoever made them. This cannot be undone.": "Elimina la clase, sus miembros, su lista compartida, sus tareas y toda la conversación de la clase, incluidas las publicaciones de tus estudiantes. Las actividades y los lienzos compartidos con la clase se conservan: vuelven a quienes los crearon. Esto no se puede deshacer.",
   "This shapes what comes next.": "Esto da forma a lo que sigue.",
   "This user has not added anything to their library yet.": "Este usuario aún no ha añadido nada a su biblioteca.",
   "This user’s library is private or limited to classmates.": "La biblioteca de este usuario es privada o está limitada a compañeros de clase.",
