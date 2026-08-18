@@ -223,6 +223,27 @@ export function subjectFromTerms(terms: string[]): string | null {
 }
 
 /**
+ * Every subject one phrase names — usually one, sometimes none, and
+ * occasionally more than one.
+ *
+ * More than one is the interesting case. "A brief history of english
+ * literature" names History and Literature both, and `subjectFromTerms` hands
+ * back whichever the hint table happens to list first, which is History for no
+ * reason anybody could defend. A lecture on the themes of Hamlet was filed
+ * under History on exactly that.
+ */
+function subjectsNamedBy(term: string): string[] {
+  const exact = KNOWN_SUBJECTS.find(
+    (subject) => subject.toLowerCase() === term.trim().toLowerCase(),
+  );
+  if (exact) return [exact];
+  const named = new Set<string>();
+  for (const [pattern, subject] of SUBJECT_HINTS)
+    if (pattern.test(term)) named.add(subject);
+  return [...named];
+}
+
+/**
  * The subjects where a peer-reviewed paper is a normal thing to be handed.
  *
  * Not a judgement about which fields are serious. It is about what a reader
@@ -965,17 +986,20 @@ export function resetYoutubeQuota() {
 export function dominantSubject(terms: string[]): string | null {
   const votes = new Map<string, number>();
   for (const term of terms) {
-    const subject = subjectFromTerms([term]);
-    if (subject) votes.set(subject, (votes.get(subject) ?? 0) + 1);
+    const named = subjectsNamedBy(term);
+    // A phrase naming two subjects has not chosen between them, so neither
+    // does this. Taking the first was how the hint table's ordering — an
+    // implementation detail nobody wrote down — decided what a video was about.
+    if (named.length !== 1) continue;
+    votes.set(named[0], (votes.get(named[0]) ?? 0) + 1);
   }
-  let winner: string | null = null;
-  let mostVotes = 0;
-  for (const [subject, count] of votes)
-    if (count > mostVotes) {
-      winner = subject;
-      mostVotes = count;
-    }
-  return winner;
+  const ranked = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+  if (!ranked.length) return null;
+  // A tie is the terms disagreeing, not agreeing. A titration lecture tagged
+  // "physiology", "ap chemistry" and "physics" — one vote each — was filed
+  // under Biology because physiology came first in the list.
+  if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) return null;
+  return ranked[0][0];
 }
 
 /**
@@ -1119,6 +1143,21 @@ const youtube: OpenSource = {
         const subject = dominantSubject(
           tags.slice(0, YOUTUBE_TAG_LIMIT).map((tag) => text(tag)),
         );
+        // The title gets a veto, and only a veto.
+        //
+        // A channel tags every video with the same block, so the tags can
+        // describe the channel rather than the video in front of you: "History
+        // Summarized: The Punic Wars" carries its channel's Shakespeare tags,
+        // and was filed under Literature on the strength of them. When the
+        // video's own title names a different subject, the tags are talking
+        // about something else and neither is worth having.
+        //
+        // Never the other direction. A title that names a subject the tags do
+        // not is still just a title, and reading subjects off titles is the
+        // mistake all of this exists to avoid. The worst this can do is decline
+        // to classify, which is where every video started.
+        const titleSubject = dominantSubject([text(snippet.title)]);
+        if (titleSubject && subject && titleSubject !== subject) continue;
         // Nothing the catalog knows is a perfectly good answer: a video tagged
         // only "online learning" and "video tutorial" has said nothing about
         // its subject, and Interdisciplinary is the honest place for it.
