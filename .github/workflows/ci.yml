@@ -181,8 +181,28 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Before the server, not after: the server's build copies the Vite output
+      # beside its own entry point so one process serves both the SPA and /api.
+      # Without this the build fails on a missing artifacts/app/dist/public,
+      # which is what happened the first time this job ran.
+      - name: Build the web app
+        run: pnpm --filter @workspace/app run build
+        env:
+          NODE_ENV: production
+          SITE_URL: http://localhost:4319
+
       - name: Build the API server
         run: pnpm --filter @workspace/api-server run build
+
+      # Same out-of-tree install as the check job: playwright-core is a tool
+      # here, not something the bundle depends on.
+      - name: Install Playwright
+        run: |
+          npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          mkdir -p artifacts/app/node_modules
+          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
+            artifacts/app/node_modules/playwright-core
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
 
       # Migrations run at boot, so a schema that cannot be applied fails here
       # before any flow is attempted.
@@ -201,6 +221,28 @@ jobs:
           echo "server did not come up:"
           cat "$RUNNER_TEMP/server.log"
           exit 1
+
+      # Before the flow checks, not after. Both share one server and therefore
+      # one rate-limit budget -- twenty writes a minute, twenty credential
+      # attempts a quarter hour, counted per address. The flow checks spend
+      # most of both, and this audit needs only one account and one write, so
+      # running it first is what keeps it from being starved into reporting
+      # nothing. It is also the step with less to fall back on.
+      #
+      # The page audit in the other job renders these same screens with the API
+      # answered from fixtures, so a button wired to a route that does not
+      # exist renders perfectly. This drives the app against a real server.
+      - name: Drive the app against the real server
+        run: |
+          set +e
+          node artifacts/app/scripts/audit-live-ui.mjs http://localhost:4319
+          status=$?
+          set -e
+          if [ "$status" = "75" ]; then
+            echo "::warning::Live UI run was inconclusive, not a product failure."
+            exit 0
+          fi
+          exit "$status"
 
       # Exit 75 means the run could not be performed (a rate-limit window),
       # which is not a product failure and must not be reported as one.
