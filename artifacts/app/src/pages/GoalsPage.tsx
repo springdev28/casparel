@@ -48,6 +48,7 @@ import {
 } from "@workspace/edu-ds/components/ui/select";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
+import { authedRequest } from "../lib/api-request";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import {
@@ -166,9 +167,9 @@ export default function GoalsPage() {
     if (!me?.id) return;
     setCommunityPathsLoading(true);
     try {
-      const response = await fetch("/api/learning-goal-templates");
-      if (!response.ok) throw new Error("Could not load community paths");
-      setCommunityPaths((await response.json()) as CommunityPath[]);
+      setCommunityPaths(
+        await authedRequest<CommunityPath[]>("/learning-goal-templates"),
+      );
     } catch (error) {
       toast({
         title: "Could not load community paths",
@@ -325,17 +326,10 @@ export default function GoalsPage() {
   async function shareGoalPath(goal: LearningGoal) {
     setSharingGoalId(goal.id);
     try {
-      const response = await fetch("/api/learning-goal-templates", {
+      await authedRequest("/learning-goal-templates", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goalId: goal.id }),
       });
-      const result = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) {
-        throw new Error(result.error ?? "Could not share this path");
-      }
       await refreshCommunityPaths();
       toast({
         title: "Community path shared",
@@ -356,16 +350,9 @@ export default function GoalsPage() {
   async function cloneCommunityPath(path: CommunityPath) {
     setCloningPathId(path.id);
     try {
-      const response = await fetch(
-        `/api/learning-goal-templates/${path.id}/clone`,
-        { method: "POST" },
-      );
-      const result = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) {
-        throw new Error(result.error ?? "Could not clone this path");
-      }
+      await authedRequest(`/learning-goal-templates/${path.id}/clone`, {
+        method: "POST",
+      });
       await Promise.all([refresh(), refreshCommunityPaths()]);
       toast({
         title: "Path added to your goals",

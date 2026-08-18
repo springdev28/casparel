@@ -392,15 +392,32 @@ async function main() {
      * matters is what the app actually sends.
      */
     /**
-     * Every main screen, not just the one that was caught. The library was the
-     * only page doing this when it was found, and the way to keep that true is
-     * to ask all of them rather than the one that failed once.
+     * Every main screen, not just the one that was caught.
+     *
+     * The list earns its length twice over. It is what the write-on-read check
+     * below is asked of, and because every failed request during these
+     * navigations lands in apiErrors, it is also the set of pages the "nothing
+     * failed behind a screen that looked fine" check actually covers.
+     *
+     * That second job is why /goals is on it. Its community study paths called
+     * `fetch` without the session, so loading, sharing and cloning all answered
+     * 401 and the feature had never worked for anyone -- on a page this audit
+     * did not visit, which is the only reason it went unseen.
+     *
+     * The list is bounded, and by measurement rather than taste. A signed-in
+     * page costs eight to twelve API requests; all eleven main screens come to
+     * 102, and with this run's own registration and writes on top that exceeds
+     * the hundred-a-minute an account is allowed. An audit that trips the
+     * limiter reports a rate-limit message as if it were a defect, which is
+     * worse than covering fewer pages. These seven measure 62.
      */
     const READ_ONLY_PAGES = [
       "/dashboard",
       "/resources",
       "/activities",
-      "/classes",
+      "/goals",
+      "/canvases",
+      "/lists",
       "/settings",
     ];
 
