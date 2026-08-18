@@ -373,21 +373,43 @@ async function main() {
      * Counted at the browser rather than asserted in the source, since what
      * matters is what the app actually sends.
      */
-    const writesWhileReading = [];
-    const countWrites = (request) => {
-      const method = request.method();
-      if (method !== "GET" && method !== "HEAD" && request.url().includes("/api/")) {
-        writesWhileReading.push(`${method} ${new URL(request.url()).pathname}`);
+    /**
+     * Every main screen, not just the one that was caught. The library was the
+     * only page doing this when it was found, and the way to keep that true is
+     * to ask all of them rather than the one that failed once.
+     */
+    const READ_ONLY_PAGES = [
+      "/dashboard",
+      "/resources",
+      "/activities",
+      "/classes",
+      "/settings",
+    ];
+
+    const wroteWhileReading = [];
+    for (const path of READ_ONLY_PAGES) {
+      const writes = [];
+      const countWrites = (request) => {
+        const method = request.method();
+        if (method !== "GET" && method !== "HEAD" && request.url().includes("/api/")) {
+          writes.push(`${method} ${new URL(request.url()).pathname}`);
+        }
+      };
+      page.on("request", countWrites);
+      // Not networkidle: some pages keep fetching images and lazy chunks and
+      // never reach it, which would time out rather than tell us anything.
+      await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(2500);
+      page.off("request", countWrites);
+      if (writes.length) {
+        wroteWhileReading.push(`${path} sent ${[...new Set(writes)].join(", ")}`);
       }
-    };
-    page.on("request", countWrites);
-    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
-    await page.waitForTimeout(2500);
-    page.off("request", countWrites);
+    }
+
     check(
       "opening a page to read it writes nothing",
-      writesWhileReading.length === 0,
-      `visiting /resources sent ${writesWhileReading.join(", ")}`,
+      wroteWhileReading.length === 0,
+      wroteWhileReading.join("; "),
     );
 
     // ---- signing out really ends the session ------------------------------
