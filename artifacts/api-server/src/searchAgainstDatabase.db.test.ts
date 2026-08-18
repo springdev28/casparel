@@ -10,7 +10,7 @@
  * this package mocks the database and must keep doing so.
  *
  *   VERIFY_DATABASE_URL=postgres://…/throwaway \
- *     pnpm --filter @workspace/api-server exec vitest run src/searchAgainstDatabase.db.test.ts
+ *     pnpm --filter @workspace/api-server exec vitest run
  *
  * Catalog rows, resources and users are all emptied, so point this at a
  * throwaway database.
@@ -20,10 +20,16 @@
  * other's fixtures mid-run, and the paging suite read the relevance suite's
  * three rows and reported that "physics mechanics" had two results. Suites
  * within one file run in order, so each seed survives its own assertions.
+ *
+ * Other db test files are held off by the lock rather than by that convention;
+ * see dbTestLock.ts.
  */
 import { beforeAll, describe, expect, it } from "vitest";
+import { useExclusiveDatabase } from "./dbTestLock.js";
 
 const url = process.env.VERIFY_DATABASE_URL;
+
+useExclusiveDatabase();
 
 /** The query that started all of this, typed exactly as a reader typed it. */
 const AP_QUERY = "AP Physics C: Electricity and Mechanics";
