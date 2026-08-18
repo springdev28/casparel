@@ -548,6 +548,16 @@ describe("YouTube", () => {
     id = "sQK3Yr4Sc_k",
   ) => ({ items: [{ id, snippet: { categoryId, ...(tags ? { tags } : {}) } }] });
 
+  /** The same, for a video whose own title matters to the assertion. */
+  const titled = (title: string, tags: string[]) => ({
+    items: [
+      {
+        id: "sQK3Yr4Sc_k",
+        snippet: { categoryId: "27", title, tags },
+      },
+    ],
+  });
+
   it("takes the subject a video states about itself", () => {
     // Crash Course Biology's own tags. A tag is a statement about the video,
     // which is what separates this from reading words off a title.
@@ -598,6 +608,74 @@ describe("YouTube", () => {
       ]),
     );
     expect(row.subject).toBe("Mathematics");
+  });
+
+  it("does not believe tags that describe the channel rather than the video", () => {
+    // "History Summarized: The Punic Wars" carries its channel's Shakespeare
+    // tag block, verbatim below, and was filed under Literature on it. The
+    // title names History, the tags name Literature, so neither is worth
+    // having — the tags are plainly about a different video.
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      titled("History Summarized: The Punic Wars", [
+        "William Shakespeare (Author)",
+        "Shakespeare Summarized",
+        "Funny",
+        "OSP",
+        "Literary Analysis",
+        "Classics",
+        "Literature",
+      ]),
+    );
+    expect(row.subject).toBeNull();
+  });
+
+  it("does not read a subject off a title the tags agree with nothing about", () => {
+    // The veto only ever subtracts. A title naming a subject the tags are
+    // silent on is still just a title, and reading subjects off titles is the
+    // mistake this whole path exists to avoid.
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      titled("A History of Everything", ["fun", "channel", "series"]),
+    );
+    expect(row.subject).toBeNull();
+  });
+
+  it("takes nothing from tags that disagree with each other", () => {
+    // A titration lecture's real tags. Physiology, chemistry and physics get
+    // one vote each, and whichever the list happened to reach first won: this
+    // came back as Biology.
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      titled("Weak Acid / Strong Base Titration - All pH Calculations", [
+        "science",
+        "anatomy",
+        "physiology",
+        "ap chemistry",
+        "physics",
+        "education",
+      ]),
+    );
+    expect(row.subject).toBeNull();
+  });
+
+  it("does not let a phrase naming two subjects be counted as either", () => {
+    // A Hamlet lecture's real tags. "brief history of english literature"
+    // names History and Literature both, and the hint table lists History
+    // first, so two such tags outvoted the one that says only "English
+    // Literature". Ignoring the ambiguous ones leaves the right answer.
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      titled("Episode 5 Themes in Hamlet – Madness, Revenge and More", [
+        "English Literature",
+        "brief history of english literature",
+        "ugc net jrf syllabus",
+        "english literature history",
+        "major themes",
+        "revenge",
+      ]),
+    );
+    expect(row.subject).toBe("Literature");
   });
 
   it("leaves a video alone when its tags say nothing about the subject", () => {

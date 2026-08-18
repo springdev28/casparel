@@ -8,7 +8,10 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { pool, runMigrations } from "@workspace/db";
 import { initRateLimitStore } from "./lib/rateLimitStore";
-import { ensureCuratedCatalog } from "./lib/catalog";
+import {
+  ensureCuratedCatalog,
+  refreshStoredVideoSubjects,
+} from "./lib/catalog";
 import { markSchemaFailed, markSchemaReady } from "./lib/schemaHealth";
 import { explainUnreachableDatabase } from "./lib/dbReachability";
 import { withTimeout } from "./lib/withTimeout";
@@ -101,6 +104,37 @@ async function main() {
     .catch((err) => {
       logger.error({ err }, "Open education catalog setup failed");
     });
+
+  // Videos are classified as they are imported, so improving that classifier
+  // leaves everything already stored as it was — and a video is only imported
+  // again when a search runs thin, which a well-answered question never does.
+  //
+  // One sweep per boot, then stop. Every deploy restarts the process, so a
+  // change to how subjects are decided re-sweeps by itself, and between
+  // deploys there is nothing to find: videos imported since were classified by
+  // the current rules on the way in. Left running instead, a pass this brisk
+  // would spend a third of the daily YouTube allowance re-reading answers it
+  // already had.
+  const bootedAt = new Date().toISOString();
+  const sweepEvery = Number(process.env.VIDEO_REFRESH_INTERVAL_MS) || 30_000;
+  const sweep = setInterval(() => {
+    void refreshStoredVideoSubjects({ checkedBefore: bootedAt })
+      .then(({ status, examined, corrected }) => {
+        if (corrected) logger.info({ corrected }, "Video subjects corrected");
+        // Only a pass that ran and found nothing left means finished. Skipped
+        // and failed look the same from here and must not end the sweep: no
+        // key yet, or one slow lookup, would otherwise stop it for good.
+        if (status === "swept" && examined === 0) {
+          clearInterval(sweep);
+          logger.info("Video subject sweep complete");
+        }
+      })
+      .catch((err) => {
+        logger.error({ err }, "Video subject refresh failed");
+      });
+  }, sweepEvery);
+  // Nothing here is worth keeping the process alive for.
+  sweep.unref();
 }
 
 void main();

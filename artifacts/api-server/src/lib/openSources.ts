@@ -223,6 +223,27 @@ export function subjectFromTerms(terms: string[]): string | null {
 }
 
 /**
+ * Every subject one phrase names — usually one, sometimes none, and
+ * occasionally more than one.
+ *
+ * More than one is the interesting case. "A brief history of english
+ * literature" names History and Literature both, and `subjectFromTerms` hands
+ * back whichever the hint table happens to list first, which is History for no
+ * reason anybody could defend. A lecture on the themes of Hamlet was filed
+ * under History on exactly that.
+ */
+function subjectsNamedBy(term: string): string[] {
+  const exact = KNOWN_SUBJECTS.find(
+    (subject) => subject.toLowerCase() === term.trim().toLowerCase(),
+  );
+  if (exact) return [exact];
+  const named = new Set<string>();
+  for (const [pattern, subject] of SUBJECT_HINTS)
+    if (pattern.test(term)) named.add(subject);
+  return [...named];
+}
+
+/**
  * The subjects where a peer-reviewed paper is a normal thing to be handed.
  *
  * Not a judgement about which fields are serious. It is about what a reader
@@ -965,17 +986,87 @@ export function resetYoutubeQuota() {
 export function dominantSubject(terms: string[]): string | null {
   const votes = new Map<string, number>();
   for (const term of terms) {
-    const subject = subjectFromTerms([term]);
-    if (subject) votes.set(subject, (votes.get(subject) ?? 0) + 1);
+    const named = subjectsNamedBy(term);
+    // A phrase naming two subjects has not chosen between them, so neither
+    // does this. Taking the first was how the hint table's ordering — an
+    // implementation detail nobody wrote down — decided what a video was about.
+    if (named.length !== 1) continue;
+    votes.set(named[0], (votes.get(named[0]) ?? 0) + 1);
   }
-  let winner: string | null = null;
-  let mostVotes = 0;
-  for (const [subject, count] of votes)
-    if (count > mostVotes) {
-      winner = subject;
-      mostVotes = count;
-    }
-  return winner;
+  const ranked = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+  if (!ranked.length) return null;
+  // A tie is the terms disagreeing, not agreeing. A titration lecture tagged
+  // "physiology", "ap chemistry" and "physics" — one vote each — was filed
+  // under Biology because physiology came first in the list.
+  if (ranked.length > 1 && ranked[0][1] === ranked[1][1]) return null;
+  return ranked[0][0];
+}
+
+/** How many videos one lookup may ask about. YouTube's own limit. */
+export const YOUTUBE_LOOKUP_BATCH = 50;
+
+/**
+ * One request asking what a batch of videos is about.
+ *
+ * One for the whole batch rather than one each: a search costs a hundred units
+ * of the daily allowance and this costs one, so what matters is the number of
+ * requests, not how much is asked for in each.
+ */
+export function youtubeLookupUrl(externalIds: string[]): URL | null {
+  const ids = externalIds
+    .map((externalId) => externalId.replace(/^youtube:/, ""))
+    .filter(Boolean);
+  if (!ids.length) return null;
+  const url = new URL("https://www.googleapis.com/youtube/v3/videos");
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("id", ids.slice(0, YOUTUBE_LOOKUP_BATCH).join(","));
+  url.searchParams.set("key", process.env.YOUTUBE_API_KEY ?? "");
+  return url;
+}
+
+/**
+ * What each video in a lookup says it is about, keyed the way the catalog
+ * keys it.
+ *
+ * A video the answer says nothing useful about is simply absent, which callers
+ * read as "leave it alone" or "Interdisciplinary" depending on whether they are
+ * storing it for the first time or correcting what is already stored.
+ */
+export function youtubeSubjectsFrom(body: unknown): Map<string, string> {
+  const items = (body as { items?: unknown[] })?.items;
+  const subjects = new Map<string, string>();
+  if (!Array.isArray(items)) return subjects;
+  for (const entry of items) {
+    const item = entry as { id?: unknown; snippet?: Record<string, unknown> };
+    const id = text(item.id);
+    const snippet = item.snippet ?? {};
+    if (!id || !YOUTUBE_TEACHING_CATEGORIES.has(text(snippet.categoryId)))
+      continue;
+    const tags = Array.isArray(snippet.tags) ? snippet.tags : [];
+    const subject = dominantSubject(
+      tags.slice(0, YOUTUBE_TAG_LIMIT).map((tag) => text(tag)),
+    );
+    // The title gets a veto, and only a veto.
+    //
+    // A channel tags every video with the same block, so the tags can describe
+    // the channel rather than the video in front of you: "History Summarized:
+    // The Punic Wars" carries its channel's Shakespeare tags, and was filed
+    // under Literature on the strength of them. When the video's own title
+    // names a different subject, the tags are talking about something else and
+    // neither is worth having.
+    //
+    // Never the other direction. A title that names a subject the tags do not
+    // is still just a title, and reading subjects off titles is the mistake all
+    // of this exists to avoid. The worst this can do is decline to classify,
+    // which is where every video started.
+    const titleSubject = dominantSubject([text(snippet.title)]);
+    if (titleSubject && subject && titleSubject !== subject) continue;
+    // Nothing the catalog knows is a perfectly good answer: a video tagged only
+    // "online learning" and "video tutorial" has said nothing about its
+    // subject, and Interdisciplinary is the honest place for it.
+    if (subject) subjects.set(youtubeExternalId(id), subject);
+  }
+  return subjects;
 }
 
 /**
@@ -1091,39 +1182,9 @@ const youtube: OpenSource = {
    * separates music from sport, not biology from chemistry.
    */
   enrich: {
-    // One request for the whole page, not one per video. A search costs a
-    // hundred units of the daily quota and this costs one, so what matters is
-    // the number of requests, not how much is asked for in each.
-    endpoint(rows) {
-      const ids = rows
-        .map((row) => row.externalId.replace(/^youtube:/, ""))
-        .filter(Boolean);
-      if (!ids.length) return null;
-      const url = new URL("https://www.googleapis.com/youtube/v3/videos");
-      url.searchParams.set("part", "snippet");
-      url.searchParams.set("id", ids.slice(0, 50).join(","));
-      url.searchParams.set("key", process.env.YOUTUBE_API_KEY ?? "");
-      return url;
-    },
+    endpoint: (rows) => youtubeLookupUrl(rows.map((row) => row.externalId)),
     apply(rows, body) {
-      const items = (body as { items?: unknown[] })?.items;
-      if (!Array.isArray(items)) return rows;
-      const subjects = new Map<string, string>();
-      for (const entry of items) {
-        const item = entry as { id?: unknown; snippet?: Record<string, unknown> };
-        const id = text(item.id);
-        const snippet = item.snippet ?? {};
-        if (!id || !YOUTUBE_TEACHING_CATEGORIES.has(text(snippet.categoryId)))
-          continue;
-        const tags = Array.isArray(snippet.tags) ? snippet.tags : [];
-        const subject = dominantSubject(
-          tags.slice(0, YOUTUBE_TAG_LIMIT).map((tag) => text(tag)),
-        );
-        // Nothing the catalog knows is a perfectly good answer: a video tagged
-        // only "online learning" and "video tutorial" has said nothing about
-        // its subject, and Interdisciplinary is the honest place for it.
-        if (subject) subjects.set(youtubeExternalId(id), subject);
-      }
+      const subjects = youtubeSubjectsFrom(body);
       if (!subjects.size) return rows;
       return rows.map((row) => {
         const subject = subjects.get(row.externalId);
