@@ -32,6 +32,7 @@ import {
 import { applyLastSavedColors } from "./components/ThemeCustomizer";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
+import { hasDictionary } from "./lib/translated-languages";
 import { clearSession, readSessionToken } from "./lib/session";
 import { useSessionClaims } from "./lib/use-session";
 
@@ -142,12 +143,27 @@ function apiUrl(path: string) {
   return base + "/api" + path;
 }
 
+/**
+ * Loads the translation bridge for every language that has a dictionary.
+ *
+ * This used to read `=== "tr"`, from when Turkish was the only dictionary
+ * there was. German, Spanish, French and Portuguese were added afterwards --
+ * five files, thousands of entries, a plural-rule table -- and this gate was
+ * not. So four of the six languages the app offers loaded no bridge at all
+ * and rendered the entire signed-in product in English: the picker changed
+ * the login screen, which has its own copy, and nothing beyond it.
+ *
+ * Asking the dictionaries directly is what stops it happening again. Adding a
+ * language is one line in `DICTIONARIES` and this follows.
+ */
 function UiTranslationRuntime() {
-  const [enabled, setEnabled] = useState(() => getInitialLanguage() === "tr");
+  const [enabled, setEnabled] = useState(() =>
+    hasDictionary(getInitialLanguage()),
+  );
 
   useEffect(() => {
     const handleLanguage = (event: Event) => {
-      setEnabled((event as CustomEvent<AuthLanguage>).detail === "tr");
+      setEnabled(hasDictionary((event as CustomEvent<AuthLanguage>).detail));
     };
     document.addEventListener(LANGUAGE_EVENT, handleLanguage);
     return () => document.removeEventListener(LANGUAGE_EVENT, handleLanguage);
