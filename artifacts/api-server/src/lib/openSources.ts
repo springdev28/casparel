@@ -63,6 +63,23 @@ export type OpenSource = {
   /** How to hand the response to `parse`. JSON unless stated. */
   responseType?: "json" | "text";
   /**
+   * A second request, for what the first could not say.
+   *
+   * Split into a request and a merge so that pacing, timeouts and the identity
+   * we send stay in one place with every other request the catalog makes, and
+   * a source only has to know what to ask and what the answer means.
+   *
+   * It is always optional in the strong sense: whatever it would have added,
+   * the rows are already storable without it, and the importer treats a failure
+   * here as nothing happening rather than as the search failing.
+   */
+  enrich?: {
+    /** The follow-up, or null when there is nothing worth asking about. */
+    endpoint(rows: ParsedResource[]): URL | null;
+    /** The same rows, with whatever the answer added to them. */
+    apply(rows: ParsedResource[], body: unknown): ParsedResource[];
+  };
+  /**
    * How long this source may take. Six seconds unless stated: a source that
    * cannot answer in that is not worth a reader waiting for when eleven others
    * can. Raised only where the service is genuinely slow *and* worth it.
@@ -835,6 +852,64 @@ const internetArchive: OpenSource = {
  * a hundred fresh searches — which is why every result is stored: the catalog
  * answers the second reader for nothing.
  */
+/** How a video is keyed in the catalog. */
+function youtubeExternalId(videoId: string) {
+  return `youtube:${videoId}`;
+}
+
+/**
+ * The subject most of a list of terms agrees on.
+ *
+ * `subjectFromTerms` takes the first thing it recognises, which is right for a
+ * source that states one classification and wrong for a list of tags, where
+ * every term is a separate opinion. Worse, its exact-name pass runs over the
+ * whole list before its stem pass, so one tag naming a subject outright beats
+ * any number of tags pointing elsewhere: a linear algebra lecture tagged
+ * "linear algebra", "calculus", "physics" was filed under Physics on the
+ * strength of the single tag that happened to be a subject's name.
+ *
+ * Counting instead lets the list say what it is mostly about. Ties go to
+ * whichever was seen first, since a tag list runs from most to least relevant.
+ */
+export function dominantSubject(terms: string[]): string | null {
+  const votes = new Map<string, number>();
+  for (const term of terms) {
+    const subject = subjectFromTerms([term]);
+    if (subject) votes.set(subject, (votes.get(subject) ?? 0) + 1);
+  }
+  let winner: string | null = null;
+  let mostVotes = 0;
+  for (const [subject, count] of votes)
+    if (count > mostVotes) {
+      winner = subject;
+      mostVotes = count;
+    }
+  return winner;
+}
+
+/**
+ * Categories where a video's stated subject is worth believing.
+ *
+ * 27 is Education and 28 is Science & Technology, YouTube's own labels rather
+ * than the uploader's free text. Tags are written by whoever uploaded the
+ * video and are a known place to stuff keywords; requiring the video to be
+ * filed as teaching first means a marketing clip tagged "physics" is not
+ * carried into a physics search on the strength of its own say-so.
+ *
+ * Being wrong in this direction is free. A video outside these categories
+ * keeps the subject it has today, which is none.
+ */
+const YOUTUBE_TEACHING_CATEGORIES = new Set(["27", "28"]);
+
+/**
+ * How far into a tag list to read.
+ *
+ * The first handful are what a video is about; a long tail is search-engine
+ * padding, and reading all of it is how an unrelated word ends up deciding
+ * the subject.
+ */
+const YOUTUBE_TAG_LIMIT = 12;
+
 const youtube: OpenSource = {
   kind: "youtube",
   provider: "YouTube",
@@ -876,7 +951,7 @@ const youtube: OpenSource = {
         { url?: unknown }
       >;
       rows.push({
-        externalId: `youtube:${videoId}`,
+        externalId: youtubeExternalId(videoId),
         url: `https://www.youtube.com/watch?v=${videoId}`,
         title,
         description: clamp(
@@ -884,8 +959,9 @@ const youtube: OpenSource = {
             `A video from ${text(snippet.channelTitle) || "YouTube"}.`,
         ),
         author: text(snippet.channelTitle) || null,
-        // A video carries no subject classification, and guessing one from its
-        // title is how the catalog poisoned itself before.
+        // A search response carries no classification, and guessing one from a
+        // title is how the catalog poisoned itself before. `enrich` asks for
+        // YouTube's own, in a second request; until it answers this stays null.
         subject: null,
         language: "en",
         license: "Standard YouTube licence unless the video says otherwise",
@@ -896,6 +972,64 @@ const youtube: OpenSource = {
       });
     }
     return rows;
+  },
+  /**
+   * What the video says it is about.
+   *
+   * A search response carries no classification at all, which is why every
+   * video in the catalog is filed as Interdisciplinary. `videos.list` carries
+   * the uploader's own tags, and those are the same kind of thing this catalog
+   * already trusts everywhere else: the keywords on a DOAJ article, the
+   * bookshelves on a Gutenberg text, the concepts on an OpenAlex work. The
+   * line that matters is that a tag is a statement *about* the video, not a
+   * word read off its title — reading subjects off titles is what once filed
+   * everything under the searcher's own query.
+   *
+   * YouTube's `topicCategories` looked like the better answer and is not:
+   * asked about Crash Course Biology, Math Antics and Khan Academy
+   * stoichiometry, it returned "Knowledge" for all three. Its taxonomy
+   * separates music from sport, not biology from chemistry.
+   */
+  enrich: {
+    // One request for the whole page, not one per video. A search costs a
+    // hundred units of the daily quota and this costs one, so what matters is
+    // the number of requests, not how much is asked for in each.
+    endpoint(rows) {
+      const ids = rows
+        .map((row) => row.externalId.replace(/^youtube:/, ""))
+        .filter(Boolean);
+      if (!ids.length) return null;
+      const url = new URL("https://www.googleapis.com/youtube/v3/videos");
+      url.searchParams.set("part", "snippet");
+      url.searchParams.set("id", ids.slice(0, 50).join(","));
+      url.searchParams.set("key", process.env.YOUTUBE_API_KEY ?? "");
+      return url;
+    },
+    apply(rows, body) {
+      const items = (body as { items?: unknown[] })?.items;
+      if (!Array.isArray(items)) return rows;
+      const subjects = new Map<string, string>();
+      for (const entry of items) {
+        const item = entry as { id?: unknown; snippet?: Record<string, unknown> };
+        const id = text(item.id);
+        const snippet = item.snippet ?? {};
+        if (!id || !YOUTUBE_TEACHING_CATEGORIES.has(text(snippet.categoryId)))
+          continue;
+        const tags = Array.isArray(snippet.tags) ? snippet.tags : [];
+        const subject = dominantSubject(
+          tags.slice(0, YOUTUBE_TAG_LIMIT).map((tag) => text(tag)),
+        );
+        // Nothing the catalog knows is a perfectly good answer: a video tagged
+        // only "online learning" and "video tutorial" has said nothing about
+        // its subject, and Interdisciplinary is the honest place for it.
+        if (subject) subjects.set(youtubeExternalId(id), subject);
+      }
+      if (!subjects.size) return rows;
+      return rows.map((row) => {
+        const subject = subjects.get(row.externalId);
+        return subject ? { ...row, subject } : row;
+      });
+    },
   },
 };
 

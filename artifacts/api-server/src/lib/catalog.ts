@@ -29,6 +29,7 @@ import {
   openSourceIsExcluded,
   queryWantsResearch,
   type OpenSource,
+  type ParsedResource,
 } from "./openSources";
 import {
   MEDIAWIKI_SITES,
@@ -2506,6 +2507,44 @@ async function waitForOpenSourceSlot(host: string) {
  * matter of saying how to ask and how to read the answer, not another copy of
  * this.
  */
+/**
+ * How long a source's follow-up request may take.
+ *
+ * Shorter than the search it follows, and deliberately so. The rows are
+ * already usable; this only makes them better, and the top-up it runs inside
+ * is bounded by a wall clock the reader is waiting on. A subject is not worth
+ * a page arriving late for.
+ */
+const ENRICH_TIMEOUT_MS = 4000;
+
+/**
+ * A source's second request, if it has one and it works.
+ *
+ * Every failure returns the rows untouched: not found, rate-limited, timed
+ * out, malformed. It does not rest the provider either — the search itself
+ * succeeded, and taking a source offline for a minute because an optional
+ * extra failed would trade something real for something incidental.
+ */
+async function enrichOpenSourceRows(
+  source: OpenSource,
+  rows: ParsedResource[],
+): Promise<ParsedResource[]> {
+  if (!source.enrich || !rows.length) return rows;
+  const endpoint = source.enrich.endpoint(rows);
+  if (!endpoint) return rows;
+  try {
+    await waitForOpenSourceSlot(source.host);
+    const response = await fetch(endpoint, {
+      headers: { accept: "application/json", "user-agent": catalogUserAgent() },
+      signal: AbortSignal.timeout(ENRICH_TIMEOUT_MS),
+    });
+    if (!response.ok) return rows;
+    return source.enrich.apply(rows, await response.json());
+  } catch {
+    return rows;
+  }
+}
+
 export async function searchOpenSourceAndStore(
   source: OpenSource,
   options: CatalogSearchOptions,
@@ -2556,10 +2595,13 @@ export async function searchOpenSourceAndStore(
       );
       if (!response.ok)
         throw new Error(`${source.provider} returned ${response.status}`);
-      const parsed = source.parse(
-        source.responseType === "text"
-          ? await response.text()
-          : await response.json(),
+      const parsed = await enrichOpenSourceRows(
+        source,
+        source.parse(
+          source.responseType === "text"
+            ? await response.text()
+            : await response.json(),
+        ),
       );
 
       const now = new Date().toISOString();
