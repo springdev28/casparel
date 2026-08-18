@@ -1195,6 +1195,14 @@ export default function ResourcesPage() {
     setResearchOpen(true);
   }
 
+  /**
+   * What was last written to the account, so the same thing is not written
+   * twice. Also stops the hydration echo: restoring a saved search sets the
+   * state that this effect watches, which would otherwise save it straight
+   * back.
+   */
+  const savedSearchStateRef = useRef<string | null>(null);
+
   useEffect(() => {
     const state = {
       inputValue,
@@ -1203,10 +1211,32 @@ export default function ResourcesPage() {
     };
     sessionStorage.setItem(RESOURCE_SEARCH_STATE_KEY, JSON.stringify(state));
     if (!accountPreferences) return;
-    const timer = window.setTimeout(
-      () => updateAccountPreferences.mutate({ resourceSearchState: state }),
-      700,
+
+    /**
+     * Only write when there is something to write.
+     *
+     * This used to fire on every visit, so opening the library -- reading,
+     * not searching -- sent a PATCH that stored an empty search over an
+     * empty search. A page view is not an edit: it cost a database write per
+     * visit and spent the account's write allowance on browsing.
+     *
+     * An empty search is still saved when something was stored before, since
+     * that is how clearing a search is remembered.
+     */
+    const nothingToRemember =
+      !inputValue && !activeQuery && allWebResults.length === 0;
+    if (nothingToRemember && !accountPreferences.resourceSearchState) return;
+
+    const next = JSON.stringify(state);
+    const alreadyStored = JSON.stringify(
+      accountPreferences.resourceSearchState ?? null,
     );
+    if (next === alreadyStored || next === savedSearchStateRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      savedSearchStateRef.current = next;
+      updateAccountPreferences.mutate({ resourceSearchState: state });
+    }, 700);
     return () => window.clearTimeout(timer);
   }, [accountPreferences?.userId, inputValue, activeQuery, allWebResults]);
 

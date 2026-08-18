@@ -361,6 +361,35 @@ async function main() {
       fail("secondary text on the page can be read", "no body copy found");
     }
 
+    /**
+     * Reading a page is not editing it.
+     *
+     * Opening the library used to send a PATCH storing an empty search over an
+     * empty search, on every visit: a database write per page view, and a bite
+     * out of the account's write allowance for browsing. It is the kind of
+     * thing no screen shows and no test noticed, because the page looked
+     * identical either way.
+     *
+     * Counted at the browser rather than asserted in the source, since what
+     * matters is what the app actually sends.
+     */
+    const writesWhileReading = [];
+    const countWrites = (request) => {
+      const method = request.method();
+      if (method !== "GET" && method !== "HEAD" && request.url().includes("/api/")) {
+        writesWhileReading.push(`${method} ${new URL(request.url()).pathname}`);
+      }
+    };
+    page.on("request", countWrites);
+    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(2500);
+    page.off("request", countWrites);
+    check(
+      "opening a page to read it writes nothing",
+      writesWhileReading.length === 0,
+      `visiting /resources sent ${writesWhileReading.join(", ")}`,
+    );
+
     // ---- signing out really ends the session ------------------------------
     await page.evaluate(() => localStorage.removeItem("schoolar_token"));
     signedIn = false;
