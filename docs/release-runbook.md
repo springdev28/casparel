@@ -148,6 +148,20 @@ warn on first launch, which costs more trust than the certificates cost money.
 `CSC_LINK` / `CSC_KEY_PASSWORD` (and `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,
 `APPLE_TEAM_ID` for notarisation) turn that off.
 
+A build reporting success says nothing about what the installers contain, and
+every Linux packaging defect found so far was of exactly that kind: one icon
+size where there should have been eight, a malformed line in the
+applications-menu entry, and a menu description that read "Casparel for macOS,
+Windows and Linux" to somebody looking at a Linux menu. All three built
+cleanly. `pnpm --filter @workspace/desktop
+run verify:package` opens the built `.deb` and checks these; the release
+workflow runs it on the Linux job, after the build and before the upload.
+
+The macOS and Windows halves of the matrix cannot be exercised from a Linux
+machine, so a first release of those two is worth doing as a manual workflow
+run — which leaves the installers attached to the run without publishing
+anything — and installing the results before tagging.
+
 The shell checks for a newer release on launch and offers the Help menu item
 that opens the releases page. It reads the public releases API, so this only
 works once releases are readable without credentials. See

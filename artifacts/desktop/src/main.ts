@@ -52,9 +52,22 @@ interface WindowState {
   x?: number;
   y?: number;
   maximized?: boolean;
+  /**
+   * Chromium zoom level, not a percentage: 0 is 100%, each step is ~1.2x.
+   *
+   * Remembered because Casparel is something people read for an hour at a
+   * time. Setting the text to a size you can work at and having the app forget
+   * it on every launch is the difference between an application and a browser
+   * tab that happens to have its own icon.
+   */
+  zoom?: number;
 }
 
 const DEFAULT_STATE: WindowState = { width: 1360, height: 900 };
+
+/** What Chromium's own zoom controls span; anything outside is a bad file. */
+const MIN_ZOOM = -5;
+const MAX_ZOOM = 5;
 
 function stateFile(): string {
   return join(app.getPath("userData"), "window-state.json");
@@ -72,6 +85,15 @@ function readState(): WindowState {
     ) {
       return DEFAULT_STATE;
     }
+    if (
+      typeof parsed.zoom !== "number" ||
+      !Number.isFinite(parsed.zoom) ||
+      parsed.zoom < MIN_ZOOM ||
+      parsed.zoom > MAX_ZOOM
+    ) {
+      // A bad zoom is not a reason to forget the geometry too.
+      delete parsed.zoom;
+    }
     return parsed;
   } catch {
     return DEFAULT_STATE;
@@ -83,7 +105,11 @@ function saveState(win: BrowserWindow): void {
     const bounds = win.getNormalBounds();
     writeFileSync(
       stateFile(),
-      JSON.stringify({ ...bounds, maximized: win.isMaximized() }),
+      JSON.stringify({
+        ...bounds,
+        maximized: win.isMaximized(),
+        zoom: win.webContents.getZoomLevel(),
+      }),
     );
   } catch {
     // A window that cannot remember its size is not worth crashing over.
@@ -259,6 +285,25 @@ function reportSmokeResult(win: BrowserWindow, firstUrl: string): void {
     return;
   }
 
+  if (mode === "zoom-set") {
+    win.webContents.once("did-finish-load", () => {
+      win.webContents.setZoomLevel(2);
+      saveState(win);
+      say("saved");
+    });
+    return;
+  }
+
+  if (mode === "zoom-restore") {
+    // createWindow registered its restore listener first, so this one runs
+    // after it; the delay is for the zoom to have been applied, not for the
+    // load.
+    win.webContents.once("did-finish-load", () => {
+      setTimeout(() => say(String(win.webContents.getZoomLevel())), 400);
+    });
+    return;
+  }
+
   // "embed": the home page renders an iframe that fails. The window must still
   // be showing the app, not the offline page.
   setTimeout(() => {
@@ -321,22 +366,57 @@ async function latestPublishedVersion(): Promise<string | null> {
 }
 
 /**
- * `silent` is the launch check: it may add an item to the Help menu and must
- * never interrupt. Without it the user asked, so every outcome gets an answer.
+ * The version we have already told this user about, so the launch check can
+ * speak once per release rather than once per launch. Kept apart from the
+ * window state file, which is about the window.
+ */
+function noticeFile(): string {
+  return join(app.getPath("userData"), "update-notice.json");
+}
+
+function lastAnnounced(): string | null {
+  try {
+    const parsed = JSON.parse(readFileSync(noticeFile(), "utf8")) as {
+      announced?: unknown;
+    };
+    return typeof parsed.announced === "string" ? parsed.announced : null;
+  } catch {
+    return null;
+  }
+}
+
+function rememberAnnounced(version: string): void {
+  try {
+    writeFileSync(noticeFile(), JSON.stringify({ announced: version }));
+  } catch {
+    // Worst case the same notice appears again next launch. Not worth
+    // crashing over, and not worth suppressing the notice over either.
+  }
+}
+
+/**
+ * `silent` is the launch check. Without it the user asked, so every outcome
+ * gets an answer, including "could not reach the list".
  */
 async function checkForUpdates(silent: boolean): Promise<void> {
   const current = app.getVersion();
   const latest = await latestPublishedVersion();
+  const update = latest && isNewer(latest, current) ? latest : null;
 
-  if (latest && isNewer(latest, current)) {
-    availableUpdate = latest;
+  if (update) {
+    availableUpdate = update;
     buildMenu();
-    if (silent) return;
   }
 
-  if (silent) return;
-
-  if (!latest) {
+  if (silent) {
+    // The Help-menu item is the affordance that persists, but it cannot be
+    // the notification: on Windows and Linux this shell hides the menu bar
+    // behind Alt, so an item there is something nobody will ever see. So the
+    // launch check does speak — once for each released version, and then not
+    // again for that version however many times the app is opened.
+    if (!update || lastAnnounced() === update) return;
+    rememberAnnounced(update);
+  } else if (!latest) {
     await dialog.showMessageBox({
       type: "info",
       message: "Could not check for updates",
@@ -344,9 +424,7 @@ async function checkForUpdates(silent: boolean): Promise<void> {
       buttons: ["OK"],
     });
     return;
-  }
-
-  if (!isNewer(latest, current)) {
+  } else if (!update) {
     await dialog.showMessageBox({
       type: "info",
       message: "Casparel is up to date",
@@ -358,7 +436,7 @@ async function checkForUpdates(silent: boolean): Promise<void> {
 
   const { response } = await dialog.showMessageBox({
     type: "info",
-    message: `Casparel ${latest} is available`,
+    message: `Casparel ${update} is available`,
     detail: `You have ${current}. Downloads open in your browser; nothing is installed for you.`,
     buttons: ["Open Downloads", "Later"],
     defaultId: 0,
@@ -387,6 +465,16 @@ function buildMenu(): void {
             const current = mainWindow?.webContents.getURL();
             if (current) void shell.openExternal(current);
           },
+        },
+        { type: "separator" },
+        {
+          // Cmd/Ctrl+P is a reflex on a schedule or a reading list, and in a
+          // window with no browser chrome there is nothing else to reach for.
+          // Electron binds no print handler by default, so the shortcut did
+          // nothing at all.
+          label: "Print…",
+          accelerator: "CmdOrCtrl+P",
+          click: () => mainWindow?.webContents.print(),
         },
         { type: "separator" },
         isMac ? { role: "close" } : { role: "quit" },
@@ -483,6 +571,11 @@ function createWindow(): void {
   );
 
   if (state.maximized) mainWindow.maximize();
+
+  // Set before the first loadURL, which Electron carries into the page. The
+  // smoke suite launches twice and checks the level comes back, because that
+  // ordering is the sort of thing an Electron upgrade changes quietly.
+  if (state.zoom) mainWindow.webContents.setZoomLevel(state.zoom);
 
   mainWindow.once("ready-to-show", () => mainWindow?.show());
   mainWindow.on("close", () => mainWindow && saveState(mainWindow));

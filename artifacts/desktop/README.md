@@ -8,8 +8,13 @@ browser serves.
 The library, classes, canvases, schedules and AI source research are one
 codebase. A shell inherits every web deploy without cutting a desktop release,
 so the desktop build can never drift behind the web app. What it adds is what a
-browser tab cannot: a real application window with remembered geometry, a
-native menu, single-instance behaviour, and `casparel://` deep links.
+browser tab cannot: a real application window with remembered geometry and
+zoom, a native menu with Print, single-instance behaviour, and `casparel://`
+deep links.
+
+Zoom is remembered because Casparel is read for an hour at a time. Setting the
+text to a size you can work at and having it reset on every launch is the
+difference between an application and a tab with its own icon.
 
 ## Security posture
 
@@ -48,6 +53,12 @@ pnpm --filter @workspace/desktop build:linux  # AppImage + deb
 Installers land in `release/`. electron-builder can only build macOS targets on
 macOS, so a full three-platform release needs a matrix (or a CI runner per OS).
 
+A successful build says nothing about what the installers contain, and the
+things that go wrong there are invisible until somebody installs the app: the
+applications-menu entry, the icon sizes actually shipped, whether the
+`casparel://` scheme is registered at all. `pnpm run verify:package` opens the
+built `.deb` and checks them; the release workflow runs it on the Linux job.
+
 Signing needs credentials that are deliberately not in the repository:
 
 - macOS: `CSC_LINK` and `CSC_KEY_PASSWORD` for the Developer ID certificate,
@@ -80,11 +91,16 @@ See `artifacts/app/src/lib/downloads.ts`.
 
 The shell loads the hosted web app, so the product updates itself and only the
 window around it can go stale. It checks once, ten seconds after launch, and
-when a newer release exists adds an item to the Help menu; `Help → Check for
-Updates…` asks on demand. Nothing is ever downloaded or run for the user, which
-is deliberate: an auto-updater is a large amount of new trust to ask for on
-behalf of a window, and this shell has no preload bridge precisely so that a
-compromise of the web app cannot reach the machine.
+when a newer release exists it says so once for that version and then not
+again, however many times the app is opened. `Help → Check for Updates…` asks
+on demand and answers every outcome. The Help menu also grows a permanent item
+while an update is outstanding, but that cannot be the notification on its own:
+this shell hides the menu bar behind Alt on Windows and Linux.
+
+Nothing is ever downloaded or run for the user, which is deliberate: an
+auto-updater is a large amount of new trust to ask for on behalf of a window,
+and this shell has no preload bridge precisely so that a compromise of the web
+app cannot reach the machine.
 
 Two things this depends on: releases have to be readable without credentials
 (the check reads the public GitHub releases API and stays quiet when it gets
