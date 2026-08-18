@@ -24,8 +24,9 @@ export const globalLimiter = rateLimit({
 });
 
 /**
- * Credential limiter, 20 attempts per 15 minutes per IP, for sign-in and
- * registration.
+ * Credential limiter, per address: 50 failed attempts per 15 minutes, for
+ * sign-in and registration. Paired with authAccountLimiter below, which is the
+ * tighter per-account guard.
  *
  * This deliberately lives here rather than next to the handler it protects.
  * It used to be defined inside routes/auth.ts and attached to that file's
@@ -44,7 +45,28 @@ export const globalLimiter = rateLimit({
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  // Raised from 20 together with skipSuccessfulRequests below. This is now a
+  // ceiling on *failures* from one address, which is a spray guard; the guard
+  // against guessing one person's password is authAccountLimiter, and it is
+  // much tighter.
+  max: 50,
+  /**
+   * Only failures count.
+   *
+   * The cap is per IP, and this product is sold to schools. Thirty students on
+   * one classroom connection share a single address, so twenty *sign-ins* per
+   * quarter hour locked out most of a class arriving at nine o'clock -- and the
+   * ones refused were told they had made too many sign-in attempts, which from
+   * where they sat was untrue: it was their first.
+   *
+   * Counting only what failed keeps the guard this limiter exists for. A
+   * password guesser generates nothing but failures; a classroom signing in
+   * generates almost none. The two stop looking alike, which a per-IP count of
+   * all requests could never manage.
+   *
+   * Requires a store that can decrement, which the Postgres store implements.
+   */
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   store: buildRateLimitStore("auth"),
@@ -53,6 +75,57 @@ export const authLimiter = rateLimit({
     res.setHeader("Retry-After", retryAfter * 60);
     res.status(429).json({
       error: `Too many sign-in attempts. Please wait ${retryAfter} minutes and try again.`,
+      retryAfter: retryAfter * 60,
+    });
+  },
+});
+
+/**
+ * Credential limiter, per account: 10 failed attempts per 15 minutes.
+ *
+ * The per-IP limiter above cannot tell thirty people mistyping once from one
+ * person guessing thirty times, because from the outside a classroom and an
+ * attacker are the same address. This one counts against the address being
+ * signed in to, so guessing one person's password is bounded however many
+ * connections it comes from, while a class full of people is unaffected by
+ * each other's mistakes.
+ *
+ * Only failures count here too: signing in correctly, however often, costs
+ * nothing.
+ *
+ * The accepted cost is that somebody who knows your email can keep you locked
+ * out for a quarter of an hour by failing ten times on purpose. That is the
+ * usual trade for per-account throttling, and it is the better half of it:
+ * without this, guessing scales with however many addresses an attacker can
+ * come from, which is not a limit at all.
+ */
+export const authAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: false,
+  legacyHeaders: false,
+  store: buildRateLimitStore("auth-account"),
+  /**
+   * The account being attempted, not the caller.
+   *
+   * express.json() runs before this is mounted, so the body is parsed. A
+   * request without a usable email is keyed by address instead: it cannot be
+   * a real sign-in, and letting it through unkeyed would be a way to opt out
+   * of this limiter by omitting a field.
+   */
+  keyGenerator: (req): string => {
+    const email = (req.body as { email?: unknown } | undefined)?.email;
+    if (typeof email === "string" && email.trim()) {
+      return `email:${email.trim().toLowerCase().slice(0, 320)}`;
+    }
+    return `addr:${req.ip ?? "unknown"}`;
+  },
+  handler(_req, res, _next, options) {
+    const retryAfter = Math.ceil(options.windowMs / 1000 / 60);
+    res.setHeader("Retry-After", retryAfter * 60);
+    res.status(429).json({
+      error: `Too many sign-in attempts for this account. Please wait ${retryAfter} minutes and try again.`,
       retryAfter: retryAfter * 60,
     });
   },

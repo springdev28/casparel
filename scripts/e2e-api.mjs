@@ -49,6 +49,17 @@ const RUN = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 
 const PASSWORD = "e2e-Passw0rd!checks";
 
+/**
+ * The administrator's password.
+ *
+ * Deliberately the same string in every harness. They all bootstrap the same
+ * allowlisted account and whichever runs first creates it; when the defaults
+ * differed, the second script found the address already registered, could not
+ * sign in to it, and stopped with a 401 that looked like a broken login.
+ */
+const ADMIN_PASSWORD =
+  process.env.E2E_ADMIN_PASSWORD || "e2e-Admin-Passw0rd!shared";
+
 let failures = 0;
 let checks = 0;
 
@@ -162,7 +173,7 @@ async function newUser(tag) {
 async function adminSession() {
   const email = process.env.E2E_ADMIN_EMAIL;
   if (!email) return null;
-  const password = process.env.E2E_ADMIN_PASSWORD || PASSWORD;
+  const password = ADMIN_PASSWORD;
 
   await call("POST", "/api/auth/register", {
     body: { email, password, name: "E2E Admin" },

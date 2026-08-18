@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import router from "./routes";
 import loginCompatRouter from "./routes/loginCompat";
 import { logger } from "./lib/logger";
-import { authLimiter, globalLimiter } from "./lib/limiters";
+import { authAccountLimiter, authLimiter, globalLimiter } from "./lib/limiters";
 import {
   parseRouteMetadata,
   renderRouteShell,
@@ -112,8 +112,8 @@ app.use("/api", globalLimiter);
 // so a limiter attached to one handler protects nothing if the other wins.
 // That is what happened: loginCompatRouter shadowed the limited route and
 // left password guessing capped only by the 100/min global limiter.
-app.use("/api/auth/login", authLimiter);
-app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/login", authLimiter, authAccountLimiter);
+app.use("/api/auth/register", authLimiter, authAccountLimiter);
 app.use("/api", loginCompatRouter);
 app.use("/api", router);
 

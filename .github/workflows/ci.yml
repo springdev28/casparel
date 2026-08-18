@@ -274,6 +274,22 @@ jobs:
           fi
           exit "$status"
 
+      # Sharing with a class is meant to end when membership does. A handler
+      # that checks "is this shared with a class?" and forgets "are you still
+      # in it?" behaves perfectly until somebody leaves, which is precisely the
+      # person whose access was supposed to stop.
+      - name: Check class sharing ends when membership does
+        run: |
+          set +e
+          node scripts/e2e-class-access.mjs http://localhost:4319
+          status=$?
+          set -e
+          if [ "$status" = "75" ]; then
+            echo "::warning::Class-access run was inconclusive, not a product failure."
+            exit 0
+          fi
+          exit "$status"
+
       - name: Server log
         if: always()
         run: cat "$RUNNER_TEMP/server.log" || true
