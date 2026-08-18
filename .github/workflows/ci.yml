@@ -258,6 +258,22 @@ jobs:
           fi
           exit "$status"
 
+      # The failure that matters most and shows least. A handler that forgets
+      # to compare the row's owner against the caller returns 200 with the
+      # right shape and renders perfectly; the only way to see it is to ask a
+      # second account for the first account's rows.
+      - name: Check one account cannot reach another's work
+        run: |
+          set +e
+          node scripts/e2e-authorization.mjs http://localhost:4319
+          status=$?
+          set -e
+          if [ "$status" = "75" ]; then
+            echo "::warning::Authorization run was inconclusive, not a product failure."
+            exit 0
+          fi
+          exit "$status"
+
       - name: Server log
         if: always()
         run: cat "$RUNNER_TEMP/server.log" || true
