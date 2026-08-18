@@ -7,6 +7,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Redirect, Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { storage } from "@/utils/secure-storage";
+import { apiOrigin } from "@/utils/api-host";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 import { useDesignSystemFonts } from "@workspace/edu-ds/hooks/use-fonts";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -14,10 +15,7 @@ import { PurchasesProvider } from "@/contexts/PurchasesContext";
 import { OnboardingProvider, useOnboarding } from "@/contexts/OnboardingContext";
 
 // Module-level setup, runs before any component renders
-const domain = process.env.EXPO_PUBLIC_DOMAIN;
-if (domain) {
-  setBaseUrl(`https://${domain}`);
-}
+setBaseUrl(apiOrigin);
 setAuthTokenGetter(() => storage.getItemAsync("schoolar_token"));
 
 SplashScreen.preventAutoHideAsync();
