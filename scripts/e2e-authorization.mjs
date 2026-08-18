@@ -232,6 +232,71 @@ async function main() {
       res.status < 400 ? `body: ${res.text.slice(0, 160)}` : "");
   }
 
+  /**
+   * A private conversation is private to two people.
+   *
+   * Worth asking separately from the rows above. Those are reached by an id
+   * that belongs to somebody; a conversation is reached by an id that belongs
+   * to a *pair*, and "am I one of the two?" is a different question from "is
+   * this mine?" -- easy to answer with a lookup that finds the conversation
+   * and forgets to say whose it is.
+   */
+  console.log("");
+  const cara = await newUser("cara");
+  const conversation = await call("POST", "/api/direct-messages/conversations", {
+    token: ana.token,
+    body: { userId: ben.user.id, body: "Something meant for one person." },
+  });
+
+  if (conversation.status !== 201 && conversation.status !== 200) {
+    console.log(
+      `--   private conversation\n     not run: could not start one (HTTP ${conversation.status} ${conversation.text.slice(0, 120)})`,
+    );
+  } else {
+    const conversationId = conversation.body?.id ?? conversation.body?.conversation?.id;
+    checks += 1;
+    if (!conversationId) {
+      findings += 1;
+      console.log("FINDING private conversation\n     started but returned no id to check");
+    } else {
+      console.log(`ok   ${"a conversation can be started".padEnd(34)} id=${conversationId}`);
+
+      const read = await call(
+        "GET",
+        `/api/direct-messages/conversations/${conversationId}`,
+        { token: cara.token },
+      );
+      report("someone else's conversation", "GET",
+        `/api/direct-messages/conversations/${conversationId}`, read.status,
+        read.status < 400 ? `body: ${read.text.slice(0, 200)}` : "");
+
+      const write = await call(
+        "POST",
+        `/api/direct-messages/conversations/${conversationId}/messages`,
+        { token: cara.token, body: { body: "Butting in." } },
+      );
+      report("posting into it", "POST",
+        `/api/direct-messages/conversations/${conversationId}/messages`, write.status,
+        write.status < 400 ? `body: ${write.text.slice(0, 200)}` : "");
+
+      // The other half: the two people in it must still be able to use it.
+      const asParticipant = await call(
+        "GET",
+        `/api/direct-messages/conversations/${conversationId}`,
+        { token: ben.token },
+      );
+      checks += 1;
+      if (asParticipant.status === 200) {
+        console.log(`ok   ${"the person written to can read it".padEnd(34)} GET -> 200`);
+      } else {
+        findings += 1;
+        console.log(
+          `FINDING private conversation\n     the recipient cannot read their own conversation (HTTP ${asParticipant.status})`,
+        );
+      }
+    }
+  }
+
   // And the accounts themselves.
   console.log("");
   const profile = await call("GET", `/api/users/${ana.user.id}`, { token: ben.token });
