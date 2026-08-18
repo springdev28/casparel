@@ -685,6 +685,16 @@ const PT: Record<string, string> = {
   "reviews": "avaliações",
   "Open": "Abrir",
   "Article": "Artigo",
+  "Community study paths": "Percursos de estudo da comunidade",
+  "Reuse checklists shared by students and teachers, then personalize your own copy.": "Reutilize listas partilhadas por estudantes e professores e personalize a sua própria cópia.",
+  "Use this path": "Usar este percurso",
+  "Share path": "Partilhar percurso",
+  "Update shared path": "Atualizar percurso partilhado",
+  "Sharing…": "A partilhar…",
+  "No community paths yet": "Ainda não há percursos da comunidade",
+  "Share one of your goals to start the community library.": "Partilhe um dos seus objetivos para iniciar a biblioteca da comunidade.",
+  "Nothing shared by other people yet": "Ainda ninguém partilhou nada",
+  "Your path is in the library. Paths other people share will appear here.": "O seu percurso está na biblioteca. Os percursos que outras pessoas partilharem aparecerão aqui.",
 };
 
 export default PT;

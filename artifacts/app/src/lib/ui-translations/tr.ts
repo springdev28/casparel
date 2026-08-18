@@ -685,6 +685,16 @@ const TR: Record<string, string> = {
   "reviews": "değerlendirme",
   "Open": "Aç",
   "Article": "Makale",
+  "Community study paths": "Topluluk çalışma yolları",
+  "Reuse checklists shared by students and teachers, then personalize your own copy.": "Öğrencilerin ve öğretmenlerin paylaştığı listeleri kullan, sonra kendi kopyanı kişiselleştir.",
+  "Use this path": "Bu yolu kullan",
+  "Share path": "Yolu paylaş",
+  "Update shared path": "Paylaşılan yolu güncelle",
+  "Sharing…": "Paylaşılıyor…",
+  "No community paths yet": "Henüz topluluk yolu yok",
+  "Share one of your goals to start the community library.": "Topluluk kitaplığını başlatmak için hedeflerinden birini paylaş.",
+  "Nothing shared by other people yet": "Başkaları henüz bir şey paylaşmadı",
+  "Your path is in the library. Paths other people share will appear here.": "Yolun kitaplıkta. Başkalarının paylaştığı yollar burada görünecek.",
 };
 
 export default TR;
