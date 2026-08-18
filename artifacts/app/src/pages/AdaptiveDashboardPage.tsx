@@ -151,6 +151,48 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
       type: "Checklist step",
     })) ?? [];
   const latest = evidence?.[0];
+  const hasReflected = (evidence?.length ?? 0) > 0;
+  /**
+   * What the header is allowed to claim.
+   *
+   * It used to say "Your path adapted after yesterday's reflection" to
+   * everybody, unconditionally. An account ten seconds old was told its path
+   * had adapted after a reflection it had never made, on the same screen that
+   * said, four inches lower, "Your path is empty."
+   *
+   * Every branch is a whole fixed sentence rather than one sentence with the
+   * day interpolated into it. UiTranslationBridge matches whole strings, so an
+   * interpolated sentence can never be translated: writing
+   * `after ${when}'s reflection` would have read correctly in English and left
+   * five languages showing English. The sentences below are all in the
+   * dictionaries, and the yesterday one is kept exactly as it was because it
+   * already is.
+   */
+  const journeySubtitle = (() => {
+    // Nothing is claimed until the answer is in. Asserting a reflection and
+    // then correcting it a moment later is the flicker this avoids.
+    if (evidenceLoading || evidence === undefined) {
+      return "Here's the best next step.";
+    }
+    if (latest) {
+      const startOfDay = (value: Date) =>
+        new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+      const when = new Date(latest.createdAt);
+      const days = Number.isNaN(when.getTime())
+        ? null
+        : Math.round((startOfDay(new Date()) - startOfDay(when)) / 86_400_000);
+      if (days === 0) {
+        return "Your path adapted after today's reflection. Here's the best next step.";
+      }
+      if (days === 1) {
+        return "Your path adapted after yesterday's reflection. Here's the best next step.";
+      }
+      return "Your path adapted after your last reflection. Here's the best next step.";
+    }
+    return activeGoal
+      ? "Check in as you study and your path will adapt to what you find hard."
+      : "Set a goal and Casparel will build a path that adapts as you learn.";
+  })();
   const completedSteps = new Set(
     path.filter((step) => step.completed).map((step) => step.concept),
   );
@@ -304,12 +346,10 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
             YOUR LEARNING JOURNEY
           </p>
           <h1 className="text-3xl font-bold">
-            Welcome back{name ? `, ${name.split(" ")[0]}` : ""}
+            {hasReflected ? "Welcome back" : "Welcome"}
+            {name ? `, ${name.split(" ")[0]}` : ""}
           </h1>
-          <p className="mt-2 text-muted-foreground">
-            Your path adapted after yesterday&apos;s reflection. Here&apos;s the
-            best next step.
-          </p>
+          <p className="mt-2 text-muted-foreground">{journeySubtitle}</p>
         </div>
         <Badge variant="secondary" className="px-4 py-2">
           <TrendingUp size={15} className="mr-2" />
