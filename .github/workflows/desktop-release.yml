@@ -69,6 +69,15 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # What the installers CONTAIN, which a successful build says nothing
+      # about. The applications-menu entry, the icon sizes, the deep-link
+      # scheme registration and the declared licence are all things that are
+      # only wrong once somebody installs the thing.
+      - name: Check what the Linux packages contain
+        if: matrix.artifact == 'linux'
+        working-directory: artifacts/desktop
+        run: pnpm run verify:package
+
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:

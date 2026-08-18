@@ -48,13 +48,21 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MOBILE = path.resolve(HERE, "..");
 const IMAGES = path.join(MOBILE, "assets", "images");
 const SOURCE = path.join(IMAGES, "icon-source.png");
-const DESKTOP_ICON = path.resolve(
-  MOBILE,
-  "..",
-  "desktop",
-  "build",
-  "icon.png",
-);
+const DESKTOP_BUILD = path.resolve(MOBILE, "..", "desktop", "build");
+const DESKTOP_ICON = path.join(DESKTOP_BUILD, "icon.png");
+const DESKTOP_ICON_SET = path.join(DESKTOP_BUILD, "icons");
+
+/**
+ * Linux installs icons by size and picks the nearest one; it does not scale a
+ * single large PNG well. Handed one file, electron-builder ships exactly that
+ * file, so a .deb built from `icon.png` alone installs one 1024px icon and the
+ * launcher, dock, alt-tab switcher and notifications all downscale it. Handed a
+ * directory it ships the set, which is what these are.
+ *
+ * macOS and Windows are different: .icns and .ico are single files holding
+ * every size, and electron-builder generates both from `icon.png` itself.
+ */
+const LINUX_ICON_SIZES = [16, 32, 48, 64, 128, 256, 512, 1024];
 
 const SIZE = 1024;
 
@@ -114,6 +122,13 @@ const outputs = [
     background: null,
     label: "desktop icon",
   },
+  ...LINUX_ICON_SIZES.map((size) => ({
+    file: path.join(DESKTOP_ICON_SET, `${size}x${size}.png`),
+    scale: DESKTOP_SCALE,
+    background: null,
+    size,
+    label: `Linux ${size}px icon`,
+  })),
 ];
 
 /** PNG chunk checksum. Written out rather than taken from zlib, which only
@@ -323,29 +338,30 @@ async function renderInPage({ sourceDataUrl, plan, size }) {
 
   const results = [];
   for (const step of plan) {
+    const edge = step.size ?? size;
     const out = document.createElement("canvas");
-    out.width = size;
-    out.height = size;
+    out.width = edge;
+    out.height = edge;
     const ctx = out.getContext("2d");
     ctx.imageSmoothingQuality = "high";
 
     if (step.background === "brand") {
       ctx.fillStyle = brand;
-      ctx.fillRect(0, 0, size, size);
+      ctx.fillRect(0, 0, edge, edge);
     }
 
     // Scaling about the centre. At scale 1 with a brand background this is a
     // full-bleed square: the drawing's rounded corners fall onto the same
     // colour behind them, so the corner radius simply disappears.
-    const drawn = size * step.scale;
-    const offset = (size - drawn) / 2;
+    const drawn = edge * step.scale;
+    const offset = (edge - drawn) / 2;
     ctx.drawImage(base, offset, offset, drawn, drawn);
 
     const png = out.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
 
     let rgba = null;
     if (step.opaque) {
-      const bytes = ctx.getImageData(0, 0, size, size).data;
+      const bytes = ctx.getImageData(0, 0, edge, edge).data;
       // btoa on a 4 MB string at once overflows the argument list, so the
       // binary string is built in chunks first.
       let binary = "";
@@ -387,10 +403,11 @@ async function main() {
       "data:image/png;base64," + fs.readFileSync(SOURCE).toString("base64");
     rendered = await page.evaluate(renderInPage, {
       sourceDataUrl,
-      plan: outputs.map(({ scale, background, opaque }) => ({
+      plan: outputs.map(({ scale, background, opaque, size }) => ({
         scale,
         background,
         opaque: opaque === true,
+        size: size ?? null,
       })),
       size: SIZE,
     });
@@ -401,8 +418,9 @@ async function main() {
   let changed = 0;
   outputs.forEach((output, index) => {
     const step = rendered.images[index];
+    const edge = output.size ?? SIZE;
     const bytes = output.opaque
-      ? stripAlpha(Buffer.from(step.rgba, "base64"), SIZE, SIZE)
+      ? stripAlpha(Buffer.from(step.rgba, "base64"), edge, edge)
       : Buffer.from(step.png, "base64");
     const relative = path.relative(path.resolve(MOBILE, "..", ".."), output.file);
     const existing = fs.existsSync(output.file)
@@ -421,6 +439,7 @@ async function main() {
       );
       return;
     }
+    fs.mkdirSync(path.dirname(output.file), { recursive: true });
     fs.writeFileSync(output.file, bytes);
     console.log(
       `  wrote      ${relative}  (${output.label}, ${(bytes.length / 1024).toFixed(0)} KB)`,
