@@ -1,6 +1,33 @@
 import rateLimit from "express-rate-limit";
 import { buildRateLimitStore } from "./rateLimitStore";
 import { isAdminRequest } from "./adminAccess";
+import { decodeToken } from "./auth";
+
+/**
+ * Count against the account when there is one, the address otherwise.
+ *
+ * Every limiter here used to count per address, and this product is sold to
+ * schools, where a whole class shares one. A signed-in page costs about ten API
+ * requests, so a per-address ceiling of a hundred a minute gave a class of
+ * thirty ten page loads between them -- the room opening the app at the start
+ * of a lesson exceeded it three times over and was told to slow down.
+ *
+ * What these limits are actually for is one caller misbehaving, and a caller is
+ * an account. Anonymous traffic still counts per address, which is where a
+ * flood with no account to name comes from.
+ *
+ * The token is decoded here rather than read from req.userId because these run
+ * as route middleware ahead of requireAuth, so nothing has authenticated yet.
+ * decodeToken verifies the signature, so a forged token cannot claim somebody
+ * else's bucket; an unusable one falls back to the address.
+ */
+function perAccountKey(req: { headers: { authorization?: string }; ip?: string }): string {
+  const header = req.headers.authorization;
+  const userId = header?.startsWith("Bearer ")
+    ? decodeToken(header.slice(7))?.userId
+    : undefined;
+  return userId ? `user:${userId}` : `addr:${req.ip ?? "unknown"}`;
+}
 
 /**
  * Global API limiter, 100 requests per minute per IP.
@@ -10,6 +37,7 @@ export const globalLimiter = rateLimit({
   requestPropertyName: "globalRateLimit",
   windowMs: 60 * 1000,
   max: 100,
+  keyGenerator: perAccountKey,
   standardHeaders: true,
   legacyHeaders: false,
   store: buildRateLimitStore("global"),
@@ -168,8 +196,22 @@ export const discoverLimiter = rateLimit({
 });
 
 /**
- * Content-creation limiter, 20 requests per minute per IP.
- * Applied to POST /resources and POST /reviews to slow automated content spam.
+ * Content-creation limiter, 20 writes per minute per account.
+ *
+ * Per account, not per address, for the reason the credential limiter had to
+ * change: a school shares one connection. Thirty students accepting a class
+ * invitation and making their first activity is sixty writes from a single
+ * address within a couple of minutes, and a per-IP cap of twenty told most of
+ * the room they were submitting too quickly. Spam is something an account
+ * does -- one account writing a hundred things a minute -- and counting it
+ * that way tells the two apart. Overall volume from one address is still
+ * bounded by globalLimiter.
+ *
+ * Keyed by decoding the bearer token rather than by req.userId, because this
+ * runs as route middleware ahead of requireAuth and there is no userId on the
+ * request yet. isAdminRequest in the skip above reads the header the same way.
+ * Anything without a usable token falls back to the address, so an
+ * unauthenticated caller cannot opt out of the limit by sending no token.
  */
 export const contentLimiter = rateLimit({
   skip: isAdminRequest,
@@ -177,6 +219,7 @@ export const contentLimiter = rateLimit({
   validate: { singleCount: false },
   windowMs: 60 * 1000,
   max: 20,
+  keyGenerator: perAccountKey,
   standardHeaders: true,
   legacyHeaders: false,
   store: buildRateLimitStore("content"),

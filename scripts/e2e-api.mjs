@@ -434,6 +434,53 @@ async function main() {
         ownCopy.body.shareToken === null,
         `shareToken=${ownCopy.body.shareToken}`);
     }
+
+    /**
+     * The plan's limits are the product's price list, so they have to hold.
+     *
+     * A cap that silently stopped applying would cost money and show nothing:
+     * every request succeeds, every screen looks right, and the only symptom
+     * is revenue that never arrives. Free allows three canvases, and Alice has
+     * two by now -- the one she made and the copy she took -- so one more
+     * reaches the cap and the next must be refused.
+     *
+     * The copy route is checked at the cap too, deliberately. It is a second
+     * way to create a canvas, written later than the first, and a limit
+     * enforced on one path and not the other is a limit with a door in it.
+     */
+    const third = await call("POST", "/api/canvases", {
+      token: alice.token,
+      body: { title: "Third canvas", content: { shapes: [] } },
+    });
+    check("the plan's allowance can be reached", third.status === 201,
+      `HTTP ${third.status} ${third.text.slice(0, 140)}`);
+
+    const overCap = await call("POST", "/api/canvases", {
+      token: alice.token,
+      body: { title: "One too many", content: { shapes: [] } },
+    });
+    check(
+      "creating past the plan's allowance is refused",
+      overCap.status === 402,
+      `HTTP ${overCap.status} -- a Free account created a fourth canvas where ` +
+        `the plan allows three`,
+    );
+    check(
+      "and says what to do about it",
+      typeof overCap.body?.error === "string" &&
+        /upgrade|remove/i.test(overCap.body.error),
+      `error was ${JSON.stringify(overCap.body?.error ?? overCap.text.slice(0, 120))}`,
+    );
+
+    const copyOverCap = await call("POST", `/api/canvases/${canvas.body.id}/copy`, {
+      token: alice.token,
+    });
+    check(
+      "copying past the allowance is refused too",
+      copyOverCap.status === 402,
+      `HTTP ${copyOverCap.status} -- copying is a second way to create one, ` +
+        `and it must not be a way around the cap`,
+    );
   }
 
   // ---- discovery ---------------------------------------------------------
