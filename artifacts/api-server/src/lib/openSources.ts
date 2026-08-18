@@ -90,6 +90,16 @@ export type OpenSource = {
    * configured is skipped rather than asked and failing.
    */
   available?(): boolean;
+  /**
+   * Told when the importer is about to actually issue a request, so a source
+   * that has to ration something can count it.
+   *
+   * Separate from `endpoint`, which is called by tests and by nothing else of
+   * consequence: building a URL is not spending anything, and a counter that
+   * moved when a URL was built would drift every time the shape of a request
+   * was checked.
+   */
+  onRequest?(kind: "search" | "enrich"): void;
 };
 
 /** A row as a source describes it, before the shared fields are filled in. */
@@ -858,6 +868,87 @@ function youtubeExternalId(videoId: string) {
 }
 
 /**
+ * What YouTube charges, against a daily allowance.
+ *
+ * A search costs a hundred units and looking videos up costs one, so the
+ * default allowance of ten thousand is a hundred searches a day. Not a hundred
+ * thousand — a hundred, which a single busy afternoon can spend by teatime,
+ * leaving the evening with no videos at all and nothing in the logs to say
+ * why.
+ *
+ * Rationing it here means the last searches of the day are refused knowingly,
+ * through the same path that skips a source with no key configured: cleanly,
+ * without a failed request, and without resting the provider over something
+ * that is not a fault.
+ *
+ * This does not protect the allowance from anyone else holding the key. That
+ * is what Google's own quota page is for; this is only about the app not
+ * spending its own allowance carelessly.
+ */
+const YOUTUBE_SEARCH_COST = 100;
+const YOUTUBE_LOOKUP_COST = 1;
+const YOUTUBE_DEFAULT_DAILY_QUOTA = 10_000;
+
+/**
+ * Kept back rather than spent to the last unit.
+ *
+ * A search already issued still has its lookup to pay for, and the count is
+ * held in memory, so a restart forgets what today has spent. The reserve is
+ * what stops either of those turning into requests that fail rather than
+ * requests that were never made.
+ */
+const YOUTUBE_QUOTA_RESERVE = 200;
+
+let youtubeSpend = { day: "", units: 0 };
+
+/**
+ * Today, where Google keeps it.
+ *
+ * The allowance resets at midnight Pacific. A counter rolling over at local
+ * midnight would hand back a full allowance hours early or hours late, and
+ * would move by an hour twice a year for no reason anybody could see.
+ */
+function pacificDay(): string {
+  try {
+    return new Date().toLocaleDateString("en-CA", {
+      timeZone: "America/Los_Angeles",
+    });
+  } catch {
+    // A runtime built without the timezone data should not take the search
+    // offline; a day that rolls over at the wrong hour is the lesser problem.
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function youtubeDailyQuota(): number {
+  const configured = Number(process.env.YOUTUBE_DAILY_QUOTA);
+  return Number.isFinite(configured) && configured > 0
+    ? configured
+    : YOUTUBE_DEFAULT_DAILY_QUOTA;
+}
+
+/** What is left of today's allowance, after the reserve. */
+export function youtubeQuotaRemaining(): number {
+  const day = pacificDay();
+  if (youtubeSpend.day !== day) youtubeSpend = { day, units: 0 };
+  return Math.max(
+    0,
+    youtubeDailyQuota() - YOUTUBE_QUOTA_RESERVE - youtubeSpend.units,
+  );
+}
+
+function recordYoutubeSpend(units: number) {
+  const day = pacificDay();
+  if (youtubeSpend.day !== day) youtubeSpend = { day, units: 0 };
+  youtubeSpend.units += units;
+}
+
+/** Test seam: the count is process-wide and outlives a single test. */
+export function resetYoutubeQuota() {
+  youtubeSpend = { day: "", units: 0 };
+}
+
+/**
  * The subject most of a list of terms agrees on.
  *
  * `subjectFromTerms` takes the first thing it recognises, which is right for a
@@ -917,7 +1008,16 @@ const youtube: OpenSource = {
   host: "www.googleapis.com",
   material: "video",
   pageSize: 25,
-  available: () => Boolean(process.env.YOUTUBE_API_KEY),
+  // Not asked at all once the day's allowance is down to its last search, so
+  // the refusal is a source that is quietly unavailable rather than a request
+  // that comes back 403 and rests the provider for a minute.
+  available: () =>
+    Boolean(process.env.YOUTUBE_API_KEY) &&
+    youtubeQuotaRemaining() >= YOUTUBE_SEARCH_COST,
+  onRequest: (kind) =>
+    recordYoutubeSpend(
+      kind === "search" ? YOUTUBE_SEARCH_COST : YOUTUBE_LOOKUP_COST,
+    ),
   endpoint(query, _offset, pageSize) {
     const url = new URL("https://www.googleapis.com/youtube/v3/search");
     url.searchParams.set("part", "snippet");
