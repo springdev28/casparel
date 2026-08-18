@@ -536,7 +536,7 @@ const TR: Record<string, string> = {
   "They can no longer view your profile or collaborate with you.": "Artık profilinizi göremez veya sizinle ortak çalışamaz.",
   "They will lose access to this class and its shared resources. You can add them again later.": "Bu sınıfa ve paylaşılan kaynaklarına erişimlerini kaybederler. Daha sonra yeniden ekleyebilirsiniz.",
   "This feature is on the roadmap.": "Bu özellik geliştirme planında.",
-  "This permanently deletes the class, its memberships, and its class resource list. Original resources remain available.": "Bu işlem sınıfı, üyeliklerini ve sınıf kaynak listesini kalıcı olarak siler. Asıl kaynaklar kullanılabilir kalır.",
+  "Deletes the class, its members, its shared list, its assignments, and the whole class discussion, including your students' posts. Activities and canvases shared with the class are kept: they go back to whoever made them. This cannot be undone.": "Sınıfı, üyelerini, paylaşılan listesini, ödevlerini ve öğrencilerinizin gönderileri dahil tüm sınıf tartışmasını siler. Sınıfla paylaşılan etkinlikler ve tuvaller korunur: bunları oluşturan kişilere geri döner. Bu işlem geri alınamaz.",
   "This shapes what comes next.": "Bu, sonraki adımı şekillendirir.",
   "This user has not added anything to their library yet.": "Bu kullanıcı henüz kütüphanesine bir şey eklememiş.",
   "This user’s library is private or limited to classmates.": "Bu kullanıcının kütüphanesi özel veya sınıf arkadaşlarıyla sınırlı.",
