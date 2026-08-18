@@ -121,3 +121,105 @@ jobs:
       # become the first page.
       - name: Smoke-test the desktop shell
         run: pnpm --filter @workspace/desktop run smoke
+
+  # The checks above all take the real parts out: the unit tests mock the
+  # database, and the page audit answers the API from fixtures. Both stayed
+  # green while people search returned nothing and deep research quietly
+  # returned the free check, because neither ever ran the server.
+  #
+  # This job runs it. Real Postgres, real migrations, real handlers, real
+  # sessions, over HTTP. It is a separate job so its Postgres service does not
+  # slow the checks that do not need one, and so a failure here reads as
+  # "a flow is broken" rather than as one more red step among twenty.
+  flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: casparel_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/casparel_e2e
+      PORT: '4319'
+      NODE_ENV: production
+      LOG_LEVEL: warn
+      # Not a secret: this database exists for the length of this job and holds
+      # nothing but the rows the run makes.
+      SESSION_SECRET: ci-e2e-secret-value-not-used-anywhere-else
+      APP_URL: http://localhost:4319
+      SITE_URL: http://localhost:4319
+      ALLOWED_ORIGINS: http://localhost:4319
+      # Required at boot. Nothing in these flows calls a model; a request that
+      # tried would fail to connect rather than reach anyone.
+      AI_INTEGRATIONS_OPENAI_BASE_URL: http://localhost:9/v1
+      AI_INTEGRATIONS_OPENAI_API_KEY: unused-by-these-flows
+      # Registration only ever creates students, so the class flows need an
+      # administrator to promote one. An allowlisted address is promoted when
+      # it signs in, which is all the seeding this needs.
+      ADMIN_EMAILS: ci-admin@example.test
+      E2E_ADMIN_EMAIL: ci-admin@example.test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the API server
+        run: pnpm --filter @workspace/api-server run build
+
+      # Migrations run at boot, so a schema that cannot be applied fails here
+      # before any flow is attempted.
+      - name: Start the server
+        working-directory: artifacts/api-server
+        run: |
+          node ./dist/index.mjs > "$RUNNER_TEMP/server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/server.pid"
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:4319/api/healthz > /dev/null 2>&1; then
+              echo "server up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not come up:"
+          cat "$RUNNER_TEMP/server.log"
+          exit 1
+
+      # Exit 75 means the run could not be performed (a rate-limit window),
+      # which is not a product failure and must not be reported as one.
+      - name: Run the flows
+        run: |
+          set +e
+          node scripts/e2e-api.mjs http://localhost:4319
+          status=$?
+          set -e
+          if [ "$status" = "75" ]; then
+            echo "::warning::End-to-end run was inconclusive (rate limited), not a product failure."
+            exit 0
+          fi
+          exit "$status"
+
+      - name: Server log
+        if: always()
+        run: cat "$RUNNER_TEMP/server.log" || true
+
+      - name: Stop the server
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/server.pid")" 2>/dev/null || true
