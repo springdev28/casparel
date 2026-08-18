@@ -318,6 +318,49 @@ async function main() {
     }
   }
 
+  /**
+   * Deleting a class must not delete other people's work.
+   *
+   * study_activities.class_id and canvases.class_id are ON DELETE CASCADE, so
+   * removing the class took everything shared with it -- including what a
+   * student made and shared. A pupil who built a revision set for their class
+   * lost it when the teacher tidied up at the end of term: their work, deleted
+   * by somebody else's action, silently.
+   *
+   * Sharing is not surrendering. The check is that the pupil still has it.
+   */
+  const pupilSet = await call("POST", "/api/study-activities", {
+    token: member.token,
+    body: {
+      title: `A pupil's own set ${RUN}`,
+      subject: "Mathematics",
+      mode: "flashcards",
+      classId,
+      cards: [
+        { id: "a", term: "1", answer: "2" },
+        { id: "b", term: "3", answer: "4" },
+      ],
+    },
+  });
+  check("a pupil can share their own work with the class", pupilSet.status === 201,
+    `HTTP ${pupilSet.status} ${pupilSet.text.slice(0, 140)}`);
+
+  if (pupilSet.status === 201) {
+    const closed = await call("DELETE", `/api/classes/${classId}`, { token: teacherToken });
+    check("the teacher can delete the class", [200, 204].includes(closed.status),
+      `HTTP ${closed.status}`);
+
+    // Back in their own library, where it started: no classId, so it shows in
+    // the default listing rather than under a class that no longer exists.
+    const mine = await call("GET", "/api/study-activities", { token: member.token });
+    check(
+      "deleting the class leaves the pupil their own work",
+      mine.status === 200 && (mine.body || []).some((a) => a.id === pupilSet.body.id),
+      `the pupil's set was destroyed when someone else deleted the class ` +
+        `(HTTP ${mine.status}, ids ${(mine.body || []).map((a) => a.id).join(",") || "none"})`,
+    );
+  }
+
   console.log(
     failures === 0
       ? `\nAll ${checks} class-access checks passed.\n`

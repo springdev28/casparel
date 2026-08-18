@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod/v4";
 import { eq, sql, and, max, asc, desc } from "drizzle-orm";
-import { db, classesTable, classMembersTable, classInvitationsTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable } from "@workspace/db";
+import { db, classesTable, classMembersTable, classInvitationsTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable, studyActivitiesTable, canvasesTable } from "@workspace/db";
 import { publicResourceColumns } from "../lib/resourceColumns";
 import {
   ListClassesResponse,
@@ -399,6 +399,26 @@ router.delete("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   }
   await db.transaction(async (tx) => {
     await tx.update(scheduleBlocksTable).set({ classId: null }).where(eq(scheduleBlocksTable.classId, params.data.id));
+    /**
+     * Hand people's own work back rather than destroying it.
+     *
+     * study_activities.class_id and canvases.class_id are both ON DELETE
+     * CASCADE, so deleting the class used to delete every activity and canvas
+     * shared with it -- including ones a student made and shared. A pupil who
+     * built a revision set for their class lost it when the teacher tidied up
+     * at the end of term: their work, deleted by somebody else's action, with
+     * no warning and no way back.
+     *
+     * Detaching first leaves the cascade nothing to take. The row returns to
+     * its owner's own library, which is where it came from. A canvas also
+     * stops being class-visible, because a canvas still marked "class" with no
+     * class to belong to is readable by nobody and looks broken.
+     *
+     * Schedule blocks were already treated this way, one line above. The same
+     * reasoning applies to anything a person owns.
+     */
+    await tx.update(studyActivitiesTable).set({ classId: null }).where(eq(studyActivitiesTable.classId, params.data.id));
+    await tx.update(canvasesTable).set({ classId: null, visibility: "private" }).where(eq(canvasesTable.classId, params.data.id));
     const classLists = await tx.select({ id: resourceListsTable.id }).from(resourceListsTable).where(eq(resourceListsTable.classId, params.data.id));
     for (const list of classLists) await tx.delete(listItemsTable).where(eq(listItemsTable.listId, list.id));
     await tx.delete(resourceListsTable).where(eq(resourceListsTable.classId, params.data.id));
