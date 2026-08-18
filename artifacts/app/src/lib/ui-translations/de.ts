@@ -7,6 +7,7 @@
  */
 const DE: Record<string, string> = {
   "Activities": "Aktivitäten",
+  "No plans": "Nichts geplant",
   "Activity complete": "Aktivität abgeschlossen",
   "Activity created": "Aktivität erstellt",
   "Activity deleted": "Aktivität gelöscht",
@@ -684,6 +685,16 @@ const DE: Record<string, string> = {
   "reviews": "Bewertungen",
   "Open": "Öffnen",
   "Article": "Artikel",
+  "Community study paths": "Gemeinsame Lernpfade",
+  "Reuse checklists shared by students and teachers, then personalize your own copy.": "Nutze Checklisten, die Lernende und Lehrkräfte geteilt haben, und passe deine eigene Kopie an.",
+  "Use this path": "Diesen Pfad übernehmen",
+  "Share path": "Pfad teilen",
+  "Update shared path": "Geteilten Pfad aktualisieren",
+  "Sharing…": "Wird geteilt…",
+  "No community paths yet": "Noch keine gemeinsamen Lernpfade",
+  "Share one of your goals to start the community library.": "Teile eines deiner Ziele, um die gemeinsame Bibliothek zu eröffnen.",
+  "Nothing shared by other people yet": "Noch nichts von anderen geteilt",
+  "Your path is in the library. Paths other people share will appear here.": "Dein Pfad ist in der Bibliothek. Pfade, die andere teilen, erscheinen hier.",
 };
 
 export default DE;

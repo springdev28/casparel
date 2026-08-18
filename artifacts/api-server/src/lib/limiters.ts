@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { buildRateLimitStore } from "./rateLimitStore";
 import { isAdminRequest } from "./adminAccess";
 import { decodeToken } from "./auth";
@@ -20,13 +20,28 @@ import { decodeToken } from "./auth";
  * as route middleware ahead of requireAuth, so nothing has authenticated yet.
  * decodeToken verifies the signature, so a forged token cannot claim somebody
  * else's bucket; an unusable one falls back to the address.
+ *
+ * The address half is not a raw req.ip, because that is not a caller when the
+ * caller has IPv6. A single subscriber is routinely handed a /64 or larger --
+ * billions of billions of addresses -- so anything keyed on the whole address
+ * gives one machine a fresh empty bucket whenever it likes: an unlimited
+ * limiter, silently, and only for the callers modern enough to have IPv6.
+ * express-rate-limit ships ipKeyGenerator to collapse an address to its
+ * allocation (a /56 by default) for exactly this, and warns at startup when a
+ * custom keyGenerator looks like it forgot. All three of ours did. IPv4 is
+ * returned unchanged.
+ *
+ * It is called at each key site rather than behind a shared helper on purpose:
+ * that check reads the key generator's own source text, so a helper satisfies
+ * the requirement while still printing the warning at every boot -- a
+ * permanent false alarm about code that is correct.
  */
 function perAccountKey(req: { headers: { authorization?: string }; ip?: string }): string {
   const header = req.headers.authorization;
   const userId = header?.startsWith("Bearer ")
     ? decodeToken(header.slice(7))?.userId
     : undefined;
-  return userId ? `user:${userId}` : `addr:${req.ip ?? "unknown"}`;
+  return userId ? `user:${userId}` : `addr:${req.ip ? ipKeyGenerator(req.ip) : "unknown"}`;
 }
 
 /**
@@ -147,7 +162,7 @@ export const authAccountLimiter = rateLimit({
     if (typeof email === "string" && email.trim()) {
       return `email:${email.trim().toLowerCase().slice(0, 320)}`;
     }
-    return `addr:${req.ip ?? "unknown"}`;
+    return `addr:${req.ip ? ipKeyGenerator(req.ip) : "unknown"}`;
   },
   handler(_req, res, _next, options) {
     const retryAfter = Math.ceil(options.windowMs / 1000 / 60);

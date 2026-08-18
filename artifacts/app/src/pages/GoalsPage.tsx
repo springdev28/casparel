@@ -48,6 +48,7 @@ import {
 } from "@workspace/edu-ds/components/ui/select";
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
+import { authedRequest } from "../lib/api-request";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import {
@@ -166,9 +167,9 @@ export default function GoalsPage() {
     if (!me?.id) return;
     setCommunityPathsLoading(true);
     try {
-      const response = await fetch("/api/learning-goal-templates");
-      if (!response.ok) throw new Error("Could not load community paths");
-      setCommunityPaths((await response.json()) as CommunityPath[]);
+      setCommunityPaths(
+        await authedRequest<CommunityPath[]>("/learning-goal-templates"),
+      );
     } catch (error) {
       toast({
         title: "Could not load community paths",
@@ -184,6 +185,26 @@ export default function GoalsPage() {
   useEffect(() => {
     if (me?.id) void refreshCommunityPaths();
   }, [me?.id]);
+  /**
+   * The community grid is other people's paths.
+   *
+   * The endpoint returns every shared path including your own, and the grid
+   * used to render all of them. So an account that shared its three goals then
+   * saw those three goals again below, under a heading that says "shared by
+   * students and teachers", credited to itself, with a button offering to add
+   * a copy -- which does exactly that, silently producing a second identical
+   * goal in the same account.
+   *
+   * The full list is still what the share button reads, because "have I
+   * already shared this goal" is a question about your own paths and that
+   * button's label is the only confirmation a share ever worked.
+   */
+  const sharedByOthers = communityPaths.filter(
+    (path) => path.creatorId !== me?.id,
+  );
+  const hasSharedOwnPath = communityPaths.some(
+    (path) => path.creatorId === me?.id,
+  );
   const [newStepTitles, setNewStepTitles] = useState<Record<number, string>>({});
   const [form, setForm] = useState({
     title: "",
@@ -325,17 +346,10 @@ export default function GoalsPage() {
   async function shareGoalPath(goal: LearningGoal) {
     setSharingGoalId(goal.id);
     try {
-      const response = await fetch("/api/learning-goal-templates", {
+      await authedRequest("/learning-goal-templates", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ goalId: goal.id }),
       });
-      const result = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) {
-        throw new Error(result.error ?? "Could not share this path");
-      }
       await refreshCommunityPaths();
       toast({
         title: "Community path shared",
@@ -356,16 +370,9 @@ export default function GoalsPage() {
   async function cloneCommunityPath(path: CommunityPath) {
     setCloningPathId(path.id);
     try {
-      const response = await fetch(
-        `/api/learning-goal-templates/${path.id}/clone`,
-        { method: "POST" },
-      );
-      const result = (await response.json().catch(() => ({}))) as {
-        error?: string;
-      };
-      if (!response.ok) {
-        throw new Error(result.error ?? "Could not clone this path");
-      }
+      await authedRequest(`/learning-goal-templates/${path.id}/clone`, {
+        method: "POST",
+      });
       await Promise.all([refresh(), refreshCommunityPaths()]);
       toast({
         title: "Path added to your goals",
@@ -649,9 +656,9 @@ export default function GoalsPage() {
               <Skeleton key={item} className="h-48" />
             ))}
           </div>
-        ) : communityPaths.length ? (
+        ) : sharedByOthers.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {communityPaths.slice(0, 9).map((path) => (
+            {sharedByOthers.slice(0, 9).map((path) => (
               <Card key={path.id}>
                 <CardHeader className="pb-3">
                   <div className="flex flex-wrap gap-2">
@@ -694,9 +701,19 @@ export default function GoalsPage() {
           </div>
         ) : (
           <div className="border-y py-8 text-center">
-            <p className="font-medium">No community paths yet</p>
+            {/*
+              Two different situations, and telling someone who just shared a
+              path that nothing has been shared reads like their share failed.
+            */}
+            <p className="font-medium">
+              {hasSharedOwnPath
+                ? "Nothing shared by other people yet"
+                : "No community paths yet"}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Share one of your goals to start the community library.
+              {hasSharedOwnPath
+                ? "Your path is in the library. Paths other people share will appear here."
+                : "Share one of your goals to start the community library."}
             </p>
           </div>
         )}

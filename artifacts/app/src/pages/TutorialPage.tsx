@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useLocation, Link } from "wouter";
 import {
   ArrowLeft,
@@ -102,8 +102,36 @@ export default function TutorialPage() {
     setLocation("/dashboard");
   }
 
+  /*
+   * This page paints its own surface, so it declares its own text colours.
+   *
+   * It renders inside AppShell, which layers the ambient effect over the
+   * background and then picks text colours for that effect -- near-white body
+   * text, because it expects a dark composite behind it. The opaque
+   * bg-background below covers the ambient completely, so those near-white
+   * colours landed on a near-white surface: the line under this card measured
+   * 1.09:1, which is invisible, on the first screen a new account ever sees.
+   *
+   * Removing the background instead was tried and is worse. It fixes the body
+   * text (1.09 to 4.53) and breaks the links, which are --primary-text and
+   * tuned for a light surface: over the mesh they measure 1.65, and the
+   * lightness that would fix them is so close to white that a link stops
+   * looking like one. A mid-tone backdrop simply has no room for both.
+   *
+   * So the surface stays and the tokens come with it. These are the values the
+   * shell itself uses when there is no ambient to allow for, which is exactly
+   * this page's situation.
+   */
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
+    <div
+      className="flex min-h-[100dvh] items-center justify-center bg-background p-4"
+      style={
+        {
+          "--foreground": "225 21.1% 7.5%",
+          "--muted-foreground": "0 0% 28%",
+        } as CSSProperties
+      }
+    >
       <div className="w-full max-w-xl">
         <div className="relative overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm">
           <Button

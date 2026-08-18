@@ -7,6 +7,7 @@
  */
 const ES: Record<string, string> = {
   "Activities": "Actividades",
+  "No plans": "Sin planes",
   "Activity complete": "Actividad completada",
   "Activity created": "Actividad creada",
   "Activity deleted": "Actividad eliminada",
@@ -684,6 +685,16 @@ const ES: Record<string, string> = {
   "reviews": "reseñas",
   "Open": "Abrir",
   "Article": "Artículo",
+  "Community study paths": "Rutas de estudio de la comunidad",
+  "Reuse checklists shared by students and teachers, then personalize your own copy.": "Reutiliza listas compartidas por estudiantes y docentes y personaliza tu propia copia.",
+  "Use this path": "Usar esta ruta",
+  "Share path": "Compartir ruta",
+  "Update shared path": "Actualizar ruta compartida",
+  "Sharing…": "Compartiendo…",
+  "No community paths yet": "Aún no hay rutas de la comunidad",
+  "Share one of your goals to start the community library.": "Comparte uno de tus objetivos para iniciar la biblioteca de la comunidad.",
+  "Nothing shared by other people yet": "Aún nadie más ha compartido nada",
+  "Your path is in the library. Paths other people share will appear here.": "Tu ruta está en la biblioteca. Las rutas que compartan otras personas aparecerán aquí.",
 };
 
 export default ES;
