@@ -2549,6 +2549,31 @@ async function enrichOpenSourceRows(
   }
 }
 
+export type VideoRefreshOptions = {
+  /** How many videos one pass may ask about. */
+  limit?: number;
+  /**
+   * Only videos not checked since this instant, which is what turns a
+   * perpetual loop into a sweep with an end: pass the moment the process
+   * started and each row drops out as it is checked.
+   */
+  checkedBefore?: string;
+};
+
+/**
+ * What a pass did, and — the part the caller needs — whether it got to try.
+ *
+ * "Swept" with nothing examined means there is genuinely nothing left and the
+ * caller can stop. Skipped and failed also examine nothing, and a caller that
+ * could not tell them apart would stop sweeping the first time the key was
+ * missing or a lookup timed out, and never start again.
+ */
+export type VideoRefresh = {
+  status: "swept" | "skipped" | "failed";
+  examined: number;
+  corrected: number;
+};
+
 /**
  * Correct the subject on videos already stored.
  *
@@ -2569,12 +2594,15 @@ async function enrichOpenSourceRows(
  * the new answer is the authoritative one, including when the new answer is
  * that its own tags never said.
  */
-export async function refreshStoredVideoSubjects(
+export async function refreshStoredVideoSubjects({
   limit = YOUTUBE_LOOKUP_BATCH,
-): Promise<number> {
-  if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false") return 0;
+  checkedBefore,
+}: VideoRefreshOptions = {}): Promise<VideoRefresh> {
+  if (process.env.CATALOG_REMOTE_SEARCH_ENABLED === "false")
+    return { status: "skipped", examined: 0, corrected: 0 };
   const source = OPEN_SOURCES.find((candidate) => candidate.kind === "youtube");
-  if (!source || (source.available && !source.available())) return 0;
+  if (!source || (source.available && !source.available()))
+    return { status: "skipped", examined: 0, corrected: 0 };
 
   const stored = await db
     .select({
@@ -2583,13 +2611,22 @@ export async function refreshStoredVideoSubjects(
       subject: catalogResourcesTable.subject,
     })
     .from(catalogResourcesTable)
-    .where(eq(catalogResourcesTable.sourceKind, "youtube"))
+    .where(
+      checkedBefore
+        ? and(
+            eq(catalogResourcesTable.sourceKind, "youtube"),
+            sql`${catalogResourcesTable.lastSyncedAt} < ${checkedBefore}`,
+          )
+        : eq(catalogResourcesTable.sourceKind, "youtube"),
+    )
     .orderBy(asc(catalogResourcesTable.lastSyncedAt))
     .limit(Math.max(1, Math.min(YOUTUBE_LOOKUP_BATCH, limit)));
-  if (!stored.length) return 0;
+  // Nothing left that predates the mark: the sweep is finished, and the caller
+  // reads this as its cue to stop rather than keep asking.
+  if (!stored.length) return { status: "swept", examined: 0, corrected: 0 };
 
   const endpoint = youtubeLookupUrl(stored.map((row) => row.externalId));
-  if (!endpoint) return 0;
+  if (!endpoint) return { status: "skipped", examined: 0, corrected: 0 };
 
   let subjects: Map<string, string>;
   try {
@@ -2599,11 +2636,13 @@ export async function refreshStoredVideoSubjects(
       headers: { accept: "application/json", "user-agent": catalogUserAgent() },
       signal: AbortSignal.timeout(ENRICH_TIMEOUT_MS),
     });
-    if (!response.ok) return 0;
+    if (!response.ok)
+      return { status: "failed", examined: 0, corrected: 0 };
     subjects = youtubeSubjectsFrom(await response.json());
   } catch {
-    // Nothing was corrected, and nothing was broken. The next pass tries again.
-    return 0;
+    // Nothing was corrected, and nothing was broken. The next pass tries again,
+    // and says so, or a sweep would end on the first flaky minute.
+    return { status: "failed", examined: 0, corrected: 0 };
   }
 
   const now = new Date().toISOString();
@@ -2622,7 +2661,7 @@ export async function refreshStoredVideoSubjects(
       .where(eq(catalogResourcesTable.id, row.id));
     if (subject !== row.subject) corrected += 1;
   }
-  return corrected;
+  return { status: "swept", examined: stored.length, corrected };
 }
 
 export async function searchOpenSourceAndStore(

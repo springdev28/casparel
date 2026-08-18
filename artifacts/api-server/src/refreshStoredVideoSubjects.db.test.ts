@@ -95,7 +95,10 @@ describe.skipIf(!url)("correcting stored video subjects", () => {
       answer({ vid1: { tags: ["ap chemistry", "chemistry"] } }) as never,
     );
 
-    expect(await refreshStoredVideoSubjects()).toBe(1);
+    expect(await refreshStoredVideoSubjects()).toMatchObject({
+      status: "swept",
+      corrected: 1,
+    });
     const [row] = await db.select().from(catalogResourcesTable);
     expect(row.subject).toBe("Chemistry");
   });
@@ -117,7 +120,10 @@ describe.skipIf(!url)("correcting stored video subjects", () => {
       answer({ vid2: { tags: ["online learning", "video tutorial"] } }) as never,
     );
 
-    expect(await refreshStoredVideoSubjects()).toBe(1);
+    expect(await refreshStoredVideoSubjects()).toMatchObject({
+      status: "swept",
+      corrected: 1,
+    });
     const [row] = await db.select().from(catalogResourcesTable);
     expect(row.subject).toBe("Interdisciplinary");
   });
@@ -144,10 +150,61 @@ describe.skipIf(!url)("correcting stored video subjects", () => {
       return answer({})(endpoint);
     }) as never);
 
-    await refreshStoredVideoSubjects(1);
-    await refreshStoredVideoSubjects(1);
+    await refreshStoredVideoSubjects({ limit: 1 });
+    await refreshStoredVideoSubjects({ limit: 1 });
     // The older row first, then the other one — not the same row twice.
     expect(asked).toEqual(["vid3", "vid4"]);
+  });
+
+  it("reports the sweep finished once nothing predates the mark", async () => {
+    // What tells the caller to stop. Only a pass that actually ran and found
+    // nothing left says so, which is why status and count are both reported.
+    const { db, catalogResourcesTable } = await database();
+    await db.delete(catalogResourcesTable);
+    await db
+      .insert(catalogResourcesTable)
+      .values([video(7, "Chemistry", "2026-01-01T00:00:00.000Z")]);
+
+    const { refreshStoredVideoSubjects, clearProviderCooldowns } = await import(
+      "./lib/catalog"
+    );
+    clearProviderCooldowns();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    expect(
+      await refreshStoredVideoSubjects({
+        checkedBefore: "2025-01-01T00:00:00.000Z",
+      }),
+    ).toMatchObject({ status: "swept", examined: 0, corrected: 0 });
+    // Nothing to ask about means nothing is asked, and no allowance spent.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("only sweeps videos left over from before the mark", async () => {
+    const { db, catalogResourcesTable } = await database();
+    await db.delete(catalogResourcesTable);
+    await db
+      .insert(catalogResourcesTable)
+      .values([
+        video(8, "Literature", "2020-01-01T00:00:00.000Z"),
+        video(9, "Chemistry", "2026-06-01T00:00:00.000Z"),
+      ]);
+
+    const { refreshStoredVideoSubjects, clearProviderCooldowns } = await import(
+      "./lib/catalog"
+    );
+    clearProviderCooldowns();
+    const asked: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(((endpoint: URL) => {
+      asked.push(new URL(String(endpoint)).searchParams.get("id")!);
+      return answer({})(endpoint);
+    }) as never);
+
+    await refreshStoredVideoSubjects({
+      checkedBefore: "2026-01-01T00:00:00.000Z",
+    });
+    // The one already checked since the mark is not paid for again.
+    expect(asked).toEqual(["vid8"]);
   });
 
   it("does not ask at all without a key", async () => {
@@ -161,7 +218,9 @@ describe.skipIf(!url)("correcting stored video subjects", () => {
     const { refreshStoredVideoSubjects } = await import("./lib/catalog");
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-    expect(await refreshStoredVideoSubjects()).toBe(0);
+    expect(await refreshStoredVideoSubjects()).toMatchObject({
+      status: "skipped",
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -180,7 +239,12 @@ describe.skipIf(!url)("correcting stored video subjects", () => {
     clearProviderCooldowns();
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
 
-    expect(await refreshStoredVideoSubjects()).toBe(0);
+    // "failed", not "swept": a sweep that read this as "nothing left" would
+    // stop for good on one slow minute.
+    expect(await refreshStoredVideoSubjects()).toMatchObject({
+      status: "failed",
+      examined: 0,
+    });
     const [row] = await db.select().from(catalogResourcesTable);
     expect(row.subject).toBe("Chemistry");
   });
