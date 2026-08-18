@@ -1,7 +1,9 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   Menu,
+  net,
   session,
   shell,
   type MenuItemConstructorOptions,
@@ -30,6 +32,16 @@ const APP_ORIGIN = new URL(APP_URL).origin;
 
 /** Custom scheme used for deep links, e.g. casparel://resources/123. */
 const PROTOCOL = "casparel";
+
+/**
+ * Where a newer shell would be announced, and where the user is sent to get
+ * it. The same repository electron-builder.yml publishes releases to.
+ */
+const RELEASES_API =
+  "https://api.github.com/repos/springdev28/casparel/releases/latest";
+const RELEASES_PAGE = "https://github.com/springdev28/casparel/releases/latest";
+/** Release tags are `desktop-v1.2.3`; the app's version is `1.2.3`. */
+const RELEASE_TAG_PREFIX = "desktop-v";
 
 const MIN_WIDTH = 960;
 const MIN_HEIGHT = 640;
@@ -254,6 +266,107 @@ function reportSmokeResult(win: BrowserWindow, firstUrl: string): void {
   }, 3_500);
 }
 
+// ---------------------------------------------------------------------------
+// Updates: whether a newer shell has been published, and nothing more.
+//
+// The shell loads the hosted web app, so the product updates itself and only
+// the window around it ever goes stale — rarely, and never urgently. That is
+// the whole reason this checks rather than updates: an auto-updater would
+// download and run code on the user's machine, which is a large amount of new
+// trust to ask for on behalf of a window whose entire security posture is that
+// it has no channel into the OS. Nothing here executes anything. It reads one
+// JSON document, compares two version numbers, and at most opens the releases
+// page in the user's own browser.
+// ---------------------------------------------------------------------------
+
+/** The newest published version, once a check has found one above ours. */
+let availableUpdate: string | null = null;
+
+/** Numeric-part comparison. Returns true when `candidate` is newer. */
+function isNewer(candidate: string, current: string): boolean {
+  const parse = (value: string) =>
+    value
+      .split(".")
+      .map((part) => Number.parseInt(part, 10))
+      .map((part) => (Number.isFinite(part) ? part : 0));
+  const left = parse(candidate);
+  const right = parse(current);
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const a = left[index] ?? 0;
+    const b = right[index] ?? 0;
+    if (a !== b) return a > b;
+  }
+  return false;
+}
+
+/** The published version, or null if that cannot be established right now. */
+async function latestPublishedVersion(): Promise<string | null> {
+  try {
+    // net.fetch rather than the global: it goes through Chromium's stack, so
+    // it honours the system proxy the rest of the app already uses.
+    const response = await net.fetch(RELEASES_API, {
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!response.ok) return null;
+    const release = (await response.json()) as { tag_name?: unknown };
+    const tag = typeof release.tag_name === "string" ? release.tag_name : "";
+    if (!tag.startsWith(RELEASE_TAG_PREFIX)) return null;
+    const version = tag.slice(RELEASE_TAG_PREFIX.length);
+    return /^\d+(\.\d+)*$/.test(version) ? version : null;
+  } catch {
+    // Offline, rate limited, or the repository is not public yet. None of
+    // those are worth telling anyone about unless they asked.
+    return null;
+  }
+}
+
+/**
+ * `silent` is the launch check: it may add an item to the Help menu and must
+ * never interrupt. Without it the user asked, so every outcome gets an answer.
+ */
+async function checkForUpdates(silent: boolean): Promise<void> {
+  const current = app.getVersion();
+  const latest = await latestPublishedVersion();
+
+  if (latest && isNewer(latest, current)) {
+    availableUpdate = latest;
+    buildMenu();
+    if (silent) return;
+  }
+
+  if (silent) return;
+
+  if (!latest) {
+    await dialog.showMessageBox({
+      type: "info",
+      message: "Could not check for updates",
+      detail: `Casparel ${current} is installed. The update list could not be reached. Check your connection, or look at ${RELEASES_PAGE}.`,
+      buttons: ["OK"],
+    });
+    return;
+  }
+
+  if (!isNewer(latest, current)) {
+    await dialog.showMessageBox({
+      type: "info",
+      message: "Casparel is up to date",
+      detail: `Version ${current} is the latest release.`,
+      buttons: ["OK"],
+    });
+    return;
+  }
+
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    message: `Casparel ${latest} is available`,
+    detail: `You have ${current}. Downloads open in your browser; nothing is installed for you.`,
+    buttons: ["Open Downloads", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) void shell.openExternal(RELEASES_PAGE);
+}
+
 function buildMenu(): void {
   const isMac = process.platform === "darwin";
   const template: MenuItemConstructorOptions[] = [
@@ -313,6 +426,22 @@ function buildMenu(): void {
     {
       role: "help",
       submenu: [
+        // Only present once a check has actually found something, so the menu
+        // never implies an update that is not there.
+        ...(availableUpdate
+          ? ([
+              {
+                label: `Casparel ${availableUpdate} is available…`,
+                click: () => void shell.openExternal(RELEASES_PAGE),
+              },
+              { type: "separator" },
+            ] satisfies MenuItemConstructorOptions[])
+          : []),
+        {
+          label: "Check for Updates…",
+          click: () => void checkForUpdates(false),
+        },
+        { type: "separator" },
         {
           label: "Casparel on the Web",
           click: () => void shell.openExternal(APP_URL),
@@ -477,6 +606,15 @@ if (!app.requestSingleInstanceLock()) {
     if (launchDeepLink) openUrl(launchDeepLink);
 
     createWindow();
+
+    // One quiet look, after the window is up and the first page has had a
+    // chance to load, so nothing competes with startup. Only a packaged build
+    // can be out of date — `electron .` is whatever is checked out — and
+    // CASPAREL_NO_UPDATE_CHECK turns even that off for anyone distributing
+    // the shell through a package manager that owns updates itself.
+    if (app.isPackaged && !process.env.CASPAREL_NO_UPDATE_CHECK) {
+      setTimeout(() => void checkForUpdates(true), 10_000);
+    }
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();

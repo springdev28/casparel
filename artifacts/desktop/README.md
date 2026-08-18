@@ -61,7 +61,33 @@ Unsigned builds are fine for local testing and for a demo video.
 
 ## Publishing
 
-`DESKTOP_DOWNLOAD_URL` in `artifacts/app/src/pages/LandingPage.tsx` is `null`
-until there is a real releases page behind it, at which point the landing page
-grows a "Download for desktop" button. Same rule as the store links: a dead
-download link is worse than an honest "coming soon".
+Push a tag to build and publish:
+
+```sh
+git tag desktop-v1.0.0 && git push origin desktop-v1.0.0
+```
+
+`.github/workflows/desktop-release.yml` builds on one runner per platform and
+attaches the installers to a GitHub release. A manual run from the Actions tab
+produces the same installers without releasing them.
+
+The website only offers the download once there is one. Set the repository
+variable `VITE_DESKTOP_DOWNLOAD_URL` to the releases page and redeploy; unset,
+the landing page and `/download` say so honestly rather than linking nowhere.
+See `artifacts/app/src/lib/downloads.ts`.
+
+## Staying current
+
+The shell loads the hosted web app, so the product updates itself and only the
+window around it can go stale. It checks once, ten seconds after launch, and
+when a newer release exists adds an item to the Help menu; `Help → Check for
+Updates…` asks on demand. Nothing is ever downloaded or run for the user, which
+is deliberate: an auto-updater is a large amount of new trust to ask for on
+behalf of a window, and this shell has no preload bridge precisely so that a
+compromise of the web app cannot reach the machine.
+
+Two things this depends on: releases have to be readable without credentials
+(the check reads the public GitHub releases API and stays quiet when it gets
+nothing), and the release tag has to be `desktop-v<version>` matching
+`package.json`. `CASPAREL_NO_UPDATE_CHECK=1` turns the check off entirely, for
+anyone redistributing the shell through a package manager that owns updates.
