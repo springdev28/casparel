@@ -469,6 +469,139 @@ describe("YouTube", () => {
     expect(url.searchParams.get("safeSearch")).toBe("strict");
     delete process.env.YOUTUBE_API_KEY;
   });
+
+  it("asks about every video of a page in one request", () => {
+    // Search costs a hundred units of the daily quota and this costs one, so
+    // the cost that matters is the number of requests, not their size.
+    process.env.YOUTUBE_API_KEY = "test-key-not-real";
+    const rows = [
+      ...youtube.parse(body),
+      { ...youtube.parse(body)[0], externalId: "youtube:abc123" },
+    ];
+    const url = youtube.enrich!.endpoint(rows)!;
+    expect(url.pathname).toBe("/youtube/v3/videos");
+    expect(url.searchParams.get("part")).toBe("snippet");
+    expect(url.searchParams.get("id")).toBe("sQK3Yr4Sc_k,abc123");
+    delete process.env.YOUTUBE_API_KEY;
+  });
+
+  it("has nothing to ask about an empty page", () => {
+    expect(youtube.enrich!.endpoint([])).toBeNull();
+  });
+
+  /** What the real API returned for these videos, trimmed. */
+  const enriched = (
+    tags: string[] | undefined,
+    categoryId = "27",
+    id = "sQK3Yr4Sc_k",
+  ) => ({ items: [{ id, snippet: { categoryId, ...(tags ? { tags } : {}) } }] });
+
+  it("takes the subject a video states about itself", () => {
+    // Crash Course Biology's own tags. A tag is a statement about the video,
+    // which is what separates this from reading words off a title.
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      enriched([
+        "photosynthesis",
+        "biology",
+        "science",
+        "crashcourse",
+        "plants",
+        "calvin cycle",
+      ]),
+    );
+    expect(row.subject).toBe("Biology");
+  });
+
+  it("reads a subject stated in the way YouTube's own tag picker writes it", () => {
+    // Math Antics, verbatim. Nothing here equals a subject outright, so this
+    // only works because the subject table matches on stems.
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      enriched([
+        "Algebra (Field Of Study)",
+        "Mathematics (Field Of Study)",
+        "Math Antics",
+      ]),
+    );
+    expect(row.subject).toBe("Mathematics");
+  });
+
+  it("goes with what most of the tags say, not the first one named outright", () => {
+    // A linear algebra lecture's real tags. Only "physics" is a subject's name
+    // outright, and matching names is tried before matching stems, so first
+    // past the post filed this under Physics — against "linear algebra" and
+    // "calculus" both pointing at Mathematics.
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      enriched([
+        "eigenvalue",
+        "eigenvector",
+        "how to find eigenvalues",
+        "the eigenvalue problem",
+        "linear algebra",
+        "calculus",
+        "physics",
+        "engineering",
+      ]),
+    );
+    expect(row.subject).toBe("Mathematics");
+  });
+
+  it("leaves a video alone when its tags say nothing about the subject", () => {
+    // Khan Academy's stoichiometry video, verbatim: every tag describes the
+    // format rather than the topic. Interdisciplinary is the honest answer,
+    // and inventing Chemistry from the title is the mistake this avoids.
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      enriched([
+        "online learning",
+        "online class",
+        "video class",
+        "video tutorial",
+        "online education",
+      ]),
+    );
+    expect(row.subject).toBeNull();
+  });
+
+  it("does not take a subject from a video not filed as teaching", () => {
+    // Tags are written by whoever uploaded the video. A marketing clip that
+    // tags itself "physics" does not get carried into a physics search on its
+    // own say-so; 26 is Howto & Style.
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      enriched(["physics", "biology"], "26"),
+    );
+    expect(row.subject).toBeNull();
+  });
+
+  it("ignores a padded tail of tags", () => {
+    const padding = Array.from({ length: 20 }, (_, i) => `keyword ${i}`);
+    const [row] = youtube.enrich!.apply(
+      youtube.parse(body),
+      enriched([...padding, "biology"]),
+    );
+    expect(row.subject).toBeNull();
+  });
+
+  it("keeps every row whatever the answer looks like", () => {
+    // The rows are already storable. An answer that is missing, empty, of the
+    // wrong shape or about a different video costs a subject, never a result.
+    for (const answer of [
+      {},
+      { items: [] },
+      { items: "not a list" },
+      enriched(["biology"], "27", "someone-else"),
+      enriched(undefined),
+      { items: [{ id: "sQK3Yr4Sc_k" }] },
+    ]) {
+      const rows = youtube.enrich!.apply(youtube.parse(body), answer);
+      expect(rows).toHaveLength(1);
+      expect(rows[0].url).toBe("https://www.youtube.com/watch?v=sQK3Yr4Sc_k");
+      expect(rows[0].subject).toBeNull();
+    }
+  });
 });
 
 describe("every source", () => {
