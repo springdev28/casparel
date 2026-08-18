@@ -8,7 +8,10 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { pool, runMigrations } from "@workspace/db";
 import { initRateLimitStore } from "./lib/rateLimitStore";
-import { ensureCuratedCatalog } from "./lib/catalog";
+import {
+  ensureCuratedCatalog,
+  refreshStoredVideoSubjects,
+} from "./lib/catalog";
 import { markSchemaFailed, markSchemaReady } from "./lib/schemaHealth";
 import { explainUnreachableDatabase } from "./lib/dbReachability";
 import { withTimeout } from "./lib/withTimeout";
@@ -101,6 +104,24 @@ async function main() {
     .catch((err) => {
       logger.error({ err }, "Open education catalog setup failed");
     });
+
+  // Videos are classified as they are imported, so improving that classifier
+  // leaves everything already stored as it was — and a video is only imported
+  // again when a search runs thin, which a well-answered question never does.
+  // Fifty at a time, oldest first, is enough to work through the catalog
+  // steadily at one unit of the daily YouTube allowance per pass.
+  const refreshEvery = Number(process.env.VIDEO_REFRESH_INTERVAL_MS) || 300_000;
+  const refresh = setInterval(() => {
+    void refreshStoredVideoSubjects()
+      .then((corrected) => {
+        if (corrected) logger.info({ corrected }, "Video subjects corrected");
+      })
+      .catch((err) => {
+        logger.error({ err }, "Video subject refresh failed");
+      });
+  }, refreshEvery);
+  // Nothing here is worth keeping the process alive for.
+  refresh.unref();
 }
 
 void main();

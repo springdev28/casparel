@@ -1002,6 +1002,73 @@ export function dominantSubject(terms: string[]): string | null {
   return ranked[0][0];
 }
 
+/** How many videos one lookup may ask about. YouTube's own limit. */
+export const YOUTUBE_LOOKUP_BATCH = 50;
+
+/**
+ * One request asking what a batch of videos is about.
+ *
+ * One for the whole batch rather than one each: a search costs a hundred units
+ * of the daily allowance and this costs one, so what matters is the number of
+ * requests, not how much is asked for in each.
+ */
+export function youtubeLookupUrl(externalIds: string[]): URL | null {
+  const ids = externalIds
+    .map((externalId) => externalId.replace(/^youtube:/, ""))
+    .filter(Boolean);
+  if (!ids.length) return null;
+  const url = new URL("https://www.googleapis.com/youtube/v3/videos");
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("id", ids.slice(0, YOUTUBE_LOOKUP_BATCH).join(","));
+  url.searchParams.set("key", process.env.YOUTUBE_API_KEY ?? "");
+  return url;
+}
+
+/**
+ * What each video in a lookup says it is about, keyed the way the catalog
+ * keys it.
+ *
+ * A video the answer says nothing useful about is simply absent, which callers
+ * read as "leave it alone" or "Interdisciplinary" depending on whether they are
+ * storing it for the first time or correcting what is already stored.
+ */
+export function youtubeSubjectsFrom(body: unknown): Map<string, string> {
+  const items = (body as { items?: unknown[] })?.items;
+  const subjects = new Map<string, string>();
+  if (!Array.isArray(items)) return subjects;
+  for (const entry of items) {
+    const item = entry as { id?: unknown; snippet?: Record<string, unknown> };
+    const id = text(item.id);
+    const snippet = item.snippet ?? {};
+    if (!id || !YOUTUBE_TEACHING_CATEGORIES.has(text(snippet.categoryId)))
+      continue;
+    const tags = Array.isArray(snippet.tags) ? snippet.tags : [];
+    const subject = dominantSubject(
+      tags.slice(0, YOUTUBE_TAG_LIMIT).map((tag) => text(tag)),
+    );
+    // The title gets a veto, and only a veto.
+    //
+    // A channel tags every video with the same block, so the tags can describe
+    // the channel rather than the video in front of you: "History Summarized:
+    // The Punic Wars" carries its channel's Shakespeare tags, and was filed
+    // under Literature on the strength of them. When the video's own title
+    // names a different subject, the tags are talking about something else and
+    // neither is worth having.
+    //
+    // Never the other direction. A title that names a subject the tags do not
+    // is still just a title, and reading subjects off titles is the mistake all
+    // of this exists to avoid. The worst this can do is decline to classify,
+    // which is where every video started.
+    const titleSubject = dominantSubject([text(snippet.title)]);
+    if (titleSubject && subject && titleSubject !== subject) continue;
+    // Nothing the catalog knows is a perfectly good answer: a video tagged only
+    // "online learning" and "video tutorial" has said nothing about its
+    // subject, and Interdisciplinary is the honest place for it.
+    if (subject) subjects.set(youtubeExternalId(id), subject);
+  }
+  return subjects;
+}
+
 /**
  * Categories where a video's stated subject is worth believing.
  *
@@ -1115,54 +1182,9 @@ const youtube: OpenSource = {
    * separates music from sport, not biology from chemistry.
    */
   enrich: {
-    // One request for the whole page, not one per video. A search costs a
-    // hundred units of the daily quota and this costs one, so what matters is
-    // the number of requests, not how much is asked for in each.
-    endpoint(rows) {
-      const ids = rows
-        .map((row) => row.externalId.replace(/^youtube:/, ""))
-        .filter(Boolean);
-      if (!ids.length) return null;
-      const url = new URL("https://www.googleapis.com/youtube/v3/videos");
-      url.searchParams.set("part", "snippet");
-      url.searchParams.set("id", ids.slice(0, 50).join(","));
-      url.searchParams.set("key", process.env.YOUTUBE_API_KEY ?? "");
-      return url;
-    },
+    endpoint: (rows) => youtubeLookupUrl(rows.map((row) => row.externalId)),
     apply(rows, body) {
-      const items = (body as { items?: unknown[] })?.items;
-      if (!Array.isArray(items)) return rows;
-      const subjects = new Map<string, string>();
-      for (const entry of items) {
-        const item = entry as { id?: unknown; snippet?: Record<string, unknown> };
-        const id = text(item.id);
-        const snippet = item.snippet ?? {};
-        if (!id || !YOUTUBE_TEACHING_CATEGORIES.has(text(snippet.categoryId)))
-          continue;
-        const tags = Array.isArray(snippet.tags) ? snippet.tags : [];
-        const subject = dominantSubject(
-          tags.slice(0, YOUTUBE_TAG_LIMIT).map((tag) => text(tag)),
-        );
-        // The title gets a veto, and only a veto.
-        //
-        // A channel tags every video with the same block, so the tags can
-        // describe the channel rather than the video in front of you: "History
-        // Summarized: The Punic Wars" carries its channel's Shakespeare tags,
-        // and was filed under Literature on the strength of them. When the
-        // video's own title names a different subject, the tags are talking
-        // about something else and neither is worth having.
-        //
-        // Never the other direction. A title that names a subject the tags do
-        // not is still just a title, and reading subjects off titles is the
-        // mistake all of this exists to avoid. The worst this can do is decline
-        // to classify, which is where every video started.
-        const titleSubject = dominantSubject([text(snippet.title)]);
-        if (titleSubject && subject && titleSubject !== subject) continue;
-        // Nothing the catalog knows is a perfectly good answer: a video tagged
-        // only "online learning" and "video tutorial" has said nothing about
-        // its subject, and Interdisciplinary is the honest place for it.
-        if (subject) subjects.set(youtubeExternalId(id), subject);
-      }
+      const subjects = youtubeSubjectsFrom(body);
       if (!subjects.size) return rows;
       return rows.map((row) => {
         const subject = subjects.get(row.externalId);
