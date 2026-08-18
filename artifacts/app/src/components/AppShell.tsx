@@ -1319,7 +1319,27 @@ export default function AppShell({ children }: AppShellProps) {
             style={
               {
                 "--foreground": lightPageText ? "0 0% 100%" : "225 21.1% 7.5%",
-                "--muted-foreground": lightPageText ? "0 0% 82%" : "0 0% 28%",
+                // 93%, not 82%, when the page is painted over the ambient.
+                //
+                // Measured rather than guessed: with the default effect the
+                // backdrop behind body copy sits around rgb(103,109,104), and
+                // 82% lightness against it is 3.47:1 -- under the 4.5:1 that
+                // WCAG AA asks for normal-size text. 93% measures 4.53:1. The
+                // secondary text on every page is this colour, including the
+                // sentence under each page title, so it was the most-read text
+                // in the app and the least legible.
+                //
+                // Muted stays visibly quieter than --foreground at 100%, which
+                // is the distinction this token exists to make; there is simply
+                // less room for it over a mid-tone backdrop than over a white
+                // one. Below AA is not a place that distinction can be bought
+                // from.
+                //
+                // This does not rescue a glyph that a bright mesh line happens
+                // to pass behind: those pixels sweep the whole range, so no
+                // text colour clears them. That needs the effect kept off the
+                // area behind copy, which is a change to how the page looks.
+                "--muted-foreground": lightPageText ? "0 0% 93%" : "0 0% 28%",
               } as CSSProperties
             }
           >

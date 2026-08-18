@@ -77,6 +77,11 @@ async function main() {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await context.newPage();
 
+    // A blank page used only to decode screenshots back into pixels, so the
+    // contrast check below needs no image library.
+    const decoder = await context.newPage();
+    await decoder.goto("about:blank");
+
     const pageErrors = [];
     const apiErrors = [];
     let signedIn = false;
@@ -271,6 +276,90 @@ async function main() {
       distinct.size === 3,
       `${distinct.size} distinct <main> renders across /activities, /resources, /dashboard`,
     );
+
+    // ---- can the secondary text actually be read --------------------------
+    /**
+     * WCAG AA for normal-size text. Large text is allowed 3:1; this samples
+     * body copy, so 4.5 is the bar.
+     */
+    const AA_NORMAL_TEXT = 4.5;
+
+    function relativeLuminance([r, g, b]) {
+      const channel = (value) => {
+        const v = value / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      };
+      return (
+        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+      );
+    }
+
+    function contrast(a, b) {
+      const [light, dark] = [relativeLuminance(a), relativeLuminance(b)].sort(
+        (x, y) => y - x,
+      );
+      return (light + 0.05) / (dark + 0.05);
+    }
+
+    /**
+     * The colour actually painted behind the text, not the one CSS asked for.
+     *
+     * The ambient effect draws on a canvas underneath the page, so the
+     * backdrop behind body copy is a blend nothing in the stylesheet states.
+     * Reading `background-color` off the element returns transparent and tells
+     * you nothing. So: screenshot the element and take the most common pixel,
+     * which is the backdrop -- glyphs cover a minority of the box.
+     *
+     * Decoded by handing the PNG back to the browser, which saves depending on
+     * an image library for one measurement.
+     */
+    async function paintedBackdrop(locator) {
+      const shot = (await locator.screenshot()).toString("base64");
+      const modal = await decoder.evaluate(async (base64) => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${base64}`;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const context = canvas.getContext("2d");
+        context.drawImage(image, 0, 0);
+        const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+        const counts = new Map();
+        for (let i = 0; i < data.length; i += 4) {
+          const key = `${data[i]},${data[i + 1]},${data[i + 2]}`;
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        let best = null;
+        let seen = 0;
+        for (const [key, count] of counts) {
+          if (count > seen) {
+            seen = count;
+            best = key;
+          }
+        }
+        return best;
+      }, shot);
+      return modal.split(",").map(Number);
+    }
+
+    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(2500);
+    const copy = page.locator("main p").first();
+    if (await copy.count()) {
+      const colour = await copy.evaluate((node) => getComputedStyle(node).color);
+      const text = colour.match(/\d+/g).slice(0, 3).map(Number);
+      const backdrop = await paintedBackdrop(copy);
+      const ratio = contrast(text, backdrop);
+      check(
+        "secondary text on the page can be read against what is behind it",
+        ratio >= AA_NORMAL_TEXT,
+        `rgb(${text}) on rgb(${backdrop}) is ${ratio.toFixed(2)}:1, ` +
+          `WCAG AA wants ${AA_NORMAL_TEXT}:1 for normal-size text`,
+      );
+    } else {
+      fail("secondary text on the page can be read", "no body copy found");
+    }
 
     // ---- signing out really ends the session ------------------------------
     await page.evaluate(() => localStorage.removeItem("schoolar_token"));
