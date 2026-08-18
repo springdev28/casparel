@@ -4,25 +4,31 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "node": "22.22.2",
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "casparel.com"
+      }
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
       "distribution": "internal",
-      "ios": { "simulator": true }
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" }
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
       "channel": "preview",
       "ios": { "simulator": false },
-      "env": {
-        "EXPO_PUBLIC_DOMAIN": "casparel.com"
-      }
+      "android": { "buildType": "apk" }
     },
     "production": {
+      "extends": "base",
       "channel": "production",
       "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_DOMAIN": "casparel.com"
-      }
+      "android": { "buildType": "app-bundle" }
     }
   },
   "submit": {
@@ -30,6 +36,11 @@
       "android": {
         "serviceAccountKeyPath": "./play-service-account.json",
         "track": "internal"
+      },
+      "ios": {
+        "appleId": "$APPLE_ID",
+        "ascAppId": "$ASC_APP_ID",
+        "appleTeamId": "$APPLE_TEAM_ID"
       }
     }
   }
