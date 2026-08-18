@@ -46,6 +46,10 @@ vi.mock("@workspace/db", () => {
     googleTokensTable: stub("google_tokens"),
     activityLogTable: stub("activity_log"),
     classResourceRecommendationsTable: stub("class_recommendations"),
+    // Deleting a class detaches the work people own rather than letting the
+    // cascade take it, so the route now touches these two as well.
+    studyActivitiesTable: stub("study_activities"),
+    canvasesTable: stub("canvases"),
   };
 });
 

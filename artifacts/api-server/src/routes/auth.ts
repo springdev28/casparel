@@ -12,6 +12,12 @@ import {
   resourcesTable,
   resourceListsTable,
   userPreferencesTable,
+  forumPostsTable,
+  forumCommentsTable,
+  forumMaterialsTable,
+  forumMaterialApprovalsTable,
+  forumReportsTable,
+  goalPathTemplatesTable,
 } from "@workspace/db";
 import {
   RegisterBody,
@@ -387,15 +393,44 @@ router.get("/users/me/access", requireAuth, async (req, res): Promise<void> => {
   });
 });
 
+/** One name for a deleted account, used everywhere a copy of it was kept. */
+const DELETED_USER_NAME = "Deleted user";
+
 router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const deletedMarker = `deleted-account-${userId}-${Date.now()}`;
+  /**
+   * What the rest of the database calls you.
+   *
+   * Anonymising the users row is not enough on its own. Six tables keep a
+   * denormalised copy of the name taken at the time of writing, so that a post
+   * can be listed without joining users. Deleting an account used to leave
+   * every one of those copies untouched: the row said "Deleted user" while the
+   * forum went on showing the person's real name on every post and comment
+   * they had ever written, to everybody, forever.
+   *
+   * Found by deleting an account and then looking at the database rather than
+   * at the response, which was a clean 204 either way.
+   *
+   * The id columns are deliberately left alone. They are the only way to find
+   * these rows again, they are not identifying by themselves, and their
+   * ON DELETE is set null for the day a row really is deleted.
+   */
+  const NAME_COPIES = [
+    [forumPostsTable, forumPostsTable.authorId, "authorName"],
+    [forumCommentsTable, forumCommentsTable.authorId, "authorName"],
+    [forumMaterialsTable, forumMaterialsTable.uploaderId, "uploaderName"],
+    [forumMaterialApprovalsTable, forumMaterialApprovalsTable.teacherId, "teacherName"],
+    [forumReportsTable, forumReportsTable.reporterId, "reporterName"],
+    [goalPathTemplatesTable, goalPathTemplatesTable.creatorId, "creatorName"],
+  ] as const;
+
   const [user] = await db
     .update(usersTable)
     .set({
       email: deletedMarker + "@invalid.local",
       passwordHash: deletedMarker,
-      name: "Deleted user",
+      name: DELETED_USER_NAME,
       role: "student",
       activeRole: "student",
       avatarUrl: null,
@@ -418,6 +453,12 @@ router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
+  }
+  for (const [table, ownerColumn, nameColumn] of NAME_COPIES) {
+    await db
+      .update(table)
+      .set({ [nameColumn]: DELETED_USER_NAME })
+      .where(eq(ownerColumn, userId));
   }
   res.sendStatus(204);
 });
