@@ -133,39 +133,46 @@ receives: both wait for a human to complete the listing and submit for review.
 
 ## Desktop
 
-```sh
-git tag desktop-v1.0.0 && git push origin desktop-v1.0.0
-```
-
 `.github/workflows/desktop-release.yml` builds on macOS, Windows and Linux
 runners — electron-builder can only produce macOS targets on macOS — and
-attaches `.dmg`, `.exe`, `.AppImage` and `.deb` to a GitHub release. A manual
-run leaves the installers on the workflow run without releasing them, which is
-what to use for a demo video.
+attaches `.dmg`, `.exe`, `.AppImage` and `.deb` to a GitHub release.
 
-Unsigned builds work and install, but macOS Gatekeeper and Windows SmartScreen
-warn on first launch, which costs more trust than the certificates cost money.
-`CSC_LINK` / `CSC_KEY_PASSWORD` (and `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,
-`APPLE_TEAM_ID` for notarisation) turn that off.
+Run it from the Actions tab with **release** unchecked to build without
+publishing, or with it ticked to tag the built commit and publish. Pushing a
+`desktop-v*` tag does the same thing. The tag is always made after the build
+and never moved once it exists, so a version number stays a fixed point.
+
+**All three platforms build today, and the installers are unsigned.** That is
+the one thing between here and a public download. macOS Gatekeeper reports that
+the developer cannot be verified, and Windows SmartScreen interrupts the
+install; both cost more trust than the certificates cost money. Add `CSC_LINK`
+(`base64 -w0 certificate.p12`) and `CSC_KEY_PASSWORD` as repository secrets,
+plus `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` to notarise,
+and the same workflow signs instead. The macOS certificate needs the Apple
+Developer Program membership the iOS app needs anyway.
 
 A build reporting success says nothing about what the installers contain, and
 every Linux packaging defect found so far was of exactly that kind: one icon
 size where there should have been eight, a malformed line in the
 applications-menu entry, and a menu description that read "Casparel for macOS,
 Windows and Linux" to somebody looking at a Linux menu. All three built
-cleanly. `pnpm --filter @workspace/desktop
-run verify:package` opens the built `.deb` and checks these; the release
-workflow runs it on the Linux job, after the build and before the upload.
+cleanly. `pnpm --filter @workspace/desktop run verify:package` opens the built
+`.deb` and checks these; the release workflow runs it on the Linux job, after
+the build and before the upload.
 
-The macOS and Windows halves of the matrix cannot be exercised from a Linux
-machine, so a first release of those two is worth doing as a manual workflow
-run — which leaves the installers attached to the run without publishing
-anything — and installing the results before tagging.
+The macOS and Windows halves of the matrix cannot be built on a Linux machine,
+so they are only ever exercised in CI. Doing that before the first release was
+worth it: the macOS leg failed every time and always would have, because an
+absent signing secret arrives as an empty string and electron-builder reads an
+empty `CSC_LINK` as a certificate that was supplied. All three platforms build
+now. Keep the habit anyway — run without publishing, install the results, then
+release — because nothing else on this repository can tell you whether a macOS
+or Windows build works.
 
-The shell checks for a newer release on launch and offers the Help menu item
-that opens the releases page. It reads the public releases API, so this only
-works once releases are readable without credentials. See
-`artifacts/desktop/README.md`.
+The shell checks for a newer release on launch and offers a Help menu item that
+opens the releases page. It reads the public releases API and stays quiet when
+it gets nothing; the repository is public, so this works as soon as the first
+release exists. See `artifacts/desktop/README.md`.
 
 ## After a release
 

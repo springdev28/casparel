@@ -72,15 +72,46 @@ Unsigned builds are fine for local testing and for a demo video.
 
 ## Publishing
 
-Push a tag to build and publish:
+`.github/workflows/desktop-release.yml` builds on one runner per platform.
+Three ways to start it, depending on what you want out of it:
 
 ```sh
+# 1. build only, nothing published — installers stay on the workflow run
+#    (Actions → Desktop release → Run workflow, leave "release" unchecked)
+
+# 2. build, then tag and publish, without pushing a tag yourself
+#    (Actions → Desktop release → Run workflow, tick "release")
+
+# 3. build and publish from a tag you push
 git tag desktop-v1.0.0 && git push origin desktop-v1.0.0
 ```
 
-`.github/workflows/desktop-release.yml` builds on one runner per platform and
-attaches the installers to a GitHub release. A manual run from the Actions tab
-produces the same installers without releasing them.
+Option 2 exists because a release needs a tag and not everyone who can run a
+workflow can push one. It tags the exact commit it built, only after every
+platform has built, and refuses to move a tag that already exists.
+
+Option 1 is what to use the first time, and before any release worth caring
+about: it is the only way to install and try the macOS and Windows builds
+before they are public, since neither can be produced on a Linux machine.
+
+### Signing
+
+Unsigned installers build and install, but macOS Gatekeeper says the developer
+cannot be verified and Windows SmartScreen interrupts the install. For a
+release anyone else will download, add these repository secrets first:
+
+| Secret | For |
+| --- | --- |
+| `CSC_LINK` | the certificate itself: `base64 -w0 certificate.p12` |
+| `CSC_KEY_PASSWORD` | the password that .p12 was exported with |
+| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | notarising the macOS build |
+
+The macOS certificate is a Developer ID Application certificate, which needs
+Apple Developer Program membership — the same membership the iOS app needs, so
+it is likely to arrive anyway.
+
+Nothing else changes: the same workflow signs when they are present and builds
+unsigned when they are not. It says which it did, in a run annotation.
 
 The website only offers the download once there is one. Set the repository
 variable `VITE_DESKTOP_DOWNLOAD_URL` to the releases page and redeploy; unset,
