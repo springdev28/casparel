@@ -2,7 +2,7 @@
 
 Casparel is a learning workspace for students and teachers: discover and evaluate educational resources, organise study goals and schedules, collaborate in classes, and keep evidence of progress. It ships as a React web app, an Expo mobile app, and an Electron desktop shell backed by an Express/Postgres API.
 
-Start with the [product handbook](docs/product-handbook.md). The [2026 audit report](docs/audit-report-2026-08-15.md) records the current quality baseline, and the separate [Shipaton readiness review](docs/shipaton-2026-readiness.md) covers competition eligibility, win strategy, and roadmap.
+Start with the [product handbook](docs/product-handbook.md). The [release runbook](docs/release-runbook.md) covers getting builds onto the App Store, Google Play and the desktop. The [2026 audit report](docs/audit-report-2026-08-15.md) records the current quality baseline, and the separate [Shipaton readiness review](docs/shipaton-2026-readiness.md) covers competition eligibility, win strategy, and roadmap.
 
 ## Local development
 
@@ -22,9 +22,11 @@ The API defaults to port 5000 locally; the web app runs on port 23863 and proxie
 ```bash
 pnpm run typecheck
 pnpm --filter @workspace/api-server exec vitest run
+pnpm --filter @workspace/mobile run check:release
 pnpm --filter @workspace/app run build
 node artifacts/app/scripts/audit-pages.mjs
 node artifacts/app/scripts/audit-session.mjs
+pnpm --filter @workspace/desktop run smoke
 ```
 
 Use `pnpm run loadtest:smoke` for a read-only smoke profile. Higher-load profiles belong on staging unless production load is explicitly authorised.
@@ -32,6 +34,7 @@ Use `pnpm run loadtest:smoke` for a read-only smoke profile. Higher-load profile
 ## Documentation
 
 - [Product and engineering handbook](docs/product-handbook.md)
+- [Release runbook: iOS, Android and desktop](docs/release-runbook.md)
 - [Audit, testing, and performance report](docs/audit-report-2026-08-15.md)
 - [Shipaton 2026 readiness and roadmap](docs/shipaton-2026-readiness.md)
 - [Submission copy and asset checklist](docs/shipaton-2026-submission.md)
