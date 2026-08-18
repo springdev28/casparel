@@ -111,6 +111,22 @@ function buildGoogleCalUrl(session: {
 import type { StudySessionWithParticipants } from "@workspace/api-client-react";
 import { Link, useSearch as useRouteSearch } from "wouter";
 
+/**
+ * One clock for this page.
+ *
+ * Study blocks store what the user typed, "HH:MM", and were rendered raw.
+ * Study sessions are timestamps and were rendered with date-fns as "h:mm a".
+ * Both appear in the same week grid, so a seeded week read "09:00-10:30" in
+ * one card and "10:52 PM-11:52 PM" in the card beside it -- two clocks on one
+ * screen, in a tool whose whole job is telling you when things are.
+ *
+ * Twenty-four hour wins because it is what the blocks already store and show,
+ * and what five of the six languages the app offers use anyway.
+ */
+function clock(value: Date | string): string {
+  return typeof value === "string" ? value.slice(0, 5) : format(value, "HH:mm");
+}
+
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const BLOCK_COLORS = [
   "bg-blue-100 border-l-4 border-blue-500 text-blue-900",
@@ -596,7 +612,7 @@ function StudySessionDetail({
       <div className="text-sm text-muted-foreground flex items-center gap-2">
         <Clock size={14} />
         <span>
-          {format(startsAt, "EEE, MMM d · h:mm a")} – {format(endsAt, "h:mm a")}{" "}
+          {format(startsAt, "EEE, MMM d")} · {clock(startsAt)} – {clock(endsAt)}{" "}
           ({session.durationMinutes} min)
         </span>
       </div>
@@ -770,7 +786,7 @@ function StudySessionBlock({
       <div className="flex items-center gap-0.5 opacity-80">
         <Clock size={10} />
         <span>
-          {format(startsAt, "h:mm a")}–{format(endsAt, "h:mm a")}
+          {clock(startsAt)}–{clock(endsAt)}
         </span>
       </div>
       {isPending && (
@@ -1080,7 +1096,7 @@ function PendingInvitationsBanner({
                     {s.title}
                   </p>
                   <p className="text-xs text-violet-700">
-                    {format(startsAt, "EEE, MMM d · h:mm a")}
+                    {format(startsAt, "EEE, MMM d")} · {clock(startsAt)}
                   </p>
                 </button>
                 <div className="flex gap-1.5 shrink-0">
@@ -1622,7 +1638,7 @@ export default function SchedulePage() {
                       {session.title}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {format(startsAt, "EEE, MMM d · h:mm a")} ·{" "}
+                      {format(startsAt, "EEE, MMM d")} · {clock(startsAt)} ·{" "}
                       {session.durationMinutes} min
                     </p>
                   </div>
