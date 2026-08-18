@@ -11,7 +11,9 @@ import {
   OPEN_SOURCES,
   openSourceIsExcluded,
   queryWantsResearch,
+  resetYoutubeQuota,
   subjectFromTerms,
+  youtubeQuotaRemaining,
 } from "./openSources";
 
 const source = (kind: string) =>
@@ -421,6 +423,7 @@ describe("Internet Archive", () => {
 
 describe("YouTube", () => {
   const youtube = source("youtube");
+  const youtubeAvailable = () => youtube.available!();
   const body = {
     items: [
       {
@@ -448,6 +451,55 @@ describe("YouTube", () => {
     // Guessing is how the catalog poisoned itself: a wrong subject is what a
     // later search matches on.
     expect(youtube.parse(body)[0].subject).toBeNull();
+  });
+
+  it("stops searching once the day's allowance is nearly spent", () => {
+    // A search costs a hundred of ten thousand, so the allowance is a hundred
+    // searches a day — a number a busy afternoon reaches. Spending it all by
+    // teatime leaves the evening with no videos and nothing to say why.
+    process.env.YOUTUBE_API_KEY = "test-key-not-real";
+    resetYoutubeQuota();
+    expect(youtubeQuotaRemaining()).toBe(9800);
+    expect(youtubeAvailable()).toBe(true);
+
+    for (let search = 0; search < 97; search += 1)
+      youtube.onRequest!("search");
+    expect(youtubeAvailable()).toBe(true);
+
+    youtube.onRequest!("search");
+    // 9800 held back to 9700 spent: what is left is under one more search.
+    expect(youtubeQuotaRemaining()).toBeLessThan(100);
+    expect(youtubeAvailable()).toBe(false);
+
+    resetYoutubeQuota();
+    delete process.env.YOUTUBE_API_KEY;
+  });
+
+  it("charges a video lookup at a hundredth of a search", () => {
+    resetYoutubeQuota();
+    youtube.onRequest!("enrich");
+    expect(youtubeQuotaRemaining()).toBe(9799);
+    resetYoutubeQuota();
+  });
+
+  it("takes the allowance from the environment when one is set", () => {
+    // So the cap can be lowered to match whatever Google's own quota page is
+    // set to, without a deploy.
+    process.env.YOUTUBE_DAILY_QUOTA = "1000";
+    resetYoutubeQuota();
+    expect(youtubeQuotaRemaining()).toBe(800);
+    delete process.env.YOUTUBE_DAILY_QUOTA;
+    resetYoutubeQuota();
+  });
+
+  it("ignores an allowance that is not a number", () => {
+    for (const value of ["", "lots", "-5", "0"]) {
+      process.env.YOUTUBE_DAILY_QUOTA = value;
+      resetYoutubeQuota();
+      expect(youtubeQuotaRemaining()).toBe(9800);
+    }
+    delete process.env.YOUTUBE_DAILY_QUOTA;
+    resetYoutubeQuota();
   });
 
   it("is skipped entirely when no key is configured", () => {

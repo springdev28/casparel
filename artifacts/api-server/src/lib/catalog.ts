@@ -2534,6 +2534,7 @@ async function enrichOpenSourceRows(
   if (!endpoint) return rows;
   try {
     await waitForOpenSourceSlot(source.host);
+    source.onRequest?.("enrich");
     const response = await fetch(endpoint, {
       headers: { accept: "application/json", "user-agent": catalogUserAgent() },
       signal: AbortSignal.timeout(ENRICH_TIMEOUT_MS),
@@ -2573,6 +2574,9 @@ export async function searchOpenSourceAndStore(
       if (!remainingCapacity) return 0;
 
       await waitForOpenSourceSlot(source.host);
+      // Counted as spent before it is sent, not after it succeeds: a request
+      // that times out or comes back 500 has still been charged for.
+      source.onRequest?.("search");
       const response = await fetch(
         source.endpoint(query, offset, source.pageSize),
         {
