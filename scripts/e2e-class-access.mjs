@@ -235,6 +235,89 @@ async function main() {
     `HTTP ${rosterAfterLeaving.status}`,
   );
 
+  /**
+   * The same question of the other two things a class shares.
+   *
+   * Canvases, activities and lists reach their answer through three separate
+   * pieces of code -- accessForCanvas, the classId branch of the activity
+   * listing, and canReadList -- so agreeing on canvases says nothing about the
+   * others. Three implementations of one rule is three chances to write it
+   * differently, and the one that gets it wrong is the one nobody checked.
+   */
+  const classActivity = await call("POST", "/api/study-activities", {
+    token: teacherToken,
+    body: {
+      title: `Class set ${RUN}`,
+      subject: "Mathematics",
+      mode: "flashcards",
+      classId,
+      cards: [
+        { id: "a", term: "1", answer: "2" },
+        { id: "b", term: "3", answer: "4" },
+      ],
+    },
+  });
+  check("a teacher can share an activity with the class", classActivity.status === 201,
+    `HTTP ${classActivity.status} ${classActivity.text.slice(0, 140)}`);
+
+  if (classActivity.status === 201) {
+    const listFor = async (token) =>
+      call("GET", `/api/study-activities?classId=${classId}`, { token });
+
+    const asMember = await listFor(member.token);
+    check(
+      "a class member sees the shared activity",
+      asMember.status === 200 &&
+        (asMember.body || []).some((a) => a.id === classActivity.body.id),
+      `HTTP ${asMember.status}, ids ${(asMember.body || []).map((a) => a.id).join(",")}`,
+    );
+
+    for (const [who, person] of [
+      ["someone who left", leaver],
+      ["a removed member", removed],
+      ["an outsider", outsider],
+    ]) {
+      const res = await listFor(person.token);
+      const leaked =
+        res.status === 200 &&
+        (res.body || []).some((a) => a.id === classActivity.body.id);
+      check(
+        `${who} cannot see the class's activities`,
+        !leaked,
+        `HTTP ${res.status} still lists the activity shared with a class they are not in`,
+      );
+    }
+  }
+
+  // The list every class gets on creation, rather than one made here: POST
+  // /lists takes no classId, so this is the only class-scoped list there is.
+  const classLists = await call("GET", `/api/classes/${classId}/shared-lists`, {
+    token: teacherToken,
+  });
+  const sharedList = (classLists.body || [])[0];
+  if (!sharedList?.id) {
+    console.log(`--   the class's shared list\n     not run: none found (HTTP ${classLists.status})`);
+  } else {
+    const readAs = async (token) =>
+      (await call("GET", `/api/lists/${sharedList.id}`, { token })).status;
+
+    check("a class member can open the class list", (await readAs(member.token)) === 200,
+      `member got ${await readAs(member.token)}`);
+
+    for (const [who, person] of [
+      ["someone who left", leaver],
+      ["a removed member", removed],
+      ["an outsider", outsider],
+    ]) {
+      const status = await readAs(person.token);
+      check(
+        `${who} cannot open the class list`,
+        [403, 404].includes(status),
+        `HTTP ${status}`,
+      );
+    }
+  }
+
   console.log(
     failures === 0
       ? `\nAll ${checks} class-access checks passed.\n`
