@@ -111,6 +111,25 @@ const PREFERENCES = {
   userId: 1,
   language: "en",
   interfaceColors: null,
+  /**
+   * Off, while a real new account gets "net".
+   *
+   * Deliberate, and worth knowing the cost of. The ambient effect is a WebGL
+   * canvas gated on requestIdleCallback; running it across 59 renders would
+   * make this audit slow and its screenshots depend on which frame of an
+   * animation was caught. So these renders check layout, colour and copy on a
+   * still page, which is what they are good at.
+   *
+   * The cost is that no render here has ever been of the page people are
+   * actually served, and it hid a real defect: body copy over the effect
+   * measured 3.47:1 against its backdrop, under the 4.5:1 WCAG AA asks for,
+   * for as long as this fixture has existed. That belongs to audit-live-ui.mjs
+   * now, which drives a real account against a real server with the real
+   * default and measures the contrast from the painted pixels.
+   *
+   * If that ever stops being true, this line is the reason a whole class of
+   * defect is invisible.
+   */
   ambientStyle: "off",
   ambientIntensity: 0.5,
   readNotificationIds: [],
