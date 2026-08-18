@@ -22,6 +22,7 @@ import BrandIcon from "../components/BrandIcon";
 import { useSystemDark } from "../hooks/use-system-dark";
 import { readSessionClaims } from "../lib/session";
 import { isDesktopShell } from "../lib/platform";
+import { hasDownloads, orderedDownloadTargets } from "../lib/downloads";
 import { useReveal } from "../lib/use-reveal";
 import { LetterDrop } from "../components/LetterDrop";
 import {
@@ -30,20 +31,6 @@ import {
   useListProvenanceShowcase,
   getListProvenanceShowcaseQueryKey,
 } from "@workspace/api-client-react";
-
-/**
- * Public store listings. Left null until the apps are actually live, a dead
- * link on the landing page is worse than an honest "coming soon".
- */
-const IOS_APP_URL: string | null = null;
-const ANDROID_APP_URL: string | null = null;
-const STORES_LIVE = Boolean(IOS_APP_URL || ANDROID_APP_URL);
-
-/**
- * Desktop builds (macOS, Windows, Linux) come from the repository's releases.
- * Same rule as the stores: null until there is something real behind it.
- */
-const DESKTOP_DOWNLOAD_URL: string | null = null;
 
 /** What the product does. */
 const CAPABILITIES = [
@@ -243,11 +230,18 @@ const CREDENTIALS = [
   },
 ];
 
+/** The icon that stands for each platform. */
+const PLATFORM_ICONS = {
+  ios: Apple,
+  android: Play,
+  desktop: Monitor,
+} as const;
+
 function DownloadButtons() {
   // Nobody needs to be told to download the app they are already running.
   if (isDesktopShell()) return null;
 
-  if (!STORES_LIVE && !DESKTOP_DOWNLOAD_URL) {
+  if (!hasDownloads()) {
     return (
       <Button size="lg" disabled className="gap-2">
         <Apple className="size-4" />
@@ -255,33 +249,28 @@ function DownloadButtons() {
       </Button>
     );
   }
+
+  // Most-likely platform first, and only that one gets the primary style: a
+  // row of equally weighted buttons asks the visitor to work out which of
+  // three things they are on.
   return (
     <div className="flex flex-wrap gap-2">
-      {DESKTOP_DOWNLOAD_URL ? (
-        <Button size="lg" asChild className="gap-2">
-          <a
-            href={DESKTOP_DOWNLOAD_URL}
-            target="_blank"
-            rel="noopener noreferrer"
+      {orderedDownloadTargets().map((target, index) => {
+        const Icon = PLATFORM_ICONS[target.id];
+        return (
+          <Button
+            key={target.id}
+            size="lg"
+            asChild
+            variant={index === 0 ? "default" : "outline"}
+            className="gap-2"
           >
-            <Monitor className="size-4" /> Download for desktop
-          </a>
-        </Button>
-      ) : null}
-      {IOS_APP_URL ? (
-        <Button size="lg" asChild className="gap-2">
-          <a href={IOS_APP_URL} target="_blank" rel="noopener noreferrer">
-            <Apple className="size-4" /> Download for iPhone
-          </a>
-        </Button>
-      ) : null}
-      {ANDROID_APP_URL ? (
-        <Button size="lg" variant="outline" asChild className="gap-2">
-          <a href={ANDROID_APP_URL} target="_blank" rel="noopener noreferrer">
-            <Play className="size-4" /> Get it on Google Play
-          </a>
-        </Button>
-      ) : null}
+            <a href={target.href} target="_blank" rel="noopener noreferrer">
+              <Icon className="size-4" /> {target.label}
+            </a>
+          </Button>
+        );
+      })}
     </div>
   );
 }
@@ -298,8 +287,7 @@ export default function LandingPage() {
   // When there is no download to offer, "continue in browser" is the only
   // call to action, so it takes the primary style.
   const inDesktopShell = isDesktopShell();
-  const hasDownload =
-    !inDesktopShell && (STORES_LIVE || Boolean(DESKTOP_DOWNLOAD_URL));
+  const hasDownload = !inDesktopShell && hasDownloads();
   // Someone already signed in does not need a sales pitch to get back to work.
   const continueHref = signedIn ? "/dashboard" : "/resources";
   const continueLabel = signedIn
@@ -426,6 +414,13 @@ export default function LandingPage() {
               {!hasDownload && !inDesktopShell
                 ? "The mobile app is on its way. Everything works in your browser today. "
                 : null}
+              <Link
+                href="/download"
+                className="text-primary-text hover:underline"
+              >
+                {hasDownload ? "All download options" : "Where Casparel runs"}
+              </Link>
+              {" · "}
               <Link href="/plans" className="text-primary-text hover:underline">
                 See plans and pricing
               </Link>
