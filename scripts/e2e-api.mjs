@@ -622,6 +622,27 @@ async function main() {
 
   // ---- leaving ------------------------------------------------------------
   const carol = await newUser("carol");
+
+  /**
+   * A post, so deletion has something of hers to anonymise.
+   *
+   * Her name goes into forum_posts.author_name at write time, a copy kept so a
+   * listing need not join users. Deleting the account used to leave it there,
+   * and the forum went on showing her real name to everyone. The response was
+   * 204 either way, so the check has to be what the forum says afterwards.
+   */
+  const CAROL_NAME = `E2E carol`;
+  const form = new FormData();
+  form.set("title", `Carol's post ${RUN}`);
+  form.set("body", "Written before deleting the account.");
+  form.set("kind", "post");
+  const posted = await fetch(`${BASE}/api/forum/posts`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${carol.token}` },
+    body: form,
+  });
+  check("a post can be written", posted.status === 201, `HTTP ${posted.status}`);
+
   const deleted = await call("DELETE", "/api/users/me", { token: carol.token });
   check("an account can be deleted", deleted.status === 200 || deleted.status === 204,
     `HTTP ${deleted.status} ${deleted.text.slice(0, 160)}`);
@@ -634,6 +655,16 @@ async function main() {
     afterDelete.status === 401,
     `HTTP ${afterDelete.status}`,
   );
+
+  if (posted.status === 201) {
+    const forum = await call("GET", "/api/forum/posts", { token: alice.token });
+    const stillNamed = JSON.stringify(forum.body ?? []).includes(CAROL_NAME);
+    check(
+      "deleting an account takes the name off what it wrote",
+      !stillNamed,
+      `the forum still shows "${CAROL_NAME}" on a post by a deleted account`,
+    );
+  }
 
   console.log(
     `\n${failures === 0 ? "All" : `${checks - failures}/${checks}`} ` +
