@@ -417,6 +417,16 @@ export default function ForumPage({
       : null);
   const { data: me } = useGetMe();
   const { data: joinedClasses } = useListClasses();
+  /**
+   * The class this forum belongs to, by name.
+   *
+   * Falls back to the id for a class the reader is not a member of -- an
+   * admin reading a class forum, say -- which is still better than showing
+   * everyone the id, but is not what a member should ever see.
+   */
+  const classForumName = classId
+    ? joinedClasses?.find((item) => item.id === classId)?.name
+    : undefined;
   const [access, setAccess] = useState<ForumAccess>({
     isAdmin: false,
     teacherVerified: false,
@@ -1569,7 +1579,22 @@ export default function ForumPage({
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="text-xs font-bold">{classId ? `c/class-${classId}` : "c/schoolar"}</span>
+                                {/*
+                                  This read "c/class-7" or "c/schoolar".
+                                  The first is a database id where a class
+                                  name belongs -- a pupil in Physics 10B saw
+                                  the row number of their own class -- and
+                                  the second is the product's previous name,
+                                  printed on every post in the public forum.
+                                */}
+                                <span
+                                  translate={classId ? "no" : undefined}
+                                  className="text-xs font-bold"
+                                >
+                                  {classId
+                                    ? `c/${classForumName ?? `class-${classId}`}`
+                                    : "c/casparel"}
+                                </span>
                                 <span className="text-muted-foreground">·</span>
                                 <span className="text-xs text-muted-foreground">Posted by <span translate="no">{profileHandle(post.authorName)}</span></span>
                                 <span className="text-muted-foreground">·</span>
