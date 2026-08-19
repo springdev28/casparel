@@ -21,6 +21,7 @@ import {
 import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher } from "../lib/authz";
 import { ensureAccountCapacity } from "../lib/planCapacity";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 function dateString(
@@ -265,7 +266,7 @@ router.post(
     const { userId, userRole } = req as AuthenticatedRequest;
     const body = CreateLearningGoalBody.safeParse(req.body);
     if (!body.success) {
-      res.status(400).json({ error: body.error.message });
+      res.status(400).json({ error: validationMessage(body.error) });
       return;
     }
     if (!(await ensureAccountCapacity(res, userId, "learning-goals"))) return;
@@ -326,7 +327,7 @@ router.delete(
     const { userId, userRole } = req as AuthenticatedRequest;
     const params = DeleteLearningGoalParams.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ error: params.error.message });
+      res.status(400).json({ error: validationMessage(params.error) });
       return;
     }
     const removed = await db

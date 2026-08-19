@@ -77,6 +77,25 @@ describe("describing a failed sign-up", () => {
     }
   });
 
+  it("does not call a short password a duplicate email", () => {
+    // Both arrive as 400. The server now says which, so the guess must not
+    // paint over it.
+    expect(
+      describeAuthFailure(
+        apiError(400, "Password must be at least 8 characters."),
+        "register",
+      ),
+    ).toBe("Password must be at least 8 characters.");
+  });
+
+  it("still names a duplicate email in words the screen can act on", () => {
+    // The server's own "Email already in use" is terse and gives no next
+    // step; this is the one case where the screen knows better.
+    expect(describeAuthFailure(apiError(400, "Email already in use"), "register")).toMatch(
+      /already has a Casparel account/,
+    );
+  });
+
   it("does not tell a new user their password is wrong", () => {
     // They do not have one yet; this is the register screen.
     expect(describeAuthFailure(apiError(401), "register")).not.toMatch(/password/i);

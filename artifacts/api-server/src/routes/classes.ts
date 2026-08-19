@@ -55,6 +55,7 @@ import {
   parseSeatingNote,
   seatingPreferenceReasons,
 } from "../lib/seatingRules";
+import { validationMessage } from "../lib/validationMessage";
 
 async function resourceWithRating(id: number) {
   const [r] = await db
@@ -251,7 +252,7 @@ router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<v
   }
   const parsed = CreateClassBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   if (!(await ensureAccountCapacity(res, userId, "classes-owned"))) return;
@@ -273,7 +274,7 @@ router.get("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetClassParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassMember(params.data.id, userId)) && !(await isClassTeacher(params.data.id, userId))) {
@@ -360,7 +361,7 @@ router.patch("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = UpdateClassParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassTeacher(params.data.id, userId))) {
@@ -369,7 +370,7 @@ router.patch("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   }
   const parsed = UpdateClassBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const [cls] = await db
@@ -390,7 +391,7 @@ router.delete("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = DeleteClassParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassTeacher(params.data.id, userId))) {
@@ -433,7 +434,7 @@ router.get("/classes/:id/members", requireAuth, async (req, res): Promise<void> 
   const { userId } = req as AuthenticatedRequest;
   const params = ListClassMembersParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassMember(params.data.id, userId))) {
@@ -490,7 +491,7 @@ router.post(
     }
     const parsed = InviteClassMemberBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     const [invitee] = await db
@@ -571,7 +572,7 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
 
   const params = BulkInviteClassMembersParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
 
@@ -582,7 +583,7 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
 
   const parsed = BulkInviteClassMembersBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
 
@@ -678,7 +679,7 @@ router.delete("/classes/:id/members/:userId", requireAuth, async (req, res): Pro
   const { userId: requesterId } = req as AuthenticatedRequest;
   const params = RemoveClassMemberParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassTeacher(params.data.id, requesterId))) {
@@ -721,7 +722,7 @@ async function seatingChart(classId: number) {
 router.get("/classes/:id/seating-chart", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetSeatingChartParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { res.status(400).json({ error: validationMessage(params.error) }); return; }
   const teacher = await isClassTeacher(params.data.id, userId);
   if (!teacher && !(await isClassMember(params.data.id, userId))) {
     res.status(403).json({ error: "Only class members can view the seating chart" });
@@ -985,7 +986,7 @@ router.put("/classes/:id/students/:userId/role", contentLimiter, requireAuth, as
 router.get("/classes/:id/resources-list", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetClassParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { res.status(400).json({ error: validationMessage(params.error) }); return; }
 
   if (!(await isClassMember(params.data.id, userId)) && !(await isClassTeacher(params.data.id, userId))) {
     res.status(403).json({ error: "Not a member of this class" }); return;
@@ -1027,14 +1028,14 @@ router.get("/classes/:id/resources-list", requireAuth, async (req, res): Promise
 router.post("/classes/:id/assign", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetClassParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { res.status(400).json({ error: validationMessage(params.error) }); return; }
 
   if (!(await isClassTeacher(params.data.id, userId))) {
     res.status(403).json({ error: "Only the class teacher can assign resources" }); return;
   }
 
   const parsed = AssignResourceToClassBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) { res.status(400).json({ error: validationMessage(parsed.error) }); return; }
 
   // Validate resource exists before inserting (avoid FK 500)
   const [resource] = await db.select({ id: resourcesTable.id, title: resourcesTable.title }).from(resourcesTable)

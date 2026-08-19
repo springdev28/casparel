@@ -85,6 +85,7 @@ import {
 } from "../lib/searchTerms";
 import { logger } from "../lib/logger";
 import { getAccountEntitlements } from "../lib/entitlements";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -267,7 +268,7 @@ router.get("/discover/capabilities", (_req, res): void => {
 router.get("/resources", async (req, res): Promise<void> => {
   const params = ListResourcesQueryParams.safeParse(req.query);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   const {
@@ -2040,7 +2041,7 @@ router.post(
     const { userId, userRole, accountRole } = req as AuthenticatedRequest;
     const parsed = CreateResourceBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     // Verification is always computed server-side, it is absent from
@@ -2306,7 +2307,7 @@ router.get("/resources/oembed", async (req, res): Promise<void> => {
 router.get("/resources/:id", async (req, res): Promise<void> => {
   const params = GetResourceParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   const resource = await resourceWithRating(params.data.id);
@@ -2323,7 +2324,7 @@ router.patch("/resources/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = UpdateResourceParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isResourceOwner(params.data.id, userId))) {
@@ -2334,7 +2335,7 @@ router.patch("/resources/:id", requireAuth, async (req, res): Promise<void> => {
   }
   const parsed = UpdateResourceBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const [resource] = await db
@@ -2359,7 +2360,7 @@ router.delete(
     const { userId } = req as AuthenticatedRequest;
     const params = DeleteResourceParams.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ error: params.error.message });
+      res.status(400).json({ error: validationMessage(params.error) });
       return;
     }
     // Owner-only deletion. Teacher bypass is intentionally removed: because any

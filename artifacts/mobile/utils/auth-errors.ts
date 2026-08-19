@@ -51,6 +51,17 @@ export function describeAuthFailure(error: unknown, action: AuthAction): string 
     );
   }
   if (action === "register" && (status === 400 || status === 409)) {
+    /*
+     * A 400 here is not always a duplicate email.
+     *
+     * It is also every validation failure -- a short password, a missing
+     * name. The server used to answer those with a JSON dump, so treating
+     * every 400 as "that email is taken" was merely the least-bad guess;
+     * now it says "Password must be at least 8 characters." and repeating
+     * the guess over the top of it would be a step backwards.
+     */
+    const sentence = serverSentence(error);
+    if (sentence && !/already in use/i.test(sentence)) return sentence;
     return "That email already has a Casparel account. Try signing in instead.";
   }
   if (action === "login" && (status === 401 || status === 400)) {

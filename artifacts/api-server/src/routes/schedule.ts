@@ -15,6 +15,7 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { contentLimiter } from "../lib/limiters";
 import { isScheduleBlockOwner } from "../lib/authz";
 import { syncBlockToGCal, deleteBlockFromGCal } from "./calendar";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -32,7 +33,7 @@ router.get("/schedule", requireAuth, async (req, res): Promise<void> => {
   const rawWeekStart = typeof req.query.weekStart === "string" ? new Date(req.query.weekStart + "T00:00:00Z") : req.query.weekStart;
   const qParsed = ListScheduleBlocksQueryParams.safeParse({ ...req.query, weekStart: rawWeekStart });
   if (!qParsed.success) {
-    res.status(400).json({ error: qParsed.error.message });
+    res.status(400).json({ error: validationMessage(qParsed.error) });
     return;
   }
 
@@ -74,7 +75,7 @@ router.post("/schedule", contentLimiter, requireAuth, async (req, res): Promise<
   const { userId } = req as AuthenticatedRequest;
   const parsed = CreateScheduleBlockBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const { date, ...rest } = parsed.data;
@@ -93,7 +94,7 @@ router.patch("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = UpdateScheduleBlockParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isScheduleBlockOwner(params.data.id, userId))) {
@@ -102,7 +103,7 @@ router.patch("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
   }
   const parsed = UpdateScheduleBlockBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const { date: rawDate, title, startTime, endTime, notes, resourceId, listId } = parsed.data;
@@ -142,7 +143,7 @@ router.delete("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = DeleteScheduleBlockParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isScheduleBlockOwner(params.data.id, userId))) {
