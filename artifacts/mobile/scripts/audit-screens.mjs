@@ -58,6 +58,8 @@ const NAME = "Mobile Audit";
 const BLOCK_TITLE = "Audit revision block";
 /** Added through the API, then opened on its own screen. */
 const RESOURCE_TITLE = "Audit reading on tides";
+/** Made by a teacher, joined from the phone, then opened. */
+const CLASS_NAME = "Audit physics set";
 
 let failures = 0;
 let checks = 0;
@@ -160,6 +162,87 @@ async function loadPlaywright() {
   }
 }
 
+/** A call to the server under test, outside the browser. */
+async function api(method, route, { token, body } = {}) {
+  const response = await fetch(BASE + route, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const text = await response.text();
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    /* not JSON; `text` is what the caller gets */
+  }
+  return { status: response.status, body: parsed, text };
+}
+
+/**
+ * A teacher, so there is a class to be invited to.
+ *
+ * Registration only ever creates students -- the role must not be
+ * client-controlled -- so making one needs an administrator, and an
+ * allowlisted address is promoted when it signs in. Without E2E_ADMIN_EMAIL
+ * there is no way to get one, and the class screens go unwalked; that is said
+ * out loud rather than passing quietly over a screen nothing looked at.
+ */
+async function teacherWithAClass() {
+  const adminEmail = process.env.E2E_ADMIN_EMAIL;
+  if (!adminEmail) return null;
+  const adminPassword = process.env.E2E_ADMIN_PASSWORD || "e2e-Admin-Passw0rd!shared";
+
+  await api("POST", "/api/auth/register", {
+    body: { email: adminEmail, password: adminPassword, name: "Audit Admin" },
+  });
+  const adminIn = await api("POST", "/api/auth/login", {
+    body: { email: adminEmail, password: adminPassword },
+  });
+  if (adminIn.status !== 200 || !adminIn.body?.token) {
+    throw new Inconclusive(
+      `E2E_ADMIN_EMAIL=${adminEmail} could not sign in (HTTP ${adminIn.status}). ` +
+        `If the account exists with another password, set E2E_ADMIN_PASSWORD.`,
+    );
+  }
+
+  const teacherEmail = `mobile-teacher-${RUN}@example.test`;
+  const registered = await api("POST", "/api/auth/register", {
+    body: { email: teacherEmail, password: PASSWORD, name: "Audit Teacher" },
+  });
+  const teacherId = registered.body?.user?.id ?? registered.body?.id;
+  if (!teacherId) throw new Inconclusive("could not register a teacher account");
+
+  const promoted = await api("PATCH", `/api/admin/users/${teacherId}`, {
+    token: adminIn.body.token,
+    body: { role: "teacher", activeRole: "teacher" },
+  });
+  if (promoted.status !== 200) {
+    throw new Inconclusive(
+      `${adminEmail} signed in but could not promote a teacher (HTTP ${promoted.status}). ` +
+        `It has to be in the server's ADMIN_EMAILS allowlist.`,
+    );
+  }
+  // The promotion changed the account, not the token issued before it.
+  const teacherIn = await api("POST", "/api/auth/login", {
+    body: { email: teacherEmail, password: PASSWORD },
+  });
+  const token = teacherIn.body?.token;
+  if (!token) throw new Inconclusive("the promoted teacher could not sign in");
+
+  const created = await api("POST", "/api/classes", {
+    token,
+    body: { name: CLASS_NAME, subject: "Physics", gradeLevel: "Year 12" },
+  });
+  if (created.status !== 201) {
+    throw new Inconclusive(`a teacher could not create a class (HTTP ${created.status})`);
+  }
+  return { token, classId: created.body.id };
+}
+
 /** Requests the signed-in app made for itself that came back an error. */
 function isInterestingFailure(url, status, signedIn) {
   if (status < 400) return false;
@@ -181,13 +264,16 @@ function isInterestingFailure(url, status, signedIn) {
  * worth catching, so each expectation names something only that screen's data
  * can produce -- not its title, which the shell draws either way.
  */
-function screens(resourceId) {
+function screens(resourceId, classId) {
   return [
     ...TABS,
     // The detail screens are reached by tapping a row, so nothing above ever
     // renders them; they are also where the app spends most of its layout.
     resourceId
       ? { name: "resource detail", route: `/resource/${resourceId}`, expect: new RegExp(RESOURCE_TITLE) }
+      : null,
+    classId
+      ? { name: "class detail", route: `/class/${classId}`, expect: new RegExp(CLASS_NAME) }
       : null,
     // The screen the whole Shipaton submission turns on. It renders before any
     // store connection exists, which is the state CI is always in, so what is
@@ -357,6 +443,56 @@ async function main() {
     check("the server accepts a resource", resource.status === 201, `${resource.status}`);
     const resourceId = resource.status === 201 ? (await resource.json()).id : null;
 
+    /*
+     * A class, joined the way a pupil joins one: from the invitation card on
+     * the classes screen.
+     *
+     * Until this, /class/[id] was the one screen in the app that nothing had
+     * ever rendered, and the accept button on that card had never been
+     * pressed by anything but a person. Both need a teacher, and a teacher
+     * needs an administrator, so both are skipped -- loudly -- when
+     * E2E_ADMIN_EMAIL is not set.
+     */
+    let classId = null;
+    const teacher = await teacherWithAClass();
+    if (!teacher) {
+      console.log(
+        "not run  joining a class, and the class screen\n" +
+          "         set E2E_ADMIN_EMAIL to an address in the server's ADMIN_EMAILS",
+      );
+    } else {
+      const invited = await api("POST", `/api/classes/${teacher.classId}/invitations`, {
+        token: teacher.token,
+        body: { email: EMAIL },
+      });
+      check("a teacher can invite by email", invited.status === 201, `${invited.status}`);
+
+      await page.goto(`${local}/classes`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(2500);
+      const invitation = await page.evaluate(() => document.body.innerText);
+      check(
+        "the invitation reaches the phone, with the class named",
+        new RegExp(CLASS_NAME).test(invitation),
+        invitation.replace(/\n+/g, " | ").slice(0, 160),
+      );
+
+      const join = page.getByText("Join class").last();
+      if (await join.count()) {
+        await join.click();
+        await page.waitForTimeout(3000);
+      }
+      const joined = await api("GET", "/api/classes", { token });
+      check(
+        "pressing Join class on the phone actually joins it",
+        Array.isArray(joined.body) &&
+          joined.body.some((item) => item.id === teacher.classId),
+        `classes=${JSON.stringify(joined.body)?.slice(0, 160)}`,
+      );
+      if (joined.body?.some?.((item) => item.id === teacher.classId)) {
+        classId = teacher.classId;
+      }
+    }
+
     await page.close();
 
     // Both schemes. The colours are checked in the mobile unit suite; what is
@@ -383,7 +519,7 @@ async function main() {
         }, origin?.localStorage ?? []);
       }
 
-      for (const tab of screens(resourceId)) {
+      for (const tab of screens(resourceId, classId)) {
         const tabPage = await context.newPage();
         tabPage.on("pageerror", (error) =>
           pageErrors.push(`${scheme} ${tab.name}: ${String(error).slice(0, 200)}`),
