@@ -189,6 +189,53 @@ const LEARNING_GOAL = {
   createdAt: "2026-03-02T09:00:00.000Z",
 };
 
+const CLASS = {
+  id: 31,
+  name: "Physics A-level",
+  subject: "Physics",
+  gradeLevel: "Year 12",
+  description: "Mechanics and waves, Tuesdays and Thursdays.",
+  teacherId: 1,
+  memberCount: 24,
+  createdAt: "2026-01-14T09:00:00.000Z",
+};
+
+const RESOURCE_LIST = {
+  id: 44,
+  name: "Revision reading",
+  description: "Everything worth a second pass before the mock.",
+  ownerId: 1,
+  classId: null,
+  itemCount: 6,
+  createdAt: "2026-04-02T09:00:00.000Z",
+};
+
+/**
+ * A block on a day the grid is actually showing.
+ *
+ * The schedule renders one week at a time, so a fixed date would fall outside
+ * it on all but seven days a year and the audit would render the empty grid
+ * almost always -- which is the state it was rendering before this existed.
+ */
+function todayInTheGrid() {
+  const day = new Date();
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+}
+
+const SCHEDULE_BLOCK = {
+  id: 88,
+  userId: 1,
+  title: "Integration by parts",
+  date: todayInTheGrid(),
+  startTime: "09:00",
+  endTime: "10:30",
+  resourceId: null,
+  listId: null,
+  classId: null,
+  notes: "Past paper Q4 to Q7",
+  createdAt: "2026-08-01T09:00:00.000Z",
+};
+
 /**
  * Exact-path fixtures. Keys are pathnames; values are the JSON body.
  * Ordered roughly as the app requests them.
@@ -218,12 +265,13 @@ export const FIXTURES = {
     icalSecret: "audit-ical-secret",
   },
   "/api/activity/recent": [],
-  "/api/classes": [],
-  "/api/lists": [],
+  "/api/classes": [CLASS],
+  "/api/classes/31": CLASS,
+  "/api/lists": [RESOURCE_LIST],
   "/api/class-invitations": [],
   "/api/google-classroom/status": { connected: false, configured: false },
   "/api/lists/shared": [],
-  "/api/schedule": [],
+  "/api/schedule": [SCHEDULE_BLOCK],
   "/api/study-sessions": [],
   "/api/forum/access": { canPost: true, canModerate: true },
   "/api/forum/materials": [],

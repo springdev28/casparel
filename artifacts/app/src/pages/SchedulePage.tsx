@@ -1633,17 +1633,24 @@ export default function SchedulePage() {
                     variant="ghost"
                     className="text-muted-foreground hover:text-primary-text h-8 w-8 p-0"
                     onClick={() => downloadBlockIcs(block.id)}
+                    // `title` is a tooltip, not a name: it needs a pointer
+                    // hovering, which is the one thing a screen-reader user
+                    // does not have.
+                    aria-label={`Export ${block.title} to calendar`}
                     title="Export to Calendar"
                   >
-                    <Download size={14} />
+                    <Download size={14} aria-hidden="true" />
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="text-destructive-text hover:text-destructive-text hover:bg-destructive/10 h-8 w-8 p-0"
                     onClick={() => handleDelete(block.id)}
+                    // Named after the block, because this list renders one per
+                    // block and "button" repeated is not a choice.
+                    aria-label={`Delete ${block.title}`}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={14} aria-hidden="true" />
                   </Button>
                 </div>
               </CardContent>

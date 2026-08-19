@@ -158,9 +158,15 @@ export default function ListsPage() {
                       e.stopPropagation();
                       setDeleteTarget({ id: list.id, name: list.name });
                     }}
+                    // A bin icon and nothing else. Naming it after the list
+                    // matters more here than most: several cards render the
+                    // same control, and "button" repeated down a page tells a
+                    // screen-reader user which of them destroys what -- which
+                    // is nothing.
+                    aria-label={`Delete ${list.name}`}
                     data-testid="delete-list-button"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={14} aria-hidden="true" />
                   </Button>
                 </div>
                 {list.description && (
