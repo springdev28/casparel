@@ -115,7 +115,7 @@ export function PremiumCard() {
               ? 'Administrator account: AI usage is uncapped.'
               : isPaid
                 ? 'AI discovery and deep research are active with allowances.'
-                : 'Core tools plus a small daily taste of AI are included.'}
+                : 'Core tools plus a small taste of AI are included.'}
           </Text>
         </View>
       </View>

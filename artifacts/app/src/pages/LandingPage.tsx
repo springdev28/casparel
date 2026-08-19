@@ -226,7 +226,7 @@ const CREDENTIALS = [
   {
     metric: "Free forever",
     title: "The library stays open",
-    body: "Access to learning materials is never paywalled. Free includes a daily taste of AI; Student and Teacher plans add room and larger AI allowances.",
+    body: "Access to learning materials is never paywalled. Free includes a taste of AI; Student and Teacher plans add room and larger AI allowances.",
   },
 ];
 

@@ -189,3 +189,52 @@ describe("the Terms of Service quote the Free tier correctly", () => {
     ).toBe(true);
   });
 });
+
+/**
+ * Free's deep research is two reports per rolling thirty days, not two a day.
+ *
+ * Four places said "a small daily taste of AI" -- the plans page, the sidebar,
+ * the landing page and the phone's plan card -- which is right about discovery
+ * search and wrong about deep research by a factor of thirty. The number was
+ * never quoted, so the arithmetic checks above had nothing to catch, and a
+ * marketing adjective is exactly the sort of thing that survives a review of
+ * the figures.
+ *
+ * The rule is narrow on purpose: copy may call the AI allowance daily only if
+ * every part of it is. It stops being enforced the moment the rates make it
+ * true, which is the right condition -- if Free ever gets a daily deep report,
+ * "daily" becomes accurate and this stops asking.
+ */
+describe("what the copy calls Free's AI allowance", () => {
+  const freeIsDailyThroughout = AI_RATES_BY_TIER.free.deepPerMonth > AI_RATES_BY_TIER.free.deepPerDay;
+
+  const SURFACES = [
+    "../../../app/src/lib/plan-copy.ts",
+    "../../../app/src/components/PlanSection.tsx",
+    "../../../app/src/components/AppShell.tsx",
+    "../../../app/src/pages/LandingPage.tsx",
+    "../../../mobile/components/PremiumCard.tsx",
+    "../../../mobile/app/paywall.tsx",
+  ];
+
+  it.skipIf(freeIsDailyThroughout).each(SURFACES)("does not call it daily in %s", (file) => {
+    const source = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), file),
+      "utf8",
+    );
+    const offenders = source
+      .split("\n")
+      .map((line, index) => [index + 1, line] as const)
+      // Only the word "taste", which is how the Free tier's AI is described
+      // everywhere. "AI allowances reset daily" is shown to paid accounts, and
+      // for those the daily window really is the binding one, so it stays.
+      .filter(([, line]) => !/^\s*(\*|\/\/)/.test(line))
+      .filter(([, line]) => /daily[^"'`]{0,20}taste|taste[^"'`]{0,20}daily/i.test(line))
+      .map(([number, line]) => `${number}: ${line.trim()}`);
+
+    expect(
+      offenders,
+      `Free gets ${AI_RATES_BY_TIER.free.deepPerMonth} deep reports per 30 days, not per day`,
+    ).toEqual([]);
+  });
+});
