@@ -32,6 +32,7 @@ import {
 import type { ScheduleBlock, StudySessionWithParticipants, PublicUser, Resource } from '@workspace/api-client-react';
 import { describeApiFailure } from '@/utils/api-failure';
 import { sessionPalette } from '@/utils/session-palette';
+import { ErrorState } from '@/components/ErrorState';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -708,8 +709,20 @@ export default function ScheduleScreen() {
   const [selectedSession, setSelectedSession] = useState<StudySessionWithParticipants | null>(null);
   const [createModalVisible, setCreateModalVisible] = useState(false);
 
-  const { data: blocksData, isLoading: blocksLoading, refetch: refetchBlocks } = useListScheduleBlocks({ weekStart });
-  const { data: sessionsData, isLoading: sessionsLoading, refetch: refetchSessions } = useListStudySessions();
+  const {
+    data: blocksData,
+    isLoading: blocksLoading,
+    isError: blocksError,
+    error: blocksFailure,
+    isFetching: blocksFetching,
+    refetch: refetchBlocks,
+  } = useListScheduleBlocks({ weekStart });
+  const {
+    data: sessionsData,
+    isLoading: sessionsLoading,
+    isError: sessionsError,
+    refetch: refetchSessions,
+  } = useListStudySessions();
   const rsvp = useRsvpStudySession();
   const queryClient = useQueryClient();
 
@@ -743,6 +756,16 @@ export default function ScheduleScreen() {
   const pendingSessions = sessionsData?.filter((s) => s.myStatus === 'pending') ?? [];
 
   const isLoading = blocksLoading || sessionsLoading;
+
+  /*
+   * A week that could not be fetched is not a free week.
+   *
+   * With no signal this screen said "No events scheduled -- Nothing scheduled
+   * for Wed", which is a claim about the person's own day and was untrue of
+   * it. Worse than blank: somebody could reasonably re-add a block they
+   * already have, or walk away believing they had nothing on.
+   */
+  const failed = (blocksError && blocksData === undefined) || (sessionsError && sessionsData === undefined);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -859,6 +882,16 @@ export default function ScheduleScreen() {
             <Skeleton key={i} width="100%" height={80} borderRadius={8} style={{ marginBottom: 10 }} />
           ))}
         </View>
+      ) : failed ? (
+        <ErrorState
+          error={blocksFailure}
+          retrying={blocksFetching}
+          onRetry={() => {
+            void refetchBlocks();
+            void refetchSessions();
+          }}
+          style={{ paddingTop: 24 }}
+        />
       ) : (
         <FlatList
           data={listItems}

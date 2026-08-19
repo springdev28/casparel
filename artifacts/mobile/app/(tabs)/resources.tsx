@@ -22,6 +22,7 @@ import { Feather } from '@expo/vector-icons';
 import type { Resource } from '@workspace/api-client-react';
 import { apiOrigin } from '@/utils/api-host';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
+import { ErrorState } from '@/components/ErrorState';
 
 function getYouTubeId(url: string): string | null {
   try {
@@ -225,9 +226,19 @@ export default function ResourcesScreen() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(text), 400);
   };
 
-  const { data, isLoading, refetch } = useListResources({
+  const { data, isLoading, isError, error, isFetching, refetch } = useListResources({
     q: debouncedSearch || undefined,
   });
+
+  /*
+   * A request that failed is not an empty library.
+   *
+   * On a phone with no signal this screen said "No resources yet -- Resources
+   * will appear here once they are added", which is a statement about the
+   * catalogue and was untrue of it. The classes screen already knew the
+   * difference; this one did not.
+   */
+  const failed = isError && data === undefined;
 
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = async () => {
@@ -297,6 +308,15 @@ export default function ResourcesScreen() {
           renderItem={() => <ResourceSkeleton />}
           contentContainerStyle={styles.listContent}
           scrollEnabled={false}
+        />
+      ) : failed ? (
+        <ErrorState
+          error={error}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetch();
+          }}
+          style={{ paddingTop: 24 }}
         />
       ) : (
         <FlatList

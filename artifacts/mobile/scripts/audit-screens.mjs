@@ -542,6 +542,47 @@ async function main() {
       if (scheme === "dark") await context.close();
     }
 
+    /*
+     * The same screens with the server unreachable.
+     *
+     * An empty state standing in for a failure is the quietest bug this app
+     * has: the resources tab said "No resources yet" about a catalogue of
+     * thousands, the schedule said "Nothing scheduled for Wed" about a day
+     * that was full, and the profile rendered a blank account at 0% complete
+     * -- which reads as data that has been lost, and invites somebody to type
+     * it all in again over the top of what is still there.
+     *
+     * Aborting the requests is what a phone on a train does. What is checked
+     * is only that the screen says something went wrong, in whatever words:
+     * the wording lives in components/ErrorState.tsx and is its business.
+     */
+    const offline = await browser.newContext({
+      viewport: { width: 420, height: 900 },
+      deviceScaleFactor: 2,
+      colorScheme: "light",
+    });
+    await offline.route(`${APP_ORIGIN}/**`, (route) => route.abort("connectionfailed"));
+    const session = (await light.storageState()).origins.find((entry) =>
+      entry.origin.startsWith("http://127.0.0.1"),
+    );
+    await offline.addInitScript((items) => {
+      for (const item of items ?? []) localStorage.setItem(item.name, item.value);
+    }, session?.localStorage ?? []);
+
+    for (const tab of TABS) {
+      const tabPage = await offline.newPage();
+      await tabPage.goto(`${local}${tab.route}`, { waitUntil: "domcontentloaded" });
+      await tabPage.waitForTimeout(4000);
+      const text = await tabPage.evaluate(() => document.body.innerText);
+      check(
+        `offline: ${tab.name} says it could not load, rather than that you have nothing`,
+        /offline|could ?n.t (reach|load)|try again|retry/i.test(text),
+        text.replace(/\n+/g, " | ").slice(0, 140),
+      );
+      await tabPage.close();
+    }
+    await offline.close();
+
     check("no screen threw an uncaught exception", pageErrors.length === 0, pageErrors.slice(0, 4).join("\n     "));
     check(
       "no request the app makes for itself came back an error",

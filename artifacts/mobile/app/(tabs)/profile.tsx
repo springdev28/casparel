@@ -38,6 +38,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { PremiumCard } from '@/components/PremiumCard';
 import { describeApiFailure } from '@/utils/api-failure';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
+import { ErrorState } from '@/components/ErrorState';
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History',
@@ -237,7 +238,7 @@ export default function ProfileScreen() {
   }
   const queryClient = useQueryClient();
 
-  const { data: me, isLoading } = useGetMe();
+  const { data: me, isLoading, isError, error, isFetching, refetch } = useGetMe();
   const updateMe = useUpdateMe();
   const uploadAvatar = useUploadAvatar();
   const switchRoleMutation = useSwitchRole();
@@ -361,6 +362,31 @@ export default function ProfileScreen() {
           <Skeleton width="100%" height={100} />
           <Skeleton width="100%" height={80} />
         </View>
+      </View>
+    );
+  }
+
+  /*
+   * A profile that could not be fetched is not a blank profile.
+   *
+   * With no signal this screen rendered the whole thing empty: no name, "No
+   * bio yet", "No subjects added yet", every detail "Not set", and 0%
+   * complete. It is the one screen where blank means something specific --
+   * "this is what your account holds" -- so it read as an account that had
+   * been wiped, and the encouraging 0% invited the person to type it all in
+   * again over the top of data that was still there.
+   */
+  if (isError && me === undefined) {
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.background, paddingTop: insets.top + webTopPad + 16 }]}>
+        <ErrorState
+          error={error}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetch();
+          }}
+          style={{ paddingTop: 24 }}
+        />
       </View>
     );
   }
