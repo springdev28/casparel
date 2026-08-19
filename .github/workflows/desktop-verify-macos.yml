@@ -44,7 +44,11 @@ jobs:
         include:
           - runner: macos-latest
             arch: arm64
-          - runner: macos-13
+          # macos-13 is retired. The Intel labels that still exist are
+          # macos-15-intel and macos-26-intel; a retired label does not fail,
+          # it queues until the job times out, which is why this is pinned to a
+          # live one rather than left to a guess.
+          - runner: macos-15-intel
             arch: x64
     runs-on: ${{ matrix.runner }}
     name: verify (${{ matrix.arch }})
