@@ -4,6 +4,7 @@ import { pool, runMigrations } from "@workspace/db";
 import { issueToken, verifyPassword } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import { logger } from "../lib/logger";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -179,7 +180,7 @@ function toApiUser(row: LegacyUserRow) {
 router.post("/auth/login", async (req, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
 

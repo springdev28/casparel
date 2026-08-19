@@ -24,6 +24,7 @@ import {
 } from "@workspace/db";
 import { GetAdminOverviewResponse } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -425,7 +426,7 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
   const targetId = Number(req.params.id);
   const parsed = adminUserUpdate.safeParse(req.body);
   if (!targetId || !parsed.success) {
-    res.status(400).json({ error: parsed.success ? "Invalid user ID" : parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error, "Invalid user ID") });
     return;
   }
   if (targetId === adminId && parsed.data.role && parsed.data.role !== "admin") {
@@ -464,7 +465,7 @@ router.patch("/admin/users/:id/classes/:classId/membership", requireAdmin, async
   const classId = Number(req.params.classId);
   const parsed = affiliationUpdate.safeParse(req.body);
   if (!targetId || !classId || !parsed.success) {
-    res.status(400).json({ error: parsed.success ? "Invalid affiliation" : parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error, "Invalid affiliation") });
     return;
   }
   const [membership] = await db.update(classMembersTable).set(parsed.data)
@@ -488,7 +489,7 @@ router.patch("/admin/users/:id/classes/:classId", requireAdmin, async (req, res)
   const classId = Number(req.params.classId);
   const parsed = ownedClassUpdate.safeParse(req.body);
   if (!targetId || !classId || !parsed.success) {
-    res.status(400).json({ error: parsed.success ? "Invalid class" : parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error, "Invalid class") });
     return;
   }
   const [classroom] = await db.update(classesTable).set(parsed.data)
@@ -510,7 +511,7 @@ router.patch("/admin/users/:id/work/:category/:itemId", requireAdmin, async (req
   const itemId = Number(req.params.itemId);
   const parsed = workEditBody.safeParse(req.body);
   if (!userId || !itemId || !parsed.success) {
-    res.status(400).json({ error: parsed.success ? "Invalid work item" : parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error, "Invalid work item") });
     return;
   }
   const { primary, secondary = null } = parsed.data;

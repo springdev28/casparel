@@ -31,6 +31,7 @@ import {
   optionalWorkflowUserId,
   recordWorkflowEvent,
 } from "../lib/workflowAnalytics";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 const QUICK_CACHE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -214,7 +215,7 @@ router.get(
     if (hasResourceId) {
       const params = GetResourceSourceReviewParams.safeParse(req.params);
       if (!params.success) {
-        res.status(400).json({ error: params.error.message });
+        res.status(400).json({ error: validationMessage(params.error) });
         return;
       }
       const [savedResource] = await db

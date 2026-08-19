@@ -58,6 +58,7 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import { validationMessage } from "../lib/validationMessage";
 
 const PRESET_AVATARS: Record<
   string,
@@ -253,7 +254,7 @@ router.patch(
     }
     const parsed = userPreferencesPatch.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     const [preferences] = await db
@@ -280,7 +281,7 @@ router.post(
   async (req, res): Promise<void> => {
     const parsed = RegisterBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     // role is always "student" for new accounts, not client-controlled
@@ -308,7 +309,7 @@ router.post(
 router.post("/auth/login", async (req, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const { email, password } = parsed.data;
@@ -525,7 +526,7 @@ router.patch(
     const { userId } = req as AuthenticatedRequest;
     const parsed = UpdateMeBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     // Strip avatarUrl from PATCH payload, avatar changes must use POST /users/me/avatar
@@ -551,7 +552,7 @@ router.patch(
     const { userId, accountRole } = req as AuthenticatedRequest;
     const parsed = SwitchRoleBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     const [user] = await db
@@ -628,7 +629,7 @@ router.put(
     const { userId } = req as AuthenticatedRequest;
     const parsed = SetPresetAvatarBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     const avatarUrl = presetAvatarDataUrl(parsed.data.avatarId);
@@ -742,7 +743,7 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
   const isAdmin = accountRole === "admin";
   const parsed = SearchUsersQueryParams.safeParse(req.query);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const {
