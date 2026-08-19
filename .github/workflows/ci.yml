@@ -291,6 +291,13 @@ jobs:
       - name: Build the API server
         run: pnpm --filter @workspace/api-server run build
 
+      # The phone app, in a form a browser can render. The store submission is
+      # this app and CI only ever asked Metro to bundle it, which proves the
+      # modules resolve and nothing else: every screen could throw on its first
+      # render and the bundle step would still pass.
+      - name: Build the mobile app for the web
+        run: pnpm --filter @workspace/mobile exec expo export --platform web --output-dir .expo/web-export
+
       # Same out-of-tree install as the check job: playwright-core is a tool
       # here, not something the bundle depends on.
       - name: Install Playwright
@@ -360,6 +367,28 @@ jobs:
           set -e
           if [ "$status" = "75" ]; then
             echo "::warning::Live UI run was inconclusive, not a product failure."
+            exit 0
+          fi
+          exit "$status"
+
+      # Same idea, for the app that gets submitted to the stores. It registers
+      # through the real register screen, walks all five tabs in both colour
+      # schemes, and checks that a schedule block written through the API turns
+      # up on the schedule -- which is the one that mattered: the server sent
+      # `date` as a timestamp against a contract of a date, the phone compared
+      # it to a YYYY-MM-DD string, and every schedule block on every phone was
+      # invisible behind a tidy "No events scheduled".
+      #
+      # Second, for the same reason the live UI run is first: both share one
+      # rate-limit budget and this needs only one account.
+      - name: Drive the phone app against the real server
+        run: |
+          set +e
+          node artifacts/mobile/scripts/audit-screens.mjs http://localhost:4319
+          status=$?
+          set -e
+          if [ "$status" = "75" ]; then
+            echo "::warning::Mobile screen run was inconclusive, not a product failure."
             exit 0
           fi
           exit "$status"

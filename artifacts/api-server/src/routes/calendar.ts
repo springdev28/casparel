@@ -141,6 +141,24 @@ async function getValidCalToken(userId: number): Promise<string | null> {
 
 // ── Ensure the user has a calendar token row (creates icalSecret if needed) ──
 
+/**
+ * The account's calendar row, made if it is not there yet.
+ *
+ * This used to read, then insert if the read found nothing, and `user_id` is
+ * unique -- so two requests arriving together both found nothing and both
+ * inserted, and the loser got `duplicate key value violates unique constraint
+ * "calendar_tokens_user_id_key"` as a 500.
+ *
+ * Two requests arriving together is the normal case, not a rare one. The row
+ * is created on first read, every screen that mentions the calendar asks for
+ * it on mount, and a phone app mounts several screens at once while a tab bar
+ * settles. So it landed on the first visit of a brand-new account, which is
+ * the worst possible audience for a 500, and never again afterwards -- which
+ * is why it looked like a fluke.
+ *
+ * Postgres decides instead: the insert either wins or is ignored, and the
+ * secret is whatever ended up in the table.
+ */
 async function ensureCalendarTokenRow(userId: number): Promise<string> {
   const [existing] = await db
     .select({ icalSecret: calendarTokensTable.icalSecret })
@@ -149,12 +167,23 @@ async function ensureCalendarTokenRow(userId: number): Promise<string> {
 
   if (existing) return existing.icalSecret;
 
-  const icalSecret = crypto.randomUUID();
-  await db.insert(calendarTokensTable).values({
-    userId,
-    icalSecret,
-  });
-  return icalSecret;
+  const [inserted] = await db
+    .insert(calendarTokensTable)
+    .values({ userId, icalSecret: crypto.randomUUID() })
+    .onConflictDoNothing({ target: calendarTokensTable.userId })
+    .returning({ icalSecret: calendarTokensTable.icalSecret });
+
+  if (inserted) return inserted.icalSecret;
+
+  // Someone else got there in between. Their secret is the account's secret;
+  // handing back the one that was not stored would sign iCal URLs nothing can
+  // verify.
+  const [winner] = await db
+    .select({ icalSecret: calendarTokensTable.icalSecret })
+    .from(calendarTokensTable)
+    .where(eq(calendarTokensTable.userId, userId));
+  if (!winner) throw new Error("calendar token row vanished after an insert conflict");
+  return winner.icalSecret;
 }
 
 // ── iCal helpers ──────────────────────────────────────────────────────────────
