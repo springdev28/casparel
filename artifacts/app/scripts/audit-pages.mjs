@@ -53,7 +53,12 @@ const PAGES = (
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
   "/dashboard,/profile,/resources,/catalog,/settings,/plans,/admin," +
-    "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people,/canvas"
+    "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people,/canvas," +
+    // The detail page. It rendered its error boundary until the workflow
+    // fixture existed and `workflow?.steps?.[key]` guarded both levels, which
+    // is why the page carrying this product's headline feature had never been
+    // rendered by anything.
+    "/resources/101"
 )
   .split(",")
   .filter(Boolean);
