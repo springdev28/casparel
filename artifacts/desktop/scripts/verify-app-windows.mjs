@@ -225,21 +225,31 @@ check(
   "nothing to remove the app with, which Windows and SignPath both expect",
 );
 
-// Without this the casparel:// links the app registers never reach it. A
-// per-user install (perMachine is false) writes to HKCU.
-let protocolRegistered = false;
-try {
-  const key = powershell(
-    `if (Test-Path 'HKCU:\\Software\\Classes\\casparel') { 'yes' } else { 'no' }`,
-  );
-  protocolRegistered = key === "yes";
-} catch {
-  /* treated as absent below */
+// The casparel:// registration is checked AFTER the launch, further down, not
+// here. Windows and macOS differ in a way that is easy to get wrong: the .app
+// declares its schemes in Info.plist, so the macOS check can read them off the
+// bundle without running anything, but on Windows the app registers itself at
+// runtime with setAsDefaultProtocolClient when it first becomes ready. Looking
+// in the registry straight after install therefore finds nothing and reports a
+// defect in a perfectly good build -- which is exactly what the first version
+// of this script did.
+function protocolIsRegistered() {
+  try {
+    return (
+      powershell(
+        `if (Test-Path 'HKCU:\\Software\\Classes\\casparel') { 'yes' } else { 'no' }`,
+      ) === "yes"
+    );
+  } catch {
+    return false;
+  }
 }
+
 check(
-  "the casparel:// scheme is registered",
-  protocolRegistered,
-  "HKCU\\Software\\Classes\\casparel is absent, so deep links will not open the app",
+  "the scheme is not registered before the app has ever run",
+  !protocolIsRegistered(),
+  "something already claimed casparel:// on this machine, so the check below " +
+    "would pass without the app having done anything",
 );
 
 if (!appExeName) {
@@ -326,6 +336,19 @@ check(
   launched.ok,
   launched.ok ? "" : `${launched.why}\n     --- app output ---\n${appOutput}`,
 );
+
+// Now that the app has been ready once, it should have claimed the scheme.
+// This is the stronger form of the check: not "the installer wrote a registry
+// key" but "the application actually registers itself", which is what has to be
+// true for a casparel:// link to open it.
+if (launched.ok) {
+  check(
+    "running the app registers the casparel:// scheme",
+    protocolIsRegistered(),
+    "HKCU\\Software\\Classes\\casparel is still absent after a successful " +
+      "launch, so deep links will not reach the app",
+  );
+}
 
 // Same three outcomes as the macOS check, through the same tested classifier:
 // a build older than the hardening probe answers from the shell's embed
