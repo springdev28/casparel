@@ -161,6 +161,17 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-translation.mjs
 
+      # The other half of the same bridge. It rewrites any English string it
+      # matches, including text that came out of the database -- a flashcard
+      # deck titled "Answer" whose cards read "Share" and "Close" came back to
+      # a Spanish reader as "Respuesta", "Compartir" and "Cerrar", so the study
+      # tool translated the vocabulary the student was learning. This renders
+      # every page with the user-typed fields replaced by markers and checks
+      # each one is somewhere the bridge is required to leave alone.
+      - name: Audit user content
+        working-directory: artifacts/app
+        run: node scripts/audit-user-content.mjs
+
       # An empty state must never stand in for a loading one: "Your library is
       # empty" is a claim about the account, and painting it mid-load tells a
       # returning user their work is gone.

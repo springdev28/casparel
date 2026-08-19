@@ -160,7 +160,7 @@ export default function UserProfilePage() {
       {profile.bio && (
         <Card>
           <CardContent className="pt-5 pb-4">
-            <p className="text-sm text-foreground leading-relaxed">{profile.bio}</p>
+            <p translate="no" className="text-sm text-foreground leading-relaxed">{profile.bio}</p>
           </CardContent>
         </Card>
       )}

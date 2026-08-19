@@ -783,7 +783,7 @@ function StudySessionBlock({
     >
       <div className="flex items-center gap-1 mb-0.5">
         <Users size={9} className="shrink-0 opacity-70" />
-        <span className="font-semibold truncate flex-1">{session.title}</span>
+        <span translate="no" className="font-semibold truncate flex-1">{session.title}</span>
       </div>
       <div className="flex items-center gap-0.5 opacity-80">
         <Clock size={10} />
@@ -1095,7 +1095,7 @@ function PendingInvitationsBanner({
                   onClick={() => onOpen(s)}
                   className="flex-1 text-left min-w-0"
                 >
-                  <p className="text-sm font-medium text-violet-900 truncate">
+                  <p translate="no" className="text-sm font-medium text-violet-900 truncate">
                     {s.title}
                   </p>
                   <p className="text-xs text-violet-700">
@@ -1519,7 +1519,7 @@ export default function SchedulePage() {
                           className={`rounded p-1.5 text-xs ${getColor(block.id)}`}
                           data-testid="schedule-block"
                         >
-                          <div className="font-semibold truncate">
+                          <div translate="no" className="font-semibold truncate">
                             {block.title}
                           </div>
                           <div className="flex items-center gap-0.5 mt-0.5 opacity-80">
@@ -1529,7 +1529,7 @@ export default function SchedulePage() {
                             </span>
                           </div>
                           {block.notes && (
-                            <p className="mt-0.5 opacity-75 truncate">
+                            <p translate="no" className="mt-0.5 opacity-75 truncate">
                               {block.notes}
                             </p>
                           )}
@@ -1617,7 +1617,7 @@ export default function SchedulePage() {
             <Card key={block.id} data-testid="schedule-block-mobile">
               <CardContent className="py-3 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{block.title}</p>
+                  <p translate="no" className="font-medium text-sm truncate">{block.title}</p>
                   <p className="text-xs text-muted-foreground">
                     {block.date} ·{" "}
                     {`${block.startTime.slice(0, 5)}\u2013${block.endTime.slice(0, 5)}`}
@@ -1640,6 +1640,7 @@ export default function SchedulePage() {
                     // hovering, which is the one thing a screen-reader user
                     // does not have.
                     aria-label={`Export ${block.title} to calendar`}
+                    translate="no"
                     title="Export to Calendar"
                   >
                     <Download size={14} aria-hidden="true" />
@@ -1678,7 +1679,7 @@ export default function SchedulePage() {
               >
                 <CardContent className="py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">
+                    <p translate="no" className="font-medium text-sm truncate">
                       {session.title}
                     </p>
                     <p className="text-xs text-muted-foreground">

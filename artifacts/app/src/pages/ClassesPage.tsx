@@ -541,14 +541,14 @@ export default function ClassesPage() {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base">{cls.name}</CardTitle>
+                  <CardTitle translate="no" className="text-base">{cls.name}</CardTitle>
                   <Badge variant="secondary" className="shrink-0">{cls.gradeLevel}</Badge>
                 </div>
                 <CardDescription>{cls.subject}</CardDescription>
               </CardHeader>
               <CardContent>
                 {cls.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                  <p translate="no" className="text-sm text-muted-foreground line-clamp-2 mb-2">
                     {cls.description}
                   </p>
                 )}
