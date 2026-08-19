@@ -115,15 +115,39 @@ jobs:
             fi
           }
 
-          p21=$(probe "$host" 21); p22=$(probe "$host" 22)
+          # Wait out a host that is briefly not there.
+          #
+          # This scan is a gate: everything below it, including the login
+          # rounds that already retry for a fresh password, only runs once a
+          # port answers. So a Hostinger blip failed the whole deploy in twelve
+          # seconds and the retries underneath never got the chance — which is
+          # exactly what happened twice in one evening, each time clearing on
+          # its own a few minutes later with nothing changed.
+          #
+          # Waiting only ever delays a verdict that was going to be reached
+          # anyway: a wrong FTP_SERVER still ends up unreachable, just five
+          # minutes later, and that is a secret nobody edits twice a day. A
+          # deploy failing on a healthy release is the more expensive mistake,
+          # because it needs a person to notice and re-run it.
+          #
+          # Port 21 answering is the only thing worth waiting for. The scan
+          # stops the moment it does.
+          scan_deadline=$(( SECONDS + 300 ))
+          while :; do
+            p21=$(probe "$host" 21); p22=$(probe "$host" 22)
+            [ "$p21" = "open" ] && break
+            [ "$SECONDS" -ge "$scan_deadline" ] && break
+            echo "Port 21 is ${p21} and 22 is ${p22}; the host may be between restarts. Retrying in 20s ($(( scan_deadline - SECONDS ))s left)."
+            sleep 20
+          done
           echo "Port scan on the configured host: 21 (FTP) is ${p21}, 22 (SFTP/SSH) is ${p22}."
           if [ "$p21" = "closed" ] && [ "$p22" = "open" ]; then
-            echo "::error title=Host is SFTP-only::The configured host answers SSH/SFTP (22) but not FTP (21). Either FTP is disabled on this server — the deploy must switch to SFTP — or FTP_SERVER points at the wrong machine for FTP."
+            echo "::error title=Host is SFTP-only::The configured host answered SSH/SFTP (22) but not FTP (21), for five minutes. Either FTP is disabled on this server — the deploy must switch to SFTP — or FTP_SERVER points at the wrong machine for FTP."
             suggest_host
             exit 1
           fi
           if [ "$p21" = "closed" ] && [ "$p22" = "closed" ]; then
-            echo "::error title=Host unreachable::Neither FTP (21) nor SSH (22) answers on the configured host. FTP_SERVER is likely the wrong host/IP entirely; copy it from the same hPanel page as the username."
+            echo "::error title=Host unreachable::Neither FTP (21) nor SSH (22) answered on the configured host across a five minute window, so this is not a passing blip. FTP_SERVER is likely the wrong host/IP entirely; copy it from the same hPanel page as the username."
             suggest_host
             exit 1
           fi

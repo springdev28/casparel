@@ -189,6 +189,33 @@ const COLLECT = `(() => {
     if (!/[A-Za-z]{2,}/.test(text)) continue;
     seen.add(text);
   }
+
+  /*
+   * The four attributes the bridge also rewrites.
+   *
+   * It translates aria-label, placeholder, title and alt as readily as it
+   * translates text, and this walked text nodes only -- so a placeholder with
+   * no dictionary entry was invisible here and English on screen. Found by
+   * looking at a Spanish resource page whose review box still said "Share your
+   * thoughts…" under a heading that said "Comentario (opcional)".
+   *
+   * Two of the four are read aloud rather than seen, which makes them easier
+   * to leave behind and no less worth translating: a screen-reader user gets
+   * the whole interface through aria-label.
+   */
+  for (const element of document.querySelectorAll('[aria-label], [placeholder], [title], [alt]')) {
+    if (element.closest('[translate="no"], [data-user-content]')) continue;
+    // A control the reader cannot reach is not a string the reader sees.
+    if (!element.getClientRects().length) continue;
+    for (const attribute of ['aria-label', 'placeholder', 'title', 'alt']) {
+      const value = (element.getAttribute(attribute) || '').trim();
+      if (!value || value.length < 2) continue;
+      if (ALLOWED.has(value)) continue;
+      if (!/[A-Za-z]{2,}/.test(value)) continue;
+      seen.add(value);
+    }
+  }
+
   return [...seen];
 })()`;
 
