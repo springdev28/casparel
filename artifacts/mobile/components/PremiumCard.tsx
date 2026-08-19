@@ -6,6 +6,7 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { useGetMyUsage } from '@workspace/api-client-react';
 import { usePurchases } from '@/contexts/PurchasesContext';
 import { TIER_TITLES, tierLevel } from '@/utils/revenuecat';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number | null }) {
   const colors = useColors();
@@ -48,6 +49,7 @@ function UsageMeter({ label, used, limit }: { label: string; used: number; limit
 }
 
 export function PremiumCard() {
+  const { t } = useLanguage();
   const colors = useColors();
   const router = useRouter();
   const { tier } = usePurchases();
@@ -122,8 +124,8 @@ export function PremiumCard() {
 
       {usage ? (
         <View style={{ gap: 12, marginTop: 4 }}>
-          <UsageMeter label="AI source research" used={usage.deepResearch.used} limit={usage.deepResearch.limit} />
-          <UsageMeter label="AI discovery" used={usage.aiSearch.used} limit={usage.aiSearch.limit} />
+          <UsageMeter label={t('AI source research')} used={usage.deepResearch.used} limit={usage.deepResearch.limit} />
+          <UsageMeter label={t('AI discovery')} used={usage.aiSearch.used} limit={usage.aiSearch.limit} />
         </View>
       ) : null}
 

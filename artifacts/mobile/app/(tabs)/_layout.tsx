@@ -8,35 +8,38 @@ import { Tabs } from 'expo-router';
 import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import { SymbolView } from 'expo-symbols';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 function NativeTabLayout() {
+  const { t } = useLanguage();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: 'square.grid.2x2', selected: 'square.grid.2x2.fill' }} />
-        <Label>Dashboard</Label>
+        <Label>{t('Dashboard')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="resources">
         <Icon sf={{ default: 'book', selected: 'book.fill' }} />
-        <Label>Resources</Label>
+        <Label>{t('Resources')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="schedule">
         <Icon sf={{ default: 'calendar', selected: 'calendar' }} />
-        <Label>Schedule</Label>
+        <Label>{t('Schedule')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="classes">
         <Icon sf={{ default: 'person.3', selected: 'person.3.fill' }} />
-        <Label>Classes</Label>
+        <Label>{t('Classes')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: 'person.circle', selected: 'person.circle.fill' }} />
-        <Label>Profile</Label>
+        <Label>{t('Profile')}</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
 
 function ClassicTabLayout() {
+  const { t } = useLanguage();
   const colors = useColors();
   const colorScheme = useColorScheme();
   const safeAreaInsets = useSafeAreaInsets();
@@ -76,7 +79,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: t('Dashboard'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="square.grid.2x2" tintColor={color} size={22} />
@@ -88,7 +91,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="resources"
         options={{
-          title: 'Resources',
+          title: t('Resources'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="book" tintColor={color} size={22} />
@@ -100,7 +103,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="schedule"
         options={{
-          title: 'Schedule',
+          title: t('Schedule'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="calendar" tintColor={color} size={22} />
@@ -112,7 +115,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="classes"
         options={{
-          title: 'Classes',
+          title: t('Classes'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="person.3" tintColor={color} size={22} />
@@ -124,7 +127,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('Profile'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="person.circle" tintColor={color} size={22} />

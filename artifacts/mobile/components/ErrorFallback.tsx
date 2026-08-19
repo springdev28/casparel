@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Feather } from '@expo/vector-icons';
 import { reloadAppAsync } from 'expo';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -19,6 +20,7 @@ export type ErrorFallbackProps = {
 };
 
 export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
+  const { t } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -52,7 +54,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
       {__DEV__ ? (
         <Pressable
           onPress={() => setIsModalVisible(true)}
-          accessibilityLabel="View error details"
+          accessibilityLabel={t('View error details')}
           accessibilityRole="button"
           style={({ pressed }) => [
             styles.topButton,
@@ -69,11 +71,11 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.foreground }]}>
-          Something went wrong
+          {t('Something went wrong')}
         </Text>
 
         <Text style={[styles.message, { color: colors.mutedForeground }]}>
-          Please reload the app to continue.
+          {t('Please reload the app to continue.')}
         </Text>
 
         <Pressable
@@ -90,7 +92,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
           <Text
             style={[styles.buttonText, { color: colors.primaryForeground }]}
           >
-            Try Again
+            {t('Try Again')}
           </Text>
         </Pressable>
       </View>
@@ -116,11 +118,11 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
                 ]}
               >
                 <Text style={[styles.modalTitle, { color: colors.foreground }]}>
-                  Error Details
+                  {t('Error Details')}
                 </Text>
                 <Pressable
                   onPress={() => setIsModalVisible(false)}
-                  accessibilityLabel="Close error details"
+                  accessibilityLabel={t('Close error details')}
                   accessibilityRole="button"
                   style={({ pressed }) => [
                     styles.closeButton,

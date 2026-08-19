@@ -39,6 +39,8 @@ import { PremiumCard } from '@/components/PremiumCard';
 import { describeApiFailure } from '@/utils/api-failure';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { ErrorState } from '@/components/ErrorState';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { LANGUAGES } from '@/lib/i18n';
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History',
@@ -69,6 +71,7 @@ function completeness(user: {
 
 /** Calendar integration section for mobile profile */
 function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
+  const { t } = useLanguage();
   const { data: calStatus, isLoading } = useGetCalendarStatus();
   const { data: icalData } = useGetCalendarIcalUrl();
   const disconnectGoogle = useDisconnectCalendarGoogle();
@@ -79,7 +82,7 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
   async function handleShareIcalUrl() {
     if (!icalUrl) return;
     try {
-      await Share.share({ message: icalUrl, title: 'Schooler Calendar Feed' });
+      await Share.share({ message: icalUrl, title: t('Casparel Calendar Feed') });
     } catch {
       // User cancelled or error
     }
@@ -88,24 +91,22 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
   async function handleCopyIcalUrl() {
     if (!icalUrl) return;
     Clipboard.setString(icalUrl);
-    Alert.alert('Copied!', 'Calendar feed URL copied to clipboard.');
+    Alert.alert(t('Copied!'), t('Calendar feed URL copied to clipboard.'));
   }
 
   async function handleDisconnect() {
-    Alert.alert(
-      'Disconnect Google Calendar',
-      'Future syncs will stop. Existing Google Calendar events are kept.',
+    Alert.alert(t('Disconnect Google Calendar'), t('Future syncs will stop. Existing Google Calendar events are kept.'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('Cancel'), style: 'cancel' },
         {
-          text: 'Disconnect',
+          text: t('Disconnect'),
           style: 'destructive',
           onPress: async () => {
             try {
               await disconnectGoogle.mutateAsync();
               queryClient.invalidateQueries({ queryKey: getGetCalendarStatusQueryKey() });
             } catch {
-              Alert.alert('Error', 'Could not disconnect Google Calendar.');
+              Alert.alert(t('Error'), t('Could not disconnect Google Calendar.'));
             }
           },
         },
@@ -129,7 +130,7 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Feather name="calendar" size={16} color={colors.primary} />
           <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }}>
-            Google Calendar
+            {t('Google Calendar')}
           </Text>
         </View>
         {calStatus?.googleConnected ? (
@@ -139,29 +140,29 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
             disabled={disconnectGoogle.isPending}
           >
             <Text style={{ fontSize: 12, color: colors.destructiveText, fontFamily: colors.fontFamily.sans }}>
-              Disconnect
+              {t('Disconnect')}
             </Text>
           </TouchableOpacity>
         ) : calStatus?.googleConfigured ? (
           <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
-            Connect via web app
+            {t('Connect via web app')}
           </Text>
         ) : (
           <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
-            Not configured
+            {t('Not configured')}
           </Text>
         )}
       </View>
 
       {calStatus?.googleConnected && (
         <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
-          ✓ Your schedule syncs automatically to Google Calendar.
+          ✓ {t('Your schedule syncs automatically to Google Calendar.')}
         </Text>
       )}
 
       {!calStatus?.googleConnected && calStatus?.googleConfigured && (
         <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
-          To connect Google Calendar, visit the Profile page in the web app.
+          {t('To connect Google Calendar, visit the Profile page in the web app.')}
         </Text>
       )}
 
@@ -171,10 +172,10 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
       {/* iCal subscription */}
       <View style={{ gap: 6 }}>
         <Text style={{ fontSize: 14, color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }}>
-          Calendar Subscription (iCal)
+          {t('Calendar Subscription (iCal)')}
         </Text>
         <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
-          Subscribe to your schedule in Apple Calendar, Outlook, or any calendar app.
+          {t('Subscribe to your schedule in Apple Calendar, Outlook, or any calendar app.')}
         </Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity
@@ -182,14 +183,14 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, paddingVertical: 8 }}
           >
             <Feather name="copy" size={14} color={colors.primary} />
-            <Text style={{ fontSize: 13, color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}>Copy URL</Text>
+            <Text style={{ fontSize: 13, color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}>{t('Copy URL')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleShareIcalUrl}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 8 }}
           >
             <Feather name="share-2" size={14} color={colors.primaryForeground} />
-            <Text style={{ fontSize: 13, color: colors.primaryForeground, fontFamily: colors.fontFamily.sansMedium }}>Share URL</Text>
+            <Text style={{ fontSize: 13, color: colors.primaryForeground, fontFamily: colors.fontFamily.sansMedium }}>{t('Share URL')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -198,35 +199,32 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
 }
 
 export default function ProfileScreen() {
+  const { t, language, setLanguage } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { logout, updateToken } = useAuth();
   const deleteAccount = useDeleteMe();
 
   function confirmDeleteAccount() {
-    Alert.alert(
-      'Delete account',
-      'This permanently deletes your Casparel account and the content tied to it. This cannot be undone.',
+    Alert.alert(t('Delete account'), t('This permanently deletes your Casparel account and the content tied to it. This cannot be undone.'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('Cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('Delete'),
           style: 'destructive',
           onPress: () => {
             // Second confirmation: the first tap is easy to hit by accident on
             // a row that sits under "Sign out".
-            Alert.alert('Are you sure?', 'There is no way to recover the account afterwards.', [
-              { text: 'Keep my account', style: 'cancel' },
+            Alert.alert(t('Are you sure?'), t('There is no way to recover the account afterwards.'), [
+              { text: t('Keep my account'), style: 'cancel' },
               {
-                text: 'Delete permanently',
+                text: t('Delete permanently'),
                 style: 'destructive',
                 onPress: () =>
                   deleteAccount.mutate(undefined, {
                     onSuccess: () => logout(),
                     onError: () =>
-                      Alert.alert(
-                        'Could not delete your account',
-                        'Something went wrong. Please try again, or email support@casparel.com.',
+                      Alert.alert(t('Could not delete your account'), t('Something went wrong. Please try again, or email support@casparel.com.'),
                       ),
                   }),
               },
@@ -286,10 +284,9 @@ export default function ProfileScreen() {
       });
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       setEditing(false);
-      Alert.alert('Saved', 'Your profile has been updated.');
+      Alert.alert(t('Saved'), t('Your profile has been updated.'));
     } catch (error) {
-      Alert.alert(
-        'Could not save your profile',
+      Alert.alert(t('Could not save your profile'),
         describeApiFailure(error, 'Please check the fields and try again.'),
       );
     }
@@ -298,7 +295,7 @@ export default function ProfileScreen() {
   async function handlePickAvatar() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Please allow photo access to change your avatar.');
+      Alert.alert(t('Permission needed'), t('Please allow photo access to change your avatar.'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -319,9 +316,9 @@ export default function ProfileScreen() {
         data: { file: { uri: asset.uri, name: fileName, type: mimeType } as unknown as File },
       });
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-      Alert.alert('Done', 'Avatar updated!');
+      Alert.alert(t('Done'), t('Avatar updated!'));
     } catch {
-      Alert.alert('Error', 'Could not upload avatar.');
+      Alert.alert(t('Error'), t('Could not upload avatar.'));
     }
   }
 
@@ -350,8 +347,7 @@ export default function ProfileScreen() {
        */
       queryClient.clear();
     } catch (error) {
-      Alert.alert(
-        'Could not switch role',
+      Alert.alert(t('Could not switch role'),
         describeApiFailure(error, 'Please try again.'),
       );
     } finally {
@@ -421,7 +417,7 @@ export default function ProfileScreen() {
       {/* Title row */}
       <View style={styles.titleRow}>
         <Text style={[styles.title, { color: colors.foreground, fontFamily: colors.fontFamily.sansBold }]}>
-          My Profile
+          {t('My Profile')}
         </Text>
         {!editing ? (
           <TouchableOpacity
@@ -430,7 +426,7 @@ export default function ProfileScreen() {
           >
             <Feather name="edit-2" size={14} color={colors.primary} />
             <Text style={[styles.editBtnText, { color: colors.primary, fontFamily: colors.fontFamily.sans }]}>
-              Edit
+              {t('Edit')}
             </Text>
           </TouchableOpacity>
         ) : (
@@ -440,7 +436,7 @@ export default function ProfileScreen() {
               onPress={() => setEditing(false)}
             >
               <Text style={[{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans, fontSize: 14 }]}>
-                Cancel
+                {t('Cancel')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -460,7 +456,7 @@ export default function ProfileScreen() {
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <View style={styles.completenessRow}>
           <Text style={[styles.completenessLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sans }]}>
-            Profile completeness
+            {t('Profile completeness')}
           </Text>
           <Text style={[styles.completenessVal, { color: colors.primary, fontFamily: colors.fontFamily.sansBold }]}>
             {pct}%
@@ -471,7 +467,7 @@ export default function ProfileScreen() {
         </View>
         {pct < 100 && (
           <Text style={[styles.completenessHint, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-            Fill in all fields to complete your profile
+            {t('Fill in all fields to complete your profile')}
           </Text>
         )}
       </View>
@@ -500,13 +496,13 @@ export default function ProfileScreen() {
             {editing ? (
               <>
                 <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-                  Display name
+                  {t('Display name')}
                 </Text>
                 <TextInput
                   value={form.name}
                   onChangeText={(v) => setForm((p) => ({ ...p, name: v }))}
                   style={[styles.input, { borderColor: colors.border, color: colors.foreground, fontFamily: colors.fontFamily.sans, backgroundColor: colors.background, borderRadius: colors.radius }]}
-                  placeholder="Your name"
+                  placeholder={t('Your name')}
                   placeholderTextColor={colors.mutedForeground}
                   maxLength={100}
                 />
@@ -531,7 +527,7 @@ export default function ProfileScreen() {
       {/* Bio */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-          Bio
+          {t('Bio')}
         </Text>
         {editing ? (
           <>
@@ -555,7 +551,7 @@ export default function ProfileScreen() {
           </Text>
         ) : (
           <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-            No bio yet.
+            {t('No bio yet.')}
           </Text>
         )}
       </View>
@@ -581,7 +577,7 @@ export default function ProfileScreen() {
                 style={[styles.addBtn, { backgroundColor: colors.primary, borderRadius: colors.radius }]}
                 onPress={() => addSubject(subjectInput)}
               >
-                <Text style={[{ color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold, fontSize: 13 }]}>Add</Text>
+                <Text style={[{ color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold, fontSize: 13 }]}>{t('Add')}</Text>
               </TouchableOpacity>
             </View>
             {form.subjects.length > 0 && (
@@ -619,7 +615,7 @@ export default function ProfileScreen() {
           </View>
         ) : (
           <Text style={[styles.emptyText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-            No subjects added yet.
+            {t('No subjects added yet.')}
           </Text>
         )}
       </View>
@@ -627,7 +623,7 @@ export default function ProfileScreen() {
       {/* Details */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-          Details
+          {t('Details')}
         </Text>
         {editing ? (
           <View style={{ gap: 12 }}>
@@ -645,7 +641,7 @@ export default function ProfileScreen() {
             </View>
             <View>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-                Timezone
+                {t('Timezone')}
               </Text>
               <TextInput
                 value={form.timezone}
@@ -657,7 +653,7 @@ export default function ProfileScreen() {
             </View>
             <View>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-                Website / Social link
+                {t('Website / Social link')}
               </Text>
               <TextInput
                 value={form.websiteUrl}
@@ -685,7 +681,7 @@ export default function ProfileScreen() {
             <View style={styles.detailRow}>
               <Feather name="clock" size={14} color={colors.mutedForeground} />
               <Text style={[styles.detailLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-                Timezone
+                {t('Timezone')}
               </Text>
               <Text style={[styles.detailValue, { color: me?.timezone ? colors.foreground : colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
                 {me?.timezone || 'Not set'}
@@ -697,7 +693,7 @@ export default function ProfileScreen() {
                 <View style={styles.detailRow}>
                   <Feather name="globe" size={14} color={colors.mutedForeground} />
                   <Text style={[styles.detailLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-                    Website
+                    {t('Website')}
                   </Text>
                   <Text style={[styles.detailValue, { color: colors.primary, fontFamily: colors.fontFamily.sans }]} numberOfLines={1}>
                     {me.websiteUrl}
@@ -711,13 +707,13 @@ export default function ProfileScreen() {
 
       {/* Premium / subscription */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-        PLAN
+        {t('PLAN')}
       </Text>
       <PremiumCard />
 
       {/* Role switcher */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-        ACCOUNT
+        {t('ACCOUNT')}
       </Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <View style={styles.row}>
@@ -751,13 +747,13 @@ export default function ProfileScreen() {
             <View style={styles.teacherBadgeRow}>
               <Feather name="check-circle" size={14} color={colors.accent} />
               <Text style={[styles.teacherBadge, { color: colors.accent, fontFamily: colors.fontFamily.sans }]}>
-                Google Classroom integration available
+                {t('Google Classroom integration available')}
               </Text>
             </View>
             <View style={styles.teacherBadgeRow}>
               <Feather name="check-circle" size={14} color={colors.accent} />
               <Text style={[styles.teacherBadge, { color: colors.accent, fontFamily: colors.fontFamily.sans }]}>
-                Class creation and roster management enabled
+                {t('Class creation and roster management enabled')}
               </Text>
             </View>
           </>
@@ -766,21 +762,60 @@ export default function ProfileScreen() {
 
       {/* Calendar Integration */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-        CALENDAR
+        {t('CALENDAR')}
       </Text>
       <CalendarSection colors={colors} />
 
+      {/*
+        The language, above sign-out because it is a setting somebody changes
+        rather than a way out. Saved to the account as well as the phone, so
+        picking it here is picking it on the web too.
+      */}
+      <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+        {t('LANGUAGE')}
+      </Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+        {LANGUAGES.map((entry, index) => (
+          <TouchableOpacity
+            key={entry.code}
+            style={[styles.row, index > 0 && { borderTopWidth: 1, borderTopColor: colors.border }]}
+            onPress={() => void setLanguage(entry.code)}
+            activeOpacity={0.7}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: entry.code === language }}
+            // The label is the language's own name, which is the one word on
+            // this screen that must never be translated: somebody looking for
+            // their language is looking for "Türkçe", not for whatever the
+            // current language calls Turkish.
+            accessibilityLabel={entry.label}
+            testID={`language-${entry.code}`}
+          >
+            <View style={styles.rowLeft}>
+              <View style={[styles.rowIcon, { backgroundColor: colors.primary + '15', borderRadius: colors.radius - 2 }]}>
+                <Feather name="globe" size={18} color={colors.primary} />
+              </View>
+              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                {entry.label}
+              </Text>
+            </View>
+            {entry.code === language ? (
+              <Feather name="check" size={18} color={colors.primary} />
+            ) : null}
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Sign out */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-        SESSION
+        {t('SESSION')}
       </Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <TouchableOpacity
           style={styles.row}
           onPress={() =>
-            Alert.alert('Sign out', 'Are you sure you want to sign out?', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign out', style: 'destructive', onPress: logout },
+            Alert.alert(t('Sign out'), t('Are you sure you want to sign out?'), [
+              { text: t('Cancel'), style: 'cancel' },
+              { text: t('Sign out'), style: 'destructive', onPress: logout },
             ])
           }
           activeOpacity={0.7}
@@ -790,7 +825,7 @@ export default function ProfileScreen() {
               <Feather name="log-out" size={18} color={colors.destructiveText} />
             </View>
             <Text style={[styles.rowLabel, { color: colors.destructiveText, fontFamily: colors.fontFamily.sansSemiBold }]}>
-              Sign out
+              {t('Sign out')}
             </Text>
           </View>
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
@@ -808,7 +843,7 @@ export default function ProfileScreen() {
           identical headings on one screen tell you nothing about which is
           which. */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-        CLOSING YOUR ACCOUNT
+        {t('CLOSING YOUR ACCOUNT')}
       </Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <TouchableOpacity
@@ -826,7 +861,7 @@ export default function ProfileScreen() {
                 {deleteAccount.isPending ? 'Deleting account…' : 'Delete account'}
               </Text>
               <Text style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans, fontSize: 12, marginTop: 2 }}>
-                Permanently removes your account and content
+                {t('Permanently removes your account and content')}
               </Text>
             </View>
           </View>

@@ -13,6 +13,7 @@ import {
   type SourceReviewLink,
 } from '@workspace/api-client-react';
 import { usePurchases } from '@/contexts/PurchasesContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 type Mode = 'quick' | 'deep';
 
@@ -74,6 +75,7 @@ function Bullets({ title, items, icon, tint }: { title: string; items: string[];
 }
 
 function ReportView({ review }: { review: SourceReview }) {
+  const { t } = useLanguage();
   const colors = useColors();
   return (
     <View style={{ gap: 14 }}>
@@ -123,8 +125,8 @@ function ReportView({ review }: { review: SourceReview }) {
         </Text>
       ) : null}
 
-      <Bullets title="Strengths" items={review.strengths ?? []} icon="check" tint={colors.chart2} />
-      <Bullets title="Concerns" items={review.concerns ?? []} icon="alert-triangle" tint={colors.chart3} />
+      <Bullets title={t('Strengths')} items={review.strengths ?? []} icon="check" tint={colors.chart2} />
+      <Bullets title={t('Concerns')} items={review.concerns ?? []} icon="alert-triangle" tint={colors.chart3} />
 
       {review.links && review.links.length > 0 ? (
         <View style={{ gap: 6 }}>
@@ -137,7 +139,7 @@ function ReportView({ review }: { review: SourceReview }) {
               },
             ]}
           >
-            Sources
+            {t('Sources')}
           </Text>
           {review.links.map((link: SourceReviewLink, i) => (
             <Pressable
@@ -163,6 +165,7 @@ function ReportView({ review }: { review: SourceReview }) {
 }
 
 export function SourceReviewSection({ resourceId }: { resourceId: number }) {
+  const { t } = useLanguage();
   const colors = useColors();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -260,7 +263,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
             },
           ]}
         >
-          Source Review
+          {t('Source Review')}
         </Text>
       </View>
 
@@ -284,8 +287,9 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
               },
             ]}
           >
-            Evaluate who's behind this resource and how much to trust it. Quick check uses Casparel's maintained
-            provenance registry without AI. Deep research runs live AI web research for a fuller, cited report.
+            {t(
+              "Evaluate who's behind this resource and how much to trust it. Quick check uses Casparel's maintained provenance registry without AI. Deep research runs live AI web research for a fuller, cited report.",
+            )}
           </Text>
         ) : isFetching ? (
           <View style={styles.loading}>
@@ -325,7 +329,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
                   },
                 ]}
               >
-                Quick check below reads the maintained registry. No AI, no allowance.
+                {t('Quick check below reads the maintained registry. No AI, no allowance.')}
               </Text>
             ) : null}
             {retryWouldHelp ? (
@@ -340,7 +344,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
                   },
                 ]}
               >
-                Try again
+                {t('Try again')}
               </Text>
             </Pressable>
             ) : null}
@@ -355,7 +359,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
             onPress={runQuick}
             disabled={isFetching}
             accessibilityRole="button"
-            accessibilityLabel="Run a quick non-AI source check"
+            accessibilityLabel={t('Run a quick non-AI source check')}
             style={[styles.actionBtn, { borderColor: colors.border, opacity: isFetching ? 0.5 : 1 }]}
           >
             <Feather name="zap" size={14} color={colors.foreground} />
@@ -368,7 +372,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
                 },
               ]}
             >
-              Quick check
+              {t('Quick check')}
             </Text>
           </Pressable>
           <Pressable
@@ -397,7 +401,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
                 },
               ]}
             >
-              Deep research
+              {t('Deep research')}
             </Text>
           </Pressable>
         </View>
