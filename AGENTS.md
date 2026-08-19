@@ -118,6 +118,32 @@ When adding a new API endpoint:
 | Login/register returns 500 after a merge | New DB columns missing (migration skipped) | Check `lib/db/migrations/` includes the change |
 | Generated hook `useXxx` is `undefined` at runtime | Codegen not run after OpenAPI change | `pnpm --filter @workspace/api-spec run codegen` |
 | Vite `Failed to resolve import "@workspace/edu-ds/..."` | Workspace symlink broken | `pnpm install` from repo root |
+| "Deep research is unavailable right now" / AI discovery failing | AI provider unreachable, wrong key, or no credit | `GET /api/healthz` → `ai` (see below) |
+
+---
+
+## Is the AI provider working?
+
+`GET /api/healthz` answers, without costing anything:
+
+```json
+"ai": { "state": "failing", "checkedAt": "…", "lastOperation": "deep source review", "error": "502: Connection error." }
+```
+
+`state` is `ok`, `failing`, or `unknown` — the last meaning no AI call has
+been made in the past fifteen minutes, so the server genuinely does not know.
+It records the outcome of the calls the product already makes rather than
+probing, so it reflects what users are actually getting.
+
+A failing provider never changes the status code. The catalog, classes,
+schedules, lists and the quick source check all work without AI, and taking
+the server out of rotation for an optional feature turns a degraded product
+into no product.
+
+This exists because deep research broke in production and the only signal was
+a screenshot from a user. When `state` is `failing`, check
+`AI_INTEGRATIONS_OPENAI_BASE_URL` and `AI_INTEGRATIONS_OPENAI_API_KEY` on the
+deployed server, and the `Source review AI error:` lines in its log.
 
 ---
 

@@ -16,6 +16,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { throughAi } from "../lib/aiHealth";
 import {
   requireAuth,
   type AuthenticatedRequest,
@@ -158,10 +159,12 @@ async function moderateForumText(
   const input = text.trim().slice(0, 12000);
   if (!input) return { flagged: false, assessment: "No text to assess." };
   try {
-    const moderation = await openai.moderations.create({
-      model: "omni-moderation-latest",
-      input,
-    });
+    const moderation = await throughAi("forum moderation", () =>
+      openai.moderations.create({
+        model: "omni-moderation-latest",
+        input,
+      }),
+    );
     if (moderation.results[0]?.flagged) {
       const categories = Object.entries(moderation.results[0].categories)
         .filter(([, flagged]) => flagged)
@@ -177,7 +180,8 @@ async function moderateForumText(
       return { flagged: false, assessment: "AI safety check passed." };
     }
 
-    const response = await openai.responses.create({
+    const response = await throughAi("forum accuracy check", () =>
+      openai.responses.create({
       model: "gpt-5-nano",
       max_output_tokens: 180,
       reasoning: { effort: "low" },
@@ -187,7 +191,8 @@ async function moderateForumText(
       input:
         'Review this education-forum content. When URLs are present, inspect the linked destination. Flag only clear fabricated factual claims, targeted hate, harassment, sexual content, dangerous instructions, severe misinformation, or an unsafe/inappropriate linked destination. Opinions, criticism, jokes, uncertainty, and ordinary mistakes are allowed. Return JSON only as {"flagged":boolean,"reason":string}.\\n\\nCONTENT:\\n' +
         input,
-    });
+      }),
+    );
     const raw = response.output_text.trim().replace(/^\`\`\`(?:json)?/i, "").replace(/\`\`\`$/i, "").trim();
     const parsed = JSON.parse(raw) as { flagged?: unknown; reason?: unknown };
     return {

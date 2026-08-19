@@ -18,6 +18,7 @@ import {
   GetResourceSourceReviewResponse,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { throughAi } from "../lib/aiHealth";
 import {
   requireAuth,
   type AuthenticatedRequest,
@@ -461,7 +462,8 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
 
     try {
       let textOutput = "";
-      const response = await openai.responses.create({
+      const response = await throughAi("deep source review", () =>
+        openai.responses.create({
         model: "gpt-5-mini",
         // The prompt asks for a nuanced 700-1000 word report AND a structured
         // object with fifteen required fields, including arrays of mentions
@@ -629,7 +631,8 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
         tools: [{ type: "web_search", search_context_size: "medium" }],
         reasoning: { effort: "medium" },
         input: deepPrompt,
-      });
+        }),
+      );
       textOutput = response.output_text ?? "";
       await recordAiUsage("deep-research", deepUserId);
 

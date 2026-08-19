@@ -56,6 +56,7 @@ import {
 } from "../middlewares/requireAuth";
 import { isResourceOwner } from "../lib/authz";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { throughAi } from "../lib/aiHealth";
 import { contentLimiter, discoverLimiter } from "../lib/limiters";
 import {
   fetchPublicText,
@@ -801,7 +802,8 @@ async function callDiscoverAI(
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 55000);
   try {
-    const response = await openai.responses.create(
+    const response = await throughAi("resource discovery", () =>
+      openai.responses.create(
       {
         model: "gpt-5-nano",
         max_output_tokens:
@@ -870,6 +872,7 @@ async function callDiscoverAI(
         input: prompt,
       },
       { signal: ac.signal },
+      ),
     );
     await recordAiUsage("search", userId);
     const textOutput =
