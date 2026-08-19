@@ -134,7 +134,8 @@ export default function ListsPage() {
       ) : !lists || lists.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <List size={40} className="text-muted-foreground mb-4" />
-          <h3 className="font-semibold text-foreground">No lists yet</h3>
+          {/* h2, not h3: directly under the page's h1. */}
+          <h2 className="font-semibold text-foreground">No lists yet</h2>
           <p className="text-sm text-muted-foreground mt-1">Create your first list to start organizing resources.</p>
         </div>
       ) : (
