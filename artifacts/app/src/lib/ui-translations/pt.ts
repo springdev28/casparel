@@ -1047,6 +1047,12 @@ const PT: Record<string, string> = {
   "Daily deep research limit reached.": "Limite diário de pesquisa aprofundada atingido.",
   "Monthly deep research limit reached.": "Limite mensal de pesquisa aprofundada atingido.",
   "Today’s deep research budget has been reached.": "O orçamento de pesquisa aprofundada de hoje foi atingido.",
+  "You're offline": "Estás offline",
+  "We couldn't reach the server. Check your connection and try again.": "Não foi possível contactar o servidor. Verifica a tua ligação e tenta novamente.",
+  "You don't have access to this": "Não tens acesso a isto",
+  "Your session may have expired. Sign in again, then retry.": "A tua sessão pode ter expirado. Inicia sessão novamente e tenta outra vez.",
+  "Couldn't load this": "Não foi possível carregar",
+  "Something went wrong at our end. Try again in a moment.": "Algo correu mal do nosso lado. Tenta novamente dentro de momentos.",
 };
 
 export default PT;

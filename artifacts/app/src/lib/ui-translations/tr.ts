@@ -1047,6 +1047,12 @@ const TR: Record<string, string> = {
   "Daily deep research limit reached.": "Günlük derin araştırma sınırına ulaşıldı.",
   "Monthly deep research limit reached.": "Aylık derin araştırma sınırına ulaşıldı.",
   "Today’s deep research budget has been reached.": "Bugünün derin araştırma bütçesi doldu.",
+  "You're offline": "Çevrimdışısın",
+  "We couldn't reach the server. Check your connection and try again.": "Sunucuya ulaşılamadı. Bağlantını kontrol edip tekrar dene.",
+  "You don't have access to this": "Buna erişimin yok",
+  "Your session may have expired. Sign in again, then retry.": "Oturumun sona ermiş olabilir. Tekrar giriş yapıp yeniden dene.",
+  "Couldn't load this": "Bu yüklenemedi",
+  "Something went wrong at our end. Try again in a moment.": "Bizim tarafımızda bir sorun oldu. Birazdan tekrar dene.",
 };
 
 export default TR;

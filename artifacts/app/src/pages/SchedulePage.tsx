@@ -110,6 +110,7 @@ function buildGoogleCalUrl(session: {
 }
 import type { StudySessionWithParticipants } from "@workspace/api-client-react";
 import { Link, useSearch as useRouteSearch } from "wouter";
+import { LoadFailure } from "@/components/LoadFailure";
 
 /**
  * One clock for this page.
@@ -1162,9 +1163,25 @@ export default function SchedulePage() {
   const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
 
   const { data: me } = useGetMe();
-  const { data: blocks, isLoading } = useListScheduleBlocks({
+  const {
+    data: blocks,
+    isLoading,
+    isError,
+    error: blocksError,
+    isFetching,
+    refetch: refetchBlocks,
+  } = useListScheduleBlocks({
     weekStart: weekStartStr,
   });
+  /*
+   * A week that could not be fetched is not a free week.
+   *
+   * With the server unreachable this grid drew "No plans" against all seven
+   * days -- a claim about the person's own week, and a false one. It is the
+   * kind somebody acts on: they re-add a block they already have, or walk
+   * away believing the afternoon is free.
+   */
+  const blocksFailed = isError && blocks === undefined;
   const { data: studySessions } = useListStudySessions();
   const createBlock = useCreateScheduleBlock();
   const deleteBlock = useDeleteScheduleBlock();
@@ -1443,6 +1460,14 @@ export default function SchedulePage() {
             </div>
           ))}
         </div>
+      ) : blocksFailed ? (
+        <LoadFailure
+          error={blocksError}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetchBlocks();
+          }}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-2 rounded-xl border bg-card/90 p-3 text-card-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80 md:grid-cols-7 [&_.text-muted-foreground]:text-card-foreground/70">
           {weekDays.map((day, i) => {

@@ -155,6 +155,21 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-loading.mjs
 
+      # The same rule for the other case an empty state gets used for. With the
+      # server unreachable the schedule drew "No plans" against all seven days
+      # of a week it had failed to fetch, classes said "You haven't joined any
+      # classes yet", and the dashboard reported no goal and no evidence --
+      # each a claim about the reader's own work, reached without asking. The
+      # schedule is the one somebody acts on: a free afternoon that is not
+      # free.
+      #
+      # Nothing else can catch it. An empty state is what a healthy new account
+      # is supposed to show, so every fixture-backed render agrees it is
+      # correct; the only way to see it is to break the network and read.
+      - name: Audit offline states
+        working-directory: artifacts/app
+        run: node scripts/audit-offline.mjs
+
       # Drives auth state rather than rendering: an expired or server-rejected
       # session must return the user to the login page, and a valid one must
       # not be ejected.

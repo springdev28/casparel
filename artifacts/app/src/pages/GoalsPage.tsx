@@ -73,6 +73,7 @@ import {
 } from "@workspace/api-client-react";
 
 import { getDashboardGoalId, setDashboardGoalId } from "../lib/dashboardGoal";
+import { LoadFailure } from "@/components/LoadFailure";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -113,7 +114,7 @@ function escapeStudyPackHtml(value: string) {
 
 export default function GoalsPage() {
   const client = useQueryClient();
-  const { data: me } = useGetMe();
+  const { data: me, isError: meFailed, error: meError } = useGetMe();
   const workspaceRole = me?.activeRole ?? me?.role;
   const { data: accountPreferences } = useUserPreferences(Boolean(me));
   const updateAccountPreferences = useUpdateUserPreferences();
@@ -144,11 +145,33 @@ export default function GoalsPage() {
         },
       });
   }, [accountPreferences, me?.id, workspaceRole]);
-  const { data: goals, isLoading } = useListLearningGoals({
+  const {
+    data: goals,
+    isLoading,
+    isError: goalsFailed,
+    error: goalsError,
+    isFetching: goalsFetching,
+    refetch: refetchGoals,
+  } = useListLearningGoals({
     query: { queryKey: getListLearningGoalsQueryKey() },
   });
   const [communityPaths, setCommunityPaths] = useState<CommunityPath[]>([]);
   const [communityPathsLoading, setCommunityPathsLoading] = useState(false);
+  /*
+   * The toast is not enough on its own: it goes away, and what is left behind
+   * says "No community paths yet -- Share one of your goals to start the
+   * community library", which describes an empty library rather than a
+   * request that failed. Held so the section can say which happened.
+   */
+  const [communityPathsError, setCommunityPathsError] = useState<unknown>(null);
+  /*
+   * The community fetch is gated on knowing who you are, so when /users/me
+   * fails it never runs -- no request, no error, and a section confidently
+   * reporting an empty library it never asked about. That is the case this
+   * carries: unavailable, rather than empty.
+   */
+  const communityUnavailable =
+    communityPathsError ?? (meFailed && me === undefined ? meError : null);
   const [sharingGoalId, setSharingGoalId] = useState<number | null>(null);
   const [cloningPathId, setCloningPathId] = useState<number | null>(null);
   const libraryParams = { limit: 50, offset: 0 };
@@ -166,11 +189,13 @@ export default function GoalsPage() {
   async function refreshCommunityPaths() {
     if (!me?.id) return;
     setCommunityPathsLoading(true);
+    setCommunityPathsError(null);
     try {
       setCommunityPaths(
         await authedRequest<CommunityPath[]>("/learning-goal-templates"),
       );
     } catch (error) {
+      setCommunityPathsError(error);
       toast({
         title: "Could not load community paths",
         description:
@@ -656,6 +681,14 @@ export default function GoalsPage() {
               <Skeleton key={item} className="h-48" />
             ))}
           </div>
+        ) : communityUnavailable ? (
+          <LoadFailure
+            error={communityUnavailable}
+            retrying={communityPathsLoading}
+            onRetry={() => {
+              void refreshCommunityPaths();
+            }}
+          />
         ) : sharedByOthers.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {sharedByOthers.slice(0, 9).map((path) => (
@@ -725,6 +758,16 @@ export default function GoalsPage() {
             <Skeleton key={item} className="h-80 rounded-xl" />
           ))}
         </div>
+      ) : goalsFailed && goals === undefined ? (
+        /* "Your path is empty" is a statement about the person's own goals.
+           A request that never got an answer is not evidence for it. */
+        <LoadFailure
+          error={goalsError}
+          retrying={goalsFetching}
+          onRetry={() => {
+            void refetchGoals();
+          }}
+        />
       ) : !goals?.length ? (
         <div className="rounded-xl border border-dashed py-16 text-center">
           <Target className="mx-auto mb-3 size-10 text-muted-foreground/40" />

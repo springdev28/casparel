@@ -12,6 +12,7 @@ import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { LoadFailure } from "@/components/LoadFailure";
 import {
   useListClasses,
   useCreateClass,
@@ -51,7 +52,14 @@ export default function ClassesPage() {
   // Set to true when a GC API call returns 401/403 (token expired/revoked)
   const [gcReconnectNeeded, setGcReconnectNeeded] = useState(false);
 
-  const { data: classes, isLoading } = useListClasses();
+  const {
+    data: classes,
+    isLoading,
+    isError: classesFailed,
+    error: classesError,
+    isFetching: classesFetching,
+    refetch: refetchClasses,
+  } = useListClasses();
   const { data: me } = useGetMe();
   const createClass = useCreateClass();
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
@@ -499,6 +507,16 @@ export default function ClassesPage() {
             </Card>
           ))}
         </div>
+      ) : classesFailed && classes === undefined ? (
+        /* The request failed. "You haven't joined any classes yet" is a
+           statement about the account and would not be true of one. */
+        <LoadFailure
+          error={classesError}
+          retrying={classesFetching}
+          onRetry={() => {
+            void refetchClasses();
+          }}
+        />
       ) : !classes || classes.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Users size={40} className="text-muted-foreground mb-4" />
