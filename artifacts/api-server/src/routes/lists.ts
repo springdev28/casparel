@@ -184,7 +184,16 @@ router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Only the list owner can delete this list" });
     return;
   }
-  await db.delete(listItemsTable).where(eq(listItemsTable.listId, params.data.id));
+  /*
+   * One statement, because two were not atomic.
+   *
+   * The items were deleted first and the list second, with nothing holding
+   * them together: a failure in between emptied somebody's list and left the
+   * list there, which is the worst of both outcomes. `list_items.list_id`
+   * carries ON DELETE CASCADE (checked against the database, not just the
+   * schema), so deleting the list takes its items with it and the pair cannot
+   * come apart.
+   */
   await db.delete(resourceListsTable).where(eq(resourceListsTable.id, params.data.id));
   res.sendStatus(204);
 });

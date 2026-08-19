@@ -1115,6 +1115,7 @@ router.delete("/classes/:id/leave", requireAuth, async (req, res): Promise<void>
   }
   const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
   if (!cls) { res.status(404).json({ error: "Class not found" }); return; }
+  let handOverTo: number | null = null;
   if (cls.teacherId === userId) {
     const [nextTeacher] = await db.select({ userId: classMembersTable.userId })
       .from(classMembersTable)
@@ -1128,10 +1129,26 @@ router.delete("/classes/:id/leave", requireAuth, async (req, res): Promise<void>
     if (!successor) {
       res.status(409).json({ error: "Add another teacher before leaving this class" }); return;
     }
-    await db.update(classesTable).set({ teacherId: successor.userId }).where(eq(classesTable.id, classId));
+    handOverTo = successor.userId;
   }
-  await db.delete(classMembersTable).where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.userId, userId)));
-  if (cls.teacherId !== userId) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: "A student left " + cls.name + "." });
+  /*
+   * Handing the class over and leaving it are one act.
+   *
+   * These ran as separate statements, so a failure between them left the class
+   * belonging to a teacher who had not agreed to it while the one who was
+   * leaving was still on the roster -- or the reverse, a class whose owner had
+   * walked out of it. Neither is a state anybody can see or repair from the
+   * app.
+   */
+  await db.transaction(async (tx) => {
+    if (handOverTo !== null) {
+      await tx.update(classesTable).set({ teacherId: handOverTo }).where(eq(classesTable.id, classId));
+    }
+    await tx.delete(classMembersTable).where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.userId, userId)));
+    if (cls.teacherId !== userId) {
+      await tx.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: "A student left " + cls.name + "." });
+    }
+  });
   res.sendStatus(204);
 });
 
