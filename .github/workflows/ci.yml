@@ -114,10 +114,22 @@ jobs:
             }
           fi
 
-          # Uncapped and unretried, deliberately. Fetching the browser and its
-          # apt dependencies takes about a minute normally and several when a
-          # mirror is slow; interrupting it is what broke this step.
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          # No --with-deps, and that flag is the whole story of this step.
+          #
+          # It shells out to apt-get for fonts and shared libraries that the
+          # GitHub runner image already carries -- it ships Chrome and Edge, so
+          # the browser libraries are there -- and the Ubuntu mirror it uses has
+          # been taking minutes per package. That is where all eleven minutes
+          # went on the runs that timed out, and it was failing roughly half of
+          # them, on main as much as on branches. Capping it turned a slow
+          # mirror into a hard failure; uncapping it moved the failure to the
+          # step's own ceiling. Removing the apt path removes both.
+          #
+          # The browser itself comes from Playwright's CDN and takes seconds.
+          # If a library really is missing, Chromium fails to launch on the
+          # first audit and says which one, which is a better failure than a
+          # ten-minute timeout that says nothing at all.
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
           for pkg in app mobile; do
             mkdir -p "artifacts/$pkg/node_modules"
             ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
@@ -382,10 +394,22 @@ jobs:
             }
           fi
 
-          # Uncapped and unretried, deliberately. Fetching the browser and its
-          # apt dependencies takes about a minute normally and several when a
-          # mirror is slow; interrupting it is what broke this step.
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          # No --with-deps, and that flag is the whole story of this step.
+          #
+          # It shells out to apt-get for fonts and shared libraries that the
+          # GitHub runner image already carries -- it ships Chrome and Edge, so
+          # the browser libraries are there -- and the Ubuntu mirror it uses has
+          # been taking minutes per package. That is where all eleven minutes
+          # went on the runs that timed out, and it was failing roughly half of
+          # them, on main as much as on branches. Capping it turned a slow
+          # mirror into a hard failure; uncapping it moved the failure to the
+          # step's own ceiling. Removing the apt path removes both.
+          #
+          # The browser itself comes from Playwright's CDN and takes seconds.
+          # If a library really is missing, Chromium fails to launch on the
+          # first audit and says which one, which is a better failure than a
+          # ten-minute timeout that says nothing at all.
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
           mkdir -p artifacts/app/node_modules
           ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
             artifacts/app/node_modules/playwright-core
