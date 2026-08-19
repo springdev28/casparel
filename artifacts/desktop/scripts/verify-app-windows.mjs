@@ -18,7 +18,7 @@
  * casparel:// scheme is registered so deep links arrive, whether an uninstaller
  * exists, and whether the installed application opens a window at all.
  *
- *   node scripts/verify-app-windows.mjs [path/to/Casparel.exe]
+ *   node scripts/verify-app-windows.mjs [path/to/Casparel.exe] [--expect-version=1.0.0]
  *
  * With no argument it takes the .exe from release/ that matches this machine's
  * architecture. Exit 0 all good, 1 a real defect, 75 the check could not be
@@ -91,7 +91,7 @@ if (process.platform !== "win32") {
 const hostArch = process.arch === "arm64" ? "arm64" : "x64";
 
 function findInstaller() {
-  const explicit = process.argv[2];
+  const explicit = process.argv.slice(2).find((a) => !a.startsWith("--"));
   if (explicit) return path.resolve(explicit);
   const releaseDir = path.join(ROOT, "release");
   if (!fs.existsSync(releaseDir)) return null;
@@ -114,9 +114,23 @@ if (!installer || !fs.existsSync(installer)) {
 console.log(`Installer: ${installer}`);
 console.log(`Host:      Windows ${os.release()} ${hostArch}\n`);
 
-const expectedVersion = JSON.parse(
-  fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
-).version;
+// The version to expect, which is NOT simply what the working tree says.
+//
+// This script is always newer than a published artifact it is pointed at, and
+// package.json moves on: main cut 1.0.1 while desktop-v1.0.0 was the published
+// release, so reading the tree here would have failed a perfectly good 1.0.0
+// image for not being 1.0.1. Same shape as asking an old build about a probe it
+// predates -- the check has to be told which release it is looking at.
+//
+// --expect-version wins when given; the tree is the right default only for the
+// release workflow, where the tree IS what was built.
+const versionFlag = process.argv
+  .slice(2)
+  .find((argument) => argument.startsWith("--expect-version="));
+const expectedVersion = versionFlag
+  ? versionFlag.slice("--expect-version=".length)
+  : JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+const versionSource = versionFlag ? "from --expect-version" : "from package.json";
 
 // ------------------------------------------------- what the installer claims
 
@@ -143,7 +157,7 @@ check(
 check(
   `the installer's version is ${expectedVersion}`,
   (installerInfo.ProductVersion ?? "").startsWith(expectedVersion),
-  `VersionInfo says ${JSON.stringify(installerInfo.ProductVersion)}, package.json says ${expectedVersion}`,
+  `VersionInfo says ${JSON.stringify(installerInfo.ProductVersion)}, and this run expected ${expectedVersion} (${versionSource})`,
 );
 check(
   "the installer declares a copyright",

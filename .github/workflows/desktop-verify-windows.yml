@@ -62,6 +62,7 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           version="${TAG#desktop-v}"
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
           # The installer this machine can actually execute, so "it installs and
           # starts" is a real result rather than a skipped one.
           asset="Casparel-${version}-${{ matrix.arch }}.exe"
@@ -76,4 +77,4 @@ jobs:
 
       - name: Install it, inspect it, run it
         working-directory: artifacts/desktop
-        run: node scripts/verify-app-windows.mjs "$env:RUNNER_TEMP\app.exe"
+        run: node scripts/verify-app-windows.mjs "$env:RUNNER_TEMP\app.exe" "--expect-version=$env:VERSION"

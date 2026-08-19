@@ -20,7 +20,7 @@
  * already has, so "it started" means a window that reached a page rather than
  * a process that had not exited yet.
  *
- *   node scripts/verify-app-macos.mjs [path/to/Casparel.dmg]
+ *   node scripts/verify-app-macos.mjs [path/to/Casparel.dmg] [--expect-version=1.0.0]
  *
  * With no argument it takes the .dmg from release/ that matches this machine's
  * architecture. Exit 0 all good, 1 a real defect, 75 the check could not be
@@ -95,7 +95,7 @@ if (process.platform !== "darwin") {
 const hostArch = process.arch === "arm64" ? "arm64" : "x64";
 
 function findImage() {
-  const explicit = process.argv[2];
+  const explicit = process.argv.slice(2).find((a) => !a.startsWith("--"));
   if (explicit) return path.resolve(explicit);
   const releaseDir = path.join(ROOT, "release");
   if (!fs.existsSync(releaseDir)) return null;
@@ -121,9 +121,23 @@ if (!image || !fs.existsSync(image)) {
 console.log(`Image: ${image}`);
 console.log(`Host:  macOS ${os.release()} ${hostArch}\n`);
 
-const expectedVersion = JSON.parse(
-  fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
-).version;
+// The version to expect, which is NOT simply what the working tree says.
+//
+// This script is always newer than a published artifact it is pointed at, and
+// package.json moves on: main cut 1.0.1 while desktop-v1.0.0 was the published
+// release, so reading the tree here would have failed a perfectly good 1.0.0
+// image for not being 1.0.1. Same shape as asking an old build about a probe it
+// predates -- the check has to be told which release it is looking at.
+//
+// --expect-version wins when given; the tree is the right default only for the
+// release workflow, where the tree IS what was built.
+const versionFlag = process.argv
+  .slice(2)
+  .find((argument) => argument.startsWith("--expect-version="));
+const expectedVersion = versionFlag
+  ? versionFlag.slice("--expect-version=".length)
+  : JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+const versionSource = versionFlag ? "from --expect-version" : "from package.json";
 
 // --------------------------------------------------------------- mount it
 
@@ -209,7 +223,7 @@ check(
 check(
   `the bundle version is ${expectedVersion}`,
   plist.CFBundleShortVersionString === expectedVersion,
-  `Info.plist says ${JSON.stringify(plist.CFBundleShortVersionString)}, package.json says ${expectedVersion}`,
+  `Info.plist says ${JSON.stringify(plist.CFBundleShortVersionString)}, and this run expected ${expectedVersion} (${versionSource})`,
 );
 check(
   "the display name is Casparel",

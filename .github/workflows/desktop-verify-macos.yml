@@ -65,6 +65,7 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           version="${TAG#desktop-v}"
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
           # The image this machine can actually execute, so "it launches" is a
           # real result rather than a skipped one. Taken from the matrix rather
           # than from uname, so a runner label that silently changes
@@ -93,4 +94,4 @@ jobs:
 
       - name: Mount it, inspect it, run it
         working-directory: artifacts/desktop
-        run: node scripts/verify-app-macos.mjs "$RUNNER_TEMP/app.dmg"
+        run: node scripts/verify-app-macos.mjs "$RUNNER_TEMP/app.dmg" "--expect-version=$VERSION"
