@@ -303,7 +303,9 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
                 },
               ]}
             >
-              {mode === 'deep' ? 'Running live web research…' : 'Checking source registry…'}
+              {mode === 'deep'
+                ? t('Running live web research…')
+                : t('Checking source registry…')}
             </Text>
           </View>
         ) : isError ? (

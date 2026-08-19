@@ -46,7 +46,25 @@ export function Input({
           {label}
         </Text>
       )}
+      {/*
+        The label above is drawn, not announced.
+
+        A <Text> beside a <TextInput> is a visual pairing and nothing more:
+        there is no `for`/`id` relationship in React Native, so a screen reader
+        read every field in this product as an unnamed text field. Every login,
+        every sign-up, every profile edit -- the fields where getting it wrong
+        costs somebody their account.
+
+        The label is the name when there is one; a field with only a
+        placeholder falls back to that, because a placeholder disappears the
+        moment you type and is the only name such a field has. The error is a
+        hint rather than part of the name, so it is read after the label
+        instead of replacing it.
+      */}
       <TextInput
+        accessibilityLabel={label || placeholder}
+        accessibilityHint={error || undefined}
+        accessibilityState={{ disabled: !editable }}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}

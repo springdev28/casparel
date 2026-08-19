@@ -15,7 +15,8 @@
  * something was rendered and looked at.
  *
  * So this loads each route in each language against a stubbed server, and
- * fails if a screen renders the error boundary or renders nothing. Both have
+ * fails if a screen renders the error boundary, renders nothing, or leaves a
+ * control with no name for a screen reader to read. Both have
  * fired here for real: the profile screen went to its error boundary in all
  * six languages, and the cause was a crash this file's stub provoked and the
  * product then had to survive.
@@ -27,6 +28,15 @@
  * screen where nothing at all is translated. The source check
  * (mobileSpeaksSixLanguages.test.ts) is what catches one missed string; this
  * is what catches a screen that no longer comes up.
+ *
+ * The accessible-name half rides along because the pages are already rendered
+ * and it is the same question in a different sense: a control nobody can name
+ * is as unusable as a screen that will not come up. It found the login and
+ * sign-up fields nameless -- the shared Input drew its label as a <Text>
+ * beside the field, which pairs them for the eye and not at all for VoiceOver,
+ * so every field in every form in this app was an unnamed text box -- and the
+ * role switch, the control that moves you between the student and teacher
+ * halves of the product, announcing as "switch, off".
  *
  * What it does not check, having looked: whether the translated text fits the
  * box drawn for it. That is a real class -- the web app had nine of them, one
@@ -147,6 +157,40 @@ function stubbedBody(pathname) {
   return [];
 }
 
+/**
+ * Controls a reader can reach but a screen reader cannot name.
+ *
+ * aria-hidden and tabindex="-1" are skipped: react-native-web renders hidden
+ * companions beside some controls, and reporting those is noise.
+ */
+const NAMELESS = `(() => {
+  const CONTROLS =
+    'button, a[href], [role="button"], [role="link"], [role="switch"], ' +
+    '[role="tab"], [role="checkbox"], input:not([type="hidden"]), select, textarea';
+  const out = [];
+  for (const element of document.querySelectorAll(CONTROLS)) {
+    if (!element.getClientRects().length) continue;
+    const style = getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    if (element.closest('[aria-hidden="true"]')) continue;
+    if (element.getAttribute('tabindex') === '-1') continue;
+    const named =
+      (element.getAttribute('aria-label') || '').trim() ||
+      element.getAttribute('aria-labelledby') ||
+      (element.getAttribute('title') || '').trim() ||
+      (element.textContent || '').trim() ||
+      element.closest('label');
+    if (!named) {
+      out.push(
+        element.tagName.toLowerCase() +
+          (element.getAttribute('role') ? '[role=' + element.getAttribute('role') + ']' : '') +
+          (element.type ? '[' + element.type + ']' : ''),
+      );
+    }
+  }
+  return out;
+})()`;
+
 async function main() {
   if (!fs.existsSync(path.join(EXPORT_DIR, "index.html"))) {
     throw new Inconclusive(
@@ -253,6 +297,13 @@ async function main() {
           seen.set(screen.path, byLanguage);
         }
         for (const crash of crashes) failures.push(`${where}: ${crash.slice(0, 160)}`);
+        // Once per route, not once per language: a nameless control is the
+        // same control in all six, and six copies of it is five of noise.
+        if (language === LANGUAGES[0]) {
+          for (const control of await page.evaluate(NAMELESS)) {
+            failures.push(`${screen.path}: no accessible name: ${control}`);
+          }
+        }
         console.log(`  ok   ${where}  (${text.split("\n").length} lines)`);
       } catch (error) {
         failures.push(`${where}: ${String(error).slice(0, 160)}`);

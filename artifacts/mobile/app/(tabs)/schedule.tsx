@@ -618,7 +618,8 @@ function CreateStudySessionModal({
               style={inputStyle}
               value={inviteeQuery}
               onChangeText={setInviteeQuery}
-              placeholder="Search by name…"
+              accessibilityLabel={t('Search by name')}
+              placeholder={t('Search by name…')}
               placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
             />
@@ -671,7 +672,8 @@ function CreateStudySessionModal({
                   style={inputStyle}
                   value={resourceQuery}
                   onChangeText={setResourceQuery}
-                  placeholder="Search your resources…"
+                  accessibilityLabel={t('Search your resources')}
+                  placeholder={t('Search your resources…')}
                   placeholderTextColor={colors.mutedForeground}
                   autoCapitalize="none"
                 />

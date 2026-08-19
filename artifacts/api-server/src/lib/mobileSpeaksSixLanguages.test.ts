@@ -163,7 +163,17 @@ describe("the phone app's translations", () => {
      * the scan has to be the other way round: assume a sentence is for the
      * reader unless it is named below.
      */
-    const sentence = /^[A-Z][A-Za-z0-9 ,.'\u2019&%:!?()/\u2014-]{3,240}$/;
+    /*
+     * The punctuation a sentence is allowed to contain.
+     *
+     * The ellipsis was missing, and three placeholders end in one -- "Search
+     * resources…", "Tell others about yourself…", "Add a subject…" -- so they
+     * failed the shape test and this file walked past them while reporting
+     * everything else clean. A character class is a list of what counts, and
+     * anything left off it is not a smaller check, it is a blind spot.
+     */
+    const sentence =
+      /^[A-Z][A-Za-z0-9 ,.'\u2019\u2026\u2013\u2014&%:;!?()/"«»-]{3,240}$/;
 
     /**
      * Literals that are not shown to anybody, or that are the same in every
