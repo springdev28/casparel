@@ -613,6 +613,57 @@ async function main() {
     }
 
     /*
+     * Switch workspace, and check the old one's rows are gone.
+     *
+     * A workspace is not a label on the same data: activities, goals and the
+     * activity feed are stored per role, and the plan the server reports
+     * depends on it. Switching only invalidated /users/me, so the labels
+     * flipped while the previous workspace's rows stayed on screen -- the
+     * server returned zero activity rows for the teacher workspace while the
+     * dashboard still listed the student's.
+     *
+     * This has to navigate by tapping. `page.goto` reloads the whole app and
+     * throws the cache away with it, which is the one thing that would hide
+     * this: the first version of this check used goto and passed against the
+     * broken code.
+     */
+    {
+      const switcher = await light.newPage();
+      switcher.on("pageerror", (error) => pageErrors.push(`role switch: ${String(error).slice(0, 200)}`));
+      await switcher.goto(`${local}/`, { waitUntil: "networkidle" });
+      await switcher.waitForTimeout(2500);
+      const beforeSwitch = await switcher.evaluate(() => document.body.innerText);
+
+      await switcher.getByText("Profile", { exact: true }).last().click();
+      await switcher.waitForTimeout(2000);
+      const toggle = switcher.locator('[role="switch"]').first();
+      if ((await toggle.count()) && /learning overview/.test(beforeSwitch)) {
+        await toggle.click();
+        await switcher.waitForTimeout(3500);
+        await switcher.getByText("Dashboard", { exact: true }).last().click();
+        await switcher.waitForTimeout(2500);
+        const afterSwitch = await switcher.evaluate(() => document.body.innerText);
+
+        check(
+          "switching workspace changes what the dashboard says it is",
+          /classroom overview/.test(afterSwitch),
+          afterSwitch.replace(/\n+/g, " | ").slice(0, 140),
+        );
+        // The block written earlier belongs to no workspace, so the schedule
+        // is not the test; the invitation notice is written per workspace and
+        // is the row that must not survive the switch.
+        check(
+          "and leaves none of the other workspace's rows on screen",
+          !/You were invited to join/.test(afterSwitch),
+          afterSwitch.replace(/\n+/g, " | ").slice(0, 200),
+        );
+      } else {
+        check("the workspace toggle is on the profile screen", false, "no switch control found");
+      }
+      await switcher.close();
+    }
+
+    /*
      * The same screens with the server unreachable.
      *
      * An empty state standing in for a failure is the quietest bug this app
