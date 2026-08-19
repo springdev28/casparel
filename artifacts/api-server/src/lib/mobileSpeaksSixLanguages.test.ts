@@ -226,6 +226,30 @@ describe("the phone app's translations", () => {
 
     const unwrapped: string[] = [];
     for (const { where, text } of files) {
+      /*
+       * JSX text with no quotes around it.
+       *
+       * The scan below reads string literals, which is where most of this
+       * app's copy lives -- and it is blind to a heading written as plain
+       * JSX. `Subjects &amp; Interests` sat in the profile screen through
+       * three passes of this file because it is not a literal, is not a
+       * prop, and the entity spelling means it does not even read as an
+       * ampersand in the source. Found by looking at a screenshot.
+       */
+      for (const match of text.matchAll(
+        /(?:^|>)\s*([^<>{}][^<>{}]*?)\s*<\/(?:Text|Button|Label|ThemedText)>/g,
+      )) {
+        const found = match[1]
+          .trim()
+          .replace(/\s+/g, " ")
+          .replace(/&amp;/g, "&")
+          .replace(/&nbsp;/g, " ");
+        if (!sentence.test(found) || NOT_FOR_THE_READER.has(found)) continue;
+        unwrapped.push(
+          `${where}:${text.slice(0, match.index).split("\n").length}  ${JSON.stringify(found)}`,
+        );
+      }
+
       // The two tables whose English is translated where it is rendered.
       if (CONSTANT_TABLES.includes(where)) continue;
       const comments = commentRanges(text);

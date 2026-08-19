@@ -518,7 +518,11 @@ export default function ProfileScreen() {
               </>
             )}
             <View style={{ marginTop: 8 }}>
-              <Badge variant="secondary">{me?.role ?? ''}</Badge>
+              {/* The API's enum, not a sentence: it arrives as "student"
+                  or "teacher" and has to be named before it is shown. */}
+              <Badge variant="secondary">
+                {me?.role === 'teacher' ? t('Teacher') : me?.role ? t('Student') : ''}
+              </Badge>
             </View>
           </View>
         </View>
@@ -559,7 +563,7 @@ export default function ProfileScreen() {
       {/* Subjects */}
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <Text style={[styles.sectionTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-          Subjects &amp; Interests
+          {t('Subjects & Interests')}
         </Text>
         {editing ? (
           <>
@@ -723,7 +727,7 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.rowText}>
               <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-                Mode: {roleLabel}
+                {t('Mode')}: {roleLabel}
               </Text>
               <Text style={[styles.rowDescription, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]} numberOfLines={2}>
                 {roleDescription}

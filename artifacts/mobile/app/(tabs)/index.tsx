@@ -222,7 +222,12 @@ export default function DashboardScreen() {
               ]}
               numberOfLines={1}
             >
-              {displayUser ? `Hi, ${displayUser.name.split(' ')[0]}` : 'Dashboard'}
+              {/* Greeting and name, kept apart: "Hi, Ada" as one string can
+                  never be a dictionary key, and the greeting is the half that
+                  needs translating. */}
+              {displayUser
+                ? `${t('Hi')}, ${displayUser.name.split(' ')[0]}`
+                : t('Dashboard')}
             </Text>
           )}
           <Text
