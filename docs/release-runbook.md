@@ -142,14 +142,43 @@ publishing, or with it ticked to tag the built commit and publish. Pushing a
 `desktop-v*` tag does the same thing. The tag is always made after the build
 and never moved once it exists, so a version number stays a fixed point.
 
-**All three platforms build today, and the installers are unsigned.** That is
-the one thing between here and a public download. macOS Gatekeeper reports that
-the developer cannot be verified, and Windows SmartScreen interrupts the
-install; both cost more trust than the certificates cost money. Add `CSC_LINK`
-(`base64 -w0 certificate.p12`) and `CSC_KEY_PASSWORD` as repository secrets,
-plus `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` to notarise,
-and the same workflow signs instead. The macOS certificate needs the Apple
-Developer Program membership the iOS app needs anyway.
+**All three platforms build today, and the installers are unsigned.** How much
+that matters is not the same on each, and an earlier version of this document
+got Windows wrong, so it is worth being precise.
+
+**macOS**: signing plus notarisation removes the "cannot verify the developer"
+dialog outright. A Developer ID Application certificate exports from Keychain
+as a `.p12`, so `CSC_LINK` (`base64 -w0 certificate.p12`) and
+`CSC_KEY_PASSWORD` as repository secrets, plus `APPLE_ID`,
+`APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` to notarise, and the existing
+workflow signs. It needs the Apple Developer Program membership the iOS app
+needs anyway, so it is one cost rather than two. This is the half worth doing
+first, because it is the half that actually removes a warning.
+
+**Windows**: two things make it a different decision.
+
+A `.pfx` in `CSC_LINK` is not how a Windows certificate arrives any more. Since
+June 2023 the CA/Browser Forum has required code signing keys to live on a
+hardware token or HSM, and software-only delivery ended with it. A USB token
+cannot go into a GitHub-hosted runner, so that path needs a cloud HSM or a
+self-hosted runner.
+
+And signing does not stop SmartScreen warning users. EV certificates used to
+bypass it on first download; that was removed in 2024. Signed or not,
+reputation now builds per file hash over time. The certificate is still worth
+having — it is what lets reputation accumulate against a publisher at all — but
+it does not buy a clean first install, and no amount of money buys one.
+
+Three ways to sign Windows, best fit first for this project:
+
+| Option | Cost | Notes |
+| --- | --- | --- |
+| SignPath Foundation | free | Free OV-level signing for open source, key on their HSM, no token. This repository is public and MIT, which is the main gate; the publisher shown in Windows is "SignPath Foundation" rather than Casparel. |
+| OV certificate from a CA | $150–300/yr | Works from anywhere. Needs a cloud HSM rather than a USB token to fit CI. |
+| Azure Artifact Signing | ~$9.99/mo | Cheapest and built for CI, but limited to organisations in the USA, Canada, EU or UK, and individuals in the USA or Canada — which rules it out from Istanbul. |
+
+Certificate validity also dropped to 15 months in March 2026, so this becomes a
+renewal every year and a bit rather than every three.
 
 A build reporting success says nothing about what the installers contain, and
 every Linux packaging defect found so far was of exactly that kind: one icon
