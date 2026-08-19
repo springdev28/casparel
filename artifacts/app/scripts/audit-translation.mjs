@@ -35,7 +35,7 @@ const BUDGET = Number(process.env.AUDIT_TRANSLATION_MAX ?? 0);
 
 const PAGES = (
   process.env.AUDIT_PAGES ??
-  "/,/resources,/support,/plans,/auth/login,/auth/register,/terms,/privacy"
+  "/,/resources,/support,/download,/plans,/auth/login,/auth/register,/terms,/privacy"
 )
   .split(",")
   .filter(Boolean);
@@ -132,6 +132,9 @@ const COLLECT = `(() => {
   const ALLOWED = new Set([
     'Casparel','Google','Google Classroom','Quizlet','CSV','PNG','JPEG','WebP','PDF','URL','AI','OK',
     'Open Library','Wikibooks','Wikiversity','Wikipedia','RevenueCat','App Store','Google Play',
+    // Platform names on the download page. "Mac, Windows and Linux" is a
+    // phrase and IS translated; these two stand alone and must not be.
+    'iPhone','Android',
     'MIT OpenCourseWare','MIT','OpenStax','Khan Academy',
     'Free','Plus','Pro','Student Plus','Student Pro','Teacher Plus','Teacher Pro','Institutional',
     'English','Español','Français','Deutsch','Português','Türkçe','Email','e-mail',

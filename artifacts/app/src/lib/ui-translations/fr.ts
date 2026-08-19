@@ -6,6 +6,32 @@
  * (Casparel, Google Classroom, Quizlet, Teacher Pro …) stay untranslated.
  */
 const FR: Record<string, string> = {
+  // The download page: which platforms Casparel runs on, and how to
+  // get it. Kept here rather than at the end of the file: every push
+  // that adds strings appends there, and two blocks growing at the
+  // same line conflict on every single merge.
+  "Download Casparel": "Télécharger Casparel",
+  "The same workspace, on whatever you study with": "Le même espace de travail, sur ce avec quoi vous étudiez",
+  "Your library, classes, schedule and source research are one account. Sign in on a second device and everything is already there: nothing to export, nothing to sync.": "Votre bibliothèque, vos classes, votre emploi du temps et vos recherches de sources ne font qu’un seul compte. Connectez-vous sur un deuxième appareil et tout y est déjà : rien à exporter, rien à synchroniser.",
+  "You are using the desktop app. The mobile apps below sign in to the same account.": "Vous utilisez l’application de bureau. Les applications mobiles ci-dessous se connectent au même compte.",
+  "Platforms": "Plateformes",
+  "Mac, Windows and Linux": "Mac, Windows et Linux",
+  "Not on the App Store yet. Casparel runs in Safari today.": "Pas encore sur l’App Store. Aujourd’hui, Casparel fonctionne dans Safari.",
+  "Not on Google Play yet. Casparel runs in Chrome today.": "Pas encore sur Google Play. Aujourd’hui, Casparel fonctionne dans Chrome.",
+  "No public installers yet. Casparel runs in any browser today.": "Pas encore d’installateurs publics. Aujourd’hui, Casparel fonctionne dans n’importe quel navigateur.",
+  "Your device": "Votre appareil",
+  "Or stay in the browser": "Ou restez dans le navigateur",
+  "Everything works in your browser today": "Aujourd’hui, tout fonctionne dans votre navigateur",
+  "Casparel is a full web app, not a preview of the native ones. The library, classes, canvases, schedules and AI source research all run in a browser tab, on the same account you would use on a phone.": "Casparel est une application web complète, pas un aperçu des applications natives. La bibliothèque, les classes, les canevas, les emplois du temps et la recherche de sources par IA fonctionnent tous dans un onglet de navigateur, avec le compte que vous utiliseriez sur un téléphone.",
+  "Download for iPhone": "Télécharger pour iPhone",
+  "Get it on Google Play": "Disponible sur Google Play",
+  "Download for desktop": "Télécharger pour ordinateur",
+  "iPhone and iPad, from the App Store.": "iPhone et iPad, depuis l’App Store.",
+  "Android phones and tablets, from Google Play.": "Téléphones et tablettes Android, depuis Google Play.",
+  "macOS, Windows and Linux.": "macOS, Windows et Linux.",
+  "All download options": "Toutes les options de téléchargement",
+  "Where Casparel runs": "Où fonctionne Casparel",
+
   "Activities": "Activités",
   "No plans": "Rien de prévu",
   "Activity complete": "Activité terminée",

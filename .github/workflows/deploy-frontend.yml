@@ -14,6 +14,11 @@ name: Deploy to Hostinger
 # Repository variables (optional — sensible defaults for this host are baked in):
 #   SITE_URL         canonical origin for the sitemap / robots.txt
 #                    (default: https://casparel.com)
+#   VITE_IOS_APP_URL          App Store listing, once it is live
+#   VITE_ANDROID_APP_URL      Google Play listing, once it is live
+#   VITE_DESKTOP_DOWNLOAD_URL desktop releases page, once there is one
+#                    All three are unset by default, which is what makes the
+#                    landing page say "coming soon" instead of linking nowhere.
 #   FTP_APP_DIR      the app's build dir, relative to the FTP home, trailing
 #                    slash. Default: hbuilds/current/nodejs/artifacts/api-server/dist/
 #   FTP_RESTART_DIR  the Passenger restart dir, trailing slash.
@@ -150,6 +155,14 @@ jobs:
         env:
           NODE_ENV: production
           SITE_URL: ${{ vars.SITE_URL || 'https://casparel.com' }}
+          # Where the app can be installed from. Vite inlines these at build
+          # time, so a store approval reaches the site by setting the variable
+          # and redeploying — no code change, and an unset one keeps the
+          # landing page honestly saying "coming soon" rather than shipping a
+          # link that 404s. See artifacts/app/src/lib/downloads.ts.
+          VITE_IOS_APP_URL: ${{ vars.VITE_IOS_APP_URL }}
+          VITE_ANDROID_APP_URL: ${{ vars.VITE_ANDROID_APP_URL }}
+          VITE_DESKTOP_DOWNLOAD_URL: ${{ vars.VITE_DESKTOP_DOWNLOAD_URL }}
 
       # A real browser catches what types and unit tests cannot: text that
       # fails contrast against its actual background, content left at opacity 0

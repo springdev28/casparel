@@ -10,22 +10,26 @@
     "scheme": "casparel",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#f8f7f4"
-    },
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.casparel.app",
-      "buildNumber": "1",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Casparel needs access to your photos so you can set a profile picture."
+        "NSPhotoLibraryUsageDescription": "Casparel needs access to your photos so you can set a profile picture.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.casparel.app",
-      "versionCode": 1
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0e3ca5"
+      },
+      "blockedPermissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -38,7 +42,29 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Casparel needs access to your photos so you can set a profile picture.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#f8f7f4",
+          "dark": {
+            "image": "./assets/images/splash-icon.png",
+            "backgroundColor": "#0b0f16"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

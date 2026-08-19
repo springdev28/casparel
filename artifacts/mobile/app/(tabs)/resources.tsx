@@ -20,6 +20,7 @@ import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { useListResources } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { Resource } from '@workspace/api-client-react';
+import { apiOrigin } from '@/utils/api-host';
 
 function getYouTubeId(url: string): string | null {
   try {
@@ -52,9 +53,7 @@ function useOembedThumbnail(url: string, enabled: boolean) {
   return useQuery<string | null>({
     queryKey: ['oembed-thumbnail', url],
     queryFn: async () => {
-      const domain = process.env.EXPO_PUBLIC_DOMAIN;
-      const baseUrl = domain ? `https://${domain}` : '';
-      const res = await fetch(`${baseUrl}/api/resources/oembed?url=${encodeURIComponent(url)}`);
+      const res = await fetch(`${apiOrigin}/api/resources/oembed?url=${encodeURIComponent(url)}`);
       if (!res.ok) return null;
       const data = await res.json() as { thumbnailUrl: string | null };
       return data.thumbnailUrl ?? null;

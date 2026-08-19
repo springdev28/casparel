@@ -40,6 +40,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Thirty seconds here against twenty minutes of EAS build time, and
+      # against the failures that only surface at store upload: an icon with
+      # an alpha channel, a permission the app never uses, an EXPO_PUBLIC_*
+      # value the bundle would inline as undefined.
+      - name: Check the mobile release configuration
+        run: pnpm --filter @workspace/mobile run check:release
+
       - name: Typecheck every package
         run: pnpm run typecheck
 
@@ -58,10 +65,18 @@ jobs:
       - name: Install Playwright
         run: |
           npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
-          mkdir -p artifacts/app/node_modules
-          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
-            artifacts/app/node_modules/playwright-core
+          for pkg in app mobile; do
+            mkdir -p "artifacts/$pkg/node_modules"
+            ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
+              "artifacts/$pkg/node_modules/playwright-core"
+          done
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+
+      # Every platform icon is derived from one drawing, so a hand-edited PNG
+      # in assets/ is a silent divergence between what the stores show and
+      # what the repository says the app looks like.
+      - name: Check the icons still match the drawing
+        run: pnpm --filter @workspace/mobile exec node scripts/build-icons.mjs --check
 
       # The built index.html IS the search result: the app renders client-side,
       # so these tags are all a crawler reads. Check the key phrase survived the

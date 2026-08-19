@@ -11,7 +11,8 @@ Read this file before making any change. Violating these rules is the most commo
 artifacts/
   api-server/   Express 5 API — runs on PORT (default 8080 in Replit, 5000 locally)
   app/          React + Vite web app — runs on PORT 23863, proxies /api → API server
-  mobile/       Expo React Native app
+  mobile/       Expo React Native app (iOS + Android)
+  desktop/      Electron shell around the hosted web app
   schoolar-edu/ Shared design-system (component library, tokens)
 lib/
   api-spec/     Single source of truth: openapi.yaml
@@ -32,6 +33,7 @@ scripts/
 | Web app | 23863 | `pnpm --filter @workspace/app run dev` |
 | Design system | 20495 | `pnpm --filter @workspace/edu-ds run dev` |
 | Mobile (Expo) | 18115 | `pnpm --filter @workspace/mobile run dev` |
+| Desktop (Electron) | n/a, own window | `pnpm --filter @workspace/desktop run dev` |
 
 The web app Vite config proxies `/api/*` to `API_URL` (defaults to `http://127.0.0.1:8080`).
 **Never hardcode a port number anywhere.** Always read `process.env.PORT` / `process.env.API_URL`.
@@ -99,7 +101,38 @@ createdAt: timestamp("created_at").defaultNow().notNull().$$config({ mode: "stri
 createdAt: timestamp("created_at").defaultNow().notNull()
 ```
 
-### 8. API routes must be registered in openapi.yaml before codegen
+### 8. Platform icons are generated, not drawn
+
+`artifacts/mobile/assets/images/icon-source.png` is the drawing. Every shipped
+icon comes from it:
+
+```bash
+node artifacts/mobile/scripts/build-icons.mjs
+```
+
+Do not hand-edit `icon.png`, `adaptive-icon.png`, `splash-icon.png` or
+`artifacts/desktop/build/icon.png`. CI re-runs the generator with `--check` and
+fails if they no longer match. Each platform needs a different shape and the
+differences are not cosmetic: iOS rejects an app icon with an alpha channel,
+Android crops anything outside the middle 66%, and desktop needs transparent
+corners rather than white ones.
+
+### 9. Store configuration has invariants, and they are checked
+
+```bash
+pnpm --filter @workspace/mobile run check:release
+```
+
+Runs on every pull request. It fails on the things that otherwise surface twenty
+minutes into an EAS build or at store upload: a permission the app never uses,
+an icon with an alpha channel, a build profile that would produce an
+uninstallable `.aab` for internal testing, an `EXPO_PUBLIC_*` value the bundle
+would inline as undefined. Read the message before working around it.
+
+Build numbers come from EAS (`appVersionSource: "remote"`), so never add
+`ios.buildNumber` or `android.versionCode` back to `app.json`.
+
+### 10. API routes must be registered in openapi.yaml before codegen
 When adding a new API endpoint:
 1. Add the route to `lib/api-spec/openapi.yaml`
 2. Run `pnpm --filter @workspace/api-spec run codegen`
@@ -164,12 +197,21 @@ pnpm --filter @workspace/api-server run build
 
 # If you changed openapi.yaml, regenerate and rebuild libs
 pnpm --filter @workspace/api-spec run codegen
+
+# If you touched anything under artifacts/mobile
+pnpm --filter @workspace/mobile run check:release
+
+# If you touched artifacts/desktop/src
+pnpm --filter @workspace/desktop run smoke
 ```
 
 Read the exit code of each on its own. Piping into `tail` or `grep` reports
 the exit code of *that* command, which has hidden a red suite before.
 
 If typecheck passes and the API server builds, the app will start.
+
+Shipping the native apps is a separate matter from making them run: see the
+[release runbook](docs/release-runbook.md).
 
 ## Checking it against a real server
 
