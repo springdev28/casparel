@@ -163,20 +163,47 @@ check(
 // certificate was in place, and nobody would notice signing had silently
 // stopped working. So the module is imported explicitly, and a probe that
 // still fails says so in those words.
-let signature;
-try {
-  signature = powershell(
-    `Import-Module Microsoft.PowerShell.Security -ErrorAction Stop; ` +
-      `(Get-AuthenticodeSignature -LiteralPath '${installer}').Status`,
-  );
-} catch (error) {
-  signature = `could not be determined -- the probe itself failed (${String(
-    error.message,
-  )
-    .split("\n")[0]
-    .trim()})`;
+// Two hosts are tried, because Windows PowerShell 5.1 on a GitHub runner
+// refuses to load Microsoft.PowerShell.Security even when asked explicitly,
+// while PowerShell 7 (pwsh, also present) carries the cmdlet without argument.
+// Whichever answers first is used; if neither does, that is reported as not
+// having been determined, with the reason.
+function readAuthenticodeStatus(file) {
+  const script = `(Get-AuthenticodeSignature -LiteralPath '${file}').Status`;
+  const attempts = [
+    ["pwsh", ["-NoProfile", "-NonInteractive", "-Command", script]],
+    [
+      "powershell",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `Import-Module Microsoft.PowerShell.Security -ErrorAction Stop; ${script}`,
+      ],
+    ],
+  ];
+  const reasons = [];
+  for (const [command, args] of attempts) {
+    try {
+      const status = execFileSync(command, args, {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      }).trim();
+      if (status) return { status, via: command };
+    } catch (error) {
+      reasons.push(`${command}: ${String(error.message).split("\n")[0].trim()}`);
+    }
+  }
+  return { status: null, reasons };
 }
-console.log(`note: Authenticode status -> ${signature}`);
+
+const signing = readAuthenticodeStatus(installer);
+console.log(
+  signing.status
+    ? `note: Authenticode status -> ${signing.status} (via ${signing.via})`
+    : `note: Authenticode status -> could not be determined; every probe failed` +
+        `\n      ${signing.reasons.join("\n      ")}`,
+);
 
 // ----------------------------------------------------------------- install it
 
