@@ -234,6 +234,15 @@ jobs:
       # must not tear down the window, a cross-origin redirect must not load
       # inside the app frame, and a deep link handed to a cold start must
       # become the first page.
+      # How a packaged app's smoke result is READ, which is not the same as
+      # running one. It decides whether a release verification reports a
+      # security failure, and it got that wrong once already: a build older
+      # than the hardening probe answers the fall-through branch's healthy
+      # result, and calling that a failure accused a sound app. Cheap to pin
+      # down, and it needs no Electron and no macOS.
+      - name: Check how packaged smoke results are read
+        run: pnpm --filter @workspace/desktop run test:verdicts
+
       - name: Smoke-test the desktop shell
         run: pnpm --filter @workspace/desktop run smoke
 

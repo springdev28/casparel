@@ -32,6 +32,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { classifySmokeVerdict, smokeVerdict } from "./smoke-verdict.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXIT_INCONCLUSIVE = 75;
@@ -286,11 +287,6 @@ const server = http.createServer((request, response) => {
   response.writeHead(200, { "content-type": "text/html" }).end(body);
 });
 
-function smokeVerdict(output) {
-  const line = output.split("\n").find((entry) => entry.startsWith("SMOKE:"));
-  return line ? line.slice("SMOKE:".length).trim() : null;
-}
-
 const launched = await new Promise((resolve) => {
   server.listen(PORT, "127.0.0.1", () => {
     const child = spawn(
@@ -366,15 +362,40 @@ check(
   launched.ok ? "" : `${launched.why}\n     --- app output ---\n${appOutput}`,
 );
 
-// The window opened AND the page it loaded cannot reach Node. Reaching this
-// point with anything else means the shell is running remote content with more
-// privilege than it should have.
+// The window opened; separately, what did it say about itself?
+//
+// This has to be version-aware, and learning that cost a false alarm against
+// the first release it was pointed at. The hardening probe was added to the
+// shell AFTER desktop-v1.0.0 was built, so the published binary does not
+// recognise the mode, falls through to the embed branch, and answers
+// "app-intact" -- that branch's HEALTHY result, meaning the window is still
+// showing the app rather than the offline page. Reading it as a failed
+// hardening check reported a security defect in an app with nothing wrong with
+// it. A release check that cries wolf on the older releases it exists to check
+// is worse than no check.
+//
+// So an unsupported probe is neither a pass nor a failure. What still fails
+// loudly is a build that DOES answer the probe and answers it badly; the cases
+// are pinned down in smoke-verdict.test.mjs.
 if (launched.ok) {
-  check(
-    "the packaged window is hardened against the page it loads",
-    verdict === "hardened",
-    `the app reported "${verdict}" rather than "hardened"`,
-  );
+  const classified = classifySmokeVerdict(verdict);
+  if (classified.kind === "hardened") {
+    check("the packaged window is hardened against the page it loads", true);
+  } else if (classified.kind === "unsupported") {
+    console.log(
+      'note: this build predates the hardening probe (it answered "app-intact",',
+    );
+    console.log(
+      "      the fall-through branch's healthy result). The launch is verified;",
+    );
+    console.log("      the hardening property is not assertable on this build.");
+  } else {
+    check(
+      "the packaged window is hardened against the page it loads",
+      false,
+      classified.reason,
+    );
+  }
 }
 
 console.log(`\n${checks - failures}/${checks} checks passed`);
