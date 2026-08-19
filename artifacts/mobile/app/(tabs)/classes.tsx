@@ -27,6 +27,7 @@ import { describeApiFailure } from '@/utils/api-failure';
 import { ErrorState } from '@/components/ErrorState';
 import { Feather } from '@expo/vector-icons';
 import type { Class, ClassInvitation } from '@workspace/api-client-react';
+import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 
 function ClassCard({ item, onPress }: { item: Class; onPress: () => void }) {
   const colors = useColors();
@@ -317,7 +318,7 @@ export default function ClassesScreen() {
           )}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 80 },
+            { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
           ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />

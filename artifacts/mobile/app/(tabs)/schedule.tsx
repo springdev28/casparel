@@ -32,6 +32,7 @@ import {
 import type { ScheduleBlock, StudySessionWithParticipants, PublicUser, Resource } from '@workspace/api-client-react';
 import { describeApiFailure } from '@/utils/api-failure';
 import { sessionPalette } from '@/utils/session-palette';
+import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -873,7 +874,7 @@ export default function ScheduleScreen() {
               />
             );
           }}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }

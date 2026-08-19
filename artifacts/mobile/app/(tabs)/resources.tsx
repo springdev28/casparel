@@ -21,6 +21,7 @@ import { useListResources } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { Resource } from '@workspace/api-client-react';
 import { apiOrigin } from '@/utils/api-host';
+import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 
 function getYouTubeId(url: string): string | null {
   try {
@@ -309,7 +310,7 @@ export default function ResourcesScreen() {
           )}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 80 },
+            { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
           ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />

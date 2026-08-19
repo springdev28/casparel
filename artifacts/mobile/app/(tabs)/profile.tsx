@@ -37,6 +37,7 @@ import { Image } from 'expo-image';
 import { useAuth } from '@/contexts/AuthContext';
 import { PremiumCard } from '@/components/PremiumCard';
 import { describeApiFailure } from '@/utils/api-failure';
+import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History',
@@ -372,7 +373,7 @@ export default function ProfileScreen() {
   return (
     <ScrollView
       style={[styles.flex, { backgroundColor: colors.background }]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + webTopPad + 16, paddingBottom: insets.bottom + 32 }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + webTopPad + 16, paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }]}
       showsVerticalScrollIndicator={false}
     >
       {/* Title row */}
@@ -761,8 +762,11 @@ export default function ProfileScreen() {
         existed but was missing from the API spec, so no generated client could
         reach it. Two steps on purpose: this is irreversible.
       */}
+      {/* Not a second "ACCOUNT": there is already one above, and two
+          identical headings on one screen tell you nothing about which is
+          which. */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-        ACCOUNT
+        CLOSING YOUR ACCOUNT
       </Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <TouchableOpacity
