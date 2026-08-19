@@ -97,18 +97,37 @@ any signing-related access.
 
 ## Security practices
 
+These are split deliberately. A reviewer reading a list of controls should be
+able to tell which ones a machine refuses to break and which ones depend on a
+person keeping their word, and a policy that blurs the two is claiming more
+than it has.
+
+**Enforced by the repository and its workflows:**
+
 - **No signing key exists in this repository, at any point in its history.**
   The private key for the Windows certificate is held in SignPath's hardware
   security module and is never exported, downloaded or handled by the project.
-- **Multi-factor authentication is required** for every account with write
-  access to the repository and for SignPath access.
 - **All release credentials live in GitHub Actions secrets**, scoped to this
-  repository, and are never written to logs. The release workflow prints
+  repository, and are never written to logs. The release workflow reports
   whether a credential is present, never its value.
-- **Releases are built only from `main`**, from a commit that has passed the
-  full CI suite — typecheck, unit tests, browser audits across five languages,
-  and the desktop shell's own runtime smoke tests.
-- **Signing requests are approved individually**, as described above.
+- **Every artifact is built on a GitHub-hosted runner**, from the commit the
+  run was started against, by the workflow in this repository. There is no
+  path by which a locally built binary becomes a release.
+- **The tag is created only after every platform has built**, and is never
+  moved.
+
+**Operational commitments by the maintainers**, not enforced by tooling:
+
+- **Multi-factor authentication** on every account with write access to the
+  repository and on SignPath access.
+- **Releases are cut from `main`**, from a commit that has passed the full CI
+  suite — typecheck, unit tests, browser audits across five languages, and the
+  desktop shell's own runtime smoke tests. The release workflow can technically
+  be run against any branch, because building an installer without publishing
+  it is how a change gets tested; what is published comes from `main`.
+- **Signing requests are approved individually**, as described above. Once
+  signing is in place this becomes an enforced control rather than a
+  commitment, because SignPath itself requires the approval.
 
 ## How to verify a download
 
