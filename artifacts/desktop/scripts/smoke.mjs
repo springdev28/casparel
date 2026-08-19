@@ -104,6 +104,10 @@ function runCase(name, { deepLink, script }) {
 }
 
 const cases = [
+  // First, because if this one fails the rest do not matter: a shell around
+  // remote content with node integration is a way to run code on the user's
+  // machine, and nothing else here would notice.
+  ["the window is hardened against the page it loads", { script: "hardening" }],
   ["a dead embed leaves the app window intact", { script: "embed" }],
   ["a dead main frame shows the offline page", { script: "mainframe" }],
   ["a cross-origin redirect is refused", { script: "redirect" }],
@@ -118,6 +122,7 @@ const cases = [
 ];
 
 const expected = {
+  "the window is hardened against the page it loads": "hardened",
   "a dead embed leaves the app window intact": "app-intact",
   "a dead main frame shows the offline page": "offline-page",
   "a cross-origin redirect is refused": "blocked",
