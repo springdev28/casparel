@@ -63,14 +63,37 @@ jobs:
       # CI/local tool, not something the bundle needs. Install it out of tree
       # and link it where Node's resolver will find it from the script.
       - name: Install Playwright
+        # Bounded and retried, which it was not. This step normally costs
+        # about a minute; on 19 August one slow mirror spent fifteen here and
+        # took the whole `flows` budget with it. That job does its real work in
+        # under three minutes, so the entire ceiling went to a step that tests
+        # nothing, and the run reported as cancelled with every actual check
+        # marked "skipped" -- a shape that reads like "the tests did not run"
+        # rather than "the download was slow", and sends you looking in the
+        # wrong place.
+        #
+        # Each attempt is capped so a hang cannot eat the budget, and there are
+        # two so a blip heals itself. Only a download is retried: no product
+        # failure can be retried into passing from here.
+        timeout-minutes: 11
         run: |
-          npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          fetch_playwright() {
+            timeout 120 npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright &&
+            timeout 180 "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          }
+          if ! fetch_playwright; then
+            echo "::warning title=Playwright install retried::The first attempt failed or ran over its cap."
+            sleep 10
+            fetch_playwright || {
+              echo "::error title=Playwright install failed twice::This is the browser download, not a product failure."
+              exit 1
+            }
+          fi
           for pkg in app mobile; do
             mkdir -p "artifacts/$pkg/node_modules"
             ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
               "artifacts/$pkg/node_modules/playwright-core"
           done
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
 
       # Every platform icon is derived from one drawing, so a hand-edited PNG
       # in assets/ is a silent divergence between what the stores show and
@@ -158,7 +181,11 @@ jobs:
   # "a flow is broken" rather than as one more red step among twenty.
   flows:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The work here takes two to three minutes. The rest of this is headroom
+    # for a bad-day Playwright install (capped at eleven minutes above), so a
+    # slow download can no longer reach the job ceiling and be reported as
+    # though the flows themselves never ran.
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -222,12 +249,35 @@ jobs:
       # Same out-of-tree install as the check job: playwright-core is a tool
       # here, not something the bundle depends on.
       - name: Install Playwright
+        # Bounded and retried, which it was not. This step normally costs
+        # about a minute; on 19 August one slow mirror spent fifteen here and
+        # took the whole `flows` budget with it. That job does its real work in
+        # under three minutes, so the entire ceiling went to a step that tests
+        # nothing, and the run reported as cancelled with every actual check
+        # marked "skipped" -- a shape that reads like "the tests did not run"
+        # rather than "the download was slow", and sends you looking in the
+        # wrong place.
+        #
+        # Each attempt is capped so a hang cannot eat the budget, and there are
+        # two so a blip heals itself. Only a download is retried: no product
+        # failure can be retried into passing from here.
+        timeout-minutes: 11
         run: |
-          npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          fetch_playwright() {
+            timeout 120 npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright &&
+            timeout 180 "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          }
+          if ! fetch_playwright; then
+            echo "::warning title=Playwright install retried::The first attempt failed or ran over its cap."
+            sleep 10
+            fetch_playwright || {
+              echo "::error title=Playwright install failed twice::This is the browser download, not a product failure."
+              exit 1
+            }
+          fi
           mkdir -p artifacts/app/node_modules
           ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
             artifacts/app/node_modules/playwright-core
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
 
       # Migrations run at boot, so a schema that cannot be applied fails here
       # before any flow is attempted.
