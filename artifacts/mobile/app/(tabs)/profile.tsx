@@ -186,8 +186,8 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
             onPress={handleShareIcalUrl}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 8 }}
           >
-            <Feather name="share-2" size={14} color="#fff" />
-            <Text style={{ fontSize: 13, color: '#fff', fontFamily: colors.fontFamily.sansMedium }}>Share URL</Text>
+            <Feather name="share-2" size={14} color={colors.primaryForeground} />
+            <Text style={{ fontSize: 13, color: colors.primaryForeground, fontFamily: colors.fontFamily.sansMedium }}>Share URL</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -405,7 +405,7 @@ export default function ProfileScreen() {
               onPress={handleSave}
               disabled={updateMe.isPending}
             >
-              <Text style={[{ color: '#fff', fontFamily: colors.fontFamily.sansBold, fontSize: 14 }]}>
+              <Text style={[{ color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold, fontSize: 14 }]}>
                 {updateMe.isPending ? 'Saving…' : 'Save'}
               </Text>
             </TouchableOpacity>
@@ -449,7 +449,7 @@ export default function ProfileScreen() {
               </View>
             )}
             <View style={[styles.cameraBtn, { backgroundColor: colors.primary }]}>
-              <Feather name="camera" size={11} color="#fff" />
+              <Feather name="camera" size={11} color={colors.primaryForeground} />
             </View>
           </TouchableOpacity>
 
@@ -538,7 +538,7 @@ export default function ProfileScreen() {
                 style={[styles.addBtn, { backgroundColor: colors.primary, borderRadius: colors.radius }]}
                 onPress={() => addSubject(subjectInput)}
               >
-                <Text style={[{ color: '#fff', fontFamily: colors.fontFamily.sansBold, fontSize: 13 }]}>Add</Text>
+                <Text style={[{ color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold, fontSize: 13 }]}>Add</Text>
               </TouchableOpacity>
             </View>
             {form.subjects.length > 0 && (
