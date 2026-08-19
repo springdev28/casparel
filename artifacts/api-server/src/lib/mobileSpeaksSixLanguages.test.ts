@@ -255,4 +255,30 @@ describe("the phone app's translations", () => {
         "reason",
     ).toEqual([]);
   });
+
+  it("tells the App Store the same six languages it can actually speak", () => {
+    /*
+     * CFBundleLocalizations is what iOS reports and what the App Store listing
+     * shows under "Languages". It was absent, so a phone that had just been
+     * taught Spanish, French, German, Portuguese and Turkish would have been
+     * listed as English-only -- and nobody searching the store in their own
+     * language would have found it.
+     *
+     * Checked against the dictionaries rather than against a copy of the list,
+     * so the claim on the store page cannot outlive the translations behind
+     * it, in either direction: a seventh language added to the app has to be
+     * declared, and a language declared here has to have a dictionary.
+     */
+    const appJson = JSON.parse(readFileSync(join(appRoot, "app.json"), "utf8")) as {
+      expo: { ios?: { infoPlist?: Record<string, unknown> } };
+    };
+    const declared = appJson.expo.ios?.infoPlist?.CFBundleLocalizations;
+
+    expect(
+      Array.isArray(declared),
+      "no CFBundleLocalizations in app.json; iOS will report this app as " +
+        "English-only whatever the dictionaries say",
+    ).toBe(true);
+    expect([...(declared as string[])].sort()).toEqual([...LANGUAGE_CODES].sort());
+  });
 });

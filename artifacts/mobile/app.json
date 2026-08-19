@@ -16,7 +16,8 @@
       "bundleIdentifier": "com.casparel.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Casparel needs access to your photos so you can set a profile picture.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleLocalizations": ["en", "es", "fr", "de", "pt", "tr"]
       }
     },
     "android": {
