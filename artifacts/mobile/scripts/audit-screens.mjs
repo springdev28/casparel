@@ -240,7 +240,7 @@ async function teacherWithAClass() {
   if (created.status !== 201) {
     throw new Inconclusive(`a teacher could not create a class (HTTP ${created.status})`);
   }
-  return { token, classId: created.body.id };
+  return { token, classId: created.body.id, user: teacherIn.body?.user ?? null };
 }
 
 /** Requests the signed-in app made for itself that came back an error. */
@@ -647,6 +647,63 @@ async function main() {
       await tabPage.close();
     }
     await narrow.close();
+
+    /*
+     * The same tabs as a teacher.
+     *
+     * Everything above is a student, and the two roles are not the same app:
+     * the dashboard swaps its fourth tile from Reviews to Students and its
+     * subtitle from "your learning overview" to "your classroom overview", the
+     * class screen shows the roster differently, and the paywall offers
+     * Teacher plans instead of Student ones. None of that half had ever been
+     * rendered.
+     *
+     * The teacher account is the one already made above, so this costs a sign-
+     * in rather than another promotion.
+     */
+    if (teacher) {
+      const asTeacher = await browser.newContext({
+        viewport: { width: 393, height: 852 },
+        deviceScaleFactor: 2,
+        colorScheme: "dark",
+      });
+      await asTeacher.route(`${APP_ORIGIN}/**`, forwardToServer);
+      await asTeacher.addInitScript(
+        ([sessionToken, who]) => {
+          localStorage.setItem("schoolar_token", sessionToken);
+          localStorage.setItem("casparel_user", who);
+          localStorage.setItem("casparel_onboarded", "true");
+        },
+        [teacher.token, JSON.stringify(teacher.user ?? {})],
+      );
+
+      for (const tab of TABS) {
+        const tabPage = await asTeacher.newPage();
+        tabPage.on("pageerror", (error) =>
+          pageErrors.push(`teacher ${tab.name}: ${String(error).slice(0, 200)}`),
+        );
+        await tabPage.goto(`${local}${tab.route}`, { waitUntil: "networkidle" });
+        await tabPage.waitForTimeout(2500);
+        const text = await tabPage.evaluate(() => document.body.innerText);
+        // Not the student's expectation: a teacher's account holds different
+        // rows, so what is checked is that the screen rendered itself rather
+        // than the error boundary.
+        check(`teacher: ${tab.name} does not throw`, !CRASHED.test(text), text.replace(/\n+/g, " | ").slice(0, 140));
+        await tabPage.close();
+      }
+
+      const paywall = await asTeacher.newPage();
+      await paywall.goto(`${local}/paywall`, { waitUntil: "networkidle" });
+      await paywall.waitForTimeout(2500);
+      const plans = await paywall.evaluate(() => document.body.innerText);
+      check(
+        "teacher: the paywall offers teacher plans",
+        /Teacher Plus|Teacher Pro/.test(plans),
+        plans.replace(/\n+/g, " | ").slice(0, 160),
+      );
+      await paywall.close();
+      await asTeacher.close();
+    }
 
     check("no screen threw an uncaught exception", pageErrors.length === 0, pageErrors.slice(0, 4).join("\n     "));
     check(
