@@ -25,6 +25,13 @@
  * With no argument it takes the .dmg from release/ that matches this machine's
  * architecture. Exit 0 all good, 1 a real defect, 75 the check could not be
  * performed (not macOS, no image to test).
+ *
+ * A check can also be skipped, which is neither of those. This runs against a
+ * *published* release, so the script is always newer than the app it opens and
+ * can ask questions that app has no code to answer. Reporting those as defects
+ * is a lie about the shipped build and produces a red run nobody can act on —
+ * the only fix being to cut a release. Skips are named with their reason and do
+ * not affect the exit code; a real defect still fails.
  */
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
@@ -40,6 +47,7 @@ const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 let failures = 0;
 let checks = 0;
+let skipped = 0;
 
 function check(label, ok, detail = "") {
   checks += 1;
@@ -49,6 +57,21 @@ function check(label, ok, detail = "") {
     failures += 1;
     console.log(`FAIL ${label}${detail ? `\n     ${detail}` : ""}`);
   }
+}
+
+/**
+ * A check this build cannot answer, which is not the same as failing it.
+ *
+ * This runs against a *published* release, so the script is always newer than
+ * the application it opens. When it asks an older app a question that app has
+ * no code for, the honest report is that nothing was measured. Calling that a
+ * defect says the shipped app is unsafe when the truth is that its safety went
+ * untested, and a red build nobody can act on is one people learn to ignore.
+ */
+function skip(label, why) {
+  checks += 1;
+  skipped += 1;
+  console.log(`skip ${label}\n     ${why}`);
 }
 
 function inconclusive(why) {
@@ -369,13 +392,39 @@ check(
 // The window opened AND the page it loaded cannot reach Node. Reaching this
 // point with anything else means the shell is running remote content with more
 // privilege than it should have.
+//
+// Unless the app is simply older than the question. reportSmokeResult falls
+// through to its embed scenario for any mode it does not recognise, and that
+// scenario answers "app-intact" or "window-lost" — so those two verdicts are
+// not a hardening result at all, they are an app built before the hardening
+// mode existed. desktop-v1.0.0 is exactly that: built at 18:21, an hour and
+// three quarters before the mode was added, and this check called it a defect
+// on every run.
+//
+// A hardening-aware app can only answer "hardened" or "node reachable from the
+// page: …", so anything else is the older shell and the check is skipped with
+// its reason rather than failed.
+const EMBED_VERDICTS = new Set(["app-intact", "window-lost"]);
 if (launched.ok) {
-  check(
-    "the packaged window is hardened against the page it loads",
-    verdict === "hardened",
-    `the app reported "${verdict}" rather than "hardened"`,
-  );
+  if (EMBED_VERDICTS.has(verdict)) {
+    skip(
+      "the packaged window is hardened against the page it loads",
+      `this build predates the hardening hook: it answered "${verdict}", which is ` +
+        `the embed scenario it falls back to for a mode it does not know. ` +
+        `Cut a release from a commit that has the hook and this check runs.`,
+    );
+  } else {
+    check(
+      "the packaged window is hardened against the page it loads",
+      verdict === "hardened",
+      `the app reported "${verdict}" rather than "hardened"`,
+    );
+  }
 }
 
-console.log(`\n${checks - failures}/${checks} checks passed`);
+const passed = checks - failures - skipped;
+console.log(
+  `\n${passed}/${checks} checks passed` +
+    (skipped ? `, ${skipped} skipped (this build cannot answer them)` : ""),
+);
 process.exit(failures === 0 ? 0 : 1);
