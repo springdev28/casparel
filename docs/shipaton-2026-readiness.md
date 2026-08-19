@@ -41,9 +41,19 @@ This review originally recorded Casparel as a private repository and ruled the e
 | Fully published by deadline           | Blocked/unverified | Public US store listing and downloadable build                            |
 | App usable by judges                  | Partial            | Clean reviewer account, trial/promo where required, stable production API |
 | Demo under two minutes                | Not started        | Public unlisted/visible YouTube or Vimeo URL                              |
-| Required screenshot/icon              | Not complete       | Exact exported assets with no device frame                                |
+| Required screenshot/icon              | Icon done, shots draft | 1024×1024 icon is in the repository. `pnpm --filter @workspace/mobile run screenshots` renders the app at exactly 1179×2556 with no device frame, but from the *web* export — the top of the frame differs from the phone by the web-only padding and there is no status bar, so the upload still has to come from a device or simulator build. |
 | Submission text and category evidence | Draft              | Final answers, links and claims backed by screenshots/metrics             |
 | Next Gen fallback                     | Repo/license met   | Remaining category-specific eligibility conditions, confirmed by the entrant |
+
+### What changed since this review was written
+
+This table is dated 15 August and the rest of the document with it. One row
+has moved (the screenshot/icon line above) and one thing worth recording did
+not fit anywhere else: the mobile app is now rendered against a real server on
+every CI run, which is how the schedule-block defect below was found and is
+the reason the "engineering quality" figure would be scored differently today.
+The scores have deliberately not been re-run — a review is worth more when it
+is not quietly edited to agree with the present.
 
 ## Chances of winning
 
