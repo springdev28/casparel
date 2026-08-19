@@ -60,6 +60,8 @@ const BLOCK_TITLE = "Audit revision block";
 const RESOURCE_TITLE = "Audit reading on tides";
 /** Made by a teacher, joined from the phone, then opened. */
 const CLASS_NAME = "Audit physics set";
+/** Typed into the phone's own form, then looked for on the schedule. */
+const SESSION_TITLE = "Audit revision huddle";
 
 let failures = 0;
 let checks = 0;
@@ -567,6 +569,47 @@ async function main() {
       }
 
       if (scheme === "dark") await context.close();
+    }
+
+    /*
+     * Make a study session through the form on the phone.
+     *
+     * Everything above this reads. This is the app's only creating form, six
+     * fields of free text including a date and a time typed by hand, and
+     * nothing had ever filled it in -- the write paths were exercised through
+     * the API, which is precisely the half a form can get wrong on its own.
+     * What is checked is that the session the form made comes back on the
+     * schedule: a form that posts the wrong shape, or the right shape to the
+     * wrong day, looks identical until you go and look.
+     */
+    {
+      const form = await light.newPage();
+      form.on("pageerror", (error) => pageErrors.push(`new session: ${String(error).slice(0, 200)}`));
+      await form.goto(`${local}/schedule`, { waitUntil: "networkidle" });
+      await form.waitForTimeout(2000);
+      await form.getByText("+ Study Session").last().click();
+      await form.waitForTimeout(1200);
+
+      const title = form.getByPlaceholder("e.g. Calculus group review");
+      if (await title.count()) {
+        await title.fill(SESSION_TITLE);
+        await form.getByPlaceholder("2026-08-10").fill(TODAY);
+        await form.getByPlaceholder("14:00").fill("16:00");
+        await form.getByPlaceholder("60").fill("45");
+        await form.getByPlaceholder("https://meet.google.com/…").fill("https://meet.google.com/abc-defg-hij");
+        await form.getByText("Create Session").last().click();
+        await form.waitForTimeout(4000);
+
+        const after = await form.evaluate(() => document.body.innerText);
+        check(
+          "a study session made on the phone lands on the schedule",
+          new RegExp(SESSION_TITLE).test(after),
+          after.replace(/\n+/g, " | ").slice(0, 200),
+        );
+      } else {
+        check("the new-session form opens", false, "no title field after tapping + Study Session");
+      }
+      await form.close();
     }
 
     /*
