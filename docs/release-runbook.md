@@ -169,6 +169,9 @@ reputation now builds per file hash over time. The certificate is still worth
 having — it is what lets reputation accumulate against a publisher at all — but
 it does not buy a clean first install, and no amount of money buys one.
 
+How this is all meant to work, in the form SignPath Foundation asks for and a
+downloader can check, is the [code signing policy](code-signing-policy.md).
+
 Three ways to sign Windows, best fit first for this project:
 
 | Option | Cost | Notes |
