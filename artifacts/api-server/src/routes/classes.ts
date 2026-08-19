@@ -1175,7 +1175,34 @@ router.post("/classes/:id/resource-recommendations", contentLimiter, requireAuth
     eq(classResourceRecommendationsTable.classId, classId), eq(classResourceRecommendationsTable.resourceId, resource.id),
     eq(classResourceRecommendationsTable.recommendedById, userId), eq(classResourceRecommendationsTable.status, "pending"),
   ));
-  const recommendation = existing ?? (await db.insert(classResourceRecommendationsTable).values({ classId, resourceId: resource.id, recommendedById: userId, note: parsed.data.note?.trim() || null }).returning())[0];
+  /*
+   * One pending recommendation per person per resource, and the index says so
+   * -- but this read it and then inserted when it found none, so two taps on
+   * "recommend" ran both halves at once, both found nothing, and the loser came
+   * back 500.
+   *
+   * On a conflict the insert returns nothing, so the row the other tap made
+   * has to be read back: handing `undefined` to `recommendation.id` below
+   * would only trade the 500 for a different one.
+   */
+  const pendingForThisResource = and(
+    eq(classResourceRecommendationsTable.classId, classId),
+    eq(classResourceRecommendationsTable.resourceId, resource.id),
+    eq(classResourceRecommendationsTable.recommendedById, userId),
+    eq(classResourceRecommendationsTable.status, "pending"),
+  );
+  let recommendation = existing;
+  if (!recommendation) {
+    const [inserted] = await db
+      .insert(classResourceRecommendationsTable)
+      .values({ classId, resourceId: resource.id, recommendedById: userId, note: parsed.data.note?.trim() || null })
+      .onConflictDoNothing()
+      .returning();
+    recommendation =
+      inserted ??
+      (await db.select().from(classResourceRecommendationsTable).where(pendingForThisResource))[0];
+  }
+  if (!recommendation) { res.status(500).json({ error: "Could not record the recommendation" }); return; }
   const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
   const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, userId));
   if (!existing && cls && student) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: `${student.name} recommended "${resource.title}" for ${cls.name}.` });
