@@ -1749,16 +1749,19 @@ export default function ForumPage({
                               </p>
                             </div>
                           )}
-                          <div className="flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
+                          {/*
+                            Views only. This row also repeated the likes, the
+                            reposts and the comments, each of which is already
+                            on the control that changes it -- the arrow in the
+                            left rail, and the two buttons directly below. So
+                            every post showed the same four numbers twice, and
+                            a feed of them reads as a wall of zeros.
+                          */}
+                          <div className="flex items-center border-t pt-3 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Eye className="size-3.5" />
                               {post.viewCount} views
                             </span>
-                            <div className="flex items-center gap-3">
-                              <span>{post.likeCount} likes</span>
-                              <span>{post.repostCount} reposts</span>
-                              <span>{post.commentCount} comments</span>
-                            </div>
                           </div>
                           <div className="grid grid-cols-3 border-y">
                             <Discussion
@@ -1819,7 +1822,15 @@ export default function ForumPage({
 
             <aside className="hidden space-y-6 lg:sticky lg:top-16 lg:block">
               <section className="border-y py-4">
-                <h2 className="text-sm font-bold">Popular topics</h2>
+                {/*
+                  When nothing is tagged this lists the tag vocabulary so a
+                  reader can see what topics exist -- which is useful, and is
+                  not what "popular" means. Six topics with no posts under a
+                  heading claiming popularity is a claim the page cannot back.
+                */}
+                <h2 className="text-sm font-bold">
+                  {popularTopics.length ? "Popular topics" : "Browse topics"}
+                </h2>
                 <div className="mt-3 space-y-1">
                   {(popularTopics.length
                     ? popularTopics
@@ -1852,7 +1863,7 @@ export default function ForumPage({
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">
-                      Discussions
+                      Comments
                     </dt>
                     <dd className="text-lg font-bold">
                       {posts.reduce((sum, post) => sum + post.commentCount, 0)}

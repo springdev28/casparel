@@ -1012,7 +1012,8 @@ const ES: Record<string, string> = {
   "Every edit is public and reversible": "Cada edición es pública y reversible",
   "Independent, check it": "Independiente, compruébalo",
   "Checked against the source registry: who publishes it, how it is licensed, and how it is served.": "Comprobado con el registro de fuentes: quién lo publica, con qué licencia y cómo se sirve.",
-
+  "Browse topics": "Explorar temas",
+  "Community snapshot": "Resumen de la comunidad",
   // The download page: which platforms Casparel runs on, and how to get it.
   "Download Casparel": "Descargar Casparel",
   "The same workspace, on whatever you study with": "El mismo espacio de trabajo, en aquello con lo que estudies",

@@ -1176,7 +1176,7 @@ export function SeatingChartEditor({
       toast({
         title: "Casparel Pro required",
         description:
-          "AI seating-plan suggestions are included with Pro. Manual seating stays available on Free.",
+          "Seating-plan suggestions are included with Pro. Manual seating stays available on Free.",
       });
       return;
     }
@@ -1899,10 +1899,18 @@ export function SeatingChartEditor({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {/*
+                    Not "AI". The planner is deterministic -- pattern rules
+                    over positions and notes, no model call -- which is why
+                    the server's own refusal is careful never to call it AI.
+                    Only the upsell did, which is the worst place for a claim
+                    the product cannot back: it is the sentence somebody reads
+                    immediately before paying.
+                  */}
                   <p className="text-xs text-muted-foreground">
                     {plan.seatingPlanner
-                      ? "Uses current positions, front distance, desk-mates, and private notes only when requested."
-                      : "AI seating suggestions require Pro. You can still design and assign every seat manually."}
+                      ? "Rule-based, not a model. Uses current positions, front distance, desk-mates, and private notes only when requested."
+                      : "Seating suggestions require Teacher Pro. You can still design and assign every seat manually."}
                   </p>
                   <Textarea
                     value={priorities}
