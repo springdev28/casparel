@@ -236,6 +236,65 @@ const SCHEDULE_BLOCK = {
   createdAt: "2026-08-01T09:00:00.000Z",
 };
 
+const STUDY_ACTIVITY = {
+  id: 12,
+  ownerId: 1,
+  workspaceRole: "student",
+  classId: null,
+  title: "Photosynthesis vocabulary",
+  subject: "Biology",
+  mode: "flashcards",
+  shareToken: null,
+  cards: [
+    { id: "c1", term: "Chlorophyll", answer: "The pigment that absorbs light energy." },
+    { id: "c2", term: "Stomata", answer: "Pores that let gases in and out of a leaf." },
+  ],
+  createdAt: "2026-05-06T09:00:00.000Z",
+  updatedAt: "2026-06-18T09:00:00.000Z",
+};
+
+const GOAL_TEMPLATE = {
+  id: 5,
+  creatorId: 9,
+  creatorName: "Ada Karahan",
+  sourceGoalId: 21,
+  title: "First year of A-level physics",
+  subject: "Physics",
+  description: "The order I wish I had worked through it in.",
+  level: "beginner",
+  pathSteps: [
+    { id: "t1", title: "Vectors and scalars", query: "vectors scalars", completed: false },
+    { id: "t2", title: "Kinematics", query: "kinematics", completed: false },
+  ],
+  useCount: 34,
+  createdAt: "2026-04-20T09:00:00.000Z",
+};
+
+/**
+ * A conversation, as the route returns it: the row plus the other person,
+ * the last message and an unread count, all assembled server-side.
+ */
+const CONVERSATION = {
+  id: 3,
+  firstUserId: 1,
+  secondUserId: 9,
+  requestedById: 9,
+  status: "accepted",
+  createdAt: "2026-07-02T09:00:00.000Z",
+  updatedAt: "2026-08-11T09:00:00.000Z",
+  other: { id: 9, name: "Ada Karahan", role: "student", avatarUrl: null },
+  lastMessage: {
+    id: 77,
+    conversationId: 3,
+    senderId: 9,
+    body: "Sent you the past paper I mentioned.",
+    readAt: null,
+    createdAt: "2026-08-11T09:00:00.000Z",
+  },
+  unreadCount: 1,
+  incomingRequest: false,
+};
+
 /**
  * Exact-path fixtures. Keys are pathnames; values are the JSON body.
  * Ordered roughly as the app requests them.
@@ -274,8 +333,31 @@ export const FIXTURES = {
   "/api/schedule": [SCHEDULE_BLOCK],
   "/api/study-sessions": [],
   "/api/forum/access": { canPost: true, canModerate: true },
+  // Both on, so the AI search controls render and get audited. They are off by
+  // default on a server with no keys, which is the state that was rendering.
+  "/api/discover/capabilities": { publicProfileSearch: true, resourceSearch: true },
   "/api/forum/materials": [],
   "/api/forum/posts": [],
+  "/api/study-activities": [STUDY_ACTIVITY],
+  "/api/learning-goal-templates": [GOAL_TEMPLATE],
+  "/api/direct-messages/conversations": [CONVERSATION],
+  // Opening the list selects the first thread, so the thread itself needs a
+  // fixture too or the reading pane renders nothing.
+  "/api/direct-messages/conversations/3": {
+    ...CONVERSATION,
+    messages: [
+      {
+        id: 76,
+        conversationId: 3,
+        senderId: 1,
+        body: "Did you get anywhere with question 7?",
+        readAt: "2026-08-11T08:50:00.000Z",
+        createdAt: "2026-08-10T18:20:00.000Z",
+      },
+      CONVERSATION.lastMessage,
+    ],
+  },
+  "/api/classes/31/student-goals": [],
   "/api/admin/users": [ADMIN_USER_ROW],
   "/api/admin/resources/review-queue": [
     {
