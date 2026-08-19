@@ -73,7 +73,10 @@ function powershell(script) {
   return execFileSync(
     "powershell",
     ["-NoProfile", "-NonInteractive", "-Command", script],
-    { encoding: "utf8" },
+    // stderr is captured rather than inherited: a probe that fails is reported
+    // in the check's own words, not as a wall of PowerShell noise in the middle
+    // of the results.
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   ).trim();
 }
 
@@ -149,14 +152,29 @@ check(
 );
 
 // Reported, never failed on. There is deliberately no certificate today; the
-// point is that a run says which it was rather than leaving it unknown.
-let signature = "unknown";
+// point is that a run says which it was.
+//
+// "Not signed" and "could not tell" are different answers and this must not
+// collapse them. The first version did, and always printed "unknown", because
+// Get-AuthenticodeSignature lives in Microsoft.PowerShell.Security and that
+// module does not auto-load on a GitHub runner -- so the call threw and the
+// fallback swallowed it. Signing is the whole point of the work this check
+// supports; a probe stuck on "unknown" would go on saying it after a
+// certificate was in place, and nobody would notice signing had silently
+// stopped working. So the module is imported explicitly, and a probe that
+// still fails says so in those words.
+let signature;
 try {
   signature = powershell(
-    `(Get-AuthenticodeSignature -LiteralPath '${installer}').Status`,
+    `Import-Module Microsoft.PowerShell.Security -ErrorAction Stop; ` +
+      `(Get-AuthenticodeSignature -LiteralPath '${installer}').Status`,
   );
-} catch {
-  /* an unreadable signature is still just "not signed" for reporting */
+} catch (error) {
+  signature = `could not be determined -- the probe itself failed (${String(
+    error.message,
+  )
+    .split("\n")[0]
+    .trim()})`;
 }
 console.log(`note: Authenticode status -> ${signature}`);
 
