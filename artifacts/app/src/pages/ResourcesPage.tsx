@@ -517,11 +517,24 @@ function LibraryCard({
           </p>
         </CardContent>
       )}
-      <CardFooter className="flex items-center justify-between gap-3 pt-2">
-        <div className="min-w-0">
+      <CardFooter className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-2">
+        {/*
+          basis-40, and the row wraps.
+
+          Its sibling holds buttons and is shrink-0, so every pixel the row was
+          short came out of here: on a 313px card in Turkish this column ended
+          up fifteen pixels wide, which is not a clipped line so much as a
+          crushed one. flex-wrap alone did nothing, because `flex-1` is a basis
+          of zero and a zero-width item never pushes anything onto a second
+          line. The basis is what makes it ask for room, and the wrap is what
+          gives it room to ask for. Widening instead would only move the
+          squeeze to the buttons, and the next longer translation would put it
+          straight back.
+        */}
+        <div className="min-w-0 flex-1 basis-40">
           <StarRating value={resource.avgRating} size="sm" />
           <p
-            className="mt-1 text-xs font-medium text-primary-text"
+            className="mt-1 text-xs font-medium text-primary-text text-balance leading-tight"
             title="Evidence score: 70% average rating and 30% review confidence"
           >
             {evidenceScore === null
@@ -2384,7 +2397,10 @@ export default function ResourcesPage() {
               }
             >
               <SelectTrigger
-                className="w-44 h-8 text-xs"
+                // Wide enough for the longest label in the longest language.
+                // At w-44 it clipped "Source: specific content" in English and
+                // every translation of it in the other five.
+                className="w-60 h-8 text-xs"
                 data-testid="source-filter"
                 aria-label="Source type"
               >
@@ -2460,7 +2476,7 @@ export default function ResourcesPage() {
                   }
                 >
                   <SelectTrigger
-                    className="w-36 h-8 text-xs"
+                    className="w-44 h-8 text-xs"
                     data-testid="rating-filter"
                     aria-label="Minimum rating"
                   >
@@ -2491,7 +2507,7 @@ export default function ResourcesPage() {
                   }}
                 >
                   <SelectTrigger
-                    className="w-36 h-8 text-xs"
+                    className="w-48 h-8 text-xs"
                     data-testid="sort-filter"
                     aria-label="Sort order"
                   >
