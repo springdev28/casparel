@@ -180,7 +180,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
   const deepLimitReached = deepLimit != null && deepUsed >= deepLimit;
   const deepRemaining = deepLimit == null ? null : Math.max(0, deepLimit - deepUsed);
 
-  const { data, isFetching, isError, refetch } = useGetResourceSourceReview(
+  const { data, isFetching, isError, error, refetch } = useGetResourceSourceReview(
     resourceId,
     { mode: mode ?? 'quick' },
     {
@@ -194,6 +194,27 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
       },
     },
   );
+
+  /**
+   * What went wrong, in the server's own words.
+   *
+   * This said "Couldn't complete the research. You may have reached a daily
+   * limit." -- a guess, and usually the wrong one. The server distinguishes a
+   * report already running, a daily limit, a monthly limit, the service-wide
+   * budget and the provider being unreachable, and it is the provider being
+   * unreachable that people actually hit. Telling somebody they have used up
+   * an allowance they still have is worse than saying nothing, because it
+   * sends them to the paywall for a problem money cannot fix.
+   */
+  const failureMessage =
+    (error as { data?: { error?: string } } | null)?.data?.error?.trim() ||
+    "Couldn't complete the research. Please try again.";
+  /**
+   * Retrying a spent allowance just fails again. The quick check does not:
+   * it reads the maintained registry, needs no AI, and is the button directly
+   * below this message.
+   */
+  const retryWouldHelp = (error as { status?: number } | null)?.status !== 429;
 
   useEffect(() => {
     if (mode === 'deep' && data) {
@@ -281,8 +302,22 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
                 },
               ]}
             >
-              Couldn't complete the research. You may have reached a daily limit.
+              {failureMessage}
             </Text>
+            {mode === 'deep' ? (
+              <Text
+                style={[
+                  styles.loadingText,
+                  {
+                    color: colors.mutedForeground,
+                    fontFamily: colors.fontFamily.sans,
+                  },
+                ]}
+              >
+                Quick check below reads the maintained registry. No AI, no allowance.
+              </Text>
+            ) : null}
+            {retryWouldHelp ? (
             <Pressable onPress={() => refetch()} style={styles.retry}>
               <Feather name="refresh-cw" size={13} color={colors.primary} />
               <Text
@@ -297,6 +332,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
                 Try again
               </Text>
             </Pressable>
+            ) : null}
           </View>
         ) : data ? (
           <ReportView review={data} />

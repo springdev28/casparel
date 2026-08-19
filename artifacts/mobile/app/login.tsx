@@ -16,6 +16,7 @@ import { Input } from '@workspace/edu-ds/components/native/input';
 import { Feather } from '@expo/vector-icons';
 import { useLogin } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { describeAuthFailure } from '@/utils/auth-errors';
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -41,8 +42,8 @@ export default function LoginScreen() {
         onSuccess: (data) => {
           login(data.token, data.user);
         },
-        onError: () => {
-          setErrorMsg('Invalid email or password. Please try again.');
+        onError: (error) => {
+          setErrorMsg(describeAuthFailure(error, 'login'));
         },
       }
     );

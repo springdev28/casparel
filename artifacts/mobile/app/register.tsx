@@ -16,6 +16,7 @@ import { Input } from '@workspace/edu-ds/components/native/input';
 import { Feather } from '@expo/vector-icons';
 import { useRegister } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { describeAuthFailure } from '@/utils/auth-errors';
 
 /**
  * Creating an account, on the phone.
@@ -58,21 +59,7 @@ export default function RegisterScreen() {
           login(data.token, data.user);
         },
         onError: (error) => {
-          // Say what actually went wrong. The generated client builds a
-          // message for logs that starts "HTTP 400 Bad Request: ...", so read
-          // the status rather than showing that string to a person.
-          const status = (error as { status?: number } | null)?.status;
-          if (status === 400 || status === 409) {
-            setErrorMsg(
-              'That email already has a Casparel account. Try signing in instead.',
-            );
-          } else if (status === 429) {
-            setErrorMsg('Too many attempts. Please wait a few minutes and try again.');
-          } else if (status === undefined) {
-            setErrorMsg('Could not reach Casparel. Check your connection and try again.');
-          } else {
-            setErrorMsg('Could not create your account. Please try again.');
-          }
+          setErrorMsg(describeAuthFailure(error, 'register'));
         },
       },
     );
