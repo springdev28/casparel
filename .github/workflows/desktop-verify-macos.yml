@@ -1,0 +1,69 @@
+name: Verify the macOS app
+
+# Opens a published .dmg on a real Mac and checks the app inside it starts.
+#
+# This exists because "the build succeeded" and "the application runs" are
+# different claims, and only the first one was ever being made. The Linux .deb
+# has been unpacked and inspected since the packaging defects it found; the
+# macOS image had nothing equivalent, and the desktop smoke test does not count
+# -- it launches node_modules/electron, the development runtime, not the bundle
+# that ships.
+#
+# Neither macOS nor Windows can be built or run anywhere else in this project,
+# so a hosted runner is the only machine that can answer the question at all.
+#
+# Run it from the Actions tab against any published tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to verify (e.g. desktop-v1.0.0)'
+        type: string
+        required: true
+        default: desktop-v1.0.0
+
+concurrency:
+  group: desktop-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No pnpm install: the check is plain Node with no dependencies, and it
+      # deliberately tests the SHIPPED bundle rather than anything built here.
+      # Installing the workspace would only add a way for this to pass while
+      # the released artifact is broken.
+      - name: Download the released disk image
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#desktop-v}"
+          # macos-latest runners are arm64; take the image this machine can
+          # actually execute, so "it launches" is a real result rather than a
+          # skipped one.
+          arch=$(uname -m)
+          case "$arch" in
+            arm64) asset="Casparel-${version}-arm64.dmg" ;;
+            *)     asset="Casparel-${version}-x64.dmg" ;;
+          esac
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
+          echo "Runner is ${arch}; fetching ${asset}"
+          if ! curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/app.dmg" "$url"; then
+            echo "::error title=Asset not found::${url} could not be downloaded. Check the tag and the asset name."
+            exit 1
+          fi
+          ls -lh "$RUNNER_TEMP/app.dmg"
+          shasum -a 256 "$RUNNER_TEMP/app.dmg"
+
+      - name: Mount it, inspect it, run it
+        working-directory: artifacts/desktop
+        run: node scripts/verify-app-macos.mjs "$RUNNER_TEMP/app.dmg"
