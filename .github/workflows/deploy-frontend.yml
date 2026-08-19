@@ -168,12 +168,35 @@ jobs:
       # fails contrast against its actual background, content left at opacity 0
       # by reveal-on-scroll, overflow, and uncaught page errors.
       - name: Install Playwright
+        # Bounded and retried, which it was not. This step normally costs
+        # about a minute; on 19 August one slow mirror spent fifteen here and
+        # took the whole `flows` budget with it. That job does its real work in
+        # under three minutes, so the entire ceiling went to a step that tests
+        # nothing, and the run reported as cancelled with every actual check
+        # marked "skipped" -- a shape that reads like "the tests did not run"
+        # rather than "the download was slow", and sends you looking in the
+        # wrong place.
+        #
+        # Each attempt is capped so a hang cannot eat the budget, and there are
+        # two so a blip heals itself. Only a download is retried: no product
+        # failure can be retried into passing from here.
+        timeout-minutes: 11
         run: |
-          npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          fetch_playwright() {
+            timeout 120 npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright &&
+            timeout 180 "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          }
+          if ! fetch_playwright; then
+            echo "::warning title=Playwright install retried::The first attempt failed or ran over its cap."
+            sleep 10
+            fetch_playwright || {
+              echo "::error title=Playwright install failed twice::This is the browser download, not a product failure."
+              exit 1
+            }
+          fi
           mkdir -p artifacts/app/node_modules
           ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
             artifacts/app/node_modules/playwright-core
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
 
       # The built index.html IS the search result: the app renders client-side,
       # so these tags are all a crawler reads. Check the key phrase survived the
