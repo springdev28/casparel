@@ -44,6 +44,8 @@ const BASE = (process.argv[2] || "http://localhost:4319").replace(/\/$/, "");
 const EXIT_INCONCLUSIVE = 75;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXPORT_DIR = process.env.MOBILE_WEB_EXPORT || path.join(HERE, "..", ".expo", "web-export");
+/** Set MOBILE_AUDIT_SHOTS to a directory to keep a picture of every screen. */
+const SHOTS = process.env.MOBILE_AUDIT_SHOTS || null;
 
 /** The origin the app is hardcoded to talk to; see utils/api-host.ts. */
 const APP_ORIGIN = "https://casparel.com";
@@ -54,6 +56,8 @@ const PASSWORD = "mobile-Passw0rd!checks";
 const NAME = "Mobile Audit";
 /** Written for today, then looked for on the schedule screen. */
 const BLOCK_TITLE = "Audit revision block";
+/** Added through the API, then opened on its own screen. */
+const RESOURCE_TITLE = "Audit reading on tides";
 
 let failures = 0;
 let checks = 0;
@@ -170,7 +174,28 @@ function isInterestingFailure(url, status, signedIn) {
   return true;
 }
 
-/** Each tab, and a string that proves its own content arrived. */
+/**
+ * Every screen this walks, and a string that proves its own content arrived.
+ *
+ * A screen that renders its frame and none of its data is the failure mode
+ * worth catching, so each expectation names something only that screen's data
+ * can produce -- not its title, which the shell draws either way.
+ */
+function screens(resourceId) {
+  return [
+    ...TABS,
+    // The detail screens are reached by tapping a row, so nothing above ever
+    // renders them; they are also where the app spends most of its layout.
+    resourceId
+      ? { name: "resource detail", route: `/resource/${resourceId}`, expect: new RegExp(RESOURCE_TITLE) }
+      : null,
+    // The screen the whole Shipaton submission turns on. It renders before any
+    // store connection exists, which is the state CI is always in, so what is
+    // checked is that it says something rather than throwing.
+    { name: "paywall", route: "/paywall", expect: /Casparel|Plus|Pro|plan/i },
+  ].filter(Boolean);
+}
+
 const TABS = [
   { name: "dashboard", route: "/", expect: /Dashboard|Hi,/ },
   { name: "resources", route: "/resources", expect: /Resources/ },
@@ -311,6 +336,27 @@ async function main() {
         `date=${JSON.stringify(body.date)}`,
       );
     }
+    /*
+     * One resource, so the resource screens have something in them.
+     *
+     * The library is empty on a fresh database, and an empty list renders the
+     * same whether the screen works or not.
+     */
+    const resource = await fetch(`${BASE}/api/resources`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        title: RESOURCE_TITLE,
+        url: "https://openlibrary.org/works/OL1W",
+        description: "Added by the mobile screen audit.",
+        format: "article",
+        subject: "Physics",
+        gradeLevel: "Year 12",
+      }),
+    });
+    check("the server accepts a resource", resource.status === 201, `${resource.status}`);
+    const resourceId = resource.status === 201 ? (await resource.json()).id : null;
+
     await page.close();
 
     // Both schemes. The colours are checked in the mobile unit suite; what is
@@ -337,7 +383,7 @@ async function main() {
         }, origin?.localStorage ?? []);
       }
 
-      for (const tab of TABS) {
+      for (const tab of screens(resourceId)) {
         const tabPage = await context.newPage();
         tabPage.on("pageerror", (error) =>
           pageErrors.push(`${scheme} ${tab.name}: ${String(error).slice(0, 200)}`),
@@ -345,6 +391,12 @@ async function main() {
         await tabPage.goto(`${local}${tab.route}`, { waitUntil: "networkidle" });
         await tabPage.waitForTimeout(2500);
         const text = await tabPage.evaluate(() => document.body.innerText);
+        if (SHOTS) {
+          fs.mkdirSync(SHOTS, { recursive: true });
+          await tabPage.screenshot({
+            path: path.join(SHOTS, `${tab.name.replace(/\s+/g, "-")}-${scheme}.png`),
+          });
+        }
 
         check(`${scheme}: ${tab.name} renders`, tab.expect.test(text), text.replace(/\n+/g, " | ").slice(0, 140));
         check(`${scheme}: ${tab.name} does not throw`, !CRASHED.test(text));

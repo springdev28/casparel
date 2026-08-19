@@ -35,9 +35,20 @@ import {
  * the other way round. Numbers must match the server's tier tables. Free's AI
  * line is the taste: enough to see what the feature is, not enough to live on.
  */
+/**
+ * A name Feather actually has.
+ *
+ * This was `string`, and `<Feather name={icon as never}>` swallowed the rest,
+ * so `sparkles` -- which belongs to a different icon set -- typechecked,
+ * bundled, and rendered as a question mark in a grey square on the middle row
+ * of every plan, on the screen the whole subscription turns on. Nothing else
+ * would have caught it: a missing glyph is a valid character.
+ */
+type FeatherName = keyof typeof Feather.glyphMap;
+
 const BENEFITS: Record<
   'student' | 'teacher' | 'generic',
-  { icon: string; title: string; body: string }[]
+  { icon: FeatherName; title: string; body: string }[]
 > = {
   student: [
     {
@@ -46,7 +57,7 @@ const BENEFITS: Record<
       body: 'The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases — and an AI taste: 2 discovery searches a day, 2 deep reports per 30 days.',
     },
     {
-      icon: 'sparkles',
+      icon: 'zap',
       title: 'Student Plus',
       body: '400 activities, 150 goals, 75 lists and 40 canvases, with 30 AI discovery searches and 8 cited deep reports a day.',
     },
@@ -63,7 +74,7 @@ const BENEFITS: Record<
       body: 'One class of up to 30 with manual seating, seating suggestions and private notes — and an AI taste: 2 discovery searches a day, 2 deep reports per 30 days.',
     },
     {
-      icon: 'sparkles',
+      icon: 'zap',
       title: 'Teacher Plus',
       body: '8 classes of up to 150 members, 250 activities, and 20 AI discovery searches with 5 cited deep reports a day.',
     },
@@ -80,7 +91,7 @@ const BENEFITS: Record<
       body: 'One class of 30, 25 activities, 10 goals and 5 lists — and a small taste of AI discovery and deep research.',
     },
     {
-      icon: 'sparkles',
+      icon: 'zap',
       title: 'Plus',
       body: '5 classes of 100, 250 activities, 100 goals and 50 lists, with 20 AI discovery searches and 5 deep reports a day.',
     },
@@ -92,7 +103,7 @@ const BENEFITS: Record<
   ],
 };
 
-function BenefitRow({ icon, title, body }: { icon: string; title: string; body: string }) {
+function BenefitRow({ icon, title, body }: { icon: FeatherName; title: string; body: string }) {
   const colors = useColors();
   return (
     <View style={styles.benefitRow}>
@@ -105,7 +116,7 @@ function BenefitRow({ icon, title, body }: { icon: string; title: string; body: 
           },
         ]}
       >
-        <Feather name={icon as never} size={18} color={colors.primary} />
+        <Feather name={icon} size={18} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text

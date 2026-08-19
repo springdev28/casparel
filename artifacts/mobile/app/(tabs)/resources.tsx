@@ -64,7 +64,8 @@ function useOembedThumbnail(url: string, enabled: boolean) {
   });
 }
 
-const FORMAT_ICONS: Record<string, string> = {
+/** Feather's own names, so a glyph it does not have cannot be asked for. */
+const FORMAT_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
   article: 'file-text',
   video: 'video',
   pdf: 'file',
@@ -133,7 +134,7 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
             { backgroundColor: colors.primary + '15', borderRadius: colors.radius - 2 },
           ]}
         >
-          <Feather name={formatIcon as never} size={16} color={colors.primary} />
+          <Feather name={formatIcon} size={16} color={colors.primary} />
         </View>
         <View style={styles.cardHeaderText}>
           <Text
