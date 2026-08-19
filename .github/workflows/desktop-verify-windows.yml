@@ -1,0 +1,62 @@
+name: Verify the Windows app
+
+# Installs a published .exe on a real Windows machine and checks the app it
+# installs starts.
+#
+# The counterpart of "Verify the macOS app", and the platform where this matters
+# most: nobody on this project has a Windows machine, so a hosted runner is not
+# just the convenient way to answer the question, it is the only way. Until this
+# existed, the Windows installer was the one artifact that had been produced and
+# never run.
+#
+# Run it from the Actions tab against any published tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to verify (e.g. desktop-v1.0.0)'
+        type: string
+        required: true
+        default: desktop-v1.0.0
+
+concurrency:
+  group: desktop-verify-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No pnpm install: the check is plain Node with no dependencies, and it
+      # deliberately tests the SHIPPED installer rather than anything built
+      # here. Installing the workspace would only add a way for this to pass
+      # while the released artifact is broken.
+      - name: Download the released installer
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#desktop-v}"
+          # windows-latest is x64. Take the installer this machine can run, so
+          # "it installs and starts" is a real result rather than a skipped one.
+          asset="Casparel-${version}-x64.exe"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
+          echo "Fetching ${asset}"
+          if ! curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/app.exe" "$url"; then
+            echo "::error title=Asset not found::${url} could not be downloaded. Check the tag and the asset name."
+            exit 1
+          fi
+          ls -l "$RUNNER_TEMP/app.exe"
+          sha256sum "$RUNNER_TEMP/app.exe"
+
+      - name: Install it, inspect it, run it
+        working-directory: artifacts/desktop
+        run: node scripts/verify-app-windows.mjs "$env:RUNNER_TEMP\app.exe"
