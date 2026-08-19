@@ -698,7 +698,18 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
       res.json(responseData);
     } catch (err) {
       console.error("Source review AI error:", err);
-      res.status(502).json({ error: "Failed to fetch source review" });
+      /*
+       * A sentence for a reader, because the client shows this one.
+       *
+       * It said "Failed to fetch source review", which is a log line. Deep
+       * research is the only thing that failed here -- the quick check reads
+       * the maintained registry and needs none of this -- and saying so is
+       * what lets somebody get their answer instead of giving up.
+       */
+      res.status(502).json({
+        error:
+          "Deep research is unavailable right now. The free source check still works.",
+      });
     } finally {
       if (deepUserId !== null) activeDeepUsers.delete(deepUserId);
       activeReviews.delete(reviewKey);

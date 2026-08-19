@@ -6,6 +6,32 @@
  * (Casparel, Google Classroom, Quizlet, Teacher Pro …) stay untranslated.
  */
 const PT: Record<string, string> = {
+  // The download page: which platforms Casparel runs on, and how to
+  // get it. Kept here rather than at the end of the file: every push
+  // that adds strings appends there, and two blocks growing at the
+  // same line conflict on every single merge.
+  "Download Casparel": "Baixar o Casparel",
+  "The same workspace, on whatever you study with": "O mesmo espaço de trabalho, no que você usar para estudar",
+  "Your library, classes, schedule and source research are one account. Sign in on a second device and everything is already there: nothing to export, nothing to sync.": "Sua biblioteca, suas turmas, seu cronograma e suas pesquisas de fontes ficam em uma única conta. Entre em um segundo dispositivo e tudo já está lá: nada para exportar, nada para sincronizar.",
+  "You are using the desktop app. The mobile apps below sign in to the same account.": "Você está usando o aplicativo para computador. Os aplicativos móveis abaixo entram na mesma conta.",
+  "Platforms": "Plataformas",
+  "Mac, Windows and Linux": "Mac, Windows e Linux",
+  "Not on the App Store yet. Casparel runs in Safari today.": "Ainda não está na App Store. Hoje o Casparel funciona no Safari.",
+  "Not on Google Play yet. Casparel runs in Chrome today.": "Ainda não está no Google Play. Hoje o Casparel funciona no Chrome.",
+  "No public installers yet. Casparel runs in any browser today.": "Ainda não há instaladores públicos. Hoje o Casparel funciona em qualquer navegador.",
+  "Your device": "Seu dispositivo",
+  "Or stay in the browser": "Ou continue no navegador",
+  "Everything works in your browser today": "Hoje tudo funciona no seu navegador",
+  "Casparel is a full web app, not a preview of the native ones. The library, classes, canvases, schedules and AI source research all run in a browser tab, on the same account you would use on a phone.": "O Casparel é um aplicativo web completo, não uma prévia dos nativos. A biblioteca, as turmas, as telas, os cronogramas e a pesquisa de fontes com IA funcionam todos em uma aba do navegador, na mesma conta que você usaria no telefone.",
+  "Download for iPhone": "Baixar para iPhone",
+  "Get it on Google Play": "Baixar no Google Play",
+  "Download for desktop": "Baixar para computador",
+  "iPhone and iPad, from the App Store.": "iPhone e iPad, na App Store.",
+  "Android phones and tablets, from Google Play.": "Telefones e tablets Android, no Google Play.",
+  "macOS, Windows and Linux.": "macOS, Windows e Linux.",
+  "All download options": "Todas as opções de download",
+  "Where Casparel runs": "Onde o Casparel funciona",
+
   "Activities": "Atividades",
   "No plans": "Sem planos",
   "Activity complete": "Atividade concluída",
@@ -1014,28 +1040,13 @@ const PT: Record<string, string> = {
   "Checked against the source registry: who publishes it, how it is licensed, and how it is served.": "Verificado no registo de fontes: quem o publica, com que licença e como é servido.",
   "Browse topics": "Explorar temas",
   "Community snapshot": "Resumo da comunidade",
-  // The download page: which platforms Casparel runs on, and how to get it.
-  "Download Casparel": "Baixar o Casparel",
-  "The same workspace, on whatever you study with": "O mesmo espaço de trabalho, no que você usar para estudar",
-  "Your library, classes, schedule and source research are one account. Sign in on a second device and everything is already there: nothing to export, nothing to sync.": "Sua biblioteca, suas turmas, seu cronograma e suas pesquisas de fontes ficam em uma única conta. Entre em um segundo dispositivo e tudo já está lá: nada para exportar, nada para sincronizar.",
-  "You are using the desktop app. The mobile apps below sign in to the same account.": "Você está usando o aplicativo para computador. Os aplicativos móveis abaixo entram na mesma conta.",
-  "Platforms": "Plataformas",
-  "Mac, Windows and Linux": "Mac, Windows e Linux",
-  "Not on the App Store yet. Casparel runs in Safari today.": "Ainda não está na App Store. Hoje o Casparel funciona no Safari.",
-  "Not on Google Play yet. Casparel runs in Chrome today.": "Ainda não está no Google Play. Hoje o Casparel funciona no Chrome.",
-  "No public installers yet. Casparel runs in any browser today.": "Ainda não há instaladores públicos. Hoje o Casparel funciona em qualquer navegador.",
-  "Your device": "Seu dispositivo",
-  "Or stay in the browser": "Ou continue no navegador",
-  "Everything works in your browser today": "Hoje tudo funciona no seu navegador",
-  "Casparel is a full web app, not a preview of the native ones. The library, classes, canvases, schedules and AI source research all run in a browser tab, on the same account you would use on a phone.": "O Casparel é um aplicativo web completo, não uma prévia dos nativos. A biblioteca, as turmas, as telas, os cronogramas e a pesquisa de fontes com IA funcionam todos em uma aba do navegador, na mesma conta que você usaria no telefone.",
-  "Download for iPhone": "Baixar para iPhone",
-  "Get it on Google Play": "Baixar no Google Play",
-  "Download for desktop": "Baixar para computador",
-  "iPhone and iPad, from the App Store.": "iPhone e iPad, na App Store.",
-  "Android phones and tablets, from Google Play.": "Telefones e tablets Android, no Google Play.",
-  "macOS, Windows and Linux.": "macOS, Windows e Linux.",
-  "All download options": "Todas as opções de download",
-  "Where Casparel runs": "Onde o Casparel funciona",
+  "Deep research is unavailable right now. The free source check still works.": "A pesquisa aprofundada está indisponível neste momento. A verificação gratuita da fonte continua a funcionar.",
+  "Run the free source check instead": "Executar antes a verificação gratuita da fonte",
+  "Reads the maintained provenance registry. No AI, no allowance.": "Consulta o registo de proveniência mantido. Sem IA, sem limite.",
+  "A deep research request is already running. Please wait for it to finish.": "Já está a decorrer uma pesquisa aprofundada. Aguarde que termine.",
+  "Daily deep research limit reached.": "Limite diário de pesquisa aprofundada atingido.",
+  "Monthly deep research limit reached.": "Limite mensal de pesquisa aprofundada atingido.",
+  "Today’s deep research budget has been reached.": "O orçamento de pesquisa aprofundada de hoje foi atingido.",
 };
 
 export default PT;
