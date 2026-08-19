@@ -23,7 +23,8 @@
     "build:win": "pnpm run compile && electron-builder --win --publish never",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "smoke": "node scripts/run-smoke.mjs",
-    "verify:package": "node scripts/verify-package.mjs"
+    "verify:package": "node scripts/verify-package.mjs",
+    "test:verdicts": "node scripts/smoke-verdict.test.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

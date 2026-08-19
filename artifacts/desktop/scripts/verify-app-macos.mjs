@@ -39,6 +39,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { classifySmokeVerdict, smokeVerdict } from "./smoke-verdict.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXIT_INCONCLUSIVE = 75;
@@ -309,11 +310,6 @@ const server = http.createServer((request, response) => {
   response.writeHead(200, { "content-type": "text/html" }).end(body);
 });
 
-function smokeVerdict(output) {
-  const line = output.split("\n").find((entry) => entry.startsWith("SMOKE:"));
-  return line ? line.slice("SMOKE:".length).trim() : null;
-}
-
 const launched = await new Promise((resolve) => {
   server.listen(PORT, "127.0.0.1", () => {
     const child = spawn(
@@ -389,36 +385,44 @@ check(
   launched.ok ? "" : `${launched.why}\n     --- app output ---\n${appOutput}`,
 );
 
-// The window opened AND the page it loaded cannot reach Node. Reaching this
-// point with anything else means the shell is running remote content with more
-// privilege than it should have.
+// The window opened; separately, what did it say about itself?
 //
-// Unless the app is simply older than the question. reportSmokeResult falls
-// through to its embed scenario for any mode it does not recognise, and that
-// scenario answers "app-intact" or "window-lost" — so those two verdicts are
-// not a hardening result at all, they are an app built before the hardening
-// mode existed. desktop-v1.0.0 is exactly that: built at 18:21, an hour and
-// three quarters before the mode was added, and this check called it a defect
-// on every run.
+// Three outcomes, not two, and the middle one cost a false alarm to learn.
+// reportSmokeResult falls through to its embed scenario for any mode it does
+// not recognise, so a build older than the hardening probe answers from that
+// branch instead. desktop-v1.0.0 is exactly that -- built before the mode
+// existed -- and reading its answer as a failed hardening check reported a
+// security defect in an app with nothing wrong with it. A release check that
+// cries wolf on the older releases it exists to check is worse than no check.
 //
-// A hardening-aware app can only answer "hardened" or "node reachable from the
-// page: …", so anything else is the older shell and the check is skipped with
-// its reason rather than failed.
-const EMBED_VERDICTS = new Set(["app-intact", "window-lost"]);
+// "app-intact" is that branch's healthy answer, so it is a skip: nothing was
+// measured, which is not the same as something being wrong.
+//
+// "window-lost" is NOT. It means the window ended on a data: URL -- the offline
+// page -- so the app failed to load the page it was handed, and this script
+// hands it a local server that answers. Skipping it would leave a hole: the
+// launch check above passes on any SMOKE line at all, so a build that never
+// loaded anything would report a launch and a skip and come out green.
+//
+// Everything else fails, including "node reachable from the page: ...", which
+// is the finding the probe exists for. The classification is a pure function
+// with the cases pinned down in smoke-verdict.test.mjs, so this reasoning is
+// tested rather than asserted -- and testable at all, which it was not while it
+// lived inside a script that exits on anything but macOS.
 if (launched.ok) {
-  if (EMBED_VERDICTS.has(verdict)) {
+  const label = "the packaged window is hardened against the page it loads";
+  const classified = classifySmokeVerdict(verdict);
+  if (classified.kind === "hardened") {
+    check(label, true);
+  } else if (classified.kind === "unsupported") {
     skip(
-      "the packaged window is hardened against the page it loads",
-      `this build predates the hardening hook: it answered "${verdict}", which is ` +
-        `the embed scenario it falls back to for a mode it does not know. ` +
-        `Cut a release from a commit that has the hook and this check runs.`,
+      label,
+      `this build predates the hardening hook: it answered "${verdict}", the ` +
+        `embed scenario it falls back to for a mode it does not know. Cut a ` +
+        `release from a commit that has the hook and this check runs.`,
     );
   } else {
-    check(
-      "the packaged window is hardened against the page it loads",
-      verdict === "hardened",
-      `the app reported "${verdict}" rather than "hardened"`,
-    );
+    check(label, false, classified.reason);
   }
 }
 
