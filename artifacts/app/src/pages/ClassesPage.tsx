@@ -520,7 +520,10 @@ export default function ClassesPage() {
       ) : !classes || classes.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Users size={40} className="text-muted-foreground mb-4" />
-          <h3 className="font-semibold text-foreground">No classes yet</h3>
+          {/* h2, not h3: this sits directly under the page's h1, and a skipped
+              level is a hole in the outline a screen reader navigates by. The
+              class controls the size, so nothing moves. */}
+          <h2 className="font-semibold text-foreground">No classes yet</h2>
           <p className="text-sm text-muted-foreground mt-1">
             {isTeacher
               ? 'Create your first class or import one from Google Classroom.'

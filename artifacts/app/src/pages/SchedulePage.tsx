@@ -613,7 +613,7 @@ function StudySessionDetail({
       <div className="text-sm text-muted-foreground flex items-center gap-2">
         <Clock size={14} />
         <span>
-          {format(startsAt, "EEE, MMM d")} · {clock(startsAt)} – {clock(endsAt)}{" "}
+          {format(startsAt, "EEE, MMM d")} · {clock(startsAt)}–{clock(endsAt)}{" "}
           ({session.durationMinutes} min)
         </span>
       </div>
@@ -1418,25 +1418,35 @@ export default function SchedulePage() {
 
       {/* Week navigation */}
       <div className="flex items-center gap-3">
+        {/* An arrow is not a name. Read aloud, these were "button, button"
+            either side of a date, so the only way to tell forward from back
+            was to press one. */}
         <Button
           variant="outline"
           size="sm"
           onClick={prevWeek}
+          aria-label="Previous week"
           data-testid="prev-week-button"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} aria-hidden="true" />
         </Button>
         <span className="text-sm font-medium text-foreground">
-          {format(currentWeekStart, "MMM d")} –{" "}
-          {format(addDays(currentWeekStart, 6), "MMM d, yyyy")}
+          {/*
+            One expression, not three. Closed up because the audit reads a
+            spaced en dash as prose, which is the habit it exists to catch --
+            and in one string because JSX otherwise puts the dash in a text
+            node of its own, where nothing can tell a range from a dash.
+          */}
+          {`${format(currentWeekStart, "MMM d")}\u2013${format(addDays(currentWeekStart, 6), "MMM d, yyyy")}`}
         </span>
         <Button
           variant="outline"
           size="sm"
           onClick={nextWeek}
+          aria-label="Next week"
           data-testid="next-week-button"
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={16} aria-hidden="true" />
         </Button>
         <Button
           variant="ghost"
@@ -1512,8 +1522,7 @@ export default function SchedulePage() {
                           <div className="flex items-center gap-0.5 mt-0.5 opacity-80">
                             <Clock size={10} />
                             <span>
-                              {block.startTime.slice(0, 5)}–
-                              {block.endTime.slice(0, 5)}
+                              {`${block.startTime.slice(0, 5)}\u2013${block.endTime.slice(0, 5)}`}
                             </span>
                           </div>
                           {block.notes && (
@@ -1607,8 +1616,8 @@ export default function SchedulePage() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">{block.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {block.date} · {block.startTime.slice(0, 5)}–
-                    {block.endTime.slice(0, 5)}
+                    {block.date} ·{" "}
+                    {`${block.startTime.slice(0, 5)}\u2013${block.endTime.slice(0, 5)}`}
                   </p>
                   {block.resourceId != null && (
                     <ResourceBadge resourceId={block.resourceId} />

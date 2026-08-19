@@ -1498,6 +1498,10 @@ export default function ForumPage({
                     onChange={(event) => setPostQuery(event.target.value)}
                     onKeyDown={(event) => event.key === "Enter" && loadPosts()}
                     placeholder="Search the feed..."
+                    // A placeholder is not a label: it disappears the moment
+                    // you type, and a screen reader announces "edit text" with
+                    // nothing else. The button beside it already says this.
+                    aria-label="Search the feed"
                     className="pl-9"
                   />
                 </div>
