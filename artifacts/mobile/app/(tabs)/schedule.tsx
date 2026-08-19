@@ -36,7 +36,17 @@ import { ErrorState } from '@/components/ErrorState';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { useLanguage } from '@/contexts/LanguageContext';
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/**
+ * Day and month names come from Intl, not from an array in here.
+ *
+ * There were two such arrays, both English, and no dictionary could have
+ * replaced them: the strip shows seven weekdays and they change every week,
+ * so there is no fixed string to translate. A Turkish reader got a screen
+ * headed "Program" with "Mon Tue Wed Thu Fri Sat" under it.
+ */
+function weekdayLabel(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date);
+}
 
 function getMondayOfWeek(date: Date): Date {
   const d = new Date(date);
@@ -54,23 +64,41 @@ function formatDateParam(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function formatTime(time: string): string {
-  const [h, m] = time.split(':');
-  const hour = parseInt(h, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const hour12 = hour % 12 || 12;
-  return `${hour12}:${m} ${ampm}`;
+/** A Date on the 24-hour dial, in the reader's language. */
+function clock(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
 }
 
-function formatDateTime(iso: string): string {
+/**
+ * Twenty-four hours, on the phone too.
+ *
+ * A schedule block stores "09:00" and the phone was drawing it as "9:00 AM"
+ * while the web app drew "09:00" from the same row -- the same two-clocks
+ * problem the web resolved, only spread across two clients instead of one
+ * screen. Same resolution, same reason: it is the form the data is in, and
+ * the form five of the six languages use.
+ */
+function formatTime(time: string): string {
+  return time.slice(0, 5);
+}
+
+function formatDateTime(iso: string, locale: string): string {
   const d = new Date(iso);
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} · ${h12}:${m} ${ampm}`;
+  const day = new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(d);
+  const time = new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d);
+  return `${day} · ${time}`;
 }
 
 /** Regular schedule block card */
@@ -114,19 +142,13 @@ function StudySessionCard({
   session: StudySessionWithParticipants;
   onPress: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, intlLocale } = useLanguage();
   const colors = useColors();
   const violet = sessionPalette(useColorScheme());
   const isPending = session.myStatus === 'pending';
   const startsAt = new Date(session.startsAt);
   const endsAt = new Date(startsAt.getTime() + session.durationMinutes * 60 * 1000);
 
-  const h1 = startsAt.getHours(), m1 = String(startsAt.getMinutes()).padStart(2, '0');
-  const ampm1 = h1 >= 12 ? 'PM' : 'AM';
-  const h12_1 = h1 % 12 || 12;
-  const h2 = endsAt.getHours(), m2 = String(endsAt.getMinutes()).padStart(2, '0');
-  const ampm2 = h2 >= 12 ? 'PM' : 'AM';
-  const h12_2 = h2 % 12 || 12;
 
   return (
     <Pressable
@@ -153,7 +175,7 @@ function StudySessionCard({
         )}
       </View>
       <Text style={[styles.blockTime, { color: violet.accentText, fontFamily: colors.fontFamily.sansMedium }]}>
-        {h12_1}:{m1} {ampm1} – {h12_2}:{m2} {ampm2}
+        {clock(startsAt, intlLocale)} – {clock(endsAt, intlLocale)}
       </Text>
       <View style={styles.sessionMeta}>
         <View style={[styles.collaborativeBadge, { backgroundColor: violet.surfacePressed }]}>
@@ -181,7 +203,7 @@ function StudySessionDetailSheet({
   onRsvp: (sessionId: number, status: 'accepted' | 'declined') => void;
   rsvpLoading: boolean;
 }) {
-  const { t } = useLanguage();
+  const { t, intlLocale } = useLanguage();
   const colors = useColors();
   const violet = sessionPalette(useColorScheme());
   const insets = useSafeAreaInsets();
@@ -189,9 +211,6 @@ function StudySessionDetailSheet({
 
   const startsAt = new Date(session.startsAt);
   const endsAt = new Date(startsAt.getTime() + session.durationMinutes * 60 * 1000);
-  const h2 = endsAt.getHours(), m2 = String(endsAt.getMinutes()).padStart(2, '0');
-  const ampm2 = h2 >= 12 ? 'PM' : 'AM';
-  const h12_2 = h2 % 12 || 12;
 
   function handleJoin() {
     Linking.openURL(session!.meetingUrl).catch(() => {});
@@ -227,7 +246,7 @@ function StudySessionDetailSheet({
           <View style={[styles.infoRow, { backgroundColor: colors.muted, borderRadius: colors.radius }]}>
             <Text style={{ fontSize: 16 }}>🕐</Text>
             <Text style={[styles.infoText, { color: colors.foreground, fontFamily: colors.fontFamily.sans }]}>
-              {formatDateTime(session.startsAt)} – {h12_2}:{m2} {ampm2}{'\n'}
+              {formatDateTime(session.startsAt, intlLocale)} – {clock(endsAt, intlLocale)}{'\n'}
               <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{session.durationMinutes} minutes</Text>
             </Text>
           </View>
@@ -376,7 +395,7 @@ function CreateStudySessionModal({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, intlLocale } = useLanguage();
   const colors = useColors();
   const violet = sessionPalette(useColorScheme());
   const insets = useSafeAreaInsets();
@@ -701,7 +720,7 @@ type ListItem =
   | { type: 'session'; data: StudySessionWithParticipants };
 
 export default function ScheduleScreen() {
-  const { t } = useLanguage();
+  const { t, intlLocale } = useLanguage();
   const colors = useColors();
   const violet = sessionPalette(useColorScheme());
   const insets = useSafeAreaInsets();
@@ -831,8 +850,8 @@ export default function ScheduleScreen() {
 
         {/* Day Selector */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dayScroll}>
-          {DAY_LABELS.map((label, i) => {
-            const date = weekDates[i];
+          {weekDates.map((date, i) => {
+            const label = weekdayLabel(date, intlLocale);
             const dayNum = date.getDate();
             const isSelected = i === selectedDay;
             const isToday = formatDateParam(date) === formatDateParam(new Date());
@@ -924,7 +943,10 @@ export default function ScheduleScreen() {
             <Empty
               icon="calendar"
               title={t('No events scheduled')}
-              description={`Nothing scheduled for ${DAY_LABELS[selectedDay]}`}
+              // The selected day is highlighted in the strip directly above,
+              // so naming it here added nothing and cost the sentence its
+              // translation -- an interpolated string has no dictionary key.
+              description={t('Nothing scheduled for this day')}
             />
           }
           showsVerticalScrollIndicator={false}

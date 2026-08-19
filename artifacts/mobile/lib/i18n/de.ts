@@ -150,6 +150,7 @@ const DE: Record<string, string> = {
   "Not now": "Jetzt nicht",
   "Not set": "Nicht angegeben",
   "Not yet reviewed, check the source before you rely on it.": "Noch nicht geprüft; sieh dir die Quelle an, bevor du dich auf sie verlässt.",
+  "Nothing scheduled for this day": "Für diesen Tag ist nichts geplant",
   "Nothing to restore": "Nichts wiederherzustellen",
   "One class of 30, 25 activities, 10 goals and 5 lists — and a small taste of AI discovery and deep research.": "Eine Klasse mit 30 Personen, 25 Aktivitäten, 10 Ziele und 5 Listen – dazu ein kleiner Vorgeschmack auf KI-Entdeckung und Tiefenrecherche.",
   "One class of up to 30 with manual seating, seating suggestions and private notes — and an AI taste: 2 discovery searches a day, 2 deep reports per 30 days.": "Eine Klasse mit bis zu 30 Personen, mit manuellem Sitzplan, Sitzvorschlägen und privaten Notizen – dazu ein Vorgeschmack auf die KI: 2 Entdeckungssuchen pro Tag, 2 Tiefenberichte je 30 Tage.",
