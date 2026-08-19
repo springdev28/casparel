@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/utils/secure-storage";
 import type { User } from "@workspace/api-client-react";
 
@@ -19,6 +20,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,6 +68,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await storage.deleteItemAsync(LEGACY_USER_KEY);
     setToken(null);
     setUser(null);
+    /*
+     * The answers, not just the key to ask for more.
+     *
+     * Signing out cleared the token and the stored user and left every cached
+     * response in memory: the schedule, the classes, the profile, the activity
+     * feed. QueryClientProvider sits above this provider, so nothing unmounts
+     * it and nothing empties it. The next person to sign in on the same phone
+     * mounts those screens, and React Query hands them the cached entry first
+     * and refetches behind it -- so they are shown the last person's day
+     * before their own arrives.
+     *
+     * Schools share devices. That is the case, not the edge case.
+     *
+     * The web app has cleared the cache on sign-out for this reason; this is
+     * the same line. Reasoned from the code rather than filmed: Alert.alert's
+     * buttons do not fire on react-native-web, so the harness that renders
+     * this app cannot press "Sign out" to watch it happen.
+     */
+    queryClient.clear();
   };
 
   const updateToken = async (newToken: string) => {
