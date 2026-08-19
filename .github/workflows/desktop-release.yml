@@ -127,6 +127,15 @@ jobs:
         working-directory: artifacts/desktop
         run: node scripts/verify-app-macos.mjs
 
+      # And the third platform, which was the last one where nothing had ever
+      # run what ships. It installs the .exe silently, reads the metadata
+      # Windows shows in a file's Properties, checks the scheme registration
+      # and the uninstaller, then starts the installed application.
+      - name: Check the Windows app runs
+        if: matrix.artifact == 'windows'
+        working-directory: artifacts/desktop
+        run: node scripts/verify-app-windows.mjs
+
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:

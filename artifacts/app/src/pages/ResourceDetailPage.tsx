@@ -1523,7 +1523,7 @@ export default function ResourceDetailPage() {
           <ResourceEmbed url={resource.url} />
 
           {resource.description && (
-            <p className="text-sm text-muted-foreground">
+            <p translate="no" className="text-sm text-muted-foreground">
               {resource.description}
             </p>
           )}
@@ -1568,8 +1568,14 @@ export default function ResourceDetailPage() {
                     ? [["assignmentCreated", "5", "Create assignment"]]
                     : []),
                 ].map(([key, number, label]) => {
+                  // `?.steps?.[…]`, both of them. The outer chain guards
+                  // a missing workflow and the inner one guards a workflow
+                  // that arrived without its steps -- and only the second
+                  // kind took the page down, which is the opposite of what
+                  // loadWorkflow's catch promises ("the resource remains
+                  // usable if analytics are temporarily unavailable").
                   const complete = Boolean(
-                    workflow?.steps[key as keyof ResourceWorkflow["steps"]],
+                    workflow?.steps?.[key as keyof ResourceWorkflow["steps"]],
                   );
                   return (
                     <div

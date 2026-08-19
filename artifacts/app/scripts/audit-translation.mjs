@@ -39,12 +39,6 @@ const PAGES = (
 )
   .split(",")
   .filter(Boolean);
-// NOTE: /resources/<id> is deliberately absent. Its fixtures are in place
-// (see audit-fixtures.mjs) but the detail page requests more endpoints than
-// they cover and renders its error boundary, which would report the error
-// page's own strings as translation gaps. Its strings were added to every
-// dictionary by hand; wiring the remaining fixtures is the way to cover it
-// here properly.
 /*
  * Every signed-in route the page audit renders, not the six this list started
  * with. The two audits had drifted apart: the render audit grew to sixteen
@@ -58,7 +52,13 @@ const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
   "/dashboard,/profile,/resources,/catalog,/settings,/plans," +
     "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people," +
-    "/canvas,/admin"
+    "/canvas,/admin," +
+    // The resource detail page, which was left out for a long time because it
+    // rendered its error boundary: one endpoint had no fixture, the default
+    // empty array reached `workflow?.steps[key]`, and the page crashed. Both
+    // halves are fixed, so the page this product's headline feature lives on
+    // is finally read in every language.
+    "/resources/101"
 )
   .split(",")
   .filter(Boolean);

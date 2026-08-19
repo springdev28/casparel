@@ -314,6 +314,28 @@ export const FIXTURES = {
   // without a fixture the audit renders an error page and reports nothing.
   "/api/resources/101": RESOURCE,
   "/api/resources/101/reviews": [],
+  /*
+   * The detail page's workflow strip. Without it the unfixtured default -- an
+   * empty array -- reached `workflow?.steps[key]`, which is truthy with no
+   * `steps` on it, and the page rendered its error boundary. That is why the
+   * detail page had been left out of the translation audit, so its strings,
+   * and the source-review panel that is this product's headline feature, were
+   * never read in any language.
+   */
+  "/api/workflow/resources/101": {
+    resourceId: 101,
+    steps: {
+      reviewed: true,
+      saved: true,
+      activityCreated: false,
+      classShared: false,
+      assignmentCreated: false,
+    },
+    assignmentRequired: false,
+    nextAction: "create_activity",
+    activity: null,
+    classShare: null,
+  },
   "/api/learning-goals": [LEARNING_GOAL],
   "/api/learning-evidence": [],
   "/api/assignments/today": [],
