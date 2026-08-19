@@ -53,6 +53,12 @@ jobs:
       - name: API tests
         run: pnpm --filter @workspace/api-server exec vitest run
 
+      # The mobile app is what gets submitted to the stores, and it had no
+      # tests at all. It starts with the purchase-error classifier, because a
+      # payment flow is the last place to find out something is wrong.
+      - name: Mobile tests
+        run: pnpm --filter @workspace/mobile run test
+
       - name: Build the web app
         run: pnpm --filter @workspace/app run build
         env:

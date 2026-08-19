@@ -200,12 +200,72 @@ export default function PaywallScreen() {
       Alert.alert(`Welcome to Casparel ${TIER_TITLES[purchasedTier]}`, 'Your subscription features are now unlocked. Thank you!', [
         { text: 'Great', onPress: close },
       ]);
-    } else if (result === 'error') {
-      Alert.alert('Purchase failed', 'Something went wrong. Please try again.');
-    } else if (result === 'unsupported') {
-      Alert.alert('Not available here', 'In-app purchases are only available in the mobile app.');
+      return;
     }
-    // 'cancelled' → stay silent
+    if (result === 'cancelled') return; // they chose not to buy; say nothing
+
+    /*
+     * Every one of these was "Something went wrong. Please try again."
+     *
+     * Two of them are not failures. A pending purchase is waiting on a parent's
+     * approval or a bank's check and may complete by itself, so inviting a
+     * retry invites a second charge for something already in flight. And
+     * already-owned means the person has paid: answering them with "something
+     * went wrong" rather than restoring what they bought is the worst message
+     * a payment flow can produce.
+     */
+    if (result === 'pending') {
+      Alert.alert(
+        'Waiting for approval',
+        'Your purchase needs approval before it completes \u2014 from a parent, or from your bank. There is nothing to pay again; Casparel unlocks by itself once it goes through.',
+      );
+      return;
+    }
+    if (result === 'already-owned') {
+      Alert.alert(
+        'You already have this plan',
+        'This purchase is on your store account already. Restoring it links it to this device.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Restore purchases', onPress: () => void handleRestore() },
+        ],
+      );
+      return;
+    }
+    if (result === 'not-allowed') {
+      Alert.alert(
+        'Purchases are turned off on this device',
+        'This device does not allow in-app purchases \u2014 usually a school profile or Screen Time restriction. Your account and card are fine.',
+      );
+      return;
+    }
+    if (result === 'store-unavailable') {
+      Alert.alert(
+        'The store is not responding',
+        'The App Store or Google Play could not complete this right now. Nothing has been charged. Please try again shortly.',
+      );
+      return;
+    }
+    if (result === 'network') {
+      Alert.alert(
+        'No connection to the store',
+        'Check your connection and try again. Nothing has been charged.',
+      );
+      return;
+    }
+    if (result === 'configuration') {
+      // The maker's problem, not theirs, and no amount of retrying fixes it.
+      Alert.alert(
+        'Purchases are not set up yet',
+        'This plan cannot be bought on this build. Please let us know at support@casparel.com.',
+      );
+      return;
+    }
+    if (result === 'unsupported') {
+      Alert.alert('Not available here', 'In-app purchases are only available in the mobile app.');
+      return;
+    }
+    Alert.alert('Purchase failed', 'Something went wrong and nothing has been charged. Please try again.');
   }
 
   async function handleRestore() {

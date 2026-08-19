@@ -133,6 +133,18 @@ export interface PurchasesModule {
   removeCustomerInfoUpdateListener(listener: (info: RCCustomerInfo) => void): void;
 }
 
+/**
+ * Purchase failures are classified in their own module.
+ *
+ * It is pure -- no react-native import, no Platform -- so it can be tested
+ * directly. This file cannot be: it reaches for `Platform` at module scope,
+ * which does not exist off a device.
+ */
+export {
+  classifyPurchaseError,
+  type PurchaseFailure,
+} from "./purchase-errors";
+
 /** True when the app is running somewhere IAP can actually work. */
 export const purchasesSupported = Platform.OS === 'ios' || Platform.OS === 'android';
 

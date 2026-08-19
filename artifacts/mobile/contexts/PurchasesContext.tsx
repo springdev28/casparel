@@ -17,13 +17,27 @@ import {
   type SubscriptionTier,
   type TierLevel,
   type PurchasesModule,
+  classifyPurchaseError,
+  type PurchaseFailure,
   type RCCustomerInfo,
   type RCOffering,
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useAuth } from '@/contexts/AuthContext';
 
-export type PurchaseResult = 'success' | 'cancelled' | 'error' | 'unsupported';
+/**
+ * How a purchase ended.
+ *
+ * This was 'success' | 'cancelled' | 'error' | 'unsupported', which meant the
+ * paywall could only ever say "Something went wrong. Please try again." to
+ * somebody whose purchase is pending a parent's approval, or who has already
+ * paid and needs a restore. See PurchaseFailure for why each of these is
+ * worth telling apart.
+ */
+export type PurchaseResult =
+  | 'success'
+  | 'unsupported'
+  | Exclude<PurchaseFailure, never>;
 
 interface PurchasesContextValue {
   /** The SDK finished its first load (configured or definitively unavailable). */
@@ -163,13 +177,17 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         applyCustomerInfo(info);
         return 'success';
       } catch (e) {
-        if (e && typeof e === 'object' && (e as { userCancelled?: boolean }).userCancelled) {
-          return 'cancelled';
+        const failure = classifyPurchaseError(e);
+        // A pending purchase may complete on its own once a parent or a bank
+        // approves it, and an already-owned one is already paid for. Refresh
+        // so the app notices either without the person doing anything.
+        if (failure === 'pending' || failure === 'already-owned') {
+          void refresh();
         }
-        return 'error';
+        return failure;
       }
     },
-    [applyCustomerInfo],
+    [applyCustomerInfo, refresh],
   );
 
   const restore = useCallback(async (): Promise<boolean> => {
