@@ -249,6 +249,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Five files named *.db.test.ts had never run anywhere but a laptop.
+      # They skip themselves when VERIFY_DATABASE_URL is unset, and nothing set
+      # it -- so the suite that checks row-level security actually keeps one
+      # account's private messages and OAuth tokens out of the published
+      # PostgREST schema reported as "passed" by not running. So did the one
+      # that checks search finds anything at all.
+      #
+      # This is the only job with a database, which is why the step lives here.
+      # It gets a database of its own because these files empty every table
+      # they touch, and the flows below run against a server whose rows have to
+      # survive. `runMigrations()` is called by the shared lock helper, so an
+      # empty database is all this has to hand them.
+      - name: Database tests
+        env:
+          VERIFY_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/casparel_verify
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c 'create database casparel_verify'
+          cd artifacts/api-server
+          npx vitest run db.test.ts --reporter=default 2>&1 | tee "$RUNNER_TEMP/db-tests.log"
+          status=${PIPESTATUS[0]}
+          # A file that skips itself exits 0, which is how this went unnoticed
+          # for as long as it did. Green here has to mean tests ran.
+          if ! grep -qE 'Test Files +[1-9][0-9]* passed' "$RUNNER_TEMP/db-tests.log"; then
+            echo "::error title=Database tests did not run::VERIFY_DATABASE_URL is set, so they should not have skipped."
+            exit 1
+          fi
+          exit "$status"
+
       # Before the server, not after: the server's build copies the Vite output
       # beside its own entry point so one process serves both the SPA and /api.
       # Without this the build fails on a missing artifacts/app/dist/public,
