@@ -79,6 +79,20 @@ describe("the invitation notice", () => {
       classesRoute.includes("Accept or decline it from notifications"),
       "mobile has no notifications surface; name no surface at all",
     ).toBe(false);
-    expect(classesRoute).toContain("Accept or decline it in the app.");
+  });
+
+  it("records what happened rather than telling you to do it", () => {
+    /*
+     * The activity log is permanent. An instruction in it stays on the
+     * dashboard after it has been carried out -- "Accept or decline it in the
+     * app" sat above a Classes count of 1, a to-do that could never be ticked
+     * off. Accepting lives on the invitation card, which disappears when
+     * answered.
+     */
+    // Only what the route actually sends: the comment above the fix quotes
+    // the old sentence, and quoting it is not sending it.
+    const messages = [...classesRoute.matchAll(/message:\s*`([^`]*)`/g)].map((m) => m[1]);
+    expect(messages.filter((line) => /Accept or decline it/.test(line))).toEqual([]);
+    expect(messages.some((line) => line.startsWith("You were invited to join "))).toBe(true);
   });
 });

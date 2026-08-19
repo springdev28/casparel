@@ -541,12 +541,20 @@ router.post(
       userId: invitee.id,
       type: "class",
       workspaceRole: role,
-      // Not "from notifications": that is where the web app puts them, and the
-      // mobile app has no notifications surface at all -- a pupil holding a
-      // phone was told to open a screen that does not exist there. Both apps
-      // show the invitation where their reader will look (mobile on Classes),
-      // so this names no surface.
-      message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it in the app.`,
+      /*
+       * A record of what happened, not an instruction.
+       *
+       * This told the reader to accept or decline -- at least an improvement
+       * on "from notifications", a screen the phone does not have -- but the
+       * activity log is permanent. Once the invitation was accepted the row
+       * stayed on the dashboard telling the person to do something they had
+       * already done, with no way to clear it: a to-do that cannot be ticked
+       * off. Seen on the phone's own dashboard, above a Classes count of 1.
+       *
+       * The invitation card on the Classes tab is where accepting lives, on
+       * both apps, and it disappears when answered. This is the history.
+       */
+      message: `You were invited to join ${cls?.name ?? "a class"}.`,
     });
     res.status(201).json(await invitationView(invitation.id));
   },
@@ -665,7 +673,8 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
           userId: member.userId,
           type: "class" as const,
           workspaceRole: member.role,
-          message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it in the app.`,
+          // A record, not an instruction; see the single-invite route above.
+          message: `You were invited to join ${cls?.name ?? "a class"}.`,
         })),
       );
     });
