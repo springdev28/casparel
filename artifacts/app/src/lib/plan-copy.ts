@@ -185,7 +185,7 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       name: "Free",
       price: null,
       blurb:
-        "One class of 30, 25 activities, 10 goals and 5 lists, plus a small daily taste of AI discovery and deep research.",
+        "One class of 30, 25 activities, 10 goals and 5 lists, plus a small taste of AI discovery and deep research.",
       workspace: [
         "1 class, up to 30 members",
         "25 study activities",

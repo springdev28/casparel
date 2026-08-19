@@ -155,6 +155,21 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-loading.mjs
 
+      # The same rule for the other case an empty state gets used for. With the
+      # server unreachable the schedule drew "No plans" against all seven days
+      # of a week it had failed to fetch, classes said "You haven't joined any
+      # classes yet", and the dashboard reported no goal and no evidence --
+      # each a claim about the reader's own work, reached without asking. The
+      # schedule is the one somebody acts on: a free afternoon that is not
+      # free.
+      #
+      # Nothing else can catch it. An empty state is what a healthy new account
+      # is supposed to show, so every fixture-backed render agrees it is
+      # correct; the only way to see it is to break the network and read.
+      - name: Audit offline states
+        working-directory: artifacts/app
+        run: node scripts/audit-offline.mjs
+
       # Drives auth state rather than rendering: an expired or server-rejected
       # session must return the user to the login page, and a valid one must
       # not be ejected.
@@ -249,6 +264,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Five files named *.db.test.ts had never run anywhere but a laptop.
+      # They skip themselves when VERIFY_DATABASE_URL is unset, and nothing set
+      # it -- so the suite that checks row-level security actually keeps one
+      # account's private messages and OAuth tokens out of the published
+      # PostgREST schema reported as "passed" by not running. So did the one
+      # that checks search finds anything at all.
+      #
+      # This is the only job with a database, which is why the step lives here.
+      # It gets a database of its own because these files empty every table
+      # they touch, and the flows below run against a server whose rows have to
+      # survive. `runMigrations()` is called by the shared lock helper, so an
+      # empty database is all this has to hand them.
+      - name: Database tests
+        env:
+          VERIFY_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/casparel_verify
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c 'create database casparel_verify'
+          cd artifacts/api-server
+          npx vitest run db.test.ts --reporter=default 2>&1 | tee "$RUNNER_TEMP/db-tests.log"
+          status=${PIPESTATUS[0]}
+          # A file that skips itself exits 0, which is how this went unnoticed
+          # for as long as it did. Green here has to mean tests ran.
+          if ! grep -qE 'Test Files +[1-9][0-9]* passed' "$RUNNER_TEMP/db-tests.log"; then
+            echo "::error title=Database tests did not run::VERIFY_DATABASE_URL is set, so they should not have skipped."
+            exit 1
+          fi
+          exit "$status"
+
       # Before the server, not after: the server's build copies the Vite output
       # beside its own entry point so one process serves both the SPA and /api.
       # Without this the build fails on a missing artifacts/app/dist/public,
@@ -261,6 +305,13 @@ jobs:
 
       - name: Build the API server
         run: pnpm --filter @workspace/api-server run build
+
+      # The phone app, in a form a browser can render. The store submission is
+      # this app and CI only ever asked Metro to bundle it, which proves the
+      # modules resolve and nothing else: every screen could throw on its first
+      # render and the bundle step would still pass.
+      - name: Build the mobile app for the web
+        run: pnpm --filter @workspace/mobile exec expo export --platform web --output-dir .expo/web-export
 
       # Same out-of-tree install as the check job: playwright-core is a tool
       # here, not something the bundle depends on.
@@ -331,6 +382,28 @@ jobs:
           set -e
           if [ "$status" = "75" ]; then
             echo "::warning::Live UI run was inconclusive, not a product failure."
+            exit 0
+          fi
+          exit "$status"
+
+      # Same idea, for the app that gets submitted to the stores. It registers
+      # through the real register screen, walks all five tabs in both colour
+      # schemes, and checks that a schedule block written through the API turns
+      # up on the schedule -- which is the one that mattered: the server sent
+      # `date` as a timestamp against a contract of a date, the phone compared
+      # it to a YYYY-MM-DD string, and every schedule block on every phone was
+      # invisible behind a tidy "No events scheduled".
+      #
+      # Second, for the same reason the live UI run is first: both share one
+      # rate-limit budget and this needs only one account.
+      - name: Drive the phone app against the real server
+        run: |
+          set +e
+          node artifacts/mobile/scripts/audit-screens.mjs http://localhost:4319
+          status=$?
+          set -e
+          if [ "$status" = "75" ]; then
+            echo "::warning::Mobile screen run was inconclusive, not a product failure."
             exit 0
           fi
           exit "$status"

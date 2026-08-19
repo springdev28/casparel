@@ -21,6 +21,8 @@ import { useListResources } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { Resource } from '@workspace/api-client-react';
 import { apiOrigin } from '@/utils/api-host';
+import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
+import { ErrorState } from '@/components/ErrorState';
 
 function getYouTubeId(url: string): string | null {
   try {
@@ -64,7 +66,8 @@ function useOembedThumbnail(url: string, enabled: boolean) {
   });
 }
 
-const FORMAT_ICONS: Record<string, string> = {
+/** Feather's own names, so a glyph it does not have cannot be asked for. */
+const FORMAT_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
   article: 'file-text',
   video: 'video',
   pdf: 'file',
@@ -133,7 +136,7 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
             { backgroundColor: colors.primary + '15', borderRadius: colors.radius - 2 },
           ]}
         >
-          <Feather name={formatIcon as never} size={16} color={colors.primary} />
+          <Feather name={formatIcon} size={16} color={colors.primary} />
         </View>
         <View style={styles.cardHeaderText}>
           <Text
@@ -223,9 +226,19 @@ export default function ResourcesScreen() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(text), 400);
   };
 
-  const { data, isLoading, refetch } = useListResources({
+  const { data, isLoading, isError, error, isFetching, refetch } = useListResources({
     q: debouncedSearch || undefined,
   });
+
+  /*
+   * A request that failed is not an empty library.
+   *
+   * On a phone with no signal this screen said "No resources yet -- Resources
+   * will appear here once they are added", which is a statement about the
+   * catalogue and was untrue of it. The classes screen already knew the
+   * difference; this one did not.
+   */
+  const failed = isError && data === undefined;
 
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = async () => {
@@ -296,6 +309,15 @@ export default function ResourcesScreen() {
           contentContainerStyle={styles.listContent}
           scrollEnabled={false}
         />
+      ) : failed ? (
+        <ErrorState
+          error={error}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetch();
+          }}
+          style={{ paddingTop: 24 }}
+        />
       ) : (
         <FlatList
           data={data ?? []}
@@ -308,7 +330,7 @@ export default function ResourcesScreen() {
           )}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 80 },
+            { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
           ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />

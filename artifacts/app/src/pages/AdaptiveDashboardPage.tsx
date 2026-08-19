@@ -40,6 +40,7 @@ import { getDashboardGoalId, pendingCheckInKey } from "../lib/dashboardGoal";
 import { describeApiError } from "../lib/api-error";
 import { TodayAssignments } from "../components/TodayAssignments";
 import { ContinueWorkflows } from "../components/ContinueWorkflows";
+import { LoadFailure } from "@/components/LoadFailure";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -128,9 +129,24 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
   const { data: evidence, isLoading: evidenceLoading } =
     useListLearningEvidence();
   const createEvidence = useCreateLearningEvidence();
-  const { data: goals } = useListLearningGoals({
+  const {
+    data: goals,
+    isError: goalsFailed,
+    error: goalsError,
+    isFetching: goalsFetching,
+    refetch: refetchGoals,
+  } = useListLearningGoals({
     query: { queryKey: getListLearningGoalsQueryKey() },
   });
+  /*
+   * Everything below reads from `goals`, so when that request fails the whole
+   * page describes a person with no goal, no evidence and nothing chosen --
+   * "No mastery evidence · No active goal", above prompts to start. That is a
+   * verdict on their work, and it was reached without asking. One banner
+   * rather than a state per panel: the page is a composition of many, and
+   * what a reader needs to know is that none of it is their real state.
+   */
+  const dashboardFailed = goalsFailed && goals === undefined;
   const updateGoal = useUpdateLearningGoal();
   const [selectedGoalId, setSelectedGoalId] = useState(() => getDashboardGoalId(userId, workspaceRole));
   useEffect(() => {
@@ -374,6 +390,15 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
           )}
         </Badge>
       </header>
+      {dashboardFailed ? (
+        <LoadFailure
+          error={goalsError}
+          retrying={goalsFetching}
+          onRetry={() => {
+            void refetchGoals();
+          }}
+        />
+      ) : null}
       <TodayAssignments />
       <ContinueWorkflows />
       <section className="grid gap-5 lg:grid-cols-[1.5fr_.7fr]">

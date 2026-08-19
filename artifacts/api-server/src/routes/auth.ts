@@ -51,6 +51,7 @@ import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import { resolveAccountPlan } from "../lib/entitlements";
 import { accountCapacityReport } from "../lib/planCapacity";
+import { deepAllowance } from "../lib/deepAllowance";
 import { publicUserColumns } from "../lib/userColumns";
 import { publicResourceColumns } from "../lib/resourceColumns";
 import {
@@ -482,9 +483,13 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
     ],
   );
   const usage = new Map(result.rows.map((row) => [row.key, Number(row.hits)]));
-  const deepUsage = Math.max(
-    usage.get("deep-user-day:" + userId) ?? 0,
-    usage.get("deep-user-month:" + userId) ?? 0,
+  const deep = deepAllowance(
+    {
+      dayUsed: usage.get("deep-user-day:" + userId) ?? 0,
+      monthUsed: usage.get("deep-user-month:" + userId) ?? 0,
+    },
+    entitlements.ai,
+    unlimited,
   );
   // Stored-data allowances travel with the AI counters so a client renders the
   // whole plan from one response instead of guessing the half it cannot see.
@@ -500,11 +505,10 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
         limit: unlimited ? null : entitlements.ai.searchPerDay,
         window: "day",
       },
-      deepResearch: {
-        used: deepUsage,
-        limit: unlimited ? null : entitlements.ai.deepPerDay,
-        window: "day",
-      },
+      // Whichever of the two enforced windows the account is actually up
+      // against; see lib/deepAllowance.ts for what reporting the wrong one
+      // did to paying customers.
+      deepResearch: deep,
       capacity: {
         classesOwned: capacity["classes-owned"],
         classMembers: capacity["class-members"],

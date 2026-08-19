@@ -936,7 +936,7 @@ export default function AppShell({ children }: AppShellProps) {
                   {hasUnlimitedUsage
                     ? "No account-level AI limits"
                     : plan.level === "free"
-                      ? "Free includes a small daily AI taste"
+                      ? "Free includes a small AI taste"
                       : "AI allowances reset daily"}
                 </p>
                 {/* Plans lives here, inside the current-plan card, not in

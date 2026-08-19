@@ -21,6 +21,7 @@ import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { ErrorState } from '@/components/ErrorState';
 import type { ActivityItem } from '@workspace/api-client-react';
+import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 
 function StatCard({
   label,
@@ -193,7 +194,12 @@ export default function DashboardScreen() {
       style={[styles.flex, { backgroundColor: colors.background }]}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + webTopPad + 16 },
+        {
+          paddingTop: insets.top + webTopPad + 16,
+          // Nothing reserved space for the floating tab bar here at all, so
+          // the last rows of Recent Activity sat under it.
+          paddingBottom: insets.bottom + TAB_BAR_CLEARANCE,
+        },
       ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />

@@ -310,8 +310,12 @@ export type AccountUsageDeepResearchWindow = typeof AccountUsageDeepResearchWind
 
 export const AccountUsageDeepResearchWindow = {
   day: 'day',
+  month: 'month',
 } as const;
 
+/**
+ * The deep-research allowance and how much of it is spent. `window` is the one that actually binds, which is not always a day: Free's taste is two reports per rolling thirty days, so telling a free account it has "two remaining today" overstates what it has by a factor of thirty.
+ */
 export type AccountUsageDeepResearch = {
   used: number;
   /** @nullable */
@@ -343,6 +347,7 @@ export interface AccountUsage {
   tier: AccountUsageTier;
   unlimited: boolean;
   aiSearch: AccountUsageAiSearch;
+  /** The deep-research allowance and how much of it is spent. `window` is the one that actually binds, which is not always a day: Free's taste is two reports per rolling thirty days, so telling a free account it has "two remaining today" overstates what it has by a factor of thirty. */
   deepResearch: AccountUsageDeepResearch;
   /** Stored-data allowances for the plan. A null limit means uncapped. classMembers reports the per-class roster cap that applies to classes this account owns, so its used count is always 0. */
   capacity: AccountUsageCapacity;

@@ -396,8 +396,8 @@ export const GetMyUsageResponse = zod.object({
   "deepResearch": zod.object({
   "used": zod.int(),
   "limit": zod.int().nullable(),
-  "window": zod.enum(['day'])
-}),
+  "window": zod.enum(['day', 'month'])
+}).describe('The deep-research allowance and how much of it is spent. `window` is the one that actually binds, which is not always a day: Free\'s taste is two reports per rolling thirty days, so telling a free account it has \"two remaining today\" overstates what it has by a factor of thirty.'),
   "capacity": zod.object({
   "classesOwned": zod.object({
   "used": zod.int(),

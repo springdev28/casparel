@@ -54,6 +54,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@workspace/edu-ds/lib/utils';
+import { LoadFailure } from "@/components/LoadFailure";
 
 const TIMEZONES = [
   'UTC',
@@ -136,7 +137,7 @@ function profileCompleteness(user: {
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
-  const { data: me, isLoading } = useGetMe();
+  const { data: me, isLoading, error: meError, isFetching: meFetching, refetch: refetchMe } = useGetMe();
   const updateMe = useUpdateMe();
   const uploadAvatar = useUploadAvatar();
   const setPresetAvatar = useSetPresetAvatar();
@@ -279,9 +280,18 @@ export default function ProfilePage() {
   }
 
   if (!me) {
+    // Was a bare "Could not load profile." with nothing to press. It was at
+    // least honest, which is more than the other pages managed, but a dead end
+    // on a dropped connection is a reload away from being fine.
     return (
       <div className="max-w-2xl mx-auto p-6">
-        <p className="text-muted-foreground">Could not load profile.</p>
+        <LoadFailure
+          error={meError}
+          retrying={meFetching}
+          onRetry={() => {
+            void refetchMe();
+          }}
+        />
       </div>
     );
   }

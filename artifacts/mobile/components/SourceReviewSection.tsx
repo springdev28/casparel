@@ -179,6 +179,17 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
   const canUpgrade = !usage?.unlimited && (isPremium ? paidLevel : true);
   const deepLimitReached = deepLimit != null && deepUsed >= deepLimit;
   const deepRemaining = deepLimit == null ? null : Math.max(0, deepLimit - deepUsed);
+  /*
+   * How long the number in the hint has to last.
+   *
+   * This said "today" for everyone, and Free's allowance is two reports per
+   * rolling thirty days -- so the sentence on the screen that sells the
+   * upgrade overstated what a free account gets by a factor of thirty. The
+   * server now says which window binds rather than the phone guessing from
+   * the tier.
+   */
+  const deepIsMonthly = usage?.deepResearch.window === 'month';
+  const deepWindowLabel = deepIsMonthly ? 'in the next 30 days' : 'today';
 
   const { data, isFetching, isError, error, refetch } = useGetResourceSourceReview(
     resourceId,
@@ -402,11 +413,13 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
           >
             {deepLimitReached
               ? paidLevel
-                ? 'Today\u2019s deep-research allowance is used. It resets daily; larger plans include more.'
+                ? deepIsMonthly
+                  ? 'Your deep-research allowance for this 30 days is used. Larger plans include more.'
+                  : 'Today\u2019s deep-research allowance is used. It resets daily; larger plans include more.'
                 : 'Your free deep-research taste is used for now. Plus plans include far more.'
               : deepRemaining == null
                 ? 'Deep research is uncapped on this account.'
-                : `${deepRemaining} deep ${deepRemaining === 1 ? 'report' : 'reports'} remaining today on your plan.`}
+                : `${deepRemaining} deep ${deepRemaining === 1 ? 'report' : 'reports'} remaining ${deepWindowLabel} on your plan.`}
           </Text>
         ) : null}
       </View>
