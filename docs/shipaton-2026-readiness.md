@@ -28,7 +28,9 @@ The score is a prioritisation tool, not an official judging model.
 
 The official rules require a qualifying iOS/iPadOS/macOS/Android app that integrates RevenueCat and is fully published by the deadline. A public demo video must be under two minutes; submission materials include a 1179×2556 screenshot without a device frame and a 1024×1024 icon. If the app is paid or gated, judges need a free trial or promo access. The app must be accessible in the United States.
 
-The Next Gen category is the stated store-publication exception, but it carries its own conditions, including a public open-source repository and appropriate license. Casparel is currently a private repository, so it cannot rely on that exception without intentionally making the project public and satisfying every other Next Gen condition.
+The Next Gen category is the stated store-publication exception, but it carries its own conditions, including a public open-source repository and appropriate license.
+
+This review originally recorded Casparel as a private repository and ruled the exception out on that basis. That is not the case: `springdev28/casparel` is public and MIT licensed, confirmed against the repository on 18 August 2026 (the `LICENSE` file, and GitHub's own detected license). The repository and license conditions are therefore already met, and the exception is available in principle. What remains is every *other* Next Gen condition — the entrant's own age and project eligibility — which nobody but the entrant can confirm. Read the category rules directly before relying on it.
 
 ### Gate checklist
 
@@ -39,9 +41,19 @@ The Next Gen category is the stated store-publication exception, but it carries 
 | Fully published by deadline           | Blocked/unverified | Public US store listing and downloadable build                            |
 | App usable by judges                  | Partial            | Clean reviewer account, trial/promo where required, stable production API |
 | Demo under two minutes                | Not started        | Public unlisted/visible YouTube or Vimeo URL                              |
-| Required screenshot/icon              | Not complete       | Exact exported assets with no device frame                                |
+| Required screenshot/icon              | Icon done, shots draft | 1024×1024 icon is in the repository. `pnpm --filter @workspace/mobile run screenshots` renders the app at exactly 1179×2556 with no device frame, but from the *web* export — the top of the frame differs from the phone by the web-only padding and there is no status bar, so the upload still has to come from a device or simulator build. |
 | Submission text and category evidence | Draft              | Final answers, links and claims backed by screenshots/metrics             |
-| Next Gen fallback                     | Not eligible as-is | Public repo plus all category-specific eligibility conditions             |
+| Next Gen fallback                     | Repo/license met   | Remaining category-specific eligibility conditions, confirmed by the entrant |
+
+### What changed since this review was written
+
+This table is dated 15 August and the rest of the document with it. One row
+has moved (the screenshot/icon line above) and one thing worth recording did
+not fit anywhere else: the mobile app is now rendered against a real server on
+every CI run, which is how the schedule-block defect below was found and is
+the reason the "engineering quality" figure would be scored differently today.
+The scores have deliberately not been re-run — a review is worth more when it
+is not quietly edited to agree with the present.
 
 ## Chances of winning
 
@@ -94,7 +106,7 @@ Fit today: poor.
 
 ### Conditional options
 
-Build in Public can work if the founder commits to a consistent, evidence-rich public build narrative rather than three last-minute promotional posts. Next Gen should be considered only if the entrant independently meets its age/project conditions and is comfortable making the repository public.
+Build in Public can work if the founder commits to a consistent, evidence-rich public build narrative rather than three last-minute promotional posts. Next Gen no longer depends on a decision about publishing the source — the repository is already public and MIT licensed — so it should be considered on whether the entrant independently meets its age and project conditions.
 
 ## Winning story
 

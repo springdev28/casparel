@@ -46,6 +46,11 @@ win:
       arch: [x64, arm64]
   icon: build/icon.png
 
+# Debian's own categorisation, separate from the .desktop Categories above:
+# one sorts the applications menu, this one sorts the package archive.
+deb:
+  priority: optional
+
 nsis:
   oneClick: false
   perMachine: false
@@ -54,7 +59,23 @@ nsis:
 
 linux:
   category: Education
-  icon: build/icon.png
+  # A directory, not build/icon.png. Handed a single file, electron-builder
+  # installs exactly that file, so the .deb shipped one 1024px icon and every
+  # launcher, dock and notification downscaled it. Handed a directory it
+  # installs the whole set under hicolor/ and each surface picks its size.
+  icon: build/icons
+  # What a Linux user reads in their applications menu and in GNOME Software.
+  # Left to the package description alone, the menu entry read "Casparel -
+  # Casparel for macOS, Windows and Linux", which names two operating systems
+  # that are not the one they are looking at.
+  synopsis: Education workspace for classes, resources and study plans
+  # Flat name-to-value, not a nested `entry:` map. electron-builder 25 writes
+  # whatever this holds straight into the .desktop file, so a nested map became
+  # a literal `entry=[object Object]` line in an otherwise valid entry.
+  desktop:
+    # What an application search has to match. Nobody types "Casparel" when
+    # they do not yet know the product is installed.
+    Keywords: education;study;learning;library;research;classes;
   target:
     - AppImage
     - deb

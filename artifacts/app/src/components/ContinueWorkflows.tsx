@@ -181,7 +181,8 @@ export function ContinueWorkflows() {
                 className="grid min-w-0 gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_9rem_auto] sm:items-center sm:px-5"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{item.title}</p>
+                  {/* The user's own goal, list or canvas title. */}
+                  <p translate="no" className="truncate text-sm font-semibold">{item.title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {item.subject} · {item.format}
                     {item.classShare?.name ? ` · ${item.classShare.name}` : ""}

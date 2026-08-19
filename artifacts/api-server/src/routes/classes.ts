@@ -55,6 +55,7 @@ import {
   parseSeatingNote,
   seatingPreferenceReasons,
 } from "../lib/seatingRules";
+import { validationMessage } from "../lib/validationMessage";
 
 async function resourceWithRating(id: number) {
   const [r] = await db
@@ -251,7 +252,7 @@ router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<v
   }
   const parsed = CreateClassBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   if (!(await ensureAccountCapacity(res, userId, "classes-owned"))) return;
@@ -273,7 +274,7 @@ router.get("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetClassParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassMember(params.data.id, userId)) && !(await isClassTeacher(params.data.id, userId))) {
@@ -360,7 +361,7 @@ router.patch("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = UpdateClassParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassTeacher(params.data.id, userId))) {
@@ -369,7 +370,7 @@ router.patch("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   }
   const parsed = UpdateClassBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const [cls] = await db
@@ -390,7 +391,7 @@ router.delete("/classes/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = DeleteClassParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassTeacher(params.data.id, userId))) {
@@ -433,7 +434,7 @@ router.get("/classes/:id/members", requireAuth, async (req, res): Promise<void> 
   const { userId } = req as AuthenticatedRequest;
   const params = ListClassMembersParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassMember(params.data.id, userId))) {
@@ -490,7 +491,7 @@ router.post(
     }
     const parsed = InviteClassMemberBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     const [invitee] = await db
@@ -540,7 +541,20 @@ router.post(
       userId: invitee.id,
       type: "class",
       workspaceRole: role,
-      message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it from notifications.`,
+      /*
+       * A record of what happened, not an instruction.
+       *
+       * This told the reader to accept or decline -- at least an improvement
+       * on "from notifications", a screen the phone does not have -- but the
+       * activity log is permanent. Once the invitation was accepted the row
+       * stayed on the dashboard telling the person to do something they had
+       * already done, with no way to clear it: a to-do that cannot be ticked
+       * off. Seen on the phone's own dashboard, above a Classes count of 1.
+       *
+       * The invitation card on the Classes tab is where accepting lives, on
+       * both apps, and it disappears when answered. This is the history.
+       */
+      message: `You were invited to join ${cls?.name ?? "a class"}.`,
     });
     res.status(201).json(await invitationView(invitation.id));
   },
@@ -571,7 +585,7 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
 
   const params = BulkInviteClassMembersParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
 
@@ -582,7 +596,7 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
 
   const parsed = BulkInviteClassMembersBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
 
@@ -659,7 +673,8 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
           userId: member.userId,
           type: "class" as const,
           workspaceRole: member.role,
-          message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it from notifications.`,
+          // A record, not an instruction; see the single-invite route above.
+          message: `You were invited to join ${cls?.name ?? "a class"}.`,
         })),
       );
     });
@@ -678,7 +693,7 @@ router.delete("/classes/:id/members/:userId", requireAuth, async (req, res): Pro
   const { userId: requesterId } = req as AuthenticatedRequest;
   const params = RemoveClassMemberParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isClassTeacher(params.data.id, requesterId))) {
@@ -721,7 +736,7 @@ async function seatingChart(classId: number) {
 router.get("/classes/:id/seating-chart", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetSeatingChartParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { res.status(400).json({ error: validationMessage(params.error) }); return; }
   const teacher = await isClassTeacher(params.data.id, userId);
   if (!teacher && !(await isClassMember(params.data.id, userId))) {
     res.status(403).json({ error: "Only class members can view the seating chart" });
@@ -985,7 +1000,7 @@ router.put("/classes/:id/students/:userId/role", contentLimiter, requireAuth, as
 router.get("/classes/:id/resources-list", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetClassParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { res.status(400).json({ error: validationMessage(params.error) }); return; }
 
   if (!(await isClassMember(params.data.id, userId)) && !(await isClassTeacher(params.data.id, userId))) {
     res.status(403).json({ error: "Not a member of this class" }); return;
@@ -1027,14 +1042,14 @@ router.get("/classes/:id/resources-list", requireAuth, async (req, res): Promise
 router.post("/classes/:id/assign", contentLimiter, requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = GetClassParams.safeParse(req.params);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) { res.status(400).json({ error: validationMessage(params.error) }); return; }
 
   if (!(await isClassTeacher(params.data.id, userId))) {
     res.status(403).json({ error: "Only the class teacher can assign resources" }); return;
   }
 
   const parsed = AssignResourceToClassBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) { res.status(400).json({ error: validationMessage(parsed.error) }); return; }
 
   // Validate resource exists before inserting (avoid FK 500)
   const [resource] = await db.select({ id: resourcesTable.id, title: resourcesTable.title }).from(resourcesTable)
@@ -1100,6 +1115,7 @@ router.delete("/classes/:id/leave", requireAuth, async (req, res): Promise<void>
   }
   const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
   if (!cls) { res.status(404).json({ error: "Class not found" }); return; }
+  let handOverTo: number | null = null;
   if (cls.teacherId === userId) {
     const [nextTeacher] = await db.select({ userId: classMembersTable.userId })
       .from(classMembersTable)
@@ -1113,10 +1129,26 @@ router.delete("/classes/:id/leave", requireAuth, async (req, res): Promise<void>
     if (!successor) {
       res.status(409).json({ error: "Add another teacher before leaving this class" }); return;
     }
-    await db.update(classesTable).set({ teacherId: successor.userId }).where(eq(classesTable.id, classId));
+    handOverTo = successor.userId;
   }
-  await db.delete(classMembersTable).where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.userId, userId)));
-  if (cls.teacherId !== userId) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: "A student left " + cls.name + "." });
+  /*
+   * Handing the class over and leaving it are one act.
+   *
+   * These ran as separate statements, so a failure between them left the class
+   * belonging to a teacher who had not agreed to it while the one who was
+   * leaving was still on the roster -- or the reverse, a class whose owner had
+   * walked out of it. Neither is a state anybody can see or repair from the
+   * app.
+   */
+  await db.transaction(async (tx) => {
+    if (handOverTo !== null) {
+      await tx.update(classesTable).set({ teacherId: handOverTo }).where(eq(classesTable.id, classId));
+    }
+    await tx.delete(classMembersTable).where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.userId, userId)));
+    if (cls.teacherId !== userId) {
+      await tx.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: "A student left " + cls.name + "." });
+    }
+  });
   res.sendStatus(204);
 });
 
@@ -1160,7 +1192,34 @@ router.post("/classes/:id/resource-recommendations", contentLimiter, requireAuth
     eq(classResourceRecommendationsTable.classId, classId), eq(classResourceRecommendationsTable.resourceId, resource.id),
     eq(classResourceRecommendationsTable.recommendedById, userId), eq(classResourceRecommendationsTable.status, "pending"),
   ));
-  const recommendation = existing ?? (await db.insert(classResourceRecommendationsTable).values({ classId, resourceId: resource.id, recommendedById: userId, note: parsed.data.note?.trim() || null }).returning())[0];
+  /*
+   * One pending recommendation per person per resource, and the index says so
+   * -- but this read it and then inserted when it found none, so two taps on
+   * "recommend" ran both halves at once, both found nothing, and the loser came
+   * back 500.
+   *
+   * On a conflict the insert returns nothing, so the row the other tap made
+   * has to be read back: handing `undefined` to `recommendation.id` below
+   * would only trade the 500 for a different one.
+   */
+  const pendingForThisResource = and(
+    eq(classResourceRecommendationsTable.classId, classId),
+    eq(classResourceRecommendationsTable.resourceId, resource.id),
+    eq(classResourceRecommendationsTable.recommendedById, userId),
+    eq(classResourceRecommendationsTable.status, "pending"),
+  );
+  let recommendation = existing;
+  if (!recommendation) {
+    const [inserted] = await db
+      .insert(classResourceRecommendationsTable)
+      .values({ classId, resourceId: resource.id, recommendedById: userId, note: parsed.data.note?.trim() || null })
+      .onConflictDoNothing()
+      .returning();
+    recommendation =
+      inserted ??
+      (await db.select().from(classResourceRecommendationsTable).where(pendingForThisResource))[0];
+  }
+  if (!recommendation) { res.status(500).json({ error: "Could not record the recommendation" }); return; }
   const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
   const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, userId));
   if (!existing && cls && student) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: `${student.name} recommended "${resource.title}" for ${cls.name}.` });

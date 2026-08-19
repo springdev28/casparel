@@ -87,6 +87,118 @@ const COUNTED: Record<string, Partial<Record<AuthLanguage, CountRule>>> = {
   },
 };
 
+/**
+ * "2 / 3 today" — the AI allowance counter in the sidebar.
+ *
+ * Same reason as OF_RULE below: the numbers are data, so no whole-string entry
+ * can ever match it, and it stayed English in every language while the words
+ * around it translated.
+ */
+const TODAY_RULE: Partial<Record<AuthLanguage, (a: string, b: string) => string>> = {
+  tr: (a, b) => `bugün ${a} / ${b}`,
+  es: (a, b) => `${a} / ${b} hoy`,
+  fr: (a, b) => `${a} / ${b} aujourd’hui`,
+  de: (a, b) => `${a} / ${b} heute`,
+  pt: (a, b) => `${a} / ${b} hoje`,
+};
+
+/**
+ * Shapes with a number or a quoted title in them.
+ *
+ * Each of these is a sentence a reader sees, and none can ever be a dictionary
+ * key, because the value in the middle changes. They were all English in every
+ * language until the audit could see the student dashboard at all -- its
+ * fixture signed in as an administrator, which renders different panels.
+ *
+ * A rule per shape rather than one clever matcher: each language puts the
+ * number and the words in its own order, and that only stays readable when
+ * each shape is written out.
+ */
+const SHAPE_RULES: Array<{
+  match: RegExp;
+  render: Partial<Record<AuthLanguage, (...parts: string[]) => string>>;
+}> = [
+  {
+    match: /^(\d[\d.,]*)% mastery evidence$/,
+    render: {
+      tr: (n) => `%${n} ustalık kanıtı`,
+      es: (n) => `${n} % de evidencia de dominio`,
+      fr: (n) => `${n} % de preuves de maîtrise`,
+      de: (n) => `${n} % Kompetenznachweis`,
+      pt: (n) => `${n} % de evidência de domínio`,
+    },
+  },
+  {
+    match: /^(\d[\d.,]*) of (\d[\d.,]*) complete$/,
+    render: {
+      tr: (a, b) => `${b} adımdan ${a} tamamlandı`,
+      es: (a, b) => `${a} de ${b} completados`,
+      fr: (a, b) => `${a} sur ${b} terminés`,
+      de: (a, b) => `${a} von ${b} abgeschlossen`,
+      pt: (a, b) => `${a} de ${b} concluídos`,
+    },
+  },
+  {
+    match: /^(\d[\d.,]*) library resources? selected for this goal$/,
+    render: {
+      tr: (n) => `bu hedef için ${n} kütüphane kaynağı seçildi`,
+      es: (n) => `${n} recursos de la biblioteca seleccionados para este objetivo`,
+      fr: (n) => `${n} ressources de la bibliothèque sélectionnées pour cet objectif`,
+      de: (n) => `${n} Bibliotheksressourcen für dieses Ziel ausgewählt`,
+      pt: (n) => `${n} recursos da biblioteca selecionados para esta meta`,
+    },
+  },
+  {
+    match: /^(\d[\d.,]*) check-ins$/,
+    render: {
+      tr: (n) => `${n} kontrol`,
+      es: (n) => `${n} registros`,
+      fr: (n) => `${n} points d’étape`,
+      de: (n) => `${n} Rückmeldungen`,
+      pt: (n) => `${n} registos`,
+    },
+  },
+  {
+    match: /^(\d[\d.,]*) selected resources$/,
+    render: {
+      tr: (n) => `${n} seçili kaynak`,
+      es: (n) => `${n} recursos seleccionados`,
+      fr: (n) => `${n} ressources sélectionnées`,
+      de: (n) => `${n} ausgewählte Ressourcen`,
+      pt: (n) => `${n} recursos selecionados`,
+    },
+  },
+  {
+    match: /^How confident are you with “(.+)”\?$/,
+    render: {
+      tr: (t) => `“${t}” konusunda kendine ne kadar güveniyorsun?`,
+      es: (t) => `¿Qué seguridad tienes con «${t}»?`,
+      fr: (t) => `Quelle confiance avez-vous en « ${t} » ?`,
+      pt: (t) => `Que confiança tem em «${t}»?`,
+      de: (t) => `Wie sicher fühlst du dich bei „${t}“?`,
+    },
+  },
+  {
+    match: /^How confident are you that you achieved “(.+)”\?$/,
+    render: {
+      tr: (t) => `“${t}” hedefine ulaştığından ne kadar eminsin?`,
+      es: (t) => `¿Qué seguridad tienes de haber logrado «${t}»?`,
+      fr: (t) => `Dans quelle mesure pensez-vous avoir atteint « ${t} » ?`,
+      pt: (t) => `Que confiança tem em ter alcançado «${t}»?`,
+      de: (t) => `Wie sicher bist du, dass du „${t}“ erreicht hast?`,
+    },
+  },
+];
+
+/** "93% evidence score" — a number and a label, so no fixed key can match. */
+const EVIDENCE_RULE: Partial<Record<AuthLanguage, (n: string) => string>> = {
+  tr: (n) => `%${n} kanıt puanı`,
+  es: (n) => `${n} % de puntuación de evidencia`,
+  fr: (n) => `${n} % de score de preuve`,
+  de: (n) => `${n} % Belegwert`,
+  pt: (n) => `${n} % de pontuação de evidência`,
+};
+
 /** "3 of 10" — a progress shape, not a sentence, so it is its own rule. */
 const OF_RULE: Partial<Record<AuthLanguage, (a: string, b: string) => string>> = {
   tr: (a, b) => `${a} / ${b}`,
@@ -117,6 +229,22 @@ export function translateUiString(value: string, language: AuthLanguage): string
   if (counted) {
     const rule = COUNTED[counted[2]]?.[language];
     if (rule) return leading + rule(counted[1]) + trailing;
+  }
+  for (const shape of SHAPE_RULES) {
+    const parts = shape.match.exec(key);
+    if (!parts) continue;
+    const render = shape.render[language];
+    if (render) return leading + render(...parts.slice(1)) + trailing;
+  }
+  const evidence = /^(\d[\d.,]*)% evidence score$/.exec(key);
+  if (evidence) {
+    const rule = EVIDENCE_RULE[language];
+    if (rule) return leading + rule(evidence[1]) + trailing;
+  }
+  const today = /^(\d[\d.,]*) \/ (\d[\d.,]*) today$/.exec(key);
+  if (today) {
+    const rule = TODAY_RULE[language];
+    if (rule) return leading + rule(today[1], today[2]) + trailing;
   }
   const of = /^(\d[\d.,]*) of (\d[\d.,]*)$/.exec(key);
   if (of) {

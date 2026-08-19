@@ -73,6 +73,24 @@ const routes = [
     heading: "The open education library",
   },
   {
+    path: "/download",
+    changefreq: "monthly",
+    priority: "0.6",
+    title: "Casparel: Download for iPhone, Android and desktop",
+    description:
+      "Install Casparel on iPhone, Android, macOS, Windows or Linux. One account, with the same library, classes, schedule and source research on every device.",
+    heading: "The same workspace, on whatever you study with",
+  },
+  {
+    path: "/code-signing",
+    changefreq: "yearly",
+    priority: "0.3",
+    title: "Casparel: Code signing and download verification",
+    description:
+      "How Casparel desktop installers are built and signed, what a signature proves, and how to verify a download on Windows, macOS or Linux.",
+    heading: "How to check that a Casparel download is really ours",
+  },
+  {
     path: "/terms",
     changefreq: "yearly",
     priority: "0.3",

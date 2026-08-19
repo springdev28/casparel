@@ -417,6 +417,16 @@ export default function ForumPage({
       : null);
   const { data: me } = useGetMe();
   const { data: joinedClasses } = useListClasses();
+  /**
+   * The class this forum belongs to, by name.
+   *
+   * Falls back to the id for a class the reader is not a member of -- an
+   * admin reading a class forum, say -- which is still better than showing
+   * everyone the id, but is not what a member should ever see.
+   */
+  const classForumName = classId
+    ? joinedClasses?.find((item) => item.id === classId)?.name
+    : undefined;
   const [access, setAccess] = useState<ForumAccess>({
     isAdmin: false,
     teacherVerified: false,
@@ -1488,6 +1498,10 @@ export default function ForumPage({
                     onChange={(event) => setPostQuery(event.target.value)}
                     onKeyDown={(event) => event.key === "Enter" && loadPosts()}
                     placeholder="Search the feed..."
+                    // A placeholder is not a label: it disappears the moment
+                    // you type, and a screen reader announces "edit text" with
+                    // nothing else. The button beside it already says this.
+                    aria-label="Search the feed"
                     className="pl-9"
                   />
                 </div>
@@ -1569,7 +1583,22 @@ export default function ForumPage({
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="text-xs font-bold">{classId ? `c/class-${classId}` : "c/schoolar"}</span>
+                                {/*
+                                  This read "c/class-7" or "c/schoolar".
+                                  The first is a database id where a class
+                                  name belongs -- a pupil in Physics 10B saw
+                                  the row number of their own class -- and
+                                  the second is the product's previous name,
+                                  printed on every post in the public forum.
+                                */}
+                                <span
+                                  translate={classId ? "no" : undefined}
+                                  className="text-xs font-bold"
+                                >
+                                  {classId
+                                    ? `c/${classForumName ?? `class-${classId}`}`
+                                    : "c/casparel"}
+                                </span>
                                 <span className="text-muted-foreground">·</span>
                                 <span className="text-xs text-muted-foreground">Posted by <span translate="no">{profileHandle(post.authorName)}</span></span>
                                 <span className="text-muted-foreground">·</span>
@@ -1724,16 +1753,19 @@ export default function ForumPage({
                               </p>
                             </div>
                           )}
-                          <div className="flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
+                          {/*
+                            Views only. This row also repeated the likes, the
+                            reposts and the comments, each of which is already
+                            on the control that changes it -- the arrow in the
+                            left rail, and the two buttons directly below. So
+                            every post showed the same four numbers twice, and
+                            a feed of them reads as a wall of zeros.
+                          */}
+                          <div className="flex items-center border-t pt-3 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Eye className="size-3.5" />
                               {post.viewCount} views
                             </span>
-                            <div className="flex items-center gap-3">
-                              <span>{post.likeCount} likes</span>
-                              <span>{post.repostCount} reposts</span>
-                              <span>{post.commentCount} comments</span>
-                            </div>
                           </div>
                           <div className="grid grid-cols-3 border-y">
                             <Discussion
@@ -1794,7 +1826,15 @@ export default function ForumPage({
 
             <aside className="hidden space-y-6 lg:sticky lg:top-16 lg:block">
               <section className="border-y py-4">
-                <h2 className="text-sm font-bold">Popular topics</h2>
+                {/*
+                  When nothing is tagged this lists the tag vocabulary so a
+                  reader can see what topics exist -- which is useful, and is
+                  not what "popular" means. Six topics with no posts under a
+                  heading claiming popularity is a claim the page cannot back.
+                */}
+                <h2 className="text-sm font-bold">
+                  {popularTopics.length ? "Popular topics" : "Browse topics"}
+                </h2>
                 <div className="mt-3 space-y-1">
                   {(popularTopics.length
                     ? popularTopics
@@ -1827,7 +1867,7 @@ export default function ForumPage({
                   </div>
                   <div>
                     <dt className="text-xs text-muted-foreground">
-                      Discussions
+                      Comments
                     </dt>
                     <dd className="text-lg font-bold">
                       {posts.reduce((sum, post) => sum + post.commentCount, 0)}

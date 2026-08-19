@@ -2646,12 +2646,18 @@ components:
             limit: { type: ["integer", "null"] }
             window: { type: string, enum: [day] }
         deepResearch:
+          description: >-
+            The deep-research allowance and how much of it is spent. `window`
+            is the one that actually binds, which is not always a day: Free's
+            taste is two reports per rolling thirty days, so telling a free
+            account it has "two remaining today" overstates what it has by a
+            factor of thirty.
           type: object
           required: [used, limit, window]
           properties:
             used: { type: integer }
             limit: { type: ["integer", "null"] }
-            window: { type: string, enum: [day] }
+            window: { type: string, enum: [day, month] }
         capacity:
           description: >-
             Stored-data allowances for the plan. A null limit means uncapped.

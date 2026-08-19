@@ -54,6 +54,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@workspace/edu-ds/lib/utils';
+import { LoadFailure } from "@/components/LoadFailure";
 
 const TIMEZONES = [
   'UTC',
@@ -136,7 +137,7 @@ function profileCompleteness(user: {
 export default function ProfilePage() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
-  const { data: me, isLoading } = useGetMe();
+  const { data: me, isLoading, error: meError, isFetching: meFetching, refetch: refetchMe } = useGetMe();
   const updateMe = useUpdateMe();
   const uploadAvatar = useUploadAvatar();
   const setPresetAvatar = useSetPresetAvatar();
@@ -279,9 +280,18 @@ export default function ProfilePage() {
   }
 
   if (!me) {
+    // Was a bare "Could not load profile." with nothing to press. It was at
+    // least honest, which is more than the other pages managed, but a dead end
+    // on a dropped connection is a reload away from being fine.
     return (
       <div className="max-w-2xl mx-auto p-6">
-        <p className="text-muted-foreground">Could not load profile.</p>
+        <LoadFailure
+          error={meError}
+          retrying={meFetching}
+          onRetry={() => {
+            void refetchMe();
+          }}
+        />
       </div>
     );
   }
@@ -580,8 +590,9 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <>
-                  <p className="text-xl font-semibold text-foreground truncate">{me.name}</p>
-                  <p className="text-sm text-muted-foreground">{me.email}</p>
+                  {/* A person's name and address, never copy. */}
+                  <p translate="no" className="text-xl font-semibold text-foreground truncate">{me.name}</p>
+                  <p translate="no" className="text-sm text-muted-foreground">{me.email}</p>
                 </>
               )}
               <div className="mt-2">
@@ -702,8 +713,10 @@ export default function ProfilePage() {
             </>
           ) : me.subjects && me.subjects.length > 0 ? (
             <div className="flex flex-wrap gap-2">
+              {/* Typed by their owner. "Physics", "Art", "Design" are all
+                  dictionary keys somewhere. */}
               {me.subjects.map((s) => (
-                <Badge key={s} variant="secondary">{s}</Badge>
+                <Badge translate="no" key={s} variant="secondary">{s}</Badge>
               ))}
             </div>
           ) : (
@@ -776,7 +789,10 @@ export default function ProfilePage() {
                   {(me.activeRole ?? me.role) === 'teacher' ? 'Department' : 'Grade'}
                 </span>
                 <span className={cn('text-sm', me.gradeOrDept ? 'text-foreground' : 'text-muted-foreground italic')}>
-                  {me.gradeOrDept || 'Not set'}
+                  {/* Typed by its owner: "Physics", "Year 12", "Music" are all
+                      dictionary keys somewhere, and translating one rewrites
+                      what a person wrote about themselves. */}
+                  {me.gradeOrDept ? <span translate="no">{me.gradeOrDept}</span> : 'Not set'}
                 </span>
               </div>
               <Separator />
@@ -784,7 +800,8 @@ export default function ProfilePage() {
                 <Clock size={15} className="text-muted-foreground shrink-0" />
                 <span className="text-sm text-muted-foreground w-28 shrink-0">Timezone</span>
                 <span className={cn('text-sm', me.timezone ? 'text-foreground' : 'text-muted-foreground italic')}>
-                  {me.timezone || 'Not set'}
+                  {/* An IANA identifier, not prose. */}
+                  {me.timezone ? <span translate="no">{me.timezone}</span> : 'Not set'}
                 </span>
               </div>
               <Separator />

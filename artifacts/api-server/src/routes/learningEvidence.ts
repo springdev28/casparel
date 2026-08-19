@@ -17,6 +17,7 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -42,7 +43,7 @@ router.post(
     const { userId } = req as AuthenticatedRequest;
     const body = CreateLearningEvidenceBody.safeParse(req.body);
     if (!body.success) {
-      res.status(400).json({ error: body.error.message });
+      res.status(400).json({ error: validationMessage(body.error) });
       return;
     }
     const [evidence] = await db

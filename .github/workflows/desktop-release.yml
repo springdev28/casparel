@@ -4,23 +4,38 @@ name: Desktop release
 # macOS targets on macOS and (reliably) Windows targets on Windows, so this is
 # a matrix with one runner per platform rather than a single job.
 #
-# Triggered by pushing a tag like `desktop-v1.0.0`, or run by hand from the
-# Actions tab to get unsigned installers for testing.
+# Two ways to start it:
+#
+#   • push a tag like `desktop-v1.0.0`
+#   • run it from the Actions tab. Leave "release" unchecked to just build and
+#     keep the installers on the run; check it to tag this commit and publish.
+#     The second exists because a release needs a tag and not everyone who can
+#     run a workflow can push one.
 #
 # Optional repository secrets, all absent by default:
 #   CSC_LINK, CSC_KEY_PASSWORD                  code-signing certificate
 #   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD,
 #   APPLE_TEAM_ID                               macOS notarisation
 #
-# Without them the build still succeeds and produces unsigned installers, which
-# are fine for local testing and for recording a demo. Shipping to real users
-# needs signing: unsigned builds trip Gatekeeper on macOS and SmartScreen on
-# Windows.
+# Without them the build produces unsigned installers, which are fine for local
+# testing and for recording a demo. Shipping to real users needs signing:
+# unsigned builds trip Gatekeeper on macOS and SmartScreen on Windows.
+#
+# "Absent" is doing real work in that sentence. An absent secret reaches a step
+# as the empty string, and electron-builder reads an empty CSC_LINK as a
+# certificate that was supplied -- so passing these through unconditionally
+# failed the macOS build outright rather than building it unsigned. See the
+# build step.
 
 on:
   push:
     tags: ['desktop-v*']
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Tag this commit and publish a release (otherwise just build)'
+        type: boolean
+        default: false
 
 concurrency:
   group: desktop-release-${{ github.ref }}
@@ -58,16 +73,49 @@ jobs:
 
       - name: Build installers
         working-directory: artifacts/desktop
-        run: pnpm run ${{ matrix.target }}
+        shell: bash
         env:
-          # electron-builder reads these itself; each is empty unless the
-          # corresponding secret is set, in which case it signs and notarises.
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # An absent secret arrives as the EMPTY STRING, not as an unset
+          # variable, and electron-builder treats an empty CSC_LINK as a
+          # certificate that WAS supplied -- "allow to specify as empty
+          # string", in its own source. So the macOS build took the signing
+          # path with nothing to sign with, and died resolving a certificate
+          # that was never there:
+          #
+          #   • empty password will be used for code signing
+          #   ⨯ /Users/runner/work/casparel/casparel/artifacts/desktop not a file
+          #
+          # The variables have to be absent rather than empty, and YAML cannot
+          # leave a key out conditionally. This shell is the build's parent
+          # process, so what it unsets the build never inherits.
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID \
+                      APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!name}" ] || unset "$name"
+          done
+          if [ -z "${CSC_LINK:-}" ]; then
+            # Nothing to sign with. Say so once, and stop electron-builder
+            # searching the keychain for an identity it will not find, so the
+            # result is an unsigned build rather than a failed one.
+            echo "::notice title=Unsigned build::No signing certificate configured. Gatekeeper (macOS) and SmartScreen (Windows) will warn on first launch."
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          pnpm run ${{ matrix.target }}
+
+      # What the installers CONTAIN, which a successful build says nothing
+      # about. The applications-menu entry, the icon sizes, the deep-link
+      # scheme registration and the declared licence are all things that are
+      # only wrong once somebody installs the thing.
+      - name: Check what the Linux packages contain
+        if: matrix.artifact == 'linux'
+        working-directory: artifacts/desktop
+        run: pnpm run verify:package
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
@@ -82,11 +130,61 @@ jobs:
             artifacts/desktop/release/*.deb
           if-no-files-found: error
 
-  release:
-    # Only a tag push produces a release; a manual run just leaves the
-    # installers attached to the workflow run.
-    if: startsWith(github.ref, 'refs/tags/desktop-v')
+  # Tagging from CI exists because a release needs a tag and not everyone who
+  # can run this workflow can push one. It runs AFTER the build on purpose: a
+  # tag is a permanent claim that a commit was released, and it should not be
+  # made for a commit whose installers do not build. A matrix leg failing
+  # fails `build`, which skips this job, which skips the release.
+  #
+  # The tag it pushes will NOT re-trigger this workflow. GitHub refuses to
+  # start workflow runs from pushes made with the automatic GITHUB_TOKEN, to
+  # stop a workflow from triggering itself forever. That is why the release
+  # job below has to run in THIS run rather than waiting to be woken by the
+  # tag: written the obvious way, this job would create a tag and nothing at
+  # all would happen next.
+  tag:
+    if: inputs.release
     needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      name: ${{ steps.create.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create and push the tag
+        id: create
+        run: |
+          version=$(node -p "require('./artifacts/desktop/package.json').version")
+          name="desktop-v${version}"
+
+          # Never move an existing tag. A released version is a fixed point;
+          # re-pointing it silently changes what everyone who already
+          # downloaded it thinks they have.
+          if git ls-remote --exit-code --tags origin "refs/tags/${name}" >/dev/null 2>&1; then
+            echo "::error title=Tag already exists::${name} is already published. Bump the version in artifacts/desktop/package.json and run this again."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # ${{ github.sha }} explicitly, not HEAD: this is the commit the
+          # matrix above actually built, and the branch may have moved since.
+          git tag -a "${name}" "${{ github.sha }}" \
+            -m "Casparel desktop ${version}" \
+            -m "Built and released from ${{ github.ref_name }} by ${{ github.workflow }} run ${{ github.run_number }}."
+          git push origin "refs/tags/${name}"
+
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+          echo "Tagged ${{ github.sha }} as ${name}." >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    # Two ways in: somebody pushed a desktop-v* tag, or this run just made one.
+    needs: [build, tag]
+    if: >-
+      !cancelled() && needs.build.result == 'success' &&
+      (startsWith(github.ref, 'refs/tags/desktop-v') || needs.tag.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -99,5 +197,8 @@ jobs:
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
+          # On a tag push github.ref_name IS the tag. On a dispatch it is the
+          # branch, so the name has to come from the job that made the tag.
+          tag_name: ${{ needs.tag.outputs.name || github.ref_name }}
           files: installers/*
           generate_release_notes: true

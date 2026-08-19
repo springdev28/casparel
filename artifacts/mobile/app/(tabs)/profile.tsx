@@ -36,6 +36,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useAuth } from '@/contexts/AuthContext';
 import { PremiumCard } from '@/components/PremiumCard';
+import { describeApiFailure } from '@/utils/api-failure';
+import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
+import { ErrorState } from '@/components/ErrorState';
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History',
@@ -185,8 +188,8 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
             onPress={handleShareIcalUrl}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 8 }}
           >
-            <Feather name="share-2" size={14} color="#fff" />
-            <Text style={{ fontSize: 13, color: '#fff', fontFamily: colors.fontFamily.sansMedium }}>Share URL</Text>
+            <Feather name="share-2" size={14} color={colors.primaryForeground} />
+            <Text style={{ fontSize: 13, color: colors.primaryForeground, fontFamily: colors.fontFamily.sansMedium }}>Share URL</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -235,7 +238,7 @@ export default function ProfileScreen() {
   }
   const queryClient = useQueryClient();
 
-  const { data: me, isLoading } = useGetMe();
+  const { data: me, isLoading, isError, error, isFetching, refetch } = useGetMe();
   const updateMe = useUpdateMe();
   const uploadAvatar = useUploadAvatar();
   const switchRoleMutation = useSwitchRole();
@@ -284,8 +287,11 @@ export default function ProfileScreen() {
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       setEditing(false);
       Alert.alert('Saved', 'Your profile has been updated.');
-    } catch {
-      Alert.alert('Error', 'Could not save profile. Please try again.');
+    } catch (error) {
+      Alert.alert(
+        'Could not save your profile',
+        describeApiFailure(error, 'Please check the fields and try again.'),
+      );
     }
   }
 
@@ -325,10 +331,29 @@ export default function ProfileScreen() {
     setSwitching(true);
     try {
       const result = await switchRoleMutation.mutateAsync({ data: { role: newRole } });
+      // The token first, so everything refetched below carries the new role.
       await updateToken(result.token);
-      await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-    } catch {
-      Alert.alert('Error', 'Could not switch role. Please try again.');
+      /*
+       * Everything, not just /users/me.
+       *
+       * A workspace is not a label on the same data: activities, learning
+       * goals and the activity feed are stored per workspace role, and the
+       * plan the server reports depends on it too. Only `me` was invalidated,
+       * so switching to Teacher left the student workspace's rows on screen --
+       * measured, not assumed: the server returned zero activity rows for the
+       * teacher workspace while the dashboard still listed the student's.
+       *
+       * The web app reloads the whole page here for exactly this reason. A
+       * phone cannot, and clearing the cache is the same thing: every query
+       * that is on screen refetches under the new role, and nothing that is
+       * not on screen survives to be shown later.
+       */
+      queryClient.clear();
+    } catch (error) {
+      Alert.alert(
+        'Could not switch role',
+        describeApiFailure(error, 'Please try again.'),
+      );
     } finally {
       setSwitching(false);
     }
@@ -357,6 +382,31 @@ export default function ProfileScreen() {
     );
   }
 
+  /*
+   * A profile that could not be fetched is not a blank profile.
+   *
+   * With no signal this screen rendered the whole thing empty: no name, "No
+   * bio yet", "No subjects added yet", every detail "Not set", and 0%
+   * complete. It is the one screen where blank means something specific --
+   * "this is what your account holds" -- so it read as an account that had
+   * been wiped, and the encouraging 0% invited the person to type it all in
+   * again over the top of data that was still there.
+   */
+  if (isError && me === undefined) {
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.background, paddingTop: insets.top + webTopPad + 16 }]}>
+        <ErrorState
+          error={error}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetch();
+          }}
+          style={{ paddingTop: 24 }}
+        />
+      </View>
+    );
+  }
+
   const roleLabel = isTeacher ? 'Teacher' : 'Student';
   const roleDescription = isTeacher
     ? 'You can create classes and manage resources'
@@ -365,7 +415,7 @@ export default function ProfileScreen() {
   return (
     <ScrollView
       style={[styles.flex, { backgroundColor: colors.background }]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + webTopPad + 16, paddingBottom: insets.bottom + 32 }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + webTopPad + 16, paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }]}
       showsVerticalScrollIndicator={false}
     >
       {/* Title row */}
@@ -398,7 +448,7 @@ export default function ProfileScreen() {
               onPress={handleSave}
               disabled={updateMe.isPending}
             >
-              <Text style={[{ color: '#fff', fontFamily: colors.fontFamily.sansBold, fontSize: 14 }]}>
+              <Text style={[{ color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold, fontSize: 14 }]}>
                 {updateMe.isPending ? 'Saving…' : 'Save'}
               </Text>
             </TouchableOpacity>
@@ -442,7 +492,7 @@ export default function ProfileScreen() {
               </View>
             )}
             <View style={[styles.cameraBtn, { backgroundColor: colors.primary }]}>
-              <Feather name="camera" size={11} color="#fff" />
+              <Feather name="camera" size={11} color={colors.primaryForeground} />
             </View>
           </TouchableOpacity>
 
@@ -531,7 +581,7 @@ export default function ProfileScreen() {
                 style={[styles.addBtn, { backgroundColor: colors.primary, borderRadius: colors.radius }]}
                 onPress={() => addSubject(subjectInput)}
               >
-                <Text style={[{ color: '#fff', fontFamily: colors.fontFamily.sansBold, fontSize: 13 }]}>Add</Text>
+                <Text style={[{ color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold, fontSize: 13 }]}>Add</Text>
               </TouchableOpacity>
             </View>
             {form.subjects.length > 0 && (
@@ -754,8 +804,11 @@ export default function ProfileScreen() {
         existed but was missing from the API spec, so no generated client could
         reach it. Two steps on purpose: this is irreversible.
       */}
+      {/* Not a second "ACCOUNT": there is already one above, and two
+          identical headings on one screen tell you nothing about which is
+          which. */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-        ACCOUNT
+        CLOSING YOUR ACCOUNT
       </Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <TouchableOpacity

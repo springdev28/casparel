@@ -15,6 +15,7 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { contentLimiter } from "../lib/limiters";
 import { isScheduleBlockOwner } from "../lib/authz";
 import { syncBlockToGCal, deleteBlockFromGCal } from "./calendar";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -22,6 +23,28 @@ function dateToString(d: Date | string | undefined): string | undefined {
   if (d === undefined) return undefined;
   if (d instanceof Date) return d.toISOString().slice(0, 10);
   return d as string;
+}
+
+/**
+ * A block as the contract says it looks, with `date` a plain YYYY-MM-DD.
+ *
+ * The OpenAPI schema declares `date: { type: string, format: date }`, and
+ * orval turns that into `zod.coerce.date()` -- so parsing a row through the
+ * generated response schema replaces the database's "2026-08-19" with a JS
+ * Date, and res.json then serialises it as "2026-08-19T00:00:00.000Z". The
+ * server was breaking its own contract on the way out.
+ *
+ * The mobile schedule believed the contract and compared `block.date` to a
+ * YYYY-MM-DD string for the selected day. That comparison could never be true,
+ * so schedule blocks were invisible on the phone -- in every timezone, on
+ * every day, for everybody. The web app happens to parse the value into a Date
+ * before comparing, which is why it looked fine there.
+ *
+ * The generated schema is not ours to edit, so the shape is restored here,
+ * once, at the boundary where the response is written.
+ */
+function asContract<T extends { date: Date | string }>(block: T): T & { date: string } {
+  return { ...block, date: dateToString(block.date)! };
 }
 
 // GET /schedule, own blocks only; optional weekStart (YYYY-MM-DD) filters to that Mon-Sun
@@ -32,7 +55,7 @@ router.get("/schedule", requireAuth, async (req, res): Promise<void> => {
   const rawWeekStart = typeof req.query.weekStart === "string" ? new Date(req.query.weekStart + "T00:00:00Z") : req.query.weekStart;
   const qParsed = ListScheduleBlocksQueryParams.safeParse({ ...req.query, weekStart: rawWeekStart });
   if (!qParsed.success) {
-    res.status(400).json({ error: qParsed.error.message });
+    res.status(400).json({ error: validationMessage(qParsed.error) });
     return;
   }
 
@@ -57,7 +80,7 @@ router.get("/schedule", requireAuth, async (req, res): Promise<void> => {
           lte(scheduleBlocksTable.date, endStr),
         ),
       );
-    res.json(ListScheduleBlocksResponse.parse(rows));
+    res.json(ListScheduleBlocksResponse.parse(rows).map(asContract));
     return;
   }
 
@@ -66,7 +89,7 @@ router.get("/schedule", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(scheduleBlocksTable)
     .where(eq(scheduleBlocksTable.userId, userId));
-  res.json(ListScheduleBlocksResponse.parse(rows));
+  res.json(ListScheduleBlocksResponse.parse(rows).map(asContract));
 });
 
 // POST /schedule, any authenticated user; owner always set to self
@@ -74,7 +97,7 @@ router.post("/schedule", contentLimiter, requireAuth, async (req, res): Promise<
   const { userId } = req as AuthenticatedRequest;
   const parsed = CreateScheduleBlockBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const { date, ...rest } = parsed.data;
@@ -83,7 +106,7 @@ router.post("/schedule", contentLimiter, requireAuth, async (req, res): Promise<
     .insert(scheduleBlocksTable)
     .values({ ...rest, date: dateStr, userId })
     .returning();
-  res.status(201).json(CreateScheduleBlockResponse.parse(block));
+  res.status(201).json(asContract(CreateScheduleBlockResponse.parse(block)));
   // Fire-and-forget Google Calendar sync (non-blocking)
   syncBlockToGCal(userId, block.id, block).catch(() => {});
 });
@@ -93,7 +116,7 @@ router.patch("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = UpdateScheduleBlockParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isScheduleBlockOwner(params.data.id, userId))) {
@@ -102,7 +125,7 @@ router.patch("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
   }
   const parsed = UpdateScheduleBlockBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const { date: rawDate, title, startTime, endTime, notes, resourceId, listId } = parsed.data;
@@ -132,7 +155,7 @@ router.patch("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Schedule block not found" });
     return;
   }
-  res.json(UpdateScheduleBlockResponse.parse(block));
+  res.json(asContract(UpdateScheduleBlockResponse.parse(block)));
   // Fire-and-forget Google Calendar sync (non-blocking)
   syncBlockToGCal(userId, block.id, block).catch(() => {});
 });
@@ -142,7 +165,7 @@ router.delete("/schedule/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const params = DeleteScheduleBlockParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isScheduleBlockOwner(params.data.id, userId))) {

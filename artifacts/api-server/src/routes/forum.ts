@@ -16,6 +16,7 @@ import {
   usersTable,
 } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { throughAi } from "../lib/aiHealth";
 import {
   requireAuth,
   type AuthenticatedRequest,
@@ -158,10 +159,12 @@ async function moderateForumText(
   const input = text.trim().slice(0, 12000);
   if (!input) return { flagged: false, assessment: "No text to assess." };
   try {
-    const moderation = await openai.moderations.create({
-      model: "omni-moderation-latest",
-      input,
-    });
+    const moderation = await throughAi("forum moderation", () =>
+      openai.moderations.create({
+        model: "omni-moderation-latest",
+        input,
+      }),
+    );
     if (moderation.results[0]?.flagged) {
       const categories = Object.entries(moderation.results[0].categories)
         .filter(([, flagged]) => flagged)
@@ -177,7 +180,8 @@ async function moderateForumText(
       return { flagged: false, assessment: "AI safety check passed." };
     }
 
-    const response = await openai.responses.create({
+    const response = await throughAi("forum accuracy check", () =>
+      openai.responses.create({
       model: "gpt-5-nano",
       max_output_tokens: 180,
       reasoning: { effort: "low" },
@@ -187,7 +191,8 @@ async function moderateForumText(
       input:
         'Review this education-forum content. When URLs are present, inspect the linked destination. Flag only clear fabricated factual claims, targeted hate, harassment, sexual content, dangerous instructions, severe misinformation, or an unsafe/inappropriate linked destination. Opinions, criticism, jokes, uncertainty, and ordinary mistakes are allowed. Return JSON only as {"flagged":boolean,"reason":string}.\\n\\nCONTENT:\\n' +
         input,
-    });
+      }),
+    );
     const raw = response.output_text.trim().replace(/^\`\`\`(?:json)?/i, "").replace(/\`\`\`$/i, "").trim();
     const parsed = JSON.parse(raw) as { flagged?: unknown; reason?: unknown };
     return {
@@ -821,7 +826,12 @@ router.post("/forum/posts/:id/repost", requireAuth, async (req, res): Promise<vo
   if (existing) {
     await db.delete(forumPostRepostsTable).where(eq(forumPostRepostsTable.id, existing.id));
   } else {
-    await db.insert(forumPostRepostsTable).values({ postId: id, userId: auth.userId });
+    // Same double-tap race as the like above, and the count below is read
+    // back from the table either way, so a lost insert costs nothing.
+    await db
+      .insert(forumPostRepostsTable)
+      .values({ postId: id, userId: auth.userId })
+      .onConflictDoNothing();
   }
   const [count] = await db.select({ value: sql<number>`cast(count(*) as int)` })
     .from(forumPostRepostsTable).where(eq(forumPostRepostsTable.postId, id));
@@ -922,7 +932,24 @@ router.post("/forum/:targetType/:id/like", requireAuth, async (req, res): Promis
     await db.delete(forumLikesTable).where(eq(forumLikesTable.id, existing.id));
     res.json({ liked: false });
   } else {
-    await db.insert(forumLikesTable).values({ userId: auth.userId, targetType: typedTarget, targetId });
+    /*
+     * Two taps, one like.
+     *
+     * A like is one row per person per target and the index says so, but this
+     * read the row and then inserted when it found none -- so a double tap, or
+     * a tap repeated because the first seemed not to land, ran both halves
+     * concurrently, both found nothing, and the loser came back 500. On a
+     * button people press quickly and often, from a phone, on whatever signal
+     * they have.
+     *
+     * Doing nothing on a conflict is the right answer rather than merely a
+     * quiet one: the row the caller wanted exists, so `liked: true` is still
+     * the truth about the world when this returns.
+     */
+    await db
+      .insert(forumLikesTable)
+      .values({ userId: auth.userId, targetType: typedTarget, targetId })
+      .onConflictDoNothing();
     res.json({ liked: true });
   }
 });

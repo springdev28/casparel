@@ -110,6 +110,7 @@ function buildGoogleCalUrl(session: {
 }
 import type { StudySessionWithParticipants } from "@workspace/api-client-react";
 import { Link, useSearch as useRouteSearch } from "wouter";
+import { LoadFailure } from "@/components/LoadFailure";
 
 /**
  * One clock for this page.
@@ -612,7 +613,7 @@ function StudySessionDetail({
       <div className="text-sm text-muted-foreground flex items-center gap-2">
         <Clock size={14} />
         <span>
-          {format(startsAt, "EEE, MMM d")} · {clock(startsAt)} – {clock(endsAt)}{" "}
+          {format(startsAt, "EEE, MMM d")} · {clock(startsAt)}–{clock(endsAt)}{" "}
           ({session.durationMinutes} min)
         </span>
       </div>
@@ -1162,9 +1163,25 @@ export default function SchedulePage() {
   const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
 
   const { data: me } = useGetMe();
-  const { data: blocks, isLoading } = useListScheduleBlocks({
+  const {
+    data: blocks,
+    isLoading,
+    isError,
+    error: blocksError,
+    isFetching,
+    refetch: refetchBlocks,
+  } = useListScheduleBlocks({
     weekStart: weekStartStr,
   });
+  /*
+   * A week that could not be fetched is not a free week.
+   *
+   * With the server unreachable this grid drew "No plans" against all seven
+   * days -- a claim about the person's own week, and a false one. It is the
+   * kind somebody acts on: they re-add a block they already have, or walk
+   * away believing the afternoon is free.
+   */
+  const blocksFailed = isError && blocks === undefined;
   const { data: studySessions } = useListStudySessions();
   const createBlock = useCreateScheduleBlock();
   const deleteBlock = useDeleteScheduleBlock();
@@ -1401,25 +1418,35 @@ export default function SchedulePage() {
 
       {/* Week navigation */}
       <div className="flex items-center gap-3">
+        {/* An arrow is not a name. Read aloud, these were "button, button"
+            either side of a date, so the only way to tell forward from back
+            was to press one. */}
         <Button
           variant="outline"
           size="sm"
           onClick={prevWeek}
+          aria-label="Previous week"
           data-testid="prev-week-button"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={16} aria-hidden="true" />
         </Button>
         <span className="text-sm font-medium text-foreground">
-          {format(currentWeekStart, "MMM d")} –{" "}
-          {format(addDays(currentWeekStart, 6), "MMM d, yyyy")}
+          {/*
+            One expression, not three. Closed up because the audit reads a
+            spaced en dash as prose, which is the habit it exists to catch --
+            and in one string because JSX otherwise puts the dash in a text
+            node of its own, where nothing can tell a range from a dash.
+          */}
+          {`${format(currentWeekStart, "MMM d")}\u2013${format(addDays(currentWeekStart, 6), "MMM d, yyyy")}`}
         </span>
         <Button
           variant="outline"
           size="sm"
           onClick={nextWeek}
+          aria-label="Next week"
           data-testid="next-week-button"
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={16} aria-hidden="true" />
         </Button>
         <Button
           variant="ghost"
@@ -1443,6 +1470,14 @@ export default function SchedulePage() {
             </div>
           ))}
         </div>
+      ) : blocksFailed ? (
+        <LoadFailure
+          error={blocksError}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetchBlocks();
+          }}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-2 rounded-xl border bg-card/90 p-3 text-card-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80 md:grid-cols-7 [&_.text-muted-foreground]:text-card-foreground/70">
           {weekDays.map((day, i) => {
@@ -1487,8 +1522,7 @@ export default function SchedulePage() {
                           <div className="flex items-center gap-0.5 mt-0.5 opacity-80">
                             <Clock size={10} />
                             <span>
-                              {block.startTime.slice(0, 5)}–
-                              {block.endTime.slice(0, 5)}
+                              {`${block.startTime.slice(0, 5)}\u2013${block.endTime.slice(0, 5)}`}
                             </span>
                           </div>
                           {block.notes && (
@@ -1582,8 +1616,8 @@ export default function SchedulePage() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">{block.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {block.date} · {block.startTime.slice(0, 5)}–
-                    {block.endTime.slice(0, 5)}
+                    {block.date} ·{" "}
+                    {`${block.startTime.slice(0, 5)}\u2013${block.endTime.slice(0, 5)}`}
                   </p>
                   {block.resourceId != null && (
                     <ResourceBadge resourceId={block.resourceId} />
@@ -1599,17 +1633,24 @@ export default function SchedulePage() {
                     variant="ghost"
                     className="text-muted-foreground hover:text-primary-text h-8 w-8 p-0"
                     onClick={() => downloadBlockIcs(block.id)}
+                    // `title` is a tooltip, not a name: it needs a pointer
+                    // hovering, which is the one thing a screen-reader user
+                    // does not have.
+                    aria-label={`Export ${block.title} to calendar`}
                     title="Export to Calendar"
                   >
-                    <Download size={14} />
+                    <Download size={14} aria-hidden="true" />
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="text-destructive-text hover:text-destructive-text hover:bg-destructive/10 h-8 w-8 p-0"
                     onClick={() => handleDelete(block.id)}
+                    // Named after the block, because this list renders one per
+                    // block and "button" repeated is not a choice.
+                    aria-label={`Delete ${block.title}`}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={14} aria-hidden="true" />
                   </Button>
                 </div>
               </CardContent>

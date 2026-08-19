@@ -11,4 +11,5 @@ export type AccountUsageDeepResearchWindow = typeof AccountUsageDeepResearchWind
 
 export const AccountUsageDeepResearchWindow = {
   day: 'day',
+  month: 'month',
 } as const;

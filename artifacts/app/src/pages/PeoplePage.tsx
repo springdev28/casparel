@@ -457,6 +457,9 @@ export default function PeoplePage() {
               onChange={(event) => setInputValue(event.target.value)}
               className="h-11 pl-9"
               placeholder="Search by name, interest, department, or experience…"
+              // The placeholder vanishes as soon as anything is typed, so it
+              // cannot be what names the field.
+              aria-label="Search people"
               data-testid="people-search-input"
             />
           </div>
@@ -502,6 +505,7 @@ export default function PeoplePage() {
             }}
             className="h-9 w-52 text-sm"
             placeholder="Subject or interest…"
+            aria-label="Filter by subject or interest"
             data-testid="people-subject-filter"
           />
           <Select

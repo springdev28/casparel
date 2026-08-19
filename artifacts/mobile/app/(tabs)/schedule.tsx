@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useColorScheme,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +30,10 @@ import {
   getListStudySessionsQueryKey,
 } from '@workspace/api-client-react';
 import type { ScheduleBlock, StudySessionWithParticipants, PublicUser, Resource } from '@workspace/api-client-react';
+import { describeApiFailure } from '@/utils/api-failure';
+import { sessionPalette } from '@/utils/session-palette';
+import { ErrorState } from '@/components/ErrorState';
+import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -109,6 +114,7 @@ function StudySessionCard({
   onPress: () => void;
 }) {
   const colors = useColors();
+  const violet = sessionPalette(useColorScheme());
   const isPending = session.myStatus === 'pending';
   const startsAt = new Date(session.startsAt);
   const endsAt = new Date(startsAt.getTime() + session.durationMinutes * 60 * 1000);
@@ -126,32 +132,32 @@ function StudySessionCard({
       style={({ pressed }) => [
         styles.blockCard,
         {
-          backgroundColor: pressed ? '#ede9fe' : '#f5f3ff',
-          borderColor: '#c4b5fd',
-          borderLeftColor: '#7c3aed',
+          backgroundColor: pressed ? violet.surfacePressed : violet.surface,
+          borderColor: violet.border,
+          borderLeftColor: violet.accent,
           borderRadius: colors.radius,
           opacity: pressed ? 0.9 : 1,
         },
       ]}
     >
       <View style={styles.sessionRow}>
-        <Text style={[styles.blockTitle, { color: '#3b0764', fontFamily: colors.fontFamily.sansSemiBold, flex: 1 }]} numberOfLines={2}>
+        <Text style={[styles.blockTitle, { color: violet.strongText, fontFamily: colors.fontFamily.sansSemiBold, flex: 1 }]} numberOfLines={2}>
           {session.title}
         </Text>
         {isPending && (
-          <View style={[styles.pendingBadge, { borderColor: '#7c3aed' }]}>
-            <Text style={[styles.pendingBadgeText, { color: '#6d28d9', fontFamily: colors.fontFamily.sans }]}>Pending</Text>
+          <View style={[styles.pendingBadge, { borderColor: violet.accent }]}>
+            <Text style={[styles.pendingBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>Pending</Text>
           </View>
         )}
       </View>
-      <Text style={[styles.blockTime, { color: '#6d28d9', fontFamily: colors.fontFamily.sansMedium }]}>
+      <Text style={[styles.blockTime, { color: violet.accentText, fontFamily: colors.fontFamily.sansMedium }]}>
         {h12_1}:{m1} {ampm1} – {h12_2}:{m2} {ampm2}
       </Text>
       <View style={styles.sessionMeta}>
-        <View style={styles.collaborativeBadge}>
-          <Text style={[styles.collaborativeBadgeText, { fontFamily: colors.fontFamily.sans }]}>👥 Collaborative</Text>
+        <View style={[styles.collaborativeBadge, { backgroundColor: violet.surfacePressed }]}>
+          <Text style={[styles.collaborativeBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>👥 Collaborative</Text>
         </View>
-        <Text style={[styles.participantCount, { color: '#7c3aed', fontFamily: colors.fontFamily.sans }]}>
+        <Text style={[styles.participantCount, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>
           {session.participants.length} invited
         </Text>
       </View>
@@ -174,6 +180,7 @@ function StudySessionDetailSheet({
   rsvpLoading: boolean;
 }) {
   const colors = useColors();
+  const violet = sessionPalette(useColorScheme());
   const insets = useSafeAreaInsets();
   if (!session) return null;
 
@@ -202,8 +209,8 @@ function StudySessionDetailSheet({
               {session.title}
             </Text>
             <View style={styles.sessionRow}>
-              <View style={styles.collaborativeBadge}>
-                <Text style={[styles.collaborativeBadgeText, { fontFamily: colors.fontFamily.sans }]}>👥 Collaborative</Text>
+              <View style={[styles.collaborativeBadge, { backgroundColor: violet.surfacePressed }]}>
+                <Text style={[styles.collaborativeBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>👥 Collaborative</Text>
               </View>
             </View>
           </View>
@@ -214,7 +221,7 @@ function StudySessionDetailSheet({
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }} showsVerticalScrollIndicator={false}>
           {/* Time */}
-          <View style={[styles.infoRow, { backgroundColor: colors.muted ?? '#f4f4f5', borderRadius: colors.radius }]}>
+          <View style={[styles.infoRow, { backgroundColor: colors.muted, borderRadius: colors.radius }]}>
             <Text style={{ fontSize: 16 }}>🕐</Text>
             <Text style={[styles.infoText, { color: colors.foreground, fontFamily: colors.fontFamily.sans }]}>
               {formatDateTime(session.startsAt)} – {h12_2}:{m2} {ampm2}{'\n'}
@@ -225,16 +232,16 @@ function StudySessionDetailSheet({
           {/* Meeting link */}
           <Pressable
             onPress={handleJoin}
-            style={[styles.meetingLinkRow, { backgroundColor: '#ede9fe', borderRadius: colors.radius }]}
+            style={[styles.meetingLinkRow, { backgroundColor: violet.surfacePressed, borderRadius: colors.radius }]}
           >
             <Text style={{ fontSize: 16 }}>🎥</Text>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.joinLabel, { fontFamily: colors.fontFamily.sansSemiBold }]}>Join Meeting</Text>
-              <Text style={[styles.meetingUrl, { color: '#6d28d9', fontFamily: colors.fontFamily.sans }]} numberOfLines={1}>
+              <Text style={[styles.joinLabel, { color: violet.strongText, fontFamily: colors.fontFamily.sansSemiBold }]}>Join Meeting</Text>
+              <Text style={[styles.meetingUrl, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]} numberOfLines={1}>
                 {session.meetingUrl}
               </Text>
             </View>
-            <Text style={{ color: '#7c3aed', fontSize: 12, fontFamily: colors.fontFamily.sans }}>Open ↗</Text>
+            <Text style={{ color: violet.accentText, fontSize: 12, fontFamily: colors.fontFamily.sans }}>Open ↗</Text>
           </Pressable>
 
           {/* Topic */}
@@ -252,7 +259,7 @@ function StudySessionDetailSheet({
             </Text>
             {session.participants.map((p) => (
               <View key={p.userId} style={styles.participantRow}>
-                <View style={[styles.participantAvatar, { backgroundColor: colors.muted ?? '#f4f4f5' }]}>
+                <View style={[styles.participantAvatar, { backgroundColor: colors.muted }]}>
                   <Text style={{ fontSize: 14 }}>👤</Text>
                 </View>
                 <Text style={[styles.participantName, { color: colors.foreground, fontFamily: colors.fontFamily.sans, flex: 1 }]} numberOfLines={1}>
@@ -261,14 +268,14 @@ function StudySessionDetailSheet({
                 <View style={[
                   styles.statusBadge,
                   {
-                    borderColor: p.status === 'accepted' ? '#16a34a' : p.status === 'declined' ? '#dc2626' : '#a855f7',
-                    backgroundColor: p.status === 'accepted' ? '#f0fdf4' : p.status === 'declined' ? '#fef2f2' : '#faf5ff',
+                    borderColor: p.status === 'accepted' ? violet.positiveText : p.status === 'declined' ? violet.negativeText : violet.accentText,
+                    backgroundColor: p.status === 'accepted' ? violet.positiveSurface : p.status === 'declined' ? violet.negativeSurface : violet.surface,
                   }
                 ]}>
                   <Text style={[
                     styles.statusText,
                     {
-                      color: p.status === 'accepted' ? '#16a34a' : p.status === 'declined' ? '#dc2626' : '#a855f7',
+                      color: p.status === 'accepted' ? violet.positiveText : p.status === 'declined' ? violet.negativeText : violet.accentText,
                       fontFamily: colors.fontFamily.sans,
                     }
                   ]}>
@@ -285,9 +292,9 @@ function StudySessionDetailSheet({
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Pressable
               onPress={handleJoin}
-              style={[styles.joinButton, { borderRadius: colors.radius, flex: 1 }]}
+              style={[styles.joinButton, { backgroundColor: violet.accent, borderRadius: colors.radius, flex: 1 }]}
             >
-              <Text style={[styles.joinButtonText, { fontFamily: colors.fontFamily.sansSemiBold }]}>🎥 Join</Text>
+              <Text style={[styles.joinButtonText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>🎥 Join</Text>
             </Pressable>
             <Pressable
               onPress={async () => {
@@ -304,9 +311,9 @@ function StudySessionDetailSheet({
                 const url = `https://calendar.google.com/calendar/render?${params.toString()}`;
                 await Share.share({ message: url, title: 'Add to Calendar' });
               }}
-              style={[{ borderRadius: colors.radius, borderWidth: 1, borderColor: '#7c3aed', paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }]}
+              style={[{ borderRadius: colors.radius, borderWidth: 1, borderColor: violet.accent, paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }]}
             >
-              <Text style={{ color: '#7c3aed', fontSize: 13, fontFamily: colors.fontFamily.sansSemiBold }}>📅 Export</Text>
+              <Text style={{ color: violet.accentText, fontSize: 13, fontFamily: colors.fontFamily.sansSemiBold }}>📅 Export</Text>
             </Pressable>
           </View>
 
@@ -315,9 +322,9 @@ function StudySessionDetailSheet({
               <Pressable
                 onPress={() => { onRsvp(session.id, 'accepted'); onClose(); }}
                 disabled={rsvpLoading}
-                style={[styles.acceptButton, { borderRadius: colors.radius, flex: 1, opacity: rsvpLoading ? 0.6 : 1 }]}
+                style={[styles.acceptButton, { backgroundColor: violet.positive, borderRadius: colors.radius, flex: 1, opacity: rsvpLoading ? 0.6 : 1 }]}
               >
-                <Text style={[styles.acceptButtonText, { fontFamily: colors.fontFamily.sansSemiBold }]}>✓ Accept</Text>
+                <Text style={[styles.acceptButtonText, { color: violet.onPositive, fontFamily: colors.fontFamily.sansSemiBold }]}>✓ Accept</Text>
               </Pressable>
               <Pressable
                 onPress={() => { onRsvp(session.id, 'declined'); onClose(); }}
@@ -363,6 +370,7 @@ function CreateStudySessionModal({
   onClose: () => void;
 }) {
   const colors = useColors();
+  const violet = sessionPalette(useColorScheme());
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const createSession = useCreateStudySession();
@@ -432,8 +440,12 @@ function CreateStudySessionModal({
       await queryClient.invalidateQueries({ queryKey: getListStudySessionsQueryKey() });
       reset();
       onClose();
-    } catch {
-      setError('Failed to create session. Check the meeting URL and try again.');
+    } catch (error) {
+      // The server says which of these it was -- a bad meeting URL, an
+      // invitee whose privacy preference refuses the invite, a missing
+      // resource. Blaming the URL for all of them left people retyping one
+      // that was never wrong.
+      setError(describeApiFailure(error, 'Could not create the session. Please try again.'));
     }
   }
 
@@ -470,8 +482,8 @@ function CreateStudySessionModal({
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
           {error ? (
-            <View style={[styles.errorBox, { backgroundColor: '#fef2f2', borderRadius: colors.radius }]}>
-              <Text style={{ color: '#dc2626', fontSize: 13, fontFamily: colors.fontFamily.sans }}>{error}</Text>
+            <View style={[styles.errorBox, { backgroundColor: violet.negativeSurface, borderRadius: colors.radius }]}>
+              <Text style={{ color: violet.negativeText, fontSize: 13, fontFamily: colors.fontFamily.sans }}>{error}</Text>
             </View>
           ) : null}
 
@@ -565,12 +577,12 @@ function CreateStudySessionModal({
                     onPress={() => toggleInvitee(u)}
                     style={{
                       flexDirection: 'row', alignItems: 'center', gap: 4,
-                      backgroundColor: '#ede9fe', borderRadius: 999,
+                      backgroundColor: violet.surfacePressed, borderRadius: 999,
                       paddingHorizontal: 10, paddingVertical: 4,
                     }}
                   >
-                    <Text style={{ color: '#6d28d9', fontSize: 12, fontFamily: colors.fontFamily.sans }}>{u.name}</Text>
-                    <Text style={{ color: '#6d28d9', fontSize: 11 }}>✕</Text>
+                    <Text style={{ color: violet.accentText, fontSize: 12, fontFamily: colors.fontFamily.sans }}>{u.name}</Text>
+                    <Text style={{ color: violet.accentText, fontSize: 11 }}>✕</Text>
                   </Pressable>
                 ))}
               </View>
@@ -617,14 +629,14 @@ function CreateStudySessionModal({
                 onPress={() => { setSelectedResource(null); setResourceQuery(''); }}
                 style={{
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                  backgroundColor: '#f5f3ff', borderRadius: colors.radius,
+                  backgroundColor: violet.surface, borderRadius: colors.radius,
                   paddingHorizontal: 12, paddingVertical: 8,
                 }}
               >
-                <Text style={{ color: '#6d28d9', fontSize: 13, fontFamily: colors.fontFamily.sans, flex: 1 }} numberOfLines={1}>
+                <Text style={{ color: violet.accentText, fontSize: 13, fontFamily: colors.fontFamily.sans, flex: 1 }} numberOfLines={1}>
                   📎 {selectedResource.title}
                 </Text>
-                <Text style={{ color: '#6d28d9', fontSize: 12, marginLeft: 8 }}>✕ Remove</Text>
+                <Text style={{ color: violet.accentText, fontSize: 12, marginLeft: 8 }}>✕ Remove</Text>
               </Pressable>
             ) : (
               <>
@@ -664,9 +676,9 @@ function CreateStudySessionModal({
           <Pressable
             onPress={handleCreate}
             disabled={createSession.isPending}
-            style={[styles.joinButton, { borderRadius: colors.radius, opacity: createSession.isPending ? 0.6 : 1 }]}
+            style={[styles.joinButton, { backgroundColor: violet.accent, borderRadius: colors.radius, opacity: createSession.isPending ? 0.6 : 1 }]}
           >
-            <Text style={[styles.joinButtonText, { fontFamily: colors.fontFamily.sansSemiBold }]}>
+            <Text style={[styles.joinButtonText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>
               {createSession.isPending ? 'Creating…' : 'Create Session'}
             </Text>
           </Pressable>
@@ -682,6 +694,7 @@ type ListItem =
 
 export default function ScheduleScreen() {
   const colors = useColors();
+  const violet = sessionPalette(useColorScheme());
   const insets = useSafeAreaInsets();
 
   const monday = getMondayOfWeek(new Date());
@@ -696,8 +709,20 @@ export default function ScheduleScreen() {
   const [selectedSession, setSelectedSession] = useState<StudySessionWithParticipants | null>(null);
   const [createModalVisible, setCreateModalVisible] = useState(false);
 
-  const { data: blocksData, isLoading: blocksLoading, refetch: refetchBlocks } = useListScheduleBlocks({ weekStart });
-  const { data: sessionsData, isLoading: sessionsLoading, refetch: refetchSessions } = useListStudySessions();
+  const {
+    data: blocksData,
+    isLoading: blocksLoading,
+    isError: blocksError,
+    error: blocksFailure,
+    isFetching: blocksFetching,
+    refetch: refetchBlocks,
+  } = useListScheduleBlocks({ weekStart });
+  const {
+    data: sessionsData,
+    isLoading: sessionsLoading,
+    isError: sessionsError,
+    refetch: refetchSessions,
+  } = useListStudySessions();
   const rsvp = useRsvpStudySession();
   const queryClient = useQueryClient();
 
@@ -731,6 +756,16 @@ export default function ScheduleScreen() {
   const pendingSessions = sessionsData?.filter((s) => s.myStatus === 'pending') ?? [];
 
   const isLoading = blocksLoading || sessionsLoading;
+
+  /*
+   * A week that could not be fetched is not a free week.
+   *
+   * With no signal this screen said "No events scheduled -- Nothing scheduled
+   * for Wed", which is a claim about the person's own day and was untrue of
+   * it. Worse than blank: somebody could reasonably re-add a block they
+   * already have, or walk away believing they had nothing on.
+   */
+  const failed = (blocksError && blocksData === undefined) || (sessionsError && sessionsData === undefined);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
@@ -767,9 +802,9 @@ export default function ScheduleScreen() {
           </Text>
           <Pressable
             onPress={() => setCreateModalVisible(true)}
-            style={[styles.fabButton, { backgroundColor: '#7c3aed', borderRadius: colors.radius }]}
+            style={[styles.fabButton, { backgroundColor: violet.accent, borderRadius: colors.radius }]}
           >
-            <Text style={[styles.fabText, { fontFamily: colors.fontFamily.sansSemiBold }]}>+ Study Session</Text>
+            <Text style={[styles.fabText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>+ Study Session</Text>
           </Pressable>
         </View>
 
@@ -777,9 +812,9 @@ export default function ScheduleScreen() {
         {pendingSessions.length > 0 && (
           <Pressable
             onPress={() => setSelectedSession(pendingSessions[0])}
-            style={[styles.pendingPill, { backgroundColor: '#ede9fe', borderColor: '#c4b5fd', borderRadius: colors.radius }]}
+            style={[styles.pendingPill, { backgroundColor: violet.surfacePressed, borderColor: violet.border, borderRadius: colors.radius }]}
           >
-            <Text style={[styles.pendingPillText, { color: '#6d28d9', fontFamily: colors.fontFamily.sans }]}>
+            <Text style={[styles.pendingPillText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>
               👥 {pendingSessions.length} pending invitation{pendingSessions.length > 1 ? 's' : ''}
             </Text>
           </Pressable>
@@ -832,7 +867,7 @@ export default function ScheduleScreen() {
                   {dayNum}
                 </Text>
                 {hasSessions && !isSelected && (
-                  <View style={[styles.sessionDot, { backgroundColor: '#7c3aed' }]} />
+                  <View style={[styles.sessionDot, { backgroundColor: violet.accent }]} />
                 )}
               </Pressable>
             );
@@ -847,6 +882,16 @@ export default function ScheduleScreen() {
             <Skeleton key={i} width="100%" height={80} borderRadius={8} style={{ marginBottom: 10 }} />
           ))}
         </View>
+      ) : failed ? (
+        <ErrorState
+          error={blocksFailure}
+          retrying={blocksFetching}
+          onRetry={() => {
+            void refetchBlocks();
+            void refetchSessions();
+          }}
+          style={{ paddingTop: 24 }}
+        />
       ) : (
         <FlatList
           data={listItems}
@@ -862,7 +907,7 @@ export default function ScheduleScreen() {
               />
             );
           }}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE }]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
@@ -913,7 +958,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
-  fabText: { color: '#fff', fontSize: 13 },
+  fabText: { fontSize: 13 },
   pendingPill: {
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -961,11 +1006,10 @@ const styles = StyleSheet.create({
   sessionMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   collaborativeBadge: {
     borderRadius: 20,
-    backgroundColor: '#ede9fe',
     paddingHorizontal: 7,
     paddingVertical: 2,
   },
-  collaborativeBadgeText: { fontSize: 10, color: '#6d28d9' },
+  collaborativeBadgeText: { fontSize: 10 },
   participantCount: { fontSize: 11 },
   pendingBadge: {
     borderRadius: 20,
@@ -1003,7 +1047,7 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
   },
-  joinLabel: { fontSize: 14, color: '#3b0764' },
+  joinLabel: { fontSize: 14 },
   meetingUrl: { fontSize: 12, marginTop: 2 },
   sectionLabel: { fontSize: 11, letterSpacing: 0.5 },
   participantRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -1012,17 +1056,15 @@ const styles = StyleSheet.create({
   statusBadge: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
   statusText: { fontSize: 11 },
   joinButton: {
-    backgroundColor: '#7c3aed',
     paddingVertical: 13,
     alignItems: 'center',
   },
-  joinButtonText: { color: '#fff', fontSize: 15 },
+  joinButtonText: { fontSize: 15 },
   acceptButton: {
-    backgroundColor: '#16a34a',
     paddingVertical: 11,
     alignItems: 'center',
   },
-  acceptButtonText: { color: '#fff', fontSize: 14 },
+  acceptButtonText: { fontSize: 14 },
   declineButton: {
     borderWidth: 1,
     paddingVertical: 11,

@@ -15,6 +15,7 @@ import {
   markSchemaReady,
   getSchemaHealth,
 } from "../lib/schemaHealth.js";
+import { resetAiHealth, throughAi } from "../lib/aiHealth.js";
 
 function buildApp() {
   const app = express();
@@ -25,6 +26,7 @@ function buildApp() {
 describe("GET /api/healthz", () => {
   beforeEach(() => {
     markSchemaReady();
+    resetAiHealth();
   });
 
   it("reports ok and a ready schema once migrations applied", async () => {
@@ -48,5 +50,39 @@ describe("GET /api/healthz", () => {
     const res = await request(buildApp()).get("/api/healthz");
     expect(res.body.status).toBe("ok");
     expect(getSchemaHealth().state).toBe("failed");
+  });
+
+  it("says nothing about the AI provider until something has used it", async () => {
+    const res = await request(buildApp()).get("/api/healthz");
+    expect(res.body.ai).toEqual({ state: "unknown", checkedAt: null });
+  });
+
+  it("reports a failing AI provider, and which call saw it", async () => {
+    await expect(
+      throughAi("deep source review", async () => {
+        throw Object.assign(new Error("Connection error."), { status: 502 });
+      }),
+    ).rejects.toThrow();
+
+    const res = await request(buildApp()).get("/api/healthz");
+    expect(res.body.ai.state).toBe("failing");
+    expect(res.body.ai.lastOperation).toBe("deep source review");
+    expect(res.body.ai.error).toContain("Connection error");
+  });
+
+  it("stays healthy while the AI provider is not", async () => {
+    // The catalog, classes, schedules and the quick source check all work
+    // without AI. A load balancer must not pull the server for an optional
+    // feature: that turns a degraded product into no product.
+    await expect(
+      throughAi("discovery", async () => {
+        throw new Error("down");
+      }),
+    ).rejects.toThrow();
+
+    const res = await request(buildApp()).get("/api/healthz");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("ok");
+    expect(res.body.ai.state).toBe("failing");
   });
 });

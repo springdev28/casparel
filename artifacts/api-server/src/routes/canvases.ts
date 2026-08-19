@@ -20,6 +20,7 @@ import {
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { ensureAccountCapacity } from "../lib/planCapacity";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -213,7 +214,7 @@ router.post(
     const { userId } = req as AuthenticatedRequest;
     const parsed = createCanvasSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     const classId = parsed.data.classId ?? null;
@@ -364,7 +365,7 @@ router.patch(
     const id = Number(req.params.id);
     const parsed = updateCanvasSchema.safeParse(req.body);
     if (!Number.isInteger(id) || !parsed.success) {
-      res.status(400).json({ error: parsed.success ? "Invalid canvas ID" : parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error, "Invalid canvas ID") });
       return;
     }
     const canvas = await getCanvasRow(id);

@@ -14,10 +14,20 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
-import { useListClasses } from '@workspace/api-client-react';
+import {
+  getListClassesQueryKey,
+  getListMyClassInvitationsQueryKey,
+  useListClasses,
+  useListMyClassInvitations,
+  useRespondToClassInvitation,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Alert } from 'react-native';
+import { describeApiFailure } from '@/utils/api-failure';
 import { ErrorState } from '@/components/ErrorState';
 import { Feather } from '@expo/vector-icons';
-import type { Class } from '@workspace/api-client-react';
+import type { Class, ClassInvitation } from '@workspace/api-client-react';
+import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 
 function ClassCard({ item, onPress }: { item: Class; onPress: () => void }) {
   const colors = useColors();
@@ -108,12 +118,143 @@ function ClassSkeleton() {
   );
 }
 
+/**
+ * A class invitation, with the two buttons that answer it.
+ *
+ * Without this the mobile app could not join a class at all. The server logs
+ * "Invitation to join Physics 10B. Accept or decline it from notifications."
+ * into the activity feed, which the app shows on its home screen -- and mobile
+ * has no notifications surface, so a pupil read an instruction pointing at a
+ * screen that does not exist, on the platform they were holding.
+ */
+function InvitationCard({
+  invitation,
+  busy,
+  onRespond,
+}: {
+  invitation: ClassInvitation;
+  busy: boolean;
+  onRespond: (action: 'accept' | 'decline') => void;
+}) {
+  const colors = useColors();
+  return (
+    <View
+      style={[
+        styles.card,
+        styles.invitationCard,
+        { backgroundColor: colors.card, borderColor: colors.primary },
+      ]}
+    >
+      <View style={styles.cardHeader}>
+        <View style={[styles.classIcon, { backgroundColor: colors.primary + '18' }]}>
+          <Feather name="mail" size={20} color={colors.primary} />
+        </View>
+        <View style={styles.cardHeaderText}>
+          <Text
+            style={[
+              styles.className,
+              { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
+            ]}
+          >
+            {invitation.class?.name ?? 'A class'}
+          </Text>
+          <Text
+            style={[
+              styles.description,
+              { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
+            ]}
+          >
+            {invitation.inviter?.name
+              ? `${invitation.inviter.name} invited you`
+              : 'You have been invited'}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.invitationActions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Decline the invitation to ${invitation.class?.name ?? 'this class'}`}
+          disabled={busy}
+          onPress={() => onRespond('decline')}
+          style={[
+            styles.invitationButton,
+            { borderColor: colors.border, opacity: busy ? 0.5 : 1 },
+          ]}
+        >
+          <Text
+            style={[
+              styles.invitationButtonText,
+              { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium },
+            ]}
+          >
+            Decline
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Join ${invitation.class?.name ?? 'this class'}`}
+          disabled={busy}
+          onPress={() => onRespond('accept')}
+          style={[
+            styles.invitationButton,
+            {
+              backgroundColor: colors.primary,
+              borderColor: colors.primary,
+              opacity: busy ? 0.5 : 1,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.invitationButtonText,
+              { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansMedium },
+            ]}
+          >
+            Join class
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export default function ClassesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const { data, isLoading, isError, error, isFetching, refetch } = useListClasses();
+  const queryClient = useQueryClient();
+  // Invitations are a small, occasional list; a failure to load them must not
+  // take the classes list down with it, so this deliberately ignores its error.
+  const { data: invitations, refetch: refetchInvitations } = useListMyClassInvitations();
+  const respond = useRespondToClassInvitation();
+  const [answering, setAnswering] = React.useState<number | null>(null);
+
+  const pending = (invitations ?? []).filter(
+    (invitation) => invitation.status === 'pending',
+  );
+
+  async function answerInvitation(
+    invitation: ClassInvitation,
+    action: 'accept' | 'decline',
+  ) {
+    setAnswering(invitation.id);
+    try {
+      await respond.mutateAsync({ id: invitation.id, data: { action } });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getListClassesQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getListMyClassInvitationsQueryKey() }),
+      ]);
+    } catch (failure) {
+      Alert.alert(
+        action === 'accept' ? 'Could not join the class' : 'Could not decline',
+        describeApiFailure(failure, 'Please try again.'),
+      );
+    } finally {
+      setAnswering(null);
+    }
+  }
 
   // Request failed and nothing is cached: say so instead of rendering
   // "No classes yet", which reads as "your account is empty".
@@ -122,7 +263,7 @@ export default function ClassesScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    await Promise.all([refetch(), refetchInvitations()]);
     setRefreshing(false);
   };
 
@@ -177,17 +318,41 @@ export default function ClassesScreen() {
           )}
           contentContainerStyle={[
             styles.listContent,
-            { paddingBottom: insets.bottom + 80 },
+            { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
           ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }
+          ListHeaderComponent={
+            pending.length ? (
+              <View style={styles.invitationSection}>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold },
+                  ]}
+                >
+                  {pending.length === 1 ? 'Invitation' : 'Invitations'}
+                </Text>
+                {pending.map((invitation) => (
+                  <InvitationCard
+                    key={invitation.id}
+                    invitation={invitation}
+                    busy={answering === invitation.id}
+                    onRespond={(action) => void answerInvitation(invitation, action)}
+                  />
+                ))}
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
-            <Empty
-              icon="users"
-              title="No classes yet"
-              description="Classes you join or create will appear here"
-            />
+            pending.length ? null : (
+              <Empty
+                icon="users"
+                title="No classes yet"
+                description="Classes you join or create will appear here"
+              />
+            )
           }
           showsVerticalScrollIndicator={false}
         />
@@ -230,4 +395,17 @@ const styles = StyleSheet.create({
   description: { fontSize: 13, lineHeight: 18 },
   cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   memberCount: { fontSize: 12 },
+  invitationSection: { gap: 10, marginBottom: 6 },
+  sectionTitle: { fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' },
+  invitationCard: { borderWidth: 1.5 },
+  invitationActions: { flexDirection: 'row', gap: 10 },
+  invitationButton: {
+    flex: 1,
+    borderWidth: 1,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  invitationButtonText: { fontSize: 14 },
 });

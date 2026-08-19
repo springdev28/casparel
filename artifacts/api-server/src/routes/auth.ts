@@ -51,6 +51,7 @@ import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import { resolveAccountPlan } from "../lib/entitlements";
 import { accountCapacityReport } from "../lib/planCapacity";
+import { deepAllowance } from "../lib/deepAllowance";
 import { publicUserColumns } from "../lib/userColumns";
 import { publicResourceColumns } from "../lib/resourceColumns";
 import {
@@ -58,6 +59,7 @@ import {
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import { validationMessage } from "../lib/validationMessage";
 
 const PRESET_AVATARS: Record<
   string,
@@ -253,7 +255,7 @@ router.patch(
     }
     const parsed = userPreferencesPatch.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     const [preferences] = await db
@@ -280,7 +282,7 @@ router.post(
   async (req, res): Promise<void> => {
     const parsed = RegisterBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     // role is always "student" for new accounts, not client-controlled
@@ -308,7 +310,7 @@ router.post(
 router.post("/auth/login", async (req, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const { email, password } = parsed.data;
@@ -481,9 +483,13 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
     ],
   );
   const usage = new Map(result.rows.map((row) => [row.key, Number(row.hits)]));
-  const deepUsage = Math.max(
-    usage.get("deep-user-day:" + userId) ?? 0,
-    usage.get("deep-user-month:" + userId) ?? 0,
+  const deep = deepAllowance(
+    {
+      dayUsed: usage.get("deep-user-day:" + userId) ?? 0,
+      monthUsed: usage.get("deep-user-month:" + userId) ?? 0,
+    },
+    entitlements.ai,
+    unlimited,
   );
   // Stored-data allowances travel with the AI counters so a client renders the
   // whole plan from one response instead of guessing the half it cannot see.
@@ -499,11 +505,10 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
         limit: unlimited ? null : entitlements.ai.searchPerDay,
         window: "day",
       },
-      deepResearch: {
-        used: deepUsage,
-        limit: unlimited ? null : entitlements.ai.deepPerDay,
-        window: "day",
-      },
+      // Whichever of the two enforced windows the account is actually up
+      // against; see lib/deepAllowance.ts for what reporting the wrong one
+      // did to paying customers.
+      deepResearch: deep,
       capacity: {
         classesOwned: capacity["classes-owned"],
         classMembers: capacity["class-members"],
@@ -525,7 +530,7 @@ router.patch(
     const { userId } = req as AuthenticatedRequest;
     const parsed = UpdateMeBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     // Strip avatarUrl from PATCH payload, avatar changes must use POST /users/me/avatar
@@ -551,7 +556,7 @@ router.patch(
     const { userId, accountRole } = req as AuthenticatedRequest;
     const parsed = SwitchRoleBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     const [user] = await db
@@ -628,7 +633,7 @@ router.put(
     const { userId } = req as AuthenticatedRequest;
     const parsed = SetPresetAvatarBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
     const avatarUrl = presetAvatarDataUrl(parsed.data.avatarId);
@@ -742,7 +747,7 @@ router.get("/users/search", requireAuth, async (req, res): Promise<void> => {
   const isAdmin = accountRole === "admin";
   const parsed = SearchUsersQueryParams.safeParse(req.query);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const {

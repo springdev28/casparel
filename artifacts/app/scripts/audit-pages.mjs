@@ -37,14 +37,23 @@ const PORT = Number(process.env.AUDIT_PORT ?? 4321);
 // submission blocker rather than a cosmetic issue.
 const PAGES = (
   process.env.AUDIT_PAGES ??
-  "/,/resources,/support,/plans,/auth/login,/auth/register,/terms,/privacy"
+  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy"
 ).split(",");
 // Signed-in pages, rendered against fixtures rather than a live API. These are
 // where the regressions that reached production actually were, so they matter
 // more than the public pages, not less.
+//
+// Nine of these were missing until now, and every one of them had something:
+// two icon-only buttons that read as "button, button" either side of a date,
+// four search fields whose only name was a placeholder that disappears when
+// you type, a switch that announced as "switch, on" with no mention of what it
+// governs, and two empty-state headings that skipped h1 to h3. None of it is
+// visible in a screenshot, which is exactly why a page nothing renders
+// accumulates it.
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
-  "/dashboard,/profile,/resources,/catalog,/settings,/plans,/admin"
+  "/dashboard,/profile,/resources,/catalog,/settings,/plans,/admin," +
+    "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people,/canvas"
 )
   .split(",")
   .filter(Boolean);

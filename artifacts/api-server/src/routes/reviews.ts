@@ -12,6 +12,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { isReviewOwner } from "../lib/authz";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -19,7 +20,7 @@ const router: IRouter = Router();
 router.get("/resources/:id/reviews", async (req, res): Promise<void> => {
   const params = ListResourceReviewsParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   const rows = await db
@@ -43,12 +44,12 @@ router.post("/resources/:id/reviews", contentLimiter, requireAuth, async (req, r
   const { userId } = req as AuthenticatedRequest;
   const params = CreateResourceReviewParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   const parsed = CreateResourceReviewBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const [review] = await db
@@ -67,7 +68,7 @@ router.delete("/resources/:id/reviews/:reviewId", requireAuth, async (req, res):
   const { userId } = req as AuthenticatedRequest;
   const params = DeleteResourceReviewParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isReviewOwner(params.data.reviewId, userId))) {

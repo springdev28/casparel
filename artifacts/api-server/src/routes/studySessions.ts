@@ -46,6 +46,7 @@ import {
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { syncSessionToGCal, deleteSessionFromGCal } from "./calendar";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -125,7 +126,7 @@ router.post(
     const { userId } = req as AuthenticatedRequest;
     const parsed = CreateStudySessionBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
 
@@ -278,7 +279,7 @@ router.patch("/study-sessions/:id", requireAuth, async (req, res): Promise<void>
 
   const parsed = UpdateStudySessionBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
 
@@ -380,7 +381,7 @@ router.patch(
 
     const parsed = RsvpStudySessionBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
 

@@ -26,6 +26,7 @@ import { contentLimiter } from "../lib/limiters";
 import { isListOwner, canReadList, isListItemOwner, isClassTeacher } from "../lib/authz";
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 import { ensureAccountCapacity } from "../lib/planCapacity";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -88,7 +89,7 @@ router.post("/lists", contentLimiter, requireAuth, async (req, res): Promise<voi
   const { userId, userRole } = req as AuthenticatedRequest;
   const parsed = CreateResourceListBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   if (!(await ensureAccountCapacity(res, userId, "resource-lists"))) return;
@@ -104,7 +105,7 @@ router.get("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = GetResourceListParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await canReadList(params.data.id, userId, userRole))) {
@@ -135,7 +136,7 @@ router.patch("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = UpdateResourceListParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isListOwner(params.data.id, userId, userRole))) {
@@ -144,7 +145,7 @@ router.patch("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   }
   const parsed = UpdateResourceListBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const [list] = await db
@@ -165,7 +166,7 @@ router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = DeleteResourceListParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   // Check existence before the ownership guard so that a second concurrent
@@ -183,7 +184,16 @@ router.delete("/lists/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "Only the list owner can delete this list" });
     return;
   }
-  await db.delete(listItemsTable).where(eq(listItemsTable.listId, params.data.id));
+  /*
+   * One statement, because two were not atomic.
+   *
+   * The items were deleted first and the list second, with nothing holding
+   * them together: a failure in between emptied somebody's list and left the
+   * list there, which is the worst of both outcomes. `list_items.list_id`
+   * carries ON DELETE CASCADE (checked against the database, not just the
+   * schema), so deleting the list takes its items with it and the pair cannot
+   * come apart.
+   */
   await db.delete(resourceListsTable).where(eq(resourceListsTable.id, params.data.id));
   res.sendStatus(204);
 });
@@ -193,7 +203,7 @@ router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): P
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = AddListItemParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isListOwner(params.data.id, userId, userRole))) {
@@ -202,7 +212,7 @@ router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): P
   }
   const parsed = AddListItemBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   const [maxResult] = await db
@@ -231,7 +241,7 @@ router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<v
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = ReorderListItemsParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isListOwner(params.data.id, userId, userRole))) {
@@ -240,7 +250,7 @@ router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<v
   }
   const parsed = ReorderListItemsBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
 
@@ -279,7 +289,7 @@ router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = RemoveListItemParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isListItemOwner(params.data.itemId, userId, userRole))) {
@@ -297,7 +307,7 @@ router.post("/lists/:id/share", contentLimiter, requireAuth, async (req, res): P
   const { userId, userRole } = req as AuthenticatedRequest;
   const params = ShareListWithClassParams.safeParse(req.params);
   if (!params.success) {
-    res.status(400).json({ error: params.error.message });
+    res.status(400).json({ error: validationMessage(params.error) });
     return;
   }
   if (!(await isListOwner(params.data.id, userId, userRole))) {
@@ -306,7 +316,7 @@ router.post("/lists/:id/share", contentLimiter, requireAuth, async (req, res): P
   }
   const parsed = ShareListWithClassBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
   if (!(await isClassTeacher(parsed.data.classId, userId))) {

@@ -100,7 +100,7 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
         {plan.unlimited
           ? "Administrator account: AI usage is uncapped."
           : plan.level === "free"
-            ? "Free includes the core tools and a small daily taste of AI."
+            ? "Free includes the core tools and a small taste of AI."
             : "AI discovery and deep research are active with plan allowances."}
       </p>
       <div className={"mt-3 grid gap-2.5" + (compact ? "" : " max-w-sm")}>

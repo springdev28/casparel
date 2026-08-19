@@ -39,6 +39,7 @@ import {
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { ensureAccountCapacity } from "../lib/planCapacity";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
@@ -368,7 +369,7 @@ router.post(
 
     const parsed = ImportGCCourseBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: validationMessage(parsed.error) });
       return;
     }
 
@@ -449,7 +450,7 @@ router.get(
 
     const params = GetGCCourseStudentsParams.safeParse(req.params);
     if (!params.success) {
-      res.status(400).json({ error: params.error.message });
+      res.status(400).json({ error: validationMessage(params.error) });
       return;
     }
 
@@ -528,7 +529,7 @@ router.post("/google-classroom/share", contentLimiter, requireAuth, requireTeach
 
   const parsed = ShareToGCBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
 

@@ -2,7 +2,8 @@
   "name": "@workspace/desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "Casparel for macOS, Windows and Linux",
+  "license": "MIT",
+  "description": "Casparel: an education workspace for classes, resources, study plans and AI source research",
   "homepage": "https://casparel.com",
   "repository": {
     "type": "git",
@@ -21,7 +22,8 @@
     "build:mac": "pnpm run compile && electron-builder --mac --publish never",
     "build:win": "pnpm run compile && electron-builder --win --publish never",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "smoke": "node scripts/run-smoke.mjs"
+    "smoke": "node scripts/run-smoke.mjs",
+    "verify:package": "node scripts/verify-package.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -157,8 +157,12 @@ const RESOURCE = {
   verificationStatus: "verified",
   verificationNote: null,
   submittedById: null,
-  averageRating: 4.5,
-  ratingCount: 12,
+  // The names the API actually returns. These read averageRating/ratingCount,
+  // which nothing consumes, so every render had no rating at all and the
+  // resource card printed "NaN% evidence score" -- reported by the translation
+  // audit as an untranslated string, which is the only reason anyone saw it.
+  avgRating: 4.5,
+  reviewCount: 12,
   createdAt: "2026-02-11T09:00:00.000Z",
 };
 
@@ -183,6 +187,112 @@ const LEARNING_GOAL = {
     { id: "s2", title: "TypeScript", done: false },
   ],
   createdAt: "2026-03-02T09:00:00.000Z",
+};
+
+const CLASS = {
+  id: 31,
+  name: "Physics A-level",
+  subject: "Physics",
+  gradeLevel: "Year 12",
+  description: "Mechanics and waves, Tuesdays and Thursdays.",
+  teacherId: 1,
+  memberCount: 24,
+  createdAt: "2026-01-14T09:00:00.000Z",
+};
+
+const RESOURCE_LIST = {
+  id: 44,
+  name: "Revision reading",
+  description: "Everything worth a second pass before the mock.",
+  ownerId: 1,
+  classId: null,
+  itemCount: 6,
+  createdAt: "2026-04-02T09:00:00.000Z",
+};
+
+/**
+ * A block on a day the grid is actually showing.
+ *
+ * The schedule renders one week at a time, so a fixed date would fall outside
+ * it on all but seven days a year and the audit would render the empty grid
+ * almost always -- which is the state it was rendering before this existed.
+ */
+function todayInTheGrid() {
+  const day = new Date();
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+}
+
+const SCHEDULE_BLOCK = {
+  id: 88,
+  userId: 1,
+  title: "Integration by parts",
+  date: todayInTheGrid(),
+  startTime: "09:00",
+  endTime: "10:30",
+  resourceId: null,
+  listId: null,
+  classId: null,
+  notes: "Past paper Q4 to Q7",
+  createdAt: "2026-08-01T09:00:00.000Z",
+};
+
+const STUDY_ACTIVITY = {
+  id: 12,
+  ownerId: 1,
+  workspaceRole: "student",
+  classId: null,
+  title: "Photosynthesis vocabulary",
+  subject: "Biology",
+  mode: "flashcards",
+  shareToken: null,
+  cards: [
+    { id: "c1", term: "Chlorophyll", answer: "The pigment that absorbs light energy." },
+    { id: "c2", term: "Stomata", answer: "Pores that let gases in and out of a leaf." },
+  ],
+  createdAt: "2026-05-06T09:00:00.000Z",
+  updatedAt: "2026-06-18T09:00:00.000Z",
+};
+
+const GOAL_TEMPLATE = {
+  id: 5,
+  creatorId: 9,
+  creatorName: "Ada Karahan",
+  sourceGoalId: 21,
+  title: "First year of A-level physics",
+  subject: "Physics",
+  description: "The order I wish I had worked through it in.",
+  level: "beginner",
+  pathSteps: [
+    { id: "t1", title: "Vectors and scalars", query: "vectors scalars", completed: false },
+    { id: "t2", title: "Kinematics", query: "kinematics", completed: false },
+  ],
+  useCount: 34,
+  createdAt: "2026-04-20T09:00:00.000Z",
+};
+
+/**
+ * A conversation, as the route returns it: the row plus the other person,
+ * the last message and an unread count, all assembled server-side.
+ */
+const CONVERSATION = {
+  id: 3,
+  firstUserId: 1,
+  secondUserId: 9,
+  requestedById: 9,
+  status: "accepted",
+  createdAt: "2026-07-02T09:00:00.000Z",
+  updatedAt: "2026-08-11T09:00:00.000Z",
+  other: { id: 9, name: "Ada Karahan", role: "student", avatarUrl: null },
+  lastMessage: {
+    id: 77,
+    conversationId: 3,
+    senderId: 9,
+    body: "Sent you the past paper I mentioned.",
+    readAt: null,
+    createdAt: "2026-08-11T09:00:00.000Z",
+  },
+  unreadCount: 1,
+  incomingRequest: false,
 };
 
 /**
@@ -214,16 +324,40 @@ export const FIXTURES = {
     icalSecret: "audit-ical-secret",
   },
   "/api/activity/recent": [],
-  "/api/classes": [],
-  "/api/lists": [],
+  "/api/classes": [CLASS],
+  "/api/classes/31": CLASS,
+  "/api/lists": [RESOURCE_LIST],
   "/api/class-invitations": [],
   "/api/google-classroom/status": { connected: false, configured: false },
   "/api/lists/shared": [],
-  "/api/schedule": [],
+  "/api/schedule": [SCHEDULE_BLOCK],
   "/api/study-sessions": [],
   "/api/forum/access": { canPost: true, canModerate: true },
+  // Both on, so the AI search controls render and get audited. They are off by
+  // default on a server with no keys, which is the state that was rendering.
+  "/api/discover/capabilities": { publicProfileSearch: true, resourceSearch: true },
   "/api/forum/materials": [],
   "/api/forum/posts": [],
+  "/api/study-activities": [STUDY_ACTIVITY],
+  "/api/learning-goal-templates": [GOAL_TEMPLATE],
+  "/api/direct-messages/conversations": [CONVERSATION],
+  // Opening the list selects the first thread, so the thread itself needs a
+  // fixture too or the reading pane renders nothing.
+  "/api/direct-messages/conversations/3": {
+    ...CONVERSATION,
+    messages: [
+      {
+        id: 76,
+        conversationId: 3,
+        senderId: 1,
+        body: "Did you get anywhere with question 7?",
+        readAt: "2026-08-11T08:50:00.000Z",
+        createdAt: "2026-08-10T18:20:00.000Z",
+      },
+      CONVERSATION.lastMessage,
+    ],
+  },
+  "/api/classes/31/student-goals": [],
   "/api/admin/users": [ADMIN_USER_ROW],
   "/api/admin/resources/review-queue": [
     {
@@ -311,6 +445,42 @@ export const FIXTURES = {
 export async function installSession(context, options = {}) {
   const unfixtured = new Set();
   const colors = PALETTES[options.palette ?? "light"] ?? PALETTES.light;
+  /**
+   * The account's language, which the shell applies over whatever the device
+   * chose -- so a render that wants a language has to say so here.
+   *
+   * This fixture answered "en" unconditionally. The translation audit sets the
+   * language in localStorage and then signs in, and AppShell, reading this,
+   * put every signed-in render straight back into English. So the audit
+   * reported the whole signed-in product as untranslated in all five
+   * languages, hundreds of phantom gaps at once, and could not have seen a
+   * real one.
+   */
+  const language = options.language ?? PREFERENCES.language;
+  /**
+   * The account's role, which decides which half of the product renders.
+   *
+   * This fixture is an admin, and admins are shown different panels: the plans
+   * page swaps the "your current plan" line for a note that administrators are
+   * uncapped, and settings swaps the whole allowance panel. So every audit
+   * render was of the surface almost nobody sees, and the panels every student
+   * and teacher opens were never rendered by anything -- which is how a
+   * settings screen full of untranslated English survived a translation audit
+   * reporting zero gaps.
+   */
+  const role = options.role ?? USER.role;
+  const user = { ...USER, role, activeRole: options.activeRole ?? (role === "admin" ? USER.activeRole : role) };
+
+  // A signed-out render still needs the API answered. Without this the
+  // static server that serves the build replies to /api/* with index.html,
+  // the first response fails to parse as JSON, and the page renders its error
+  // boundary -- so the public /resources page was audited as an error screen
+  // rather than as itself, and the strings reported for it were the error
+  // page's.
+  if (options.signedOut) {
+    await routeFixtures(context, { language, colors, unfixtured, user });
+    return unfixtured;
+  }
 
   await context.addInitScript(
     ({ token, colors: seededColors }) => {
@@ -325,12 +495,21 @@ export async function installSession(context, options = {}) {
     { token: sessionToken(options), colors },
   );
 
+  await routeFixtures(context, { language, colors, unfixtured, user });
+
+  return unfixtured;
+}
+
+/** Answer every /api/* call from the fixture table. */
+async function routeFixtures(context, { language, colors, unfixtured, user }) {
   await context.route("**/api/**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const body =
       pathname === "/api/users/me/preferences"
-        ? { ...PREFERENCES, interfaceColors: colors }
-        : FIXTURES[pathname];
+        ? { ...PREFERENCES, language, interfaceColors: colors }
+        : pathname === "/api/users/me"
+          ? user
+          : FIXTURES[pathname];
 
     if (body === undefined) {
       unfixtured.add(pathname);
@@ -350,6 +529,4 @@ export async function installSession(context, options = {}) {
       body: JSON.stringify(body),
     });
   });
-
-  return unfixtured;
 }

@@ -7,6 +7,9 @@
  */
 import type { AccountUsageDeepResearchWindow } from './accountUsageDeepResearchWindow';
 
+/**
+ * The deep-research allowance and how much of it is spent. `window` is the one that actually binds, which is not always a day: Free's taste is two reports per rolling thirty days, so telling a free account it has "two remaining today" overstates what it has by a factor of thirty.
+ */
 export type AccountUsageDeepResearch = {
   used: number;
   /** @nullable */

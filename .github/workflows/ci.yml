@@ -40,11 +40,34 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Thirty seconds here against twenty minutes of EAS build time, and
+      # against the failures that only surface at store upload: an icon with
+      # an alpha channel, a permission the app never uses, an EXPO_PUBLIC_*
+      # value the bundle would inline as undefined.
+      - name: Check the mobile release configuration
+        run: pnpm --filter @workspace/mobile run check:release
+
       - name: Typecheck every package
         run: pnpm run typecheck
 
       - name: API tests
         run: pnpm --filter @workspace/api-server exec vitest run
+
+      # The mobile app is what gets submitted to the stores, and it had no
+      # tests at all. It starts with the purchase-error classifier, because a
+      # payment flow is the last place to find out something is wrong.
+      - name: Mobile tests
+        run: pnpm --filter @workspace/mobile run test
+
+      # The store submission starts with a bundle, and for a while there was
+      # not one: react-native-worklets' Babel plugin requires four @babel/*
+      # modules it does not declare, which npm hoists into place by accident
+      # and pnpm does not, so `expo export` failed on the first module for
+      # every platform. Nothing caught it -- the release-config check reads
+      # env vars and app.json, typecheck reads types, and neither asks Metro
+      # to actually build the app. This does.
+      - name: Bundle the mobile app
+        run: pnpm --filter @workspace/mobile run bundle:check
 
       - name: Build the web app
         run: pnpm --filter @workspace/app run build
@@ -56,12 +79,56 @@ jobs:
       # CI/local tool, not something the bundle needs. Install it out of tree
       # and link it where Node's resolver will find it from the script.
       - name: Install Playwright
+        # Bounded and retried, which it was not. This step normally costs
+        # about a minute; on 19 August one slow mirror spent fifteen here and
+        # took the whole `flows` budget with it. That job does its real work in
+        # under three minutes, so the entire ceiling went to a step that tests
+        # nothing, and the run reported as cancelled with every actual check
+        # marked "skipped" -- a shape that reads like "the tests did not run"
+        # rather than "the download was slow", and sends you looking in the
+        # wrong place.
+        #
+        # The bound is this step's own timeout-minutes, not a cap around each
+        # command. The first version capped both halves and retried both, which
+        # turned a slow mirror into a hard failure -- see the note in the script
+        # below. Only a download is retried either way: no product failure can
+        # be retried into passing from here.
+        timeout-minutes: 11
         run: |
-          npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
-          mkdir -p artifacts/app/node_modules
-          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
-            artifacts/app/node_modules/playwright-core
+          # Only the npm download is retried. `playwright install --with-deps`
+          # shells out to apt-get as root, and `timeout` kills playwright
+          # without killing that grandchild -- so the orphan keeps
+          # /var/lib/dpkg/lock-frontend and the second attempt dies instantly
+          # on "Unable to acquire the dpkg frontend lock", exit 100. The retry
+          # that was meant to heal a slow mirror was manufacturing the failure
+          # it then reported. The step's own timeout-minutes is the bound.
+          fetch_package() {
+            timeout 120 npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          }
+          if ! fetch_package; then
+            echo "::warning title=Playwright package retried::The first npm attempt failed or ran over its cap."
+            sleep 10
+            fetch_package || {
+              echo "::error title=Playwright package failed twice::This is the npm download, not a product failure."
+              exit 1
+            }
+          fi
+
+          # Uncapped and unretried, deliberately. Fetching the browser and its
+          # apt dependencies takes about a minute normally and several when a
+          # mirror is slow; interrupting it is what broke this step.
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          for pkg in app mobile; do
+            mkdir -p "artifacts/$pkg/node_modules"
+            ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
+              "artifacts/$pkg/node_modules/playwright-core"
+          done
+
+      # Every platform icon is derived from one drawing, so a hand-edited PNG
+      # in assets/ is a silent divergence between what the stores show and
+      # what the repository says the app looks like.
+      - name: Check the icons still match the drawing
+        run: pnpm --filter @workspace/mobile exec node scripts/build-icons.mjs --check
 
       # The built index.html IS the search result: the app renders client-side,
       # so these tags are all a crawler reads. Check the key phrase survived the
@@ -84,12 +151,37 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-search-results.mjs
 
+      # Casparel offers six languages. Four of them rendered the entire
+      # signed-in product in English for months, because the app entry loaded
+      # the translation bridge only for Turkish and nothing checked. This
+      # renders every page in every language that has a dictionary and fails on
+      # a single visible English string, so a new sentence without entries is a
+      # failing build rather than something a reader finds.
+      - name: Audit translations
+        working-directory: artifacts/app
+        run: node scripts/audit-translation.mjs
+
       # An empty state must never stand in for a loading one: "Your library is
       # empty" is a claim about the account, and painting it mid-load tells a
       # returning user their work is gone.
       - name: Audit loading states
         working-directory: artifacts/app
         run: node scripts/audit-loading.mjs
+
+      # The same rule for the other case an empty state gets used for. With the
+      # server unreachable the schedule drew "No plans" against all seven days
+      # of a week it had failed to fetch, classes said "You haven't joined any
+      # classes yet", and the dashboard reported no goal and no evidence --
+      # each a claim about the reader's own work, reached without asking. The
+      # schedule is the one somebody acts on: a free afternoon that is not
+      # free.
+      #
+      # Nothing else can catch it. An empty state is what a healthy new account
+      # is supposed to show, so every fixture-backed render agrees it is
+      # correct; the only way to see it is to break the network and read.
+      - name: Audit offline states
+        working-directory: artifacts/app
+        run: node scripts/audit-offline.mjs
 
       # Drives auth state rather than rendering: an expired or server-rejected
       # session must return the user to the login page, and a valid one must
@@ -133,7 +225,11 @@ jobs:
   # "a flow is broken" rather than as one more red step among twenty.
   flows:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The work here takes two to three minutes. The rest of this is headroom
+    # for a bad-day Playwright install (capped at eleven minutes above), so a
+    # slow download can no longer reach the job ceiling and be reported as
+    # though the flows themselves never ran.
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -181,6 +277,42 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Five files named *.db.test.ts had never run anywhere but a laptop.
+      # They skip themselves when VERIFY_DATABASE_URL is unset, and nothing set
+      # it -- so the suite that checks row-level security actually keeps one
+      # account's private messages and OAuth tokens out of the published
+      # PostgREST schema reported as "passed" by not running. So did the one
+      # that checks search finds anything at all.
+      #
+      # This is the only job with a database, which is why the step lives here.
+      # It gets a database of its own because these files empty every table
+      # they touch, and the flows below run against a server whose rows have to
+      # survive. `runMigrations()` is called by the shared lock helper, so an
+      # empty database is all this has to hand them.
+      - name: Database tests
+        env:
+          VERIFY_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/casparel_verify
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c 'create database casparel_verify'
+          cd artifacts/api-server
+          npx vitest run db.test.ts --reporter=default 2>&1 | tee "$RUNNER_TEMP/db-tests.log"
+          status=${PIPESTATUS[0]}
+          # A file that skips itself exits 0, which is how this went unnoticed
+          # for as long as it did. Green here has to mean tests ran.
+          #
+          # Strip the colour first. Vitest writes escape sequences even into a
+          # pipe, so the summary arrives as "Test Files \e[22m \e[1m\e[32m6
+          # passed" and `Test Files +N passed` cannot match it -- the guard
+          # reported "the tests did not run" against a run where 41 of them had
+          # just passed, and did it on every commit.
+          if ! sed -e 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/db-tests.log" \
+               | grep -qE 'Test Files +[1-9][0-9]* passed'; then
+            echo "::error title=Database tests did not run::VERIFY_DATABASE_URL is set, so they should not have skipped."
+            exit 1
+          fi
+          exit "$status"
+
       # Before the server, not after: the server's build copies the Vite output
       # beside its own entry point so one process serves both the SPA and /api.
       # Without this the build fails on a missing artifacts/app/dist/public,
@@ -194,15 +326,58 @@ jobs:
       - name: Build the API server
         run: pnpm --filter @workspace/api-server run build
 
+      # The phone app, in a form a browser can render. The store submission is
+      # this app and CI only ever asked Metro to bundle it, which proves the
+      # modules resolve and nothing else: every screen could throw on its first
+      # render and the bundle step would still pass.
+      - name: Build the mobile app for the web
+        run: pnpm --filter @workspace/mobile exec expo export --platform web --output-dir .expo/web-export
+
       # Same out-of-tree install as the check job: playwright-core is a tool
       # here, not something the bundle depends on.
       - name: Install Playwright
+        # Bounded and retried, which it was not. This step normally costs
+        # about a minute; on 19 August one slow mirror spent fifteen here and
+        # took the whole `flows` budget with it. That job does its real work in
+        # under three minutes, so the entire ceiling went to a step that tests
+        # nothing, and the run reported as cancelled with every actual check
+        # marked "skipped" -- a shape that reads like "the tests did not run"
+        # rather than "the download was slow", and sends you looking in the
+        # wrong place.
+        #
+        # The bound is this step's own timeout-minutes, not a cap around each
+        # command. The first version capped both halves and retried both, which
+        # turned a slow mirror into a hard failure -- see the note in the script
+        # below. Only a download is retried either way: no product failure can
+        # be retried into passing from here.
+        timeout-minutes: 11
         run: |
-          npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          # Only the npm download is retried. `playwright install --with-deps`
+          # shells out to apt-get as root, and `timeout` kills playwright
+          # without killing that grandchild -- so the orphan keeps
+          # /var/lib/dpkg/lock-frontend and the second attempt dies instantly
+          # on "Unable to acquire the dpkg frontend lock", exit 100. The retry
+          # that was meant to heal a slow mirror was manufacturing the failure
+          # it then reported. The step's own timeout-minutes is the bound.
+          fetch_package() {
+            timeout 120 npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          }
+          if ! fetch_package; then
+            echo "::warning title=Playwright package retried::The first npm attempt failed or ran over its cap."
+            sleep 10
+            fetch_package || {
+              echo "::error title=Playwright package failed twice::This is the npm download, not a product failure."
+              exit 1
+            }
+          fi
+
+          # Uncapped and unretried, deliberately. Fetching the browser and its
+          # apt dependencies takes about a minute normally and several when a
+          # mirror is slow; interrupting it is what broke this step.
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           mkdir -p artifacts/app/node_modules
           ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
             artifacts/app/node_modules/playwright-core
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
 
       # Migrations run at boot, so a schema that cannot be applied fails here
       # before any flow is attempted.
@@ -240,6 +415,28 @@ jobs:
           set -e
           if [ "$status" = "75" ]; then
             echo "::warning::Live UI run was inconclusive, not a product failure."
+            exit 0
+          fi
+          exit "$status"
+
+      # Same idea, for the app that gets submitted to the stores. It registers
+      # through the real register screen, walks all five tabs in both colour
+      # schemes, and checks that a schedule block written through the API turns
+      # up on the schedule -- which is the one that mattered: the server sent
+      # `date` as a timestamp against a contract of a date, the phone compared
+      # it to a YYYY-MM-DD string, and every schedule block on every phone was
+      # invisible behind a tidy "No events scheduled".
+      #
+      # Second, for the same reason the live UI run is first: both share one
+      # rate-limit budget and this needs only one account.
+      - name: Drive the phone app against the real server
+        run: |
+          set +e
+          node artifacts/mobile/scripts/audit-screens.mjs http://localhost:4319
+          status=$?
+          set -e
+          if [ "$status" = "75" ]; then
+            echo "::warning::Mobile screen run was inconclusive, not a product failure."
             exit 0
           fi
           exit "$status"

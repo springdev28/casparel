@@ -92,7 +92,8 @@ export function TodayAssignments() {
                 <Check size={13} />
               </div>
               <div className="min-w-40 flex-1">
-                <p className="text-sm font-medium">{item.title}</p>
+                {/* An assignment title, written by a teacher. */}
+                <p translate="no" className="text-sm font-medium">{item.title}</p>
                 <p className="text-xs text-muted-foreground">
                   {item.className}
                   {item.dueAt

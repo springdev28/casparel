@@ -35,9 +35,20 @@ import {
  * the other way round. Numbers must match the server's tier tables. Free's AI
  * line is the taste: enough to see what the feature is, not enough to live on.
  */
+/**
+ * A name Feather actually has.
+ *
+ * This was `string`, and `<Feather name={icon as never}>` swallowed the rest,
+ * so `sparkles` -- which belongs to a different icon set -- typechecked,
+ * bundled, and rendered as a question mark in a grey square on the middle row
+ * of every plan, on the screen the whole subscription turns on. Nothing else
+ * would have caught it: a missing glyph is a valid character.
+ */
+type FeatherName = keyof typeof Feather.glyphMap;
+
 const BENEFITS: Record<
   'student' | 'teacher' | 'generic',
-  { icon: string; title: string; body: string }[]
+  { icon: FeatherName; title: string; body: string }[]
 > = {
   student: [
     {
@@ -46,7 +57,7 @@ const BENEFITS: Record<
       body: 'The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases — and an AI taste: 2 discovery searches a day, 2 deep reports per 30 days.',
     },
     {
-      icon: 'sparkles',
+      icon: 'zap',
       title: 'Student Plus',
       body: '400 activities, 150 goals, 75 lists and 40 canvases, with 30 AI discovery searches and 8 cited deep reports a day.',
     },
@@ -63,7 +74,7 @@ const BENEFITS: Record<
       body: 'One class of up to 30 with manual seating, seating suggestions and private notes — and an AI taste: 2 discovery searches a day, 2 deep reports per 30 days.',
     },
     {
-      icon: 'sparkles',
+      icon: 'zap',
       title: 'Teacher Plus',
       body: '8 classes of up to 150 members, 250 activities, and 20 AI discovery searches with 5 cited deep reports a day.',
     },
@@ -80,7 +91,7 @@ const BENEFITS: Record<
       body: 'One class of 30, 25 activities, 10 goals and 5 lists — and a small taste of AI discovery and deep research.',
     },
     {
-      icon: 'sparkles',
+      icon: 'zap',
       title: 'Plus',
       body: '5 classes of 100, 250 activities, 100 goals and 50 lists, with 20 AI discovery searches and 5 deep reports a day.',
     },
@@ -92,7 +103,7 @@ const BENEFITS: Record<
   ],
 };
 
-function BenefitRow({ icon, title, body }: { icon: string; title: string; body: string }) {
+function BenefitRow({ icon, title, body }: { icon: FeatherName; title: string; body: string }) {
   const colors = useColors();
   return (
     <View style={styles.benefitRow}>
@@ -105,7 +116,7 @@ function BenefitRow({ icon, title, body }: { icon: string; title: string; body: 
           },
         ]}
       >
-        <Feather name={icon as never} size={18} color={colors.primary} />
+        <Feather name={icon} size={18} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text
@@ -200,12 +211,72 @@ export default function PaywallScreen() {
       Alert.alert(`Welcome to Casparel ${TIER_TITLES[purchasedTier]}`, 'Your subscription features are now unlocked. Thank you!', [
         { text: 'Great', onPress: close },
       ]);
-    } else if (result === 'error') {
-      Alert.alert('Purchase failed', 'Something went wrong. Please try again.');
-    } else if (result === 'unsupported') {
-      Alert.alert('Not available here', 'In-app purchases are only available in the mobile app.');
+      return;
     }
-    // 'cancelled' → stay silent
+    if (result === 'cancelled') return; // they chose not to buy; say nothing
+
+    /*
+     * Every one of these was "Something went wrong. Please try again."
+     *
+     * Two of them are not failures. A pending purchase is waiting on a parent's
+     * approval or a bank's check and may complete by itself, so inviting a
+     * retry invites a second charge for something already in flight. And
+     * already-owned means the person has paid: answering them with "something
+     * went wrong" rather than restoring what they bought is the worst message
+     * a payment flow can produce.
+     */
+    if (result === 'pending') {
+      Alert.alert(
+        'Waiting for approval',
+        'Your purchase needs approval before it completes \u2014 from a parent, or from your bank. There is nothing to pay again; Casparel unlocks by itself once it goes through.',
+      );
+      return;
+    }
+    if (result === 'already-owned') {
+      Alert.alert(
+        'You already have this plan',
+        'This purchase is on your store account already. Restoring it links it to this device.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Restore purchases', onPress: () => void handleRestore() },
+        ],
+      );
+      return;
+    }
+    if (result === 'not-allowed') {
+      Alert.alert(
+        'Purchases are turned off on this device',
+        'This device does not allow in-app purchases \u2014 usually a school profile or Screen Time restriction. Your account and card are fine.',
+      );
+      return;
+    }
+    if (result === 'store-unavailable') {
+      Alert.alert(
+        'The store is not responding',
+        'The App Store or Google Play could not complete this right now. Nothing has been charged. Please try again shortly.',
+      );
+      return;
+    }
+    if (result === 'network') {
+      Alert.alert(
+        'No connection to the store',
+        'Check your connection and try again. Nothing has been charged.',
+      );
+      return;
+    }
+    if (result === 'configuration') {
+      // The maker's problem, not theirs, and no amount of retrying fixes it.
+      Alert.alert(
+        'Purchases are not set up yet',
+        'This plan cannot be bought on this build. Please let us know at support@casparel.com.',
+      );
+      return;
+    }
+    if (result === 'unsupported') {
+      Alert.alert('Not available here', 'In-app purchases are only available in the mobile app.');
+      return;
+    }
+    Alert.alert('Purchase failed', 'Something went wrong and nothing has been charged. Please try again.');
   }
 
   async function handleRestore() {

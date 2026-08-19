@@ -7,17 +7,16 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Redirect, Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { storage } from "@/utils/secure-storage";
+import { apiOrigin } from "@/utils/api-host";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 import { useDesignSystemFonts } from "@workspace/edu-ds/hooks/use-fonts";
+import { useColors } from "@workspace/edu-ds/hooks/use-colors";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PurchasesProvider } from "@/contexts/PurchasesContext";
 import { OnboardingProvider, useOnboarding } from "@/contexts/OnboardingContext";
 
 // Module-level setup, runs before any component renders
-const domain = process.env.EXPO_PUBLIC_DOMAIN;
-if (domain) {
-  setBaseUrl(`https://${domain}`);
-}
+setBaseUrl(apiOrigin);
 setAuthTokenGetter(() => storage.getItemAsync("schoolar_token"));
 
 SplashScreen.preventAutoHideAsync();
@@ -32,6 +31,7 @@ const queryClient = new QueryClient({
 });
 
 function RootLayoutNav() {
+  const colors = useColors();
   const { isAuthenticated, isLoading } = useAuth();
   const { ready: onboardingReady, needsOnboarding } = useOnboarding();
   const segments = useSegments();
@@ -60,7 +60,27 @@ function RootLayoutNav() {
   if (isLoading || !onboardingReady) return null;
 
   return (
-    <Stack>
+    /*
+     * The navigator draws its own header, and its default is white.
+     *
+     * Every screen underneath reads the design tokens and follows the phone's
+     * setting, so on a dark phone the resource and class screens came up dark
+     * with a bright white bar across the top -- the two screens with a header
+     * are the two you reach by tapping something, which is most of the app's
+     * navigation. `contentStyle` matters for the same reason: it is what shows
+     * through during a push, and white there is a flash on every transition.
+     */
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: colors.background },
+        headerTintColor: colors.primary,
+        headerTitleStyle: {
+          color: colors.foreground,
+          fontFamily: colors.fontFamily.sansSemiBold,
+        },
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ headerShown: false }} />

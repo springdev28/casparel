@@ -18,6 +18,7 @@ import {
   GetResourceSourceReviewResponse,
 } from "@workspace/api-zod";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { throughAi } from "../lib/aiHealth";
 import {
   requireAuth,
   type AuthenticatedRequest,
@@ -30,6 +31,7 @@ import {
   optionalWorkflowUserId,
   recordWorkflowEvent,
 } from "../lib/workflowAnalytics";
+import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 const QUICK_CACHE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -213,7 +215,7 @@ router.get(
     if (hasResourceId) {
       const params = GetResourceSourceReviewParams.safeParse(req.params);
       if (!params.success) {
-        res.status(400).json({ error: params.error.message });
+        res.status(400).json({ error: validationMessage(params.error) });
         return;
       }
       const [savedResource] = await db
@@ -461,7 +463,8 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
 
     try {
       let textOutput = "";
-      const response = await openai.responses.create({
+      const response = await throughAi("deep source review", () =>
+        openai.responses.create({
         model: "gpt-5-mini",
         // The prompt asks for a nuanced 700-1000 word report AND a structured
         // object with fifteen required fields, including arrays of mentions
@@ -629,7 +632,8 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
         tools: [{ type: "web_search", search_context_size: "medium" }],
         reasoning: { effort: "medium" },
         input: deepPrompt,
-      });
+        }),
+      );
       textOutput = response.output_text ?? "";
       await recordAiUsage("deep-research", deepUserId);
 
@@ -698,7 +702,18 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
       res.json(responseData);
     } catch (err) {
       console.error("Source review AI error:", err);
-      res.status(502).json({ error: "Failed to fetch source review" });
+      /*
+       * A sentence for a reader, because the client shows this one.
+       *
+       * It said "Failed to fetch source review", which is a log line. Deep
+       * research is the only thing that failed here -- the quick check reads
+       * the maintained registry and needs none of this -- and saying so is
+       * what lets somebody get their answer instead of giving up.
+       */
+      res.status(502).json({
+        error:
+          "Deep research is unavailable right now. The free source check still works.",
+      });
     } finally {
       if (deepUserId !== null) activeDeepUsers.delete(deepUserId);
       activeReviews.delete(reviewKey);

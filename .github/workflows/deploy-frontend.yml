@@ -14,6 +14,11 @@ name: Deploy to Hostinger
 # Repository variables (optional — sensible defaults for this host are baked in):
 #   SITE_URL         canonical origin for the sitemap / robots.txt
 #                    (default: https://casparel.com)
+#   VITE_IOS_APP_URL          App Store listing, once it is live
+#   VITE_ANDROID_APP_URL      Google Play listing, once it is live
+#   VITE_DESKTOP_DOWNLOAD_URL desktop releases page, once there is one
+#                    All three are unset by default, which is what makes the
+#                    landing page say "coming soon" instead of linking nowhere.
 #   FTP_APP_DIR      the app's build dir, relative to the FTP home, trailing
 #                    slash. Default: hbuilds/current/nodejs/artifacts/api-server/dist/
 #   FTP_RESTART_DIR  the Passenger restart dir, trailing slash.
@@ -77,17 +82,49 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://casparel.com' }}
         run: |
           host="${FTP_SERVER#ftps://}"; host="${host#ftp://}"; host="${host%%/*}"
-          probe() { timeout 6 bash -c "</dev/tcp/${host}/$1" 2>/dev/null && echo open || echo closed; }
-          p21=$(probe 21); p22=$(probe 22)
+          probe() { timeout 6 bash -c "</dev/tcp/${1}/${2}" 2>/dev/null && echo open || echo closed; }
+
+          # "The configured host answers nothing" always leads to the same
+          # question -- then what SHOULD it be? -- and this runner is the one
+          # machine in the loop that can answer it, because it can open port 21
+          # outbound where a laptop behind a firewall (or an agent sandbox)
+          # cannot. So on failure, probe the hostnames Hostinger actually hands
+          # out for this domain and name the one that works. Fixing the secret
+          # should be a copy, not a guess followed by another six-minute run.
+          suggest_host() {
+            domain="${SITE_URL#https://}"; domain="${domain#http://}"; domain="${domain%%/*}"
+            found=""
+            {
+              echo "### Which host answers FTP"
+              echo
+              echo "| Candidate | Port 21 |"
+              echo "| --- | --- |"
+            } >> "$GITHUB_STEP_SUMMARY"
+            for candidate in "ftp.${domain}" "${domain}"; do
+              state=$(probe "$candidate" 21)
+              printf '| `%s` | %s |\n' "$candidate" "$state" >> "$GITHUB_STEP_SUMMARY"
+              if [ "$state" = "open" ] && [ -z "$found" ]; then found="$candidate"; fi
+            done
+            if [ -n "$found" ]; then
+              echo "::error title=Set FTP_SERVER to ${found}::That host answers on port 21. Paste it exactly -- no ftp:// prefix, no path, no trailing slash -- under Settings > Secrets and variables > Actions."
+            else
+              echo "::error title=No candidate answered::Neither ftp.${domain} nor ${domain} answers on port 21 either, so the host is not derivable from the domain. Read it from hPanel > Files > FTP Accounts. If FTP is disabled on the plan, this deploy has to move to SFTP instead."
+            fi
+          }
+
+          p21=$(probe "$host" 21); p22=$(probe "$host" 22)
           echo "Port scan on the configured host: 21 (FTP) is ${p21}, 22 (SFTP/SSH) is ${p22}."
           if [ "$p21" = "closed" ] && [ "$p22" = "open" ]; then
             echo "::error title=Host is SFTP-only::The configured host answers SSH/SFTP (22) but not FTP (21). Either FTP is disabled on this server — the deploy must switch to SFTP — or FTP_SERVER points at the wrong machine for FTP."
+            suggest_host
             exit 1
           fi
           if [ "$p21" = "closed" ] && [ "$p22" = "closed" ]; then
             echo "::error title=Host unreachable::Neither FTP (21) nor SSH (22) answers on the configured host. FTP_SERVER is likely the wrong host/IP entirely; copy it from the same hPanel page as the username."
+            suggest_host
             exit 1
           fi
           # Hostinger servers accept exactly one of two username forms — the
@@ -150,17 +187,61 @@ jobs:
         env:
           NODE_ENV: production
           SITE_URL: ${{ vars.SITE_URL || 'https://casparel.com' }}
+          # Where the app can be installed from. Vite inlines these at build
+          # time, so a store approval reaches the site by setting the variable
+          # and redeploying — no code change, and an unset one keeps the
+          # landing page honestly saying "coming soon" rather than shipping a
+          # link that 404s. See artifacts/app/src/lib/downloads.ts.
+          VITE_IOS_APP_URL: ${{ vars.VITE_IOS_APP_URL }}
+          VITE_ANDROID_APP_URL: ${{ vars.VITE_ANDROID_APP_URL }}
+          VITE_DESKTOP_DOWNLOAD_URL: ${{ vars.VITE_DESKTOP_DOWNLOAD_URL }}
 
       # A real browser catches what types and unit tests cannot: text that
       # fails contrast against its actual background, content left at opacity 0
       # by reveal-on-scroll, overflow, and uncaught page errors.
       - name: Install Playwright
+        # Bounded and retried, which it was not. This step normally costs
+        # about a minute; on 19 August one slow mirror spent fifteen here and
+        # took the whole `flows` budget with it. That job does its real work in
+        # under three minutes, so the entire ceiling went to a step that tests
+        # nothing, and the run reported as cancelled with every actual check
+        # marked "skipped" -- a shape that reads like "the tests did not run"
+        # rather than "the download was slow", and sends you looking in the
+        # wrong place.
+        #
+        # The bound is this step's own timeout-minutes, not a cap around each
+        # command. The first version capped both halves and retried both, which
+        # turned a slow mirror into a hard failure -- see the note in the script
+        # below. Only a download is retried either way: no product failure can
+        # be retried into passing from here.
+        timeout-minutes: 11
         run: |
-          npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          # Only the npm download is retried. `playwright install --with-deps`
+          # shells out to apt-get as root, and `timeout` kills playwright
+          # without killing that grandchild -- so the orphan keeps
+          # /var/lib/dpkg/lock-frontend and the second attempt dies instantly
+          # on "Unable to acquire the dpkg frontend lock", exit 100. The retry
+          # that was meant to heal a slow mirror was manufacturing the failure
+          # it then reported. The step's own timeout-minutes is the bound.
+          fetch_package() {
+            timeout 120 npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
+          }
+          if ! fetch_package; then
+            echo "::warning title=Playwright package retried::The first npm attempt failed or ran over its cap."
+            sleep 10
+            fetch_package || {
+              echo "::error title=Playwright package failed twice::This is the npm download, not a product failure."
+              exit 1
+            }
+          fi
+
+          # Uncapped and unretried, deliberately. Fetching the browser and its
+          # apt dependencies takes about a minute normally and several when a
+          # mirror is slow; interrupting it is what broke this step.
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           mkdir -p artifacts/app/node_modules
           ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
             artifacts/app/node_modules/playwright-core
-          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
 
       # The built index.html IS the search result: the app renders client-side,
       # so these tags are all a crawler reads. Check the key phrase survived the
