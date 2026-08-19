@@ -290,12 +290,32 @@ console.log(`note: code signature -> ${signing}`);
 
 // --------------------------------------------------- install it, and run it
 
-const runnableHere = archs.includes(hostArch);
+// lipo and Node spell the same CPU differently: `lipo -archs` says "x86_64"
+// where process.arch says "x64". Comparing them directly meant an Intel image
+// on an Intel Mac never looked runnable, so the launch -- the whole point of
+// this script -- was skipped, and the run still reported "11/11 checks passed".
+// A green run that quietly did not do the thing it exists to do is worse than a
+// red one, and it hid behind a note nobody would read twice.
+const ARCH_ALIASES = { x64: ["x64", "x86_64", "i386"], arm64: ["arm64"] };
+const runnableHere = archs.some((arch) =>
+  (ARCH_ALIASES[hostArch] ?? [hostArch]).includes(arch),
+);
+
 if (!runnableHere) {
+  // Not a pass. The remaining checks are the ones that matter most, and a run
+  // that cannot perform them has to say so in the tally rather than in a
+  // footnote -- otherwise "inspected but not launched" reads as full marks.
+  const why =
+    `this image is for ${archs.join("/") || "an unknown architecture"} and ` +
+    `the host is ${hostArch}, so nothing could be launched here. Run this leg ` +
+    `on a machine of the image's own architecture.`;
+  skip("the app copies out of the image", why);
+  skip("the installed app launches and loads a page", why);
+  skip("the packaged window is hardened against the page it loads", why);
+  const passedSoFar = checks - failures - skipped;
   console.log(
-    `\nnote: this image is for ${archs.join("/") || "an unknown architecture"} and the host is ${hostArch}, so it was inspected but not launched.`,
+    `\n${passedSoFar}/${checks} checks passed, ${skipped} skipped (not runnable on this host)`,
   );
-  console.log(`\n${checks - failures}/${checks} checks passed`);
   process.exit(failures === 0 ? 0 : 1);
 }
 
