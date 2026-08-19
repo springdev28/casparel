@@ -96,27 +96,51 @@ before they are public, since neither can be produced on a Linux machine.
 
 ### Signing
 
-Unsigned installers build and install, but macOS Gatekeeper says the developer
-cannot be verified and Windows SmartScreen interrupts the install. For a
-release anyone else will download, add these repository secrets first:
+The two platforms are not the same problem, and it is worth knowing which one
+you are solving before spending anything.
+
+**macOS is the one signing actually fixes.** A Developer ID Application
+certificate plus notarisation removes the "cannot verify the developer" dialog
+outright. The certificate exports from Keychain as a `.p12`, so it goes in as
+repository secrets and the existing workflow picks it up:
 
 | Secret | For |
 | --- | --- |
-| `CSC_LINK` | the certificate itself: `base64 -w0 certificate.p12` |
-| `CSC_KEY_PASSWORD` | the password that .p12 was exported with |
-| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | notarising the macOS build |
+| `CSC_LINK` | the certificate: `base64 -w0 certificate.p12` |
+| `CSC_KEY_PASSWORD` | the password that `.p12` was exported with |
+| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | notarising |
 
-The macOS certificate is a Developer ID Application certificate, which needs
-Apple Developer Program membership — the same membership the iOS app needs, so
-it is likely to arrive anyway.
+It needs Apple Developer Program membership, which the iOS app needs anyway, so
+the two costs collapse into one.
 
-Nothing else changes: the same workflow signs when they are present and builds
-unsigned when they are not. It says which it did, in a run annotation.
+**Windows is different in two ways that change the decision.**
 
-The website only offers the download once there is one. Set the repository
-variable `VITE_DESKTOP_DOWNLOAD_URL` to the releases page and redeploy; unset,
-the landing page and `/download` say so honestly rather than linking nowhere.
-See `artifacts/app/src/lib/downloads.ts`.
+The first: `CSC_LINK` as a base64 `.pfx` no longer describes how a Windows
+certificate arrives. Since June 2023 the CA/Browser Forum has required code
+signing private keys to live on a hardware token or HSM, and software-only
+`.pfx` delivery ended with it. A USB token also cannot be plugged into a
+GitHub-hosted runner, so a token-delivered certificate needs either a cloud HSM
+option from the CA or a self-hosted runner.
+
+The second, and the one worth reading twice: **signing no longer stops
+SmartScreen warning your users.** EV certificates used to bypass it outright on
+first download; that behaviour was removed in 2024. Signed or not, reputation
+now accumulates per file hash over time, so a freshly signed installer still
+warns. Paying the EV premium to avoid that is no longer justified.
+
+So the Windows options, in the order worth considering them here:
+
+| Option | Cost | Fit for this project |
+| --- | --- | --- |
+| SignPath Foundation | free | OSS programme, OV-level, key on their HSM, no token. This repository is public and MIT, which is the main gate. Windows shows the publisher as "SignPath Foundation", not Casparel. |
+| OV certificate from a CA | $150–300/yr | Works anywhere, but the key is on a token or cloud HSM, so the pipeline needs one of those rather than a secret. |
+| Azure Artifact Signing | ~$9.99/mo | Cheapest and most CI-friendly, but organisations must be in the USA, Canada, the EU or the UK, and individuals in the USA or Canada. |
+
+Certificate lifetimes also dropped to 15 months from March 2026, so whichever
+path is taken becomes a renewal in a bit over a year rather than three.
+
+None of this blocks a release. It decides how loudly Windows complains about
+one, and on macOS whether it complains at all.
 
 ## Staying current
 
