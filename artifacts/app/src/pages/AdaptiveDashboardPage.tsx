@@ -542,7 +542,19 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                           toast({ title: "Could not save check-in", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
                         }
                       }}
-                      className={cn("rounded-lg border p-3 text-xs font-semibold", confidence === i && "bg-primary text-primary-foreground")}
+                      /*
+                        `text-balance` and a smaller minimum, because these
+                        three sit in a fixed grid and the translations are
+                        longer than the English: "I can" is "Yapabiliyorum" in
+                        Turkish, 18px wider than the column it was given, and
+                        a button that reads "Yapabiliyoru" is worse than one
+                        on two lines.
+                      */
+                      className={cn(
+                        "hyphens-auto break-words rounded-lg border px-2 py-3 " +
+                          "text-[11px] font-semibold leading-tight",
+                        confidence === i && "bg-primary text-primary-foreground",
+                      )}
                     >{x}</button>
                   ))}
                 </div>

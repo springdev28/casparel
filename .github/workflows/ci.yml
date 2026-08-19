@@ -184,6 +184,15 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-user-content.mjs
 
+      # A translated word is rarely the length of the English one. "Off" is
+      # "Desactivado"; "I can" is "Yapabiliyorum". Anything sized to the English
+      # clips once translated, and clips only for the readers who cannot fall
+      # back to English -- which is why every other audit passed while a toolbar
+      # read "Desactivadc". This measures the boxes.
+      - name: Audit that text fits its box
+        working-directory: artifacts/app
+        run: node scripts/audit-text-fits.mjs
+
       # An empty state must never stand in for a loading one: "Your library is
       # empty" is a claim about the account, and painting it mid-load tells a
       # returning user their work is gone.

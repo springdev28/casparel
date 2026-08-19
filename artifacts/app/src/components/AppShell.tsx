@@ -1181,7 +1181,10 @@ export default function AppShell({ children }: AppShellProps) {
           >
             <Select value={ambientStyle} onValueChange={chooseAmbientStyle}>
               <SelectTrigger
-                className="hidden h-9 w-36 border-0 bg-transparent md:flex"
+                // w-44, not w-36: sized for "Off" it clipped "Desactivado"
+                // to "Desactivadc" on every Spanish page, and German and
+                // Portuguese are longer still.
+                className="hidden h-9 w-44 border-0 bg-transparent md:flex"
                 data-testid="ambient-style-select"
               >
                 <Waves size={16} className="mr-2" />
