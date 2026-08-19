@@ -1,0 +1,201 @@
+name: Mobile release
+
+# Builds the Casparel iOS and Android apps on EAS, and — when asked — hands
+# them to App Store Connect and Google Play.
+#
+# The build itself runs on Expo's machines rather than here: an iOS build needs
+# macOS and a signing identity, and EAS already holds the credentials. What
+# this workflow contributes is that a release is a tag rather than whatever was
+# on somebody's laptop, and that the same checks a pull request runs have
+# passed on the exact commit being shipped.
+#
+# Triggered by pushing a tag like `mobile-v1.0.0`, or run by hand from the
+# Actions tab (pick the platform, and whether to submit).
+#
+# Required repository secret:
+#   EXPO_TOKEN   Expo access token (expo.dev → Account settings → Access
+#                tokens). Everything else — signing certificates, provisioning
+#                profiles, keystores — lives in EAS, not here.
+#
+# Required for `submit` only, as repository secrets/variables:
+#   APPLE_ID, ASC_APP_ID, APPLE_TEAM_ID   App Store Connect, read by eas.json
+#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON      Play service account key (JSON)
+#
+# Store credentials are deliberately not required to BUILD. A tag with no
+# submit secrets still produces installable binaries.
+
+on:
+  push:
+    tags: ['mobile-v*']
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Which platform to build'
+        type: choice
+        default: all
+        options: [all, ios, android]
+      profile:
+        description: 'EAS build profile'
+        type: choice
+        default: production
+        options: [production, preview]
+      submit:
+        description: 'Submit the finished build to the stores'
+        type: boolean
+        default: false
+
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # A store build takes twenty minutes and burns EAS build minutes. Anything
+  # that can be known in thirty seconds is known first.
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the release configuration
+        run: pnpm --filter @workspace/mobile run check:release
+
+      - name: Typecheck every package
+        run: pnpm run typecheck
+
+      # The tag is the version. A tag that disagrees with app.json produces a
+      # binary whose version nobody can trace back to a commit.
+      - name: Check the tag matches app.json
+        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        run: |
+          tagged="${GITHUB_REF_NAME#mobile-v}"
+          declared=$(node -p "require('./artifacts/mobile/app.json').expo.version")
+          if [ "$tagged" != "$declared" ]; then
+            echo "::error title=Version mismatch::Tag ${GITHUB_REF_NAME} says ${tagged}, app.json says ${declared}. Update expo.version and re-tag."
+            exit 1
+          fi
+          echo "Releasing version ${declared}."
+
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Require an Expo token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=EXPO_TOKEN missing::Add an Expo access token under Settings → Secrets and variables → Actions. Without it this job cannot start a build, and reporting success would be a lie."
+            exit 1
+          fi
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # --non-interactive so a missing credential fails the job instead of
+      # waiting on a prompt nobody is there to answer; --wait so the run's
+      # result is the build's result rather than "a build was queued".
+      - name: Build
+        working-directory: artifacts/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build \
+            --platform "${{ inputs.platform || 'all' }}" \
+            --profile "${{ inputs.profile || 'production' }}" \
+            --non-interactive \
+            --wait \
+            --json > build.json
+          node -e "
+            const builds = JSON.parse(require('fs').readFileSync('build.json', 'utf8'));
+            for (const build of builds) {
+              console.log(\`\${build.platform}: \${build.status} — \${build.artifacts?.buildUrl ?? build.buildUrl ?? 'no artifact'}\`);
+            }
+            if (builds.some((build) => build.status !== 'FINISHED')) process.exit(1);
+          "
+
+      - name: Record the builds
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eas-build-metadata
+          path: artifacts/mobile/build.json
+          if-no-files-found: warn
+
+  submit:
+    # A tag ships; a manual run only ships when asked. Either way this is the
+    # step that puts something in front of reviewers, so it is never implicit.
+    if: startsWith(github.ref, 'refs/tags/mobile-v') || inputs.submit
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # eas.json points submit.production.android at this path. It is a Google
+      # Cloud private key: written for the length of the job, never committed,
+      # and removed even if the submit fails.
+      - name: Write the Play service account key
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error title=Play key missing::GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is not set, so the Android submit cannot authenticate."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" > artifacts/mobile/play-service-account.json
+
+      - name: Submit the latest builds
+        working-directory: artifacts/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          eas submit \
+            --platform "${{ inputs.platform || 'all' }}" \
+            --profile production \
+            --latest \
+            --non-interactive
+
+      - name: Remove the Play service account key
+        if: always()
+        run: rm -f artifacts/mobile/play-service-account.json

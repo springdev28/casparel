@@ -16,7 +16,9 @@
  * the current desktop session on macOS/Windows.
  */
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -70,9 +72,15 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((resolve) => server.listen(PORT, resolve));
 
+// One directory for the whole run, not one per case: the cases that check
+// what the shell REMEMBERS need state to survive between them. Isolated from
+// the real profile either way, so running the suite no longer leaves a
+// developer's own window size and zoom set to whatever a test wanted.
+const userDataDir = fs.mkdtempSync(join(os.tmpdir(), "casparel-smoke-"));
+
 function runCase(name, { deepLink, script }) {
   return new Promise((resolve) => {
-    const args = [join(root, "dist", "main.js")];
+    const args = [`--user-data-dir=${userDataDir}`, join(root, "dist", "main.js")];
     if (deepLink) args.push(deepLink);
     const child = spawn(electronBinary, args, {
       env: {
@@ -103,6 +111,10 @@ const cases = [
     "a cold-start deep link opens that page",
     { script: "deeplink", deepLink: "casparel://resources/123" },
   ],
+  // These two are one test across two launches, which is the only way to run
+  // it: the point is that the setting survives the process that made it.
+  ["a zoom level is saved on close", { script: "zoom-set" }],
+  ["a saved zoom level comes back", { script: "zoom-restore" }],
 ];
 
 const expected = {
@@ -110,6 +122,8 @@ const expected = {
   "a dead main frame shows the offline page": "offline-page",
   "a cross-origin redirect is refused": "blocked",
   "a cold-start deep link opens that page": "/resources/123",
+  "a zoom level is saved on close": "saved",
+  "a saved zoom level comes back": "2",
 };
 
 let failed = 0;
@@ -121,6 +135,7 @@ for (const [name, options] of cases) {
 }
 
 server.close();
+fs.rmSync(userDataDir, { recursive: true, force: true });
 console.log(
   failed === 0
     ? `\nAll ${cases.length} desktop shell checks passed.`

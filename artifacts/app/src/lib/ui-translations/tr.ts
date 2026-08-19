@@ -6,6 +6,32 @@
  * (Casparel, Google Classroom, Quizlet, Teacher Pro …) stay untranslated.
  */
 const TR: Record<string, string> = {
+  // The download page: which platforms Casparel runs on, and how to
+  // get it. Kept here rather than at the end of the file: every push
+  // that adds strings appends there, and two blocks growing at the
+  // same line conflict on every single merge.
+  "Download Casparel": "Casparel’i indir",
+  "The same workspace, on whatever you study with": "Aynı çalışma alanı, ders çalıştığınız her cihazda",
+  "Your library, classes, schedule and source research are one account. Sign in on a second device and everything is already there: nothing to export, nothing to sync.": "Kütüphaneniz, sınıflarınız, programınız ve kaynak araştırmalarınız tek bir hesapta. İkinci bir cihazda giriş yapın, her şey zaten orada: dışa aktarma yok, eşitleme yok.",
+  "You are using the desktop app. The mobile apps below sign in to the same account.": "Masaüstü uygulamasını kullanıyorsunuz. Aşağıdaki mobil uygulamalar aynı hesaba giriş yapar.",
+  "Platforms": "Platformlar",
+  "Mac, Windows and Linux": "Mac, Windows ve Linux",
+  "Not on the App Store yet. Casparel runs in Safari today.": "Henüz App Store’da değil. Casparel bugün Safari’de çalışıyor.",
+  "Not on Google Play yet. Casparel runs in Chrome today.": "Henüz Google Play’de değil. Casparel bugün Chrome’da çalışıyor.",
+  "No public installers yet. Casparel runs in any browser today.": "Henüz herkese açık kurulum dosyası yok. Casparel bugün her tarayıcıda çalışıyor.",
+  "Your device": "Cihazınız",
+  "Or stay in the browser": "Ya da tarayıcıda kalın",
+  "Everything works in your browser today": "Bugün her şey tarayıcınızda çalışıyor",
+  "Casparel is a full web app, not a preview of the native ones. The library, classes, canvases, schedules and AI source research all run in a browser tab, on the same account you would use on a phone.": "Casparel eksiksiz bir web uygulamasıdır, yerel uygulamaların önizlemesi değil. Kütüphane, sınıflar, tuvaller, programlar ve yapay zekâ ile kaynak araştırması bir tarayıcı sekmesinde, telefonda kullanacağınız hesabın aynısıyla çalışır.",
+  "Download for iPhone": "iPhone için indir",
+  "Get it on Google Play": "Google Play’den edinin",
+  "Download for desktop": "Masaüstü için indir",
+  "iPhone and iPad, from the App Store.": "App Store’dan iPhone ve iPad için.",
+  "Android phones and tablets, from Google Play.": "Google Play’den Android telefonlar ve tabletler için.",
+  "macOS, Windows and Linux.": "macOS, Windows ve Linux.",
+  "All download options": "Tüm indirme seçenekleri",
+  "Where Casparel runs": "Casparel nerede çalışır",
+
   "Activities": "Etkinlikler",
   "No plans": "Plan yok",
   "Activity complete": "Etkinlik tamamlandı",

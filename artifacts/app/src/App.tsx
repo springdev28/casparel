@@ -72,6 +72,7 @@ const PrivacyPage = lazy(() =>
   import("./pages/LegalPage").then((m) => ({ default: m.PrivacyPage })),
 );
 const SupportPage = lazy(() => import("./pages/SupportPage"));
+const DownloadPage = lazy(() => import("./pages/DownloadPage"));
 const PlansPage = lazy(() => import("./pages/PlansPage"));
 
 const TOKEN_KEY = "schoolar_token";
@@ -375,6 +376,11 @@ function Router() {
       <Route path="/plans" component={PlansPage} />
       <Route path="/support">
         {() => <PublicRoute component={SupportPage} />}
+      </Route>
+      {/* Public on purpose: this is where a search for "casparel download"
+          and every store/release link should land, signed in or not. */}
+      <Route path="/download">
+        {() => <PublicRoute component={DownloadPage} />}
       </Route>
       <Route path="/canvas/shared/:token">
         {() => <PublicRoute component={() => <CanvasPage shared />} />}
