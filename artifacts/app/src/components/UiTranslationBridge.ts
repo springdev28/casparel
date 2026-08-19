@@ -43,6 +43,26 @@ const LANGUAGE_EVENT = "schoolar-language-change";
 const NO_TRANSLATE_SELECTOR =
   '[translate="no"], [data-user-content], script, style, code, pre, textarea, input, [contenteditable="true"]';
 
+/**
+ * What must not be translated *in an attribute*, which is a shorter list.
+ *
+ * The selector above is about content: a textarea's value is its text, an
+ * input's is its value, and neither is ours to rewrite. But `placeholder`,
+ * `aria-label` and `title` on those same elements are product wording, and
+ * protecting the element to protect its value took them with it.
+ *
+ * Every placeholder in the app is on an input, so the effect was total: not
+ * one placeholder was ever translated, in any language, and eight entries had
+ * been written for them and quietly did nothing. A Spanish reader opened a
+ * review box headed "Comentario (opcional)" and typed into a field that said
+ * "Share your thoughts…".
+ *
+ * Only the two markers for user content survive here, because an input whose
+ * placeholder holds somebody's name -- a search box pre-filled with a class
+ * -- is still theirs.
+ */
+const NO_TRANSLATE_ATTRIBUTES_SELECTOR = '[translate="no"], [data-user-content]';
+
 const TEXT_ORIGINALS = new WeakMap<Text, string>();
 const ATTRIBUTE_ORIGINALS = new WeakMap<Element, Map<string, string>>();
 const TRANSLATED_ATTRIBUTES = ["aria-label", "placeholder", "title", "alt"] as const;
@@ -90,6 +110,7 @@ function translateText(node: Text, language: AuthLanguage) {
 }
 
 function translateAttributes(element: Element, language: AuthLanguage) {
+  if (element.closest(NO_TRANSLATE_ATTRIBUTES_SELECTOR)) return;
   let originals = ATTRIBUTE_ORIGINALS.get(element);
   if (!originals) {
     originals = new Map();
@@ -122,7 +143,19 @@ function translateSubtree(root: Node, language: AuthLanguage) {
       // everything inside it, however deeply nested.
       acceptNode(node) {
         if (node instanceof Element && node.matches(NO_TRANSLATE_SELECTOR)) {
-          return NodeFilter.FILTER_REJECT;
+          /*
+           * Skip, not reject, for an element that only protects its content.
+           * Rejecting prunes the subtree, which is right for `translate="no"`
+           * -- a protected container protects everything in it -- and wrong
+           * for an input, whose attributes are still ours. The element itself
+           * is handled below either way; SKIP keeps its descendants walkable
+           * and REJECT does not.
+           */
+          if (node.matches(NO_TRANSLATE_ATTRIBUTES_SELECTOR)) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          translateAttributes(node, language);
+          return NodeFilter.FILTER_SKIP;
         }
         return NodeFilter.FILTER_ACCEPT;
       },
