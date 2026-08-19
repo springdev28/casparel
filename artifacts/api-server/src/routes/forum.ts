@@ -826,7 +826,12 @@ router.post("/forum/posts/:id/repost", requireAuth, async (req, res): Promise<vo
   if (existing) {
     await db.delete(forumPostRepostsTable).where(eq(forumPostRepostsTable.id, existing.id));
   } else {
-    await db.insert(forumPostRepostsTable).values({ postId: id, userId: auth.userId });
+    // Same double-tap race as the like above, and the count below is read
+    // back from the table either way, so a lost insert costs nothing.
+    await db
+      .insert(forumPostRepostsTable)
+      .values({ postId: id, userId: auth.userId })
+      .onConflictDoNothing();
   }
   const [count] = await db.select({ value: sql<number>`cast(count(*) as int)` })
     .from(forumPostRepostsTable).where(eq(forumPostRepostsTable.postId, id));
@@ -927,7 +932,24 @@ router.post("/forum/:targetType/:id/like", requireAuth, async (req, res): Promis
     await db.delete(forumLikesTable).where(eq(forumLikesTable.id, existing.id));
     res.json({ liked: false });
   } else {
-    await db.insert(forumLikesTable).values({ userId: auth.userId, targetType: typedTarget, targetId });
+    /*
+     * Two taps, one like.
+     *
+     * A like is one row per person per target and the index says so, but this
+     * read the row and then inserted when it found none -- so a double tap, or
+     * a tap repeated because the first seemed not to land, ran both halves
+     * concurrently, both found nothing, and the loser came back 500. On a
+     * button people press quickly and often, from a phone, on whatever signal
+     * they have.
+     *
+     * Doing nothing on a conflict is the right answer rather than merely a
+     * quiet one: the row the caller wanted exists, so `liked: true` is still
+     * the truth about the world when this returns.
+     */
+    await db
+      .insert(forumLikesTable)
+      .values({ userId: auth.userId, targetType: typedTarget, targetId })
+      .onConflictDoNothing();
     res.json({ liked: true });
   }
 });

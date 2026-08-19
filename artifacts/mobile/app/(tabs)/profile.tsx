@@ -331,8 +331,24 @@ export default function ProfileScreen() {
     setSwitching(true);
     try {
       const result = await switchRoleMutation.mutateAsync({ data: { role: newRole } });
+      // The token first, so everything refetched below carries the new role.
       await updateToken(result.token);
-      await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
+      /*
+       * Everything, not just /users/me.
+       *
+       * A workspace is not a label on the same data: activities, learning
+       * goals and the activity feed are stored per workspace role, and the
+       * plan the server reports depends on it too. Only `me` was invalidated,
+       * so switching to Teacher left the student workspace's rows on screen --
+       * measured, not assumed: the server returned zero activity rows for the
+       * teacher workspace while the dashboard still listed the student's.
+       *
+       * The web app reloads the whole page here for exactly this reason. A
+       * phone cannot, and clearing the cache is the same thing: every query
+       * that is on screen refetches under the new role, and nothing that is
+       * not on screen survives to be shown later.
+       */
+      queryClient.clear();
     } catch (error) {
       Alert.alert(
         'Could not switch role',

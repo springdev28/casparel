@@ -43,6 +43,20 @@ const PATTERNS = [
   /\bicon[:=]\s*["']([a-z][a-z0-9-]*)["']/g,
 ];
 
+/**
+ * The same names, when a branch chooses between them.
+ *
+ * `icon={isTeacher ? 'user-check' : 'star'}` is how the dashboard picks its
+ * fourth tile, and the patterns above see none of it: the prop is followed by
+ * a brace, not a quote. Two of the app's icons are written that way and both
+ * were unchecked -- in a file whose whole job is to check them.
+ *
+ * Only the expression between the braces is read, so a `title=` or a class
+ * name further along the line cannot be mistaken for a glyph.
+ */
+const BRACED = /\b(?:icon|name)=\{([^}]*)\}/g;
+const QUOTED = /["']([a-z][a-z0-9-]*)["']/g;
+
 function sourceFiles(dir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -71,12 +85,20 @@ describe("the phone app's icons", () => {
       for (const file of sourceFiles(root)) {
         const source = readFileSync(file, "utf8");
         source.split("\n").forEach((line, index) => {
+          const found: string[] = [];
           for (const pattern of PATTERNS) {
-            for (const match of line.matchAll(pattern)) {
-              const name = match[1];
-              if (NOT_FEATHER(name) || name in glyphs) continue;
-              missing.push(`${file.slice(mobile.length + 1)}:${index + 1}  ${name}`);
+            for (const match of line.matchAll(pattern)) found.push(match[1]);
+          }
+          // Only on a line that is drawing a Feather: `name={...}` is also how
+          // a navigator names a route, and a route is not a glyph.
+          if (/<Feather\b|\bicon=\{/.test(line)) {
+            for (const braced of line.matchAll(BRACED)) {
+              for (const quoted of braced[1].matchAll(QUOTED)) found.push(quoted[1]);
             }
+          }
+          for (const name of found) {
+            if (NOT_FEATHER(name) || name in glyphs) continue;
+            missing.push(`${file.slice(mobile.length + 1)}:${index + 1}  ${name}`);
           }
         });
       }

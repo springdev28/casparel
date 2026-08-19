@@ -1211,14 +1211,26 @@ const MIN_TOPIC_COVERAGE = 2;
  */
 const RARITY_GAP = 4;
 
+/**
+ * The share of the catalog below which a word is distinguishing on its own,
+ * whatever else was typed beside it. Two per cent of a catalog is few enough
+ * that a work using the word is very likely the one being asked for.
+ */
+const RARE_SHARE = 0.02;
+
+/** How many works each word of a query appears in, against how many there are. */
+type TermFrequencies = { total: number; frequencies: Map<string, number> };
+
 /** How long a word's frequency is trusted before the catalog is asked again. */
 const FREQUENCY_TTL_MS = 5 * 60_000;
 
 const frequencyCache = new Map<string, { count: number; at: number }>();
+let cachedCatalogSize: { count: number; at: number } | null = null;
 
 /** Test seam: frequencies outlive a fixture that replaces the whole catalog. */
 export function clearTermFrequencyCache() {
   frequencyCache.clear();
+  cachedCatalogSize = null;
 }
 
 /**
@@ -1230,7 +1242,7 @@ export function clearTermFrequencyCache() {
  */
 async function termDocumentFrequencies(
   terms: string[],
-): Promise<Map<string, number>> {
+): Promise<TermFrequencies> {
   const now = Date.now();
   const frequencies = new Map<string, number>();
   const uncounted: string[] = [];
@@ -1240,33 +1252,56 @@ async function termDocumentFrequencies(
       frequencies.set(term, cached.count);
     else if (!uncounted.includes(term)) uncounted.push(term);
   }
-  if (uncounted.length) {
-    const selection: Record<string, SQL<number>> = {};
-    uncounted.forEach((term, index) => {
-      selection[`df${index}`] =
-        sql<number>`count(*) filter (where ${catalogTermScore(term)} > 0)::int`;
-    });
-    const [row] = await db.select(selection).from(catalogResourcesTable);
-    uncounted.forEach((term, index) => {
-      const count = Number(
-        (row as Record<string, unknown> | undefined)?.[`df${index}`] ?? 0,
-      );
-      frequencyCache.set(term.toLowerCase(), { count, at: now });
-      frequencies.set(term, count);
-    });
-  }
-  return frequencies;
+  const sizeIsFresh =
+    cachedCatalogSize !== null && now - cachedCatalogSize.at < FREQUENCY_TTL_MS;
+  if (!uncounted.length && sizeIsFresh)
+    return { total: cachedCatalogSize!.count, frequencies };
+
+  const selection: Record<string, SQL<number>> = {
+    total: sql<number>`count(*)::int`,
+  };
+  uncounted.forEach((term, index) => {
+    selection[`df${index}`] =
+      sql<number>`count(*) filter (where ${catalogTermScore(term)} > 0)::int`;
+  });
+  const [row] = await db.select(selection).from(catalogResourcesTable);
+  const read = (key: string) =>
+    Number((row as Record<string, unknown> | undefined)?.[key] ?? 0);
+  uncounted.forEach((term, index) => {
+    const count = read(`df${index}`);
+    frequencyCache.set(term.toLowerCase(), { count, at: now });
+    frequencies.set(term, count);
+  });
+  const total = read("total");
+  cachedCatalogSize = { count: total, at: now };
+  return { total, frequencies };
 }
 
-/** The words of a query rare enough to answer it without help. */
-export function rareEnoughToStandAlone(
-  frequencies: Map<string, number>,
-): string[] {
+/**
+ * The words of a query rare enough to answer it without help.
+ *
+ * Two ways to qualify, and the second is not a refinement — without it the
+ * rule is simply wrong for a whole class of question. Rarity measured against
+ * the query's own commonest word says nothing when every word of the query is
+ * already rare: "guillotine barricades" has a commonest word appearing in one
+ * work, so nothing is four times rarer than it, and the question goes
+ * unanswered while its answer sits in the catalog.
+ *
+ * So a word also stands alone when it appears in a small enough share of the
+ * catalog, whatever was typed beside it. A share rather than a count, because
+ * the same fixed number is "almost nothing" in a catalog of twenty thousand
+ * works and "most of it" in a catalog of fifty.
+ */
+export function rareEnoughToStandAlone({
+  total,
+  frequencies,
+}: TermFrequencies): string[] {
   const counts = [...frequencies.values()];
   if (!counts.length) return [];
   const commonest = Math.max(...counts);
+  const outright = Math.max(1, total * RARE_SHARE);
   return [...frequencies.entries()]
-    .filter(([, count]) => count * RARITY_GAP <= commonest)
+    .filter(([, count]) => count * RARITY_GAP <= commonest || count <= outright)
     .map(([term]) => term);
 }
 
@@ -1663,7 +1698,7 @@ export async function resolveCatalogSearch(
     judged.length >= MIN_TOPIC_COVERAGE
       ? rareEnoughToStandAlone(await termDocumentFrequencies(judged))
       : [];
-  let requireTopicCoverage = judged.length >= MIN_TOPIC_COVERAGE;
+  const requireTopicCoverage = judged.length >= MIN_TOPIC_COVERAGE;
   let requireNarrowCoverage = true;
 
   const count = () =>
@@ -1676,15 +1711,20 @@ export async function resolveCatalogSearch(
     });
 
   // Loosened one rule at a time, strongest first, and only ever because the
-  // stricter reading found nothing at all. An empty page is the one result
-  // worse than a loose one.
+  // stricter reading found nothing at all.
+  //
+  // The topic rule is never loosened, and used to be. Dropping it means "one
+  // word in common will do", and when nothing matches two words of a question
+  // the word left over is by definition the ordinary one: "cold war" came back
+  // as fifteen videos about the Punic Wars, each matching "war", each
+  // correctly filed under History, none of them an answer.
+  //
+  // An empty page reads as a failure and a page of wrong answers reads as an
+  // insult, but only one of them is also misleading about what the catalog
+  // holds. And empty is not where it ends — a thin page is what sends the
+  // endpoint to the providers, so the honest empty result becomes real cold
+  // war videos a moment later, where the loose one only ever became Carthage.
   let total = await count();
-  if (total === 0 && requireTopicCoverage) {
-    // Nothing matches two words of this question and nothing matches a rare
-    // one. Whatever shares a single common word is all there is.
-    requireTopicCoverage = false;
-    total = await count();
-  }
   if (total === 0) {
     // Only papers and videos share a word with this question, so the rule that
     // one shared word is not enough for them has nothing left to keep. Sooner
@@ -2055,7 +2095,10 @@ async function recordCatalogSync(
 function catalogUserAgent() {
   return process.env.CATALOG_CONTACT_EMAIL
     ? `Casparel/1.0 (${process.env.CATALOG_CONTACT_EMAIL})`
-    : "Casparel/1.0 (https://github.com/springdev28/schoolar)";
+    // The point of a contact URL is that somebody at DOAJ or arXiv can reach
+    // us about rate limits or misuse. This one 404s: the repository is
+    // `casparel`, and was renamed out from under it.
+    : "Casparel/1.0 (https://github.com/springdev28/casparel)";
 }
 
 /**

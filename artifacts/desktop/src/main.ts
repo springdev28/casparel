@@ -254,6 +254,42 @@ function reportSmokeResult(win: BrowserWindow, firstUrl: string): void {
     setTimeout(() => app.exit(0), 100);
   };
 
+  if (mode === "hardening") {
+    /*
+     * Ask the page itself whether it can reach Node.
+     *
+     * The consequence, not the setting. Every other case in this run passes
+     * whatever webPreferences say -- the app opens, pages load, navigation is
+     * still guarded -- while what changes is whether a shell around remote
+     * content is a way to run code on somebody's machine, for anyone who can
+     * put script on casparel.com or get between it and the reader.
+     *
+     * What this proves, measured rather than assumed. `nodeIntegration: true`
+     * on its own does not trip it, and should not: `sandbox: true` keeps Node
+     * out of the page anyway, and so does contextIsolation. It reports node
+     * reachable only when the combination genuinely exposes it -- sandbox off
+     * and contextIsolation off and nodeIntegration on together -- which is the
+     * true answer to "can the page get at the machine".
+     *
+     * Because it tests the outcome, it cannot tell you that one of the three
+     * has drifted while the others still hold the line. That is what the
+     * source check in the API suite is for; this is what happens if all three
+     * go.
+     */
+    win.webContents.once("did-finish-load", () => {
+      void win.webContents
+        .executeJavaScript(
+          "[typeof require, typeof process, typeof module, typeof __dirname].join(',')",
+        )
+        .then((reached: string) => {
+          const nodeIsReachable = reached.split(",").some((kind) => kind !== "undefined");
+          say(nodeIsReachable ? `node reachable from the page: ${reached}` : "hardened");
+        })
+        .catch((error: unknown) => say(`could not ask: ${String(error).slice(0, 80)}`));
+    });
+    return;
+  }
+
   if (mode === "deeplink") {
     win.webContents.once("did-finish-load", () => {
       say(new URL(win.webContents.getURL()).pathname);

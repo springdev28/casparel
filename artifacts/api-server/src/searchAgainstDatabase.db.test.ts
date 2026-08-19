@@ -667,11 +667,25 @@ describe.skipIf(!url)("search quality against a real database", () => {
     expect(titles.every((title) => /physics/i.test(title))).toBe(true);
   });
 
-  it("takes a single common word when it is all the catalog has", async () => {
-    // No work matches two words of this and none matches a rare one, so the
-    // rule steps aside rather than handing back an empty page.
-    expect(await search({ query: "revolution barricades" })).toContain(
-      "Russian Revolution",
+  it("returns nothing rather than whatever shares an ordinary word", async () => {
+    // This used to step aside and hand back everything matching "revolution".
+    // On the live site the same rung answered "cold war" with fifteen videos
+    // about the Punic Wars — each one matching "war", each correctly filed
+    // under History, none of them an answer.
+    //
+    // Empty is not the end of it either: a thin page is what sends the
+    // endpoint to the providers, so this becomes real results shortly after,
+    // where the loose reading only ever became Carthage.
+    expect(await search({ query: "revolution barricades" })).toEqual([]);
+  });
+
+  it("still answers when one word of the question is a rare one", async () => {
+    // The distinction that makes the rule above safe rather than merely
+    // strict. Nothing matches both words here either, but "guillotine" is a
+    // word this catalog barely uses, so matching it alone means something —
+    // where matching "revolution" alone, against ten of them, does not.
+    expect(await search({ query: "guillotine barricades" })).toContain(
+      "The guillotine",
     );
   });
 

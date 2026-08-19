@@ -60,6 +60,8 @@ const BLOCK_TITLE = "Audit revision block";
 const RESOURCE_TITLE = "Audit reading on tides";
 /** Made by a teacher, joined from the phone, then opened. */
 const CLASS_NAME = "Audit physics set";
+/** Typed into the phone's own form, then looked for on the schedule. */
+const SESSION_TITLE = "Audit revision huddle";
 
 let failures = 0;
 let checks = 0;
@@ -240,7 +242,7 @@ async function teacherWithAClass() {
   if (created.status !== 201) {
     throw new Inconclusive(`a teacher could not create a class (HTTP ${created.status})`);
   }
-  return { token, classId: created.body.id };
+  return { token, classId: created.body.id, user: teacherIn.body?.user ?? null };
 }
 
 /** Requests the signed-in app made for itself that came back an error. */
@@ -570,6 +572,98 @@ async function main() {
     }
 
     /*
+     * Make a study session through the form on the phone.
+     *
+     * Everything above this reads. This is the app's only creating form, six
+     * fields of free text including a date and a time typed by hand, and
+     * nothing had ever filled it in -- the write paths were exercised through
+     * the API, which is precisely the half a form can get wrong on its own.
+     * What is checked is that the session the form made comes back on the
+     * schedule: a form that posts the wrong shape, or the right shape to the
+     * wrong day, looks identical until you go and look.
+     */
+    {
+      const form = await light.newPage();
+      form.on("pageerror", (error) => pageErrors.push(`new session: ${String(error).slice(0, 200)}`));
+      await form.goto(`${local}/schedule`, { waitUntil: "networkidle" });
+      await form.waitForTimeout(2000);
+      await form.getByText("+ Study Session").last().click();
+      await form.waitForTimeout(1200);
+
+      const title = form.getByPlaceholder("e.g. Calculus group review");
+      if (await title.count()) {
+        await title.fill(SESSION_TITLE);
+        await form.getByPlaceholder("2026-08-10").fill(TODAY);
+        await form.getByPlaceholder("14:00").fill("16:00");
+        await form.getByPlaceholder("60").fill("45");
+        await form.getByPlaceholder("https://meet.google.com/…").fill("https://meet.google.com/abc-defg-hij");
+        await form.getByText("Create Session").last().click();
+        await form.waitForTimeout(4000);
+
+        const after = await form.evaluate(() => document.body.innerText);
+        check(
+          "a study session made on the phone lands on the schedule",
+          new RegExp(SESSION_TITLE).test(after),
+          after.replace(/\n+/g, " | ").slice(0, 200),
+        );
+      } else {
+        check("the new-session form opens", false, "no title field after tapping + Study Session");
+      }
+      await form.close();
+    }
+
+    /*
+     * Switch workspace, and check the old one's rows are gone.
+     *
+     * A workspace is not a label on the same data: activities, goals and the
+     * activity feed are stored per role, and the plan the server reports
+     * depends on it. Switching only invalidated /users/me, so the labels
+     * flipped while the previous workspace's rows stayed on screen -- the
+     * server returned zero activity rows for the teacher workspace while the
+     * dashboard still listed the student's.
+     *
+     * This has to navigate by tapping. `page.goto` reloads the whole app and
+     * throws the cache away with it, which is the one thing that would hide
+     * this: the first version of this check used goto and passed against the
+     * broken code.
+     */
+    {
+      const switcher = await light.newPage();
+      switcher.on("pageerror", (error) => pageErrors.push(`role switch: ${String(error).slice(0, 200)}`));
+      await switcher.goto(`${local}/`, { waitUntil: "networkidle" });
+      await switcher.waitForTimeout(2500);
+      const beforeSwitch = await switcher.evaluate(() => document.body.innerText);
+
+      await switcher.getByText("Profile", { exact: true }).last().click();
+      await switcher.waitForTimeout(2000);
+      const toggle = switcher.locator('[role="switch"]').first();
+      if ((await toggle.count()) && /learning overview/.test(beforeSwitch)) {
+        await toggle.click();
+        await switcher.waitForTimeout(3500);
+        await switcher.getByText("Dashboard", { exact: true }).last().click();
+        await switcher.waitForTimeout(2500);
+        const afterSwitch = await switcher.evaluate(() => document.body.innerText);
+
+        check(
+          "switching workspace changes what the dashboard says it is",
+          /classroom overview/.test(afterSwitch),
+          afterSwitch.replace(/\n+/g, " | ").slice(0, 140),
+        );
+        // The block written earlier belongs to no workspace, so the schedule
+        // is not the test; the invitation notice is written per workspace and
+        // is the row that must not survive the switch.
+        check(
+          "and leaves none of the other workspace's rows on screen",
+          !/You were invited to join/.test(afterSwitch),
+          afterSwitch.replace(/\n+/g, " | ").slice(0, 200),
+        );
+      } else {
+        check("the workspace toggle is on the profile screen", false, "no switch control found");
+      }
+      await switcher.close();
+    }
+
+    /*
      * The same screens with the server unreachable.
      *
      * An empty state standing in for a failure is the quietest bug this app
@@ -609,6 +703,101 @@ async function main() {
       await tabPage.close();
     }
     await offline.close();
+
+    /*
+     * The tabs again, on the narrowest iPhone still receiving iOS.
+     *
+     * Every render above is 393pt wide. An iPhone SE is 375, and the gap is
+     * where a row that fits by four points stops fitting -- which shows up as
+     * the page scrolling sideways, or as a control pushed off the edge, and
+     * never in a screenshot taken at the wider size. The web audit has
+     * rendered 390px for this reason for a while; the phone app, which is
+     * where small screens actually live, had not.
+     */
+    const narrow = await browser.newContext({
+      viewport: { width: 375, height: 667 },
+      deviceScaleFactor: 2,
+      colorScheme: "light",
+    });
+    await narrow.route(`${APP_ORIGIN}/**`, forwardToServer);
+    const narrowSession = (await light.storageState()).origins.find((entry) =>
+      entry.origin.startsWith("http://127.0.0.1"),
+    );
+    await narrow.addInitScript((items) => {
+      for (const item of items ?? []) localStorage.setItem(item.name, item.value);
+    }, narrowSession?.localStorage ?? []);
+
+    for (const tab of TABS) {
+      const tabPage = await narrow.newPage();
+      tabPage.on("pageerror", (error) =>
+        pageErrors.push(`375px ${tab.name}: ${String(error).slice(0, 200)}`),
+      );
+      await tabPage.goto(`${local}${tab.route}`, { waitUntil: "networkidle" });
+      await tabPage.waitForTimeout(2500);
+      const sideways = await tabPage.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      check(`375px: ${tab.name} does not scroll sideways`, sideways <= 0, `${sideways}px over`);
+      await tabPage.close();
+    }
+    await narrow.close();
+
+    /*
+     * The same tabs as a teacher.
+     *
+     * Everything above is a student, and the two roles are not the same app:
+     * the dashboard swaps its fourth tile from Reviews to Students and its
+     * subtitle from "your learning overview" to "your classroom overview", the
+     * class screen shows the roster differently, and the paywall offers
+     * Teacher plans instead of Student ones. None of that half had ever been
+     * rendered.
+     *
+     * The teacher account is the one already made above, so this costs a sign-
+     * in rather than another promotion.
+     */
+    if (teacher) {
+      const asTeacher = await browser.newContext({
+        viewport: { width: 393, height: 852 },
+        deviceScaleFactor: 2,
+        colorScheme: "dark",
+      });
+      await asTeacher.route(`${APP_ORIGIN}/**`, forwardToServer);
+      await asTeacher.addInitScript(
+        ([sessionToken, who]) => {
+          localStorage.setItem("schoolar_token", sessionToken);
+          localStorage.setItem("casparel_user", who);
+          localStorage.setItem("casparel_onboarded", "true");
+        },
+        [teacher.token, JSON.stringify(teacher.user ?? {})],
+      );
+
+      for (const tab of TABS) {
+        const tabPage = await asTeacher.newPage();
+        tabPage.on("pageerror", (error) =>
+          pageErrors.push(`teacher ${tab.name}: ${String(error).slice(0, 200)}`),
+        );
+        await tabPage.goto(`${local}${tab.route}`, { waitUntil: "networkidle" });
+        await tabPage.waitForTimeout(2500);
+        const text = await tabPage.evaluate(() => document.body.innerText);
+        // Not the student's expectation: a teacher's account holds different
+        // rows, so what is checked is that the screen rendered itself rather
+        // than the error boundary.
+        check(`teacher: ${tab.name} does not throw`, !CRASHED.test(text), text.replace(/\n+/g, " | ").slice(0, 140));
+        await tabPage.close();
+      }
+
+      const paywall = await asTeacher.newPage();
+      await paywall.goto(`${local}/paywall`, { waitUntil: "networkidle" });
+      await paywall.waitForTimeout(2500);
+      const plans = await paywall.evaluate(() => document.body.innerText);
+      check(
+        "teacher: the paywall offers teacher plans",
+        /Teacher Plus|Teacher Pro/.test(plans),
+        plans.replace(/\n+/g, " | ").slice(0, 160),
+      );
+      await paywall.close();
+      await asTeacher.close();
+    }
 
     check("no screen threw an uncaught exception", pageErrors.length === 0, pageErrors.slice(0, 4).join("\n     "));
     check(

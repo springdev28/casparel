@@ -1115,6 +1115,7 @@ router.delete("/classes/:id/leave", requireAuth, async (req, res): Promise<void>
   }
   const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
   if (!cls) { res.status(404).json({ error: "Class not found" }); return; }
+  let handOverTo: number | null = null;
   if (cls.teacherId === userId) {
     const [nextTeacher] = await db.select({ userId: classMembersTable.userId })
       .from(classMembersTable)
@@ -1128,10 +1129,26 @@ router.delete("/classes/:id/leave", requireAuth, async (req, res): Promise<void>
     if (!successor) {
       res.status(409).json({ error: "Add another teacher before leaving this class" }); return;
     }
-    await db.update(classesTable).set({ teacherId: successor.userId }).where(eq(classesTable.id, classId));
+    handOverTo = successor.userId;
   }
-  await db.delete(classMembersTable).where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.userId, userId)));
-  if (cls.teacherId !== userId) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: "A student left " + cls.name + "." });
+  /*
+   * Handing the class over and leaving it are one act.
+   *
+   * These ran as separate statements, so a failure between them left the class
+   * belonging to a teacher who had not agreed to it while the one who was
+   * leaving was still on the roster -- or the reverse, a class whose owner had
+   * walked out of it. Neither is a state anybody can see or repair from the
+   * app.
+   */
+  await db.transaction(async (tx) => {
+    if (handOverTo !== null) {
+      await tx.update(classesTable).set({ teacherId: handOverTo }).where(eq(classesTable.id, classId));
+    }
+    await tx.delete(classMembersTable).where(and(eq(classMembersTable.classId, classId), eq(classMembersTable.userId, userId)));
+    if (cls.teacherId !== userId) {
+      await tx.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: "A student left " + cls.name + "." });
+    }
+  });
   res.sendStatus(204);
 });
 
@@ -1175,7 +1192,34 @@ router.post("/classes/:id/resource-recommendations", contentLimiter, requireAuth
     eq(classResourceRecommendationsTable.classId, classId), eq(classResourceRecommendationsTable.resourceId, resource.id),
     eq(classResourceRecommendationsTable.recommendedById, userId), eq(classResourceRecommendationsTable.status, "pending"),
   ));
-  const recommendation = existing ?? (await db.insert(classResourceRecommendationsTable).values({ classId, resourceId: resource.id, recommendedById: userId, note: parsed.data.note?.trim() || null }).returning())[0];
+  /*
+   * One pending recommendation per person per resource, and the index says so
+   * -- but this read it and then inserted when it found none, so two taps on
+   * "recommend" ran both halves at once, both found nothing, and the loser came
+   * back 500.
+   *
+   * On a conflict the insert returns nothing, so the row the other tap made
+   * has to be read back: handing `undefined` to `recommendation.id` below
+   * would only trade the 500 for a different one.
+   */
+  const pendingForThisResource = and(
+    eq(classResourceRecommendationsTable.classId, classId),
+    eq(classResourceRecommendationsTable.resourceId, resource.id),
+    eq(classResourceRecommendationsTable.recommendedById, userId),
+    eq(classResourceRecommendationsTable.status, "pending"),
+  );
+  let recommendation = existing;
+  if (!recommendation) {
+    const [inserted] = await db
+      .insert(classResourceRecommendationsTable)
+      .values({ classId, resourceId: resource.id, recommendedById: userId, note: parsed.data.note?.trim() || null })
+      .onConflictDoNothing()
+      .returning();
+    recommendation =
+      inserted ??
+      (await db.select().from(classResourceRecommendationsTable).where(pendingForThisResource))[0];
+  }
+  if (!recommendation) { res.status(500).json({ error: "Could not record the recommendation" }); return; }
   const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId));
   const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, userId));
   if (!existing && cls && student) await db.insert(activityLogTable).values({ userId: cls.teacherId, type: "class", workspaceRole: "teacher", message: `${student.name} recommended "${resource.title}" for ${cls.name}.` });

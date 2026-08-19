@@ -257,7 +257,9 @@ function renderIcalFeed(events: ICalEvent[], calName: string): string {
   const header = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Schooler//Schooler Calendar//EN",
+    // The product's name, which is what a calendar app shows when it says
+    // where a feed came from.
+    "PRODID:-//Casparel//Casparel Calendar//EN",
     `X-WR-CALNAME:${escapeIcal(calName)}`,
     "X-WR-TIMEZONE:UTC",
     "CALSCALE:GREGORIAN",
@@ -699,11 +701,25 @@ router.get("/calendar/:icalSecret/feed.ics", async (req, res): Promise<void> => 
     });
   }
 
-  const calName = user?.name ? `${user.name}'s Schooler Schedule` : "Schooler Schedule";
+  /*
+   * X-WR-CALNAME is the name of the calendar in the subscriber's own app.
+   *
+   * It said "Schooler", so anybody who subscribed from Apple Calendar,
+   * Outlook or Google saw a calendar called "…'s Schooler Schedule" sitting in
+   * their sidebar under a name this product has not used for a while. A feed
+   * is the one surface a rename cannot reach on its own: it lives on their
+   * device until they resubscribe.
+   *
+   * The UIDs below are deliberately left alone. A calendar app matches events
+   * by UID, so changing the scheme would not rename anything -- it would make
+   * every existing event look new, and anybody already subscribed would get a
+   * second copy of their whole schedule alongside the first.
+   */
+  const calName = user?.name ? `${user.name}'s Casparel Schedule` : "Casparel Schedule";
   const icsContent = renderIcalFeed(events, calName);
 
   res.setHeader("Content-Type", "text/calendar; charset=utf-8");
-  res.setHeader("Content-Disposition", 'attachment; filename="schooler.ics"');
+  res.setHeader("Content-Disposition", 'attachment; filename="casparel.ics"');
   res.send(icsContent);
 });
 
