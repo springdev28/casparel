@@ -117,6 +117,16 @@ jobs:
         working-directory: artifacts/desktop
         run: pnpm run verify:package
 
+      # The macOS half of the same idea, and it was missing entirely. This
+      # mounts the .dmg, checks the bundle's identity and architecture, copies
+      # the app out of the read-only image, and starts it against a local
+      # stand-in for casparel.com -- so a green leg means a window that reached
+      # a page, not a build that produced a file.
+      - name: Check the macOS app runs
+        if: matrix.artifact == 'macos'
+        working-directory: artifacts/desktop
+        run: node scripts/verify-app-macos.mjs
+
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
