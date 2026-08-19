@@ -1012,6 +1012,8 @@ const TR: Record<string, string> = {
   "Every edit is public and reversible": "Her düzenleme herkese açık ve geri alınabilir",
   "Independent, check it": "Bağımsız, sen kontrol et",
   "Checked against the source registry: who publishes it, how it is licensed, and how it is served.": "Kaynak kaydına göre denetlendi: kimin yayımladığı, nasıl lisanslandığı ve nasıl sunulduğu.",
+  "Browse topics": "Konulara göz at",
+  "Community snapshot": "Topluluk özeti",
 };
 
 export default TR;

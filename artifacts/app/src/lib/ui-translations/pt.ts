@@ -1012,6 +1012,8 @@ const PT: Record<string, string> = {
   "Every edit is public and reversible": "Cada edição é pública e reversível",
   "Independent, check it": "Independente, verifique",
   "Checked against the source registry: who publishes it, how it is licensed, and how it is served.": "Verificado no registo de fontes: quem o publica, com que licença e como é servido.",
+  "Browse topics": "Explorar temas",
+  "Community snapshot": "Resumo da comunidade",
 };
 
 export default PT;
