@@ -397,7 +397,22 @@ function SourceReviewPanel({
   const failureMessage = (() => {
     const detail = (failure as { data?: { error?: string } } | null)?.data
       ?.error;
-    if (typeof detail === "string" && detail.trim()) return detail.trim();
+    /*
+     * The server's sentence, when it is one.
+     *
+     * Some routes pass a Zod error straight through, and `ZodError.message` is
+     * a JSON array of issue objects -- this route does exactly that for an
+     * invalid resource id. Printing that at a reader is worse than any
+     * fallback, so a leading bracket, a newline, or anything past a couple of
+     * hundred characters means it is a serialised error rather than prose.
+     */
+    const readsLikeASentence =
+      typeof detail === "string" &&
+      detail.trim().length > 0 &&
+      detail.trim().length <= 200 &&
+      !/^[[{]/.test(detail.trim()) &&
+      !detail.includes("\n");
+    if (readsLikeASentence) return detail.trim();
     return "Could not retrieve source information. Please try again later.";
   })();
   /**

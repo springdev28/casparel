@@ -36,6 +36,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useAuth } from '@/contexts/AuthContext';
 import { PremiumCard } from '@/components/PremiumCard';
+import { describeApiFailure } from '@/utils/api-failure';
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History',
@@ -284,8 +285,11 @@ export default function ProfileScreen() {
       queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       setEditing(false);
       Alert.alert('Saved', 'Your profile has been updated.');
-    } catch {
-      Alert.alert('Error', 'Could not save profile. Please try again.');
+    } catch (error) {
+      Alert.alert(
+        'Could not save your profile',
+        describeApiFailure(error, 'Please check the fields and try again.'),
+      );
     }
   }
 
@@ -327,8 +331,11 @@ export default function ProfileScreen() {
       const result = await switchRoleMutation.mutateAsync({ data: { role: newRole } });
       await updateToken(result.token);
       await queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
-    } catch {
-      Alert.alert('Error', 'Could not switch role. Please try again.');
+    } catch (error) {
+      Alert.alert(
+        'Could not switch role',
+        describeApiFailure(error, 'Please try again.'),
+      );
     } finally {
       setSwitching(false);
     }

@@ -29,6 +29,7 @@ import {
   getListStudySessionsQueryKey,
 } from '@workspace/api-client-react';
 import type { ScheduleBlock, StudySessionWithParticipants, PublicUser, Resource } from '@workspace/api-client-react';
+import { describeApiFailure } from '@/utils/api-failure';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -432,8 +433,12 @@ function CreateStudySessionModal({
       await queryClient.invalidateQueries({ queryKey: getListStudySessionsQueryKey() });
       reset();
       onClose();
-    } catch {
-      setError('Failed to create session. Check the meeting URL and try again.');
+    } catch (error) {
+      // The server says which of these it was -- a bad meeting URL, an
+      // invitee whose privacy preference refuses the invite, a missing
+      // resource. Blaming the URL for all of them left people retyping one
+      // that was never wrong.
+      setError(describeApiFailure(error, 'Could not create the session. Please try again.'));
     }
   }
 
