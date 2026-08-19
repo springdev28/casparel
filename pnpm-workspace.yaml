@@ -36,6 +36,29 @@ minimumReleaseAgeExclude:
   - '@replit/*'
   - stripe-replit-sync
 
+# ============================================================================
+# Missing dependencies declared on our behalf
+# ============================================================================
+#
+# react-native-worklets ships a Babel plugin that requires @babel/core,
+# @babel/generator, @babel/traverse and @babel/types, and declares none of
+# them. npm and yarn hoist everything, so the plugin finds them by accident
+# there; pnpm's node_modules is strict, so it does not, and the failure is
+# total: `expo export` cannot bundle the mobile app for *any* platform --
+# "Cannot find module '@babel/traverse'" before a single module is
+# transformed. No bundle means no EAS build and no store submission.
+#
+# The versions match what the workspace already resolves, so this adds no new
+# package to the tree; it only makes the existing ones visible where the
+# plugin looks.
+packageExtensions:
+  react-native-worklets:
+    dependencies:
+      '@babel/core': 7.29.7
+      '@babel/generator': 7.29.7
+      '@babel/traverse': 7.29.7
+      '@babel/types': 7.29.7
+
 packages:
   - artifacts/api-server
   - artifacts/app

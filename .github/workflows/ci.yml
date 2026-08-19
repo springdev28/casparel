@@ -59,6 +59,16 @@ jobs:
       - name: Mobile tests
         run: pnpm --filter @workspace/mobile run test
 
+      # The store submission starts with a bundle, and for a while there was
+      # not one: react-native-worklets' Babel plugin requires four @babel/*
+      # modules it does not declare, which npm hoists into place by accident
+      # and pnpm does not, so `expo export` failed on the first module for
+      # every platform. Nothing caught it -- the release-config check reads
+      # env vars and app.json, typecheck reads types, and neither asks Metro
+      # to actually build the app. This does.
+      - name: Bundle the mobile app
+        run: pnpm --filter @workspace/mobile run bundle:check
+
       - name: Build the web app
         run: pnpm --filter @workspace/app run build
         env:
