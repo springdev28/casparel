@@ -91,7 +91,10 @@ function formatReviewTiming(dueAt: number, now: number) {
 }
 
 function resourceEffectiveness(avgRating: number, reviewCount: number) {
-  if (reviewCount <= 0) return null;
+  // Not just "no reviews yet": a rating that is missing or not a number makes
+  // the arithmetic below NaN, and the card renders "NaN% evidence score" at a
+  // reader. No score is a state this already handles; a broken one is not.
+  if (reviewCount <= 0 || !Number.isFinite(avgRating)) return null;
   const ratingSignal = Math.max(0, Math.min(1, avgRating / 5));
   const confidenceSignal = Math.min(reviewCount, 10) / 10;
   return Math.round((ratingSignal * 0.7 + confidenceSignal * 0.3) * 100);
@@ -347,16 +350,28 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
           </p>
           <h1 className="text-3xl font-bold">
             {hasReflected ? "Welcome back" : "Welcome"}
-            {name ? `, ${name.split(" ")[0]}` : ""}
+            {/* Their name, not our copy. */}
+            {name ? <span translate="no">{`, ${name.split(" ")[0]}`}</span> : ""}
           </h1>
           <p className="mt-2 text-muted-foreground">{journeySubtitle}</p>
         </div>
         <Badge variant="secondary" className="px-4 py-2">
           <TrendingUp size={15} className="mr-2" />
+          {/*
+            Whole phrases, not a value glued to a fragment. This read
+            {value} + " mastery evidence · " + {subject}, so the bridge was
+            offered "mastery evidence ·" -- half a sentence and a separator,
+            which no dictionary can hold.
+          */}
           {latest
-            ? `${Math.round((latest.understanding / 4) * 100)}%`
-            : "No"}{" "}
-          mastery evidence · {activeGoal?.subject ?? "No active goal"}
+            ? `${Math.round((latest.understanding / 4) * 100)}% mastery evidence`
+            : "No mastery evidence"}
+          {" · "}
+          {activeGoal?.subject ? (
+            <span translate="no">{activeGoal.subject}</span>
+          ) : (
+            "No active goal"
+          )}
         </Badge>
       </header>
       <TodayAssignments />
@@ -373,7 +388,11 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                 <div>
                   <Badge variant="secondary">Continue studying</Badge>
                   <h2 className="mt-2 text-2xl font-bold">
-                    {activeGoal?.title ?? "Choose a learning goal"}
+                    {activeGoal?.title ? (
+                      <span translate="no">{activeGoal.title}</span>
+                    ) : (
+                      "Choose a learning goal"
+                    )}
                   </h2>
                   <p className="text-sm text-muted-foreground">
                     {activeGoal
@@ -438,7 +457,12 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
 
             <span className="flex gap-2 text-sm text-muted-foreground">
               <Target size={16} />
-              Goal: {activeGoal?.title ?? "Create a goal to build your path"}
+              Goal:{" "}
+              {activeGoal?.title ? (
+                <span translate="no">{activeGoal.title}</span>
+              ) : (
+                "Create a goal to build your path"
+              )}
             </span>
           </CardContent>
         </Card>
@@ -455,7 +479,16 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
             </div>
             {needsContinuation ? (
               <div className="space-y-3">
-                <p className="text-sm">You have completed five check-ins for <b>{activeGoal?.title}</b>. Would you like to continue check-ins for this goal?</p>
+                {/*
+                  Two whole sentences with the goal's name between them, not
+                  one sentence wrapped around it: a sentence split by an
+                  interpolation cannot be translated at all.
+                */}
+                <p className="text-sm">
+                  You have completed five check-ins for{" "}
+                  <b translate="no">{activeGoal?.title}</b>.{" "}
+                  <span>Would you like to continue check-ins for this goal?</span>
+                </p>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={createNextCheckIn}>Continue check-ins</Button>
                   <Button size="sm" variant="outline" onClick={() => setNeedsContinuation(false)}>Not now</Button>
@@ -558,7 +591,8 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                     {isComplete ? <Check size={15} /> : i + 1}
                   </div>
                   <div className="flex-1">
-                    <b className="text-sm">{step.title}</b>
+                    {/* A path step is whatever its owner called it. */}
+                    <b translate="no" className="text-sm">{step.title}</b>
                     <p className="text-xs text-muted-foreground">
                       {step.type} · {review?.label ?? "Check in now"}
                     </p>
@@ -588,7 +622,11 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
             </div>
             <div className="my-5 space-y-3">
               <div className="rounded-lg bg-primary px-4 py-3 text-center text-sm font-bold text-primary-foreground">
-                {activeGoal?.title ?? "No active goal"}
+                {activeGoal?.title ? (
+                  <span translate="no">{activeGoal.title}</span>
+                ) : (
+                  "No active goal"
+                )}
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {reviewSchedule.slice(0, 6).map(({ step, latestEvidence, label }) => {
@@ -614,7 +652,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                         )}
                       />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
+                        <p translate="no" className="truncate text-sm font-medium">
                           {step.title}
                         </p>
                         <p className="text-xs text-muted-foreground">
@@ -631,7 +669,9 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
-                {goalEvidence.length} check-ins · {continueResources.length} selected resources
+                <span>{`${goalEvidence.length} check-ins`}</span>
+                {" · "}
+                <span>{`${continueResources.length} selected resources`}</span>
               </p>
             </div>
             <Button
@@ -711,7 +751,9 @@ function TeacherView({ name }: { name?: string }) {
         <div>
           <p className="text-sm font-bold text-primary-text">CLASSROOM COPILOT</p>
           <h1 className="text-3xl font-bold">
-            Good morning{name ? `, ${name.split(" ")[0]}` : ""}
+            {/* The name is theirs; only the greeting is ours to translate. */}
+            Good morning
+            {name ? <span translate="no">{`, ${name.split(" ")[0]}`}</span> : ""}
           </h1>
           <p className="mt-2 text-muted-foreground">
             Here&apos;s what your learners&apos; evidence suggests doing next.

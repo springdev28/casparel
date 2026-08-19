@@ -728,7 +728,13 @@ export default function AppShell({ children }: AppShellProps) {
                         ) : (
                           <ChevronRight size={13} />
                         )}
-                        <span className="min-w-0 flex-1 truncate">
+                        {/*
+                          A goal's title is what its owner typed. The bridge
+                          rewrites whole strings it recognises, so a path
+                          called "Practice" or "Canvas" would be silently
+                          translated into somebody's own sidebar.
+                        */}
+                        <span translate="no" className="min-w-0 flex-1 truncate">
                           {goal.title}
                         </span>
                         <span className="text-[10px] text-primary-foreground/60">
@@ -851,7 +857,8 @@ export default function AppShell({ children }: AppShellProps) {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-primary-foreground truncate group-hover:underline">
+                  {/* A person's name, not copy: never translated. */}
+                  <p translate="no" className="text-sm font-semibold text-primary-foreground truncate group-hover:underline">
                     {me.name}
                   </p>
                 </div>
@@ -1073,7 +1080,7 @@ export default function AppShell({ children }: AppShellProps) {
                           <User size={17} />
                         )}
                       </span>
-                      <span className="min-w-0 truncate text-sm font-semibold">
+                      <span translate="no" className="min-w-0 truncate text-sm font-semibold">
                         {me.name}
                       </span>
                     </Link>
