@@ -45,6 +45,19 @@ const PORT = Number(process.env.AUDIT_FIT_PORT ?? 4329);
  */
 const LANGUAGES = (process.env.AUDIT_FIT_LANGS ?? "en,es,fr,de,pt,tr").split(",");
 
+/**
+ * Desktop and a narrow phone.
+ *
+ * 375px is where a long translation runs out of room first, and it is also
+ * the width most of this product's readers are on. The desktop width is kept
+ * because a wide layout has its own fixed-width controls -- the toolbar select
+ * that started this was clipped at 1280 and fine at 375, where it is hidden.
+ */
+const VIEWPORTS = [
+  { width: 1280, height: 900, name: "desktop" },
+  { width: 375, height: 812, name: "phone" },
+];
+
 const PAGES = (
   process.env.AUDIT_FIT_PAGES ??
   "/dashboard,/profile,/settings,/plans,/schedule,/classes,/goals,/lists,/resources"
@@ -138,9 +151,10 @@ const clippedIn = new Map();
 let rendered = 0;
 
 for (const language of LANGUAGES) {
+  for (const viewport of VIEWPORTS) {
   for (const pagePath of PAGES) {
     const context = await browser.newContext({
-      viewport: { width: 1280, height: 900 },
+      viewport: { width: viewport.width, height: viewport.height },
     });
     await context.addInitScript((lang) => {
       try {
@@ -161,15 +175,20 @@ for (const language of LANGUAGES) {
       await page.waitForTimeout(600);
       rendered += 1;
       for (const entry of await page.evaluate(MEASURE)) {
-        const key = `${pagePath}  ${JSON.stringify(entry.text)}  [${entry.tag}.${entry.where}]`;
+        const key =
+          `${pagePath} @${viewport.name}  ${JSON.stringify(entry.text)}  ` +
+          `[${entry.tag}.${entry.where}]`;
         const seen = clippedIn.get(key) ?? new Map();
         seen.set(language, entry.over);
         clippedIn.set(key, seen);
       }
     } catch (error) {
-      console.error(`  !  ${pagePath} [${language}] failed: ${error.message}`);
+      console.error(
+        `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
+      );
     }
     await context.close();
+  }
   }
 }
 
@@ -216,6 +235,6 @@ if (translationsOnly.length) {
 }
 
 console.log(
-  `\n${rendered} render(s) across ${LANGUAGES.length} languages: every visible ` +
-    `string fits the box drawn for it.`,
+  `\n${rendered} render(s) across ${LANGUAGES.length} languages and ` +
+    `${VIEWPORTS.length} widths: every visible string fits the box drawn for it.`,
 );

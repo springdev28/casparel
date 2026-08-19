@@ -28,6 +28,15 @@
  * (mobileSpeaksSixLanguages.test.ts) is what catches one missed string; this
  * is what catches a screen that no longer comes up.
  *
+ * What it does not check, having looked: whether the translated text fits the
+ * box drawn for it. That is a real class -- the web app had nine of them, one
+ * visible as "Desactivadc" in a toolbar -- and measuring every screen here in
+ * English, German, Turkish and Spanish found none. React Native lays out with
+ * flexbox and wraps by default, so the fixed widths that catch a web app are
+ * mostly not here. Recorded so the next person does not repeat the search;
+ * artifacts/app/scripts/audit-text-fits.mjs is the check for the side where it
+ * does bite.
+ *
  * The stub is deliberately thin -- empty collections and a plain profile --
  * because the question here is whether the screens survive translation, not
  * whether they show the right data. audit-screens.mjs drives the real server
