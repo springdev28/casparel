@@ -249,6 +249,74 @@ for (const { name, ok, detail } of results) {
   console.log(`${ok ? "ok  " : "FAIL"} ${name}: ${detail}`);
 }
 
+/**
+ * Whether the www form of the site also works, reported and never enforced.
+ *
+ * People type www whatever the DNS says, and casparel.com answers it with a
+ * 301 to https://www.casparel.com — which then fails to open at all, because
+ * the certificate is issued for the bare name and does not list www among its
+ * alternates. The redirect walks the visitor into a browser security warning.
+ *
+ * A warning rather than a check, deliberately. This is the hosting's TLS
+ * configuration, not anything in the release being deployed, and a failing
+ * check here would block every future deploy of perfectly good code until
+ * somebody re-issued a certificate. What was actually wrong is that nothing
+ * ever said so: the fault sat there unnoticed because every automated check
+ * asked about the apex, which works.
+ */
+async function reportAlternateHostname() {
+  let host;
+  try {
+    host = new URL(BASE).hostname;
+  } catch {
+    return;
+  }
+  // Only meaningful for a real registered name; www.localhost is not a thing.
+  if (host.startsWith("www.") || !host.includes(".") || /^[\d.]+$/.test(host))
+    return;
+
+  const wwwUrl = `https://www.${host}/`;
+  try {
+    const response = await fetch(wwwUrl, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { "user-agent": "casparel-smoke-check" },
+      redirect: "manual",
+    });
+    // Connecting is not working. A 503 still means a visitor typing www gets
+    // nothing, and reporting the connection as a success because bytes came
+    // back is how a broken hostname stays invisible.
+    const served = response.status < 400;
+    console.log(
+      `${served ? "ok  " : "warn"} www ${served ? "reachable" : "answers badly"}: ` +
+        `${wwwUrl} HTTP ${response.status}`,
+    );
+    if (!served) {
+      console.log(
+        `::warning title=www answers ${response.status}::${wwwUrl} is reachable but ` +
+          `does not serve the site. The deploy is unaffected.`,
+      );
+    }
+  } catch (error) {
+    const code = error?.cause?.code ?? error?.code ?? "";
+    const certFault = String(code).includes("ALTNAME") || String(code).includes("CERT");
+    console.log(
+      `warn www is broken: ${wwwUrl} — ${code || error?.message || error}` +
+        (certFault
+          ? `\n     the certificate does not list www, so http://www.${host} ` +
+            `redirects visitors into a security warning. Re-issue it covering ` +
+            `both ${host} and www.${host}.`
+          : ""),
+    );
+    // Surfaced in the Actions UI without touching the job's result.
+    console.log(
+      `::warning title=www is unreachable::${wwwUrl} fails to open (${code || "see log"}). ` +
+        `The deploy is unaffected; the certificate or DNS needs attention.`,
+    );
+  }
+}
+
+await reportAlternateHostname();
+
 const failed = results.filter((r) => !r.ok);
 if (!failed.length) {
   console.log(`\nAll ${results.length} checks passed.`);
