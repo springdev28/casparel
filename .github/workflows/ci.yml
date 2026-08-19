@@ -454,6 +454,15 @@ jobs:
           fi
           exit "$status"
 
+      # Nine screens, six languages, against a stubbed server: does each one
+      # still come up. Wrapping 252 strings in t() touched twenty-five files,
+      # and the ways that goes wrong are not type errors -- a hook in the wrong
+      # place renders the error boundary, which is what this caught on the
+      # profile screen. The source-level half lives in the api-server suite.
+      - name: Render the phone app in every language
+        working-directory: artifacts/mobile
+        run: node scripts/audit-languages.mjs
+
       # Same idea, for the app that gets submitted to the stores. It registers
       # through the real register screen, walks all five tabs in both colour
       # schemes, and checks that a schedule block written through the API turns

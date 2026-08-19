@@ -123,7 +123,14 @@ export function PremiumCard() {
         </View>
       </View>
 
-      {usage ? (
+      {/*
+        The two sub-objects, not just `usage`. A response missing them is
+        truthy, so this read `usage.deepResearch.used` on undefined and threw
+        -- which the error boundary turns into "Something went wrong" for the
+        entire profile screen. One endpoint answering oddly should cost its
+        own card, not the screen it sits on.
+      */}
+      {usage?.deepResearch && usage?.aiSearch ? (
         <View style={{ gap: 12, marginTop: 4 }}>
           <UsageMeter label={t('AI source research')} used={usage.deepResearch.used} limit={usage.deepResearch.limit} />
           <UsageMeter label={t('AI discovery')} used={usage.aiSearch.used} limit={usage.aiSearch.limit} />
