@@ -1012,6 +1012,29 @@ const ES: Record<string, string> = {
   "Every edit is public and reversible": "Cada edición es pública y reversible",
   "Independent, check it": "Independiente, compruébalo",
   "Checked against the source registry: who publishes it, how it is licensed, and how it is served.": "Comprobado con el registro de fuentes: quién lo publica, con qué licencia y cómo se sirve.",
+
+  // The download page: which platforms Casparel runs on, and how to get it.
+  "Download Casparel": "Descargar Casparel",
+  "The same workspace, on whatever you study with": "El mismo espacio de trabajo, en aquello con lo que estudies",
+  "Your library, classes, schedule and source research are one account. Sign in on a second device and everything is already there: nothing to export, nothing to sync.": "Tu biblioteca, tus clases, tu horario y tus investigaciones de fuentes están en una sola cuenta. Inicia sesión en un segundo dispositivo y todo ya está ahí: nada que exportar, nada que sincronizar.",
+  "You are using the desktop app. The mobile apps below sign in to the same account.": "Estás usando la aplicación de escritorio. Las aplicaciones móviles de abajo inician sesión en la misma cuenta.",
+  "Platforms": "Plataformas",
+  "Mac, Windows and Linux": "Mac, Windows y Linux",
+  "Not on the App Store yet. Casparel runs in Safari today.": "Todavía no está en la App Store. Hoy Casparel funciona en Safari.",
+  "Not on Google Play yet. Casparel runs in Chrome today.": "Todavía no está en Google Play. Hoy Casparel funciona en Chrome.",
+  "No public installers yet. Casparel runs in any browser today.": "Todavía no hay instaladores públicos. Hoy Casparel funciona en cualquier navegador.",
+  "Your device": "Tu dispositivo",
+  "Or stay in the browser": "O quédate en el navegador",
+  "Everything works in your browser today": "Hoy todo funciona en tu navegador",
+  "Casparel is a full web app, not a preview of the native ones. The library, classes, canvases, schedules and AI source research all run in a browser tab, on the same account you would use on a phone.": "Casparel es una aplicación web completa, no un adelanto de las nativas. La biblioteca, las clases, los lienzos, los horarios y la investigación de fuentes con IA funcionan en una pestaña del navegador, con la misma cuenta que usarías en un teléfono.",
+  "Download for iPhone": "Descargar para iPhone",
+  "Get it on Google Play": "Consíguelo en Google Play",
+  "Download for desktop": "Descargar para escritorio",
+  "iPhone and iPad, from the App Store.": "iPhone y iPad, desde la App Store.",
+  "Android phones and tablets, from Google Play.": "Teléfonos y tabletas Android, desde Google Play.",
+  "macOS, Windows and Linux.": "macOS, Windows y Linux.",
+  "All download options": "Todas las opciones de descarga",
+  "Where Casparel runs": "Dónde funciona Casparel",
 };
 
 export default ES;
