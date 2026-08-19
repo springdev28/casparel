@@ -1014,6 +1014,13 @@ const ES: Record<string, string> = {
   "Checked against the source registry: who publishes it, how it is licensed, and how it is served.": "Comprobado con el registro de fuentes: quién lo publica, con qué licencia y cómo se sirve.",
   "Browse topics": "Explorar temas",
   "Community snapshot": "Resumen de la comunidad",
+  "Deep research is unavailable right now. The free source check still works.": "La investigación profunda no está disponible ahora mismo. La comprobación gratuita de la fuente sigue funcionando.",
+  "Run the free source check instead": "Ejecutar la comprobación gratuita de la fuente",
+  "Reads the maintained provenance registry. No AI, no allowance.": "Consulta el registro de procedencia mantenido. Sin IA, sin cupo.",
+  "A deep research request is already running. Please wait for it to finish.": "Ya hay una investigación profunda en curso. Espera a que termine.",
+  "Daily deep research limit reached.": "Has alcanzado el límite diario de investigación profunda.",
+  "Monthly deep research limit reached.": "Has alcanzado el límite mensual de investigación profunda.",
+  "Today’s deep research budget has been reached.": "Se ha alcanzado el presupuesto de investigación profunda de hoy.",
 };
 
 export default ES;

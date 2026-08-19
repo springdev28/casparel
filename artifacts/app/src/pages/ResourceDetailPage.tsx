@@ -329,6 +329,7 @@ function SourceReviewPanel({
     data: quickData,
     isLoading: quickLoading,
     isError: quickError,
+    error: quickFailure,
   } = useGetResourceSourceReview(
     resourceId,
     { mode: "quick" },
@@ -346,6 +347,7 @@ function SourceReviewPanel({
     data: deepData,
     isLoading: deepLoading,
     isError: deepError,
+    error: deepFailure,
   } = useGetResourceSourceReview(
     resourceId,
     { mode: "deep" },
@@ -377,6 +379,34 @@ function SourceReviewPanel({
     mode === "quick" ? quickLoading : mode === "deep" ? deepLoading : false;
   const isError =
     mode === "quick" ? quickError : mode === "deep" ? deepError : false;
+  const failure =
+    mode === "quick" ? quickFailure : mode === "deep" ? deepFailure : null;
+  /**
+   * What actually went wrong, in the server's own words.
+   *
+   * This panel used to render one sentence for every failure: "Could not
+   * retrieve source information. Please try again later." The server never
+   * says anything so vague -- it distinguishes a deep report already running
+   * ("please wait for it to finish"), a daily limit, a monthly limit, the
+   * service-wide budget, and the AI provider being unreachable, and it sends
+   * Retry-After with the ones that have a clock. Telling somebody whose
+   * monthly allowance is spent to try again later is simply untrue, and it
+   * was the same sentence a provider outage produced, so nobody could tell a
+   * five-minute problem from a thirty-day one.
+   */
+  const failureMessage = (() => {
+    const detail = (failure as { data?: { error?: string } } | null)?.data
+      ?.error;
+    if (typeof detail === "string" && detail.trim()) return detail.trim();
+    return "Could not retrieve source information. Please try again later.";
+  })();
+  /**
+   * Deep research failing does not mean the source cannot be checked: the
+   * quick check reads the maintained registry, needs no AI, costs nothing,
+   * and works when the provider is down. Offering it is more useful than an
+   * apology, and it is the whole feature for most readers anyway.
+   */
+  const canFallBackToQuick = mode === "deep" && isError;
 
   function handleOpen() {
     setOpen(true);
@@ -461,8 +491,24 @@ function SourceReviewPanel({
         )}
 
         {isError && (
-          <div className="py-4 text-center text-sm text-destructive-text">
-            Could not retrieve source information. Please try again later.
+          <div className="space-y-3 py-4 text-center">
+            <p className="text-sm text-destructive-text">{failureMessage}</p>
+            {canFallBackToQuick && (
+              <div className="space-y-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setMode("quick")}
+                  data-testid="fall-back-to-quick"
+                >
+                  Run the free source check instead
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Reads the maintained provenance registry. No AI, no
+                  allowance.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

@@ -1014,6 +1014,13 @@ const TR: Record<string, string> = {
   "Checked against the source registry: who publishes it, how it is licensed, and how it is served.": "Kaynak kaydına göre denetlendi: kimin yayımladığı, nasıl lisanslandığı ve nasıl sunulduğu.",
   "Browse topics": "Konulara göz at",
   "Community snapshot": "Topluluk özeti",
+  "Deep research is unavailable right now. The free source check still works.": "Derin araştırma şu anda kullanılamıyor. Ücretsiz kaynak kontrolü çalışmaya devam ediyor.",
+  "Run the free source check instead": "Bunun yerine ücretsiz kaynak kontrolünü çalıştır",
+  "Reads the maintained provenance registry. No AI, no allowance.": "Bakımı yapılan köken kaydını okur. Yapay zekâ yok, hak harcanmaz.",
+  "A deep research request is already running. Please wait for it to finish.": "Zaten çalışan bir derin araştırma isteği var. Bitmesini bekle.",
+  "Daily deep research limit reached.": "Günlük derin araştırma sınırına ulaşıldı.",
+  "Monthly deep research limit reached.": "Aylık derin araştırma sınırına ulaşıldı.",
+  "Today’s deep research budget has been reached.": "Bugünün derin araştırma bütçesi doldu.",
 };
 
 export default TR;
