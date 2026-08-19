@@ -420,16 +420,28 @@ export default function PlansPage() {
                     : "Plus and Pro are the original plans and fit any account: balanced study and classroom allowances on one subscription, whichever role you hold."}
             </p>
             {isLoggedIn && !isAdmin ? (
+              /*
+               * Two whole sentences, not one sentence with a name in the
+               * middle of it.
+               *
+               * This read "You are on <b>Free</b>. Your live usage and
+               * allowances are in Settings → Plan." -- which JSX splits into
+               * "You are on", the plan name, ". Your live usage and allowances
+               * are in", a link, and a full stop. The bridge matches whole
+               * strings, so a sentence broken around an interpolation can
+               * never be translated, and no word order but English survives it
+               * anyway: Turkish puts the plan name first.
+               */
               <p className="mt-1 text-sm text-muted-foreground">
-                You are on <b className="text-foreground">{plan.label}</b>. Your
-                live usage and allowances are in{" "}
+                <span>Your current plan:</span>{" "}
+                <b translate="no" className="text-foreground">{plan.label}</b>
+                {" · "}
                 <Link
                   href="/settings"
                   className="text-primary-text hover:underline"
                 >
-                  Settings → Plan
+                  See your live usage and allowances
                 </Link>
-                .
               </p>
             ) : null}
             {isAdmin ? (

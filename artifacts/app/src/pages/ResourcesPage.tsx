@@ -225,7 +225,10 @@ function getContinueStudyingResourceIds(userId: number, goalId: number) {
 }
 
 function getResourceEvidenceScore(avgRating: number, reviewCount: number) {
-  if (reviewCount <= 0) return null;
+  // Not just "no reviews yet": a rating that is missing or not a number makes
+  // the arithmetic below NaN, and the card renders "NaN% evidence score" at a
+  // reader. No score is a state this already handles; a broken one is not.
+  if (reviewCount <= 0 || !Number.isFinite(avgRating)) return null;
   const ratingSignal = Math.max(0, Math.min(1, avgRating / 5));
   const confidenceSignal = Math.min(reviewCount, 10) / 10;
   return Math.round((ratingSignal * 0.7 + confidenceSignal * 0.3) * 100);
@@ -487,7 +490,11 @@ function LibraryCard({
           />
         </div>
         <CardDescription className="text-xs">
-          {metaLine(resource.subject, resource.gradeLevel)}
+          {/* The resource's own subject and level, as its catalogue records
+              them -- not this app's wording. */}
+          <span translate="no">
+            {metaLine(resource.subject, resource.gradeLevel)}
+          </span>
         </CardDescription>
       </CardHeader>
       {resource.verificationStatus === "rejected" &&
@@ -860,9 +867,13 @@ function WebCard({
           <FormatBadge format={resource.format} />
         </div>
         <CardDescription className="text-xs">
-          {resource.source}
-          {resource.subject ? ` · ${resource.subject}` : ""}
-          {resource.gradeLevel ? ` · ${resource.gradeLevel}` : ""}
+          {/* Publisher, subject and level as the resource records them: a
+              catalogue entry's own metadata, not this app's wording. */}
+          <span translate="no">
+            {resource.source}
+            {resource.subject ? ` · ${resource.subject}` : ""}
+            {resource.gradeLevel ? ` · ${resource.gradeLevel}` : ""}
+          </span>
           <ProvenanceBadge resource={resource} />
         </CardDescription>
       </CardHeader>

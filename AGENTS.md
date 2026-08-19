@@ -162,6 +162,10 @@ Run these checks to avoid breaking the app:
 # Type-check everything
 pnpm run typecheck
 
+# The unit tests. They mock the database, so they check what a handler asks
+# for, not what comes back.
+pnpm --filter @workspace/api-server exec vitest run
+
 # Verify the API server builds
 pnpm --filter @workspace/api-server run build
 
@@ -175,7 +179,74 @@ pnpm --filter @workspace/mobile run check:release
 pnpm --filter @workspace/desktop run smoke
 ```
 
+Read the exit code of each on its own. Piping into `tail` or `grep` reports
+the exit code of *that* command, which has hidden a red suite before.
+
 If typecheck passes and the API server builds, the app will start.
 
 Shipping the native apps is a separate matter from making them run: see the
 [release runbook](docs/release-runbook.md).
+
+## Checking it against a real server
+
+The checks above all take the real parts out: the unit tests mock the
+database, and the page audit answers the API from fixtures. Both have been
+green while a feature was broken. Four checks run against a real server and a
+real Postgres instead, and CI runs all of them on every push.
+
+Stand one up (the web app must be built **first** — the server's build copies
+the Vite output beside its own entry point):
+
+```bash
+createdb casparel_dev_e2e
+pnpm --filter @workspace/app run build
+pnpm --filter @workspace/api-server run build
+
+cd artifacts/api-server
+DATABASE_URL=postgres://…/casparel_dev_e2e PORT=4319 NODE_ENV=production \
+  SESSION_SECRET=at-least-thirty-two-bytes-long-please \
+  APP_URL=http://localhost:4319 SITE_URL=http://localhost:4319 \
+  ALLOWED_ORIGINS=http://localhost:4319 \
+  AI_INTEGRATIONS_OPENAI_BASE_URL=http://localhost:9/v1 \
+  AI_INTEGRATIONS_OPENAI_API_KEY=unused \
+  ADMIN_EMAILS=e2e-admin@example.test \
+  node ./dist/index.mjs
+```
+
+Then, from the repository root:
+
+```bash
+# The app driven in a real browser: register through the form, write, and
+# check the page that lists it shows it.
+node artifacts/app/scripts/audit-live-ui.mjs http://localhost:4319
+
+# The flows: sign in, create, publish, copy, invite, accept, leave, delete.
+E2E_ADMIN_EMAIL=e2e-admin@example.test node scripts/e2e-api.mjs http://localhost:4319
+
+# Whether one account can reach another's work. Every answer that is not a
+# refusal is a finding.
+node scripts/e2e-authorization.mjs http://localhost:4319
+
+# Whether sharing with a class stops when membership does.
+E2E_ADMIN_EMAIL=e2e-admin@example.test node scripts/e2e-class-access.mjs http://localhost:4319
+```
+
+`E2E_ADMIN_EMAIL` must be in the server's `ADMIN_EMAILS`: registration only
+ever creates students, so making a teacher needs an administrator. Allowlisted
+addresses are promoted when they sign in, so no seeding is needed.
+
+Exit codes: **0** all checks passed, **1** something is broken, **75** the run
+could not be performed and proves nothing — a rate-limit window, usually from
+running them twice in quick succession. Do not read 75 as a pass or a failure.
+
+The database tests skip unless pointed at a throwaway database, which they
+empty:
+
+```bash
+VERIFY_DATABASE_URL=postgres://…/throwaway \
+  pnpm --filter @workspace/api-server exec vitest run
+```
+
+Any new `*.db.test.ts` must call `useExclusiveDatabase()` from
+`src/dbTestLock.ts`, or it will race the others; there is a test that checks
+this and names the file that forgot.

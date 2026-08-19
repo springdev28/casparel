@@ -351,6 +351,13 @@
       "when": 1789372800007,
       "tag": "0049_purge_query_poisoned_catalog_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1789372800008,
+      "tag": "0050_enable_row_level_security",
+      "breakpoints": true
     }
   ]
 }

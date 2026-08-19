@@ -1,3 +1,5 @@
+import { authedRequest } from "./api-request";
+
 export type ClassInvitation = {
   id: number;
   classId: number;
@@ -12,24 +14,13 @@ export type ClassInvitation = {
   invitee: { id: number; name: string; email: string };
 };
 
+/**
+ * Kept for its existing callers. The behaviour lives in authedRequest, which
+ * is the same thing under a name that is not about classes.
+ */
 export async function classRequest<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    ...init,
-    headers: {
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      Authorization: `Bearer ${localStorage.getItem("schoolar_token")}`,
-      ...init.headers,
-    },
-  });
-  if (response.status === 204) return undefined as T;
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(
-      (payload as { error?: string }).error ?? "Class request failed",
-    );
-  }
-  return payload as T;
+  return authedRequest<T>(path, init);
 }

@@ -190,7 +190,21 @@ const SUBJECT_HINTS: Array<[RegExp, string]> = [
   [/\b(?:econom|finance)/i, "Economics"],
   [/\b(?:geolog|earth science|climat|meteorolog|oceanograph)/i, "Earth Science"],
   [/\b(?:geograph)/i, "Geography"],
-  [/\b(?:histor|archaeolog)/i, "History"],
+  // History is the subject people label least by name. A chemistry video is
+  // tagged "chemistry"; a video about the Berlin Wall is tagged "berlin wall",
+  // "cold war" and "germany", and only rarely "history" — which left more than
+  // half the history videos measured with no subject at all while chemistry
+  // and biology classified freely. These are the periods and events, which is
+  // how the subject actually gets named.
+  //
+  // "Revolution" and "empire" are deliberately absent, having been tried and
+  // measured: they file "Digital Revolution: How Computers Changed the World"
+  // and "The Empire State Building, an Engineering Miracle" under History.
+  // "Monarchy" rather than "monarch", which is a butterfly.
+  [
+    /\b(?:histor|archaeolog|ancient|medieval|renaissance|antiquity|prehistor|colonial|crusade|dynast|civili[sz]ation|world war|civil war|cold war|ww[12i]|monarchy)/i,
+    "History",
+  ],
   [/\b(?:philosoph|ethic)/i, "Philosophy"],
   [/\b(?:psycholog)/i, "Psychology"],
   [/\b(?:sociolog|social science)/i, "Sociology"],

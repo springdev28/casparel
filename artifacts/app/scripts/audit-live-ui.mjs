@@ -343,22 +343,40 @@ async function main() {
       return modal.split(",").map(Number);
     }
 
-    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
-    await page.waitForTimeout(2500);
-    const copy = page.locator("main p").first();
-    if (await copy.count()) {
+    /**
+     * Both of these have been unreadable, for opposite reasons, so both are
+     * asked. The library's body copy was 93%-white text over the ambient at
+     * 3.47:1. The tutorial's footer was the same near-white text over the
+     * opaque surface that page paints for itself, at 1.09:1 -- on the first
+     * screen a new account ever sees, which is the worst place for it.
+     */
+    const READABLE_TEXT = [
+      ["/resources", "main p", "secondary text on the page"],
+      [
+        "/tutorial",
+        "p:has-text('You can revisit this any time')",
+        "the note under the welcome card",
+      ],
+    ];
+
+    for (const [path, selector, label] of READABLE_TEXT) {
+      await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(2500);
+      const copy = page.locator(selector).first();
+      if (!(await copy.count())) {
+        fail(`${label} can be read`, `nothing matched ${selector} on ${path}`);
+        continue;
+      }
       const colour = await copy.evaluate((node) => getComputedStyle(node).color);
       const text = colour.match(/\d+/g).slice(0, 3).map(Number);
       const backdrop = await paintedBackdrop(copy);
       const ratio = contrast(text, backdrop);
       check(
-        "secondary text on the page can be read against what is behind it",
+        `${label} can be read against what is behind it`,
         ratio >= AA_NORMAL_TEXT,
         `rgb(${text}) on rgb(${backdrop}) is ${ratio.toFixed(2)}:1, ` +
           `WCAG AA wants ${AA_NORMAL_TEXT}:1 for normal-size text`,
       );
-    } else {
-      fail("secondary text on the page can be read", "no body copy found");
     }
 
     /**
@@ -373,21 +391,60 @@ async function main() {
      * Counted at the browser rather than asserted in the source, since what
      * matters is what the app actually sends.
      */
-    const writesWhileReading = [];
-    const countWrites = (request) => {
-      const method = request.method();
-      if (method !== "GET" && method !== "HEAD" && request.url().includes("/api/")) {
-        writesWhileReading.push(`${method} ${new URL(request.url()).pathname}`);
+    /**
+     * Every main screen, not just the one that was caught.
+     *
+     * The list earns its length twice over. It is what the write-on-read check
+     * below is asked of, and because every failed request during these
+     * navigations lands in apiErrors, it is also the set of pages the "nothing
+     * failed behind a screen that looked fine" check actually covers.
+     *
+     * That second job is why /goals is on it. Its community study paths called
+     * `fetch` without the session, so loading, sharing and cloning all answered
+     * 401 and the feature had never worked for anyone -- on a page this audit
+     * did not visit, which is the only reason it went unseen.
+     *
+     * The list is bounded, and by measurement rather than taste. A signed-in
+     * page costs eight to twelve API requests; all eleven main screens come to
+     * 102, and with this run's own registration and writes on top that exceeds
+     * the hundred-a-minute an account is allowed. An audit that trips the
+     * limiter reports a rate-limit message as if it were a defect, which is
+     * worse than covering fewer pages. These seven measure 62.
+     */
+    const READ_ONLY_PAGES = [
+      "/dashboard",
+      "/resources",
+      "/activities",
+      "/goals",
+      "/canvases",
+      "/lists",
+      "/settings",
+    ];
+
+    const wroteWhileReading = [];
+    for (const path of READ_ONLY_PAGES) {
+      const writes = [];
+      const countWrites = (request) => {
+        const method = request.method();
+        if (method !== "GET" && method !== "HEAD" && request.url().includes("/api/")) {
+          writes.push(`${method} ${new URL(request.url()).pathname}`);
+        }
+      };
+      page.on("request", countWrites);
+      // Not networkidle: some pages keep fetching images and lazy chunks and
+      // never reach it, which would time out rather than tell us anything.
+      await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(2500);
+      page.off("request", countWrites);
+      if (writes.length) {
+        wroteWhileReading.push(`${path} sent ${[...new Set(writes)].join(", ")}`);
       }
-    };
-    page.on("request", countWrites);
-    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
-    await page.waitForTimeout(2500);
-    page.off("request", countWrites);
+    }
+
     check(
       "opening a page to read it writes nothing",
-      writesWhileReading.length === 0,
-      `visiting /resources sent ${writesWhileReading.join(", ")}`,
+      wroteWhileReading.length === 0,
+      wroteWhileReading.join("; "),
     );
 
     // ---- signing out really ends the session ------------------------------

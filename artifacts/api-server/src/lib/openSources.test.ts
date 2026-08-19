@@ -200,6 +200,32 @@ describe("subjectFromTerms", () => {
     expect(subjectFromTerms(["Fermentation industries. Beverages."])).toBeNull();
   });
 
+  it("recognises a period or an event as naming history", () => {
+    // History is the subject people label least by name: a chemistry video says
+    // "chemistry", a video about the Berlin Wall says "cold war" and "germany".
+    // These are real tags from videos that had no subject at all before.
+    for (const term of [
+      "medieval",
+      "cold war",
+      "ancient rome",
+      "american civil war",
+      "renaissance",
+      "ww2",
+      "colonial america",
+    ])
+      expect(subjectFromTerms([term])).toBe("History");
+  });
+
+  it("does not call every upheaval or empire history", () => {
+    // Both were tried and measured out. "Revolution" files "Digital Revolution:
+    // How Computers Changed the World" under History, and "empire" does the
+    // same to "The Empire State Building, an Engineering Miracle". "Monarch"
+    // was narrowed to "monarchy" because the other one is a butterfly.
+    expect(subjectFromTerms(["digital revolution"])).toBeNull();
+    expect(subjectFromTerms(["empire state building"])).toBeNull();
+    expect(subjectFromTerms(["monarch butterfly"])).toBeNull();
+  });
+
   it("says nothing rather than guessing", () => {
     // A wrong subject is worse than none: it is what a later search matches on.
     expect(subjectFromTerms([])).toBeNull();

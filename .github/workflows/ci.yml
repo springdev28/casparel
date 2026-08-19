@@ -99,6 +99,16 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-search-results.mjs
 
+      # Casparel offers six languages. Four of them rendered the entire
+      # signed-in product in English for months, because the app entry loaded
+      # the translation bridge only for Turkish and nothing checked. This
+      # renders every page in every language that has a dictionary and fails on
+      # a single visible English string, so a new sentence without entries is a
+      # failing build rather than something a reader finds.
+      - name: Audit translations
+        working-directory: artifacts/app
+        run: node scripts/audit-translation.mjs
+
       # An empty state must never stand in for a loading one: "Your library is
       # empty" is a claim about the account, and painting it mid-load tells a
       # returning user their work is gone.
