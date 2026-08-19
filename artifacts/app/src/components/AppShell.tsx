@@ -94,6 +94,7 @@ import {
   type UserPreferencesPatch,
 } from "../lib/user-preferences";
 import { useDocumentVisibility } from "../lib/use-document-visibility";
+import { intlLocale } from "@/lib/date-locale";
 
 const TOKEN_KEY = "schoolar_token";
 const VantaBackground = lazy(() => import("./VantaBackground"));
@@ -1310,7 +1311,7 @@ export default function AppShell({ children }: AppShellProps) {
                           <p className="text-sm">{item.message}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {new Date(item.createdAt).toLocaleString(
-                              language === "tr" ? "tr-TR" : undefined,
+                              intlLocale(language),
                             )}
                           </p>
                         </Link>

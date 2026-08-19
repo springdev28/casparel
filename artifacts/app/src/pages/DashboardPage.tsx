@@ -1,4 +1,5 @@
 import { formatDistanceToNow } from 'date-fns';
+import { useDateLocale } from "@/lib/date-locale";
 import {
   BookOpen,
   Users,
@@ -63,6 +64,7 @@ function activityBadgeVariant(type: string): 'default' | 'secondary' | 'outline'
 }
 
 export default function DashboardPage() {
+  const locale = useDateLocale();
   const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary();
   const { data: activity, isLoading: activityLoading } = useGetRecentActivity();
 
@@ -128,7 +130,7 @@ export default function DashboardPage() {
                         {item.type}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale })}
                       </span>
                     </div>
                   </div>

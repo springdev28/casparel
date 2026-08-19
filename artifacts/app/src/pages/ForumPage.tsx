@@ -65,6 +65,7 @@ import {
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { Switch } from "@workspace/edu-ds/components/ui/switch";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import { useIntlLocale } from "@/lib/date-locale";
 
 type Approval = { id: number; teacherName: string; createdAt: string };
 type Material = {
@@ -407,6 +408,7 @@ export default function ForumPage({
   embedded?: boolean;
   catalogOnly?: boolean;
 } = {}) {
+  const intlLocale = useIntlLocale();
   const routeSearch = useSearch();
   const requestedClassId = Number(
     new URLSearchParams(routeSearch).get("classId"),
@@ -1136,7 +1138,7 @@ export default function ForumPage({
                         </CardTitle>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {material.unit} · {material.topic} ·{" "}
-                          {new Date(material.createdAt).toLocaleDateString()}
+                          {new Date(material.createdAt).toLocaleDateString(intlLocale)}
                         </p>
                       </div>
                       <Badge variant="outline">
@@ -1603,7 +1605,7 @@ export default function ForumPage({
                                 <span className="text-xs text-muted-foreground">Posted by <span translate="no">{profileHandle(post.authorName)}</span></span>
                                 <span className="text-muted-foreground">·</span>
                                 <span className="text-xs text-muted-foreground">
-                                  {new Date(post.createdAt).toLocaleString()}
+                                  {new Date(post.createdAt).toLocaleString(intlLocale)}
                                 </span>
                                 <Badge
                                   variant="secondary"
@@ -1901,7 +1903,7 @@ export default function ForumPage({
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {item.aiAssessment || "No assessment"} ·{" "}
-                      {new Date(item.createdAt).toLocaleString()}
+                      {new Date(item.createdAt).toLocaleString(intlLocale)}
                     </p>
                   </div>
                   {item.status === "pending" && (
@@ -1953,6 +1955,7 @@ function validSource(value: string) {
 }
 
 function QuotedPostPreview({ post }: { post: QuotedPost | ForumPost | null }) {
+  const intlLocale = useIntlLocale();
   if (!post) {
     return (
       <div className="rounded-md border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
@@ -1965,7 +1968,7 @@ function QuotedPostPreview({ post }: { post: QuotedPost | ForumPost | null }) {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Quote className="size-3.5 text-primary-text" />
         <span translate="no" className="font-semibold text-foreground">{profileHandle(post.authorName)}</span>
-        <span>{new Date(post.createdAt).toLocaleString()}</span>
+        <span>{new Date(post.createdAt).toLocaleString(intlLocale)}</span>
       </div>
       {post.title && <p translate="no" className="mt-1.5 line-clamp-1 text-sm font-semibold">{post.title}</p>}
       <p translate="no" className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">{post.body}</p>
@@ -2032,6 +2035,7 @@ function Discussion({
   ) => Promise<void>;
   onChanged: (delta: number) => void;
 }) {
+  const intlLocale = useIntlLocale();
   const [open, setOpen] = useState(false);
   const [comments, setComments] = useState<ForumComment[]>([]);
   const [body, setBody] = useState("");
@@ -2194,13 +2198,14 @@ function CommentRow({
   onReport: (type: "comment", id: number) => Promise<void>;
   onDelete: (type: "comment", id: number) => Promise<void>;
 }) {
+  const intlLocale = useIntlLocale();
   return (
     <div className="text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span translate="no" className="font-medium">{comment.authorName}</span>
         <Badge variant="outline">{roleLabel(comment.authorRole)}</Badge>
         <span className="text-xs text-muted-foreground">
-          {new Date(comment.createdAt).toLocaleString()}
+          {new Date(comment.createdAt).toLocaleString(intlLocale)}
         </span>
       </div>
       <p className="mt-1 whitespace-pre-wrap">{comment.body}</p>

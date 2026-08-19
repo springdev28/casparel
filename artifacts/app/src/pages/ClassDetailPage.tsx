@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { useDateLocale } from "@/lib/date-locale";
 import { SeatingChartEditor } from '../components/SeatingChartEditor';
 import { ClassAssignments } from '../components/ClassAssignments';
 import {
@@ -61,6 +62,7 @@ const FORMAT_COLORS: Record<string, string> = {
 };
 
 export default function ClassDetailPage() {
+  const locale = useDateLocale();
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const routeSearch = useRouteSearch();
@@ -565,7 +567,7 @@ export default function ClassDetailPage() {
                     )}
                     <Badge variant={member.role === 'teacher' ? 'default' : 'secondary'} className="capitalize">{member.role}</Badge>
                     <span className="text-xs text-muted-foreground hidden sm:inline">
-                      Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true })}
+                      Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true, locale })}
                     </span>
                     {isTeacher && member.role === 'student' && roleEditorFor !== member.userId && (
                       <Button size="sm" variant="outline" onClick={() => { setRoleEditorFor(member.userId); setRoleDraft(member.customRole ?? ""); }} data-testid="edit-member-role">

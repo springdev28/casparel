@@ -13,6 +13,7 @@ import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { useDateLocale } from "@/lib/date-locale";
 import {
   useListResourceLists,
   useCreateResourceList,
@@ -22,6 +23,7 @@ import {
 } from '@workspace/api-client-react';
 
 export default function ListsPage() {
+  const locale = useDateLocale();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
 
@@ -176,7 +178,7 @@ export default function ListsPage() {
               <CardContent>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
                   <span>{list.itemCount} item{list.itemCount !== 1 ? 's' : ''}</span>
-                  <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true })}</span>
+                  <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true, locale })}</span>
                 </div>
               </CardContent>
             </Card>
@@ -222,7 +224,7 @@ export default function ListsPage() {
                     <CardContent>
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
                         <span>{list.itemCount} item{list.itemCount !== 1 ? 's' : ''}</span>
-                        <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true })}</span>
+                        <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true, locale })}</span>
                       </div>
                     </CardContent>
                   </Card>

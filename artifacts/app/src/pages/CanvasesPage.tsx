@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { formatDistanceToNow } from "date-fns";
+import { useDateLocale } from "@/lib/date-locale";
 import {
   ArrowRight,
   BookOpenCheck,
@@ -53,6 +54,7 @@ export default function CanvasesPage({
   classIdOverride?: number;
   embedded?: boolean;
 } = {}) {
+  const locale = useDateLocale();
   const [, setLocation] = useLocation();
   const routeSearch = useSearch();
   const requestedClassId =
@@ -169,7 +171,7 @@ export default function CanvasesPage({
           ) : null}
           <p className="flex items-center gap-2"><Users size={13} /> {canvas.collaboratorCount} named collaborator{canvas.collaboratorCount === 1 ? "" : "s"}</p>
           <p className="flex items-center gap-2"><Link2 size={13} /> {canvas.visibility === "link" ? "Link sharing on" : `${canvas.visibility} access`}</p>
-          <p>Edited {formatDistanceToNow(new Date(canvas.updatedAt), { addSuffix: true })}</p>
+          <p>Edited {formatDistanceToNow(new Date(canvas.updatedAt), { addSuffix: true, locale })}</p>
         </CardContent>
         <CardFooter className="justify-end border-t pt-4">
           <Button size="sm" onClick={() => setLocation(`/canvases/${canvas.id}`)}>

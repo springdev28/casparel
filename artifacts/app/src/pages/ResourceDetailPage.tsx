@@ -58,6 +58,7 @@ import {
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
+import { useDateLocale, useIntlLocale } from "@/lib/date-locale";
 import {
   useGetResource,
   useListResourceReviews,
@@ -281,11 +282,11 @@ function knownBoolean(value: boolean | null) {
   return value === null ? "Not available" : value ? "Yes" : "No";
 }
 
-function schoolarDate(value: string) {
+function schoolarDate(value: string, intlLocale: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat(undefined, {
+    : new Intl.DateTimeFormat(intlLocale, {
         dateStyle: "medium",
         timeStyle: "short",
       }).format(date);
@@ -322,6 +323,7 @@ function SourceReviewPanel({
   isLoggedIn: boolean;
   onReviewed?: () => void;
 }) {
+  const intlLocale = useIntlLocale();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"quick" | "deep" | null>(null);
 
@@ -575,7 +577,7 @@ function SourceReviewPanel({
             [
             ["Uploaded / published", profile.uploadTime],
             ["Last edited", profile.lastEdited],
-            ["Added to Casparel", schoolarDate(profile.addedToSchoolar)],
+            ["Added to Casparel", schoolarDate(profile.addedToSchoolar, intlLocale)],
             ["Subject", profile.subject],
             ["Grade", profile.gradeLevel],
             ["Format", profile.format],
@@ -879,6 +881,8 @@ async function authenticatedRequest(path: string, init?: RequestInit) {
 }
 
 export default function ResourceDetailPage() {
+  const locale = useDateLocale();
+  const intlLocale = useIntlLocale();
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const routeSearch = useRouteSearch();
@@ -1756,6 +1760,7 @@ export default function ResourceDetailPage() {
                     <span className="text-xs text-muted-foreground">
                       {formatDistanceToNow(new Date(review.createdAt), {
                         addSuffix: true,
+                        locale,
                       })}
                     </span>
                   </div>

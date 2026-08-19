@@ -36,6 +36,7 @@ import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, addDays, startOfWeek, isSameDay, parseISO } from "date-fns";
+import { useDateLocale } from "@/lib/date-locale";
 import {
   useListScheduleBlocks,
   useCreateScheduleBlock,
@@ -128,7 +129,6 @@ function clock(value: Date | string): string {
   return typeof value === "string" ? value.slice(0, 5) : format(value, "HH:mm");
 }
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const BLOCK_COLORS = [
   "bg-blue-100 border-l-4 border-blue-500 text-blue-900",
   "bg-teal-100 border-l-4 border-teal-500 text-teal-900",
@@ -542,6 +542,7 @@ function StudySessionDetail({
   currentUserId?: number;
   onClose: () => void;
 }) {
+  const locale = useDateLocale();
   const queryClient = useQueryClient();
   const rsvp = useRsvpStudySession();
   const deleteSession = useDeleteStudySession();
@@ -613,7 +614,7 @@ function StudySessionDetail({
       <div className="text-sm text-muted-foreground flex items-center gap-2">
         <Clock size={14} />
         <span>
-          {format(startsAt, "EEE, MMM d")} · {clock(startsAt)}–{clock(endsAt)}{" "}
+          {format(startsAt, "EEE, MMM d", { locale })} · {clock(startsAt)}–{clock(endsAt)}{" "}
           ({session.durationMinutes} min)
         </span>
       </div>
@@ -1039,6 +1040,7 @@ function PendingInvitationsBanner({
   sessions: StudySessionWithParticipants[];
   onOpen: (s: StudySessionWithParticipants) => void;
 }) {
+  const locale = useDateLocale();
   const queryClient = useQueryClient();
   const rsvp = useRsvpStudySession();
   const [expanded, setExpanded] = useState(true);
@@ -1097,7 +1099,7 @@ function PendingInvitationsBanner({
                     {s.title}
                   </p>
                   <p className="text-xs text-violet-700">
-                    {format(startsAt, "EEE, MMM d")} · {clock(startsAt)}
+                    {format(startsAt, "EEE, MMM d", { locale })} · {clock(startsAt)}
                   </p>
                 </button>
                 <div className="flex gap-1.5 shrink-0">
@@ -1129,6 +1131,7 @@ function PendingInvitationsBanner({
 }
 
 export default function SchedulePage() {
+  const locale = useDateLocale();
   const routeSearch = useRouteSearch();
   const queryClient = useQueryClient();
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
@@ -1437,7 +1440,7 @@ export default function SchedulePage() {
             and in one string because JSX otherwise puts the dash in a text
             node of its own, where nothing can tell a range from a dash.
           */}
-          {`${format(currentWeekStart, "MMM d")}\u2013${format(addDays(currentWeekStart, 6), "MMM d, yyyy")}`}
+          {`${format(currentWeekStart, "MMM d", { locale })}\u2013${format(addDays(currentWeekStart, 6), "MMM d, yyyy", { locale })}`}
         </span>
         <Button
           variant="outline"
@@ -1493,8 +1496,8 @@ export default function SchedulePage() {
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  <div className="font-semibold">{DAY_LABELS[i]}</div>
-                  <div className="text-xs">{format(day, "MMM d")}</div>
+                  <div className="font-semibold">{format(day, "EEE", { locale })}</div>
+                  <div className="text-xs">{format(day, "MMM d", { locale })}</div>
                 </div>
                 <div className="space-y-1.5 min-h-24">
                   {dayBlocks.length === 0 && daySessions.length === 0 ? (
@@ -1625,7 +1628,7 @@ export default function SchedulePage() {
                   {block.listId != null && <ListBadge listId={block.listId} />}
                 </div>
                 <Badge variant="outline" className="text-xs shrink-0">
-                  {format(parseISO(block.date), "EEE")}
+                  {format(parseISO(block.date), "EEE", { locale })}
                 </Badge>
                 <div className="flex items-center gap-1 shrink-0">
                   <Button
@@ -1679,7 +1682,7 @@ export default function SchedulePage() {
                       {session.title}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {format(startsAt, "EEE, MMM d")} · {clock(startsAt)} ·{" "}
+                      {format(startsAt, "EEE, MMM d", { locale })} · {clock(startsAt)} ·{" "}
                       {session.durationMinutes} min
                     </p>
                   </div>

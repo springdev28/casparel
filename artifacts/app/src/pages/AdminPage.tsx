@@ -52,6 +52,7 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
+import { useIntlLocale } from "@/lib/date-locale";
 
 type AdminUser = {
   id: number;
@@ -151,9 +152,9 @@ function workItemDescription(item: AdminWorkItem) {
   return item.description || item.instructions || item.reflection || item.notes || item.body || "";
 }
 
-function workItemDate(item: AdminWorkItem) {
+function workItemDate(item: AdminWorkItem, intlLocale: string) {
   const value = item.updatedAt || item.createdAt || item.startsAt || item.dueAt || item.date;
-  return value ? new Date(value).toLocaleString() : null;
+  return value ? new Date(value).toLocaleString(intlLocale) : null;
 }
 
 const metrics = [
@@ -187,6 +188,7 @@ async function adminRequest(path: string, init?: RequestInit) {
 }
 
 export default function AdminPage() {
+  const intlLocale = useIntlLocale();
   const { data, isLoading, isFetching, error, refetch } = useGetAdminOverview();
   const { data: me } = useGetMe();
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -578,7 +580,7 @@ export default function AdminPage() {
                       </td>
                       <td className="py-3 capitalize">{user.role} <span className="text-xs text-muted-foreground">({user.activeRole})</span></td>
                       <td className="py-3 text-xs">{user.profileVisibility} profile / {user.libraryVisibility} library</td>
-                      <td className="py-3">{new Date(user.createdAt).toLocaleDateString()}</td>
+                      <td className="py-3">{new Date(user.createdAt).toLocaleDateString(intlLocale)}</td>
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Badge variant={user.bannedAt ? "destructive" : "secondary"}>{user.bannedAt ? "Banned" : "Active"}</Badge>
@@ -615,7 +617,7 @@ export default function AdminPage() {
                             <div><p className="text-xs font-medium text-muted-foreground">Website</p><p className="break-all">{user.websiteUrl || "Not set"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Field visibility</p><p>Bio {String(user.showBio)}, subjects {String(user.showSubjects)}, grade {String(user.showGradeOrDept)}, website {String(user.showWebsite)}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Teacher verification</p><p>{user.role === "teacher" ? (user.teacherVerified ? "Verified" : "Not verified") : "Not applicable"}</p></div>
-                            <div><p className="text-xs font-medium text-muted-foreground">Ban date</p><p>{user.bannedAt ? new Date(user.bannedAt).toLocaleString() : "Not banned"}</p></div>
+                            <div><p className="text-xs font-medium text-muted-foreground">Ban date</p><p>{user.bannedAt ? new Date(user.bannedAt).toLocaleString(intlLocale) : "Not banned"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Ban reason</p><p>{user.bannedReason || "None"}</p></div>
                           </div>
                         </td>
@@ -740,7 +742,7 @@ export default function AdminPage() {
                       <div className="space-y-2">
                         {items.map((item) => {
                           const description = workItemDescription(item);
-                          const date = workItemDate(item);
+                          const date = workItemDate(item, intlLocale);
                           return (
                             <div key={item.id} className="border p-3" style={{ borderRadius: 8 }}>
                               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -774,7 +776,7 @@ export default function AdminPage() {
               <TabsContent value="account" className="max-h-[65dvh] space-y-4 overflow-y-auto pt-4">
                 <section className="border p-4" style={{ borderRadius: 8 }}>
                   <h3 className="font-semibold">Account status</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{managedDetails.user.bannedAt ? `Banned ${new Date(managedDetails.user.bannedAt).toLocaleString()}. ${managedDetails.user.bannedReason || "No reason recorded."}` : "This account is active."}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{managedDetails.user.bannedAt ? `Banned ${new Date(managedDetails.user.bannedAt).toLocaleString(intlLocale)}. ${managedDetails.user.bannedReason || "No reason recorded."}` : "This account is active."}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {managedDetails.user.id !== me?.id ? (
                       managedDetails.user.bannedAt ? (
@@ -797,7 +799,7 @@ export default function AdminPage() {
                 <section className="border p-4" style={{ borderRadius: 8 }}>
                   <div className="flex items-center gap-2"><CalendarDays className="size-4 text-primary-text" /><h3 className="font-semibold">Account record</h3></div>
                   <p className="mt-2 text-sm">User ID: {managedDetails.user.id}</p>
-                  <p className="text-sm">Created: {new Date(managedDetails.user.createdAt).toLocaleString()}</p>
+                  <p className="text-sm">Created: {new Date(managedDetails.user.createdAt).toLocaleString(intlLocale)}</p>
                 </section>
               </TabsContent>
             </Tabs>
