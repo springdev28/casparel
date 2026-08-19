@@ -82,17 +82,49 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://casparel.com' }}
         run: |
           host="${FTP_SERVER#ftps://}"; host="${host#ftp://}"; host="${host%%/*}"
-          probe() { timeout 6 bash -c "</dev/tcp/${host}/$1" 2>/dev/null && echo open || echo closed; }
-          p21=$(probe 21); p22=$(probe 22)
+          probe() { timeout 6 bash -c "</dev/tcp/${1}/${2}" 2>/dev/null && echo open || echo closed; }
+
+          # "The configured host answers nothing" always leads to the same
+          # question -- then what SHOULD it be? -- and this runner is the one
+          # machine in the loop that can answer it, because it can open port 21
+          # outbound where a laptop behind a firewall (or an agent sandbox)
+          # cannot. So on failure, probe the hostnames Hostinger actually hands
+          # out for this domain and name the one that works. Fixing the secret
+          # should be a copy, not a guess followed by another six-minute run.
+          suggest_host() {
+            domain="${SITE_URL#https://}"; domain="${domain#http://}"; domain="${domain%%/*}"
+            found=""
+            {
+              echo "### Which host answers FTP"
+              echo
+              echo "| Candidate | Port 21 |"
+              echo "| --- | --- |"
+            } >> "$GITHUB_STEP_SUMMARY"
+            for candidate in "ftp.${domain}" "${domain}"; do
+              state=$(probe "$candidate" 21)
+              printf '| `%s` | %s |\n' "$candidate" "$state" >> "$GITHUB_STEP_SUMMARY"
+              if [ "$state" = "open" ] && [ -z "$found" ]; then found="$candidate"; fi
+            done
+            if [ -n "$found" ]; then
+              echo "::error title=Set FTP_SERVER to ${found}::That host answers on port 21. Paste it exactly -- no ftp:// prefix, no path, no trailing slash -- under Settings > Secrets and variables > Actions."
+            else
+              echo "::error title=No candidate answered::Neither ftp.${domain} nor ${domain} answers on port 21 either, so the host is not derivable from the domain. Read it from hPanel > Files > FTP Accounts. If FTP is disabled on the plan, this deploy has to move to SFTP instead."
+            fi
+          }
+
+          p21=$(probe "$host" 21); p22=$(probe "$host" 22)
           echo "Port scan on the configured host: 21 (FTP) is ${p21}, 22 (SFTP/SSH) is ${p22}."
           if [ "$p21" = "closed" ] && [ "$p22" = "open" ]; then
             echo "::error title=Host is SFTP-only::The configured host answers SSH/SFTP (22) but not FTP (21). Either FTP is disabled on this server — the deploy must switch to SFTP — or FTP_SERVER points at the wrong machine for FTP."
+            suggest_host
             exit 1
           fi
           if [ "$p21" = "closed" ] && [ "$p22" = "closed" ]; then
             echo "::error title=Host unreachable::Neither FTP (21) nor SSH (22) answers on the configured host. FTP_SERVER is likely the wrong host/IP entirely; copy it from the same hPanel page as the username."
+            suggest_host
             exit 1
           fi
           # Hostinger servers accept exactly one of two username forms — the
