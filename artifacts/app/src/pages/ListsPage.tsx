@@ -151,7 +151,7 @@ export default function ListsPage() {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base">{list.name}</CardTitle>
+                  <CardTitle translate="no" className="text-base">{list.name}</CardTitle>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -166,13 +166,16 @@ export default function ListsPage() {
                     // screen-reader user which of them destroys what -- which
                     // is nothing.
                     aria-label={`Delete ${list.name}`}
+                    // The label carries a name the reader chose; the bridge
+                    // rewrites aria-label as readily as it rewrites text.
+                    translate="no"
                     data-testid="delete-list-button"
                   >
                     <Trash2 size={14} aria-hidden="true" />
                   </Button>
                 </div>
                 {list.description && (
-                  <CardDescription className="line-clamp-2">{list.description}</CardDescription>
+                  <CardDescription translate="no" className="line-clamp-2">{list.description}</CardDescription>
                 )}
               </CardHeader>
               <CardContent>
@@ -214,11 +217,11 @@ export default function ListsPage() {
                   >
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="text-base">{list.name}</CardTitle>
+                        <CardTitle translate="no" className="text-base">{list.name}</CardTitle>
                         <Badge variant="secondary" className="shrink-0 text-xs">Shared</Badge>
                       </div>
                       {list.description && (
-                        <CardDescription className="line-clamp-2">{list.description}</CardDescription>
+                        <CardDescription translate="no" className="line-clamp-2">{list.description}</CardDescription>
                       )}
                     </CardHeader>
                     <CardContent>

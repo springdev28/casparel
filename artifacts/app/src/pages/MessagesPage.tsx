@@ -176,7 +176,7 @@ export default function MessagesPage() {
           {loading ? <div className="p-6 text-center"><Loader2 className="mx-auto size-5 animate-spin" /></div> : conversations.map((conversation) => (
             <button key={conversation.id} onClick={() => void openConversation(conversation)} className={(active?.id === conversation.id ? "bg-muted " : "") + "flex w-full gap-3 border-b p-3 text-left hover:bg-muted/60"}>
               <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold">{conversation.other.name.slice(0, 1).toUpperCase()}</span>
-              <span className="min-w-0 flex-1"><span translate="no" className="flex items-center gap-1 font-medium">{conversation.other.name}{conversation.other.role === "admin" ? <ShieldCheck className="size-3.5 text-primary-text" /> : null}</span><span className="block truncate text-xs text-muted-foreground">{conversation.incomingRequest ? "Message request" : conversation.lastMessage?.body || "Start a conversation"}</span></span>
+              <span className="min-w-0 flex-1"><span translate="no" className="flex items-center gap-1 font-medium">{conversation.other.name}{conversation.other.role === "admin" ? <ShieldCheck className="size-3.5 text-primary-text" /> : null}</span><span className="block truncate text-xs text-muted-foreground">{conversation.incomingRequest ? "Message request" : conversation.lastMessage?.body ? <span translate="no">{conversation.lastMessage.body}</span> : "Start a conversation"}</span></span>
               {conversation.unreadCount ? <Badge>{conversation.unreadCount}</Badge> : null}
             </button>
           ))}

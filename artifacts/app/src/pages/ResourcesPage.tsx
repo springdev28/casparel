@@ -401,6 +401,8 @@ function FormatPreview({
       className={`w-full h-36 bg-gradient-to-br ${FORMAT_PREVIEW_STYLES[format] ?? FORMAT_PREVIEW_STYLES.other} flex flex-col items-center justify-center gap-2 px-5 text-center`}
       role="img"
       aria-label={`${format} preview for ${title}`}
+      // Carries the resource's own title, which is not this app's wording.
+      translate="no"
     >
       {icon}
       <span className="max-w-full truncate text-xs font-semibold">
@@ -464,6 +466,7 @@ function LibraryCard({
           <img
             src={thumb}
             alt={resource.title}
+            translate="no"
             className="w-full h-full object-cover"
             loading="lazy"
             decoding="async"
@@ -502,13 +505,13 @@ function LibraryCard({
         <CardContent className="pb-2">
           <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive-text">
             <span className="font-semibold">Reviewer:</span>{" "}
-            {resource.verificationNote}
+            <span translate="no">{resource.verificationNote}</span>
           </p>
         </CardContent>
       ) : null}
       {resource.description && (
         <CardContent className="pb-2">
-          <p className="text-sm text-muted-foreground line-clamp-2">
+          <p translate="no" className="text-sm text-muted-foreground line-clamp-2">
             {resource.description}
           </p>
         </CardContent>
@@ -845,6 +848,7 @@ function WebCard({
           <img
             src={thumb}
             alt={resource.title}
+            translate="no"
             className="w-full h-full object-cover"
             loading="lazy"
             decoding="async"

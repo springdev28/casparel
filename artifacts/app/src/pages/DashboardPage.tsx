@@ -124,7 +124,11 @@ export default function DashboardPage() {
                     {activityIcon(item.type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground">{item.message}</p>
+                    {/* Server-composed and English -- "You were removed from <class name>."
+                        -- so the bridge could not translate it in any case, and
+                        translate="no" keeps it from rewriting the class or person
+                        named inside. */}
+                    <p translate="no" className="text-sm text-foreground">{item.message}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant={activityBadgeVariant(item.type)} className="text-xs capitalize px-1.5 py-0">
                         {item.type}

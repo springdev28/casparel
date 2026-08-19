@@ -1116,7 +1116,7 @@ export default function ActivitiesPage({
                       ? "Activity ready for your class"
                       : "Creating from a verified resource"}
                 </p>
-                <p className="truncate text-sm text-muted-foreground">
+                <p translate="no" className="truncate text-sm text-muted-foreground">
                   {workflowSource.title}
                 </p>
               </div>
@@ -1161,7 +1161,7 @@ export default function ActivitiesPage({
                 onClick={() => setSelectedId(activity.id)}
               >
                 <CardHeader className="p-4">
-                  <CardTitle className="line-clamp-2 text-sm">
+                  <CardTitle translate="no" className="line-clamp-2 text-sm">
                     {activity.title}
                   </CardTitle>
                   <div className="flex items-center justify-between gap-2">
@@ -1183,7 +1183,7 @@ export default function ActivitiesPage({
             <main className="min-w-0 space-y-5">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
                 <div>
-                  <h2 className="text-xl font-bold">{selected.title}</h2>
+                  <h2 translate="no" className="text-xl font-bold">{selected.title}</h2>
                   <p className="text-sm text-muted-foreground">
                     {selected.subject ?? "General"} · {selected.cards.length} cards
                   </p>
@@ -1254,7 +1254,7 @@ export default function ActivitiesPage({
                       <span className="mb-4 block text-xs font-bold uppercase text-muted-foreground">
                         {flipped ? "Answer" : "Term"}
                       </span>
-                      <span className="text-2xl font-semibold">
+                      <span translate="no" className="text-2xl font-semibold">
                         {flipped ? currentFlashcard.answer : currentFlashcard.term}
                       </span>
                     </span>
@@ -1307,7 +1307,7 @@ export default function ActivitiesPage({
                           {practiceIndex + 1} of {practiceOrder.length}
                         </p>
                         <ActivityImage card={currentPractice} className="mb-4 mt-3 max-h-56" />
-                        <h3 className="mt-3 text-2xl font-semibold">
+                        <h3 translate="no" className="mt-3 text-2xl font-semibold">
                           {currentPractice.term}
                         </h3>
                       </div>
@@ -1386,7 +1386,7 @@ export default function ActivitiesPage({
                           {quizIndex + 1} of {quizOrder.length}
                         </p>
                         <ActivityImage card={currentQuiz} className="mb-4 mt-3 max-h-56" />
-                        <h3 className="mt-3 text-2xl font-semibold">
+                        <h3 translate="no" className="mt-3 text-2xl font-semibold">
                           {currentQuiz.term}
                         </h3>
                       </div>
@@ -1445,7 +1445,7 @@ export default function ActivitiesPage({
                         {trueFalseIndex + 1} of {trueFalseOrder.length}
                       </p>
                       <ActivityImage card={currentTrueFalse} className="mx-auto max-h-56" />
-                      <h3 className="text-xl font-semibold">
+                      <h3 translate="no" className="text-xl font-semibold">
                         {currentTrueFalse.term}
                       </h3>
                       {allModeTrueFalse && <p className="rounded-md border bg-card p-5 text-lg">
@@ -1571,7 +1571,7 @@ export default function ActivitiesPage({
                         {missingIndex + 1} of {missingOrder.length}
                       </p>
                       <ActivityImage card={currentMissing} className="max-h-56" />
-                      <p className="text-sm text-muted-foreground">
+                      <p translate="no" className="text-sm text-muted-foreground">
                         {currentMissing.term}
                       </p>
                       <p className="rounded-md border bg-card p-5 text-center text-xl font-semibold">
@@ -1638,7 +1638,7 @@ export default function ActivitiesPage({
                   {randomCard && !randomPicking && (
                     <div className="mx-auto max-w-2xl rounded-md border bg-card p-8">
                       <ActivityImage card={randomCard} className="mx-auto mb-5 max-h-56" />
-                      <p className="text-2xl font-semibold">{randomCard.term}</p>
+                      <p translate="no" className="text-2xl font-semibold">{randomCard.term}</p>
                       {randomAnswerVisible ? (
                         <p className="mt-5 border-t pt-5 text-lg text-muted-foreground">
                           {randomCard.answer}

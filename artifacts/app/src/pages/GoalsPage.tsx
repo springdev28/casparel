@@ -652,7 +652,7 @@ export default function GoalsPage() {
           ) : (
             <div className="space-y-2">{(studentGoals as StudentLearningGoal[]).map((goal) => (
               <div key={goal.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-                <div><p className="text-sm font-medium">{goal.title}</p><p className="text-xs text-muted-foreground">{goal.studentName} · {goal.subject}</p></div>
+                <div><p translate="no" className="text-sm font-medium">{goal.title}</p><p className="text-xs text-muted-foreground"><span translate="no">{goal.studentName}</span> · {goal.subject}</p></div>
                 <div className="flex items-center gap-2">
                   <Select value={goal.status} onValueChange={(status) => manageStudentGoal(goal.id, { status: status as LearningGoalStatus })}>
                     <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
@@ -702,12 +702,13 @@ export default function GoalsPage() {
                   </div>
                   <CardTitle translate="no" className="mt-2 text-base">{path.title}</CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Shared by {path.creatorName} · Used {path.useCount} times
+                    Shared by <span translate="no">{path.creatorName}</span> · Used{" "}
+                    {path.useCount} times
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {path.description && (
-                    <p className="line-clamp-2 text-sm text-muted-foreground">
+                    <p translate="no" className="line-clamp-2 text-sm text-muted-foreground">
                       {path.description}
                     </p>
                   )}
@@ -715,7 +716,7 @@ export default function GoalsPage() {
                     {path.pathSteps.slice(0, 4).map((step, index) => (
                       <li key={step.id} className="flex gap-2">
                         <span className="text-muted-foreground">{index + 1}.</span>
-                        <span className="line-clamp-1">{step.title}</span>
+                        <span translate="no" className="line-clamp-1">{step.title}</span>
                       </li>
                     ))}
                   </ol>
@@ -852,7 +853,7 @@ export default function GoalsPage() {
                     </Button>
                   </div>
                   {goal.description && (
-                    <p className="text-sm text-muted-foreground">
+                    <p translate="no" className="text-sm text-muted-foreground">
                       {goal.description}
                     </p>
                   )}
@@ -866,17 +867,17 @@ export default function GoalsPage() {
                     <div className="space-y-1">
                       {goal.pathSteps.map((step, index) => (
                         <div key={step.id} className="flex items-center gap-1.5">
-                          <button type="button" aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`} onClick={() => toggleStep(goal, step.id)} className={cn("flex size-7 shrink-0 items-center justify-center rounded border", step.completed && "bg-emerald-600 text-white")}>
+                          <button type="button" aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`} translate="no" onClick={() => toggleStep(goal, step.id)} className={cn("flex size-7 shrink-0 items-center justify-center rounded border", step.completed && "bg-emerald-600 text-white")}>
                             {step.completed && <Check size={14} />}
                           </button>
-                          <Input defaultValue={step.title} key={`${step.id}:${step.title}`} aria-label={`Rename ${step.title}`} className={cn("h-8 min-w-0 flex-1 text-sm", step.completed && "text-muted-foreground line-through")} onBlur={(event) => { if (event.currentTarget.value.trim() !== step.title) void renameStep(goal, step.id, event.currentTarget.value); }} />
-                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === 0} onClick={() => moveStep(goal, index, -1)} aria-label={`Move ${step.title} up`}><ArrowUp size={14} /></Button>
-                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === goal.pathSteps.length - 1} onClick={() => moveStep(goal, index, 1)} aria-label={`Move ${step.title} down`}><ArrowDown size={14} /></Button>
-                          <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive-text" onClick={() => deleteStep(goal, step.id)} aria-label={`Delete ${step.title}`}><Trash2 size={14} /></Button>
+                          <Input defaultValue={step.title} key={`${step.id}:${step.title}`} translate="no" aria-label={`Rename ${step.title}`} className={cn("h-8 min-w-0 flex-1 text-sm", step.completed && "text-muted-foreground line-through")} onBlur={(event) => { if (event.currentTarget.value.trim() !== step.title) void renameStep(goal, step.id, event.currentTarget.value); }} />
+                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === 0} onClick={() => moveStep(goal, index, -1)} aria-label={`Move ${step.title} up`} translate="no"><ArrowUp size={14} /></Button>
+                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === goal.pathSteps.length - 1} onClick={() => moveStep(goal, index, 1)} aria-label={`Move ${step.title} down`} translate="no"><ArrowDown size={14} /></Button>
+                          <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive-text" onClick={() => deleteStep(goal, step.id)} aria-label={`Delete ${step.title}`} translate="no"><Trash2 size={14} /></Button>
                         </div>
                       ))}
                       <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); void addStep(goal); }}>
-                        <Input value={newStepTitles[goal.id] ?? ""} onChange={(event) => setNewStepTitles((current) => ({ ...current, [goal.id]: event.target.value }))} placeholder="Add a path step…" aria-label={`Add step to ${goal.title}`} />
+                        <Input value={newStepTitles[goal.id] ?? ""} onChange={(event) => setNewStepTitles((current) => ({ ...current, [goal.id]: event.target.value }))} placeholder="Add a path step…" aria-label={`Add step to ${goal.title}`} translate="no" />
                         <Button type="submit" size="sm" disabled={!newStepTitles[goal.id]?.trim()}><Plus className="mr-1 size-4" /> Add</Button>
                       </form>
                     </div>

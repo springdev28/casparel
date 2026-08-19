@@ -648,7 +648,7 @@ export default function ProfilePage() {
               <p className="text-xs text-muted-foreground text-right">{form.bio.length}/300</p>
             </div>
           ) : me.bio ? (
-            <p className="text-sm text-foreground leading-relaxed">{me.bio}</p>
+            <p translate="no" className="text-sm text-foreground leading-relaxed">{me.bio}</p>
           ) : (
             <p className="text-sm text-muted-foreground italic">No bio yet.</p>
           )}
