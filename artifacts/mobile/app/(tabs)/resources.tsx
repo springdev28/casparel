@@ -341,11 +341,11 @@ export default function ResourcesScreen() {
           ListEmptyComponent={
             <Empty
               icon="book-open"
-              title={debouncedSearch ? 'No results found' : 'No resources yet'}
+              title={debouncedSearch ? t('No results found') : t('No resources yet')}
               description={
                 debouncedSearch
                   ? `Try a different search term`
-                  : 'Resources will appear here once they are added'
+                  : t('Resources will appear here once they are added')
               }
             />
           }

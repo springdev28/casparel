@@ -47,7 +47,7 @@ export default function RegisterScreen() {
   const handleRegister = () => {
     setErrorMsg('');
     if (!name.trim() || !email.trim() || !password) {
-      setErrorMsg('Please fill in your name, email and password.');
+      setErrorMsg(t('Please fill in your name, email and password.'));
       return;
     }
     if (password.length < MIN_PASSWORD) {

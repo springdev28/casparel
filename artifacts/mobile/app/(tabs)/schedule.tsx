@@ -424,12 +424,12 @@ function CreateStudySessionModal({
   }
 
   async function handleCreate() {
-    if (!title.trim()) { setError('Title is required'); return; }
-    if (!date.trim()) { setError('Date is required'); return; }
-    if (!meetingUrl.trim()) { setError('Meeting URL is required'); return; }
-    if (!meetingUrl.trim().match(/^https?:\/\//i)) { setError('Meeting URL must start with https:// or http://'); return; }
+    if (!title.trim()) { setError(t('Title is required')); return; }
+    if (!date.trim()) { setError(t('Date is required')); return; }
+    if (!meetingUrl.trim()) { setError(t('Meeting URL is required')); return; }
+    if (!meetingUrl.trim().match(/^https?:\/\//i)) { setError(t('Meeting URL must start with https:// or http://')); return; }
     const durationNum = parseInt(duration, 10);
-    if (isNaN(durationNum) || durationNum < 5) { setError('Duration must be at least 5 minutes'); return; }
+    if (isNaN(durationNum) || durationNum < 5) { setError(t('Duration must be at least 5 minutes')); return; }
 
     setError('');
     try {
@@ -453,7 +453,7 @@ function CreateStudySessionModal({
       // invitee whose privacy preference refuses the invite, a missing
       // resource. Blaming the URL for all of them left people retyping one
       // that was never wrong.
-      setError(describeApiFailure(error, 'Could not create the session. Please try again.'));
+      setError(describeApiFailure(error, t('Could not create the session. Please try again.')));
     }
   }
 
@@ -687,7 +687,7 @@ function CreateStudySessionModal({
             style={[styles.joinButton, { backgroundColor: violet.accent, borderRadius: colors.radius, opacity: createSession.isPending ? 0.6 : 1 }]}
           >
             <Text style={[styles.joinButtonText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>
-              {createSession.isPending ? 'Creating…' : 'Create Session'}
+              {createSession.isPending ? t('Creating…') : t('Create Session')}
             </Text>
           </Pressable>
         </View>

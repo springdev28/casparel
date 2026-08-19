@@ -222,7 +222,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
    */
   const failureMessage =
     (error as { data?: { error?: string } } | null)?.data?.error?.trim() ||
-    "Couldn't complete the research. Please try again.";
+    t("Couldn't complete the research. Please try again.");
   /**
    * Retrying a spent allowance just fails again. The quick check does not:
    * it reads the maintained registry, needs no AI, and is the button directly
@@ -380,7 +380,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
             disabled={isFetching}
             accessibilityRole="button"
             accessibilityLabel={
-              deepLimitReached ? 'View paid plans for deep AI research' : 'Run deep source research'
+              deepLimitReached ? t('View paid plans for deep AI research') : t('Run deep source research')
             }
             style={[
               styles.actionBtn,
@@ -418,11 +418,11 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
             {deepLimitReached
               ? paidLevel
                 ? deepIsMonthly
-                  ? 'Your deep-research allowance for this 30 days is used. Larger plans include more.'
+                  ? t('Your deep-research allowance for this 30 days is used. Larger plans include more.')
                   : 'Today\u2019s deep-research allowance is used. It resets daily; larger plans include more.'
-                : 'Your free deep-research taste is used for now. Plus plans include far more.'
+                : t('Your free deep-research taste is used for now. Plus plans include far more.')
               : deepRemaining == null
-                ? 'Deep research is uncapped on this account.'
+                ? t('Deep research is uncapped on this account.')
                 : `${deepRemaining} deep ${deepRemaining === 1 ? 'report' : 'reports'} remaining ${deepWindowLabel} on your plan.`}
           </Text>
         ) : null}

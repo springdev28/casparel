@@ -189,8 +189,8 @@ export default function ResourceDetailScreen() {
                 ]}
               >
                 {resource.verificationStatus === 'rejected'
-                  ? 'A reviewer did not approve this source.'
-                  : 'Not yet reviewed, check the source before you rely on it.'}
+                  ? t('A reviewer did not approve this source.')
+                  : t('Not yet reviewed, check the source before you rely on it.')}
               </Text>
             </View>
           ) : null}
@@ -291,7 +291,7 @@ export default function ResourceDetailScreen() {
             ))}
           </View>
         ) : !reviews?.length ? (
-          <Empty icon="star" title={t('No reviews yet')} description="Be the first to review this resource" />
+          <Empty icon="star" title={t('No reviews yet')} description={t("Be the first to review this resource")} />
         ) : (
           <View
             style={[

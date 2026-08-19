@@ -9,6 +9,7 @@ import { TIER_TITLES, tierLevel } from '@/utils/revenuecat';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 function UsageMeter({ label, used, limit }: { label: string; used: number; limit: number | null }) {
+  const { t } = useLanguage();
   const colors = useColors();
   const included = limit == null || limit > 0;
   const pct = limit && limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
@@ -28,7 +29,7 @@ function UsageMeter({ label, used, limit }: { label: string; used: number; limit
             },
           ]}
         >
-          {limit == null ? 'Unlimited' : included ? `${used} / ${limit} allowance used` : 'Not included'}
+          {limit == null ? t('Unlimited') : included ? `${used} / ${limit} ${t('allowance used')}` : t('Not included')}
         </Text>
       </View>
       {limit != null && included ? (
@@ -114,10 +115,10 @@ export function PremiumCard() {
             ]}
           >
             {isUnlimited
-              ? 'Administrator account: AI usage is uncapped.'
+              ? t('Administrator account: AI usage is uncapped.')
               : isPaid
-                ? 'AI discovery and deep research are active with allowances.'
-                : 'Core tools plus a small taste of AI are included.'}
+                ? t('AI discovery and deep research are active with allowances.')
+                : t('Core tools plus a small taste of AI are included.')}
           </Text>
         </View>
       </View>
@@ -132,7 +133,7 @@ export function PremiumCard() {
       {!isUnlimited && level !== 'pro' ? <Pressable
         onPress={() => router.push('/paywall')}
         accessibilityRole="button"
-        accessibilityLabel={isPaid ? 'Upgrade to the Pro plan' : 'See subscription plans'}
+        accessibilityLabel={isPaid ? t('Upgrade to the Pro plan') : t('See subscription plans')}
         style={({ pressed }) => [
           styles.cta,
           {
@@ -152,7 +153,7 @@ export function PremiumCard() {
             },
           ]}
         >
-          {isPaid ? 'Upgrade to Pro' : 'See plans'}
+          {isPaid ? t('Upgrade to Pro') : t('See plans')}
         </Text>
       </Pressable> : null}
     </View>

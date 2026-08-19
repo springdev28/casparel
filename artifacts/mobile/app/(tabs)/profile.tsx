@@ -287,7 +287,7 @@ export default function ProfileScreen() {
       Alert.alert(t('Saved'), t('Your profile has been updated.'));
     } catch (error) {
       Alert.alert(t('Could not save your profile'),
-        describeApiFailure(error, 'Please check the fields and try again.'),
+        describeApiFailure(error, t('Please check the fields and try again.')),
       );
     }
   }
@@ -348,7 +348,7 @@ export default function ProfileScreen() {
       queryClient.clear();
     } catch (error) {
       Alert.alert(t('Could not switch role'),
-        describeApiFailure(error, 'Please try again.'),
+        describeApiFailure(error, t('Please try again.')),
       );
     } finally {
       setSwitching(false);
@@ -403,10 +403,10 @@ export default function ProfileScreen() {
     );
   }
 
-  const roleLabel = isTeacher ? 'Teacher' : 'Student';
+  const roleLabel = isTeacher ? t('Teacher') : t('Student');
   const roleDescription = isTeacher
-    ? 'You can create classes and manage resources'
-    : 'You can browse resources and join classes';
+    ? t('You can create classes and manage resources')
+    : t('You can browse resources and join classes');
 
   return (
     <ScrollView
@@ -445,7 +445,7 @@ export default function ProfileScreen() {
               disabled={updateMe.isPending}
             >
               <Text style={[{ color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold, fontSize: 14 }]}>
-                {updateMe.isPending ? 'Saving…' : 'Save'}
+                {updateMe.isPending ? t('Saving…') : t('Save')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -629,7 +629,7 @@ export default function ProfileScreen() {
           <View style={{ gap: 12 }}>
             <View>
               <Text style={[styles.fieldLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-                {isTeacher ? 'Department' : 'Grade level'}
+                {isTeacher ? t('Department') : t('Grade level')}
               </Text>
               <TextInput
                 value={form.gradeOrDept}
@@ -671,10 +671,10 @@ export default function ProfileScreen() {
             <View style={styles.detailRow}>
               <Feather name="book" size={14} color={colors.mutedForeground} />
               <Text style={[styles.detailLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-                {isTeacher ? 'Department' : 'Grade'}
+                {isTeacher ? t('Department') : t('Grade')}
               </Text>
               <Text style={[styles.detailValue, { color: me?.gradeOrDept ? colors.foreground : colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-                {me?.gradeOrDept || 'Not set'}
+                {me?.gradeOrDept || t('Not set')}
               </Text>
             </View>
             <View style={[styles.separator, { backgroundColor: colors.border }]} />
@@ -684,7 +684,7 @@ export default function ProfileScreen() {
                 {t('Timezone')}
               </Text>
               <Text style={[styles.detailValue, { color: me?.timezone ? colors.foreground : colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-                {me?.timezone || 'Not set'}
+                {me?.timezone || t('Not set')}
               </Text>
             </View>
             {me?.websiteUrl ? (
@@ -858,7 +858,7 @@ export default function ProfileScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowLabel, { color: colors.destructiveText, fontFamily: colors.fontFamily.sansSemiBold }]}>
-                {deleteAccount.isPending ? 'Deleting account…' : 'Delete account'}
+                {deleteAccount.isPending ? t('Deleting account…') : t('Delete account')}
               </Text>
               <Text style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans, fontSize: 12, marginTop: 2 }}>
                 {t('Permanently removes your account and content')}

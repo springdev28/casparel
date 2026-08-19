@@ -105,6 +105,10 @@ const BENEFITS: Record<
 };
 
 function BenefitRow({ icon, title, body }: { icon: FeatherName; title: string; body: string }) {
+  // PLAN_FEATURES is a module constant -- a hook cannot run where it is
+  // written -- so it holds the English and this translates it. The title is a
+  // plan name and stays as it is in every language.
+  const { t } = useLanguage();
   const colors = useColors();
   return (
     <View style={styles.benefitRow}>
@@ -140,7 +144,7 @@ function BenefitRow({ icon, title, body }: { icon: FeatherName; title: string; b
             },
           ]}
         >
-          {body}
+          {t(body)}
         </Text>
       </View>
     </View>
@@ -199,7 +203,7 @@ export default function PaywallScreen() {
       const pct = Math.round((1 - pkg.product.price / (monthlyPrice * 12)) * 100);
       if (pct > 0) return `Best value · Save ${pct}%`;
     }
-    return 'Best value';
+    return t('Best value');
   }
 
   async function handlePurchase() {
@@ -210,9 +214,11 @@ export default function PaywallScreen() {
     setBusy(false);
     if (result === 'success') {
       const purchasedTier = tierForPackage(pkg);
-      Alert.alert(`Welcome to Casparel ${TIER_TITLES[purchasedTier]}`, 'Your subscription features are now unlocked. Thank you!', [
-        { text: t('Great'), onPress: close },
-      ]);
+      Alert.alert(
+        `${t('Welcome to Casparel')} ${TIER_TITLES[purchasedTier]}`,
+        t('Your subscription features are now unlocked. Thank you!'),
+        [{ text: t('Great'), onPress: close }],
+      );
       return;
     }
     if (result === 'cancelled') return; // they chose not to buy; say nothing
@@ -274,8 +280,8 @@ export default function PaywallScreen() {
     const ok = await restore();
     setBusy(false);
     Alert.alert(
-      ok ? 'Purchases restored' : 'Nothing to restore',
-      ok ? 'Your paid plan is active again.' : "We couldn't find a previous purchase for this account.",
+      ok ? t('Purchases restored') : t('Nothing to restore'),
+      ok ? t('Your paid plan is active again.') : t("We couldn't find a previous purchase for this account."),
       ok ? [{ text: t('Great'), onPress: close }] : undefined,
     );
   }
@@ -411,8 +417,8 @@ export default function PaywallScreen() {
               ]}
             >
               {Platform.OS === 'web'
-                ? 'Open Casparel on your phone to choose Plus or Pro.'
-                : 'Plans are loading or unavailable right now. Please try again shortly.'}
+                ? t('Open Casparel on your phone to choose Plus or Pro.')
+                : t('Plans are loading or unavailable right now. Please try again shortly.')}
             </Text>
           </View>
         ) : (
@@ -520,13 +526,14 @@ function PackageOption({
   onSelect: () => void;
   badge?: string | null;
 }) {
+  const { t } = useLanguage();
   const colors = useColors();
   const packageTier = tierForPackage(pkg);
   const period =
     pkg.packageType?.toUpperCase() === 'ANNUAL'
-      ? 'Billed yearly'
+      ? t('Billed yearly')
       : pkg.packageType?.toUpperCase() === 'MONTHLY'
-        ? 'Billed monthly'
+        ? t('Billed monthly')
         : pkg.product.description || '';
   return (
     <Pressable

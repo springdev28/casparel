@@ -87,12 +87,16 @@ for (const { where, text } of files) {
  * `t()` at the render site. `t(title)` names a variable, so the scan above
  * cannot see what is in it; these two files are read for their literals.
  */
-const CONSTANT_TABLES = ["app/onboarding.tsx", "components/ErrorState.tsx"];
+const CONSTANT_TABLES = [
+  "app/onboarding.tsx",
+  "components/ErrorState.tsx",
+  "app/paywall.tsx",
+];
 for (const where of CONSTANT_TABLES) {
   const file = files.find((candidate) => candidate.where === where);
   expect(file, `${where} is gone; this list needs updating`).toBeTruthy();
   for (const match of file!.text.matchAll(
-    /\b(?:title|body|description):\s*\n?\s*(['"])((?:(?!\1).)*)\1/g,
+    /\b(?:title|body|description):\s*\n?\s*(['"])((?:(?!\1).){4,})\1/g,
   )) {
     asked.set(decode(match[2]), where);
   }
@@ -149,42 +153,106 @@ describe("the phone app's translations", () => {
 
   it("leaves no user-facing English outside t()", () => {
     /*
-     * Text that is the whole content of a <Text>, or the value of a prop the
-     * user reads. Anything with a brace in it is interpolated and is somebody
-     * else's problem; anything that does not start with a capital is a symbol,
-     * an icon name or data rather than a sentence.
+     * Every English sentence in the screens, wherever it sits.
+     *
+     * The first version of this looked only at <Text> children and a few
+     * props, and passed while 65 strings were still English -- they were in
+     * ternaries (`isTeacher ? 'Students' : 'Reviews'`), in Alert bodies, in
+     * `description=` props, in `setError(...)`. The lesson is that a phone app
+     * puts user-facing English in every shape a string literal comes in, so
+     * the scan has to be the other way round: assume a sentence is for the
+     * reader unless it is named below.
      */
-    const sentence = /^[A-Z][A-Za-z0-9 ,.'’&%:!?()/-]{2,200}$/;
-    const unwrapped: string[] = [];
+    const sentence = /^[A-Z][A-Za-z0-9 ,.'\u2019&%:!?()/\u2014-]{3,240}$/;
 
-    const lineOf = (text: string, index: number) =>
-      text.slice(0, index).split("\n").length;
+    /**
+     * Literals that are not shown to anybody, or that are the same in every
+     * language. Each is a decision rather than an oversight.
+     */
+    const NOT_FOR_THE_READER = new Set([
+      // Product and plan names, identical in all six.
+      "Casparel",
+      "Free",
+      "Plus",
+      "Pro",
+      "Student Plus",
+      "Student Pro",
+      "Teacher Plus",
+      "Teacher Pro",
+      "App Store",
+      "Google Play",
+      // RevenueCat package types and internal action names, compared against
+      // rather than displayed.
+      "ANNUAL",
+      "MONTHLY",
+      "TEMPLATE",
+      // A font family, not a word.
+      "Menlo",
+      /*
+       * The subject chips on the profile screen. Tapping one stores it as the
+       * account's subject, and the field is free text -- so translating the
+       * chip would quietly write a different value to the database depending
+       * on which language the phone happened to be in, and two accounts
+       * studying the same thing would no longer match.
+       */
+      "Mathematics",
+      "Science",
+      "English",
+      "History",
+      "Computer Science",
+      "Art",
+      "Music",
+      "Biology",
+      "Chemistry",
+      "Physics",
+      "Economics",
+      "Psychology",
+    ]);
 
-    for (const { where, text } of files) {
-      // Across lines, because JSX wraps: the text and its closing tag are
-      // usually not on the same line, and a line-by-line scan was blind to
-      // exactly the shape this app is written in.
-      for (const match of text.matchAll(
-        /(?:^|>)\s*([^<>{}][^<>{}]*?)\s*<\/(?:Text|Button|Label|ThemedText)>/g,
-      )) {
-        const found = match[1].trim().replace(/\s+/g, " ");
-        if (sentence.test(found) && !PRODUCT_NAMES.has(found)) {
-          unwrapped.push(`${where}:${lineOf(text, match.index)}  ${JSON.stringify(found)}`);
-        }
+    /**
+     * Where the comments are, so a sentence quoted inside one is not reported.
+     *
+     * Line-by-line was not enough: these files explain themselves in block
+     * comments that run for paragraphs, and the words inside them are about
+     * the code rather than shown by it.
+     */
+    function commentRanges(text: string): Array<[number, number]> {
+      const ranges: Array<[number, number]> = [];
+      for (const match of text.matchAll(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g)) {
+        ranges.push([match.index, match.index + match[0].length]);
       }
-      for (const match of text.matchAll(
-        /\b(?:label|placeholder|accessibilityLabel|accessibilityHint|headerBackTitle)=["']([^"']+)["']/g,
-      )) {
-        if (sentence.test(match[1]) && !PRODUCT_NAMES.has(match[1])) {
-          unwrapped.push(`${where}:${lineOf(text, match.index)}  ${JSON.stringify(match[1])}`);
-        }
+      return ranges;
+    }
+
+    const unwrapped: string[] = [];
+    for (const { where, text } of files) {
+      // The two tables whose English is translated where it is rendered.
+      if (CONSTANT_TABLES.includes(where)) continue;
+      const comments = commentRanges(text);
+
+      for (const match of text.matchAll(/(['"])((?:(?!\1).){4,240})\1/g)) {
+        const found = match[2];
+        if (!sentence.test(found) || NOT_FOR_THE_READER.has(found)) continue;
+        // Already going through the translator. `.trim()`, not `.trimEnd()`:
+        // a long string is often on the line after the `t(` that wraps it.
+        if (/\bt\(\s*$/.test(text.slice(Math.max(0, match.index - 40), match.index)))
+          continue;
+        if (comments.some(([from, to]) => match.index >= from && match.index < to)) continue;
+        const lineStart = text.lastIndexOf("\n", match.index) + 1;
+        const line = text.slice(lineStart, text.indexOf("\n", match.index + found.length));
+        if (/^\s*import\b/.test(line)) continue;
+        if (/console\.(?:log|warn|error)/.test(line)) continue;
+        unwrapped.push(
+          `${where}:${text.slice(0, match.index).split("\n").length}  ${JSON.stringify(found)}`,
+        );
       }
     }
 
     expect(
       unwrapped,
       "these are shown to the reader in English whatever language they " +
-        "chose; wrap them in t()",
+        "chose; wrap them in t(), or name them in NOT_FOR_THE_READER with a " +
+        "reason",
     ).toEqual([]);
   });
 });

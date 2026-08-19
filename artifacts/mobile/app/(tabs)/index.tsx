@@ -230,7 +230,7 @@ export default function DashboardScreen() {
               { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
             ]}
           >
-            {isTeacher ? "Here's your classroom overview" : "Here's your learning overview"}
+            {isTeacher ? t("Here's your classroom overview") : t("Here's your learning overview")}
           </Text>
         </View>
       </View>
@@ -273,7 +273,7 @@ export default function DashboardScreen() {
           isFailed={summaryFailed}
         />
         <StatCard
-          label={isTeacher ? 'Students' : 'Reviews'}
+          label={isTeacher ? t('Students') : t('Reviews')}
           value={isTeacher ? summary?.studentCount : summary?.reviewCount}
           icon={isTeacher ? 'user-check' : 'star'}
           color={colors.chart4}
@@ -311,7 +311,7 @@ export default function DashboardScreen() {
           <Empty
             icon="activity"
             title={t('No activity yet')}
-            description="Your recent actions will appear here"
+            description={t("Your recent actions will appear here")}
           />
         ) : (
           <View

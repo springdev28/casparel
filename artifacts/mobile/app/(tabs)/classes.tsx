@@ -158,7 +158,7 @@ function InvitationCard({
               { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
             ]}
           >
-            {invitation.class?.name ?? 'A class'}
+            {invitation.class?.name ?? t('A class')}
           </Text>
           <Text
             style={[
@@ -168,7 +168,7 @@ function InvitationCard({
           >
             {invitation.inviter?.name
               ? `${invitation.inviter.name} invited you`
-              : 'You have been invited'}
+              : t('You have been invited')}
           </Text>
         </View>
       </View>
@@ -251,8 +251,8 @@ export default function ClassesScreen() {
       ]);
     } catch (failure) {
       Alert.alert(
-        action === 'accept' ? 'Could not join the class' : 'Could not decline',
-        describeApiFailure(failure, 'Please try again.'),
+        action === 'accept' ? t('Could not join the class') : t('Could not decline'),
+        describeApiFailure(failure, t('Please try again.')),
       );
     } finally {
       setAnswering(null);
@@ -335,7 +335,7 @@ export default function ClassesScreen() {
                     { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold },
                   ]}
                 >
-                  {pending.length === 1 ? 'Invitation' : 'Invitations'}
+                  {pending.length === 1 ? t('Invitation') : t('Invitations')}
                 </Text>
                 {pending.map((invitation) => (
                   <InvitationCard
@@ -353,7 +353,7 @@ export default function ClassesScreen() {
               <Empty
                 icon="users"
                 title={t('No classes yet')}
-                description="Classes you join or create will appear here"
+                description={t("Classes you join or create will appear here")}
               />
             )
           }
