@@ -193,6 +193,15 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-text-fits.mjs
 
+      # The half of the interface that does not appear in a screenshot. An icon
+      # button with no label looks fine and is the word "button" to everybody
+      # using a screen reader — and the icon reads as the label to whoever
+      # wrote it, which is why it is the easiest thing to leave out. Casparel is
+      # a school product, so this is the norm rather than the exception.
+      - name: Audit that every control is reachable
+        working-directory: artifacts/app
+        run: node scripts/audit-reachable.mjs
+
       # An empty state must never stand in for a loading one: "Your library is
       # empty" is a claim about the account, and painting it mid-load tells a
       # returning user their work is gone.

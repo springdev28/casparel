@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 interface BrandIconProps {
   className?: string;
   label?: string;
@@ -10,6 +12,21 @@ interface BrandIconProps {
 // lockup, the wordmark color is supplied by the surrounding surface.
 export default function BrandIcon({ className = "", title, label }: BrandIconProps) {
   const accessibleName = title || label;
+  /*
+   * A gradient id per instance, not one shared by all of them.
+   *
+   * The id was hardcoded, and the shell renders this mark twice -- the sidebar
+   * and the mobile nav header -- so every signed-in page carried two elements
+   * with the same id. SVG resolves `url(#…)` document-wide and first-match, so
+   * both marks were painted from whichever definition came first.
+   *
+   * Nothing visible is wrong today: the two definitions are identical, and
+   * each instance carries its own copy, so removing one still leaves the other
+   * resolvable. It is a latent trap rather than a live bug -- the day this
+   * component grows a second colourway, both marks would render in the first
+   * one's colours and the cause would be nowhere near the symptom.
+   */
+  const gradientId = useId();
 
   return (
     <svg
@@ -23,7 +40,7 @@ export default function BrandIcon({ className = "", title, label }: BrandIconPro
       {accessibleName ? <title>{accessibleName}</title> : null}
       <defs>
         <linearGradient
-          id="casparel-mark-gradient"
+          id={gradientId}
           x1="64.442"
           y1="46.8392"
           x2="287.522"
@@ -34,7 +51,7 @@ export default function BrandIcon({ className = "", title, label }: BrandIconPro
           <stop offset="1" stopColor="#38BDF8" />
         </linearGradient>
       </defs>
-      <g fill="url(#casparel-mark-gradient)">
+      <g fill={`url(#${gradientId})`}>
         <path d="M295.111 0H96L24.8889 71.1111H224L295.111 0Z" />
         <path d="M38.8663 259.105L88.0321 308.271L157.982 277.654L69.4832 189.156L38.8663 259.105Z" />
         <path d="M88.032 11.133L38.8663 60.2987L69.4832 130.248L157.981 41.7498L88.032 11.133Z" />
