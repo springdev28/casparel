@@ -163,11 +163,16 @@ export default function DownloadPage() {
           library, classes, canvases, schedules and AI source research all run
           in a browser tab, on the same account you would use on a phone.
         </p>
-        <Button asChild className="gap-2">
-          <Link href="/resources">
-            Browse the library <ArrowRight className="size-4" />
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild className="gap-2">
+            <Link href="/resources">
+              Browse the library <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/code-signing">How we sign our downloads</Link>
+          </Button>
+        </div>
       </section>
     </main>
   );

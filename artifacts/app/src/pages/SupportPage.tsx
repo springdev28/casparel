@@ -82,6 +82,10 @@ export default function SupportPage() {
             Terms
           </Link>{" "}
           and{" "}
+          <Link href="/code-signing" className="text-primary-text underline">
+            Code signing
+          </Link>{" "}
+          explains how to verify a desktop download.{" "}
           <Link href="/privacy" className="text-primary-text underline">
             Privacy Policy
           </Link>

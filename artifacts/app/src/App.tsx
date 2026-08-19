@@ -73,6 +73,7 @@ const PrivacyPage = lazy(() =>
 );
 const SupportPage = lazy(() => import("./pages/SupportPage"));
 const DownloadPage = lazy(() => import("./pages/DownloadPage"));
+const CodeSigningPage = lazy(() => import("./pages/CodeSigningPage"));
 const PlansPage = lazy(() => import("./pages/PlansPage"));
 
 const TOKEN_KEY = "schoolar_token";
@@ -381,6 +382,12 @@ function Router() {
           and every store/release link should land, signed in or not. */}
       <Route path="/download">
         {() => <PublicRoute component={DownloadPage} />}
+      </Route>
+      {/* Public and signed-out reachable on purpose: somebody deciding whether
+          to trust an installer has not signed in, and SignPath Foundation
+          requires the policy to be published rather than merely written. */}
+      <Route path="/code-signing">
+        {() => <PublicRoute component={CodeSigningPage} />}
       </Route>
       <Route path="/canvas/shared/:token">
         {() => <PublicRoute component={() => <CanvasPage shared />} />}
