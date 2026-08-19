@@ -160,6 +160,22 @@ const SHAPE_RULES: Array<{
     },
   },
   {
+    /*
+     * "Rating: 4.5 out of 5" -- the accessible name of the star widget, and
+     * the only way a screen-reader user learns the rating at all. The number
+     * varies, so it needed a rule rather than an entry, and until attributes
+     * were audited nobody could see it was English.
+     */
+    match: /^Rating: ([\d.,]+) out of 5$/,
+    render: {
+      tr: (n) => `Puan: 5 üzerinden ${n}`,
+      es: (n) => `Calificación: ${n} de 5`,
+      fr: (n) => `Note : ${n} sur 5`,
+      de: (n) => `Bewertung: ${n} von 5`,
+      pt: (n) => `Avaliação: ${n} de 5`,
+    },
+  },
+  {
     // "Used 4 times", under a shared study path. Singular is "once" in
     // English and a plain number elsewhere, so the whole phrase is a rule.
     match: /^Used (\d[\d.,]*) times?$/,
