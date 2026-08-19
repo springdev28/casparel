@@ -610,6 +610,44 @@ async function main() {
     }
     await offline.close();
 
+    /*
+     * The tabs again, on the narrowest iPhone still receiving iOS.
+     *
+     * Every render above is 393pt wide. An iPhone SE is 375, and the gap is
+     * where a row that fits by four points stops fitting -- which shows up as
+     * the page scrolling sideways, or as a control pushed off the edge, and
+     * never in a screenshot taken at the wider size. The web audit has
+     * rendered 390px for this reason for a while; the phone app, which is
+     * where small screens actually live, had not.
+     */
+    const narrow = await browser.newContext({
+      viewport: { width: 375, height: 667 },
+      deviceScaleFactor: 2,
+      colorScheme: "light",
+    });
+    await narrow.route(`${APP_ORIGIN}/**`, forwardToServer);
+    const narrowSession = (await light.storageState()).origins.find((entry) =>
+      entry.origin.startsWith("http://127.0.0.1"),
+    );
+    await narrow.addInitScript((items) => {
+      for (const item of items ?? []) localStorage.setItem(item.name, item.value);
+    }, narrowSession?.localStorage ?? []);
+
+    for (const tab of TABS) {
+      const tabPage = await narrow.newPage();
+      tabPage.on("pageerror", (error) =>
+        pageErrors.push(`375px ${tab.name}: ${String(error).slice(0, 200)}`),
+      );
+      await tabPage.goto(`${local}${tab.route}`, { waitUntil: "networkidle" });
+      await tabPage.waitForTimeout(2500);
+      const sideways = await tabPage.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      check(`375px: ${tab.name} does not scroll sideways`, sideways <= 0, `${sideways}px over`);
+      await tabPage.close();
+    }
+    await narrow.close();
+
     check("no screen threw an uncaught exception", pageErrors.length === 0, pageErrors.slice(0, 4).join("\n     "));
     check(
       "no request the app makes for itself came back an error",
