@@ -96,6 +96,12 @@ before they are public, since neither can be produced on a Linux machine.
 
 ### Signing
 
+How releases are built, signed and verified, and who can cause a signature to
+happen, is written down in the [code signing policy](../../docs/code-signing-policy.md).
+SignPath Foundation requires that document to exist and be published; it is
+also just the thing a cautious person downloading an installer should be able
+to read.
+
 The two platforms are not the same problem, and it is worth knowing which one
 you are solving before spending anything.
 

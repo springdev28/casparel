@@ -6,6 +6,35 @@
  * (Casparel, Google Classroom, Quizlet, Teacher Pro …) stay untranslated.
  */
 const FR: Record<string, string> = {
+  // The code signing page: how a downloaded installer can be checked.
+  "How we sign our downloads": "Comment nous signons nos téléchargements",
+  "explains how to verify a desktop download.": "explique comment vérifier un téléchargement pour ordinateur.",
+  "Code signing": "Signature de code",
+  "How to check that a Casparel download is really ours": "Comment vérifier qu'un téléchargement Casparel vient bien de nous",
+  "Casparel is open source, and every desktop installer is built in public from a commit anyone can read. This page explains what that does and does not prove, and how to verify a file yourself.": "Casparel est open source, et chaque programme d'installation pour ordinateur est compilé en public à partir d'un commit que tout le monde peut lire. Cette page explique ce que cela prouve, ce que cela ne prouve pas, et comment vérifier un fichier vous-même.",
+  "The desktop installers are not signed yet.": "Les programmes d'installation ne sont pas encore signés.",
+  "Until they are, your computer will warn you when you open one. That warning is accurate and you should treat it seriously: check the file came from our own releases page before running it.": "Tant qu'ils ne le sont pas, votre ordinateur vous avertira à l'ouverture. Cet avertissement est justifié et mérite d'être pris au sérieux : vérifiez que le fichier provient de notre propre page de versions avant de l'exécuter.",
+  "What gets signed": "Ce qui est signé",
+  "Platform": "Plateforme",
+  "Signed by": "Signé par",
+  "Linux packages are not signed the way Windows and macOS ones are, because Linux has no single authority that vouches for a downloaded installer. Compare the published checksum instead.": "Les paquets Linux ne sont pas signés comme ceux de Windows et de macOS, car Linux n'a pas d'autorité unique qui se porte garante d'un programme d'installation téléchargé. Comparez plutôt la somme de contrôle publiée.",
+  "What a signature promises": "Ce qu'une signature garantit",
+  "One thing only: that the file came from our release pipeline, built from a specific public commit. It is not a promise that the software is free of bugs, and it does not cover the pages the app loads from this website while you use it.": "Une seule chose : que le fichier est issu de notre chaîne de publication, compilé à partir d'un commit public précis. Ce n'est pas une garantie que le logiciel est exempt de bogues, et cela ne couvre pas les pages que l'application charge depuis ce site pendant que vous l'utilisez.",
+  "Every release is built by a workflow in the open repository, on machines we do not control the contents of, one per platform. No installer is ever built on a personal computer. Each signing request has to be approved by a maintainer by hand, so an automated system cannot produce a signed file on its own.": "Chaque version est compilée par un workflow du dépôt public, sur des machines dont nous ne contrôlons pas le contenu, une par plateforme. Aucun programme d'installation n'est jamais compilé sur un ordinateur personnel. Chaque demande de signature doit être approuvée à la main par un mainteneur, de sorte qu'un système automatique ne peut pas produire un fichier signé tout seul.",
+  "Checking a file yourself": "Vérifier un fichier vous-même",
+  "On Windows, right-click the installer, open Properties, and look at the Digital Signatures tab. On macOS and Linux, from a terminal:": "Sous Windows, faites un clic droit sur le programme d'installation, ouvrez Propriétés et consultez l'onglet Signatures numériques. Sous macOS et Linux, depuis un terminal :",
+  "When Windows signing is in place, the publisher will read SignPath Foundation rather than Casparel. That is expected: they issue the certificate and sign on behalf of open-source projects. Judge a download by the page it came from, not by that name.": "Une fois la signature Windows en place, l'éditeur affiché sera SignPath Foundation et non Casparel. C'est normal : ils délivrent le certificat et signent pour le compte de projets open source. Jugez un téléchargement à la page dont il provient, pas à ce nom.",
+  "If something looks wrong": "Si quelque chose semble anormal",
+  "If you have a Casparel installer that fails these checks, or that came from anywhere other than our own releases page, please do not run it. Send us where you got it and the file's checksum.": "Si vous avez un programme d'installation Casparel qui échoue à ces vérifications, ou qui provient d'ailleurs que de notre propre page de versions, ne l'exécutez pas. Dites-nous où vous l'avez obtenu et la somme de contrôle du fichier.",
+  "The full policy": "La politique complète",
+  "The complete code signing policy lives in the repository, where it is versioned and reviewed like the rest of the project. It covers build provenance, who holds which role, and the security practices behind all of this.": "La politique complète de signature de code se trouve dans le dépôt, où elle est versionnée et relue comme le reste du projet. Elle couvre la provenance des compilations, qui occupe quel rôle, et les pratiques de sécurité derrière tout cela.",
+  "Read the full policy": "Lire la politique complète",
+  "Official releases": "Versions officielles",
+  "Back to downloads": "Retour aux téléchargements",
+  "Checksum only": "Somme de contrôle uniquement",
+  "Not yet signed": "Pas encore signé",
+  "Not applicable": "Sans objet",
+
   // The download page: which platforms Casparel runs on, and how to
   // get it. Kept here rather than at the end of the file: every push
   // that adds strings appends there, and two blocks growing at the

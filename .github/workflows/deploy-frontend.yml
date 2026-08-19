@@ -177,23 +177,36 @@ jobs:
         # rather than "the download was slow", and sends you looking in the
         # wrong place.
         #
-        # Each attempt is capped so a hang cannot eat the budget, and there are
-        # two so a blip heals itself. Only a download is retried: no product
-        # failure can be retried into passing from here.
+        # The bound is this step's own timeout-minutes, not a cap around each
+        # command. The first version capped both halves and retried both, which
+        # turned a slow mirror into a hard failure -- see the note in the script
+        # below. Only a download is retried either way: no product failure can
+        # be retried into passing from here.
         timeout-minutes: 11
         run: |
-          fetch_playwright() {
-            timeout 120 npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright &&
-            timeout 180 "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          # Only the npm download is retried. `playwright install --with-deps`
+          # shells out to apt-get as root, and `timeout` kills playwright
+          # without killing that grandchild -- so the orphan keeps
+          # /var/lib/dpkg/lock-frontend and the second attempt dies instantly
+          # on "Unable to acquire the dpkg frontend lock", exit 100. The retry
+          # that was meant to heal a slow mirror was manufacturing the failure
+          # it then reported. The step's own timeout-minutes is the bound.
+          fetch_package() {
+            timeout 120 npm i --prefix "$RUNNER_TEMP/pw" --no-save playwright
           }
-          if ! fetch_playwright; then
-            echo "::warning title=Playwright install retried::The first attempt failed or ran over its cap."
+          if ! fetch_package; then
+            echo "::warning title=Playwright package retried::The first npm attempt failed or ran over its cap."
             sleep 10
-            fetch_playwright || {
-              echo "::error title=Playwright install failed twice::This is the browser download, not a product failure."
+            fetch_package || {
+              echo "::error title=Playwright package failed twice::This is the npm download, not a product failure."
               exit 1
             }
           fi
+
+          # Uncapped and unretried, deliberately. Fetching the browser and its
+          # apt dependencies takes about a minute normally and several when a
+          # mirror is slow; interrupting it is what broke this step.
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           mkdir -p artifacts/app/node_modules
           ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" \
             artifacts/app/node_modules/playwright-core

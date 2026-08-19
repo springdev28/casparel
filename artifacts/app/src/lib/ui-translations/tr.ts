@@ -6,6 +6,35 @@
  * (Casparel, Google Classroom, Quizlet, Teacher Pro …) stay untranslated.
  */
 const TR: Record<string, string> = {
+  // The code signing page: how a downloaded installer can be checked.
+  "How we sign our downloads": "İndirmelerimizi nasıl imzalıyoruz",
+  "explains how to verify a desktop download.": "bir masaüstü indirmesinin nasıl doğrulanacağını anlatır.",
+  "Code signing": "Kod imzalama",
+  "How to check that a Casparel download is really ours": "Bir Casparel indirmesinin gerçekten bize ait olduğunu nasıl doğrularsınız",
+  "Casparel is open source, and every desktop installer is built in public from a commit anyone can read. This page explains what that does and does not prove, and how to verify a file yourself.": "Casparel açık kaynaklıdır ve her masaüstü kurulum dosyası, herkesin okuyabileceği bir commit'ten herkese açık şekilde derlenir. Bu sayfa, bunun neyi kanıtlayıp neyi kanıtlamadığını ve bir dosyayı kendiniz nasıl doğrulayacağınızı anlatır.",
+  "The desktop installers are not signed yet.": "Masaüstü kurulum dosyaları henüz imzalanmadı.",
+  "Until they are, your computer will warn you when you open one. That warning is accurate and you should treat it seriously: check the file came from our own releases page before running it.": "İmzalanana kadar bilgisayarınız bir dosyayı açtığınızda sizi uyaracak. Bu uyarı doğrudur ve ciddiye almalısınız: çalıştırmadan önce dosyanın kendi sürümler sayfamızdan geldiğini kontrol edin.",
+  "What gets signed": "Ne imzalanıyor",
+  "Platform": "Platform",
+  "Signed by": "İmzalayan",
+  "Linux packages are not signed the way Windows and macOS ones are, because Linux has no single authority that vouches for a downloaded installer. Compare the published checksum instead.": "Linux paketleri, Windows ve macOS paketleri gibi imzalanmaz; çünkü Linux'ta indirilen bir kurulum dosyasına kefil olan tek bir otorite yoktur. Bunun yerine yayımlanan sağlama toplamını karşılaştırın.",
+  "What a signature promises": "Bir imza neyi vaat eder",
+  "One thing only: that the file came from our release pipeline, built from a specific public commit. It is not a promise that the software is free of bugs, and it does not cover the pages the app loads from this website while you use it.": "Yalnızca tek bir şeyi: dosyanın, belirli ve herkese açık bir commit'ten derlenerek sürüm hattımızdan çıktığını. Yazılımın hatasız olduğuna dair bir söz değildir ve uygulamanın siz kullanırken bu siteden yüklediği sayfaları kapsamaz.",
+  "Every release is built by a workflow in the open repository, on machines we do not control the contents of, one per platform. No installer is ever built on a personal computer. Each signing request has to be approved by a maintainer by hand, so an automated system cannot produce a signed file on its own.": "Her sürüm, açık depodaki bir iş akışıyla, içeriğini bizim denetlemediğimiz makinelerde, her platform için ayrı ayrı derlenir. Hiçbir kurulum dosyası kişisel bir bilgisayarda üretilmez. Her imzalama isteği bir geliştirici tarafından elle onaylanmak zorundadır; bu yüzden otomatik bir sistem tek başına imzalı dosya üretemez.",
+  "Checking a file yourself": "Bir dosyayı kendiniz kontrol etme",
+  "On Windows, right-click the installer, open Properties, and look at the Digital Signatures tab. On macOS and Linux, from a terminal:": "Windows'ta kurulum dosyasına sağ tıklayın, Özellikler'i açın ve Dijital İmzalar sekmesine bakın. macOS ve Linux'ta, bir terminalden:",
+  "When Windows signing is in place, the publisher will read SignPath Foundation rather than Casparel. That is expected: they issue the certificate and sign on behalf of open-source projects. Judge a download by the page it came from, not by that name.": "Windows imzalaması devreye girdiğinde yayıncı olarak Casparel değil SignPath Foundation görünecek. Bu beklenen bir durumdur: sertifikayı onlar verir ve açık kaynak projeler adına imzalarlar. Bir indirmeyi o isme göre değil, geldiği sayfaya göre değerlendirin.",
+  "If something looks wrong": "Bir şey yanlış görünüyorsa",
+  "If you have a Casparel installer that fails these checks, or that came from anywhere other than our own releases page, please do not run it. Send us where you got it and the file's checksum.": "Bu kontrollerden geçemeyen ya da kendi sürümler sayfamız dışında bir yerden gelen bir Casparel kurulum dosyanız varsa lütfen çalıştırmayın. Nereden edindiğinizi ve dosyanın sağlama toplamını bize gönderin.",
+  "The full policy": "Politikanın tamamı",
+  "The complete code signing policy lives in the repository, where it is versioned and reviewed like the rest of the project. It covers build provenance, who holds which role, and the security practices behind all of this.": "Kod imzalama politikasının tamamı, projenin geri kalanı gibi sürümlenip gözden geçirildiği depoda bulunur. Derleme kaynağını, hangi rolün kimde olduğunu ve bunların arkasındaki güvenlik uygulamalarını kapsar.",
+  "Read the full policy": "Politikanın tamamını okuyun",
+  "Official releases": "Resmî sürümler",
+  "Back to downloads": "İndirmelere dön",
+  "Checksum only": "Yalnızca sağlama toplamı",
+  "Not yet signed": "Henüz imzalanmadı",
+  "Not applicable": "Geçerli değil",
+
   // The download page: which platforms Casparel runs on, and how to
   // get it. Kept here rather than at the end of the file: every push
   // that adds strings appends there, and two blocks growing at the

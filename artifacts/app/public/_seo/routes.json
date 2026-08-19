@@ -19,6 +19,12 @@
       "heading": "The same workspace, on whatever you study with",
       "canonical": "https://casparel.com/download"
     },
+    "/code-signing": {
+      "title": "Casparel: Code signing and download verification",
+      "description": "How Casparel desktop installers are built and signed, what a signature proves, and how to verify a download on Windows, macOS or Linux.",
+      "heading": "How to check that a Casparel download is really ours",
+      "canonical": "https://casparel.com/code-signing"
+    },
     "/terms": {
       "title": "Casparel: Terms of Service",
       "description": "The terms you agree to when you use Casparel.",

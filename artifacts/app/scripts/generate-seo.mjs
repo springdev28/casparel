@@ -82,6 +82,15 @@ const routes = [
     heading: "The same workspace, on whatever you study with",
   },
   {
+    path: "/code-signing",
+    changefreq: "yearly",
+    priority: "0.3",
+    title: "Casparel: Code signing and download verification",
+    description:
+      "How Casparel desktop installers are built and signed, what a signature proves, and how to verify a download on Windows, macOS or Linux.",
+    heading: "How to check that a Casparel download is really ours",
+  },
+  {
     path: "/terms",
     changefreq: "yearly",
     priority: "0.3",
