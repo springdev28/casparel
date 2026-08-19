@@ -87,6 +87,7 @@ import {
 import type { SourceReview } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
+import { counted } from "@/lib/counted";
 
 // ── Media helpers ────────────────────────────────────────────────────────────
 
@@ -1529,8 +1530,8 @@ export default function ResourceDetailPage() {
           <div className="flex items-center gap-3">
             <StarRating value={resource.avgRating} />
             <span className="text-sm text-muted-foreground">
-              {resource.avgRating.toFixed(1)} · {resource.reviewCount} review
-              {resource.reviewCount !== 1 ? "s" : ""}
+              {resource.avgRating.toFixed(1)} ·{" "}
+              {counted(resource.reviewCount, "review", "reviews")}
             </span>
           </div>
         </CardContent>

@@ -695,15 +695,19 @@ export default function GoalsPage() {
               <Card key={path.id}>
                 <CardHeader className="pb-3">
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">{path.subject}</Badge>
+                    <Badge translate="no" variant="secondary">{path.subject}</Badge>
                     <Badge variant="outline" className="capitalize">
                       {path.level}
                     </Badge>
                   </div>
                   <CardTitle translate="no" className="mt-2 text-base">{path.title}</CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Shared by <span translate="no">{path.creatorName}</span> · Used{" "}
-                    {path.useCount} times
+                    {/* Three nodes on purpose: the bridge matches whole
+                        trimmed text nodes, so "Shared by" and "Used N times"
+                        each have to be one, and the name has to be its own so
+                        nothing rewrites it. */}
+                    Shared by <span translate="no">{path.creatorName}</span> ·{" "}
+                    <span>{`Used ${path.useCount} times`}</span>
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -860,8 +864,9 @@ export default function GoalsPage() {
                   <div>
                     <div className="mb-2 flex justify-between text-xs">
                       <b>Learning path</b>
+                      {/* One node, so OF_RULE in ui-translations can match it. */}
                       <span className="text-muted-foreground">
-                        {done} of {goal.pathSteps.length}
+                        {`${done} of ${goal.pathSteps.length}`}
                       </span>
                     </div>
                     <div className="space-y-1">

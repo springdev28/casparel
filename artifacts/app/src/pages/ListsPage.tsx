@@ -21,6 +21,7 @@ import {
   useListSharedResourceLists,
   getListResourceListsQueryKey,
 } from '@workspace/api-client-react';
+import { counted } from "@/lib/counted";
 
 export default function ListsPage() {
   const locale = useDateLocale();
@@ -180,7 +181,7 @@ export default function ListsPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{list.itemCount} item{list.itemCount !== 1 ? 's' : ''}</span>
+                  <span>{counted(list.itemCount, "item", "items")}</span>
                   <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true, locale })}</span>
                 </div>
               </CardContent>
@@ -226,7 +227,7 @@ export default function ListsPage() {
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{list.itemCount} item{list.itemCount !== 1 ? 's' : ''}</span>
+                        <span>{counted(list.itemCount, "item", "items")}</span>
                         <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true, locale })}</span>
                       </div>
                     </CardContent>

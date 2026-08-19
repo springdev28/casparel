@@ -50,6 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
+import { counted } from "@/lib/counted";
 
 type ActivityCard = {
   id: string;
@@ -1166,10 +1167,11 @@ export default function ActivitiesPage({
                   </CardTitle>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">
-                      {modeOptions.find(([value]) => value === activity.mode)?.[2] ?? "Flashcards"} · {activity.cards.length} items
+                      {modeOptions.find(([value]) => value === activity.mode)?.[2] ?? "Flashcards"} ·{" "}
+                      {counted(activity.cards.length, "item", "items")}
                     </span>
                     {activity.subject && (
-                      <Badge variant="secondary" className="max-w-28 truncate">
+                      <Badge translate="no" variant="secondary" className="max-w-28 truncate">
                         {activity.subject}
                       </Badge>
                     )}
@@ -1185,7 +1187,8 @@ export default function ActivitiesPage({
                 <div>
                   <h2 translate="no" className="text-xl font-bold">{selected.title}</h2>
                   <p className="text-sm text-muted-foreground">
-                    {selected.subject ?? "General"} · {selected.cards.length} cards
+                    <span translate="no">{selected.subject ?? "General"}</span> ·{" "}
+                    {counted(selected.cards.length, "card", "cards")}
                   </p>
                 </div>
                 {viewOnly && (

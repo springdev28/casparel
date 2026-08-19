@@ -574,7 +574,7 @@ export default function AdminPage() {
                     <tr className="border-b last:border-0">
                       <td className="py-3">
                         <button type="button" className="text-left" onClick={() => setExpandedUserId((id) => id === user.id ? null : user.id)}>
-                          <p className="font-medium hover:underline">{user.name}</p>
+                          <p translate="no" className="font-medium hover:underline">{user.name}</p>
                           <p className="text-xs text-muted-foreground">{user.email}</p>
                         </button>
                       </td>
@@ -818,7 +818,9 @@ export default function AdminPage() {
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div><p className="text-xl font-semibold">{data?.plan.name ?? "Administrator"}</p><p className="text-sm capitalize text-emerald-600">{data?.plan.status ?? "active"}</p></div>
+                {/* A plan name -- Free, Student Pro -- which this product does not
+                    translate in any language. */}
+                <div><p translate="no" className="text-xl font-semibold">{data?.plan.name ?? "Administrator"}</p><p className="text-sm capitalize text-emerald-600">{data?.plan.status ?? "active"}</p></div>
                 <Badge>Unlimited</Badge>
               </div>
               <div className="grid grid-cols-3 gap-3 text-sm">

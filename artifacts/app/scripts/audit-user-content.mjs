@@ -60,7 +60,7 @@ const PORT = Number(process.env.AUDIT_UC_PORT ?? 4327);
 
 const PAGES = (
   process.env.AUDIT_UC_PAGES ??
-  "/dashboard,/activities,/classes,/goals,/lists,/schedule,/messages,/forum,/canvas,/people,/profile,/resources"
+  "/dashboard,/activities,/classes,/goals,/lists,/schedule,/messages,/forum,/canvas,/people,/profile,/resources,/admin"
 )
   .split(",")
   .filter(Boolean);
@@ -69,12 +69,22 @@ const PAGES = (
  * The fields that hold something a person typed.
  *
  * Named rather than inferred, because the distinction is a judgement and not
- * a shape. `subject`, `gradeLevel`, `role`, `format` and `status` are chosen
- * from fixed lists the product defines, so translating those is the whole
- * point of having a dictionary; `title`, `name`, `description` and the rest
- * came from a keyboard.
+ * a shape. `role`, `format`, `mode`, `status` and `visibility` are chosen from
+ * fixed lists the product defines, so translating those is the whole point of
+ * having a dictionary; the ones below came from a keyboard.
+ *
+ * `subject` and `gradeLevel` belong on this side, which is not obvious: they
+ * read like taxonomies, and this list left them out at first. But the class
+ * form asks for both with a plain text input -- a teacher types "Physics" and
+ * "Year 12", or "Música" and "3º ESO" -- and on a catalogue resource they are
+ * the provider's own labels rather than this app's. Either way, not our
+ * wording to change. The profile page had already reached the same conclusion
+ * and said so in a comment.
  */
 const USER_TEXT = new Set([
+  "subject",
+  "gradeLevel",
+  "gradeOrDept",
   "title",
   "name",
   "description",
@@ -243,7 +253,12 @@ for (const pagePath of PAGES) {
   });
   await installSession(context, {
     language: "es",
-    role: "student",
+    // A student for every page but one. The admin panel renders a different
+    // surface -- other people's names, emails and bios, which is the most
+    // sensitive user content in the product -- and a student sees none of it.
+    ...(pagePath === "/admin"
+      ? { role: "admin", activeRole: "admin", accountRole: "admin" }
+      : { role: "student" }),
     // Every user-typed field the fixture table would have answered, replaced
     // with something no dictionary knows -- see markUserText.
     transformBody: markUserText,

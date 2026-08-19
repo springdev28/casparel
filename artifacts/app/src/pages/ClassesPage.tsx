@@ -28,6 +28,7 @@ import {
   getListGCCoursesQueryKey,
   UserRole,
 } from '@workspace/api-client-react';
+import { counted } from "@/lib/counted";
 
 export default function ClassesPage() {
   const [, setLocation] = useLocation();
@@ -542,9 +543,9 @@ export default function ClassesPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle translate="no" className="text-base">{cls.name}</CardTitle>
-                  <Badge variant="secondary" className="shrink-0">{cls.gradeLevel}</Badge>
+                  <Badge translate="no" variant="secondary" className="shrink-0">{cls.gradeLevel}</Badge>
                 </div>
-                <CardDescription>{cls.subject}</CardDescription>
+                <CardDescription translate="no">{cls.subject}</CardDescription>
               </CardHeader>
               <CardContent>
                 {cls.description && (
@@ -555,7 +556,7 @@ export default function ClassesPage() {
                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Users size={14} />
                   <span>
-                    {cls.memberCount ?? 0} member{cls.memberCount !== 1 ? 's' : ''}
+                    {counted(cls.memberCount ?? 0, "member", "members")}
                   </span>
                 </div>
               </CardContent>

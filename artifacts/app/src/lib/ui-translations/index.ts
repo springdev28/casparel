@@ -85,6 +85,37 @@ const COUNTED: Record<string, Partial<Record<AuthLanguage, CountRule>>> = {
     de: (n) => `${n} ${n === "1" ? "Kommentar" : "Kommentare"}`,
     pt: (n) => `${n} ${n === "1" ? "comentário" : "comentários"}`,
   },
+  reviews: {
+    tr: (n) => `${n} değerlendirme`,
+    es: (n) => `${n} ${n === "1" ? "reseña" : "reseñas"}`,
+    fr: (n) => `${n} ${n === "1" ? "avis" : "avis"}`,
+    de: (n) => `${n} ${n === "1" ? "Bewertung" : "Bewertungen"}`,
+    pt: (n) => `${n} ${n === "1" ? "avaliação" : "avaliações"}`,
+  },
+  members: {
+    tr: (n) => `${n} üye`,
+    es: (n) => `${n} ${n === "1" ? "miembro" : "miembros"}`,
+    fr: (n) => `${n} ${n === "1" ? "membre" : "membres"}`,
+    de: (n) => `${n} ${n === "1" ? "Mitglied" : "Mitglieder"}`,
+    pt: (n) => `${n} ${n === "1" ? "membro" : "membros"}`,
+  },
+  students: {
+    tr: (n) => `${n} öğrenci`,
+    es: (n) => `${n} ${n === "1" ? "estudiante" : "estudiantes"}`,
+    fr: (n) => `${n} ${n === "1" ? "élève" : "élèves"}`,
+    de: (n) => `${n} ${n === "1" ? "Schüler" : "Schüler"}`,
+    pt: (n) => `${n} ${n === "1" ? "estudante" : "estudantes"}`,
+  },
+  times: {
+    // "Used 4 times" -- the count of how often a shared study path has been
+    // copied. Singular reads "once" in English, which is why the shape rule
+    // below carries the whole phrase rather than this table carrying the noun.
+    tr: (n) => `${n} kez`,
+    es: (n) => `${n} ${n === "1" ? "vez" : "veces"}`,
+    fr: (n) => `${n} fois`,
+    de: (n) => `${n} Mal`,
+    pt: (n) => `${n} ${n === "1" ? "vez" : "vezes"}`,
+  },
 };
 
 /**
@@ -126,6 +157,18 @@ const SHAPE_RULES: Array<{
       fr: (n) => `${n} % de preuves de maîtrise`,
       de: (n) => `${n} % Kompetenznachweis`,
       pt: (n) => `${n} % de evidência de domínio`,
+    },
+  },
+  {
+    // "Used 4 times", under a shared study path. Singular is "once" in
+    // English and a plain number elsewhere, so the whole phrase is a rule.
+    match: /^Used (\d[\d.,]*) times?$/,
+    render: {
+      tr: (n) => `${n} kez kullanıldı`,
+      es: (n) => `Usada ${n} ${n === "1" ? "vez" : "veces"}`,
+      fr: (n) => `Utilisée ${n} fois`,
+      de: (n) => `${n}-mal verwendet`,
+      pt: (n) => `Usada ${n} ${n === "1" ? "vez" : "vezes"}`,
     },
   },
   {

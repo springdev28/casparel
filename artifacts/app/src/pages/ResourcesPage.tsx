@@ -129,6 +129,7 @@ import {
   dedupeByWork,
   isSameWork,
 } from "@workspace/resource-identity";
+import { counted } from "@/lib/counted";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
 const GRADE_LEVEL_OPTIONS = [
@@ -530,7 +531,7 @@ function LibraryCard({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            {resource.reviewCount} review{resource.reviewCount !== 1 ? "s" : ""}
+            {counted(resource.reviewCount, "review", "reviews")}
           </span>
           <Button
             type="button"
