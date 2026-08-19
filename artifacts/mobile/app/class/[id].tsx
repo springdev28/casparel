@@ -16,6 +16,7 @@ import { Empty } from '@workspace/edu-ds/components/native/empty';
 import { useGetClass } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { ClassMember } from '@workspace/api-client-react';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 function MemberRow({ member }: { member: ClassMember }) {
   const colors = useColors();
@@ -77,6 +78,7 @@ function MemberRow({ member }: { member: ClassMember }) {
 }
 
 export default function ClassDetailScreen() {
+  const { t } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -100,7 +102,7 @@ export default function ClassDetailScreen() {
   }
 
   if (!cls) {
-    return <Empty icon="alert-circle" title="Class not found" />;
+    return <Empty icon="alert-circle" title={t('Class not found')} />;
   }
 
   const teachers = cls.members.filter((m) => m.role === 'teacher');
@@ -217,7 +219,7 @@ export default function ClassDetailScreen() {
               { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
             ]}
           >
-            Total
+            {t('Total')}
           </Text>
         </View>
       </View>
@@ -230,11 +232,11 @@ export default function ClassDetailScreen() {
             { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
           ]}
         >
-          Members
+          {t('Members')}
         </Text>
 
         {cls.members.length === 0 ? (
-          <Empty icon="users" title="No members yet" />
+          <Empty icon="users" title={t('No members yet')} />
         ) : (
           <View
             style={[

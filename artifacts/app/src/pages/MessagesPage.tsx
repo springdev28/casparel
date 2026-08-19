@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useIntlLocale } from "@/lib/date-locale";
 import { useSearch } from "wouter";
 import { useGetMe } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -52,6 +53,7 @@ async function messageRequest<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export default function MessagesPage() {
+  const intlLocale = useIntlLocale();
   const search = useSearch();
   const targetUserId = Number(new URLSearchParams(search).get("userId"));
   const { data: me } = useGetMe();
@@ -174,7 +176,7 @@ export default function MessagesPage() {
           {loading ? <div className="p-6 text-center"><Loader2 className="mx-auto size-5 animate-spin" /></div> : conversations.map((conversation) => (
             <button key={conversation.id} onClick={() => void openConversation(conversation)} className={(active?.id === conversation.id ? "bg-muted " : "") + "flex w-full gap-3 border-b p-3 text-left hover:bg-muted/60"}>
               <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold">{conversation.other.name.slice(0, 1).toUpperCase()}</span>
-              <span className="min-w-0 flex-1"><span translate="no" className="flex items-center gap-1 font-medium">{conversation.other.name}{conversation.other.role === "admin" ? <ShieldCheck className="size-3.5 text-primary-text" /> : null}</span><span className="block truncate text-xs text-muted-foreground">{conversation.incomingRequest ? "Message request" : conversation.lastMessage?.body || "Start a conversation"}</span></span>
+              <span className="min-w-0 flex-1"><span translate="no" className="flex items-center gap-1 font-medium">{conversation.other.name}{conversation.other.role === "admin" ? <ShieldCheck className="size-3.5 text-primary-text" /> : null}</span><span className="block truncate text-xs text-muted-foreground">{conversation.incomingRequest ? "Message request" : conversation.lastMessage?.body ? <span translate="no">{conversation.lastMessage.body}</span> : "Start a conversation"}</span></span>
               {conversation.unreadCount ? <Badge>{conversation.unreadCount}</Badge> : null}
             </button>
           ))}
@@ -184,7 +186,7 @@ export default function MessagesPage() {
           {active ? <>
             <div className="flex items-center gap-3 border-b px-4 py-3"><Button className="md:hidden" size="icon" variant="ghost" onClick={() => setActive(null)} aria-label="Back to conversations"><X className="size-4" aria-hidden="true" /></Button><div className="min-w-0 flex-1"><p translate="no" className="font-semibold">{active.other.name}</p><p className="text-xs capitalize text-muted-foreground">{active.other.role}</p></div>{active.other.role === "admin" ? <Badge className="gap-1"><ShieldCheck className="size-3" />Official administrator</Badge> : null}</div>
             {active.incomingRequest ? <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/50 p-3 text-sm"><span>Accept this request before replying.</span><span className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void respond("decline")}><X className="mr-1 size-4" />Decline</Button><Button size="sm" onClick={() => void respond("accept")}><Check className="mr-1 size-4" />Accept</Button></span></div> : null}
-            <div className="flex-1 space-y-3 overflow-y-auto p-4">{orderedMessages.map((message) => { const mine = message.senderId === me?.id; return <div key={message.id} className={"flex " + (mine ? "justify-end" : "justify-start")}><div className={(message.isAdminMessage ? "border-primary bg-primary/10 " : mine ? "bg-primary text-primary-foreground " : "bg-muted ") + "max-w-[82%] border px-3 py-2 text-sm"} style={{ borderRadius: 8 }}>{message.isAdminMessage ? <p className="mb-1 flex items-center gap-1 text-xs font-bold text-primary-text"><ShieldCheck className="size-3" />Official administrator message</p> : null}<p translate="no" className="whitespace-pre-wrap break-words">{message.body}</p><p className="mt-1 text-[10px] opacity-70">{new Date(message.createdAt).toLocaleString()}</p></div></div>; })}</div>
+            <div className="flex-1 space-y-3 overflow-y-auto p-4">{orderedMessages.map((message) => { const mine = message.senderId === me?.id; return <div key={message.id} className={"flex " + (mine ? "justify-end" : "justify-start")}><div className={(message.isAdminMessage ? "border-primary bg-primary/10 " : mine ? "bg-primary text-primary-foreground " : "bg-muted ") + "max-w-[82%] border px-3 py-2 text-sm"} style={{ borderRadius: 8 }}>{message.isAdminMessage ? <p className="mb-1 flex items-center gap-1 text-xs font-bold text-primary-text"><ShieldCheck className="size-3" />Official administrator message</p> : null}<p translate="no" className="whitespace-pre-wrap break-words">{message.body}</p><p className="mt-1 text-[10px] opacity-70">{new Date(message.createdAt).toLocaleString(intlLocale)}</p></div></div>; })}</div>
             <form onSubmit={send} className="flex gap-2 border-t p-3"><Input name="body" autoComplete="off" aria-label="Message" placeholder={active.incomingRequest ? "Accept the request to reply" : "Write a private message…"} disabled={active.incomingRequest || active.status === "declined"} /><Button size="icon" type="submit" disabled={sending || active.incomingRequest} aria-label="Send message"><Send className="size-4" aria-hidden="true" /></Button></form>
           </> : <div className="m-auto text-center text-muted-foreground"><MessageCircle className="mx-auto mb-2 size-8" /><p>Select a conversation</p></div>}
         </main>

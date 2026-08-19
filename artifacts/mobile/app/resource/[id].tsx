@@ -20,6 +20,7 @@ import { useGetResource, useListResourceReviews } from '@workspace/api-client-re
 import { Feather } from '@expo/vector-icons';
 import type { Review } from '@workspace/api-client-react';
 import { SourceReviewSection } from '@/components/SourceReviewSection';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 function StarRow({ rating }: { rating: number }) {
   const colors = useColors();
@@ -105,6 +106,7 @@ function ReviewCard({ item }: { item: Review }) {
 }
 
 export default function ResourceDetailScreen() {
+  const { t } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -130,7 +132,7 @@ export default function ResourceDetailScreen() {
 
   if (!resource) {
     return (
-      <Empty icon="alert-circle" title="Resource not found" />
+      <Empty icon="alert-circle" title={t('Resource not found')} />
     );
   }
 
@@ -187,8 +189,8 @@ export default function ResourceDetailScreen() {
                 ]}
               >
                 {resource.verificationStatus === 'rejected'
-                  ? 'A reviewer did not approve this source.'
-                  : 'Not yet reviewed, check the source before you rely on it.'}
+                  ? t('A reviewer did not approve this source.')
+                  : t('Not yet reviewed, check the source before you rely on it.')}
               </Text>
             </View>
           ) : null}
@@ -246,7 +248,7 @@ export default function ResourceDetailScreen() {
               { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
             ]}
           >
-            About
+            {t('About')}
           </Text>
           <Text
             style={[
@@ -265,7 +267,7 @@ export default function ResourceDetailScreen() {
         size="lg"
         style={{ marginTop: 4 }}
       >
-        Open Resource
+        {t('Open Resource')}
       </Button>
 
       {/* Source review: quick is non-AI; deep AI requires Plus or Pro. */}
@@ -279,7 +281,7 @@ export default function ResourceDetailScreen() {
             { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
           ]}
         >
-          Reviews
+          {t('Reviews')}
         </Text>
 
         {reviewsLoading ? (
@@ -289,7 +291,7 @@ export default function ResourceDetailScreen() {
             ))}
           </View>
         ) : !reviews?.length ? (
-          <Empty icon="star" title="No reviews yet" description="Be the first to review this resource" />
+          <Empty icon="star" title={t('No reviews yet')} description={t("Be the first to review this resource")} />
         ) : (
           <View
             style={[

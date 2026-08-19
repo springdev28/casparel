@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useIntlLocale } from "@/lib/date-locale";
 import {
   BarChart3,
   Bell,
@@ -90,6 +91,7 @@ export function ClassAssignments({
   initialActivityId?: number | null;
   initialResourceId?: number | null;
 }) {
+  const intlLocale = useIntlLocale();
   const [, setLocation] = useLocation();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -455,7 +457,7 @@ export function ClassAssignments({
                   <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                     {assignment.dueAt && (
                       <span>
-                        Due {new Date(assignment.dueAt).toLocaleString()}
+                        Due {new Date(assignment.dueAt).toLocaleString(intlLocale)}
                       </span>
                     )}
                     {assignment.resourceTitle && (

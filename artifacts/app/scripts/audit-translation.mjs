@@ -45,9 +45,20 @@ const PAGES = (
 // page's own strings as translation gaps. Its strings were added to every
 // dictionary by hand; wiring the remaining fixtures is the way to cover it
 // here properly.
+/*
+ * Every signed-in route the page audit renders, not the six this list started
+ * with. The two audits had drifted apart: the render audit grew to sixteen
+ * routes and this one stayed at six, so ten pages -- schedule, classes, goals,
+ * forum, messages, activities, lists, people, canvas, admin -- were rendered
+ * every build and never once read in another language. Measured when they were
+ * finally added: 36 strings a Spanish reader saw in English, on pages that
+ * looked fully translated because the pages that were checked were.
+ */
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
-  "/dashboard,/profile,/resources,/catalog,/settings,/plans"
+  "/dashboard,/profile,/resources,/catalog,/settings,/plans," +
+    "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people," +
+    "/canvas,/admin"
 )
   .split(",")
   .filter(Boolean);

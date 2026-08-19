@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 // NOTE: `ApiError` lives in lib/api-client-react/src/custom-fetch.ts but is NOT
 // re-exported from '@workspace/api-client-react', and that package is generated
@@ -44,7 +45,11 @@ export function describeQueryError(error: unknown): {
 
   return {
     title: "Couldn't load this",
-    description: `The server returned an error (HTTP ${status}). Try again in a moment.`,
+    // The status is left out of the sentence on purpose. It made the string
+    // different every time, so no dictionary entry could ever match it, and
+    // it told the reader nothing they could act on. The web app's LoadFailure
+    // reached the same conclusion.
+    description: "Something went wrong at our end. Try again in a moment.",
     icon: 'alert-circle',
   };
 }
@@ -62,6 +67,7 @@ export function ErrorState({
   variant?: 'block' | 'banner';
   style?: object;
 }) {
+  const { t } = useLanguage();
   const colors = useColors();
   const { title, description, icon } = describeQueryError(error);
 
@@ -88,7 +94,7 @@ export function ErrorState({
             ]}
             numberOfLines={1}
           >
-            {title}
+            {t(title)}
           </Text>
           <Text
             style={[
@@ -97,11 +103,11 @@ export function ErrorState({
             ]}
             numberOfLines={2}
           >
-            {description}
+            {t(description)}
           </Text>
         </View>
         <Button size="sm" variant="outline" onPress={onRetry} loading={retrying}>
-          Retry
+          {t('Retry')}
         </Button>
       </View>
     );
@@ -123,7 +129,7 @@ export function ErrorState({
           { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
         ]}
       >
-        {title}
+        {t(title)}
       </Text>
       <Text
         style={[
@@ -131,10 +137,10 @@ export function ErrorState({
           { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
         ]}
       >
-        {description}
+        {t(description)}
       </Text>
       <Button variant="outline" onPress={onRetry} loading={retrying}>
-        Try again
+        {t('Try again')}
       </Button>
     </View>
   );

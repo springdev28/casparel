@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useIntlLocale } from "@/lib/date-locale";
 import { Bell, BookOpen, Check, Clock3 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
@@ -18,6 +19,7 @@ type TodayAssignment = {
 };
 
 export function TodayAssignments() {
+  const intlLocale = useIntlLocale();
   const [, setLocation] = useLocation();
   const [items, setItems] = useState<TodayAssignment[]>([]);
   const [alertsEnabled, setAlertsEnabled] = useState(
@@ -97,7 +99,7 @@ export function TodayAssignments() {
                 <p className="text-xs text-muted-foreground">
                   {item.className}
                   {item.dueAt
-                    ? ` · Due ${new Date(item.dueAt).toLocaleString()}`
+                    ? ` · Due ${new Date(item.dueAt).toLocaleString(intlLocale)}`
                     : ""}
                 </p>
               </div>

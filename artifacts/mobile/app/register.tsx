@@ -17,6 +17,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRegister } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { describeAuthFailure } from '@/utils/auth-errors';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 /**
  * Creating an account, on the phone.
@@ -30,6 +31,7 @@ import { describeAuthFailure } from '@/utils/auth-errors';
 const MIN_PASSWORD = 8;
 
 export default function RegisterScreen() {
+  const { t } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -45,7 +47,7 @@ export default function RegisterScreen() {
   const handleRegister = () => {
     setErrorMsg('');
     if (!name.trim() || !email.trim() || !password) {
-      setErrorMsg('Please fill in your name, email and password.');
+      setErrorMsg(t('Please fill in your name, email and password.'));
       return;
     }
     if (password.length < MIN_PASSWORD) {
@@ -107,7 +109,7 @@ export default function RegisterScreen() {
               { color: colors.foreground, fontFamily: colors.fontFamily.sansBold },
             ]}
           >
-            Create your account
+            {t('Create your account')}
           </Text>
           <Text
             style={[
@@ -115,7 +117,7 @@ export default function RegisterScreen() {
               { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
             ]}
           >
-            Free to join. The library stays free.
+            {t('Free to join. The library stays free.')}
           </Text>
         </View>
 
@@ -130,15 +132,15 @@ export default function RegisterScreen() {
           ]}
         >
           <Input
-            label="Name"
-            placeholder="Your name"
+            label={t('Name')}
+            placeholder={t('Your name')}
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
             autoComplete="name"
           />
           <Input
-            label="Email"
+            label={t('Email')}
             placeholder="you@school.edu"
             value={email}
             onChangeText={setEmail}
@@ -148,8 +150,8 @@ export default function RegisterScreen() {
             style={{ marginTop: 16 }}
           />
           <Input
-            label="Password"
-            placeholder="At least 8 characters"
+            label={t('Password')}
+            placeholder={t('At least 8 characters')}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -175,7 +177,7 @@ export default function RegisterScreen() {
             size="lg"
             style={{ marginTop: 24 }}
           >
-            Create account
+            {t('Create account')}
           </Button>
         </View>
 
@@ -188,7 +190,7 @@ export default function RegisterScreen() {
           >
             Already have an account?{' '}
             <Text style={{ color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}>
-              Sign in
+              {t('Sign in')}
             </Text>
           </Text>
         </Pressable>

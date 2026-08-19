@@ -14,6 +14,7 @@ import { useColors } from "@workspace/edu-ds/hooks/use-colors";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PurchasesProvider } from "@/contexts/PurchasesContext";
 import { OnboardingProvider, useOnboarding } from "@/contexts/OnboardingContext";
+import { LanguageProvider, useLanguage } from "@/contexts/LanguageContext";
 
 // Module-level setup, runs before any component renders
 setBaseUrl(apiOrigin);
@@ -31,6 +32,7 @@ const queryClient = new QueryClient({
 });
 
 function RootLayoutNav() {
+  const { t } = useLanguage();
   const colors = useColors();
   const { isAuthenticated, isLoading } = useAuth();
   const { ready: onboardingReady, needsOnboarding } = useOnboarding();
@@ -87,11 +89,11 @@ function RootLayoutNav() {
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen
         name="resource/[id]"
-        options={{ title: "Resource", headerBackTitle: "Back" }}
+        options={{ title: t('Resource'), headerBackTitle: t("Back") }}
       />
       <Stack.Screen
         name="class/[id]"
-        options={{ title: "Class", headerBackTitle: "Back" }}
+        options={{ title: t('Class'), headerBackTitle: t("Back") }}
       />
       <Stack.Screen
         name="paywall"
@@ -119,11 +121,15 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <AuthProvider>
-                <OnboardingProvider>
-                  <PurchasesProvider>
-                    <RootLayoutNav />
-                  </PurchasesProvider>
-                </OnboardingProvider>
+                {/* Inside AuthProvider: the account's language is fetched with
+                    the session token, so this needs the token to exist. */}
+                <LanguageProvider>
+                  <OnboardingProvider>
+                    <PurchasesProvider>
+                      <RootLayoutNav />
+                    </PurchasesProvider>
+                  </OnboardingProvider>
+                </LanguageProvider>
               </AuthProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>

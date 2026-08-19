@@ -13,6 +13,7 @@ import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { useDateLocale } from "@/lib/date-locale";
 import {
   useListResourceLists,
   useCreateResourceList,
@@ -20,8 +21,10 @@ import {
   useListSharedResourceLists,
   getListResourceListsQueryKey,
 } from '@workspace/api-client-react';
+import { counted } from "@/lib/counted";
 
 export default function ListsPage() {
+  const locale = useDateLocale();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
 
@@ -149,7 +152,7 @@ export default function ListsPage() {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="text-base">{list.name}</CardTitle>
+                  <CardTitle translate="no" className="text-base">{list.name}</CardTitle>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -164,19 +167,22 @@ export default function ListsPage() {
                     // screen-reader user which of them destroys what -- which
                     // is nothing.
                     aria-label={`Delete ${list.name}`}
+                    // The label carries a name the reader chose; the bridge
+                    // rewrites aria-label as readily as it rewrites text.
+                    translate="no"
                     data-testid="delete-list-button"
                   >
                     <Trash2 size={14} aria-hidden="true" />
                   </Button>
                 </div>
                 {list.description && (
-                  <CardDescription className="line-clamp-2">{list.description}</CardDescription>
+                  <CardDescription translate="no" className="line-clamp-2">{list.description}</CardDescription>
                 )}
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{list.itemCount} item{list.itemCount !== 1 ? 's' : ''}</span>
-                  <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true })}</span>
+                  <span>{counted(list.itemCount, "item", "items")}</span>
+                  <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true, locale })}</span>
                 </div>
               </CardContent>
             </Card>
@@ -212,17 +218,17 @@ export default function ListsPage() {
                   >
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="text-base">{list.name}</CardTitle>
+                        <CardTitle translate="no" className="text-base">{list.name}</CardTitle>
                         <Badge variant="secondary" className="shrink-0 text-xs">Shared</Badge>
                       </div>
                       {list.description && (
-                        <CardDescription className="line-clamp-2">{list.description}</CardDescription>
+                        <CardDescription translate="no" className="line-clamp-2">{list.description}</CardDescription>
                       )}
                     </CardHeader>
                     <CardContent>
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{list.itemCount} item{list.itemCount !== 1 ? 's' : ''}</span>
-                        <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true })}</span>
+                        <span>{counted(list.itemCount, "item", "items")}</span>
+                        <span className="text-xs">{formatDistanceToNow(new Date(list.createdAt), { addSuffix: true, locale })}</span>
                       </div>
                     </CardContent>
                   </Card>

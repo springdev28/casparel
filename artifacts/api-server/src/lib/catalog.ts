@@ -2095,7 +2095,10 @@ async function recordCatalogSync(
 function catalogUserAgent() {
   return process.env.CATALOG_CONTACT_EMAIL
     ? `Casparel/1.0 (${process.env.CATALOG_CONTACT_EMAIL})`
-    : "Casparel/1.0 (https://github.com/springdev28/schoolar)";
+    // The point of a contact URL is that somebody at DOAJ or arXiv can reach
+    // us about rate limits or misuse. This one 404s: the repository is
+    // `casparel`, and was renamed out from under it.
+    : "Casparel/1.0 (https://github.com/springdev28/casparel)";
 }
 
 /**

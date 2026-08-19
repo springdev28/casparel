@@ -183,6 +183,20 @@ Three ways to sign Windows, best fit first for this project:
 Certificate validity also dropped to 15 months in March 2026, so this becomes a
 renewal every year and a bit rather than every three.
 
+### When SignPath approves
+
+Approval is not the end of the work, and the attribution is a condition of the
+free certificate rather than a nicety. The checklist lives in a comment at the
+foot of [the code signing policy](code-signing-policy.md), next to the exact
+wording to publish: credit in the policy, the same credit on `/code-signing` in
+all five languages, the signing step added to the release workflow, and the two
+"pending" statements — the policy's status line and the page's table — corrected.
+
+Nothing on that list before approval arrives. Publishing "certificate by
+SignPath Foundation" while an application is still open would claim a
+relationship the project does not have, which is a bad thing for a document
+about verifying provenance to do.
+
 A build reporting success says nothing about what the installers contain, and
 every Linux packaging defect found so far was of exactly that kind: one icon
 size where there should have been eight, a malformed line in the

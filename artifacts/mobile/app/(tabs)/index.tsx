@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ErrorState } from '@/components/ErrorState';
 import type { ActivityItem } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 function StatCard({
   label,
@@ -149,6 +150,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 }
 
 export default function DashboardScreen() {
+  const { t } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user: authUser } = useAuth();
@@ -228,7 +230,7 @@ export default function DashboardScreen() {
               { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
             ]}
           >
-            {isTeacher ? "Here's your classroom overview" : "Here's your learning overview"}
+            {isTeacher ? t("Here's your classroom overview") : t("Here's your learning overview")}
           </Text>
         </View>
       </View>
@@ -247,7 +249,7 @@ export default function DashboardScreen() {
       ) : null}
       <View style={styles.statsGrid}>
         <StatCard
-          label="Classes"
+          label={t('Classes')}
           value={summary?.classCount}
           icon="users"
           color={colors.primary}
@@ -255,7 +257,7 @@ export default function DashboardScreen() {
           isFailed={summaryFailed}
         />
         <StatCard
-          label="Resources"
+          label={t('Resources')}
           value={summary?.resourceCount}
           icon="book-open"
           color={colors.accent}
@@ -263,7 +265,7 @@ export default function DashboardScreen() {
           isFailed={summaryFailed}
         />
         <StatCard
-          label="Schedule"
+          label={t('Schedule')}
           value={summary?.scheduleBlockCount}
           icon="calendar"
           color={colors.chart3}
@@ -271,7 +273,7 @@ export default function DashboardScreen() {
           isFailed={summaryFailed}
         />
         <StatCard
-          label={isTeacher ? 'Students' : 'Reviews'}
+          label={isTeacher ? t('Students') : t('Reviews')}
           value={isTeacher ? summary?.studentCount : summary?.reviewCount}
           icon={isTeacher ? 'user-check' : 'star'}
           color={colors.chart4}
@@ -288,7 +290,7 @@ export default function DashboardScreen() {
             { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
           ]}
         >
-          Recent Activity
+          {t('Recent Activity')}
         </Text>
 
         {activityLoading ? (
@@ -308,8 +310,8 @@ export default function DashboardScreen() {
         ) : !activity?.length ? (
           <Empty
             icon="activity"
-            title="No activity yet"
-            description="Your recent actions will appear here"
+            title={t('No activity yet')}
+            description={t("Your recent actions will appear here")}
           />
         ) : (
           <View

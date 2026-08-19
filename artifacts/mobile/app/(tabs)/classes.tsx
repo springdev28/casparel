@@ -28,6 +28,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { Feather } from '@expo/vector-icons';
 import type { Class, ClassInvitation } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 function ClassCard({ item, onPress }: { item: Class; onPress: () => void }) {
   const colors = useColors();
@@ -136,6 +137,7 @@ function InvitationCard({
   busy: boolean;
   onRespond: (action: 'accept' | 'decline') => void;
 }) {
+  const { t } = useLanguage();
   const colors = useColors();
   return (
     <View
@@ -156,7 +158,7 @@ function InvitationCard({
               { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
             ]}
           >
-            {invitation.class?.name ?? 'A class'}
+            {invitation.class?.name ?? t('A class')}
           </Text>
           <Text
             style={[
@@ -166,7 +168,7 @@ function InvitationCard({
           >
             {invitation.inviter?.name
               ? `${invitation.inviter.name} invited you`
-              : 'You have been invited'}
+              : t('You have been invited')}
           </Text>
         </View>
       </View>
@@ -187,7 +189,7 @@ function InvitationCard({
               { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium },
             ]}
           >
-            Decline
+            {t('Decline')}
           </Text>
         </Pressable>
         <Pressable
@@ -210,7 +212,7 @@ function InvitationCard({
               { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansMedium },
             ]}
           >
-            Join class
+            {t('Join class')}
           </Text>
         </Pressable>
       </View>
@@ -219,6 +221,7 @@ function InvitationCard({
 }
 
 export default function ClassesScreen() {
+  const { t } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -248,8 +251,8 @@ export default function ClassesScreen() {
       ]);
     } catch (failure) {
       Alert.alert(
-        action === 'accept' ? 'Could not join the class' : 'Could not decline',
-        describeApiFailure(failure, 'Please try again.'),
+        action === 'accept' ? t('Could not join the class') : t('Could not decline'),
+        describeApiFailure(failure, t('Please try again.')),
       );
     } finally {
       setAnswering(null);
@@ -288,7 +291,7 @@ export default function ClassesScreen() {
             { color: colors.foreground, fontFamily: colors.fontFamily.sansBold },
           ]}
         >
-          Classes
+          {t('Classes')}
         </Text>
       </View>
 
@@ -332,7 +335,7 @@ export default function ClassesScreen() {
                     { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold },
                   ]}
                 >
-                  {pending.length === 1 ? 'Invitation' : 'Invitations'}
+                  {pending.length === 1 ? t('Invitation') : t('Invitations')}
                 </Text>
                 {pending.map((invitation) => (
                   <InvitationCard
@@ -349,8 +352,8 @@ export default function ClassesScreen() {
             pending.length ? null : (
               <Empty
                 icon="users"
-                title="No classes yet"
-                description="Classes you join or create will appear here"
+                title={t('No classes yet')}
+                description={t("Classes you join or create will appear here")}
               />
             )
           }

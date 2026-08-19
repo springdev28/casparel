@@ -477,8 +477,20 @@ export async function installSession(context, options = {}) {
   // boundary -- so the public /resources page was audited as an error screen
   // rather than as itself, and the strings reported for it were the error
   // page's.
+  /*
+   * A last chance to rewrite what the fixtures answer, for an audit that
+   * needs the same product with different data in it.
+   *
+   * It lives here rather than in a second `context.route` in the caller
+   * because Playwright's handlers do not compose: the newest runs first and
+   * `route.fetch()` bypasses the rest, so a wrapper reaches the static file
+   * server rather than the fixture table and every page renders its error
+   * boundary. One table, one handler, one hook.
+   */
+  const transformBody = options.transformBody ?? ((body) => body);
+
   if (options.signedOut) {
-    await routeFixtures(context, { language, colors, unfixtured, user });
+    await routeFixtures(context, { language, colors, unfixtured, user, transformBody });
     return unfixtured;
   }
 
@@ -495,13 +507,13 @@ export async function installSession(context, options = {}) {
     { token: sessionToken(options), colors },
   );
 
-  await routeFixtures(context, { language, colors, unfixtured, user });
+  await routeFixtures(context, { language, colors, unfixtured, user, transformBody });
 
   return unfixtured;
 }
 
 /** Answer every /api/* call from the fixture table. */
-async function routeFixtures(context, { language, colors, unfixtured, user }) {
+async function routeFixtures(context, { language, colors, unfixtured, user, transformBody }) {
   await context.route("**/api/**", async (route) => {
     const { pathname } = new URL(route.request().url());
     const body =
@@ -526,7 +538,7 @@ async function routeFixtures(context, { language, colors, unfixtured, user }) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(body),
+      body: JSON.stringify(transformBody(body, pathname)),
     });
   });
 }

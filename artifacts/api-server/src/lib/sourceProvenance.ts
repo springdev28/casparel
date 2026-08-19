@@ -117,6 +117,136 @@ const sources: Record<string, KnownSource> = {
     founded: "2006",
     headquarters: "San Francisco, California, United States",
   },
+  /*
+   * The catalogue's own providers.
+   *
+   * Casparel searches DOAB, DOAJ, Europe PMC, arXiv, OpenAlex, Project
+   * Gutenberg, the Internet Archive and the Wikimedia projects, and until now
+   * only one of them -- Open Library -- was in this registry. So the quick
+   * check answered a book the product had just recommended with "this domain
+   * is not yet in Casparel's maintained source registry ... verify its author,
+   * publication date, evidence and usage rights before relying on it". Told
+   * about Project Gutenberg. That is the trust claim failing on the product's
+   * own shelf.
+   *
+   * Ratings are what the source is, not how much we like it. A preprint server
+   * is moderated and not peer-reviewed; an archive is a custodian rather than
+   * a publisher; an open wiki is editable by anyone. Each is "medium" with the
+   * caveat named, because a student deciding whether to cite something needs
+   * the caveat more than the compliment.
+   *
+   * YouTube is deliberately absent. It is a platform, not a publisher: rating
+   * the domain would be rating every uploader on it at once, and "unknown,
+   * check it yourself" is the true answer for a video.
+   */
+  "gutenberg.org": {
+    name: "Project Gutenberg",
+    type: "nonprofit",
+    description:
+      "A volunteer library of public-domain books, digitised and proofread by contributors.",
+    trust: "high",
+    reason:
+      "A long-established nonprofit library that publishes transcriptions of works already in the public domain, with a documented proofreading process.",
+    founded: "1971",
+    license: "Public domain in the United States, distributed under the Project Gutenberg License",
+  },
+  "archive.org": {
+    name: "Internet Archive",
+    type: "nonprofit",
+    description:
+      "A nonprofit digital library preserving web pages, books, audio and moving images.",
+    trust: "medium",
+    reason:
+      "An established nonprofit custodian, but much of the collection is uploaded by others: the Archive vouches for preservation rather than for what was preserved.",
+    founded: "1996",
+    headquarters: "San Francisco, California, United States",
+  },
+  "doaj.org": {
+    name: "Directory of Open Access Journals",
+    type: "nonprofit",
+    description:
+      "A community-curated index of peer-reviewed open-access journals.",
+    trust: "high",
+    reason:
+      "Journals are admitted against published inclusion criteria that require peer review and transparent editorial practice.",
+    founded: "2003",
+  },
+  "doabooks.org": {
+    name: "Directory of Open Access Books",
+    type: "nonprofit",
+    description:
+      "An index of peer-reviewed open-access academic books, operated by the OAPEN Foundation.",
+    trust: "high",
+    reason:
+      "Titles are admitted against published criteria that require academic peer review.",
+    founded: "2012",
+  },
+  "arxiv.org": {
+    name: "arXiv",
+    type: "preprint-server",
+    description:
+      "An open repository of scholarly preprints, operated by Cornell University.",
+    trust: "medium",
+    reason:
+      "Submissions are moderated for scope, not peer-reviewed: a paper here may be sound, revised later, or never accepted anywhere.",
+    founded: "1991",
+    headquarters: "Ithaca, New York, United States",
+  },
+  "europepmc.org": {
+    name: "Europe PMC",
+    type: "repository",
+    description:
+      "A life-sciences literature database developed and maintained by EMBL-EBI.",
+    trust: "medium",
+    reason:
+      "An established institutional database, but it indexes preprints alongside peer-reviewed articles: which one you are reading has to be checked on the record itself.",
+  },
+  "openalex.org": {
+    name: "OpenAlex",
+    type: "index",
+    description:
+      "An open index of scholarly works, authors and institutions, published by OurResearch.",
+    trust: "medium",
+    reason:
+      "A catalogue rather than a publisher: it records what exists and does not assess it, so the work it points at still has to be judged on its own.",
+  },
+  "wikibooks.org": {
+    name: "Wikibooks",
+    type: "open-textbook",
+    description:
+      "A Wikimedia project publishing open textbooks written collaboratively.",
+    trust: "medium",
+    reason:
+      "Anyone may edit it. Every change is public and revertible, and pages vary from carefully sourced to barely started, so a specific page has to be judged rather than the site.",
+  },
+  "wikiversity.org": {
+    name: "Wikiversity",
+    type: "open-courseware",
+    description:
+      "A Wikimedia project hosting collaboratively written learning materials.",
+    trust: "medium",
+    reason:
+      "Anyone may edit it, and much of it is coursework in progress rather than finished material; judge the page, not the site.",
+  },
+  "wikisource.org": {
+    name: "Wikisource",
+    type: "digital-library",
+    description:
+      "A Wikimedia library of source texts, transcribed and proofread by volunteers.",
+    trust: "medium",
+    reason:
+      "Transcriptions are volunteer-made against scans anyone can check, which is a strength for provenance and no guarantee against a typo; the underlying work is whatever it always was.",
+  },
+  "wikipedia.org": {
+    name: "Wikipedia",
+    type: "encyclopedia",
+    description:
+      "A collaboratively written encyclopedia published by the Wikimedia Foundation.",
+    trust: "medium",
+    reason:
+      "Anyone may edit it, with public revision history and citation norms. Useful for orientation and for finding sources; Wikipedia's own guidance is not to cite it as one.",
+    founded: "2001",
+  },
   "plato.stanford.edu": {
     name: "Stanford Encyclopedia of Philosophy",
     type: "university",

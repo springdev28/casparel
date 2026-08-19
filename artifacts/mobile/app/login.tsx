@@ -17,12 +17,14 @@ import { Feather } from '@expo/vector-icons';
 import { useLogin } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { describeAuthFailure } from '@/utils/auth-errors';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { login } = useAuth();
+  const { t } = useLanguage();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,7 +35,7 @@ export default function LoginScreen() {
   const handleLogin = () => {
     setErrorMsg('');
     if (!email.trim() || !password.trim()) {
-      setErrorMsg('Please enter your email and password.');
+      setErrorMsg(t('Please enter your email and password.'));
       return;
     }
     loginMutation.mutate(
@@ -95,7 +97,7 @@ export default function LoginScreen() {
               { color: colors.foreground, fontFamily: colors.fontFamily.sansBold },
             ]}
           >
-            Welcome back
+            {t('Welcome back')}
           </Text>
           <Text
             style={[
@@ -106,7 +108,7 @@ export default function LoginScreen() {
               },
             ]}
           >
-            Sign in to your account
+            {t('Sign in to your account')}
           </Text>
         </View>
 
@@ -121,7 +123,7 @@ export default function LoginScreen() {
           ]}
         >
           <Input
-            label="Email"
+            label={t("Email")}
             placeholder="you@school.edu"
             value={email}
             onChangeText={setEmail}
@@ -130,7 +132,7 @@ export default function LoginScreen() {
             autoComplete="email"
           />
           <Input
-            label="Password"
+            label={t("Password")}
             placeholder="••••••••"
             value={password}
             onChangeText={setPassword}
@@ -160,7 +162,7 @@ export default function LoginScreen() {
             size="lg"
             style={{ marginTop: 24 }}
           >
-            Sign in
+            {t('Sign in')}
           </Button>
         </View>
 
@@ -178,14 +180,14 @@ export default function LoginScreen() {
               },
             ]}
           >
-            New to Casparel?{' '}
+            {t('New to Casparel?')}{' '}
             <Text
               style={{
                 color: colors.primary,
                 fontFamily: colors.fontFamily.sansMedium,
               }}
             >
-              Create an account
+              {t('Create an account')}
             </Text>
           </Text>
         </Pressable>

@@ -34,6 +34,7 @@ import { describeApiFailure } from '@/utils/api-failure';
 import { sessionPalette } from '@/utils/session-palette';
 import { ErrorState } from '@/components/ErrorState';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -113,6 +114,7 @@ function StudySessionCard({
   session: StudySessionWithParticipants;
   onPress: () => void;
 }) {
+  const { t } = useLanguage();
   const colors = useColors();
   const violet = sessionPalette(useColorScheme());
   const isPending = session.myStatus === 'pending';
@@ -146,7 +148,7 @@ function StudySessionCard({
         </Text>
         {isPending && (
           <View style={[styles.pendingBadge, { borderColor: violet.accent }]}>
-            <Text style={[styles.pendingBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>Pending</Text>
+            <Text style={[styles.pendingBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>{t('Pending')}</Text>
           </View>
         )}
       </View>
@@ -155,7 +157,7 @@ function StudySessionCard({
       </Text>
       <View style={styles.sessionMeta}>
         <View style={[styles.collaborativeBadge, { backgroundColor: violet.surfacePressed }]}>
-          <Text style={[styles.collaborativeBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>👥 Collaborative</Text>
+          <Text style={[styles.collaborativeBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>👥 {t('Collaborative')}</Text>
         </View>
         <Text style={[styles.participantCount, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>
           {session.participants.length} invited
@@ -179,6 +181,7 @@ function StudySessionDetailSheet({
   onRsvp: (sessionId: number, status: 'accepted' | 'declined') => void;
   rsvpLoading: boolean;
 }) {
+  const { t } = useLanguage();
   const colors = useColors();
   const violet = sessionPalette(useColorScheme());
   const insets = useSafeAreaInsets();
@@ -210,7 +213,7 @@ function StudySessionDetailSheet({
             </Text>
             <View style={styles.sessionRow}>
               <View style={[styles.collaborativeBadge, { backgroundColor: violet.surfacePressed }]}>
-                <Text style={[styles.collaborativeBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>👥 Collaborative</Text>
+                <Text style={[styles.collaborativeBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>👥 {t('Collaborative')}</Text>
               </View>
             </View>
           </View>
@@ -236,7 +239,7 @@ function StudySessionDetailSheet({
           >
             <Text style={{ fontSize: 16 }}>🎥</Text>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.joinLabel, { color: violet.strongText, fontFamily: colors.fontFamily.sansSemiBold }]}>Join Meeting</Text>
+              <Text style={[styles.joinLabel, { color: violet.strongText, fontFamily: colors.fontFamily.sansSemiBold }]}>{t('Join Meeting')}</Text>
               <Text style={[styles.meetingUrl, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]} numberOfLines={1}>
                 {session.meetingUrl}
               </Text>
@@ -247,7 +250,7 @@ function StudySessionDetailSheet({
           {/* Topic */}
           {session.topic ? (
             <View style={{ gap: 4 }}>
-              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>Topic</Text>
+              <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>{t('Topic')}</Text>
               <Text style={[{ color: colors.foreground, fontFamily: colors.fontFamily.sans, fontSize: 14 }]}>{session.topic}</Text>
             </View>
           ) : null}
@@ -279,7 +282,11 @@ function StudySessionDetailSheet({
                       fontFamily: colors.fontFamily.sans,
                     }
                   ]}>
-                    {p.status === 'accepted' ? '✓ Accepted' : p.status === 'declined' ? '✗ Declined' : '⏳ Pending'}
+                    {p.status === 'accepted'
+                      ? `✓ ${t('Accepted')}`
+                      : p.status === 'declined'
+                        ? `✗ ${t('Declined')}`
+                        : `⏳ ${t('Pending')}`}
                   </Text>
                 </View>
               </View>
@@ -294,7 +301,7 @@ function StudySessionDetailSheet({
               onPress={handleJoin}
               style={[styles.joinButton, { backgroundColor: violet.accent, borderRadius: colors.radius, flex: 1 }]}
             >
-              <Text style={[styles.joinButtonText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>🎥 Join</Text>
+              <Text style={[styles.joinButtonText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>🎥 {t('Join')}</Text>
             </Pressable>
             <Pressable
               onPress={async () => {
@@ -309,11 +316,11 @@ function StudySessionDetailSheet({
                   details: session.topic ?? '',
                 });
                 const url = `https://calendar.google.com/calendar/render?${params.toString()}`;
-                await Share.share({ message: url, title: 'Add to Calendar' });
+                await Share.share({ message: url, title: t('Add to Calendar') });
               }}
               style={[{ borderRadius: colors.radius, borderWidth: 1, borderColor: violet.accent, paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }]}
             >
-              <Text style={{ color: violet.accentText, fontSize: 13, fontFamily: colors.fontFamily.sansSemiBold }}>📅 Export</Text>
+              <Text style={{ color: violet.accentText, fontSize: 13, fontFamily: colors.fontFamily.sansSemiBold }}>📅 {t('Export')}</Text>
             </Pressable>
           </View>
 
@@ -324,14 +331,14 @@ function StudySessionDetailSheet({
                 disabled={rsvpLoading}
                 style={[styles.acceptButton, { backgroundColor: violet.positive, borderRadius: colors.radius, flex: 1, opacity: rsvpLoading ? 0.6 : 1 }]}
               >
-                <Text style={[styles.acceptButtonText, { color: violet.onPositive, fontFamily: colors.fontFamily.sansSemiBold }]}>✓ Accept</Text>
+                <Text style={[styles.acceptButtonText, { color: violet.onPositive, fontFamily: colors.fontFamily.sansSemiBold }]}>✓ {t('Accept')}</Text>
               </Pressable>
               <Pressable
                 onPress={() => { onRsvp(session.id, 'declined'); onClose(); }}
                 disabled={rsvpLoading}
                 style={[styles.declineButton, { borderRadius: colors.radius, flex: 1, borderColor: colors.border, opacity: rsvpLoading ? 0.6 : 1 }]}
               >
-                <Text style={[styles.declineButtonText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>✗ Decline</Text>
+                <Text style={[styles.declineButtonText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>✗ {t('Decline')}</Text>
               </Pressable>
             </View>
           )}
@@ -342,7 +349,7 @@ function StudySessionDetailSheet({
               disabled={rsvpLoading}
               style={[styles.declineButton, { borderRadius: colors.radius, borderColor: colors.border, opacity: rsvpLoading ? 0.6 : 1 }]}
             >
-              <Text style={[styles.declineButtonText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>Decline invitation</Text>
+              <Text style={[styles.declineButtonText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>{t('Decline invitation')}</Text>
             </Pressable>
           )}
         </View>
@@ -369,6 +376,7 @@ function CreateStudySessionModal({
   visible: boolean;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const colors = useColors();
   const violet = sessionPalette(useColorScheme());
   const insets = useSafeAreaInsets();
@@ -416,12 +424,12 @@ function CreateStudySessionModal({
   }
 
   async function handleCreate() {
-    if (!title.trim()) { setError('Title is required'); return; }
-    if (!date.trim()) { setError('Date is required'); return; }
-    if (!meetingUrl.trim()) { setError('Meeting URL is required'); return; }
-    if (!meetingUrl.trim().match(/^https?:\/\//i)) { setError('Meeting URL must start with https:// or http://'); return; }
+    if (!title.trim()) { setError(t('Title is required')); return; }
+    if (!date.trim()) { setError(t('Date is required')); return; }
+    if (!meetingUrl.trim()) { setError(t('Meeting URL is required')); return; }
+    if (!meetingUrl.trim().match(/^https?:\/\//i)) { setError(t('Meeting URL must start with https:// or http://')); return; }
     const durationNum = parseInt(duration, 10);
-    if (isNaN(durationNum) || durationNum < 5) { setError('Duration must be at least 5 minutes'); return; }
+    if (isNaN(durationNum) || durationNum < 5) { setError(t('Duration must be at least 5 minutes')); return; }
 
     setError('');
     try {
@@ -445,7 +453,7 @@ function CreateStudySessionModal({
       // invitee whose privacy preference refuses the invite, a missing
       // resource. Blaming the URL for all of them left people retyping one
       // that was never wrong.
-      setError(describeApiFailure(error, 'Could not create the session. Please try again.'));
+      setError(describeApiFailure(error, t('Could not create the session. Please try again.')));
     }
   }
 
@@ -473,7 +481,7 @@ function CreateStudySessionModal({
         </View>
         <View style={[styles.sheetHeader, { borderBottomColor: colors.border }]}>
           <Text style={[styles.sheetTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansBold }]}>
-            New Study Session
+            {t('New Study Session')}
           </Text>
           <Pressable onPress={() => { reset(); onClose(); }} style={styles.closeButton} hitSlop={8}>
             <Text style={{ color: colors.mutedForeground, fontSize: 20 }}>✕</Text>
@@ -553,12 +561,12 @@ function CreateStudySessionModal({
 
           {/* Topic */}
           <View style={{ gap: 6 }}>
-            <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>Topic (optional)</Text>
+            <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>{t('Topic (optional)')}</Text>
             <TextInput
               style={[inputStyle, { minHeight: 64, textAlignVertical: 'top' }]}
               value={topic}
               onChangeText={setTopic}
-              placeholder="What will you study?"
+              placeholder={t('What will you study?')}
               placeholderTextColor={colors.mutedForeground}
               multiline
             />
@@ -567,7 +575,7 @@ function CreateStudySessionModal({
           {/* Invitee search */}
           <View style={{ gap: 8 }}>
             <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>
-              Invite classmates (optional)
+              {t('Invite classmates (optional)')}
             </Text>
             {selectedInvitees.length > 0 && (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -622,7 +630,7 @@ function CreateStudySessionModal({
           {/* Resource attachment */}
           <View style={{ gap: 8 }}>
             <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>
-              Linked resource (optional)
+              {t('Linked resource (optional)')}
             </Text>
             {selectedResource ? (
               <Pressable
@@ -636,7 +644,7 @@ function CreateStudySessionModal({
                 <Text style={{ color: violet.accentText, fontSize: 13, fontFamily: colors.fontFamily.sans, flex: 1 }} numberOfLines={1}>
                   📎 {selectedResource.title}
                 </Text>
-                <Text style={{ color: violet.accentText, fontSize: 12, marginLeft: 8 }}>✕ Remove</Text>
+                <Text style={{ color: violet.accentText, fontSize: 12, marginLeft: 8 }}>✕ {t('Remove')}</Text>
               </Pressable>
             ) : (
               <>
@@ -679,7 +687,7 @@ function CreateStudySessionModal({
             style={[styles.joinButton, { backgroundColor: violet.accent, borderRadius: colors.radius, opacity: createSession.isPending ? 0.6 : 1 }]}
           >
             <Text style={[styles.joinButtonText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>
-              {createSession.isPending ? 'Creating…' : 'Create Session'}
+              {createSession.isPending ? t('Creating…') : t('Create Session')}
             </Text>
           </Pressable>
         </View>
@@ -693,6 +701,7 @@ type ListItem =
   | { type: 'session'; data: StudySessionWithParticipants };
 
 export default function ScheduleScreen() {
+  const { t } = useLanguage();
   const colors = useColors();
   const violet = sessionPalette(useColorScheme());
   const insets = useSafeAreaInsets();
@@ -798,13 +807,13 @@ export default function ScheduleScreen() {
       >
         <View style={styles.headerRow}>
           <Text style={[styles.headerTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansBold }]}>
-            Schedule
+            {t('Schedule')}
           </Text>
           <Pressable
             onPress={() => setCreateModalVisible(true)}
             style={[styles.fabButton, { backgroundColor: violet.accent, borderRadius: colors.radius }]}
           >
-            <Text style={[styles.fabText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>+ Study Session</Text>
+            <Text style={[styles.fabText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>+ {t('Study Session')}</Text>
           </Pressable>
         </View>
 
@@ -914,7 +923,7 @@ export default function ScheduleScreen() {
           ListEmptyComponent={
             <Empty
               icon="calendar"
-              title="No events scheduled"
+              title={t('No events scheduled')}
               description={`Nothing scheduled for ${DAY_LABELS[selectedDay]}`}
             />
           }

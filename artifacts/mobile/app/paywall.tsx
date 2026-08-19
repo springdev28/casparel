@@ -28,6 +28,7 @@ import {
   type PlanRole,
   type RCPackage,
 } from '@/utils/revenuecat';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 /**
  * Plan explainers per account role. Student and teacher plans never mix, so a
@@ -104,6 +105,10 @@ const BENEFITS: Record<
 };
 
 function BenefitRow({ icon, title, body }: { icon: FeatherName; title: string; body: string }) {
+  // PLAN_FEATURES is a module constant -- a hook cannot run where it is
+  // written -- so it holds the English and this translates it. The title is a
+  // plan name and stays as it is in every language.
+  const { t } = useLanguage();
   const colors = useColors();
   return (
     <View style={styles.benefitRow}>
@@ -139,7 +144,7 @@ function BenefitRow({ icon, title, body }: { icon: FeatherName; title: string; b
             },
           ]}
         >
-          {body}
+          {t(body)}
         </Text>
       </View>
     </View>
@@ -147,6 +152,7 @@ function BenefitRow({ icon, title, body }: { icon: FeatherName; title: string; b
 }
 
 export default function PaywallScreen() {
+  const { t } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -197,7 +203,7 @@ export default function PaywallScreen() {
       const pct = Math.round((1 - pkg.product.price / (monthlyPrice * 12)) * 100);
       if (pct > 0) return `Best value · Save ${pct}%`;
     }
-    return 'Best value';
+    return t('Best value');
   }
 
   async function handlePurchase() {
@@ -208,9 +214,11 @@ export default function PaywallScreen() {
     setBusy(false);
     if (result === 'success') {
       const purchasedTier = tierForPackage(pkg);
-      Alert.alert(`Welcome to Casparel ${TIER_TITLES[purchasedTier]}`, 'Your subscription features are now unlocked. Thank you!', [
-        { text: 'Great', onPress: close },
-      ]);
+      Alert.alert(
+        `${t('Welcome to Casparel')} ${TIER_TITLES[purchasedTier]}`,
+        t('Your subscription features are now unlocked. Thank you!'),
+        [{ text: t('Great'), onPress: close }],
+      );
       return;
     }
     if (result === 'cancelled') return; // they chose not to buy; say nothing
@@ -226,57 +234,45 @@ export default function PaywallScreen() {
      * a payment flow can produce.
      */
     if (result === 'pending') {
-      Alert.alert(
-        'Waiting for approval',
-        'Your purchase needs approval before it completes \u2014 from a parent, or from your bank. There is nothing to pay again; Casparel unlocks by itself once it goes through.',
+      Alert.alert(t('Waiting for approval'), t('Your purchase needs approval before it completes \u2014 from a parent, or from your bank. There is nothing to pay again; Casparel unlocks by itself once it goes through.'),
       );
       return;
     }
     if (result === 'already-owned') {
-      Alert.alert(
-        'You already have this plan',
-        'This purchase is on your store account already. Restoring it links it to this device.',
+      Alert.alert(t('You already have this plan'), t('This purchase is on your store account already. Restoring it links it to this device.'),
         [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Restore purchases', onPress: () => void handleRestore() },
+          { text: t('Not now'), style: 'cancel' },
+          { text: t('Restore purchases'), onPress: () => void handleRestore() },
         ],
       );
       return;
     }
     if (result === 'not-allowed') {
-      Alert.alert(
-        'Purchases are turned off on this device',
-        'This device does not allow in-app purchases \u2014 usually a school profile or Screen Time restriction. Your account and card are fine.',
+      Alert.alert(t('Purchases are turned off on this device'), t('This device does not allow in-app purchases \u2014 usually a school profile or Screen Time restriction. Your account and card are fine.'),
       );
       return;
     }
     if (result === 'store-unavailable') {
-      Alert.alert(
-        'The store is not responding',
-        'The App Store or Google Play could not complete this right now. Nothing has been charged. Please try again shortly.',
+      Alert.alert(t('The store is not responding'), t('The App Store or Google Play could not complete this right now. Nothing has been charged. Please try again shortly.'),
       );
       return;
     }
     if (result === 'network') {
-      Alert.alert(
-        'No connection to the store',
-        'Check your connection and try again. Nothing has been charged.',
+      Alert.alert(t('No connection to the store'), t('Check your connection and try again. Nothing has been charged.'),
       );
       return;
     }
     if (result === 'configuration') {
       // The maker's problem, not theirs, and no amount of retrying fixes it.
-      Alert.alert(
-        'Purchases are not set up yet',
-        'This plan cannot be bought on this build. Please let us know at support@casparel.com.',
+      Alert.alert(t('Purchases are not set up yet'), t('This plan cannot be bought on this build. Please let us know at support@casparel.com.'),
       );
       return;
     }
     if (result === 'unsupported') {
-      Alert.alert('Not available here', 'In-app purchases are only available in the mobile app.');
+      Alert.alert(t('Not available here'), t('In-app purchases are only available in the mobile app.'));
       return;
     }
-    Alert.alert('Purchase failed', 'Something went wrong and nothing has been charged. Please try again.');
+    Alert.alert(t('Purchase failed'), t('Something went wrong and nothing has been charged. Please try again.'));
   }
 
   async function handleRestore() {
@@ -284,9 +280,9 @@ export default function PaywallScreen() {
     const ok = await restore();
     setBusy(false);
     Alert.alert(
-      ok ? 'Purchases restored' : 'Nothing to restore',
-      ok ? 'Your paid plan is active again.' : "We couldn't find a previous purchase for this account.",
-      ok ? [{ text: 'Great', onPress: close }] : undefined,
+      ok ? t('Purchases restored') : t('Nothing to restore'),
+      ok ? t('Your paid plan is active again.') : t("We couldn't find a previous purchase for this account."),
+      ok ? [{ text: t('Great'), onPress: close }] : undefined,
     );
   }
 
@@ -296,7 +292,7 @@ export default function PaywallScreen() {
       <Pressable
         onPress={close}
         accessibilityRole="button"
-        accessibilityLabel="Close subscription plans"
+        accessibilityLabel={t('Close subscription plans')}
         style={[
           styles.closeBtn,
           {
@@ -346,7 +342,7 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              Choose your Casparel plan
+              {t('Choose your Casparel plan')}
             </Text>
             <Text
               style={[
@@ -357,7 +353,7 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              Keep the core free, then add only the AI access you need.
+              {t('Keep the core free, then add only the AI access you need.')}
             </Text>
           </LinearGradient>
         </Animated.View>
@@ -421,8 +417,8 @@ export default function PaywallScreen() {
               ]}
             >
               {Platform.OS === 'web'
-                ? 'Open Casparel on your phone to choose Plus or Pro.'
-                : 'Plans are loading or unavailable right now. Please try again shortly.'}
+                ? t('Open Casparel on your phone to choose Plus or Pro.')
+                : t('Plans are loading or unavailable right now. Please try again shortly.')}
             </Text>
           </View>
         ) : (
@@ -444,7 +440,7 @@ export default function PaywallScreen() {
             <Animated.View entering={FadeInDown.delay(280).duration(450)}>
               <View style={{ marginTop: 18 }}>
                 <Button size="lg" onPress={handlePurchase} loading={busy} disabled={!selected}>
-                  Continue
+                  {t('Continue')}
                 </Button>
               </View>
             </Animated.View>
@@ -469,7 +465,7 @@ export default function PaywallScreen() {
             onPress={handleRestore}
             disabled={busy}
             accessibilityRole="button"
-            accessibilityLabel="Restore previous purchases"
+            accessibilityLabel={t('Restore previous purchases')}
             style={styles.restore}
           >
             <Text
@@ -481,7 +477,7 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              Restore purchases
+              {t('Restore purchases')}
             </Text>
           </Pressable>
         ) : null}
@@ -503,7 +499,7 @@ export default function PaywallScreen() {
             style={styles.link}
             onPress={() => Linking.openURL('https://casparel.com/terms')}
           >
-            Terms
+            {t('Terms')}
           </Text>{' '}
           &middot;{' '}
           <Text
@@ -511,7 +507,7 @@ export default function PaywallScreen() {
             style={styles.link}
             onPress={() => Linking.openURL('https://casparel.com/privacy')}
           >
-            Privacy
+            {t('Privacy')}
           </Text>
         </Text>
       </ScrollView>
@@ -530,13 +526,14 @@ function PackageOption({
   onSelect: () => void;
   badge?: string | null;
 }) {
+  const { t } = useLanguage();
   const colors = useColors();
   const packageTier = tierForPackage(pkg);
   const period =
     pkg.packageType?.toUpperCase() === 'ANNUAL'
-      ? 'Billed yearly'
+      ? t('Billed yearly')
       : pkg.packageType?.toUpperCase() === 'MONTHLY'
-        ? 'Billed monthly'
+        ? t('Billed monthly')
         : pkg.product.description || '';
   return (
     <Pressable

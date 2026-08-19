@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { useDateLocale } from "@/lib/date-locale";
 import { SeatingChartEditor } from '../components/SeatingChartEditor';
 import { ClassAssignments } from '../components/ClassAssignments';
 import {
@@ -48,6 +49,7 @@ import { classRequest, type ClassInvitation } from '../lib/class-api';
 import ForumPage from './ForumPage';
 import ActivitiesPage from './ActivitiesPage';
 import CanvasesPage from './CanvasesPage';
+import { counted } from "@/lib/counted";
 
 type ClassTab = 'members' | 'notes' | 'forum' | 'designer' | 'assignments' | 'activities' | 'resources' | 'canvas';
 
@@ -61,6 +63,7 @@ const FORMAT_COLORS: Record<string, string> = {
 };
 
 export default function ClassDetailPage() {
+  const locale = useDateLocale();
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const routeSearch = useRouteSearch();
@@ -369,7 +372,7 @@ export default function ClassDetailPage() {
               <CardDescription>{cls.subject} · {cls.gradeLevel}</CardDescription>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-              <Badge variant="secondary">{cls.members.length} member{cls.members.length !== 1 ? 's' : ''}</Badge>
+              <Badge variant="secondary">{counted(cls.members.length, "member", "members")}</Badge>
               {isTeacher && <Button size="sm" variant="outline" onClick={() => setEditDialogOpen(true)}><Pencil size={14} className="mr-1.5" />Edit info</Button>}
               {isTeacher && <Button size="sm" variant="outline" onClick={() => joinCode ? void navigator.clipboard.writeText(joinCode).then(() => toast({ title: 'Class code copied' })) : void refreshJoinCode()}><KeyRound size={14} className="mr-1.5" />{joinCode ?? 'Create class code'}</Button>}
               {isTeacher && joinCode && <Button size="icon" variant="ghost" className="size-8" title="Create a new class code" onClick={() => void refreshJoinCode()}><RefreshCw size={14} /></Button>}
@@ -565,7 +568,7 @@ export default function ClassDetailPage() {
                     )}
                     <Badge variant={member.role === 'teacher' ? 'default' : 'secondary'} className="capitalize">{member.role}</Badge>
                     <span className="text-xs text-muted-foreground hidden sm:inline">
-                      Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true })}
+                      Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true, locale })}
                     </span>
                     {isTeacher && member.role === 'student' && roleEditorFor !== member.userId && (
                       <Button size="sm" variant="outline" onClick={() => { setRoleEditorFor(member.userId); setRoleDraft(member.customRole ?? ""); }} data-testid="edit-member-role">

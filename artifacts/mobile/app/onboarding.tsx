@@ -8,6 +8,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { useOnboarding } from '@/contexts/OnboardingContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const VALUE_PROPS: { icon: string; title: string; body: string }[] = [
   {
@@ -28,6 +29,9 @@ const VALUE_PROPS: { icon: string; title: string; body: string }[] = [
 ];
 
 function ValueRow({ icon, title, body, delay }: { icon: string; title: string; body: string; delay: number }) {
+  // VALUE_PROPS is a module constant, so it holds the English and this
+  // translates it -- a hook cannot be called where the constant is written.
+  const { t } = useLanguage();
   const colors = useColors();
   return (
     <Animated.View entering={FadeInDown.delay(delay).duration(450)} style={styles.row}>
@@ -36,10 +40,10 @@ function ValueRow({ icon, title, body, delay }: { icon: string; title: string; b
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[styles.rowTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-          {title}
+          {t(title)}
         </Text>
         <Text style={[styles.rowBody, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-          {body}
+          {t(body)}
         </Text>
       </View>
     </Animated.View>
@@ -47,6 +51,7 @@ function ValueRow({ icon, title, body, delay }: { icon: string; title: string; b
 }
 
 export default function OnboardingScreen() {
+  const { t } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -72,10 +77,10 @@ export default function OnboardingScreen() {
               <Feather name="feather" size={28} color={colors.primaryForeground} />
             </View>
             <Text style={[styles.heroTitle, { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold }]}>
-              Welcome to Casparel
+              {t('Welcome to Casparel')}
             </Text>
             <Text style={[styles.heroSubtitle, { color: colors.primaryForeground + 'DD', fontFamily: colors.fontFamily.sans }]}>
-              Learn, organize, and study, all in one place.
+              {t('Learn, organize, and study, all in one place.')}
             </Text>
           </LinearGradient>
         </Animated.View>
@@ -91,7 +96,7 @@ export default function OnboardingScreen() {
       {/* CTA */}
       <Animated.View entering={FadeInDown.delay(420).duration(450)} style={styles.cta}>
         <Button size="lg" onPress={getStarted}>
-          Get started
+          {t('Get started')}
         </Button>
       </Animated.View>
     </View>

@@ -13,7 +13,7 @@ async function seed() {
   const [teacher] = await db
     .insert(usersTable)
     .values({
-      email: "teacher@schooler.dev",
+      email: "teacher@casparel.dev",
       passwordHash: await hashPassword("password123"),
       name: "Alex Johnson",
       role: "teacher",
@@ -24,7 +24,7 @@ async function seed() {
   const [student] = await db
     .insert(usersTable)
     .values({
-      email: "student@schooler.dev",
+      email: "student@casparel.dev",
       passwordHash: await hashPassword("password123"),
       name: "Sam Rivera",
       role: "student",

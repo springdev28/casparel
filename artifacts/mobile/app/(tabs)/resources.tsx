@@ -23,6 +23,7 @@ import type { Resource } from '@workspace/api-client-react';
 import { apiOrigin } from '@/utils/api-host';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { ErrorState } from '@/components/ErrorState';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 function getYouTubeId(url: string): string | null {
   try {
@@ -94,6 +95,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }) {
+  const { t } = useLanguage();
   const colors = useColors();
   const [failedThumb, setFailedThumb] = React.useState<string | null>(null);
   const formatIcon = FORMAT_ICONS[item.format] ?? 'link';
@@ -155,14 +157,14 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
               <View style={[styles.verifyChip, { borderColor: colors.chart3 + '66', backgroundColor: colors.chart3 + '1A' }]}>
                 <Feather name="shield" size={10} color={colors.chart3} />
                 <Text style={[styles.verifyChipText, { color: colors.chart3, fontFamily: colors.fontFamily.sansSemiBold }]}>
-                  Pending review
+                  {t('Pending review')}
                 </Text>
               </View>
             ) : item.verificationStatus === 'rejected' ? (
               <View style={[styles.verifyChip, { borderColor: colors.destructive + '66', backgroundColor: colors.destructive + '1A' }]}>
                 <Feather name="shield-off" size={10} color={colors.destructiveText} />
                 <Text style={[styles.verifyChipText, { color: colors.destructiveText, fontFamily: colors.fontFamily.sansSemiBold }]}>
-                  Not approved
+                  {t('Not approved')}
                 </Text>
               </View>
             ) : null}
@@ -212,6 +214,7 @@ function ResourceSkeleton() {
 }
 
 export default function ResourcesScreen() {
+  const { t } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -297,7 +300,7 @@ export default function ResourcesScreen() {
             { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
           ]}
         >
-          Resources
+          {t('Resources')}
         </Text>
       </View>
 
@@ -338,11 +341,11 @@ export default function ResourcesScreen() {
           ListEmptyComponent={
             <Empty
               icon="book-open"
-              title={debouncedSearch ? 'No results found' : 'No resources yet'}
+              title={debouncedSearch ? t('No results found') : t('No resources yet')}
               description={
                 debouncedSearch
                   ? `Try a different search term`
-                  : 'Resources will appear here once they are added'
+                  : t('Resources will appear here once they are added')
               }
             />
           }

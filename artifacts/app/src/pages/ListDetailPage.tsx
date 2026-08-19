@@ -47,6 +47,7 @@ import {
   UserRole,
 } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
+import { counted } from "@/lib/counted";
 
 const FORMAT_COLORS: Record<string, string> = {
   article: 'bg-blue-100 text-blue-700',
@@ -385,7 +386,7 @@ export default function ListDetailPage() {
       <div>
         <h1 translate="no" className="text-2xl font-bold text-foreground">{list.name}</h1>
         {list.description && <p className="text-muted-foreground text-sm mt-1">{list.description}</p>}
-        <p className="text-xs text-muted-foreground mt-1">{list.itemCount} item{list.itemCount !== 1 ? 's' : ''}</p>
+        <p className="text-xs text-muted-foreground mt-1">{counted(list.itemCount, "item", "items")}</p>
       </div>
 
       {/* Items */}
@@ -552,7 +553,7 @@ function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps
               )}
               <div className="flex items-center gap-2 mt-2">
                 <StarRating value={item.resource.avgRating} size="sm" />
-                <span className="text-xs text-muted-foreground">{item.resource.reviewCount} review{item.resource.reviewCount !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-muted-foreground">{counted(item.resource.reviewCount, "review", "reviews")}</span>
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
