@@ -541,7 +541,12 @@ router.post(
       userId: invitee.id,
       type: "class",
       workspaceRole: role,
-      message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it from notifications.`,
+      // Not "from notifications": that is where the web app puts them, and the
+      // mobile app has no notifications surface at all -- a pupil holding a
+      // phone was told to open a screen that does not exist there. Both apps
+      // show the invitation where their reader will look (mobile on Classes),
+      // so this names no surface.
+      message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it in the app.`,
     });
     res.status(201).json(await invitationView(invitation.id));
   },
@@ -660,7 +665,7 @@ router.post("/classes/:id/members/bulk-invite", contentLimiter, requireAuth, asy
           userId: member.userId,
           type: "class" as const,
           workspaceRole: member.role,
-          message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it from notifications.`,
+          message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it in the app.`,
         })),
       );
     });
