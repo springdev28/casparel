@@ -176,12 +176,29 @@ pull-request process as the code. Its history is public.
 ---
 
 <!--
-  Once (and only once) SignPath Foundation approves the project, the required
-  attribution below replaces this note. Publishing it before approval would
-  claim a relationship that does not exist:
+  ON APPROVAL BY SIGNPATH FOUNDATION -- three things fall due, not one. The
+  attribution is required, so the first is an obligation rather than a courtesy.
 
-  _Free code signing provided by [SignPath.io](https://signpath.io),
-  certificate by [SignPath Foundation](https://signpath.org)._
+  1. Replace this comment and the placeholder line below it with:
+
+     _Free code signing provided by [SignPath.io](https://signpath.io),
+     certificate by [SignPath Foundation](https://signpath.org)._
+
+  2. Put the same credit on the published page, artifacts/app/src/pages/
+     CodeSigningPage.tsx, and translate the string into all five languages.
+     The policy and the page are both "published" for SignPath's purposes, and
+     the page is the one an actual downloader reads.
+
+  3. Add the signing step to .github/workflows/desktop-release.yml and set the
+     SignPath credentials as repository secrets. The workflow already builds
+     unsigned when no certificate is present, so this is an addition rather
+     than a rewrite.
+
+  Then update the status line at the top of this document and the "What gets
+  signed" table on the page, both of which currently say Windows is pending.
+
+  None of it before approval: publishing the attribution first would claim a
+  relationship that does not exist.
 -->
 
 Windows signing is not yet provided by anyone. When it is, the provider is
