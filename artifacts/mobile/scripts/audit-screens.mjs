@@ -346,6 +346,33 @@ async function main() {
     const page = await light.newPage();
     page.on("pageerror", (error) => pageErrors.push(`register/login: ${String(error).slice(0, 200)}`));
 
+    /*
+     * A wrong password first, on the real screen.
+     *
+     * The sign-in screen used to ignore the error entirely and say "Invalid
+     * email or password" whatever happened -- to a rate limit, to a dropped
+     * connection, to a server error. describeAuthFailure fixed that, and
+     * nothing had ever rendered it: it is a pure module with unit tests, and
+     * the screen that uses it is a React component that was only ever read.
+     *
+     * One attempt. The credential limiter counts per address, and this run
+     * has a registration and a sign-in to spend that budget on.
+     */
+    await page.goto(`${local}/login`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1500);
+    if (await page.getByPlaceholder("you@school.edu").count()) {
+      await page.getByPlaceholder("you@school.edu").fill(`nobody-${RUN}@example.test`);
+      await page.getByPlaceholder("••••••••").fill("definitely-not-the-password");
+      await page.getByText("Sign in", { exact: true }).last().click();
+      await page.waitForTimeout(3000);
+      const said = await page.evaluate(() => document.body.innerText);
+      check(
+        "a wrong password is refused in words, not a status line",
+        /invalid email or password/i.test(said) && !/HTTP \d/.test(said),
+        said.replace(/\n+/g, " | ").slice(0, 160),
+      );
+    }
+
     await page.goto(`${local}/register`, { waitUntil: "networkidle" });
     await page.waitForTimeout(1500);
 
