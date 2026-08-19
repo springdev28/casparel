@@ -31,7 +31,7 @@ import React, {
 } from "react";
 import { storage } from "@/utils/secure-storage";
 import { apiOrigin } from "@/utils/api-host";
-import { isLanguage, translate, type Language } from "@/lib/i18n";
+import { intlLocale, isLanguage, translate, type Language } from "@/lib/i18n";
 import { useAuth } from "./AuthContext";
 
 const LANGUAGE_KEY = "casparel_language";
@@ -40,6 +40,8 @@ interface LanguageContextValue {
   language: Language;
   /** Translate an English string into the current language. */
   t: (english: string) => string;
+  /** The BCP-47 tag, for the day and month names no dictionary can hold. */
+  intlLocale: string;
   /** Change it here and on the account, so the other clients follow. */
   setLanguage: (next: Language) => Promise<void>;
 }
@@ -114,6 +116,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     () => ({
       language,
       t: (english: string) => translate(english, language),
+      intlLocale: intlLocale(language),
       setLanguage,
     }),
     [language, setLanguage],
@@ -136,6 +139,7 @@ export function useLanguage(): LanguageContextValue {
     useContext(LanguageContext) ?? {
       language: "en",
       t: (english: string) => english,
+      intlLocale: intlLocale("en"),
       setLanguage: async () => {},
     }
   );

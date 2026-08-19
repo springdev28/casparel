@@ -98,6 +98,7 @@ function StatCard({
 }
 
 function ActivityRow({ item }: { item: ActivityItem }) {
+  const { intlLocale } = useLanguage();
   const colors = useColors();
   const iconMap: Record<string, string> = {
     review: 'star',
@@ -116,7 +117,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
   const icon = iconMap[item.type] ?? 'activity';
   const iconColor = colorMap[item.type] ?? colors.mutedForeground;
   const date = new Date(item.createdAt);
-  const timeStr = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const timeStr = date.toLocaleDateString(intlLocale, { month: 'short', day: 'numeric' });
 
   return (
     <View style={[styles.activityRow, { borderBottomColor: colors.border }]}>
@@ -150,7 +151,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 }
 
 export default function DashboardScreen() {
-  const { t } = useLanguage();
+  const { t, intlLocale } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user: authUser } = useAuth();

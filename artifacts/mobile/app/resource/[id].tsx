@@ -40,8 +40,12 @@ function StarRow({ rating }: { rating: number }) {
 }
 
 function ReviewCard({ item }: { item: Review }) {
+  // `undefined` here means the *device's* language, not the reader's, and
+  // those differ for anybody using the app in a language their phone is not
+  // set to -- which is most of the point of offering six.
+  const { intlLocale } = useLanguage();
   const colors = useColors();
-  const date = new Date(item.createdAt).toLocaleDateString(undefined, {
+  const date = new Date(item.createdAt).toLocaleDateString(intlLocale, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -106,7 +110,7 @@ function ReviewCard({ item }: { item: Review }) {
 }
 
 export default function ResourceDetailScreen() {
-  const { t } = useLanguage();
+  const { t, intlLocale } = useLanguage();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();

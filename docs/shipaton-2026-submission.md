@@ -18,9 +18,17 @@ Companion to [`shipaton-2026-readiness.md`](./shipaton-2026-readiness.md). Fill 
 | Support URL                         | `https://casparel.com/support`                                        |
 | Marketing URL                       | `https://casparel.com`                                                |
 | Privacy policy URL                  | `https://casparel.com/privacy`                                        |
+| Languages                           | English, Spanish, French, German, Portuguese, Turkish                 |
 
 > The store icon must be 1024×1024 (no alpha, no rounded corners, the store
 > rounds it). Source: `assets/images/icon.png`.
+
+> The six languages are not a claim to fill in by hand. `CFBundleLocalizations`
+> in `app.json` is what iOS reports and what the App Store shows under
+> Languages, and a test holds it against the dictionaries the app actually
+> ships, so the listing cannot say more — or less — than the app can speak.
+> Android has no equivalent key; Play derives the list from the store listing,
+> so it has to be set there.
 
 ---
 
@@ -40,6 +48,10 @@ Companion to [`shipaton-2026-readiness.md`](./shipaton-2026-readiness.md). Fill 
 > Source Research evaluates who's behind any resource and how much to trust it:
 > a quick check anytime, or deep, live-web research on demand.
 >
+> **In your language.** The whole app — phone, web and desktop — is in English,
+> Spanish, French, German, Portuguese and Turkish, and the choice follows your
+> account rather than the device you happen to be holding.
+>
 > **Casparel Premium.** Upgrade for unlimited deep source research with cited,
 > live-web reports. The core library stays free; Premium helps fund it.
 >
@@ -51,6 +63,10 @@ deep, cited source research.
 
 **Keywords (iOS, ≤100 chars):** study,learning,education,open textbooks,library,
 classes,schedule,research,students,AI
+
+> Keywords are per-locale on the App Store. Submitting the same English list
+> under all six localizations wastes the field for five of them; each needs the
+> words a student would actually search in that language.
 
 **What's New (first release):** First public release of Casparel, discover open
 education, organize your studies, and research sources with AI. Introducing
@@ -143,6 +159,11 @@ Keep it on-device; show a real purchase.
 - [ ] Judge promo code / free trial verified end-to-end
 - [ ] Purchase, restore, cancellation, expiry, renewal and transfer tested
 - [ ] Icon (1024²) + 6 screenshots (1179×2556) uploaded
+- [ ] Six App Store localizations created, each with its own keywords —
+      declaring the languages in `app.json` is what makes iOS report them; it
+      does not fill in the listing
+- [ ] Play listing translated into the same six, since Play has no equivalent
+      of `CFBundleLocalizations` and reads the languages from the listing
 - [ ] Privacy policy + support URLs live
 - [ ] ≤2-min demo recorded showing an on-device purchase
 - [ ] Devpost entry filled only for categories whose requirements are proven

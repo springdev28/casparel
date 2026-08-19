@@ -25,6 +25,13 @@
  * With no argument it takes the .dmg from release/ that matches this machine's
  * architecture. Exit 0 all good, 1 a real defect, 75 the check could not be
  * performed (not macOS, no image to test).
+ *
+ * A check can also be skipped, which is neither of those. This runs against a
+ * *published* release, so the script is always newer than the app it opens and
+ * can ask questions that app has no code to answer. Reporting those as defects
+ * is a lie about the shipped build and produces a red run nobody can act on —
+ * the only fix being to cut a release. Skips are named with their reason and do
+ * not affect the exit code; a real defect still fails.
  */
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
@@ -41,6 +48,7 @@ const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 let failures = 0;
 let checks = 0;
+let skipped = 0;
 
 function check(label, ok, detail = "") {
   checks += 1;
@@ -50,6 +58,21 @@ function check(label, ok, detail = "") {
     failures += 1;
     console.log(`FAIL ${label}${detail ? `\n     ${detail}` : ""}`);
   }
+}
+
+/**
+ * A check this build cannot answer, which is not the same as failing it.
+ *
+ * This runs against a *published* release, so the script is always newer than
+ * the application it opens. When it asks an older app a question that app has
+ * no code for, the honest report is that nothing was measured. Calling that a
+ * defect says the shipped app is unsafe when the truth is that its safety went
+ * untested, and a red build nobody can act on is one people learn to ignore.
+ */
+function skip(label, why) {
+  checks += 1;
+  skipped += 1;
+  console.log(`skip ${label}\n     ${why}`);
 }
 
 function inconclusive(why) {
@@ -364,39 +387,48 @@ check(
 
 // The window opened; separately, what did it say about itself?
 //
-// This has to be version-aware, and learning that cost a false alarm against
-// the first release it was pointed at. The hardening probe was added to the
-// shell AFTER desktop-v1.0.0 was built, so the published binary does not
-// recognise the mode, falls through to the embed branch, and answers
-// "app-intact" -- that branch's HEALTHY result, meaning the window is still
-// showing the app rather than the offline page. Reading it as a failed
-// hardening check reported a security defect in an app with nothing wrong with
-// it. A release check that cries wolf on the older releases it exists to check
-// is worse than no check.
+// Three outcomes, not two, and the middle one cost a false alarm to learn.
+// reportSmokeResult falls through to its embed scenario for any mode it does
+// not recognise, so a build older than the hardening probe answers from that
+// branch instead. desktop-v1.0.0 is exactly that -- built before the mode
+// existed -- and reading its answer as a failed hardening check reported a
+// security defect in an app with nothing wrong with it. A release check that
+// cries wolf on the older releases it exists to check is worse than no check.
 //
-// So an unsupported probe is neither a pass nor a failure. What still fails
-// loudly is a build that DOES answer the probe and answers it badly; the cases
-// are pinned down in smoke-verdict.test.mjs.
+// "app-intact" is that branch's healthy answer, so it is a skip: nothing was
+// measured, which is not the same as something being wrong.
+//
+// "window-lost" is NOT. It means the window ended on a data: URL -- the offline
+// page -- so the app failed to load the page it was handed, and this script
+// hands it a local server that answers. Skipping it would leave a hole: the
+// launch check above passes on any SMOKE line at all, so a build that never
+// loaded anything would report a launch and a skip and come out green.
+//
+// Everything else fails, including "node reachable from the page: ...", which
+// is the finding the probe exists for. The classification is a pure function
+// with the cases pinned down in smoke-verdict.test.mjs, so this reasoning is
+// tested rather than asserted -- and testable at all, which it was not while it
+// lived inside a script that exits on anything but macOS.
 if (launched.ok) {
+  const label = "the packaged window is hardened against the page it loads";
   const classified = classifySmokeVerdict(verdict);
   if (classified.kind === "hardened") {
-    check("the packaged window is hardened against the page it loads", true);
+    check(label, true);
   } else if (classified.kind === "unsupported") {
-    console.log(
-      'note: this build predates the hardening probe (it answered "app-intact",',
+    skip(
+      label,
+      `this build predates the hardening hook: it answered "${verdict}", the ` +
+        `embed scenario it falls back to for a mode it does not know. Cut a ` +
+        `release from a commit that has the hook and this check runs.`,
     );
-    console.log(
-      "      the fall-through branch's healthy result). The launch is verified;",
-    );
-    console.log("      the hardening property is not assertable on this build.");
   } else {
-    check(
-      "the packaged window is hardened against the page it loads",
-      false,
-      classified.reason,
-    );
+    check(label, false, classified.reason);
   }
 }
 
-console.log(`\n${checks - failures}/${checks} checks passed`);
+const passed = checks - failures - skipped;
+console.log(
+  `\n${passed}/${checks} checks passed` +
+    (skipped ? `, ${skipped} skipped (this build cannot answer them)` : ""),
+);
 process.exit(failures === 0 ? 0 : 1);

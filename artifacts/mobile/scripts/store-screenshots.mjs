@@ -28,7 +28,14 @@
  * have to come from a device or simulator running the actual build, which is
  * also what the review guidelines mean by a screenshot of the app.
  *
+ * One set per language, because the App Store takes screenshots per
+ * localization and a Spanish listing showing English screenshots is a listing
+ * that looks machine-made. Six languages by five screens by two colour schemes
+ * is sixty frames, which is more than any one listing needs -- pick the scheme
+ * that suits the listing and use the language's own set.
+ *
  *   node artifacts/mobile/scripts/store-screenshots.mjs [baseUrl] [outDir]
+ *   STORE_LANGS=en,es node artifacts/mobile/scripts/store-screenshots.mjs
  *
  * Needs a web export (see audit-screens.mjs) and a running server. Defaults to
  * http://localhost:4319 and artifacts/mobile/.expo/store-screenshots.
@@ -52,6 +59,11 @@ const VIEWPORT = { width: 393, height: 852 };
 const SCALE = 3;
 
 const APP_ORIGIN = "https://casparel.com";
+/**
+ * The languages to shoot. All six by default; narrow it while iterating,
+ * because sixty frames at 3× take a while and most of that is font settling.
+ */
+const LANGUAGES = (process.env.STORE_LANGS ?? "en,es,fr,de,pt,tr").split(",");
 const RUN = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 const EMAIL = `store-${RUN}@example.test`;
 const PASSWORD = "store-Passw0rd!shots";
@@ -267,6 +279,7 @@ async function main() {
 
   try {
     browser = await chromium.launch(launchOptions());
+    for (const language of LANGUAGES)
     for (const scheme of ["light", "dark"]) {
       const context = await browser.newContext({
         viewport: VIEWPORT,
@@ -288,12 +301,16 @@ async function main() {
         });
       });
       await context.addInitScript(
-        ([sessionToken, user]) => {
+        ([sessionToken, user, lang]) => {
           localStorage.setItem("schoolar_token", sessionToken);
           localStorage.setItem("casparel_user", user);
           localStorage.setItem("casparel_onboarded", "true");
+          // Set on the device rather than on the account: the account
+          // preference is only consulted when the phone has never been told,
+          // so writing it here is what a person choosing a language does.
+          localStorage.setItem("casparel_language", lang);
         },
-        [token, JSON.stringify(registered.body?.user ?? {})],
+        [token, JSON.stringify(registered.body?.user ?? {}), language],
       );
 
       for (const [name, route] of [
@@ -309,13 +326,16 @@ async function main() {
         // a screenshot taken before they do ships a different app than the one
         // that runs.
         await page.waitForTimeout(3000);
-        const file = path.join(OUT, `${name}-${scheme}.png`);
+        const file = path.join(OUT, language, `${name}-${scheme}.png`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
         await page.screenshot({ path: file });
         const { width, height } = await page.evaluate(() => ({
           width: window.innerWidth,
           height: window.innerHeight,
         }));
-        written.push(`${path.basename(file)}  ${width * SCALE}×${height * SCALE}`);
+        written.push(
+          `${language}/${path.basename(file)}  ${width * SCALE}×${height * SCALE}`,
+        );
         await page.close();
       }
       await context.close();

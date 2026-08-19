@@ -45,6 +45,35 @@ const DICTIONARIES: Partial<Record<Language, Record<string, string>>> = {
   tr,
 };
 
+/**
+ * The BCP-47 tag for Intl, which is what names days and months.
+ *
+ * A dictionary cannot hold "Wednesday": the schedule strip shows seven of
+ * them and they change every week. The phone hand-rolled its own English
+ * arrays instead -- `['Mon', 'Tue', …]` -- so the week strip read Mon Tue Wed
+ * over a screen that was otherwise entirely in Turkish. Intl already knows
+ * this in every language; it only needed to be told which one.
+ *
+ * pt-BR, not pt-PT: the dictionary is Brazilian Portuguese, and a date in one
+ * country's wording beside a sentence in another's reads like two products.
+ */
+const INTL_TAGS: Record<Language, string> = {
+  // en-GB rather than en-US, for the 24-hour clock. The web app made that
+  // choice deliberately -- one clock per product -- and the phone was showing
+  // 12-hour for the same blocks, which is the two-clocks problem across two
+  // clients rather than within one screen.
+  en: "en-GB",
+  es: "es-ES",
+  fr: "fr-FR",
+  de: "de-DE",
+  pt: "pt-BR",
+  tr: "tr-TR",
+};
+
+export function intlLocale(language: Language): string {
+  return INTL_TAGS[language] ?? "en-GB";
+}
+
 export function isLanguage(value: unknown): value is Language {
   return LANGUAGES.some((entry) => entry.code === value);
 }
