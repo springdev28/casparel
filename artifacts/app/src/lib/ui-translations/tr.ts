@@ -271,6 +271,8 @@ const TR: Record<string, string> = {
   "Platform": "Platform",
   "Signed by": "İmzalayan",
   "Linux packages are not signed the way Windows and macOS ones are, because Linux has no single authority that vouches for a downloaded installer. Compare the published checksum instead.": "Linux paketleri, Windows ve macOS paketleri gibi imzalanmaz; çünkü Linux'ta indirilen bir kurulum dosyasına kefil olan tek bir otorite yoktur. Bunun yerine yayımlanan sağlama toplamını karşılaştırın.",
+  "A ZIP is a container rather than a signed file: the app inside it carries the signature, and the archive itself is covered by its checksum like the Linux packages are.": "ZIP, imzalanmış bir dosya değil bir kaptır: imzayı içindeki uygulama taşır, arşivin kendisi ise Linux paketleri gibi sağlama toplamıyla korunur.",
+  "Every release publishes a SHA256SUMS.txt covering every file in it. Download it beside the installer and that one command answers whether the file is the one the build produced.": "Her sürüm, içindeki her dosyayı kapsayan bir SHA256SUMS.txt yayımlar. Kurulum dosyasının yanında onu da indirin; tek bir komut, dosyanın derlemenin ürettiği dosya olup olmadığını söyler.",
   "What a signature promises": "Bir imza neyi vaat eder",
   "One thing only: that the file came from our release pipeline, built from a specific public commit. It is not a promise that the software is free of bugs, and it does not cover the pages the app loads from this website while you use it.": "Yalnızca tek bir şeyi: dosyanın, belirli ve herkese açık bir commit'ten derlenerek sürüm hattımızdan çıktığını. Yazılımın hatasız olduğuna dair bir söz değildir ve uygulamanın siz kullanırken bu siteden yüklediği sayfaları kapsamaz.",
   "Every release is built by a workflow in the open repository, on machines we do not control the contents of, one per platform. No installer is ever built on a personal computer. Each signing request has to be approved by a maintainer by hand, so an automated system cannot produce a signed file on its own.": "Her sürüm, açık depodaki bir iş akışıyla, içeriğini bizim denetlemediğimiz makinelerde, her platform için ayrı ayrı derlenir. Hiçbir kurulum dosyası kişisel bir bilgisayarda üretilmez. Her imzalama isteği bir geliştirici tarafından elle onaylanmak zorundadır; bu yüzden otomatik bir sistem tek başına imzalı dosya üretemez.",
@@ -313,6 +315,16 @@ const TR: Record<string, string> = {
   "macOS, Windows and Linux.": "macOS, Windows ve Linux.",
   "All download options": "Tüm indirme seçenekleri",
   "Where Casparel runs": "Casparel nerede çalışır",
+  // Installing the web app itself: the fourth card, and the only one whose
+  // wording depends on which browser is reading the page.
+  "Any browser": "Herhangi bir tarayıcı",
+  "Install Casparel from the browser itself: its own window and icon, nothing to update, and the pages you have already opened stay readable when you lose your connection.": "Casparel'i doğrudan tarayıcıdan yükleyin: kendi penceresi ve simgesi olur, güncellenecek bir şey kalmaz ve daha önce açtığınız sayfalar bağlantınız kesildiğinde de okunabilir.",
+  "Install Casparel": "Casparel'i yükle",
+  "Installed": "Yüklendi",
+  "In Safari, tap Share, then Add to Home Screen.": "Safari'de Paylaş'a, ardından Ana Ekrana Ekle'ye dokunun.",
+  "Use your browser's menu, then Install.": "Tarayıcınızın menüsünü açıp Yükle'yi seçin.",
+  "Google Play, or an APK to install directly.": "Google Play veya doğrudan yüklenebilen bir APK.",
+  "Intel and Arm: DMG or ZIP on macOS, an installer or a ZIP on Windows, AppImage, deb, rpm or tar.gz on Linux.": "Intel ve Arm: macOS'ta DMG veya ZIP, Windows'ta kurulum dosyası veya ZIP, Linux'ta AppImage, deb, rpm veya tar.gz.",
 
   "Activities": "Etkinlikler",
   "No plans": "Plan yok",

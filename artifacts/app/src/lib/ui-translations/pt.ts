@@ -271,6 +271,8 @@ const PT: Record<string, string> = {
   "Platform": "Plataforma",
   "Signed by": "Assinado por",
   "Linux packages are not signed the way Windows and macOS ones are, because Linux has no single authority that vouches for a downloaded installer. Compare the published checksum instead.": "Os pacotes Linux não são assinados como os de Windows e macOS, porque no Linux não existe uma autoridade única que responda por um instalador baixado. Compare a soma de verificação publicada.",
+  "A ZIP is a container rather than a signed file: the app inside it carries the signature, and the archive itself is covered by its checksum like the Linux packages are.": "Um ZIP é um contêiner, não um arquivo assinado: quem carrega a assinatura é o aplicativo dentro dele, e o próprio arquivo compactado é coberto pela sua soma de verificação, como os pacotes Linux.",
+  "Every release publishes a SHA256SUMS.txt covering every file in it. Download it beside the installer and that one command answers whether the file is the one the build produced.": "Cada versão publica um SHA256SUMS.txt que cobre todos os seus arquivos. Baixe-o junto com o instalador: esse único comando responde se o arquivo é o que a compilação produziu.",
   "What a signature promises": "O que uma assinatura promete",
   "One thing only: that the file came from our release pipeline, built from a specific public commit. It is not a promise that the software is free of bugs, and it does not cover the pages the app loads from this website while you use it.": "Só uma coisa: que o arquivo saiu da nossa linha de publicação, compilado a partir de um commit público específico. Não é uma promessa de que o software não tem falhas, e não cobre as páginas que o aplicativo carrega deste site enquanto você o usa.",
   "Every release is built by a workflow in the open repository, on machines we do not control the contents of, one per platform. No installer is ever built on a personal computer. Each signing request has to be approved by a maintainer by hand, so an automated system cannot produce a signed file on its own.": "Cada versão é compilada por um fluxo de trabalho do repositório aberto, em máquinas cujo conteúdo não controlamos, uma por plataforma. Nenhum instalador é compilado em um computador pessoal. Cada pedido de assinatura precisa ser aprovado à mão por alguém do projeto, então um sistema automático não consegue produzir um arquivo assinado sozinho.",
@@ -313,6 +315,16 @@ const PT: Record<string, string> = {
   "macOS, Windows and Linux.": "macOS, Windows e Linux.",
   "All download options": "Todas as opções de download",
   "Where Casparel runs": "Onde o Casparel funciona",
+  // Installing the web app itself: the fourth card, and the only one whose
+  // wording depends on which browser is reading the page.
+  "Any browser": "Qualquer navegador",
+  "Install Casparel from the browser itself: its own window and icon, nothing to update, and the pages you have already opened stay readable when you lose your connection.": "Instale o Casparel a partir do próprio navegador: uma janela e um ícone só dele, nada para atualizar, e as páginas que você já abriu continuam legíveis quando a conexão cai.",
+  "Install Casparel": "Instalar o Casparel",
+  "Installed": "Instalado",
+  "In Safari, tap Share, then Add to Home Screen.": "No Safari, toque em Compartilhar e depois em Adicionar à Tela de Início.",
+  "Use your browser's menu, then Install.": "Abra o menu do seu navegador e escolha Instalar.",
+  "Google Play, or an APK to install directly.": "Google Play, ou um APK para instalar diretamente.",
+  "Intel and Arm: DMG or ZIP on macOS, an installer or a ZIP on Windows, AppImage, deb, rpm or tar.gz on Linux.": "Intel e Arm: DMG ou ZIP no macOS, um instalador ou um ZIP no Windows, AppImage, deb, rpm ou tar.gz no Linux.",
 
   "Activities": "Atividades",
   "No plans": "Sem planos",
