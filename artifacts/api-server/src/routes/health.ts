@@ -7,13 +7,17 @@ const router: IRouter = Router();
 
 router.get("/healthz", (_req, res) => {
   const schema = getSchemaHealth();
-  // Keep the documented `status` field exactly as the contract declares it, and
-  // report schema state alongside. A failed migration leaves the server able to
-  // answer requests while parts of the app are broken, so "ok" alone is
-  // misleading, surface it here rather than only in the startup logs.
-  const data = HealthCheckResponse.parse({ status: "ok" });
-  res.status(schema.state === "failed" ? 503 : 200).json({
-    ...data,
+  /*
+   * The whole body is parsed, not just `status`.
+   *
+   * This used to validate `{ status: "ok" }` against the contract and then
+   * spread two more fields onto it on the way out, so the two fields anybody
+   * actually reads -- is the schema migrated, is AI working -- were the two
+   * the contract had no opinion about. They are described now, and checked
+   * here, which is the only way the description stays true.
+   */
+  const body = HealthCheckResponse.parse({
+    status: "ok",
     schema: {
       state: schema.state,
       checkedAt: schema.checkedAt,
@@ -32,6 +36,7 @@ router.get("/healthz", (_req, res) => {
     // no product.
     ai: aiHealth(),
   });
+  res.status(schema.state === "failed" ? 503 : 200).json(body);
 });
 
 export default router;

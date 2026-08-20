@@ -31,6 +31,7 @@
 import { describe, expect, it, beforeAll } from "vitest";
 import {
   CreateStudyActivityResponse,
+  HealthCheckResponse,
   GetSharedStudyActivityResponse,
   ListStudyActivitiesResponse,
   PublishStudyActivityResponse,
@@ -76,6 +77,27 @@ function mustMatch(
       `client is typed against something the server does not send`,
   ).toEqual([]);
 }
+
+live("what the server sends for health", () => {
+  it("answers /healthz in the shape the contract describes", async () => {
+    /*
+     * The endpoint anybody reads when they want to know whether production is
+     * working, and the one the contract described least: `status` and nothing
+     * else, while the server sent a schema block and an AI block alongside it.
+     * Somebody looking at `ai.state: "unknown"` on casparel.com had no
+     * documented way to find out which kind of unknown it was.
+     *
+     * No /api prefix: this one is mounted at the root as well, because a load
+     * balancer's health check is not an API client.
+     */
+    const response = await fetch(`${BASE}/api/healthz`);
+    const body = await response.json();
+    // 503 is a legitimate answer here -- a failed migration -- and the body is
+    // the same shape either way, which is the point of checking it.
+    expect([200, 503]).toContain(response.status);
+    mustMatch(HealthCheckResponse, body, "GET /healthz");
+  });
+});
 
 live("what the server sends for study activities", () => {
   let token = "";

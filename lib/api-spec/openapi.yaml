@@ -2897,10 +2897,70 @@ components:
 
     HealthStatus:
       type: object
-      required: [status]
+      description: >-
+        What /healthz answers. It described only `status` while the server sent
+        three top-level fields, so anybody reading production health -- which
+        is the point of the endpoint -- was reading undocumented JSON and
+        guessing at what the values meant.
+      required: [status, schema, ai]
       properties:
         status:
           type: string
+          description: >-
+            "ok" whenever the process can answer at all. The status *code* is
+            503 when the schema has failed; this field is deliberately not
+            where that distinction lives.
+        schema:
+          type: object
+          description: >-
+            Whether migrations have run. A failed migration leaves the server
+            able to answer requests while parts of the app are broken, so "ok"
+            alone would be misleading.
+          required: [state, checkedAt]
+          properties:
+            state: { type: string, enum: [pending, ready, failed] }
+            checkedAt: { type: ["string", "null"], format: date-time }
+            error:
+              type: string
+              description: >-
+                Names the missing relation or column. Present only when the
+                state is "failed".
+        ai:
+          $ref: "#/components/schemas/AiHealth"
+
+    AiHealth:
+      type: object
+      description: >-
+        The outcome of the AI calls the product already makes -- no probe, no
+        cost -- so a wrong key or an unreachable provider is visible here
+        rather than only in a log nobody is tailing. It never changes the
+        status code: the catalogue, classes, schedules and the quick source
+        check all work without AI.
+      required: [state, checkedAt]
+      properties:
+        state:
+          type: string
+          enum: [ok, failing, unknown]
+        reason:
+          type: string
+          enum: [never-attempted, last-result-expired]
+          description: >-
+            Which kind of "unknown", because there are two and they are
+            different news: nothing has been attempted since this process
+            started, or a result was recorded and has aged out. Present only
+            when the state is "unknown". Without it, telling them apart meant
+            noticing that checkedAt was null and trusting the implication.
+        checkedAt: { type: ["string", "null"], format: date-time }
+        lastOperation:
+          type: string
+          description: The AI call the recorded result came from.
+        lastState:
+          type: string
+          enum: [ok, failing]
+          description: >-
+            What the aged-out result said. A provider that was failing an hour
+            ago is a different starting point from one that was fine.
+        error: { type: string }
 
     # ── Auth ────────────────────────────────────────────────────────────────
     User:

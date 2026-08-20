@@ -12,8 +12,21 @@ import * as zod from 'zod/v4';
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
-})
+  "status": zod.string().describe('\"ok\" whenever the process can answer at all. The status \*code\* is 503 when the schema has failed; this field is deliberately not where that distinction lives.'),
+  "schema": zod.object({
+  "state": zod.enum(['pending', 'ready', 'failed']),
+  "checkedAt": zod.coerce.date().nullable(),
+  "error": zod.string().optional().describe('Names the missing relation or column. Present only when the state is \"failed\".')
+}).describe('Whether migrations have run. A failed migration leaves the server able to answer requests while parts of the app are broken, so \"ok\" alone would be misleading.'),
+  "ai": zod.object({
+  "state": zod.enum(['ok', 'failing', 'unknown']),
+  "reason": zod.enum(['never-attempted', 'last-result-expired']).optional().describe('Which kind of \"unknown\", because there are two and they are different news: nothing has been attempted since this process started, or a result was recorded and has aged out. Present only when the state is \"unknown\". Without it, telling them apart meant noticing that checkedAt was null and trusting the implication.'),
+  "checkedAt": zod.coerce.date().nullable(),
+  "lastOperation": zod.string().optional().describe('The AI call the recorded result came from.'),
+  "lastState": zod.enum(['ok', 'failing']).optional().describe('What the aged-out result said. A provider that was failing an hour ago is a different starting point from one that was fine.'),
+  "error": zod.string().optional()
+}).describe('The outcome of the AI calls the product already makes -- no probe, no cost -- so a wrong key or an unreachable provider is visible here rather than only in a log nobody is tailing. It never changes the status code: the catalogue, classes, schedules and the quick source check all work without AI.')
+}).describe('What \/healthz answers. It described only `status` while the server sent three top-level fields, so anybody reading production health -- which is the point of the endpoint -- was reading undocumented JSON and guessing at what the values meant.')
 
 
 /**
@@ -2092,6 +2105,54 @@ export const DeleteResourceParams = zod.object({
 })
 
 export const DeleteResourceResponse = zod.void()
+
+
+/**
+ * The same review as /resources/{id}/source-review, for a resource nobody has added: the library runs this before you save something, so the decision to save is made with the provenance in front of you. It was served from the same handler and described nowhere, so the web app reached it through a hand-rolled fetch and no other surface could.
+ * @summary Research and summarise a source that is not saved yet
+ */
+export const reviewASourceQueryTitleMax = 300;
+
+export const reviewASourceQueryModeDefault = `quick`;
+
+export const ReviewASourceQueryParams = zod.object({
+  "url": zod.url(),
+  "title": zod.coerce.string().max(reviewASourceQueryTitleMax),
+  "subject": zod.coerce.string().optional(),
+  "gradeLevel": zod.coerce.string().optional(),
+  "format": zod.coerce.string().optional(),
+  "mode": zod.enum(['quick', 'deep']).default(reviewASourceQueryModeDefault).describe('quick — maintained source provenance, no AI, no account needed; deep — authenticated live web research, cached for 90 days and subject to daily and monthly usage limits\n')
+})
+
+export const ReviewASourceResponse = zod.object({
+  "sourceName": zod.string(),
+  "sourceType": zod.string(),
+  "description": zod.string().nullish(),
+  "founded": zod.string().nullish(),
+  "headquarters": zod.string().nullish(),
+  "trustLevel": zod.enum(['high', 'medium', 'low', 'unknown']),
+  "trustReason": zod.string().nullish(),
+  "summary": zod.string(),
+  "reputationAnalysis": zod.string().nullish(),
+  "audienceSentiment": zod.string().nullish(),
+  "contentQuality": zod.string().nullish(),
+  "currencyAssessment": zod.string().nullish(),
+  "researchScope": zod.string().nullish(),
+  "strengths": zod.array(zod.string()).optional(),
+  "concerns": zod.array(zod.string()).optional(),
+  "limitations": zod.array(zod.string()).optional(),
+  "links": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional(),
+  "mentions": zod.array(zod.object({
+  "summary": zod.string(),
+  "url": zod.url(),
+  "sourceType": zod.enum(['forum', 'comments', 'review', 'article', 'social', 'official', 'other']),
+  "sentiment": zod.enum(['positive', 'mixed', 'negative', 'neutral'])
+})).optional(),
+  "mode": zod.enum(['quick', 'deep'])
+})
 
 
 /**

@@ -96,6 +96,7 @@ import type {
   ResourceListWithItems,
   ResourcePatch,
   Review,
+  ReviewASourceParams,
   ReviewInput,
   RoleSwitchInput,
   ScheduleBlock,
@@ -4827,6 +4828,91 @@ export const useDeleteResource = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteResourceMutationOptions(options));
     }
+
+export const getReviewASourceUrl = (params: ReviewASourceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/source-review?${stringifiedParams}` : `/api/source-review`
+}
+
+/**
+ * The same review as /resources/{id}/source-review, for a resource nobody has added: the library runs this before you save something, so the decision to save is made with the provenance in front of you. It was served from the same handler and described nowhere, so the web app reached it through a hand-rolled fetch and no other surface could.
+ * @summary Research and summarise a source that is not saved yet
+ */
+export const reviewASource = async (params: ReviewASourceParams, options?: Parameters<typeof customFetch>[1]): Promise<SourceReview> => {
+
+  return customFetch<SourceReview>(getReviewASourceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getReviewASourceQueryKey = (params?: ReviewASourceParams,) => {
+    return [
+    `/api/source-review`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getReviewASourceQueryOptions = <TData = Awaited<ReturnType<typeof reviewASource>>, TError = ErrorType<void>>(params: ReviewASourceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof reviewASource>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getReviewASourceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof reviewASource>>> = ({ signal }) => reviewASource(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof reviewASource>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ReviewASourceQueryResult = NonNullable<Awaited<ReturnType<typeof reviewASource>>>
+export type ReviewASourceQueryError = ErrorType<void>
+
+
+/**
+ * @summary Research and summarise a source that is not saved yet
+ */
+
+export function useReviewASource<TData = Awaited<ReturnType<typeof reviewASource>>, TError = ErrorType<void>>(
+ params: ReviewASourceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof reviewASource>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getReviewASourceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetResourceSourceReviewUrl = (id: number,
     params?: GetResourceSourceReviewParams,) => {

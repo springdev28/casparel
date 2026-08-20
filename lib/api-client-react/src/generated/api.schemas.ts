@@ -82,8 +82,82 @@ export interface ConversationRequestAnswer {
   action: ConversationRequestAnswerAction;
 }
 
+export type HealthStatusSchemaState = typeof HealthStatusSchemaState[keyof typeof HealthStatusSchemaState];
+
+
+export const HealthStatusSchemaState = {
+  pending: 'pending',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
+/**
+ * Whether migrations have run. A failed migration leaves the server able to answer requests while parts of the app are broken, so "ok" alone would be misleading.
+ */
+export type HealthStatusSchema = {
+  state: HealthStatusSchemaState;
+  /** @nullable */
+  checkedAt: string | null;
+  /** Names the missing relation or column. Present only when the state is "failed". */
+  error?: string;
+};
+
+export type AiHealthState = typeof AiHealthState[keyof typeof AiHealthState];
+
+
+export const AiHealthState = {
+  ok: 'ok',
+  failing: 'failing',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * Which kind of "unknown", because there are two and they are different news: nothing has been attempted since this process started, or a result was recorded and has aged out. Present only when the state is "unknown". Without it, telling them apart meant noticing that checkedAt was null and trusting the implication.
+ */
+export type AiHealthReason = typeof AiHealthReason[keyof typeof AiHealthReason];
+
+
+export const AiHealthReason = {
+  'never-attempted': 'never-attempted',
+  'last-result-expired': 'last-result-expired',
+} as const;
+
+/**
+ * What the aged-out result said. A provider that was failing an hour ago is a different starting point from one that was fine.
+ */
+export type AiHealthLastState = typeof AiHealthLastState[keyof typeof AiHealthLastState];
+
+
+export const AiHealthLastState = {
+  ok: 'ok',
+  failing: 'failing',
+} as const;
+
+/**
+ * The outcome of the AI calls the product already makes -- no probe, no cost -- so a wrong key or an unreachable provider is visible here rather than only in a log nobody is tailing. It never changes the status code: the catalogue, classes, schedules and the quick source check all work without AI.
+ */
+export interface AiHealth {
+  state: AiHealthState;
+  /** Which kind of "unknown", because there are two and they are different news: nothing has been attempted since this process started, or a result was recorded and has aged out. Present only when the state is "unknown". Without it, telling them apart meant noticing that checkedAt was null and trusting the implication. */
+  reason?: AiHealthReason;
+  /** @nullable */
+  checkedAt: string | null;
+  /** The AI call the recorded result came from. */
+  lastOperation?: string;
+  /** What the aged-out result said. A provider that was failing an hour ago is a different starting point from one that was fine. */
+  lastState?: AiHealthLastState;
+  error?: string;
+}
+
+/**
+ * What /healthz answers. It described only `status` while the server sent three top-level fields, so anybody reading production health -- which is the point of the endpoint -- was reading undocumented JSON and guessing at what the values meant.
+ */
 export interface HealthStatus {
+  /** "ok" whenever the process can answer at all. The status *code* is 503 when the schema has failed; this field is deliberately not where that distinction lives. */
   status: string;
+  /** Whether migrations have run. A failed migration leaves the server able to answer requests while parts of the app are broken, so "ok" alone would be misleading. */
+  schema: HealthStatusSchema;
+  ai: AiHealth;
 }
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];
@@ -2243,6 +2317,29 @@ export type ListProvenanceShowcase200 = {
   personalised: boolean;
   entries: ProvenanceShowcaseEntry[];
 };
+
+export type ReviewASourceParams = {
+url: string;
+/**
+ * @maxLength 300
+ */
+title: string;
+subject?: string;
+gradeLevel?: string;
+format?: string;
+/**
+ * quick — maintained source provenance, no AI, no account needed; deep — authenticated live web research, cached for 90 days and subject to daily and monthly usage limits
+ */
+mode?: ReviewASourceMode;
+};
+
+export type ReviewASourceMode = typeof ReviewASourceMode[keyof typeof ReviewASourceMode];
+
+
+export const ReviewASourceMode = {
+  quick: 'quick',
+  deep: 'deep',
+} as const;
 
 export type GetResourceSourceReviewParams = {
 /**
