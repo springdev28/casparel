@@ -314,11 +314,27 @@ function collectEnglish(pagePath, signedIn, viewport) {
   return englishCache.get(key);
 }
 
+/*
+ * One flat list of everything to look at, then all of it a few at a time.
+ *
+ * This was four nested loops rendering one page at a time. Each render is an
+ * independent context against a static server, so the nesting was expressing
+ * the shape of the report rather than any real dependency -- and the report is
+ * assembled from the results afterwards either way.
+ */
+const TASKS = [];
+/*
+ * Typed, because a bare array of [strings, boolean] pairs infers as
+ * (boolean | string[])[][] and then `pages` might be a boolean as far as
+ * anything checking this file can tell.
+ */
+/** @type {Array<[string[], boolean]>} */
+const GROUPS = [
+  [PAGES, false],
+  [SIGNED_IN_PAGES, true],
+];
 for (const language of LANGS) {
-  for (const [pages, signedIn] of [
-    [PAGES, false],
-    [SIGNED_IN_PAGES, true],
-  ]) {
+  for (const [pages, signedIn] of GROUPS) {
     for (const pagePath of pages) {
       for (const viewport of VIEWPORTS) {
         TASKS.push({ language, pagePath, signedIn, viewport });
