@@ -243,6 +243,19 @@ const SEARCH_LANGUAGE_OPTIONS = [
 ];
 type SearchLanguage = (typeof SEARCH_LANGUAGE_OPTIONS)[number]["code"];
 
+/**
+ * How much a source is trusted, as a phrase rather than an enum plus a noun.
+ *
+ * "unknown trust" is deliberately not "Unknown trust": not having checked is
+ * different from having checked and found little, and the wording says which.
+ */
+const TRUST_LEVEL_NAME: Record<string, string> = {
+  high: "Highly trusted",
+  medium: "Moderately trusted",
+  low: "Little trust signal",
+  unknown: "Trust not established",
+};
+
 const FORMAT_COLORS: Record<string, string> = {
   article: "bg-blue-100 text-blue-700",
   video: "bg-red-100 text-red-700",
@@ -737,8 +750,12 @@ function UnsavedSourceResearchDialog({
               <Badge>
                 {data.mode === "deep" ? "Deep research" : "Quick research"}
               </Badge>
-              <Badge variant="outline" className="capitalize">
-                {data.trustLevel} trust
+              {/* One string, not an enum with the word "trust" glued on: the
+                  bridge matches whole text nodes, so `{level} trust` could
+                  never match a dictionary entry in any language, and the level
+                  itself was a raw column value under a `capitalize`. */}
+              <Badge variant="outline">
+                {TRUST_LEVEL_NAME[data.trustLevel] ?? `${data.trustLevel} trust`}
               </Badge>
               <span className="font-semibold">{data.sourceName}</span>
             </div>

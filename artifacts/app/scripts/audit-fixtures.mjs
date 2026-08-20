@@ -190,6 +190,32 @@ const RESOURCE = {
   createdAt: "2026-02-11T09:00:00.000Z",
 };
 
+/**
+ * A second resource, in a second format.
+ *
+ * Every list in these fixtures held one resource, and its format was "pdf" --
+ * which the translation audit allows as an acronym. So the format badge was
+ * rendered on every page, in every language, and the only value it ever
+ * carried was the one value that can never be reported.
+ *
+ * That is what hid the ninth site rendering the enum raw: eight were converted
+ * to formatName() and the class resources tab was not, and no audit could see
+ * the difference. One resource with format "video" is enough for the badge to
+ * have to be a real word in six languages.
+ */
+const RESOURCE_VIDEO = {
+  ...RESOURCE,
+  id: 102,
+  title: "Essence of Linear Algebra",
+  description:
+    "A visual series on the geometry behind the algebra, freely available.",
+  url: "https://example.org/essence-of-linear-algebra",
+  format: "video",
+  verificationStatus: "unverified",
+  avgRating: 4.8,
+  reviewCount: 31,
+};
+
 /** The admin user table returns more columns than the public User schema. */
 const ADMIN_USER_ROW = {
   ...USER,
@@ -462,7 +488,7 @@ export const FIXTURES = {
     bannedReason: null,
     adminContact: "support@casparel.com",
   },
-  "/api/resources": [RESOURCE],
+  "/api/resources": [RESOURCE, RESOURCE_VIDEO],
   // The detail page: its own strings are a large share of the product, and
   // without a fixture the audit renders an error page and reports nothing.
   "/api/resources/101": RESOURCE,
@@ -523,7 +549,23 @@ export const FIXTURES = {
   "/api/classes/31/join-code": { joinCode: "PHY-4821" },
   "/api/classes/31/invitations": [],
   "/api/classes/31/resource-recommendations": [],
-  "/api/classes/31/resources-list": { id: 77, name: "Physics A-level shared list", items: [] },
+  "/api/classes/31/resources-list": {
+    id: 77,
+    name: "Physics A-level shared list",
+    // Not empty: an empty list renders the empty state, so the resources tab
+    // of a class was audited without ever drawing a resource row.
+    items: [
+      {
+        id: 601,
+        listId: 77,
+        resourceId: 102,
+        note: null,
+        addedAt: "2026-05-02T09:00:00.000Z",
+        position: 0,
+        resource: RESOURCE_VIDEO,
+      },
+    ],
+  },
   "/api/classes/31/assignments": [
     {
       id: 91,

@@ -585,7 +585,7 @@ export default function AppShell({ children }: AppShellProps) {
           title="Disconnect Google Classroom"
           data-testid="sidebar-gc-disconnect"
         >
-          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+          <CheckCircle2 size={13} className="text-primary-foreground shrink-0" />
           <span className="truncate">Google Classroom linked</span>
         </button>
       ) : (

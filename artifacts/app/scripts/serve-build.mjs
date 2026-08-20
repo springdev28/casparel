@@ -46,7 +46,7 @@ const MIME = {
  * @returns {import("node:http").Server} already listening on 127.0.0.1
  */
 export function serveBuild(root, port) {
-  return http
+  const server = http
     .createServer((req, res) => {
       try {
         const url = decodeURIComponent((req.url ?? "/").split("?")[0]);
@@ -73,4 +73,29 @@ export function serveBuild(root, port) {
       }
     })
     .listen(port, "127.0.0.1");
+
+  /*
+   * The other way this used to die.
+   *
+   * `listen` reports failure by emitting 'error', and an 'error' event with no
+   * listener is thrown -- so starting an audit while another one still holds
+   * the port ended the run with an EADDRINUSE stack trace from node:net,
+   * naming neither the audit nor the port's owner. Every audit has its own
+   * default port and its own override, so the fix is nearly always to wait or
+   * to set the variable; the message says so.
+   */
+  server.on("error", (/** @type {NodeJS.ErrnoException} */ error) => {
+    if (error.code === "EADDRINUSE") {
+      console.error(
+        `Port ${port} is already in use, so this audit cannot serve the ` +
+          `build. Another audit is probably still running -- wait for it, or ` +
+          `give this one a different port with its AUDIT_*_PORT variable.`,
+      );
+    } else {
+      console.error(`Could not serve the build on port ${port}: ${error.message}`);
+    }
+    process.exit(2);
+  });
+
+  return server;
 }

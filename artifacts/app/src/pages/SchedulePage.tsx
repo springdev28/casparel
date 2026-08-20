@@ -654,17 +654,26 @@ function StudySessionDetail({
               <span className="text-sm flex-1 truncate">
                 {p.name ?? `User ${p.userId}`}
               </span>
+              {/* `status` is a database enum -- pending, accepted, declined --
+                  and `capitalize` on it is a column value wearing a capital
+                  letter, not a word written for whoever is reading. It is also
+                  the answer to a question ("are they coming?"), so it reads
+                  better as the answer than as the state name. */}
               <Badge
                 variant="outline"
-                className={`text-[10px] capitalize ${
+                className={`text-[10px] ${
                   p.status === "accepted"
-                    ? "border-green-500 text-success-text"
+                    ? "border-success-text/50 text-success-text"
                     : p.status === "declined"
-                      ? "border-red-400 text-red-600"
+                      ? "border-destructive-text/50 text-destructive-text"
                       : "text-muted-foreground"
                 }`}
               >
-                {p.status}
+                {p.status === "accepted"
+                  ? "Coming"
+                  : p.status === "declined"
+                    ? "Not coming"
+                    : "Not answered yet"}
               </Badge>
             </div>
           ))}

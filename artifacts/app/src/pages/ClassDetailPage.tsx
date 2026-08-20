@@ -50,6 +50,7 @@ import ForumPage from './ForumPage';
 import ActivitiesPage from './ActivitiesPage';
 import CanvasesPage from './CanvasesPage';
 import { counted } from "@/lib/counted";
+import { formatName } from "@/lib/resource-format";
 
 /**
  * The eight sections of a class workspace.
@@ -743,8 +744,8 @@ export default function ClassDetailPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-foreground line-clamp-1">{item.resource.title}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
-                          {item.resource.format}
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
+                          {formatName(item.resource.format)}
                         </span>
                         <Badge variant="outline" className="text-[10px]"><ShieldCheck size={11} className="mr-1" /> Teacher assigned</Badge>
                       </div>
