@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { AUTH_LANGUAGE_KEY, type AuthLanguage } from "../lib/auth-locale";
-import { translateUiString } from "../lib/ui-translations";
+import { loadDictionary, translateUiString } from "../lib/ui-translations";
 
 /**
  * Translates the rendered UI in place, for every language that has a
@@ -207,7 +207,26 @@ export default function UiTranslationBridge() {
       pendingNodes.add(node);
       if (!frame) frame = window.requestAnimationFrame(flush);
     };
+
+    /*
+     * The dictionary is fetched, not bundled, so translation waits for it.
+     *
+     * Each language is its own chunk now -- a reader downloads theirs and
+     * nobody else's -- which means the first `apply()` can run before the
+     * words have arrived. Two things follow. It is called again once they
+     * have, because the pass that ran early found nothing to change. And
+     * `cancelled` guards that second pass, so a bridge unmounted while the
+     * chunk was in flight does not walk a DOM it no longer belongs to.
+     *
+     * Nothing is missed in between. `apply()` walks the whole body, so the
+     * second one covers every node that rendered or flushed while the words
+     * were still in flight, whatever the observer did with it meanwhile.
+     */
+    let cancelled = false;
     apply();
+    void loadDictionary(language).then(() => {
+      if (!cancelled) apply();
+    });
 
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
@@ -226,10 +245,18 @@ export default function UiTranslationBridge() {
 
     const handleLanguage = (event: Event) => {
       language = (event as CustomEvent<AuthLanguage>).detail;
+      // Switching language mid-session needs the new dictionary, which this
+      // reader has almost certainly never fetched. Paint what is known now
+      // -- for English, that is the whole job -- and again when it lands.
       apply();
+      const chosen = language;
+      void loadDictionary(chosen).then(() => {
+        if (!cancelled && language === chosen) apply();
+      });
     };
     document.addEventListener(LANGUAGE_EVENT, handleLanguage);
     return () => {
+      cancelled = true;
       observer.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
       pendingNodes.clear();

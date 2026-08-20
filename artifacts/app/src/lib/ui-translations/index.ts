@@ -13,26 +13,72 @@
  * "translate everything" is measurable instead of assumed.
  */
 import type { AuthLanguage } from "../auth-locale";
-import TR from "./tr";
-import ES from "./es";
-import FR from "./fr";
-import PT from "./pt";
-import DE from "./de";
 
 /**
- * A language with no entry here is served English, unchanged — which is the
+ * One loader per language, so a reader downloads their own dictionary and
+ * nobody else's.
+ *
+ * These were five static imports. Each dictionary is around 125KB of source,
+ * so they bundled into a single 596KB chunk and every reader who chose French
+ * fetched German, Spanish, Portuguese and Turkish along with it -- half a
+ * megabyte of languages they will never see, on a product whose readers are
+ * students and may be on a phone on a bus.
+ *
+ * A dynamic import gives each its own chunk. Vite splits on these
+ * automatically, and the shape below -- a literal object of arrow functions
+ * with static specifiers -- is what lets it: a computed `import(path)` would
+ * defeat the analysis and pull all five back into one chunk.
+ *
+ * A language with no entry here is served English, unchanged, which is the
  * honest failure: half-machine-translated copy is worse than none. Adding a
  * language is one module and one line, and `TRANSLATED_LANGUAGES` below keeps
  * tooling and the audit in step automatically.
  */
-export const DICTIONARIES: Partial<Record<AuthLanguage, Record<string, string>>> =
-  {
-    tr: TR,
-    es: ES,
-    fr: FR,
-    pt: PT,
-    de: DE,
-  };
+const LOADERS: Partial<
+  Record<AuthLanguage, () => Promise<{ default: Record<string, string> }>>
+> = {
+  tr: () => import("./tr"),
+  es: () => import("./es"),
+  fr: () => import("./fr"),
+  pt: () => import("./pt"),
+  de: () => import("./de"),
+};
+
+/** Dictionaries already fetched, by language. */
+const LOADED: Partial<Record<AuthLanguage, Record<string, string>>> = {};
+
+/** In-flight fetches, so two callers asking at once make one request. */
+const LOADING: Partial<Record<AuthLanguage, Promise<void>>> = {};
+
+/**
+ * Fetch a language's dictionary, once.
+ *
+ * `translateUiString` stays synchronous -- it is called from a
+ * MutationObserver, once per text node, and cannot await anything -- so the
+ * dictionary has to be in hand before translation starts. Callers await this
+ * first. Until it resolves, a lookup returns the English unchanged, which is
+ * the same thing the bridge already did for a language it had no dictionary
+ * for, and it is why a slow network shows English briefly rather than nothing.
+ *
+ * A failed fetch is not thrown onward. The dictionary is an enhancement over
+ * a product that is written in English and reads correctly without it; a
+ * chunk that will not load should leave the reader with English, not with an
+ * error boundary.
+ */
+export async function loadDictionary(language: AuthLanguage): Promise<void> {
+  if (language === "en" || LOADED[language]) return;
+  const loader = LOADERS[language];
+  if (!loader) return;
+  LOADING[language] ??= loader()
+    .then((module) => {
+      LOADED[language] = module.default;
+    })
+    .catch(() => {
+      // Leave it unloaded; English is the fallback and it is a correct one.
+      delete LOADING[language];
+    });
+  await LOADING[language];
+}
 
 /**
  * Counted phrases, which no whole-string dictionary can hold: the number is
@@ -445,7 +491,7 @@ const OF_RULE: Partial<Record<AuthLanguage, (a: string, b: string) => string>> =
  */
 export function translateUiString(value: string, language: AuthLanguage): string {
   if (language === "en") return value;
-  const dictionary = DICTIONARIES[language];
+  const dictionary = LOADED[language];
   if (!dictionary) return value;
   const leading = value.match(/^\s*/)?.[0] ?? "";
   const trailing = value.match(/\s*$/)?.[0] ?? "";
@@ -484,4 +530,4 @@ export function translateUiString(value: string, language: AuthLanguage): string
 }
 
 /** Every language that has a dictionary, for tooling and tests. */
-export const TRANSLATED_LANGUAGES = Object.keys(DICTIONARIES) as AuthLanguage[];
+export const TRANSLATED_LANGUAGES = Object.keys(LOADERS) as AuthLanguage[];

@@ -29,12 +29,26 @@ const languages = readFileSync(
   "utf8",
 );
 
-/** The keys of the DICTIONARIES object literal. */
+/**
+ * The keys of the LOADERS object literal.
+ *
+ * It was DICTIONARIES, holding five imported objects. Each dictionary is
+ * around 125KB of source, so they bundled into one chunk and a French reader
+ * fetched German, Spanish, Portuguese and Turkish along with it; they are
+ * dynamic imports now, one chunk each. What this test holds is unchanged --
+ * the languages that have translations must be the languages the entry
+ * advertises -- and it reads the loader table because that is where the list
+ * lives.
+ */
 function dictionaryLanguages(): string[] {
-  const start = index.indexOf("export const DICTIONARIES");
-  expect(start, "DICTIONARIES is gone from the translation index").toBeGreaterThan(-1);
-  const body = index.slice(start, index.indexOf("\n  };", start));
-  return [...body.matchAll(/^\s{4}(\w+):/gm)].map((match) => match[1]).sort();
+  const start = index.indexOf("const LOADERS");
+  expect(
+    start,
+    "the loader table is gone from the translation index; this test reads it " +
+      "for the list of languages that have a dictionary",
+  ).toBeGreaterThan(-1);
+  const body = index.slice(start, index.indexOf("\n};", start));
+  return [...body.matchAll(/^\s{2}(\w+): \(\) =>/gm)].map((match) => match[1]).sort();
 }
 
 /** The codes the app entry consults, which must not import a dictionary. */
