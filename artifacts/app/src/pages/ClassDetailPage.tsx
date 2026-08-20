@@ -743,17 +743,33 @@ export default function ClassDetailPage() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-foreground line-clamp-1">{item.resource.title}</p>
+                        <p translate="no" className="text-sm font-medium text-foreground line-clamp-1">{item.resource.title}</p>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
                           {formatName(item.resource.format)}
                         </span>
                         <Badge variant="outline" className="text-[10px]"><ShieldCheck size={11} className="mr-1" /> Teacher assigned</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
+                      {/* A resource's title, subject and year group are the
+                          words whoever added it typed. The tab was fixtured
+                          with an empty list, so nothing here had ever
+                          rendered for the bridge to reach. */}
+                      <p translate="no" className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
+                      {/* Both of these are icon-only, so the icon reads as
+                          the label to whoever wrote them and as "link" and
+                          "button" to a screen reader. Named after the resource,
+                          because a column of these is otherwise announced
+                          identically; the title is a person's words, so it is
+                          kept out of the bridge's way. */}
                       <Button size="sm" variant="outline" asChild>
-                        <a href={item.resource.url} target="_blank" rel="noopener noreferrer">
+                        <a
+                          href={item.resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Open ${item.resource.title}`}
+                          translate="no"
+                        >
                           <ExternalLink size={12} />
                         </a>
                       </Button>
@@ -771,6 +787,8 @@ export default function ClassDetailPage() {
                           onClick={() => handleRemoveResource(item.resource.id)}
                           disabled={removeClassResource.isPending}
                           data-testid="remove-class-resource"
+                          aria-label={`Remove ${item.resource.title}`}
+                          translate="no"
                         >
                           <Trash2 size={13} />
                         </Button>

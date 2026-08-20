@@ -42,8 +42,9 @@ const MIME = {
 
 /**
  * @param {string} root the built site, usually dist/public
- * @param {number} port
- * @returns {import("node:http").Server} already listening on 127.0.0.1
+ * @param {number} port 0 for an ephemeral one; await `ready` for the real one
+ * @returns {import("node:http").Server & { ready: Promise<number> }} the
+ *   server, plus a promise of the port it actually got
  */
 export function serveBuild(root, port) {
   const server = http
@@ -51,9 +52,16 @@ export function serveBuild(root, port) {
       try {
         const url = decodeURIComponent((req.url ?? "/").split("?")[0]);
         // Anything the router owns gets the app shell, which is how a
-        // client-side route like /classes/31 loads at all.
+        // client-side route like /classes/31 loads at all -- and so does
+        // anything that resolves outside the build, since `..` in a request
+        // path would otherwise read whatever it liked off this machine. Only
+        // one of the five copies of this checked that.
         let file = path.join(root, url);
-        if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+        if (
+          !path.resolve(file).startsWith(path.resolve(root)) ||
+          !fs.existsSync(file) ||
+          fs.statSync(file).isDirectory()
+        ) {
           file = path.join(root, "index.html");
         }
         const body = fs.readFileSync(file);
@@ -97,5 +105,22 @@ export function serveBuild(root, port) {
     process.exit(2);
   });
 
-  return server;
+  /*
+   * The port, once it is real.
+   *
+   * `listen` is asynchronous, so `address()` is null until the server says it
+   * is listening -- which matters for the audits that pass 0 and let the OS
+   * pick, because those cannot know their own URL until this resolves.
+   */
+  // Not `listening`: net.Server already has a getter by that name, and
+  // assigning over it throws.
+  const ready = new Promise((resolve) =>
+    server.once("listening", () => {
+      const address = server.address();
+      // A string address is a unix socket, which nothing here uses; the
+      // requested port is the honest answer if one ever appears.
+      resolve(address && typeof address !== "string" ? address.port : port);
+    }),
+  );
+  return Object.assign(server, { ready });
 }

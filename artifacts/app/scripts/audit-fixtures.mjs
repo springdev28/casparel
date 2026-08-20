@@ -494,6 +494,59 @@ export const FIXTURES = {
   "/api/resources/101": RESOURCE,
   "/api/resources/101/reviews": [],
   /*
+   * The quick source review, which the detail page fetches on mount.
+   *
+   * It had no fixture, so this product's headline panel -- the one the whole
+   * "trust before study" story rests on -- rendered its failure state on every
+   * audit run and nothing ever read a word of it. The mention list is here for
+   * the same reason the library now has a second format: `sourceType` and
+   * `sentiment` are enums, and an enum with no fixture is an enum no audit can
+   * check.
+   */
+  "/api/resources/101/source-review": {
+    sourceName: "Axler, Sheldon",
+    sourceType: "academic author",
+    description:
+      "A mathematician at San Francisco State University, writing and maintaining an openly licensed undergraduate text.",
+    founded: null,
+    headquarters: null,
+    trustLevel: "high",
+    trustReason:
+      "Named author with an institutional affiliation, an openly licensed edition, and a stated revision history.",
+    summary:
+      "Widely adopted as a second course in linear algebra, and unusual in developing determinants late rather than first.",
+    reputationAnalysis:
+      "Cited across undergraduate syllabi and reviewed in teaching journals rather than only in marketing material.",
+    audienceSentiment: "Positive, with the usual disagreement about the order of topics.",
+    contentQuality: "Peer-reviewed, typeset, with exercises and errata maintained by the author.",
+    currencyAssessment: "Third edition, revised within the last five years.",
+    researchScope: null,
+    strengths: [
+      "The author is named, contactable and institutionally affiliated.",
+      "The licence permits classroom use without asking.",
+    ],
+    concerns: ["Assumes a first course in linear algebra has already happened."],
+    limitations: [
+      "A quick check reads maintained provenance signals; it does not read the book.",
+    ],
+    links: [{ label: "Author page", url: "https://example.org/axler" }],
+    mentions: [
+      {
+        summary: "A course reading list naming this as the recommended text.",
+        url: "https://example.org/syllabus",
+        sourceType: "official",
+        sentiment: "positive",
+      },
+      {
+        summary: "A discussion thread arguing about the determinants chapter.",
+        url: "https://example.org/thread",
+        sourceType: "forum",
+        sentiment: "mixed",
+      },
+    ],
+    mode: "quick",
+  },
+  /*
    * The detail page's workflow strip. Without it the unfixtured default -- an
    * empty array -- reached `workflow?.steps[key]`, which is truthy with no
    * `steps` on it, and the page rendered its error boundary. That is why the

@@ -294,20 +294,53 @@ function schoolarDate(value: string, intlLocale: string) {
       }).format(date);
 }
 
+/**
+ * Where a mention came from, and how it reads.
+ *
+ * Both are closed enums from the contract, and both were printed raw under a
+ * `capitalize`. "Comments" and "Social" are the kinds of word that look like
+ * English prose to a bridge and like a column value to everybody reading in
+ * another language, which is the whole reason this pattern exists.
+ */
+const MENTION_SOURCE_NAME: Record<string, string> = {
+  forum: "Forum",
+  comments: "Comments",
+  review: "Review",
+  article: "Article",
+  social: "Social media",
+  official: "Official",
+  other: "Elsewhere",
+};
+
+const MENTION_SENTIMENT_NAME: Record<string, string> = {
+  positive: "Positive",
+  mixed: "Mixed",
+  negative: "Negative",
+  neutral: "Neutral",
+};
+
 const TRUST_META: Record<
   SourceReview["trustLevel"],
   { label: string; icon: typeof ShieldCheck; color: string }
 > = {
-  high: { label: "Highly Trusted", icon: ShieldCheck, color: "text-success-text" },
+  high: {
+    label: "Highly Trusted",
+    icon: ShieldCheck,
+    color: "text-success-text",
+  },
+  // yellow-600 and orange-500 before this: fixed shades chosen against a white
+  // card, and this app has no `.dark` class to swap them under, so on a dark
+  // palette they sat at about 2:1 on the one badge whose whole job is to be
+  // read. The tokens follow the palette.
   medium: {
     label: "Generally Trusted",
     icon: Shield,
-    color: "text-yellow-600",
+    color: "text-warning-text",
   },
   low: {
     label: "Use with Caution",
     icon: ShieldAlert,
-    color: "text-orange-500",
+    color: "text-destructive-text",
   },
   unknown: {
     label: "Trust Unknown",
@@ -538,7 +571,7 @@ function SourceReviewPanel({
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-foreground">
+                    <p translate="no" className="font-semibold text-foreground">
                       {data.sourceName}
                     </p>
                     <Badge
@@ -548,7 +581,12 @@ function SourceReviewPanel({
                       {data.mode === "deep" ? "Deep Research" : "Quick"}
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground capitalize">
+                  {/* What kind of thing the source is, in the model's own
+                      words -- "university press", "independent blog" -- so it
+                      is data rather than product wording, and the bridge
+                      would be guessing if it rewrote it. `sourceName` beside
+                      it is protected for the same reason. */}
+                  <p translate="no" className="text-xs text-muted-foreground capitalize">
                     {data.sourceType.replace(/-/g, " ")}
                   </p>
                 </div>
@@ -748,11 +786,13 @@ function SourceReviewPanel({
                     className="block rounded-lg border p-3 hover:bg-muted/50"
                   >
                     <div className="mb-1 flex items-center justify-between gap-2">
-                      <Badge variant="outline" className="capitalize">
-                        {mention.sourceType}
+                      <Badge variant="outline">
+                        {MENTION_SOURCE_NAME[mention.sourceType] ??
+                          mention.sourceType}
                       </Badge>
-                      <span className="text-[11px] capitalize text-muted-foreground">
-                        {mention.sentiment}
+                      <span className="text-[11px] text-muted-foreground">
+                        {MENTION_SENTIMENT_NAME[mention.sentiment] ??
+                          mention.sentiment}
                       </span>
                     </div>
                     <p className="text-xs leading-relaxed">{mention.summary}</p>

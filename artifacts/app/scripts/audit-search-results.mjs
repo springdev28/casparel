@@ -14,11 +14,11 @@
  *   pnpm --filter @workspace/app run build     # dist/public must exist
  *   node scripts/audit-search-results.mjs      # exits non-zero on findings
  */
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installSession, FIXTURES } from "./audit-fixtures.mjs";
+import { serveBuild } from "./serve-build.mjs";
 
 const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -104,26 +104,9 @@ const SECOND_PAGE = discoverPage(
   FIRST_PAGE.length + 1,
 );
 
-function contentType(file) {
-  if (file.endsWith(".js")) return "text/javascript; charset=utf-8";
-  if (file.endsWith(".css")) return "text/css; charset=utf-8";
-  if (file.endsWith(".svg")) return "image/svg+xml";
-  if (file.endsWith(".json")) return "application/json";
-  return "text/html; charset=utf-8";
-}
-
 function serve() {
-  const server = http.createServer((req, res) => {
-    const requested = decodeURIComponent((req.url ?? "/").split("?")[0]);
-    const candidate = path.join(ROOT, requested);
-    const file =
-      requested !== "/" && fs.existsSync(candidate) && fs.statSync(candidate).isFile()
-        ? candidate
-        : path.join(ROOT, "index.html");
-    res.writeHead(200, { "Content-Type": contentType(file) });
-    fs.createReadStream(file).pipe(res);
-  });
-  return new Promise((resolve) => server.listen(PORT, () => resolve(server)));
+  const server = serveBuild(ROOT, PORT);
+  return server.ready.then(() => server);
 }
 
 function chromiumExecutable() {

@@ -54,6 +54,7 @@ const SCHEMA_FOR: Record<string, string> = {
   "/api/users/me/usage": "GetMyUsageResponse",
   "/api/resources": "ListResourcesResponse",
   "/api/resources/101": "GetResourceResponse",
+  "/api/resources/101/source-review": "GetResourceSourceReviewResponse",
   "/api/learning-goals": "ListLearningGoalsResponse",
   "/api/calendar/status": "GetCalendarStatusResponse",
   "/api/activity/recent": "GetRecentActivityResponse",
