@@ -44,7 +44,11 @@ on:
         description: 'EAS build profile'
         type: choice
         default: production
-        options: [production, preview]
+        # production-apk is the same release as production, wrapped as an .apk
+        # instead of an .aab, for people who cannot install from Play. Pick it
+        # with platform: android; it configures nothing for iOS, which has no
+        # equivalent -- there is no sideloading an iPhone.
+        options: [production, production-apk, preview]
       submit:
         description: 'Submit the finished build to the stores'
         type: boolean
@@ -231,7 +235,16 @@ jobs:
   submit:
     # A tag ships; a manual run only ships when asked. Either way this is the
     # step that puts something in front of reviewers, so it is never implicit.
-    if: startsWith(github.ref, 'refs/tags/mobile-v') || inputs.submit
+    #
+    # Never for production-apk. `eas submit --latest` takes the most recent
+    # build for the platform, and Play will not accept an .apk for a release
+    # track -- so submitting after an APK run either fails outright or, worse,
+    # reaches back to whichever .aab came before it and ships a build nobody
+    # asked to ship. On a tag push inputs.profile is unset, which is not
+    # 'production-apk', so tags are unaffected.
+    if: >-
+      (startsWith(github.ref, 'refs/tags/mobile-v') || inputs.submit) &&
+      inputs.profile != 'production-apk'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 45
