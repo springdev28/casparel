@@ -1169,6 +1169,7 @@ const TR: Record<string, string> = {
   "formats": "biçimler",
   "grades": "sınıf düzeyleri",
   "Topic": "Konu",
+  "For schools": "Okullar için",
 };
 
 export default TR;

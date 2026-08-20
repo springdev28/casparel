@@ -474,13 +474,21 @@ export default function PlansPage() {
                     : "text-muted-foreground hover:text-foreground")
                 }
               >
+                {/*
+                  "For schools", not "Institutional". The other three tabs
+                  name an audience; this one named the plan, so beside three
+                  translated phrases it sat there in English -- and the
+                  translation audit could not say so, because "Institutional"
+                  is a product name it is told to leave alone. The card below
+                  still carries the plan's name.
+                */}
                 {tab === "student"
                   ? "For students"
                   : tab === "teacher"
                     ? "For teachers"
                     : tab === "generic"
                       ? "For everyone"
-                      : "Institutional"}
+                      : "For schools"}
               </button>
             ),
           )}

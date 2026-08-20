@@ -1169,6 +1169,7 @@ const FR: Record<string, string> = {
   "formats": "formats",
   "grades": "niveaux",
   "Topic": "Thème",
+  "For schools": "Pour les établissements",
 };
 
 export default FR;

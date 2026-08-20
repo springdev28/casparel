@@ -1169,6 +1169,7 @@ const ES: Record<string, string> = {
   "formats": "formatos",
   "grades": "cursos",
   "Topic": "Tema",
+  "For schools": "Para centros educativos",
 };
 
 export default ES;

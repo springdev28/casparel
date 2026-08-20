@@ -1169,6 +1169,7 @@ const PT: Record<string, string> = {
   "formats": "formatos",
   "grades": "séries",
   "Topic": "Tema",
+  "For schools": "Para instituições de ensino",
 };
 
 export default PT;
