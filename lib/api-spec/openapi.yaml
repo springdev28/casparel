@@ -1,3 +1,16 @@
+# The source of truth. Everything the clients are built from -- the React
+# hooks, the zod schemas, the types -- is generated out of this file, so a
+# route that is not described here is a route no client can call. See
+# artifacts/api-server/src/lib/contractDescribesEveryRoute.test.ts, which
+# holds this file against the routes the server actually registers.
+#
+# Regenerate after any change:
+#   pnpm --filter @workspace/api-spec run codegen
+#
+# One trap, hit three times while this file was being extended: a comma inside
+# a flow mapping starts another key. `{ description: Not found, or not yours }`
+# parses as two keys, and the validator's complaint names neither the comma nor
+# the line. Quote any inline description containing a comma.
 openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
@@ -32,6 +45,8 @@ tags:
     description: Google Classroom integration
   - name: calendar
     description: Google Calendar sync and iCal feed
+  - name: direct-messages
+    description: One-to-one conversations, and the request that opens one
 paths:
   /healthz:
     get:
@@ -1583,6 +1598,60 @@ paths:
         "204":
           description: Deleted
 
+  /source-review:
+    get:
+      operationId: reviewASource
+      tags: [resources]
+      summary: Research and summarise a source that is not saved yet
+      description: >-
+        The same review as /resources/{id}/source-review, for a resource
+        nobody has added: the library runs this before you save something, so
+        the decision to save is made with the provenance in front of you. It
+        was served from the same handler and described nowhere, so the web app
+        reached it through a hand-rolled fetch and no other surface could.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string, format: uri }
+        - name: title
+          in: query
+          required: true
+          schema: { type: string, maxLength: 300 }
+        - name: subject
+          in: query
+          required: false
+          schema: { type: string }
+        - name: gradeLevel
+          in: query
+          required: false
+          schema: { type: string }
+        - name: format
+          in: query
+          required: false
+          schema: { type: string }
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [quick, deep]
+            default: quick
+          description: >
+            quick — maintained source provenance, no AI, no account needed;
+            deep — authenticated live web research, cached for 90 days and
+            subject to daily and monthly usage limits
+      responses:
+        "200":
+          description: Source review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceReview"
+        "400": { description: A valid source URL and title are required }
+        "401": { description: Deep review needs an account }
+        "502": { description: The research provider could not be reached }
+
   /resources/{id}/source-review:
     get:
       operationId: getResourceSourceReview
@@ -2618,14 +2687,762 @@ paths:
               schema: { $ref: "#/components/schemas/LearningSignals" }
         "403": { description: Teacher role required }
 
+  # ── Direct messages ───────────────────────────────────────────────────────
+  #
+  # Served since the feature shipped and described nowhere, so the generated
+  # clients could not reach them and the phone app simply did not have
+  # messages. Same shape of gap as study-activities, found the same way: by
+  # holding the routes the server registers against the paths this file names.
+  # See contractDescribesEveryRoute.test.ts.
+  /direct-messages/conversations:
+    get:
+      operationId: listConversations
+      tags: [direct-messages]
+      summary: Your conversations, most recently active first
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+        "401": { description: Not authenticated }
+    post:
+      operationId: openConversation
+      tags: [direct-messages]
+      summary: Open a conversation with somebody, optionally with a first message
+      description: >-
+        Returns the existing conversation when there is one. A new conversation
+        starts as a request the other person has to accept, unless an
+        administrator opens it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenConversationInput"
+      responses:
+        "201":
+          description: The conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "400": { description: Choose another user }
+        "401": { description: Not authenticated }
+        "403": { description: This account is not accepting messages }
+        "404": { description: No such user }
+
+  /direct-messages/conversations/{id}:
+    get:
+      operationId: getConversation
+      tags: [direct-messages]
+      summary: One conversation and its messages
+      description: >-
+        Reading a conversation marks the other person's messages read, so this
+        is not a safe request to repeat for polling.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The conversation, with its messages oldest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationThread"
+        "401": { description: Not authenticated }
+        "404": { description: Conversation not found }
+
+  /direct-messages/conversations/{id}/messages:
+    post:
+      operationId: sendMessage
+      tags: [direct-messages]
+      summary: Send a message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageInput"
+      responses:
+        "201":
+          description: The message that was stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DirectMessage"
+        "400": { description: A message is between 1 and 4000 characters }
+        "401": { description: Not authenticated }
+        "403": { description: Waiting for this request to be accepted }
+        "404": { description: Conversation not found }
+
+  /direct-messages/conversations/{id}/request:
+    patch:
+      operationId: answerConversationRequest
+      tags: [direct-messages]
+      summary: Accept or decline a message request somebody sent you
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationRequestAnswer"
+      responses:
+        "200":
+          description: The conversation, in its new state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "400": { description: Choose accept or decline }
+        "401": { description: Not authenticated }
+        "404": { description: "No such request, or it is not yours to answer" }
+
+
+  /resources/{id}/recommend:
+    post:
+      # Not `recommendResource`: there is already a class-level
+      # recommendation, and the generated names would collide in any file that
+      # does both.
+      operationId: recommendResourceToPerson
+      tags: [resources]
+      summary: Send a resource to one person, with an optional note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipientId]
+              properties:
+                recipientId: { type: integer }
+                note: { type: string, maxLength: 500 }
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent]
+                properties:
+                  sent: { type: boolean }
+        "400": { description: "A valid resource and a different recipient are required" }
+        "401": { description: Not authenticated }
+        "404": { description: No such resource or recipient }
+
+  /resources/oembed:
+    get:
+      operationId: getOembedThumbnail
+      tags: [resources]
+      summary: A thumbnail for a URL, from the provider's own oEmbed endpoint
+      description: >-
+        Fetched server-side against a strict hostname allowlist, so the client
+        neither picks the provider nor makes the outbound request. A URL from
+        anywhere else answers `null` rather than an error: not having a
+        thumbnail is a normal outcome, not a failure.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string, format: uri }
+      responses:
+        "200":
+          description: The thumbnail, if the provider has one
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [thumbnailUrl]
+                properties:
+                  thumbnailUrl: { type: ["string", "null"], format: uri }
+        "400": { description: "The url is missing, unparseable, or not http(s)" }
+
+  /assignments/today:
+    get:
+      operationId: listMyAssignments
+      tags: [classes]
+      summary: Everything set for you across your classes, soonest due first
+      description: >-
+        Across every class this account belongs to, with the class named on
+        each row and whether this account has marked it done. Assignments with
+        no due date sort last by when they were set, not first -- an
+        undated task is not urgent.
+      responses:
+        "200":
+          description: Assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssignedWork"
+        "401": { description: Not authenticated }
+
+  /assignments/{id}/completion:
+    patch:
+      operationId: setAssignmentCompletion
+      tags: [classes]
+      summary: Mark an assignment done, or not done after all
+      description: >-
+        Completion is per person, not per assignment: a teacher marking their
+        own copy does not mark it for the class.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [completed]
+              properties:
+                completed: { type: boolean }
+      responses:
+        "200":
+          description: The state it is now in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [completed]
+                properties:
+                  completed: { type: boolean }
+        "401": { description: Not authenticated }
+        "403": { description: Not a member of the class this belongs to }
+
+  /learning-goal-templates:
+    get:
+      operationId: listCommunityPaths
+      tags: [learning-goals]
+      summary: Paths other people have published, most used first
+      responses:
+        "200":
+          description: Community paths
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommunityPath"
+        "401": { description: Not authenticated }
+    post:
+      operationId: publishGoalAsPath
+      tags: [learning-goals]
+      summary: Publish one of your own goals as a path others can clone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [goalId]
+              properties:
+                goalId: { type: integer }
+      responses:
+        "201":
+          description: The published path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityPath"
+        "400": { description: A valid goal is required }
+        "401": { description: Not authenticated }
+        "404": { description: "No such goal, or it is not yours" }
+
+  /learning-goal-templates/{id}/clone:
+    post:
+      operationId: cloneCommunityPath
+      tags: [learning-goals]
+      summary: Take a copy of somebody's path as a goal of your own
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: The goal this created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+        "400": { description: Invalid community path }
+        "401": { description: Not authenticated }
+        "404": { description: Community path not found }
+
+  /users/me/access:
+    get:
+      operationId: getMyAccess
+      tags: [auth]
+      summary: Whether this account is allowed to use Casparel at all
+      description: >-
+        Checked on load, because a ban applied while somebody is signed in has
+        to reach them without waiting for their next request to fail. Carries
+        the address to appeal to, since being told you are banned and not told
+        who to ask is not an answer.
+      responses:
+        "200":
+          description: The account's standing
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [banned, bannedAt, bannedReason, adminContact]
+                properties:
+                  banned: { type: boolean }
+                  bannedAt: { type: ["string", "null"], format: date-time }
+                  bannedReason: { type: ["string", "null"] }
+                  adminContact:
+                    type: string
+                    description: Where to appeal.
+        "401": { description: Not authenticated }
+
+  /users/me/preferences:
+    get:
+      operationId: getMyPreferences
+      tags: [auth]
+      summary: Everything this account has chosen about how Casparel behaves
+      description: >-
+        Returns defaults for an account that has never set anything, rather
+        than 404, so a client can read this before the user has touched a
+        single setting.
+      responses:
+        "200":
+          description: The account's preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "401": { description: Not authenticated }
+    patch:
+      operationId: updateMyPreferences
+      tags: [auth]
+      summary: Change some of them
+      description: >-
+        Only the keys present are changed. Unknown keys are rejected rather
+        than ignored, so a typo in a client is a 400 here instead of a setting
+        that silently never applies.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPreferencesPatch"
+      responses:
+        "200":
+          description: The preferences, as they now stand
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "400": { description: "A value was out of range, or a key is not known" }
+        "401": { description: Not authenticated }
+        "413": { description: Preferences payload is too large }
+
+
 components:
   schemas:
+    AssignedWork:
+      type: object
+      description: >-
+        One assignment as the person it was set for sees it -- which is why the
+        class is named here rather than left as an id, and why `completed` is
+        this account's answer rather than the class's.
+      required:
+        [
+          id,
+          classId,
+          className,
+          title,
+          instructions,
+          resourceId,
+          activityId,
+          dueAt,
+          completedAt,
+          completed,
+        ]
+      properties:
+        id: { type: integer }
+        classId: { type: integer }
+        className: { type: string }
+        title: { type: string }
+        instructions: { type: ["string", "null"] }
+        resourceId: { type: ["integer", "null"] }
+        activityId: { type: ["integer", "null"] }
+        dueAt: { type: ["string", "null"], format: date-time }
+        completedAt: { type: ["string", "null"], format: date-time }
+        completed:
+          type: boolean
+          description: Whether this account has marked it done.
+
+    CommunityPath:
+      type: object
+      description: >-
+        A goal somebody published for other people to clone. `creatorName` is
+        stored on the row rather than joined, so a path stays attributed after
+        the account that made it is deleted.
+      required:
+        [
+          id,
+          creatorId,
+          creatorName,
+          sourceGoalId,
+          title,
+          subject,
+          description,
+          level,
+          pathSteps,
+          useCount,
+          createdAt,
+        ]
+      properties:
+        id: { type: integer }
+        creatorId: { type: integer }
+        creatorName: { type: string }
+        sourceGoalId: { type: integer }
+        title: { type: string }
+        subject: { type: string }
+        description: { type: ["string", "null"] }
+        level: { type: string, enum: [beginner, intermediate, advanced] }
+        pathSteps:
+          type: array
+          items:
+            type: object
+            required: [id, title, query, completed]
+            properties:
+              id: { type: string }
+              title: { type: string }
+              query: { type: string }
+              completed: { type: boolean }
+        useCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    InterfaceColors:
+      type: object
+      required: [background, surface, primary, accent]
+      properties:
+        background: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+        surface: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+        primary: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+        accent: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+
+    SearchHistoryEntry:
+      type: object
+      required: [query, searchedAt]
+      properties:
+        query: { type: string, maxLength: 300 }
+        searchedAt: { type: string, format: date-time }
+        filters:
+          type: object
+          description: >-
+            What the search ran with. Without it a recent search replays as its
+            words alone.
+          additionalProperties:
+            oneOf:
+              - { type: string }
+              - { type: number }
+              - { type: boolean }
+
+    PendingCheckIn:
+      type: object
+      required: [concept, prompt]
+      properties:
+        concept: { type: string, maxLength: 300 }
+        prompt: { type: string, maxLength: 600 }
+
+    UserPreferences:
+      type: object
+      description: >-
+        Read by the web app, the phone app and the desktop shell. The phone
+        reached it with a hand-rolled fetch for as long as it was undescribed,
+        which is what the contract-route test exists to stop.
+      # All of them: the server fills every key from a default for an account
+      # that has never set anything, so a client never has to tell "absent"
+      # from "null". Leaving the nullable ones out of `required` would generate
+      # `string | null | undefined` for a field that is only ever the first two.
+      required:
+        [
+          userId,
+          language,
+          interfaceColors,
+          ambientStyle,
+          ambientIntensity,
+          readNotificationIds,
+          dashboardGoalIds,
+          continueStudying,
+          pendingCheckIns,
+          searchHistory,
+          resourceSearchState,
+          allowMessageRequests,
+          tutorialSeen,
+          updatedAt,
+        ]
+      properties:
+        userId: { type: integer }
+        language:
+          type: ["string", "null"]
+          enum: [en, es, fr, de, pt, tr, null]
+          description: >-
+            Null when the account has never chosen. A client falls back to the
+            device's language then, not to English.
+        interfaceColors:
+          oneOf:
+            - $ref: "#/components/schemas/InterfaceColors"
+            - type: "null"
+        ambientStyle:
+          type: ["string", "null"]
+          enum: [off, net, globe, halo, cells, rings, topology, null]
+        ambientIntensity: { type: ["number", "null"], minimum: 0.5, maximum: 2 }
+        readNotificationIds:
+          type: array
+          items: { type: integer }
+        dashboardGoalIds:
+          type: object
+          additionalProperties: { type: integer }
+        continueStudying:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: integer }
+        pendingCheckIns:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PendingCheckIn"
+        searchHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchHistoryEntry"
+        resourceSearchState:
+          type: ["object", "null"]
+          additionalProperties: true
+        allowMessageRequests: { type: boolean }
+        tutorialSeen: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    UserPreferencesPatch:
+      type: object
+      description: Only the keys present are changed.
+      additionalProperties: false
+      properties:
+        language: { type: string, enum: [en, es, fr, de, pt, tr] }
+        interfaceColors:
+          oneOf:
+            - $ref: "#/components/schemas/InterfaceColors"
+            - type: "null"
+        ambientStyle:
+          type: string
+          enum: [off, net, globe, halo, cells, rings, topology]
+        ambientIntensity: { type: number, minimum: 0.5, maximum: 2 }
+        readNotificationIds:
+          type: array
+          maxItems: 500
+          items: { type: integer }
+        dashboardGoalIds:
+          type: object
+          additionalProperties: { type: integer }
+        continueStudying:
+          type: object
+          additionalProperties:
+            type: array
+            maxItems: 6
+            items: { type: integer }
+        pendingCheckIns:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PendingCheckIn"
+        searchHistory:
+          type: array
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/SearchHistoryEntry"
+        resourceSearchState:
+          type: ["object", "null"]
+          additionalProperties: true
+        allowMessageRequests: { type: boolean }
+        tutorialSeen: { type: boolean }
+
+    ConversationParticipant:
+      type: object
+      required: [id, name, role]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        role: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+
+    DirectMessage:
+      type: object
+      required: [id, conversationId, senderId, body, isAdminMessage, createdAt]
+      properties:
+        id: { type: integer }
+        conversationId: { type: integer }
+        senderId: { type: integer }
+        body: { type: string }
+        isAdminMessage: { type: boolean }
+        readAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    Conversation:
+      type: object
+      required:
+        [
+          id,
+          firstUserId,
+          secondUserId,
+          requestedById,
+          status,
+          createdAt,
+          updatedAt,
+          other,
+          lastMessage,
+          unreadCount,
+          incomingRequest,
+        ]
+      properties:
+        id: { type: integer }
+        firstUserId: { type: integer }
+        secondUserId: { type: integer }
+        requestedById: { type: integer }
+        status: { type: string, enum: [pending, accepted, declined] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        other:
+          $ref: "#/components/schemas/ConversationParticipant"
+        lastMessage:
+          oneOf:
+            - $ref: "#/components/schemas/DirectMessage"
+            - type: "null"
+        unreadCount: { type: integer }
+        incomingRequest:
+          type: boolean
+          description: >-
+            A pending request somebody else sent you, so it is yours to accept
+            or decline rather than one you are waiting on.
+
+    ConversationThread:
+      allOf:
+        - $ref: "#/components/schemas/Conversation"
+        - type: object
+          required: [messages]
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: "#/components/schemas/DirectMessage"
+
+    OpenConversationInput:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: integer }
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: An optional first message, sent with the request.
+
+    SendMessageInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 4000 }
+
+    ConversationRequestAnswer:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [accept, decline] }
+
     HealthStatus:
       type: object
-      required: [status]
+      description: >-
+        What /healthz answers. It described only `status` while the server sent
+        three top-level fields, so anybody reading production health -- which
+        is the point of the endpoint -- was reading undocumented JSON and
+        guessing at what the values meant.
+      required: [status, schema, ai]
       properties:
         status:
           type: string
+          description: >-
+            "ok" whenever the process can answer at all. The status *code* is
+            503 when the schema has failed; this field is deliberately not
+            where that distinction lives.
+        schema:
+          type: object
+          description: >-
+            Whether migrations have run. A failed migration leaves the server
+            able to answer requests while parts of the app are broken, so "ok"
+            alone would be misleading.
+          required: [state, checkedAt]
+          properties:
+            state: { type: string, enum: [pending, ready, failed] }
+            checkedAt: { type: ["string", "null"], format: date-time }
+            error:
+              type: string
+              description: >-
+                Names the missing relation or column. Present only when the
+                state is "failed".
+        ai:
+          $ref: "#/components/schemas/AiHealth"
+
+    AiHealth:
+      type: object
+      description: >-
+        The outcome of the AI calls the product already makes -- no probe, no
+        cost -- so a wrong key or an unreachable provider is visible here
+        rather than only in a log nobody is tailing. It never changes the
+        status code: the catalogue, classes, schedules and the quick source
+        check all work without AI.
+      required: [state, checkedAt]
+      properties:
+        state:
+          type: string
+          enum: [ok, failing, unknown]
+        reason:
+          type: string
+          enum: [never-attempted, last-result-expired]
+          description: >-
+            Which kind of "unknown", because there are two and they are
+            different news: nothing has been attempted since this process
+            started, or a result was recorded and has aged out. Present only
+            when the state is "unknown". Without it, telling them apart meant
+            noticing that checkedAt was null and trusting the implication.
+        checkedAt: { type: ["string", "null"], format: date-time }
+        lastOperation:
+          type: string
+          description: The AI call the recorded result came from.
+        lastState:
+          type: string
+          enum: [ok, failing]
+          description: >-
+            What the aged-out result said. A provider that was failing an hour
+            ago is a different starting point from one that was fine.
+        error: { type: string }
 
     # ── Auth ────────────────────────────────────────────────────────────────
     User:

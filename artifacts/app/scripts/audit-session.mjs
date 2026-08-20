@@ -17,27 +17,18 @@
  *   pnpm --filter @workspace/app run build
  *   node scripts/audit-session.mjs
  */
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
 import { launchOptions } from "./chromium.mjs";
+import { serveBuild } from "./serve-build.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist/public");
 const PORT = 4401;
-const TYPES = { ".js": "text/javascript", ".css": "text/css", ".html": "text/html", ".svg": "image/svg+xml" };
-const server = http.createServer((req, res) => {
-  const url = new URL(req.url, "http://x");
-  let file = path.join(ROOT, url.pathname);
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(ROOT, "index.html");
-  res.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" });
-  res.end(fs.readFileSync(file));
-});
-await new Promise((ready) => {
-  server.listen(PORT, () => ready(undefined));
-});
+const server = serveBuild(ROOT, PORT);
+await server.ready;
 
 const browser = await chromium.launch(launchOptions());
 

@@ -12,8 +12,21 @@ import * as zod from 'zod/v4';
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
-})
+  "status": zod.string().describe('\"ok\" whenever the process can answer at all. The status \*code\* is 503 when the schema has failed; this field is deliberately not where that distinction lives.'),
+  "schema": zod.object({
+  "state": zod.enum(['pending', 'ready', 'failed']),
+  "checkedAt": zod.coerce.date().nullable(),
+  "error": zod.string().optional().describe('Names the missing relation or column. Present only when the state is \"failed\".')
+}).describe('Whether migrations have run. A failed migration leaves the server able to answer requests while parts of the app are broken, so \"ok\" alone would be misleading.'),
+  "ai": zod.object({
+  "state": zod.enum(['ok', 'failing', 'unknown']),
+  "reason": zod.enum(['never-attempted', 'last-result-expired']).optional().describe('Which kind of \"unknown\", because there are two and they are different news: nothing has been attempted since this process started, or a result was recorded and has aged out. Present only when the state is \"unknown\". Without it, telling them apart meant noticing that checkedAt was null and trusting the implication.'),
+  "checkedAt": zod.coerce.date().nullable(),
+  "lastOperation": zod.string().optional().describe('The AI call the recorded result came from.'),
+  "lastState": zod.enum(['ok', 'failing']).optional().describe('What the aged-out result said. A provider that was failing an hour ago is a different starting point from one that was fine.'),
+  "error": zod.string().optional()
+}).describe('The outcome of the AI calls the product already makes -- no probe, no cost -- so a wrong key or an unreachable provider is visible here rather than only in a log nobody is tailing. It never changes the status code: the catalogue, classes, schedules and the quick source check all work without AI.')
+}).describe('What \/healthz answers. It described only `status` while the server sent three top-level fields, so anybody reading production health -- which is the point of the endpoint -- was reading undocumented JSON and guessing at what the values meant.')
 
 
 /**
@@ -2095,6 +2108,54 @@ export const DeleteResourceResponse = zod.void()
 
 
 /**
+ * The same review as /resources/{id}/source-review, for a resource nobody has added: the library runs this before you save something, so the decision to save is made with the provenance in front of you. It was served from the same handler and described nowhere, so the web app reached it through a hand-rolled fetch and no other surface could.
+ * @summary Research and summarise a source that is not saved yet
+ */
+export const reviewASourceQueryTitleMax = 300;
+
+export const reviewASourceQueryModeDefault = `quick`;
+
+export const ReviewASourceQueryParams = zod.object({
+  "url": zod.url(),
+  "title": zod.coerce.string().max(reviewASourceQueryTitleMax),
+  "subject": zod.coerce.string().optional(),
+  "gradeLevel": zod.coerce.string().optional(),
+  "format": zod.coerce.string().optional(),
+  "mode": zod.enum(['quick', 'deep']).default(reviewASourceQueryModeDefault).describe('quick — maintained source provenance, no AI, no account needed; deep — authenticated live web research, cached for 90 days and subject to daily and monthly usage limits\n')
+})
+
+export const ReviewASourceResponse = zod.object({
+  "sourceName": zod.string(),
+  "sourceType": zod.string(),
+  "description": zod.string().nullish(),
+  "founded": zod.string().nullish(),
+  "headquarters": zod.string().nullish(),
+  "trustLevel": zod.enum(['high', 'medium', 'low', 'unknown']),
+  "trustReason": zod.string().nullish(),
+  "summary": zod.string(),
+  "reputationAnalysis": zod.string().nullish(),
+  "audienceSentiment": zod.string().nullish(),
+  "contentQuality": zod.string().nullish(),
+  "currencyAssessment": zod.string().nullish(),
+  "researchScope": zod.string().nullish(),
+  "strengths": zod.array(zod.string()).optional(),
+  "concerns": zod.array(zod.string()).optional(),
+  "limitations": zod.array(zod.string()).optional(),
+  "links": zod.array(zod.object({
+  "label": zod.string(),
+  "url": zod.string()
+})).optional(),
+  "mentions": zod.array(zod.object({
+  "summary": zod.string(),
+  "url": zod.url(),
+  "sourceType": zod.enum(['forum', 'comments', 'review', 'article', 'social', 'official', 'other']),
+  "sentiment": zod.enum(['positive', 'mixed', 'negative', 'neutral'])
+})).optional(),
+  "mode": zod.enum(['quick', 'deep'])
+})
+
+
+/**
  * @summary Research and summarise the resource's source/uploader
  */
 export const GetResourceSourceReviewParams = zod.object({
@@ -3283,5 +3344,504 @@ export const GetLearningSignalsResponse = zod.object({
   "commonMisconception": zod.string().nullish()
 }))
 })
+
+
+/**
+ * @summary Your conversations, most recently active first
+ */
+export const ListConversationsResponseItem = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "avatarUrl": zod.string().nullish()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "unreadCount": zod.int(),
+  "incomingRequest": zod.boolean().describe('A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on.')
+})
+export const ListConversationsResponse = zod.array(ListConversationsResponseItem)
+
+
+/**
+ * Returns the existing conversation when there is one. A new conversation starts as a request the other person has to accept, unless an administrator opens it.
+ * @summary Open a conversation with somebody, optionally with a first message
+ */
+export const openConversationBodyBodyMax = 4000;
+
+
+
+export const OpenConversationBody = zod.object({
+  "userId": zod.int(),
+  "body": zod.string().min(1).max(openConversationBodyBodyMax).optional().describe('An optional first message, sent with the request.')
+})
+
+export const OpenConversationResponse = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "avatarUrl": zod.string().nullish()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "unreadCount": zod.int(),
+  "incomingRequest": zod.boolean().describe('A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on.')
+})
+
+
+/**
+ * Reading a conversation marks the other person's messages read, so this is not a safe request to repeat for polling.
+ * @summary One conversation and its messages
+ */
+export const GetConversationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetConversationResponse = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "avatarUrl": zod.string().nullish()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "unreadCount": zod.int(),
+  "incomingRequest": zod.boolean().describe('A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on.')
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+}))
+
+
+/**
+ * @summary Send a message
+ */
+export const SendMessageParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const sendMessageBodyBodyMax = 4000;
+
+
+
+export const SendMessageBody = zod.object({
+  "body": zod.string().min(1).max(sendMessageBodyBodyMax)
+})
+
+export const SendMessageResponse = zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Accept or decline a message request somebody sent you
+ */
+export const AnswerConversationRequestParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const AnswerConversationRequestBody = zod.object({
+  "action": zod.enum(['accept', 'decline'])
+})
+
+export const AnswerConversationRequestResponse = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "avatarUrl": zod.string().nullish()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "unreadCount": zod.int(),
+  "incomingRequest": zod.boolean().describe('A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on.')
+})
+
+
+/**
+ * @summary Send a resource to one person, with an optional note
+ */
+export const RecommendResourceToPersonParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const recommendResourceToPersonBodyNoteMax = 500;
+
+
+
+export const RecommendResourceToPersonBody = zod.object({
+  "recipientId": zod.int(),
+  "note": zod.string().max(recommendResourceToPersonBodyNoteMax).optional()
+})
+
+export const RecommendResourceToPersonResponse = zod.object({
+  "sent": zod.boolean()
+})
+
+
+/**
+ * Fetched server-side against a strict hostname allowlist, so the client neither picks the provider nor makes the outbound request. A URL from anywhere else answers `null` rather than an error: not having a thumbnail is a normal outcome, not a failure.
+ * @summary A thumbnail for a URL, from the provider's own oEmbed endpoint
+ */
+export const GetOembedThumbnailQueryParams = zod.object({
+  "url": zod.url()
+})
+
+export const GetOembedThumbnailResponse = zod.object({
+  "thumbnailUrl": zod.url().nullable()
+})
+
+
+/**
+ * Across every class this account belongs to, with the class named on each row and whether this account has marked it done. Assignments with no due date sort last by when they were set, not first -- an undated task is not urgent.
+ * @summary Everything set for you across your classes, soonest due first
+ */
+export const ListMyAssignmentsResponseItem = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "className": zod.string(),
+  "title": zod.string(),
+  "instructions": zod.string().nullable(),
+  "resourceId": zod.int().nullable(),
+  "activityId": zod.int().nullable(),
+  "dueAt": zod.coerce.date().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "completed": zod.boolean().describe('Whether this account has marked it done.')
+}).describe('One assignment as the person it was set for sees it -- which is why the class is named here rather than left as an id, and why `completed` is this account\'s answer rather than the class\'s.')
+export const ListMyAssignmentsResponse = zod.array(ListMyAssignmentsResponseItem)
+
+
+/**
+ * Completion is per person, not per assignment: a teacher marking their own copy does not mark it for the class.
+ * @summary Mark an assignment done, or not done after all
+ */
+export const SetAssignmentCompletionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const SetAssignmentCompletionBody = zod.object({
+  "completed": zod.boolean()
+})
+
+export const SetAssignmentCompletionResponse = zod.object({
+  "completed": zod.boolean()
+})
+
+
+/**
+ * @summary Paths other people have published, most used first
+ */
+export const ListCommunityPathsResponseItem = zod.object({
+  "id": zod.int(),
+  "creatorId": zod.int(),
+  "creatorName": zod.string(),
+  "sourceGoalId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullable(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "query": zod.string(),
+  "completed": zod.boolean()
+})),
+  "useCount": zod.int(),
+  "createdAt": zod.coerce.date()
+}).describe('A goal somebody published for other people to clone. `creatorName` is stored on the row rather than joined, so a path stays attributed after the account that made it is deleted.')
+export const ListCommunityPathsResponse = zod.array(ListCommunityPathsResponseItem)
+
+
+/**
+ * @summary Publish one of your own goals as a path others can clone
+ */
+export const PublishGoalAsPathBody = zod.object({
+  "goalId": zod.int()
+})
+
+export const PublishGoalAsPathResponse = zod.object({
+  "id": zod.int(),
+  "creatorId": zod.int(),
+  "creatorName": zod.string(),
+  "sourceGoalId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullable(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "query": zod.string(),
+  "completed": zod.boolean()
+})),
+  "useCount": zod.int(),
+  "createdAt": zod.coerce.date()
+}).describe('A goal somebody published for other people to clone. `creatorName` is stored on the row rather than joined, so a path stays attributed after the account that made it is deleted.')
+
+
+/**
+ * @summary Take a copy of somebody's path as a goal of your own
+ */
+export const CloneCommunityPathParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const cloneCommunityPathResponsePathStepsItemIdMax = 80;
+
+export const cloneCommunityPathResponsePathStepsItemTitleMax = 200;
+
+export const cloneCommunityPathResponsePathStepsItemQueryMax = 300;
+
+
+
+export const CloneCommunityPathResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemQueryMax),
+  "completed": zod.boolean()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * Checked on load, because a ban applied while somebody is signed in has to reach them without waiting for their next request to fail. Carries the address to appeal to, since being told you are banned and not told who to ask is not an answer.
+ * @summary Whether this account is allowed to use Casparel at all
+ */
+export const GetMyAccessResponse = zod.object({
+  "banned": zod.boolean(),
+  "bannedAt": zod.coerce.date().nullable(),
+  "bannedReason": zod.string().nullable(),
+  "adminContact": zod.string().describe('Where to appeal.')
+})
+
+
+/**
+ * Returns defaults for an account that has never set anything, rather than 404, so a client can read this before the user has touched a single setting.
+ * @summary Everything this account has chosen about how Casparel behaves
+ */
+export const getMyPreferencesResponseInterfaceColorsOneBackgroundRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const getMyPreferencesResponseInterfaceColorsOneSurfaceRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const getMyPreferencesResponseInterfaceColorsOnePrimaryRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const getMyPreferencesResponseInterfaceColorsOneAccentRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const getMyPreferencesResponseAmbientIntensityMin = 0.5;
+export const getMyPreferencesResponseAmbientIntensityMax = 2;
+
+export const getMyPreferencesResponsePendingCheckInsConceptMax = 300;
+
+export const getMyPreferencesResponsePendingCheckInsPromptMax = 600;
+
+export const getMyPreferencesResponseSearchHistoryItemQueryMax = 300;
+
+
+
+export const GetMyPreferencesResponse = zod.object({
+  "userId": zod.int(),
+  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullable().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
+  "interfaceColors": zod.union([zod.object({
+  "background": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneBackgroundRegExp),
+  "surface": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneSurfaceRegExp),
+  "primary": zod.string().regex(getMyPreferencesResponseInterfaceColorsOnePrimaryRegExp),
+  "accent": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneAccentRegExp)
+}),zod.null()]),
+  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullable(),
+  "ambientIntensity": zod.number().min(getMyPreferencesResponseAmbientIntensityMin).max(getMyPreferencesResponseAmbientIntensityMax).nullable(),
+  "readNotificationIds": zod.array(zod.int()),
+  "dashboardGoalIds": zod.record(zod.string(), zod.int()),
+  "continueStudying": zod.record(zod.string(), zod.array(zod.int())),
+  "pendingCheckIns": zod.record(zod.string(), zod.object({
+  "concept": zod.string().max(getMyPreferencesResponsePendingCheckInsConceptMax),
+  "prompt": zod.string().max(getMyPreferencesResponsePendingCheckInsPromptMax)
+})),
+  "searchHistory": zod.array(zod.object({
+  "query": zod.string().max(getMyPreferencesResponseSearchHistoryItemQueryMax),
+  "searchedAt": zod.coerce.date(),
+  "filters": zod.record(zod.string(), zod.union([zod.string(),zod.number(),zod.boolean()])).optional().describe('What the search ran with. Without it a recent search replays as its words alone.')
+})),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullable(),
+  "allowMessageRequests": zod.boolean(),
+  "tutorialSeen": zod.boolean(),
+  "updatedAt": zod.coerce.date()
+}).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')
+
+
+/**
+ * Only the keys present are changed. Unknown keys are rejected rather than ignored, so a typo in a client is a 400 here instead of a setting that silently never applies.
+ * @summary Change some of them
+ */
+export const updateMyPreferencesBodyInterfaceColorsOneBackgroundRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesBodyInterfaceColorsOneSurfaceRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesBodyInterfaceColorsOnePrimaryRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesBodyInterfaceColorsOneAccentRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesBodyAmbientIntensityMin = 0.5;
+export const updateMyPreferencesBodyAmbientIntensityMax = 2;
+
+export const updateMyPreferencesBodyReadNotificationIdsMax = 500;
+
+export const updateMyPreferencesBodyContinueStudyingMaxOne = 6;
+
+export const updateMyPreferencesBodyPendingCheckInsConceptMax = 300;
+
+export const updateMyPreferencesBodyPendingCheckInsPromptMax = 600;
+
+export const updateMyPreferencesBodySearchHistoryItemQueryMax = 300;
+
+export const updateMyPreferencesBodySearchHistoryMax = 12;
+
+
+
+export const UpdateMyPreferencesBody = zod.object({
+  "language": zod.enum(['en', 'es', 'fr', 'de', 'pt', 'tr']).optional(),
+  "interfaceColors": zod.union([zod.object({
+  "background": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOneBackgroundRegExp),
+  "surface": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOneSurfaceRegExp),
+  "primary": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOnePrimaryRegExp),
+  "accent": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOneAccentRegExp)
+}),zod.null()]).optional(),
+  "ambientStyle": zod.enum(['off', 'net', 'globe', 'halo', 'cells', 'rings', 'topology']).optional(),
+  "ambientIntensity": zod.number().min(updateMyPreferencesBodyAmbientIntensityMin).max(updateMyPreferencesBodyAmbientIntensityMax).optional(),
+  "readNotificationIds": zod.array(zod.int()).max(updateMyPreferencesBodyReadNotificationIdsMax).optional(),
+  "dashboardGoalIds": zod.record(zod.string(), zod.int()).optional(),
+  "continueStudying": zod.record(zod.string(), zod.array(zod.int()).max(updateMyPreferencesBodyContinueStudyingMaxOne)).optional(),
+  "pendingCheckIns": zod.record(zod.string(), zod.object({
+  "concept": zod.string().max(updateMyPreferencesBodyPendingCheckInsConceptMax),
+  "prompt": zod.string().max(updateMyPreferencesBodyPendingCheckInsPromptMax)
+})).optional(),
+  "searchHistory": zod.array(zod.object({
+  "query": zod.string().max(updateMyPreferencesBodySearchHistoryItemQueryMax),
+  "searchedAt": zod.coerce.date(),
+  "filters": zod.record(zod.string(), zod.union([zod.string(),zod.number(),zod.boolean()])).optional().describe('What the search ran with. Without it a recent search replays as its words alone.')
+})).max(updateMyPreferencesBodySearchHistoryMax).optional(),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullish(),
+  "allowMessageRequests": zod.boolean().optional(),
+  "tutorialSeen": zod.boolean().optional()
+}).describe('Only the keys present are changed.')
+
+export const updateMyPreferencesResponseInterfaceColorsOneBackgroundRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesResponseInterfaceColorsOneSurfaceRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesResponseInterfaceColorsOnePrimaryRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesResponseInterfaceColorsOneAccentRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesResponseAmbientIntensityMin = 0.5;
+export const updateMyPreferencesResponseAmbientIntensityMax = 2;
+
+export const updateMyPreferencesResponsePendingCheckInsConceptMax = 300;
+
+export const updateMyPreferencesResponsePendingCheckInsPromptMax = 600;
+
+export const updateMyPreferencesResponseSearchHistoryItemQueryMax = 300;
+
+
+
+export const UpdateMyPreferencesResponse = zod.object({
+  "userId": zod.int(),
+  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullable().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
+  "interfaceColors": zod.union([zod.object({
+  "background": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneBackgroundRegExp),
+  "surface": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneSurfaceRegExp),
+  "primary": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOnePrimaryRegExp),
+  "accent": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneAccentRegExp)
+}),zod.null()]),
+  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullable(),
+  "ambientIntensity": zod.number().min(updateMyPreferencesResponseAmbientIntensityMin).max(updateMyPreferencesResponseAmbientIntensityMax).nullable(),
+  "readNotificationIds": zod.array(zod.int()),
+  "dashboardGoalIds": zod.record(zod.string(), zod.int()),
+  "continueStudying": zod.record(zod.string(), zod.array(zod.int())),
+  "pendingCheckIns": zod.record(zod.string(), zod.object({
+  "concept": zod.string().max(updateMyPreferencesResponsePendingCheckInsConceptMax),
+  "prompt": zod.string().max(updateMyPreferencesResponsePendingCheckInsPromptMax)
+})),
+  "searchHistory": zod.array(zod.object({
+  "query": zod.string().max(updateMyPreferencesResponseSearchHistoryItemQueryMax),
+  "searchedAt": zod.coerce.date(),
+  "filters": zod.record(zod.string(), zod.union([zod.string(),zod.number(),zod.boolean()])).optional().describe('What the search ran with. Without it a recent search replays as its words alone.')
+})),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullable(),
+  "allowMessageRequests": zod.boolean(),
+  "tutorialSeen": zod.boolean(),
+  "updatedAt": zod.coerce.date()
+}).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')
 
 

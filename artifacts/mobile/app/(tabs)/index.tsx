@@ -20,7 +20,9 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { ErrorState } from '@/components/ErrorState';
+import { DueWork } from '@/components/DueWork';
 import { StudySets } from '@/components/StudySets';
+import { MessagesButton } from '@/components/MessagesButton';
 import type { ActivityItem } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -240,6 +242,7 @@ export default function DashboardScreen() {
             {isTeacher ? t("Here's your classroom overview") : t("Here's your learning overview")}
           </Text>
         </View>
+        <MessagesButton />
       </View>
 
       {/* Stat Cards */}
@@ -288,6 +291,9 @@ export default function DashboardScreen() {
           isFailed={summaryFailed}
         />
       </View>
+
+      {/* What somebody else set, before what you set yourself */}
+      <DueWork />
 
       {/* Study sets, one tap from studying them */}
       <StudySets />

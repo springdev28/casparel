@@ -50,13 +50,13 @@
  * Exit codes: 0 everything fits, 1 something is clipped, 2 the run could not
  * look (no build, no browser, nothing rendered).
  */
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
 import { inParallel } from "./in-parallel.mjs";
 import { launchOptions } from "./chromium.mjs";
+import { serveBuild } from "./serve-build.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../dist/public");
@@ -87,7 +87,7 @@ const VIEWPORTS = [
 const PAGES = (
   process.env.AUDIT_FIT_PAGES ??
   "/dashboard,/profile,/settings,/plans,/schedule,/classes,/goals,/lists," +
-    "/canvases,/classes/31,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101," +
+    "/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101," +
     // The two pages a visitor reaches before they have an account. Added
     // after both were measured for the first time and both were wrong on a
     // phone: the signing table squeezed four columns into 375px until the
@@ -106,16 +106,17 @@ const PAGES = (
  */
 const DELIBERATELY_CLIPPED = "sr-only";
 
-const MIME = {
-  ".js": "text/javascript",
-  ".css": "text/css",
-  ".html": "text/html",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".woff2": "font/woff2",
-  ".json": "application/json",
-  ".ico": "image/x-icon",
-};
+/**
+ * Whose product is being measured.
+ *
+ * Half of Casparel only exists for a teacher, and every box in that half had
+ * only ever been measured against English -- this audit signed in as a
+ * student. The teacher plan ladder alone is a column of long lines
+ * ("Nachvollziehbarer Sitzplaner (regelbasiert)"), and the classroom
+ * designer's controls are a dense panel of short ones, which is exactly the
+ * shape that runs out of room first in German.
+ */
+const ROLES = (process.env.AUDIT_FIT_ROLES ?? "student,teacher").split(",");
 
 /**
  * Regions that are meant to scroll sideways, and so may exceed the screen.
@@ -333,19 +334,7 @@ try {
   process.exit(2);
 }
 
-const server = http
-  .createServer((req, res) => {
-    const url = decodeURIComponent((req.url ?? "/").split("?")[0]);
-    let file = path.join(ROOT, url);
-    if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      file = path.join(ROOT, "index.html");
-    }
-    res.writeHead(200, {
-      "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream",
-    });
-    res.end(fs.readFileSync(file));
-  })
-  .listen(PORT, "127.0.0.1");
+const server = serveBuild(ROOT, PORT);
 
 const browser = await chromium.launch(launchOptions());
 
@@ -366,12 +355,14 @@ const TASKS = [];
 for (const language of LANGUAGES) {
   for (const viewport of VIEWPORTS) {
     for (const pagePath of PAGES) {
-      TASKS.push({ language, viewport, pagePath });
+      for (const role of ROLES) {
+        TASKS.push({ language, viewport, pagePath, role });
+      }
     }
   }
 }
 
-const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }) => {
+const measured = await inParallel(TASKS, async ({ language, viewport, pagePath, role }) => {
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
   });
@@ -382,7 +373,12 @@ const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }
       /* storage disabled */
     }
   }, language);
-  await installSession(context, { language, role: "student" });
+  await installSession(context, {
+    language,
+    ...(role === "teacher"
+      ? { role: "teacher", activeRole: "teacher" }
+      : { role: "student" }),
+  });
   const page = await context.newPage();
   try {
     await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
@@ -393,7 +389,7 @@ const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }
     // so is a box measured in English.
     await page.waitForTimeout(600);
     const entries = await page.evaluate(MEASURE);
-    return { language, viewport, pagePath, entries };
+    return { language, viewport, pagePath, role, entries };
   } catch (error) {
     console.error(
       `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
@@ -406,7 +402,7 @@ const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }
 
 for (const result of measured) {
   if (!result) continue;
-  const { language, viewport, pagePath, entries } = result;
+  const { language, viewport, pagePath, role, entries } = result;
   rendered += 1;
   for (const entry of entries) {
     const kind = entry.offScreen
@@ -418,7 +414,7 @@ for (const result of measured) {
           : "";
     // Keyed by where the element is, not by what it says: see addressOf.
     const key =
-      `${pagePath} @${viewport.name} ${kind}${entry.address} ` +
+      `${pagePath} @${viewport.name} as ${role} ${kind}${entry.address} ` +
       `[${entry.tag}.${entry.where}]`;
     const seen = clippedIn.get(key) ?? { by: new Map(), says: new Map() };
     seen.by.set(language, entry.over);

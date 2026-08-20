@@ -364,7 +364,7 @@ export default function ProfilePage() {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-foreground">Google Calendar</span>
                 {calStatus?.googleConnected ? (
-                  <Badge variant="outline" className="text-[11px] border-green-500 text-green-700 gap-1">
+                  <Badge variant="outline" className="text-[11px] border-green-500 text-success-text gap-1">
                     <CheckIcon size={10} /> Connected
                   </Badge>
                 ) : (
@@ -436,7 +436,7 @@ export default function ProfilePage() {
                   onClick={handleCopyIcal}
                   className="shrink-0 gap-1.5"
                 >
-                  {copied ? <CheckIcon size={13} className="text-green-600" /> : <Copy size={13} />}
+                  {copied ? <CheckIcon size={13} className="text-success-text" /> : <Copy size={13} />}
                   {copied ? 'Copied!' : 'Copy'}
                 </Button>
               </div>
@@ -489,7 +489,7 @@ export default function ProfilePage() {
             </p>
           )}
           {completeness === 100 && (
-            <p className="text-xs text-emerald-600 mt-1.5 flex items-center gap-1">
+            <p className="text-xs text-success-text mt-1.5 flex items-center gap-1">
               <CheckCircle2 size={12} />
               Your profile is complete!
             </p>

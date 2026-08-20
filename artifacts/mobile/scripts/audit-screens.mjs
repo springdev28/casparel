@@ -277,6 +277,17 @@ function screens(resourceId, classId) {
     classId
       ? { name: "class detail", route: `/class/${classId}`, expect: new RegExp(CLASS_NAME) }
       : null,
+    /*
+     * Messages, which is reached from the dashboard header rather than a tab.
+     *
+     * The account this run makes is brand new and has nobody to talk to, so
+     * the empty state is the right expectation -- and it is still an
+     * end-to-end check worth having, because it only appears once the request
+     * has gone out, come back and returned an empty list. A screen that threw,
+     * or one whose hook 404ed because the endpoint was never described in
+     * openapi.yaml, shows something else.
+     */
+    { name: "messages", route: "/messages", expect: /No conversations yet/i },
     // The screen the whole Shipaton submission turns on. It renders before any
     // store connection exists, which is the state CI is always in, so what is
     // checked is that it says something rather than throwing.
@@ -285,7 +296,16 @@ function screens(resourceId, classId) {
 }
 
 const TABS = [
-  { name: "dashboard", route: "/", expect: /Dashboard|Hi,/ },
+  /*
+   * The due-work section, not the greeting.
+   *
+   * A greeting renders whether or not anything else worked -- it is drawn
+   * from the account, which is already in hand. "Nothing is due" is only
+   * reached after /assignments/today has answered, so it says the request
+   * went out, came back, and the section rendered its empty state. This
+   * account is new, so empty is the right expectation.
+   */
+  { name: "dashboard", route: "/", expect: /Nothing is due/i },
   { name: "resources", route: "/resources", expect: /Resources/ },
   // The title has to be on the screen, not merely the word "Schedule": the
   // failure being guarded against renders the whole screen perfectly and

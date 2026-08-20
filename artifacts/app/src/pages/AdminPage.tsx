@@ -501,7 +501,7 @@ export default function AdminPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-l-2 border-l-amber-500 bg-amber-500/10 p-3">
             <div className="flex min-w-0 items-start gap-2">
-              <TrendingDown className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" />
+              <TrendingDown className="mt-0.5 size-4 shrink-0 text-warning-text" />
               <div>
                 <p className="text-sm font-medium">Largest workflow drop-off</p>
                 <p className="text-xs text-muted-foreground">
@@ -819,8 +819,15 @@ export default function AdminPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 {/* A plan name -- Free, Student Pro -- which this product does not
-                    translate in any language. */}
-                <div><p translate="no" className="text-xl font-semibold">{data?.plan.name ?? "Administrator"}</p><p className="text-sm capitalize text-emerald-600">{data?.plan.status ?? "active"}</p></div>
+                    translate in any language. 
+
+                    `plan.status` under it is a database enum whose only value
+                    is "active", and it was printed straight out with a
+                    `capitalize` on top -- so the card read "Active", which is
+                    a column name wearing a capital letter rather than anything
+                    written for a reader. A sentence instead, which also gives
+                    the translation bridge something to carry. */}
+                <div><p translate="no" className="text-xl font-semibold">{data?.plan.name ?? "Administrator"}</p><p className={data?.plan.status === "active" ? "text-sm text-success-text" : "text-sm text-muted-foreground"}>{data?.plan.status === "active" ? "Active on this account" : "Not currently active"}</p></div>
                 <Badge>Unlimited</Badge>
               </div>
               <div className="grid grid-cols-3 gap-3 text-sm">

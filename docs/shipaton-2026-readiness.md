@@ -55,6 +55,36 @@ the reason the "engineering quality" figure would be scored differently today.
 The scores have deliberately not been re-run — a review is worth more when it
 is not quietly edited to agree with the present.
 
+A second thing has moved since, and it changes what "a real mobile codebase"
+in the summary above is worth. The server registers 184 routes and
+`lib/api-spec/openapi.yaml` described 113 of them. Everything the clients are
+built from is generated out of that file, so the other 71 were features no
+generated client could call — the forum, the canvas, direct messages, the
+assignment workflow, goal templates. That is not a gap in the phone app's
+design; it is the reason the phone app is smaller than the product. Study
+activities had the same problem until recently, which is why the phone had no
+flashcards.
+
+`contractDescribesEveryRoute.test.ts` now holds the two lists together: a
+route stays out of the contract only with a written reason, and the features
+still missing are named in a list a fourth test keeps honest.
+
+Fourteen of the seventy-one have been described since, and the count is 127 of
+184. Direct messages came first — five endpoints, a conversation list and a
+thread on the phone, reachable from the dashboard header. Then five more that
+were each a hand-rolled `fetch` sitting where a generated call should have
+been: preferences, the ban check, oEmbed thumbnails, one-to-one resource
+recommendations, and goal templates. Each of those deleted a hand-written copy
+of a schema that nothing held against the server, including the one guarding
+whether a banned account may use the product at all.
+
+What is left is three features rather than fifty scattered routes: the forum
+(21 endpoints), the canvas (11), and assignments with class analytics (9).
+That is the most concrete backlog this document has for closing the web/phone
+gap. Each is a week rather than a day, and each is a design question about
+what the feature should be on a phone rather than a translation of what it is
+on the web.
+
 ## Chances of winning
 
 No entrant count, judge distribution or base rate is available, so any percentage is judgment rather than statistics.

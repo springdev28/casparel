@@ -5,7 +5,16 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { AiHealth } from './aiHealth';
+import type { HealthStatusSchema } from './healthStatusSchema';
 
+/**
+ * What /healthz answers. It described only `status` while the server sent three top-level fields, so anybody reading production health -- which is the point of the endpoint -- was reading undocumented JSON and guessing at what the values meant.
+ */
 export interface HealthStatus {
+  /** "ok" whenever the process can answer at all. The status *code* is 503 when the schema has failed; this field is deliberately not where that distinction lives. */
   status: string;
+  /** Whether migrations have run. A failed migration leaves the server able to answer requests while parts of the app are broken, so "ok" alone would be misleading. */
+  schema: HealthStatusSchema;
+  ai: AiHealth;
 }

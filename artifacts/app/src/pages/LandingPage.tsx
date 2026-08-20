@@ -123,21 +123,21 @@ const SOURCE_EXAMPLES = [
 const VERDICT_STYLES = {
   high: {
     badge:
-      "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-    signal: "text-emerald-600 dark:text-emerald-400",
+      "border-emerald-500/40 bg-emerald-500/10 text-success-text",
+    signal: "text-success-text",
     BadgeIcon: ShieldCheck,
     SignalIcon: Check,
   },
   community: {
-    badge: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-400",
-    signal: "text-sky-600 dark:text-sky-400",
+    badge: "border-sky-500/40 bg-sky-500/10 text-info-text",
+    signal: "text-info-text",
     BadgeIcon: Users,
     SignalIcon: Check,
   },
   limited: {
     badge:
-      "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-    signal: "text-amber-600 dark:text-amber-400",
+      "border-amber-500/40 bg-amber-500/10 text-warning-text",
+    signal: "text-warning-text",
     BadgeIcon: AlertTriangle,
     SignalIcon: AlertTriangle,
   },

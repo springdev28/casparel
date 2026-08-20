@@ -29,12 +29,12 @@
  * Exit 0 all good, 1 a page claims emptiness it cannot know, 75 the run could
  * not be performed.
  */
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchOptions } from "./chromium.mjs";
 import { installSession } from "./audit-fixtures.mjs";
+import { serveBuild } from "./serve-build.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist/public");
 const EXIT_INCONCLUSIVE = 75;
@@ -47,18 +47,6 @@ const EXIT_INCONCLUSIVE = 75;
  * five each make a statement about what the reader has.
  */
 const PAGES = ["/dashboard", "/schedule", "/classes", "/goals", "/profile"];
-
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json",
-  ".ico": "image/x-icon",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".svg": "image/svg+xml",
-  ".woff2": "font/woff2",
-};
 
 let failures = 0;
 let checks = 0;
@@ -74,17 +62,10 @@ function check(label, condition, detail = "") {
 
 class Inconclusive extends Error {}
 
+/** Port 0: the OS picks, and `ready` resolves to the one it picked. */
 function serve(dir) {
-  const server = http.createServer((req, res) => {
-    const requested = decodeURIComponent((req.url || "/").split("?")[0]);
-    let file = path.join(dir, requested);
-    if (!file.startsWith(dir) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      file = path.join(dir, "index.html");
-    }
-    res.writeHead(200, { "content-type": MIME[path.extname(file)] ?? "application/octet-stream" });
-    res.end(fs.readFileSync(file));
-  });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(server)));
+  const server = serveBuild(dir, 0);
+  return server.ready.then((port) => ({ server, port }));
 }
 
 async function main() {
@@ -93,8 +74,8 @@ async function main() {
   }
 
   const { chromium } = await import("playwright-core");
-  const server = await serve(ROOT);
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const { server, port } = await serve(ROOT);
+  const base = `http://127.0.0.1:${port}`;
   let browser;
 
   try {

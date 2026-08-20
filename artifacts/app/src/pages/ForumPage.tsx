@@ -1508,7 +1508,7 @@ export default function ForumPage({
                   />
                 </div>
                 <Select value={postKind} onValueChange={setPostKind}>
-                  <SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-36">
+                  <SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-44">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1518,7 +1518,7 @@ export default function ForumPage({
                   </SelectContent>
                 </Select>
                 <Select value={postTag} onValueChange={setPostTag}>
-                  <SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-36">
+                  <SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-44">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1789,7 +1789,7 @@ export default function ForumPage({
                               size="sm"
                               variant="ghost"
                               className={"rounded-none transition-colors " + (post.repostedByMe
-                                ? "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 hover:text-emerald-700 dark:text-emerald-400"
+                                ? "bg-emerald-500/10 text-success-text hover:bg-emerald-500/15 hover:text-success-text"
                                 : "")}
                               disabled={repostingIds.includes(post.id)}
                               aria-pressed={post.repostedByMe}

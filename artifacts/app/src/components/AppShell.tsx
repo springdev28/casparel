@@ -585,7 +585,7 @@ export default function AppShell({ children }: AppShellProps) {
           title="Disconnect Google Classroom"
           data-testid="sidebar-gc-disconnect"
         >
-          <CheckCircle2 size={13} className="text-emerald-400 shrink-0" />
+          <CheckCircle2 size={13} className="text-primary-foreground shrink-0" />
           <span className="truncate">Google Classroom linked</span>
         </button>
       ) : (
@@ -630,7 +630,21 @@ export default function AppShell({ children }: AppShellProps) {
         disabled={switchRoleMutation.isPending}
       >
         <SelectTrigger
-          className="h-7 text-xs bg-transparent border-primary-foreground/30 text-primary-foreground/80 hover:bg-primary-foreground/10 focus:ring-0 focus:ring-offset-0 px-2"
+          /*
+            supports-[backdrop-filter]:bg-transparent as well as
+            bg-transparent, because one of them was not enough.
+
+            SelectTrigger's own classes are `bg-card/90` and
+            `supports-[backdrop-filter]:bg-card/80`. tailwind-merge drops the
+            first when this passes bg-transparent -- they conflict -- and keeps
+            the second, because a class with a variant and a class without one
+            are not the same utility as far as it is concerned. So the variant
+            survived and won, and this trigger painted itself near-white while
+            its text stayed primary-foreground/80. Near-white on near-white, on
+            the control that switches between being a teacher and being a
+            student.
+          */
+          className="h-7 text-xs bg-transparent supports-[backdrop-filter]:bg-transparent border-primary-foreground/30 text-primary-foreground/80 hover:bg-primary-foreground/10 focus:ring-0 focus:ring-offset-0 px-2"
           data-testid="role-select"
         >
           <SelectValue />

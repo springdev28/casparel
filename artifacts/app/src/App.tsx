@@ -24,10 +24,12 @@ import {
 import {
   getGetMeQueryKey,
   getMe,
+  getMyAccess,
   setAuthTokenGetter,
   useGetMe,
   UserRole,
 } from "@workspace/api-client-react";
+import type { GetMyAccess200 } from "@workspace/api-client-react";
 
 import { applyLastSavedColors } from "./components/ThemeCustomizer";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
@@ -133,12 +135,13 @@ if (_oldToken && !localStorage.getItem(TOKEN_KEY)) {
 // Set up auth token getter once at module level
 setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
 
-type AccountAccess = {
-  banned: boolean;
-  bannedAt: string | null;
-  bannedReason: string | null;
-  adminContact: string;
-};
+/*
+ * From the contract. It was declared here for as long as /users/me/access was
+ * absent from openapi.yaml -- a hand-written shape that nothing held against
+ * the server, for the request that decides whether somebody may use the
+ * product at all.
+ */
+type AccountAccess = GetMyAccess200;
 
 function apiUrl(path: string) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -258,20 +261,19 @@ function AccountAccessGate({ children }: { children: ReactNode }) {
         staleTime: 30_000,
       })
       .catch(() => undefined);
-    void fetch(apiUrl("/users/me/access"), {
-      headers: { Authorization: "Bearer " + token },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (response.status === 401) {
-          clearSession();
-          return null;
-        }
-        if (!response.ok) throw new Error("Could not verify account access");
-        return (await response.json()) as AccountAccess;
-      })
+    void getMyAccess({ signal: controller.signal })
       .then((value) => setAccess(value))
-      .catch(() => {
+      .catch((error: unknown) => {
+        // A 401 means the token is no longer good, whatever else is true.
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          (error as { status: unknown }).status === 401
+        ) {
+          clearSession();
+          return;
+        }
         // A failed check must not lock anyone out: the server is still the one
         // enforcing the ban, so carry on rendering.
       });

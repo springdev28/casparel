@@ -100,6 +100,16 @@ function RootLayoutNav() {
         options={{ title: t('Study'), headerBackTitle: t("Back") }}
       />
       <Stack.Screen
+        name="messages/index"
+        options={{ title: t('Messages'), headerBackTitle: t("Back") }}
+      />
+      <Stack.Screen
+        /* The title becomes the other person's name once the conversation
+           loads; this is what shows for the moment before it does. */
+        name="messages/[id]"
+        options={{ title: t('Conversation'), headerBackTitle: t("Back") }}
+      />
+      <Stack.Screen
         name="paywall"
         options={{ presentation: "modal", headerShown: false }}
       />

@@ -1588,7 +1588,15 @@ export function SeatingChartEditor({
               Front
             </div>
           </CardHeader>
-          <CardContent className="overflow-x-auto p-3 sm:p-5">
+          {/*
+            data-sideways: a room plan is as wide as the room. Five columns at
+            a 104px minimum cannot fit a 375px phone and should not try -- this
+            card scrolls, which is the right answer for a floor plan and the
+            wrong one for almost anything else, so it says so explicitly rather
+            than letting the fit audit infer it from an overflow-x that any
+            container might carry as a precaution.
+          */}
+          <CardContent data-sideways className="overflow-x-auto p-3 sm:p-5">
             {layoutMode === "grid" ? (
               <>
                 {!readOnly && (
@@ -2181,6 +2189,22 @@ function ClassroomElement({
   );
 }
 
+/**
+ * The furniture, drawn from above.
+ *
+ * These colours are fixed on purpose, and are the one place in this app that
+ * does not follow the palette. A desk is a desk: paper is white, a monitor is
+ * dark, a mug is not repainted because somebody chose a dark background. The
+ * room plan reads as a picture of a room on either polarity, and the parts of
+ * it that are interface rather than furniture -- the label chip, the selection
+ * ring, the canvas behind it all -- do follow the palette.
+ *
+ * It used to hedge: `via-card` on the desk with a `dark:via-slate-800` beside
+ * it. That variant never fired -- this app has no `.dark` class, see
+ * darkVariantsCannotMatch.test.ts -- so the desk went half-dark on a dark
+ * palette while every other surface of it stayed light. One object, one set of
+ * colours.
+ */
 function ElementGraphic({ element }: { element: ClassroomDesk }) {
   const kind = elementKind(element);
   if (kind === "chair") {
@@ -2188,9 +2212,9 @@ function ElementGraphic({ element }: { element: ClassroomDesk }) {
   }
   if (kind === "teacherDesk") {
     return (
-      <div className="absolute inset-[2%] overflow-hidden rounded-xl border-2 border-slate-500/90 bg-gradient-to-b from-slate-50 via-card to-slate-200 shadow-[0_8px_16px_-10px_rgba(15,23,42,0.75)] dark:from-slate-700 dark:via-slate-800 dark:to-slate-900">
-        <div className="absolute inset-[4%] rounded-lg border border-slate-400/65 bg-white/25 dark:border-slate-500/70 dark:bg-white/[0.03]" />
-        <div className="absolute left-[9%] top-[15%] h-[29%] w-[19%] -rotate-3 rounded-sm border border-slate-300 bg-white shadow-sm dark:border-slate-500 dark:bg-slate-200">
+      <div className="absolute inset-[2%] overflow-hidden rounded-xl border-2 border-slate-500/90 bg-gradient-to-b from-slate-50 via-slate-100 to-slate-200 shadow-[0_8px_16px_-10px_rgba(15,23,42,0.75)]">
+        <div className="absolute inset-[4%] rounded-lg border border-slate-400/65 bg-white/25" />
+        <div className="absolute left-[9%] top-[15%] h-[29%] w-[19%] -rotate-3 rounded-sm border border-slate-300 bg-white shadow-sm">
           <div className="absolute inset-x-[18%] top-[28%] h-px bg-slate-300" />
           <div className="absolute inset-x-[18%] top-[51%] h-px bg-slate-300" />
         </div>
@@ -2198,10 +2222,10 @@ function ElementGraphic({ element }: { element: ClassroomDesk }) {
           <div className="absolute inset-[8%] rounded-sm border border-sky-300/60 bg-gradient-to-br from-sky-100 to-slate-300" />
           <div className="absolute left-1/2 top-[5%] size-[3%] -translate-x-1/2 rounded-full bg-slate-400" />
         </div>
-        <div className="absolute left-1/2 top-[45%] h-[11%] w-[34%] -translate-x-1/2 rounded-sm border border-slate-500 bg-slate-300 shadow-sm dark:bg-slate-600">
+        <div className="absolute left-1/2 top-[45%] h-[11%] w-[34%] -translate-x-1/2 rounded-sm border border-slate-500 bg-slate-300 shadow-sm">
           <div className="absolute inset-x-[8%] top-1/2 border-t border-dashed border-slate-500/60" />
         </div>
-        <div className="absolute right-[10%] top-[17%] size-[19%] rounded-full border-2 border-slate-400 bg-slate-100 shadow-sm dark:bg-slate-300">
+        <div className="absolute right-[10%] top-[17%] size-[19%] rounded-full border-2 border-slate-400 bg-slate-100 shadow-sm">
           <div className="absolute inset-[23%] rounded-full border border-slate-400/70 bg-slate-50" />
           <div className="absolute -right-[19%] top-[31%] h-[38%] w-[28%] rounded-r-full border-2 border-l-0 border-slate-400" />
         </div>
@@ -2345,7 +2369,7 @@ function ChairGraphic({
   return (
     <span
       aria-hidden="true"
-      className={`pointer-events-none absolute inset-0 rounded-[28%] border-2 bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400 shadow-[0_7px_12px_-7px_rgba(15,23,42,0.75)] dark:from-slate-600 dark:via-slate-700 dark:to-slate-900 ${
+      className={`pointer-events-none absolute inset-0 rounded-[28%] border-2 bg-gradient-to-b from-slate-100 via-slate-200 to-slate-400 shadow-[0_7px_12px_-7px_rgba(15,23,42,0.75)] ${
         selected
           ? "border-primary ring-2 ring-primary/35"
           : occupied
@@ -2353,11 +2377,11 @@ function ChairGraphic({
             : "border-slate-500/80"
       }`}
     >
-      <span className="absolute inset-x-[17%] top-[18%] bottom-[22%] rounded-[24%] border border-white/50 bg-white/25 shadow-inner dark:border-white/10" />
+      <span className="absolute inset-x-[17%] top-[18%] bottom-[22%] rounded-[24%] border border-white/50 bg-white/25 shadow-inner" />
       <span className="absolute left-1/2 top-[5%] h-0 w-0 -translate-x-1/2 border-x-[5px] border-b-[7px] border-x-transparent border-b-primary/80 drop-shadow-sm" />
-      <span className="absolute inset-x-[8%] bottom-[5%] h-[17%] rounded-full border border-slate-700/70 bg-slate-600 shadow-sm dark:bg-slate-950" />
-      <span className="absolute bottom-[14%] left-[11%] h-[18%] w-[7%] rounded-full bg-slate-600 dark:bg-slate-950" />
-      <span className="absolute bottom-[14%] right-[11%] h-[18%] w-[7%] rounded-full bg-slate-600 dark:bg-slate-950" />
+      <span className="absolute inset-x-[8%] bottom-[5%] h-[17%] rounded-full border border-slate-700/70 bg-slate-600 shadow-sm" />
+      <span className="absolute bottom-[14%] left-[11%] h-[18%] w-[7%] rounded-full bg-slate-600" />
+      <span className="absolute bottom-[14%] right-[11%] h-[18%] w-[7%] rounded-full bg-slate-600" />
     </span>
   );
 }

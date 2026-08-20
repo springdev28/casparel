@@ -50,6 +50,7 @@ import ForumPage from './ForumPage';
 import ActivitiesPage from './ActivitiesPage';
 import CanvasesPage from './CanvasesPage';
 import { counted } from "@/lib/counted";
+import { formatName } from "@/lib/resource-format";
 
 /**
  * The eight sections of a class workspace.
@@ -412,7 +413,7 @@ export default function ClassDetailPage() {
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <Badge variant="secondary">{counted(cls.members.length, "member", "members")}</Badge>
               {isTeacher && <Button size="sm" variant="outline" onClick={() => setEditDialogOpen(true)}><Pencil size={14} className="mr-1.5" />Edit info</Button>}
-              {isTeacher && <Button size="sm" variant="outline" onClick={() => joinCode ? void navigator.clipboard.writeText(joinCode).then(() => toast({ title: 'Class code copied' })) : void refreshJoinCode()}><KeyRound size={14} className="mr-1.5" />{joinCode ?? 'Create class code'}</Button>}
+              {isTeacher && <Button size="sm" variant="outline" onClick={() => joinCode ? void navigator.clipboard.writeText(joinCode).then(() => toast({ title: 'Class code copied' })) : void refreshJoinCode()}><KeyRound size={14} className="mr-1.5" aria-hidden="true" />{/* A code is a code: read out to a room and typed in by thirty people. */}{joinCode ? <span translate="no">{joinCode}</span> : 'Create class code'}</Button>}
               {isTeacher && joinCode && <Button size="icon" variant="ghost" className="size-8" title="Create a new class code" onClick={() => void refreshJoinCode()}><RefreshCw size={14} /></Button>}
 
               {/* Sync Roster, visible to all teachers; state varies by GC connection */}
@@ -444,7 +445,7 @@ export default function ClassDetailPage() {
                             <>
                               <p className="text-sm text-muted-foreground">
                                 Found <strong>{roster.length}</strong> student{roster.length !== 1 ? 's' : ''}.{' '}
-                                <span className="text-green-600 dark:text-green-400">{linked.length} matched</span> to accounts.{' '}
+                                <span className="text-success-text">{linked.length} matched</span> to accounts.{' '}
                                 <span className="text-muted-foreground">{unlinked.length} have no account yet.</span>
                               </p>
                               <div className="max-h-56 overflow-y-auto divide-y divide-border rounded-md border">
@@ -455,7 +456,7 @@ export default function ClassDetailPage() {
                                       <p className="text-xs text-muted-foreground">{s.email}</p>
                                     </div>
                                     {s.linkedUserId
-                                      ? <CheckCircle2 size={16} className="text-green-600 dark:text-green-400 shrink-0" />
+                                      ? <CheckCircle2 size={16} className="text-success-text shrink-0" />
                                       : <AlertCircle size={16} className="text-muted-foreground shrink-0" />}
                                   </div>
                                 ))}
@@ -659,7 +660,7 @@ export default function ClassDetailPage() {
         <DialogContent><DialogHeader><DialogTitle>Remove {memberToRemove?.name}?</DialogTitle><DialogDescription>They will lose access to this class and its shared resources. You can add them again later.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setMemberToRemove(null)}>Cancel</Button><Button variant="destructive" onClick={handleRemoveMember} disabled={removeClassMember.isPending} data-testid="remove-class-member-confirm">{removeClassMember.isPending ? "Removing…" : "Remove Member"}</Button></DialogFooter></DialogContent>
       </Dialog>
 
-      {activeTab === 'notes' && isTeacher && <section className="space-y-4"><div><h2 className="text-lg font-semibold">Member notes</h2><p className="text-sm text-muted-foreground">Private teacher notes for planning support, seating, and follow-up.</p></div><div className="grid gap-3 lg:grid-cols-2">{(seatingChart?.students ?? []).map((student) => <Card key={student.userId}><CardHeader className="pb-2"><CardTitle translate="no" className="text-sm">{student.name}</CardTitle>{student.gradeOrDept && <CardDescription>{student.gradeOrDept}</CardDescription>}</CardHeader><CardContent className="space-y-3"><Textarea value={noteDrafts[student.userId] ?? ''} onChange={(event) => setNoteDrafts((current) => ({ ...current, [student.userId]: event.target.value }))} rows={5} maxLength={2000} placeholder="Private note about learning needs, collaboration, or classroom placement…" /><div className="flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setLocation(`/profile/${student.userId}?classId=${classId}`)}>Open profile</Button><Button size="sm" onClick={() => void saveMemberNote(student.userId)} disabled={updateStudentNote.isPending}>Save note</Button></div></CardContent></Card>)}</div>{!seatingChart?.students.length && <p className="border-y py-10 text-center text-sm text-muted-foreground">No students are enrolled yet.</p>}</section>}
+      {activeTab === 'notes' && isTeacher && <section className="space-y-4"><div><h2 className="text-lg font-semibold">Member notes</h2><p className="text-sm text-muted-foreground">Private teacher notes for planning support, seating, and follow-up.</p></div><div className="grid gap-3 lg:grid-cols-2">{(seatingChart?.students ?? []).map((student) => <Card key={student.userId}><CardHeader className="pb-2"><CardTitle translate="no" className="text-sm">{student.name}</CardTitle>{student.gradeOrDept && <CardDescription translate="no">{student.gradeOrDept}</CardDescription>}</CardHeader><CardContent className="space-y-3"><Textarea aria-label={`Private note about ${student.name}`} translate="no" value={noteDrafts[student.userId] ?? ''} onChange={(event) => setNoteDrafts((current) => ({ ...current, [student.userId]: event.target.value }))} rows={5} maxLength={2000} placeholder="Private note about learning needs, collaboration, or classroom placement…" /><div className="flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setLocation(`/profile/${student.userId}?classId=${classId}`)}>Open profile</Button><Button size="sm" onClick={() => void saveMemberNote(student.userId)} disabled={updateStudentNote.isPending}>Save note</Button></div></CardContent></Card>)}</div>{!seatingChart?.students.length && <p className="border-y py-10 text-center text-sm text-muted-foreground">No students are enrolled yet.</p>}</section>}
 
       {activeTab === 'designer' && (isTeacher || ownMembership?.role === "student") && <SeatingChartEditor classId={classId} readOnly={!isTeacher} />}
 
@@ -670,7 +671,7 @@ export default function ClassDetailPage() {
       {activeTab === 'canvas' && <CanvasesPage classIdOverride={classId} embedded />}
 
       {activeTab === 'resources' && isTeacher && (classRecommendations as ClassResourceRecommendation[] | undefined)?.some((item) => item.status === ClassResourceRecommendationStatus.pending) && (
-        <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" data-testid="student-recommendations-bar">
+        <section className="rounded-xl border border-warning-text/40 bg-warning-text/10 p-4" data-testid="student-recommendations-bar">
           <div className="mb-3"><h2 className="font-semibold">Student recommendations</h2><p className="text-xs text-muted-foreground">Review student suggestions before they become class resources.</p></div>
           <div className="space-y-2">
             {(classRecommendations as ClassResourceRecommendation[]).filter((item) => item.status === ClassResourceRecommendationStatus.pending).map((item) => (
@@ -742,17 +743,33 @@ export default function ClassDetailPage() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-foreground line-clamp-1">{item.resource.title}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
-                          {item.resource.format}
+                        <p translate="no" className="text-sm font-medium text-foreground line-clamp-1">{item.resource.title}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
+                          {formatName(item.resource.format)}
                         </span>
                         <Badge variant="outline" className="text-[10px]"><ShieldCheck size={11} className="mr-1" /> Teacher assigned</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
+                      {/* A resource's title, subject and year group are the
+                          words whoever added it typed. The tab was fixtured
+                          with an empty list, so nothing here had ever
+                          rendered for the bridge to reach. */}
+                      <p translate="no" className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
+                      {/* Both of these are icon-only, so the icon reads as
+                          the label to whoever wrote them and as "link" and
+                          "button" to a screen reader. Named after the resource,
+                          because a column of these is otherwise announced
+                          identically; the title is a person's words, so it is
+                          kept out of the bridge's way. */}
                       <Button size="sm" variant="outline" asChild>
-                        <a href={item.resource.url} target="_blank" rel="noopener noreferrer">
+                        <a
+                          href={item.resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Open ${item.resource.title}`}
+                          translate="no"
+                        >
                           <ExternalLink size={12} />
                         </a>
                       </Button>
@@ -770,6 +787,8 @@ export default function ClassDetailPage() {
                           onClick={() => handleRemoveResource(item.resource.id)}
                           disabled={removeClassResource.isPending}
                           data-testid="remove-class-resource"
+                          aria-label={`Remove ${item.resource.title}`}
+                          translate="no"
                         >
                           <Trash2 size={13} />
                         </Button>

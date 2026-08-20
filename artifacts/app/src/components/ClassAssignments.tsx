@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@workspace/edu-ds/components/ui/select";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
+import { counted } from "@/lib/counted";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 
 type LinkedResource = { id: number; title: string; url: string };
@@ -329,7 +330,13 @@ export function ClassAssignments({
                 onClick={() => navigator.clipboard.writeText(joinCode)}
                 title="Copy class join code"
               >
-                <Clipboard size={14} className="mr-1.5" /> {joinCode}
+                <Clipboard size={14} className="mr-1.5" aria-hidden="true" />{" "}
+                {/*
+                  A join code is a code. It is read out to a room and typed in
+                  by thirty people, and the bridge would happily rewrite it the
+                  day it matched an entry.
+                */}
+                <span translate="no">{joinCode}</span>
               </Button>
             ) : null}
             <Button variant="outline" size="sm" onClick={refreshCode}>
@@ -440,14 +447,23 @@ export function ClassAssignments({
       </div>
       {isTeacher && analytics && assignments.length > 0 && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <BarChart3 size={14} /> {analytics.studentCount} students ·{" "}
-          {Math.round(
-            analytics.assignments.reduce(
-              (sum, item) => sum + item.completionRate,
-              0,
-            ) / Math.max(analytics.assignments.length, 1),
-          )}
-          % average completion
+          <BarChart3 size={14} aria-hidden="true" />
+          {/*
+            Two whole phrases, each in one text node. Written inline this was
+            "{n} students ·", the number, and "% average completion" -- four
+            nodes, and the bridge matches whole nodes, so none of them could
+            ever be an entry. counted() and a shape rule instead.
+          */}
+          <span>{counted(analytics.studentCount, "student", "students")}</span>
+          <span aria-hidden="true">·</span>
+          <span>
+            {`${Math.round(
+              analytics.assignments.reduce(
+                (sum, item) => sum + item.completionRate,
+                0,
+              ) / Math.max(analytics.assignments.length, 1),
+            )}% average completion`}
+          </span>
         </div>
       )}
       {assignments.length === 0 ? (
@@ -512,10 +528,11 @@ export function ClassAssignments({
                     )}
                     {isTeacher && analytics && (
                       <span>
-                        {analytics.assignments.find(
-                          (item) => item.id === assignment.id,
-                        )?.completionRate ?? 0}
-                        % complete
+                        {`${
+                          analytics.assignments.find(
+                            (item) => item.id === assignment.id,
+                          )?.completionRate ?? 0
+                        }% complete`}
                       </span>
                     )}
                   </div>

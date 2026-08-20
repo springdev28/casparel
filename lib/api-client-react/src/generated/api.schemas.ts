@@ -5,8 +5,381 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * One assignment as the person it was set for sees it -- which is why the class is named here rather than left as an id, and why `completed` is this account's answer rather than the class's.
+ */
+export interface AssignedWork {
+  id: number;
+  classId: number;
+  className: string;
+  title: string;
+  /** @nullable */
+  instructions: string | null;
+  /** @nullable */
+  resourceId: number | null;
+  /** @nullable */
+  activityId: number | null;
+  /** @nullable */
+  dueAt: string | null;
+  /** @nullable */
+  completedAt: string | null;
+  /** Whether this account has marked it done. */
+  completed: boolean;
+}
+
+export type CommunityPathLevel = typeof CommunityPathLevel[keyof typeof CommunityPathLevel];
+
+
+export const CommunityPathLevel = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type CommunityPathPathStepsItem = {
+  id: string;
+  title: string;
+  query: string;
+  completed: boolean;
+};
+
+/**
+ * A goal somebody published for other people to clone. `creatorName` is stored on the row rather than joined, so a path stays attributed after the account that made it is deleted.
+ */
+export interface CommunityPath {
+  id: number;
+  creatorId: number;
+  creatorName: string;
+  sourceGoalId: number;
+  title: string;
+  subject: string;
+  /** @nullable */
+  description: string | null;
+  level: CommunityPathLevel;
+  pathSteps: CommunityPathPathStepsItem[];
+  useCount: number;
+  createdAt: string;
+}
+
+export interface InterfaceColors {
+  /** @pattern ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$ */
+  background: string;
+  /** @pattern ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$ */
+  surface: string;
+  /** @pattern ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$ */
+  primary: string;
+  /** @pattern ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$ */
+  accent: string;
+}
+
+/**
+ * What the search ran with. Without it a recent search replays as its words alone.
+ */
+export type SearchHistoryEntryFilters = {[key: string]: string | number | boolean};
+
+export interface SearchHistoryEntry {
+  /** @maxLength 300 */
+  query: string;
+  searchedAt: string;
+  /** What the search ran with. Without it a recent search replays as its words alone. */
+  filters?: SearchHistoryEntryFilters;
+}
+
+export interface PendingCheckIn {
+  /** @maxLength 300 */
+  concept: string;
+  /** @maxLength 600 */
+  prompt: string;
+}
+
+/**
+ * Null when the account has never chosen. A client falls back to the device's language then, not to English.
+ * @nullable
+ */
+export type UserPreferencesLanguage = typeof UserPreferencesLanguage[keyof typeof UserPreferencesLanguage] | null;
+
+
+export const UserPreferencesLanguage = {
+  en: 'en',
+  es: 'es',
+  fr: 'fr',
+  de: 'de',
+  pt: 'pt',
+  tr: 'tr',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UserPreferencesAmbientStyle = typeof UserPreferencesAmbientStyle[keyof typeof UserPreferencesAmbientStyle] | null;
+
+
+export const UserPreferencesAmbientStyle = {
+  off: 'off',
+  net: 'net',
+  globe: 'globe',
+  halo: 'halo',
+  cells: 'cells',
+  rings: 'rings',
+  topology: 'topology',
+} as const;
+
+export type UserPreferencesDashboardGoalIds = {[key: string]: number};
+
+export type UserPreferencesContinueStudying = {[key: string]: number[]};
+
+export type UserPreferencesPendingCheckIns = {[key: string]: PendingCheckIn};
+
+/**
+ * @nullable
+ */
+export type UserPreferencesResourceSearchState = { [key: string]: unknown } | null;
+
+/**
+ * Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.
+ */
+export interface UserPreferences {
+  userId: number;
+  /**
+     * Null when the account has never chosen. A client falls back to the device's language then, not to English.
+     * @nullable
+     */
+  language: UserPreferencesLanguage;
+  interfaceColors: InterfaceColors | null;
+  /** @nullable */
+  ambientStyle: UserPreferencesAmbientStyle;
+  /**
+     * @minimum 0.5
+     * @maximum 2
+     * @nullable
+     */
+  ambientIntensity: number | null;
+  readNotificationIds: number[];
+  dashboardGoalIds: UserPreferencesDashboardGoalIds;
+  continueStudying: UserPreferencesContinueStudying;
+  pendingCheckIns: UserPreferencesPendingCheckIns;
+  searchHistory: SearchHistoryEntry[];
+  /** @nullable */
+  resourceSearchState: UserPreferencesResourceSearchState;
+  allowMessageRequests: boolean;
+  tutorialSeen: boolean;
+  updatedAt: string;
+}
+
+export type UserPreferencesPatchLanguage = typeof UserPreferencesPatchLanguage[keyof typeof UserPreferencesPatchLanguage];
+
+
+export const UserPreferencesPatchLanguage = {
+  en: 'en',
+  es: 'es',
+  fr: 'fr',
+  de: 'de',
+  pt: 'pt',
+  tr: 'tr',
+} as const;
+
+export type UserPreferencesPatchAmbientStyle = typeof UserPreferencesPatchAmbientStyle[keyof typeof UserPreferencesPatchAmbientStyle];
+
+
+export const UserPreferencesPatchAmbientStyle = {
+  off: 'off',
+  net: 'net',
+  globe: 'globe',
+  halo: 'halo',
+  cells: 'cells',
+  rings: 'rings',
+  topology: 'topology',
+} as const;
+
+export type UserPreferencesPatchDashboardGoalIds = {[key: string]: number};
+
+export type UserPreferencesPatchContinueStudying = {[key: string]: number[]};
+
+export type UserPreferencesPatchPendingCheckIns = {[key: string]: PendingCheckIn};
+
+/**
+ * @nullable
+ */
+export type UserPreferencesPatchResourceSearchState = { [key: string]: unknown } | null;
+
+/**
+ * Only the keys present are changed.
+ */
+export interface UserPreferencesPatch {
+  language?: UserPreferencesPatchLanguage;
+  interfaceColors?: InterfaceColors | null;
+  ambientStyle?: UserPreferencesPatchAmbientStyle;
+  /**
+     * @minimum 0.5
+     * @maximum 2
+     */
+  ambientIntensity?: number;
+  /** @maxItems 500 */
+  readNotificationIds?: number[];
+  dashboardGoalIds?: UserPreferencesPatchDashboardGoalIds;
+  continueStudying?: UserPreferencesPatchContinueStudying;
+  pendingCheckIns?: UserPreferencesPatchPendingCheckIns;
+  /** @maxItems 12 */
+  searchHistory?: SearchHistoryEntry[];
+  /** @nullable */
+  resourceSearchState?: UserPreferencesPatchResourceSearchState;
+  allowMessageRequests?: boolean;
+  tutorialSeen?: boolean;
+}
+
+export interface ConversationParticipant {
+  id: number;
+  name: string;
+  role: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+}
+
+export interface DirectMessage {
+  id: number;
+  conversationId: number;
+  senderId: number;
+  body: string;
+  isAdminMessage: boolean;
+  /** @nullable */
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export type ConversationStatus = typeof ConversationStatus[keyof typeof ConversationStatus];
+
+
+export const ConversationStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export interface Conversation {
+  id: number;
+  firstUserId: number;
+  secondUserId: number;
+  requestedById: number;
+  status: ConversationStatus;
+  createdAt: string;
+  updatedAt: string;
+  other: ConversationParticipant;
+  lastMessage: DirectMessage | null;
+  unreadCount: number;
+  /** A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on. */
+  incomingRequest: boolean;
+}
+
+export type ConversationThread = Conversation & {
+  messages: DirectMessage[];
+};
+
+export interface OpenConversationInput {
+  userId: number;
+  /**
+     * An optional first message, sent with the request.
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body?: string;
+}
+
+export interface SendMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+}
+
+export type ConversationRequestAnswerAction = typeof ConversationRequestAnswerAction[keyof typeof ConversationRequestAnswerAction];
+
+
+export const ConversationRequestAnswerAction = {
+  accept: 'accept',
+  decline: 'decline',
+} as const;
+
+export interface ConversationRequestAnswer {
+  action: ConversationRequestAnswerAction;
+}
+
+export type HealthStatusSchemaState = typeof HealthStatusSchemaState[keyof typeof HealthStatusSchemaState];
+
+
+export const HealthStatusSchemaState = {
+  pending: 'pending',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
+/**
+ * Whether migrations have run. A failed migration leaves the server able to answer requests while parts of the app are broken, so "ok" alone would be misleading.
+ */
+export type HealthStatusSchema = {
+  state: HealthStatusSchemaState;
+  /** @nullable */
+  checkedAt: string | null;
+  /** Names the missing relation or column. Present only when the state is "failed". */
+  error?: string;
+};
+
+export type AiHealthState = typeof AiHealthState[keyof typeof AiHealthState];
+
+
+export const AiHealthState = {
+  ok: 'ok',
+  failing: 'failing',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * Which kind of "unknown", because there are two and they are different news: nothing has been attempted since this process started, or a result was recorded and has aged out. Present only when the state is "unknown". Without it, telling them apart meant noticing that checkedAt was null and trusting the implication.
+ */
+export type AiHealthReason = typeof AiHealthReason[keyof typeof AiHealthReason];
+
+
+export const AiHealthReason = {
+  'never-attempted': 'never-attempted',
+  'last-result-expired': 'last-result-expired',
+} as const;
+
+/**
+ * What the aged-out result said. A provider that was failing an hour ago is a different starting point from one that was fine.
+ */
+export type AiHealthLastState = typeof AiHealthLastState[keyof typeof AiHealthLastState];
+
+
+export const AiHealthLastState = {
+  ok: 'ok',
+  failing: 'failing',
+} as const;
+
+/**
+ * The outcome of the AI calls the product already makes -- no probe, no cost -- so a wrong key or an unreachable provider is visible here rather than only in a log nobody is tailing. It never changes the status code: the catalogue, classes, schedules and the quick source check all work without AI.
+ */
+export interface AiHealth {
+  state: AiHealthState;
+  /** Which kind of "unknown", because there are two and they are different news: nothing has been attempted since this process started, or a result was recorded and has aged out. Present only when the state is "unknown". Without it, telling them apart meant noticing that checkedAt was null and trusting the implication. */
+  reason?: AiHealthReason;
+  /** @nullable */
+  checkedAt: string | null;
+  /** The AI call the recorded result came from. */
+  lastOperation?: string;
+  /** What the aged-out result said. A provider that was failing an hour ago is a different starting point from one that was fine. */
+  lastState?: AiHealthLastState;
+  error?: string;
+}
+
+/**
+ * What /healthz answers. It described only `status` while the server sent three top-level fields, so anybody reading production health -- which is the point of the endpoint -- was reading undocumented JSON and guessing at what the values meant.
+ */
 export interface HealthStatus {
+  /** "ok" whenever the process can answer at all. The status *code* is 503 when the schema has failed; this field is deliberately not where that distinction lives. */
   status: string;
+  /** Whether migrations have run. A failed migration leaves the server able to answer requests while parts of the app are broken, so "ok" alone would be misleading. */
+  schema: HealthStatusSchema;
+  ai: AiHealth;
 }
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];
@@ -2167,6 +2540,29 @@ export type ListProvenanceShowcase200 = {
   entries: ProvenanceShowcaseEntry[];
 };
 
+export type ReviewASourceParams = {
+url: string;
+/**
+ * @maxLength 300
+ */
+title: string;
+subject?: string;
+gradeLevel?: string;
+format?: string;
+/**
+ * quick — maintained source provenance, no AI, no account needed; deep — authenticated live web research, cached for 90 days and subject to daily and monthly usage limits
+ */
+mode?: ReviewASourceMode;
+};
+
+export type ReviewASourceMode = typeof ReviewASourceMode[keyof typeof ReviewASourceMode];
+
+
+export const ReviewASourceMode = {
+  quick: 'quick',
+  deep: 'deep',
+} as const;
+
 export type GetResourceSourceReviewParams = {
 /**
  * quick — use maintained source provenance without AI; deep — authenticated live web research; cached for 90 days and subject to daily/monthly usage limits
@@ -2271,4 +2667,45 @@ export const SearchUsersRole = {
   student: 'student',
   teacher: 'teacher',
 } as const;
+
+export type RecommendResourceToPersonBody = {
+  recipientId: number;
+  /** @maxLength 500 */
+  note?: string;
+};
+
+export type RecommendResourceToPerson201 = {
+  sent: boolean;
+};
+
+export type GetOembedThumbnailParams = {
+url: string;
+};
+
+export type GetOembedThumbnail200 = {
+  /** @nullable */
+  thumbnailUrl: string | null;
+};
+
+export type SetAssignmentCompletionBody = {
+  completed: boolean;
+};
+
+export type SetAssignmentCompletion200 = {
+  completed: boolean;
+};
+
+export type PublishGoalAsPathBody = {
+  goalId: number;
+};
+
+export type GetMyAccess200 = {
+  banned: boolean;
+  /** @nullable */
+  bannedAt: string | null;
+  /** @nullable */
+  bannedReason: string | null;
+  /** Where to appeal. */
+  adminContact: string;
+};
 

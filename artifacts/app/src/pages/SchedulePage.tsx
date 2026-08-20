@@ -147,7 +147,7 @@ function detectPlatform(url: string): { label: string; color: string } | null {
   try {
     const host = new URL(url).hostname.toLowerCase();
     if (host.includes("meet.google"))
-      return { label: "Google Meet", color: "text-green-700" };
+      return { label: "Google Meet", color: "text-success-text" };
     if (host.includes("zoom.us"))
       return { label: "Zoom", color: "text-blue-700" };
     if (host.includes("teams.microsoft"))
@@ -654,17 +654,26 @@ function StudySessionDetail({
               <span className="text-sm flex-1 truncate">
                 {p.name ?? `User ${p.userId}`}
               </span>
+              {/* `status` is a database enum -- pending, accepted, declined --
+                  and `capitalize` on it is a column value wearing a capital
+                  letter, not a word written for whoever is reading. It is also
+                  the answer to a question ("are they coming?"), so it reads
+                  better as the answer than as the state name. */}
               <Badge
                 variant="outline"
-                className={`text-[10px] capitalize ${
+                className={`text-[10px] ${
                   p.status === "accepted"
-                    ? "border-green-500 text-green-700"
+                    ? "border-success-text/50 text-success-text"
                     : p.status === "declined"
-                      ? "border-red-400 text-red-600"
+                      ? "border-destructive-text/50 text-destructive-text"
                       : "text-muted-foreground"
                 }`}
               >
-                {p.status}
+                {p.status === "accepted"
+                  ? "Coming"
+                  : p.status === "declined"
+                    ? "Not coming"
+                    : "Not answered yet"}
               </Badge>
             </div>
           ))}
@@ -688,7 +697,7 @@ function StudySessionDetail({
             <Button
               size="sm"
               variant="outline"
-              className="gap-1.5 border-green-500 text-green-700 hover:bg-green-50"
+              className="gap-1.5 border-success-text/50 text-success-text hover:bg-success-text/10"
               onClick={() => handleRsvp("accepted")}
               disabled={rsvp.isPending}
             >
@@ -1757,7 +1766,7 @@ export default function SchedulePage() {
                   {session.myStatus === "accepted" && (
                     <Badge
                       variant="outline"
-                      className="text-[10px] border-green-500 text-green-700 shrink-0"
+                      className="text-[10px] border-green-500 text-success-text shrink-0"
                     >
                       Accepted
                     </Badge>

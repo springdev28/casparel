@@ -15,11 +15,14 @@
  * Otherwise a person who deliberately switches the phone to English would
  * have it switched back under them on the next launch.
  *
- * Preferences are read with `fetch` rather than a generated hook because
- * /users/me/preferences is not in openapi.yaml -- the web app reaches it the
- * same way, for the same reason. A failure here is silent on purpose: not
- * knowing the account's language is a reason to stay in the one already on
- * screen, not a reason to show an error.
+ * Preferences come through the generated client. They used to be read with a
+ * hand-rolled `fetch`, because /users/me/preferences was not in openapi.yaml
+ * and there was no hook to call -- which is the same gap that left this app
+ * without flashcards and without messages, and is now held by
+ * contractDescribesEveryRoute.test.ts.
+ *
+ * A failure here is silent on purpose: not knowing the account's language is a
+ * reason to stay in the one already on screen, not a reason to show an error.
  */
 import React, {
   createContext,
@@ -29,8 +32,11 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import {
+  getMyPreferences,
+  updateMyPreferences,
+} from "@workspace/api-client-react";
 import { storage } from "@/utils/secure-storage";
-import { apiOrigin } from "@/utils/api-host";
 import { intlLocale, isLanguage, translate, type Language } from "@/lib/i18n";
 import { useAuth } from "./AuthContext";
 
@@ -72,11 +78,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch(`${apiOrigin}/api/users/me/preferences`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok) return;
-        const preferences = (await response.json()) as { language?: unknown };
+        const preferences = await getMyPreferences();
         if (cancelled || !isLanguage(preferences.language)) return;
         setLanguageState(preferences.language);
       } catch {
@@ -97,14 +99,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       try {
         // So the web and the desktop shell follow. Failing to save is not
         // worth an error on screen: the phone is already in the new language.
-        await fetch(`${apiOrigin}/api/users/me/preferences`, {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ language: next }),
-        });
+        await updateMyPreferences({ language: next });
       } catch {
         // Saved on this phone regardless.
       }

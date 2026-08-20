@@ -756,8 +756,14 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
                 <DropdownMenuTrigger asChild>
                   <button type="button" className="flex min-w-0 flex-1 items-center gap-2 px-1 text-left">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">{canvas.title}</span>
-                      <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ?? `${canvas.owner?.name ?? "Casparel"} canvas`}</span>
+                      {/* A canvas title, and the name under it, are written
+                          by a person, so neither is the bridge's to rewrite.
+                          The fallback used to build `${owner} canvas` as one
+                          string, which protects this product's own word along
+                          with the name; "Canvas by" is product wording and
+                          translates, the name does not. */}
+                      <span translate="no" className="block truncate text-sm font-semibold">{canvas.title}</span>
+                      <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ? <span translate="no">{canvas.class.name}</span> : <>Canvas by <span translate="no">{canvas.owner?.name ?? "Casparel"}</span></>}</span>
                     </span>
                     <ChevronDown className="size-3.5 shrink-0 text-slate-400" />
                   </button>
@@ -770,8 +776,8 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
               </DropdownMenu>
             ) : (
               <div className="min-w-0 px-1 text-left">
-                <span className="block truncate text-sm font-semibold">{canvas.title}</span>
-                <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ?? `${canvas.owner?.name ?? "Casparel"} canvas`}</span>
+                <span translate="no" className="block truncate text-sm font-semibold">{canvas.title}</span>
+                <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ? <span translate="no">{canvas.class.name}</span> : <>Canvas by <span translate="no">{canvas.owner?.name ?? "Casparel"}</span></>}</span>
               </div>
             )}
           </div>
@@ -786,11 +792,11 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
         </header>
 
         {canEdit ? (
-          <div className="absolute bottom-4 left-1/2 z-20 flex max-w-[calc(100%-7rem)] -translate-x-1/2 gap-1 overflow-x-auto border border-white/15 bg-slate-950/92 p-1.5 shadow-xl backdrop-blur" style={{ borderRadius: 8 }}>
-            <Button size="sm" variant="ghost" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("note")}><StickyNote className="mr-2 size-4" />Note</Button>
-            <Button size="sm" variant="ghost" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("heading")}><Heading className="mr-2 size-4" />Heading</Button>
-            <Button size="sm" variant="ghost" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("link")}><Link2 className="mr-2 size-4" />Link</Button>
-            <Button size="sm" variant="ghost" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => setResourceOpen(true)}><BookOpen className="mr-2 size-4" />Resource</Button>
+          <div className="absolute bottom-4 left-1/2 z-20 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 gap-1 overflow-x-auto sm:max-w-[calc(100%-7rem)] border border-white/15 bg-slate-950/92 p-1.5 shadow-xl backdrop-blur" style={{ borderRadius: 8 }}>
+            <Button size="sm" variant="ghost" aria-label="Note" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("note")}><StickyNote className="size-4 sm:mr-2" /><span className="hidden sm:inline">Note</span></Button>
+            <Button size="sm" variant="ghost" aria-label="Heading" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("heading")}><Heading className="size-4 sm:mr-2" /><span className="hidden sm:inline">Heading</span></Button>
+            <Button size="sm" variant="ghost" aria-label="Link" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("link")}><Link2 className="size-4 sm:mr-2" /><span className="hidden sm:inline">Link</span></Button>
+            <Button size="sm" variant="ghost" aria-label="Resource" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => setResourceOpen(true)}><BookOpen className="size-4 sm:mr-2" /><span className="hidden sm:inline">Resource</span></Button>
           </div>
         ) : null}
 

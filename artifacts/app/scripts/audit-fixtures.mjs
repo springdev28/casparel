@@ -190,6 +190,32 @@ const RESOURCE = {
   createdAt: "2026-02-11T09:00:00.000Z",
 };
 
+/**
+ * A second resource, in a second format.
+ *
+ * Every list in these fixtures held one resource, and its format was "pdf" --
+ * which the translation audit allows as an acronym. So the format badge was
+ * rendered on every page, in every language, and the only value it ever
+ * carried was the one value that can never be reported.
+ *
+ * That is what hid the ninth site rendering the enum raw: eight were converted
+ * to formatName() and the class resources tab was not, and no audit could see
+ * the difference. One resource with format "video" is enough for the badge to
+ * have to be a real word in six languages.
+ */
+const RESOURCE_VIDEO = {
+  ...RESOURCE,
+  id: 102,
+  title: "Essence of Linear Algebra",
+  description:
+    "A visual series on the geometry behind the algebra, freely available.",
+  url: "https://example.org/essence-of-linear-algebra",
+  format: "video",
+  verificationStatus: "unverified",
+  avgRating: 4.8,
+  reviewCount: 31,
+};
+
 /** The admin user table returns more columns than the public User schema. */
 const ADMIN_USER_ROW = {
   ...USER,
@@ -462,11 +488,64 @@ export const FIXTURES = {
     bannedReason: null,
     adminContact: "support@casparel.com",
   },
-  "/api/resources": [RESOURCE],
+  "/api/resources": [RESOURCE, RESOURCE_VIDEO],
   // The detail page: its own strings are a large share of the product, and
   // without a fixture the audit renders an error page and reports nothing.
   "/api/resources/101": RESOURCE,
   "/api/resources/101/reviews": [],
+  /*
+   * The quick source review, which the detail page fetches on mount.
+   *
+   * It had no fixture, so this product's headline panel -- the one the whole
+   * "trust before study" story rests on -- rendered its failure state on every
+   * audit run and nothing ever read a word of it. The mention list is here for
+   * the same reason the library now has a second format: `sourceType` and
+   * `sentiment` are enums, and an enum with no fixture is an enum no audit can
+   * check.
+   */
+  "/api/resources/101/source-review": {
+    sourceName: "Axler, Sheldon",
+    sourceType: "academic author",
+    description:
+      "A mathematician at San Francisco State University, writing and maintaining an openly licensed undergraduate text.",
+    founded: null,
+    headquarters: null,
+    trustLevel: "high",
+    trustReason:
+      "Named author with an institutional affiliation, an openly licensed edition, and a stated revision history.",
+    summary:
+      "Widely adopted as a second course in linear algebra, and unusual in developing determinants late rather than first.",
+    reputationAnalysis:
+      "Cited across undergraduate syllabi and reviewed in teaching journals rather than only in marketing material.",
+    audienceSentiment: "Positive, with the usual disagreement about the order of topics.",
+    contentQuality: "Peer-reviewed, typeset, with exercises and errata maintained by the author.",
+    currencyAssessment: "Third edition, revised within the last five years.",
+    researchScope: null,
+    strengths: [
+      "The author is named, contactable and institutionally affiliated.",
+      "The licence permits classroom use without asking.",
+    ],
+    concerns: ["Assumes a first course in linear algebra has already happened."],
+    limitations: [
+      "A quick check reads maintained provenance signals; it does not read the book.",
+    ],
+    links: [{ label: "Author page", url: "https://example.org/axler" }],
+    mentions: [
+      {
+        summary: "A course reading list naming this as the recommended text.",
+        url: "https://example.org/syllabus",
+        sourceType: "official",
+        sentiment: "positive",
+      },
+      {
+        summary: "A discussion thread arguing about the determinants chapter.",
+        url: "https://example.org/thread",
+        sourceType: "forum",
+        sentiment: "mixed",
+      },
+    ],
+    mode: "quick",
+  },
   /*
    * The detail page's workflow strip. Without it the unfixtured default -- an
    * empty array -- reached `workflow?.steps[key]`, which is truthy with no
@@ -508,6 +587,38 @@ export const FIXTURES = {
    * classroom designer renders an empty room, which is a page rendering
    * correctly and telling nobody anything.
    */
+  /*
+   * A teacher's completion figures. Without these the assignments tab renders
+   * for a teacher with no export button, no class summary and no per-row
+   * percentage -- three surfaces that only a teacher ever sees, and the ones
+   * the tab exists for.
+   */
+  "/api/classes/31/analytics": {
+    studentCount: 24,
+    assignments: [
+      { id: 91, title: "Read chapter 4 before Thursday", completions: 9, completionRate: 38 },
+    ],
+  },
+  "/api/classes/31/join-code": { joinCode: "PHY-4821" },
+  "/api/classes/31/invitations": [],
+  "/api/classes/31/resource-recommendations": [],
+  "/api/classes/31/resources-list": {
+    id: 77,
+    name: "Physics A-level shared list",
+    // Not empty: an empty list renders the empty state, so the resources tab
+    // of a class was audited without ever drawing a resource row.
+    items: [
+      {
+        id: 601,
+        listId: 77,
+        resourceId: 102,
+        note: null,
+        addedAt: "2026-05-02T09:00:00.000Z",
+        position: 0,
+        resource: RESOURCE_VIDEO,
+      },
+    ],
+  },
   "/api/classes/31/assignments": [
     {
       id: 91,

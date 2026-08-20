@@ -68,8 +68,14 @@ import {
   useUpdateClassStudentGoal,
   getListClassesQueryKey,
   getListClassStudentGoalsQueryKey,
+  listCommunityPaths,
+  publishGoalAsPath,
+  // Aliased: this file already has a `cloneCommunityPath` of its own, which
+  // is the handler that calls this.
+  cloneCommunityPath as cloneAPath,
   type StudentLearningGoal,
   type LearningGoal,
+  type CommunityPath as GeneratedCommunityPath,
 } from "@workspace/api-client-react";
 
 import { getDashboardGoalId, setDashboardGoalId } from "../lib/dashboardGoal";
@@ -79,24 +85,14 @@ import {
   useUserPreferences,
 } from "../lib/user-preferences";
 
-type CommunityPath = {
-  id: number;
-  creatorId: number;
-  creatorName: string;
-  sourceGoalId: number;
-  title: string;
-  subject: string;
-  description: string | null;
-  level: string;
-  pathSteps: Array<{
-    id: string;
-    title: string;
-    query: string;
-    completed: boolean;
-  }>;
-  useCount: number;
-  createdAt: string;
-};
+/*
+ * From the contract. It was declared here for as long as
+ * /learning-goal-templates was absent from openapi.yaml -- three calls and a
+ * hand-written type for a feature the phone app cannot reach at all for the
+ * same reason.
+ */
+type CommunityPath = GeneratedCommunityPath;
+
 
 /**
  * The level and status enums, written out.
@@ -212,9 +208,7 @@ export default function GoalsPage() {
     setCommunityPathsLoading(true);
     setCommunityPathsError(null);
     try {
-      setCommunityPaths(
-        await authedRequest<CommunityPath[]>("/learning-goal-templates"),
-      );
+      setCommunityPaths(await listCommunityPaths());
     } catch (error) {
       setCommunityPathsError(error);
       toast({
@@ -392,10 +386,7 @@ export default function GoalsPage() {
   async function shareGoalPath(goal: LearningGoal) {
     setSharingGoalId(goal.id);
     try {
-      await authedRequest("/learning-goal-templates", {
-        method: "POST",
-        body: JSON.stringify({ goalId: goal.id }),
-      });
+      await publishGoalAsPath({ goalId: goal.id });
       await refreshCommunityPaths();
       toast({
         title: "Community path shared",
@@ -416,9 +407,7 @@ export default function GoalsPage() {
   async function cloneCommunityPath(path: CommunityPath) {
     setCloningPathId(path.id);
     try {
-      await authedRequest(`/learning-goal-templates/${path.id}/clone`, {
-        method: "POST",
-      });
+      await cloneAPath(path.id);
       await Promise.all([refresh(), refreshCommunityPaths()]);
       toast({
         title: "Path added to your goals",

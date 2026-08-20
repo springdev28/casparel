@@ -46,14 +46,34 @@ function StatCard({
 
 function activityIcon(type: string) {
   switch (type) {
-    case ActivityItemType.review: return <Star size={14} className="text-amber-500" />;
+    case ActivityItemType.review: return <Star size={14} className="text-warning-text" />;
     case ActivityItemType.resource: return <BookOpen size={14} className="text-primary-text" />;
     case ActivityItemType.list: return <List size={14} className="text-accent" />;
     case ActivityItemType.schedule: return <Calendar size={14} className="text-purple-500" />;
-    case ActivityItemType.class: return <GraduationCap size={14} className="text-emerald-600" />;
+    case ActivityItemType.class: return <GraduationCap size={14} className="text-success-text" />;
     default: return <MessageSquare size={14} className="text-muted-foreground" />;
   }
 }
+
+/**
+ * The name a reader sees for an activity's kind.
+ *
+ * `type` is a database enum and this printed it with a `capitalize` class over
+ * the top, which reads as a word in English and as a column value everywhere
+ * else -- the bridge matches whole strings, and nobody wrote a translation for
+ * "schedule". The same fix as the resource format and the goal level before
+ * it.
+ *
+ * An unknown kind falls back to itself rather than to a catch-all: a type this
+ * table has not heard of is better shown than silently relabelled.
+ */
+const ACTIVITY_TYPE_NAME: Record<string, string> = {
+  review: "Review",
+  resource: "Resource",
+  list: "List",
+  schedule: "Schedule",
+  class: "Class",
+};
 
 function activityBadgeVariant(type: string): 'default' | 'secondary' | 'outline' {
   switch (type) {
@@ -130,8 +150,8 @@ export default function DashboardPage() {
                         named inside. */}
                     <p translate="no" className="text-sm text-foreground">{item.message}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <Badge variant={activityBadgeVariant(item.type)} className="text-xs capitalize px-1.5 py-0">
-                        {item.type}
+                      <Badge variant={activityBadgeVariant(item.type)} className="text-xs px-1.5 py-0">
+                        {ACTIVITY_TYPE_NAME[item.type] ?? item.type}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale })}

@@ -257,31 +257,128 @@ function readableTextTint(tint: string, background: string, surface: string) {
   return contrastingForeground(background);
 }
 
-// The two destructive reds from the design tokens, as HSL channels.
-const DESTRUCTIVE_TEXT_ON_LIGHT = "0 73.7% 41.8%"; // #b91c1c
-const DESTRUCTIVE_TEXT_ON_DARK = "0 90.6% 70.8%"; // #f87171
-const DESTRUCTIVE_TEXT_LUMINANCE = {
-  onLight: relativeLuminance("#b91c1c"),
-  onDark: relativeLuminance("#f87171"),
-};
+/**
+ * How far a hairline has to separate itself from the surface it sits on.
+ *
+ * 1.3:1, which is what the design system's own tokens measure: the light
+ * border is 1.27:1 against the page and 1.40:1 against a card, the dark one
+ * 1.57:1 and 1.31:1. Below this a divider disappears; much above it and every
+ * card is drawn in outline rather than resting on the page.
+ */
+const MIN_SEPARATOR_CONTRAST = 1.3;
 
 /**
- * Pick the destructive red that stays readable against this palette.
+ * The hairline for this palette: visible on every surface, loud on none.
  *
- * Error text, delete actions and the at-limit usage counts are the messages a
- * user least wants to miss, and a custom palette can put them on a surface the
- * token was not chosen for. The design system ships one red for light surfaces
- * and one for dark; this picks whichever holds up better against *both* the
- * page background and the card surface, since destructive text appears on each.
+ * `--border` and `--input` were the two tokens applyColors never wrote, and a
+ * variable that is never written keeps whatever `:root` says -- which is the
+ * *light* theme's near-white `30 14.7% 86.7%`, because the palette is applied
+ * as inline custom properties rather than by adding `.dark`. So an account
+ * that chose a dark background got a near-white line around every card, input,
+ * table row and separator in the product, at about 12:1 against the surface it
+ * was supposed to quietly delimit.
+ *
+ * It went unseen for as long as it did because a border is one pixel wide, and
+ * a contrast audit looks at text. The seating chart's grid draws its dot
+ * pattern with `hsl(var(--border))` as a *background*, which is the single
+ * place in the app where the border colour is wide enough for an audit to
+ * sample -- 57 findings on one page, all of them the same missing line.
+ *
+ * Same shape as readableMutedForeground: walk the lightness axis away from the
+ * surfaces and stop at the first value that separates from all of them. The
+ * hue and saturation come from the page background, so the line carries the
+ * palette's own tint rather than reading as a grey stripe across it.
  */
-function contrastingDestructiveText(background: string, surface: string) {
+function separatorFor(...surfaceHexes: string[]) {
+  const [hue, saturationPercent] = hexToHsl(surfaceHexes[0])
+    .replace(/%/g, "")
+    .split(" ")
+    .map(Number);
+  // Capped: a vivid canvas would otherwise draw every divider in full colour.
+  const saturation = Math.min(saturationPercent, 18) / 100;
+  const surfaces = surfaceHexes.map(relativeLuminance);
+  const worst = (lightness: number) =>
+    Math.min(
+      ...surfaces.map((surface) =>
+        contrastRatio(hslChannelsToLuminance(hue, saturation, lightness), surface),
+      ),
+    );
+
+  // Outward from where the surfaces themselves sit, toward whichever end of
+  // the axis has room left in it.
+  const lightnesses = surfaceHexes.map(
+    (hex) => Number(hexToHsl(hex).replace(/%/g, "").split(" ")[2]) / 100,
+  );
+  const towardLight = Math.max(...surfaces) < 0.4;
+  const from = towardLight ? Math.max(...lightnesses) : Math.min(...lightnesses);
+  let best = { lightness: from, ratio: 0 };
+  for (let step = 1; step <= 60; step++) {
+    const lightness = towardLight
+      ? Math.min(1, from + step * 0.012)
+      : Math.max(0, from - step * 0.012);
+    const ratio = worst(lightness);
+    if (ratio > best.ratio) best = { lightness, ratio };
+    if (ratio >= MIN_SEPARATOR_CONTRAST) {
+      return `${hue} ${Math.round(saturation * 1000) / 10}% ${Math.round(lightness * 1000) / 10}%`;
+    }
+  }
+  // Surfaces at opposite ends leave no single line that separates from both;
+  // the most visible one available is the honest answer.
+  return `${hue} ${Math.round(saturation * 1000) / 10}% ${Math.round(best.lightness * 1000) / 10}%`;
+}
+
+/**
+ * The status colours from the design tokens: one shade meant for a light
+ * surface, one for a dark one, each keeping its hex beside the HSL channels so
+ * the luminance below is measured from the same colour the token names.
+ *
+ * Mirrored from artifacts/schoolar-edu/tokens.json. Keep them in step: these
+ * are written onto :root's inline style and so outrank the stylesheet.
+ */
+const STATUS_TEXT = {
+  destructive: {
+    onLight: { hsl: "0 73.7% 41.8%", hex: "#b91c1c" },
+    onDark: { hsl: "0 90.6% 70.8%", hex: "#f87171" },
+  },
+  success: {
+    onLight: { hsl: "163 93.5% 24.3%", hex: "#047857" },
+    onDark: { hsl: "158 64.4% 51.6%", hex: "#34d399" },
+  },
+  warning: {
+    onLight: { hsl: "26 90.5% 37.1%", hex: "#b45309" },
+    onDark: { hsl: "43 96.4% 56.3%", hex: "#fbbf24" },
+  },
+  info: {
+    onLight: { hsl: "201 96.3% 32.2%", hex: "#0369a1" },
+    onDark: { hsl: "198 93.2% 59.6%", hex: "#38bdf8" },
+  },
+} as const;
+
+/**
+ * Pick the shade of a status colour that stays readable against this palette.
+ *
+ * An error, a warning, a "matched" and an at-limit usage count are the messages
+ * a user least wants to miss, and a custom palette can put any of them on a
+ * surface the token was not chosen for. This picks whichever of the two shades
+ * holds up better against *both* the page background and the card surface,
+ * since status text appears on each.
+ *
+ * The alternative -- a fixed shade with a `dark:` variant beside it -- does not
+ * work in this product at all. Casparel has no `.dark` class: the palette is
+ * applied as inline custom properties, so `dark:text-emerald-400` is a class
+ * that can never match, and the light shade is what a reader on a dark
+ * background gets. See darkVariantsCannotMatch.test.ts.
+ */
+function contrastingStatusText(
+  status: keyof typeof STATUS_TEXT,
+  background: string,
+  surface: string,
+) {
   const surfaces = [relativeLuminance(background), relativeLuminance(surface)];
-  const worst = (candidate: number) =>
-    Math.min(...surfaces.map((s) => contrastRatio(candidate, s)));
-  return worst(DESTRUCTIVE_TEXT_LUMINANCE.onDark) >
-    worst(DESTRUCTIVE_TEXT_LUMINANCE.onLight)
-    ? DESTRUCTIVE_TEXT_ON_DARK
-    : DESTRUCTIVE_TEXT_ON_LIGHT;
+  const worst = (hex: string) =>
+    Math.min(...surfaces.map((s) => contrastRatio(relativeLuminance(hex), s)));
+  const { onLight, onDark } = STATUS_TEXT[status];
+  return worst(onDark.hex) > worst(onLight.hex) ? onDark.hsl : onLight.hsl;
 }
 
 function applyColors(colors: InterfaceColors) {
@@ -323,7 +420,23 @@ function applyColors(colors: InterfaceColors) {
     "--sidebar-foreground": primaryForeground,
     "--sidebar-primary": primary,
     "--sidebar-primary-foreground": primaryForeground,
-    "--destructive-text": contrastingDestructiveText(
+    "--destructive-text": contrastingStatusText(
+      "destructive",
+      colors.background,
+      colors.surface,
+    ),
+    "--success-text": contrastingStatusText(
+      "success",
+      colors.background,
+      colors.surface,
+    ),
+    "--warning-text": contrastingStatusText(
+      "warning",
+      colors.background,
+      colors.surface,
+    ),
+    "--info-text": contrastingStatusText(
+      "info",
       colors.background,
       colors.surface,
     ),
@@ -336,6 +449,19 @@ function applyColors(colors: InterfaceColors) {
     "--accent-foreground": accentForeground,
     "--sidebar-accent": accent,
     "--sidebar-accent-foreground": accentForeground,
+    // Every hairline in the product: card outlines, table rules, separators,
+    // the seating grid's dot pattern. One value has to work on the page canvas
+    // and on a card, so both are handed to it.
+    "--border": separatorFor(colors.background, colors.surface),
+    // Field outlines are the same line, and the design tokens give them the
+    // same value in both themes.
+    "--input": separatorFor(colors.background, colors.surface),
+    // The sidebar is filled with the brand colour rather than a surface, so
+    // its own divider is measured against that instead.
+    "--sidebar-border": separatorFor(colors.primary),
+    // A focus ring on the sidebar has to clear the brand fill it sits on, and
+    // the foreground already contrasts with it by construction.
+    "--sidebar-ring": primaryForeground,
   };
   for (const [property, value] of Object.entries(properties))
     root.style.setProperty(property, value);

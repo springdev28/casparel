@@ -313,6 +313,28 @@ const SHAPE_RULES: Array<{
    * which is what the protection was standing in for.
    */
   {
+    // "38% average completion" and "38% complete", on a teacher's assignments
+    // list. The number is data, so neither can ever be a dictionary key.
+    match: /^(\d[\d.,]*)% average completion$/,
+    render: {
+      tr: (n) => `ortalama %${n} tamamlanma`,
+      es: (n) => `${n} % de finalización media`,
+      fr: (n) => `${n} % d’achèvement moyen`,
+      pt: (n) => `${n} % de conclusão média`,
+      de: (n) => `${n} % durchschnittlich abgeschlossen`,
+    },
+  },
+  {
+    match: /^(\d[\d.,]*)% complete$/,
+    render: {
+      tr: (n) => `%${n} tamamlandı`,
+      es: (n) => `${n} % completado`,
+      fr: (n) => `${n} % terminé`,
+      pt: (n) => `${n} % concluído`,
+      de: (n) => `${n} % abgeschlossen`,
+    },
+  },
+  {
     match: /^Open (.+)$/,
     render: {
       tr: (t) => `${t} kaynağını aç`,

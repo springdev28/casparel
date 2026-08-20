@@ -21,12 +21,12 @@
  * (see chromiumExecutable below); CHROMIUM_PATH overrides the search, and
  * `npx playwright install chromium` is the fallback for a bare machine.
  */
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inParallel } from "./in-parallel.mjs";
 import { installSession } from "./audit-fixtures.mjs";
+import { serveBuild } from "./serve-build.mjs";
 
 const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -54,7 +54,7 @@ const PAGES = (
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
   "/dashboard,/profile,/resources,/catalog,/settings,/plans,/admin," +
-    "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people,/canvases,/classes/31,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial," +
+    "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people,/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial," +
     // The detail page. It rendered its error boundary until the workflow
     // fixture existed and `workflow?.steps?.[key]` guarded both levels, which
     // is why the page carrying this product's headline feature had never been
@@ -63,17 +63,6 @@ const SIGNED_IN_PAGES = (
 )
   .split(",")
   .filter(Boolean);
-
-const MIME = {
-  ".js": "text/javascript",
-  ".css": "text/css",
-  ".html": "text/html",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".woff2": "font/woff2",
-  ".json": "application/json",
-  ".ico": "image/x-icon",
-};
 
 if (!fs.existsSync(ROOT)) {
   console.error(`No build found at ${ROOT}. Run the app build first.`);
@@ -92,19 +81,7 @@ try {
 }
 
 // Serve the build, falling back to index.html so client-side routes resolve.
-const server = http
-  .createServer((req, res) => {
-    const url = decodeURIComponent((req.url ?? "/").split("?")[0]);
-    let file = path.join(ROOT, url);
-    if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      file = path.join(ROOT, "index.html");
-    }
-    res.writeHead(200, {
-      "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream",
-    });
-    res.end(fs.readFileSync(file));
-  })
-  .listen(PORT, "127.0.0.1");
+const server = serveBuild(ROOT, PORT);
 
 /**
  * Runs in the page: the accessibility faults a browser can see but a type
@@ -189,8 +166,50 @@ const DASHES = `(() => {
 const CONTRAST = `(() => {
   const lum = (c) => { const [r,g,b] = c.map(v => { v/=255; return v<=0.04045 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); });
     return 0.2126*r + 0.7152*g + 0.0722*b; };
-  const parse = (s) => { const m = s.match(/rgba?\\(([^)]+)\\)/); if (!m) return null;
-    const p = m[1].split(',').map(x => parseFloat(x)); return { rgb: [p[0],p[1],p[2]], a: p.length>3 ? p[3] : 1 }; };
+  /*
+   * Any CSS colour, as rgb and an alpha, by asking the browser.
+   *
+   * This used to be a regex for rgb() and rgba(). Tailwind v4 emits oklab()
+   * for an opacity modifier, so a bg-card/90 class computes to
+   * oklab(0.129 … / 0.9), which the regex did not match, so the walk
+   * skipped that background entirely and kept going to whatever solid rgb()
+   * was behind it. On the canvas editor that meant measuring white header text
+   * against the light page underneath its own dark chip and reporting 1.08:1
+   * on text that is perfectly readable.
+   *
+   * The dangerous half is the other one: the same blindness passes dark text
+   * on a dark oklab surface by measuring it against a light ancestor.
+   *
+   * A 1x1 canvas does the conversion, which means every colour space the
+   * browser supports works here without this file knowing any of them.
+   */
+  const readColour = (() => {
+    const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    return (value) => {
+      if (!value) return null;
+      ctx.clearRect(0, 0, 1, 1);
+      // A value the canvas cannot parse leaves fillStyle at what it was, so
+      // it is set to a known colour first and a no-op is detectable.
+      /*
+       * A value the canvas cannot parse leaves fillStyle at whatever it was,
+       * so it is tried against two different sentinels: if the browser
+       * understood it, both attempts land on the same colour, and if it did
+       * not, each keeps its own sentinel and they differ. No regex, which
+       * matters because this whole block is injected as a string and a
+       * backslash in it is one template-literal escape away from vanishing.
+       */
+      ctx.fillStyle = '#000000';
+      ctx.fillStyle = value;
+      const first = ctx.fillStyle;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = value;
+      if (first !== ctx.fillStyle) return null;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      return { rgb: [r, g, b], a: a / 255 };
+    };
+  })();
+  const parse = (s) => readColour(s);
   /*
    * Every background the text could be sitting on, nearest first.
    *
@@ -208,10 +227,13 @@ const CONTRAST = `(() => {
    */
   const stopsOf = (image) => {
     const found = [];
-    for (const m of image.matchAll(/rgba?\(([^)]+)\)/g)) {
-      const p = m[1].split(',').map(x => parseFloat(x));
-      if (p.length < 3 || (p.length > 3 && p[3] <= 0.5)) continue;
-      found.push([p[0], p[1], p[2]]);
+    // Same reason as parse(): a gradient stop can be any colour space.
+    // Doubled backslashes: this block is injected as a template literal, so
+    // a single one is consumed before the browser ever sees the pattern.
+    for (const m of image.matchAll(/(?:rgba?|oklab|oklch|hsla?|lab|lch|color)\\([^()]*(?:\\([^()]*\\)[^()]*)*\\)|#[0-9a-fA-F]{3,8}/g)) {
+      const c = readColour(m[0]);
+      if (!c || c.a <= 0.5) continue;
+      found.push(c.rgb);
     }
     return found;
   };
