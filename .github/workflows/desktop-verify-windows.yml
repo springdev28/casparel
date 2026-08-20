@@ -9,7 +9,9 @@ name: Verify the Windows app
 # existed, the Windows installer was the one artifact that had been produced and
 # never run.
 #
-# Run it from the Actions tab against any published tag.
+# Run it from the Actions tab against any published tag. Both architectures are
+# checked: the arm64 installer had been built by every release and run by
+# nothing, because no machine in this project can execute it.
 
 on:
   workflow_dispatch:
@@ -26,7 +28,22 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: windows-latest
+    # Both architectures, because an x64 machine cannot run an arm64 binary --
+    # the emulation only goes the other way. Verifying the arm64 installer needs
+    # an arm64 Windows machine, and GitHub's are free for public repositories.
+    #
+    # fail-fast is off so one architecture failing still reports the other:
+    # "arm64 is broken" and "both are broken" are different findings.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            arch: x64
+          - runner: windows-11-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    name: verify (${{ matrix.arch }})
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -45,9 +62,10 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           version="${TAG#desktop-v}"
-          # windows-latest is x64. Take the installer this machine can run, so
-          # "it installs and starts" is a real result rather than a skipped one.
-          asset="Casparel-${version}-x64.exe"
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+          # The installer this machine can actually execute, so "it installs and
+          # starts" is a real result rather than a skipped one.
+          asset="Casparel-${version}-${{ matrix.arch }}.exe"
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
           echo "Fetching ${asset}"
           if ! curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/app.exe" "$url"; then
@@ -59,4 +77,4 @@ jobs:
 
       - name: Install it, inspect it, run it
         working-directory: artifacts/desktop
-        run: node scripts/verify-app-windows.mjs "$env:RUNNER_TEMP\app.exe"
+        run: node scripts/verify-app-windows.mjs "$env:RUNNER_TEMP\app.exe" "--expect-version=$env:VERSION"

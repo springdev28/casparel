@@ -12,7 +12,9 @@ name: Verify the macOS app
 # Neither macOS nor Windows can be built or run anywhere else in this project,
 # so a hosted runner is the only machine that can answer the question at all.
 #
-# Run it from the Actions tab against any published tag.
+# Run it from the Actions tab against any published tag. Both architectures are
+# checked: an Intel Mac runs the x64 binary on an Intel CPU, which no Apple
+# Silicon runner reproduces.
 
 on:
   workflow_dispatch:
@@ -29,7 +31,27 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: macos-latest
+    # Both architectures. An Apple Silicon machine can run the x64 image under
+    # Rosetta, but that proves the wrong thing: what an Intel owner runs is the
+    # x64 binary on an Intel CPU, and only an Intel runner tests that. The x64
+    # .dmg had been built by every release and run by nothing.
+    #
+    # fail-fast is off so one architecture failing still reports the other:
+    # "Intel is broken" and "both are broken" are different findings.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          # macos-13 is retired. The Intel labels that still exist are
+          # macos-15-intel and macos-26-intel; a retired label does not fail,
+          # it queues until the job times out, which is why this is pinned to a
+          # live one rather than left to a guess.
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    name: verify (${{ matrix.arch }})
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -47,16 +69,26 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           version="${TAG#desktop-v}"
-          # macos-latest runners are arm64; take the image this machine can
-          # actually execute, so "it launches" is a real result rather than a
-          # skipped one.
-          arch=$(uname -m)
-          case "$arch" in
-            arm64) asset="Casparel-${version}-arm64.dmg" ;;
-            *)     asset="Casparel-${version}-x64.dmg" ;;
-          esac
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+          # The image this machine can actually execute, so "it launches" is a
+          # real result rather than a skipped one. Taken from the matrix rather
+          # than from uname, so a runner label that silently changes
+          # architecture cannot quietly test the same image twice.
+          asset="Casparel-${version}-${{ matrix.arch }}.dmg"
+
+          # The runner has to BE the architecture this leg claims to test.
+          # Apple Silicon runs x64 binaries under Rosetta perfectly well, so if
+          # a label quietly moved to Apple Silicon this leg would sail through
+          # while proving nothing about an Intel Mac -- a false assurance is
+          # worse than the gap it claims to close.
+          expected=$([ "${{ matrix.arch }}" = "arm64" ] && echo arm64 || echo x86_64)
+          actual=$(uname -m)
+          if [ "$actual" != "$expected" ]; then
+            echo "::error title=Wrong runner architecture::This leg tests ${{ matrix.arch }} and expected uname -m to say ${expected}, but the runner says ${actual}. Testing the ${{ matrix.arch }} image here would not exercise the CPU it is built for."
+            exit 1
+          fi
+          echo "Runner is ${actual}, as expected for ${{ matrix.arch }}; fetching ${asset}"
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
-          echo "Runner is ${arch}; fetching ${asset}"
           if ! curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/app.dmg" "$url"; then
             echo "::error title=Asset not found::${url} could not be downloaded. Check the tag and the asset name."
             exit 1
@@ -66,4 +98,4 @@ jobs:
 
       - name: Mount it, inspect it, run it
         working-directory: artifacts/desktop
-        run: node scripts/verify-app-macos.mjs "$RUNNER_TEMP/app.dmg"
+        run: node scripts/verify-app-macos.mjs "$RUNNER_TEMP/app.dmg" "--expect-version=$VERSION"
