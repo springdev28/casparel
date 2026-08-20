@@ -5,6 +5,83 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+export interface ConversationParticipant {
+  id: number;
+  name: string;
+  role: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+}
+
+export interface DirectMessage {
+  id: number;
+  conversationId: number;
+  senderId: number;
+  body: string;
+  isAdminMessage: boolean;
+  /** @nullable */
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export type ConversationStatus = typeof ConversationStatus[keyof typeof ConversationStatus];
+
+
+export const ConversationStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export interface Conversation {
+  id: number;
+  firstUserId: number;
+  secondUserId: number;
+  requestedById: number;
+  status: ConversationStatus;
+  createdAt: string;
+  updatedAt: string;
+  other: ConversationParticipant;
+  lastMessage: DirectMessage | null;
+  unreadCount: number;
+  /** A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on. */
+  incomingRequest: boolean;
+}
+
+export type ConversationThread = Conversation & {
+  messages: DirectMessage[];
+};
+
+export interface OpenConversationInput {
+  userId: number;
+  /**
+     * An optional first message, sent with the request.
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body?: string;
+}
+
+export interface SendMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+}
+
+export type ConversationRequestAnswerAction = typeof ConversationRequestAnswerAction[keyof typeof ConversationRequestAnswerAction];
+
+
+export const ConversationRequestAnswerAction = {
+  accept: 'accept',
+  decline: 'decline',
+} as const;
+
+export interface ConversationRequestAnswer {
+  action: ConversationRequestAnswerAction;
+}
+
 export interface HealthStatus {
   status: string;
 }

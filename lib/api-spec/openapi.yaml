@@ -32,6 +32,8 @@ tags:
     description: Google Classroom integration
   - name: calendar
     description: Google Calendar sync and iCal feed
+  - name: direct-messages
+    description: One-to-one conversations, and the request that opens one
 paths:
   /healthz:
     get:
@@ -1583,6 +1585,60 @@ paths:
         "204":
           description: Deleted
 
+  /source-review:
+    get:
+      operationId: reviewASource
+      tags: [resources]
+      summary: Research and summarise a source that is not saved yet
+      description: >-
+        The same review as /resources/{id}/source-review, for a resource
+        nobody has added: the library runs this before you save something, so
+        the decision to save is made with the provenance in front of you. It
+        was served from the same handler and described nowhere, so the web app
+        reached it through a hand-rolled fetch and no other surface could.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string, format: uri }
+        - name: title
+          in: query
+          required: true
+          schema: { type: string, maxLength: 300 }
+        - name: subject
+          in: query
+          required: false
+          schema: { type: string }
+        - name: gradeLevel
+          in: query
+          required: false
+          schema: { type: string }
+        - name: format
+          in: query
+          required: false
+          schema: { type: string }
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [quick, deep]
+            default: quick
+          description: >
+            quick — maintained source provenance, no AI, no account needed;
+            deep — authenticated live web research, cached for 90 days and
+            subject to daily and monthly usage limits
+      responses:
+        "200":
+          description: Source review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceReview"
+        "400": { description: A valid source URL and title are required }
+        "401": { description: Deep review needs an account }
+        "502": { description: The research provider could not be reached }
+
   /resources/{id}/source-review:
     get:
       operationId: getResourceSourceReview
@@ -2618,8 +2674,227 @@ paths:
               schema: { $ref: "#/components/schemas/LearningSignals" }
         "403": { description: Teacher role required }
 
+  # ── Direct messages ───────────────────────────────────────────────────────
+  #
+  # Served since the feature shipped and described nowhere, so the generated
+  # clients could not reach them and the phone app simply did not have
+  # messages. Same shape of gap as study-activities, found the same way: by
+  # holding the routes the server registers against the paths this file names.
+  # See contractDescribesEveryRoute.test.ts.
+  /direct-messages/conversations:
+    get:
+      operationId: listConversations
+      tags: [direct-messages]
+      summary: Your conversations, most recently active first
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+        "401": { description: Not authenticated }
+    post:
+      operationId: openConversation
+      tags: [direct-messages]
+      summary: Open a conversation with somebody, optionally with a first message
+      description: >-
+        Returns the existing conversation when there is one. A new conversation
+        starts as a request the other person has to accept, unless an
+        administrator opens it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenConversationInput"
+      responses:
+        "201":
+          description: The conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "400": { description: Choose another user }
+        "401": { description: Not authenticated }
+        "403": { description: This account is not accepting messages }
+        "404": { description: No such user }
+
+  /direct-messages/conversations/{id}:
+    get:
+      operationId: getConversation
+      tags: [direct-messages]
+      summary: One conversation and its messages
+      description: >-
+        Reading a conversation marks the other person's messages read, so this
+        is not a safe request to repeat for polling.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The conversation, with its messages oldest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationThread"
+        "401": { description: Not authenticated }
+        "404": { description: Conversation not found }
+
+  /direct-messages/conversations/{id}/messages:
+    post:
+      operationId: sendMessage
+      tags: [direct-messages]
+      summary: Send a message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageInput"
+      responses:
+        "201":
+          description: The message that was stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DirectMessage"
+        "400": { description: A message is between 1 and 4000 characters }
+        "401": { description: Not authenticated }
+        "403": { description: Waiting for this request to be accepted }
+        "404": { description: Conversation not found }
+
+  /direct-messages/conversations/{id}/request:
+    patch:
+      operationId: answerConversationRequest
+      tags: [direct-messages]
+      summary: Accept or decline a message request somebody sent you
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationRequestAnswer"
+      responses:
+        "200":
+          description: The conversation, in its new state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "400": { description: Choose accept or decline }
+        "401": { description: Not authenticated }
+        "404": { description: "No such request, or it is not yours to answer" }
+
+
 components:
   schemas:
+    ConversationParticipant:
+      type: object
+      required: [id, name, role]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        role: { type: string }
+        avatarUrl: { type: ["string", "null"] }
+
+    DirectMessage:
+      type: object
+      required: [id, conversationId, senderId, body, isAdminMessage, createdAt]
+      properties:
+        id: { type: integer }
+        conversationId: { type: integer }
+        senderId: { type: integer }
+        body: { type: string }
+        isAdminMessage: { type: boolean }
+        readAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    Conversation:
+      type: object
+      required:
+        [
+          id,
+          firstUserId,
+          secondUserId,
+          requestedById,
+          status,
+          createdAt,
+          updatedAt,
+          other,
+          lastMessage,
+          unreadCount,
+          incomingRequest,
+        ]
+      properties:
+        id: { type: integer }
+        firstUserId: { type: integer }
+        secondUserId: { type: integer }
+        requestedById: { type: integer }
+        status: { type: string, enum: [pending, accepted, declined] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        other:
+          $ref: "#/components/schemas/ConversationParticipant"
+        lastMessage:
+          oneOf:
+            - $ref: "#/components/schemas/DirectMessage"
+            - type: "null"
+        unreadCount: { type: integer }
+        incomingRequest:
+          type: boolean
+          description: >-
+            A pending request somebody else sent you, so it is yours to accept
+            or decline rather than one you are waiting on.
+
+    ConversationThread:
+      allOf:
+        - $ref: "#/components/schemas/Conversation"
+        - type: object
+          required: [messages]
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: "#/components/schemas/DirectMessage"
+
+    OpenConversationInput:
+      type: object
+      required: [userId]
+      properties:
+        userId: { type: integer }
+        body:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: An optional first message, sent with the request.
+
+    SendMessageInput:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 4000 }
+
+    ConversationRequestAnswer:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [accept, decline] }
+
     HealthStatus:
       type: object
       required: [status]

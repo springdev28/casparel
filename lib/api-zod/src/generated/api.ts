@@ -3285,3 +3285,187 @@ export const GetLearningSignalsResponse = zod.object({
 })
 
 
+/**
+ * @summary Your conversations, most recently active first
+ */
+export const ListConversationsResponseItem = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "avatarUrl": zod.string().nullish()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "unreadCount": zod.int(),
+  "incomingRequest": zod.boolean().describe('A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on.')
+})
+export const ListConversationsResponse = zod.array(ListConversationsResponseItem)
+
+
+/**
+ * Returns the existing conversation when there is one. A new conversation starts as a request the other person has to accept, unless an administrator opens it.
+ * @summary Open a conversation with somebody, optionally with a first message
+ */
+export const openConversationBodyBodyMax = 4000;
+
+
+
+export const OpenConversationBody = zod.object({
+  "userId": zod.int(),
+  "body": zod.string().min(1).max(openConversationBodyBodyMax).optional().describe('An optional first message, sent with the request.')
+})
+
+export const OpenConversationResponse = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "avatarUrl": zod.string().nullish()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "unreadCount": zod.int(),
+  "incomingRequest": zod.boolean().describe('A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on.')
+})
+
+
+/**
+ * Reading a conversation marks the other person's messages read, so this is not a safe request to repeat for polling.
+ * @summary One conversation and its messages
+ */
+export const GetConversationParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetConversationResponse = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "avatarUrl": zod.string().nullish()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "unreadCount": zod.int(),
+  "incomingRequest": zod.boolean().describe('A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on.')
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}))
+}))
+
+
+/**
+ * @summary Send a message
+ */
+export const SendMessageParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const sendMessageBodyBodyMax = 4000;
+
+
+
+export const SendMessageBody = zod.object({
+  "body": zod.string().min(1).max(sendMessageBodyBodyMax)
+})
+
+export const SendMessageResponse = zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Accept or decline a message request somebody sent you
+ */
+export const AnswerConversationRequestParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const AnswerConversationRequestBody = zod.object({
+  "action": zod.enum(['accept', 'decline'])
+})
+
+export const AnswerConversationRequestResponse = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.string(),
+  "avatarUrl": zod.string().nullish()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+}),zod.null()]),
+  "unreadCount": zod.int(),
+  "incomingRequest": zod.boolean().describe('A pending request somebody else sent you, so it is yours to accept or decline rather than one you are waiting on.')
+})
+
+
