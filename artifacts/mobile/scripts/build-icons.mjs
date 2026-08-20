@@ -22,6 +22,17 @@
  *   splash-icon.png   1024² transparent, art with launch padding   (both)
  *   ../../desktop/build/icon.png
  *                     1024² rounded square on transparency         (desktop)
+ *   ../../app/public/icons/pwa-{192,512}.png
+ *                     opaque, full bleed                           (installed web app)
+ *   ../../app/public/icons/pwa-maskable-512.png
+ *                     opaque, art inside the safe zone             (installed web app)
+ *
+ * The installable web app is a fourth platform with the same problem and the
+ * same answer. Android builds a real launcher icon out of a manifest icon and
+ * masks it exactly as it masks a native one, so it needs the safe-zone
+ * treatment; `purpose: "any"` is drawn unmasked and needs the full-bleed one.
+ * A manifest that offers only one of the two gets a shrunken icon inside a
+ * white circle, or a book with its edges cut off, depending on the launcher.
  *
  * The white page behind the drawing is removed by flooding inwards from the
  * four corners, which is what makes this safe to run on the artwork rather
@@ -51,6 +62,15 @@ const SOURCE = path.join(IMAGES, "icon-source.png");
 const DESKTOP_BUILD = path.resolve(MOBILE, "..", "desktop", "build");
 const DESKTOP_ICON = path.join(DESKTOP_BUILD, "icon.png");
 const DESKTOP_ICON_SET = path.join(DESKTOP_BUILD, "icons");
+const WEB_ICONS = path.resolve(MOBILE, "..", "app", "public", "icons");
+
+/**
+ * The two sizes a browser requires before it will offer to install a web app,
+ * and no more. Unlike Linux, which picks the nearest of a set, a manifest is a
+ * list the browser chooses from and scales, so intermediate sizes buy nothing
+ * but bytes in the repository.
+ */
+const WEB_ICON_SIZES = [192, 512];
 
 /**
  * Linux installs icons by size and picks the nearest one; it does not scale a
@@ -129,6 +149,25 @@ const outputs = [
     size,
     label: `Linux ${size}px icon`,
   })),
+  ...WEB_ICON_SIZES.map((size) => ({
+    file: path.join(WEB_ICONS, `pwa-${size}.png`),
+    scale: FULL_BLEED_SCALE,
+    background: "brand",
+    opaque: true,
+    size,
+    label: `installable web app ${size}px icon`,
+  })),
+  {
+    // One maskable size, not two: this one is only ever read by a launcher
+    // building a home-screen icon, and every launcher that does it wants the
+    // largest available.
+    file: path.join(WEB_ICONS, "pwa-maskable-512.png"),
+    scale: ADAPTIVE_SCALE,
+    background: "brand",
+    opaque: true,
+    size: 512,
+    label: "installable web app maskable icon",
+  },
 ];
 
 /** PNG chunk checksum. Written out rather than taken from zlib, which only
@@ -297,7 +336,8 @@ async function renderInPage({ sourceDataUrl, plan, size }) {
   // cleared pixel is faded in proportion to how close to white it is, so the
   // edge reads as a clean curve rather than a light halo.
   const cleared = new Uint8Array(w * h);
-  for (let at = 0; at < w * h; at += 1) cleared[at] = data[at * 4 + 3] === 0 ? 1 : 0;
+  for (let at = 0; at < w * h; at += 1)
+    cleared[at] = data[at * 4 + 3] === 0 ? 1 : 0;
   for (let y = 0; y < h; y += 1) {
     for (let x = 0; x < w; x += 1) {
       const at = y * w + x;
@@ -333,8 +373,7 @@ async function renderInPage({ sourceDataUrl, plan, size }) {
       brandKey = key;
     }
   }
-  const brand =
-    "#" + brandKey.toString(16).padStart(6, "0");
+  const brand = "#" + brandKey.toString(16).padStart(6, "0");
 
   const results = [];
   for (const step of plan) {
@@ -357,7 +396,9 @@ async function renderInPage({ sourceDataUrl, plan, size }) {
     const offset = (edge - drawn) / 2;
     ctx.drawImage(base, offset, offset, drawn, drawn);
 
-    const png = out.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
+    const png = out
+      .toDataURL("image/png")
+      .replace(/^data:image\/png;base64,/, "");
 
     let rgba = null;
     if (step.opaque) {
@@ -422,7 +463,10 @@ async function main() {
     const bytes = output.opaque
       ? stripAlpha(Buffer.from(step.rgba, "base64"), edge, edge)
       : Buffer.from(step.png, "base64");
-    const relative = path.relative(path.resolve(MOBILE, "..", ".."), output.file);
+    const relative = path.relative(
+      path.resolve(MOBILE, "..", ".."),
+      output.file,
+    );
     const existing = fs.existsSync(output.file)
       ? fs.readFileSync(output.file)
       : null;

@@ -28,6 +28,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="canonical" href="https://casparel.com/" />
+    <!-- Installing the web app. The manifest is written by
+         scripts/generate-seo.mjs, because its scope and start URL depend on
+         BASE_PATH and its origin on SITE_URL.
+
+         The two apple- meta tags are what Safari reads instead: iOS has no
+         manifest support for standalone display, so without them "Add to Home
+         Screen" produces a bookmark that opens a browser tab with the address
+         bar still on it. mobile-web-app-capable is the standard spelling of
+         the same thing, which every other browser reads. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0e3ca5" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Casparel" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link
       rel="preload"
       href="/fonts/space-grotesk-latin.woff2"
