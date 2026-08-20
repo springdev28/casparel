@@ -90,10 +90,17 @@ export default function CodeSigningPage() {
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <FileCheck className="size-5 text-primary-text" /> What gets signed
         </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+        {/* Scrolls rather than squeezes. Four columns of file names and signer
+            names inside 375px left every one of them narrow enough that the
+            browser broke words in half — "Win/dows", "mac/OS" — and a table
+            that has to be read sideways beats a table that cannot be read. */}
+        <div className="overflow-x-auto" data-sideways>
+          <table className="w-full min-w-[30rem] text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
+              {/* Column headings are one or two words and are never long
+                  enough to need wrapping; letting them wrap is how
+                  "Plataforma" ended up split across two lines. */}
+              <tr className="whitespace-nowrap">
                 <th className="pb-2 pr-4 font-medium">File</th>
                 <th className="pb-2 pr-4 font-medium">Platform</th>
                 <th className="pb-2 pr-4 font-medium">Signed by</th>
@@ -102,9 +109,13 @@ export default function CodeSigningPage() {
             </thead>
             <tbody>
               <Row artifact=".exe" platform="Windows" signer="SignPath Foundation" status="pending" />
+              <Row artifact=".zip" platform="Windows" signer="SignPath Foundation" status="pending" />
               <Row artifact=".dmg" platform="macOS" signer="Apple Developer ID" status="pending" />
+              <Row artifact=".zip" platform="macOS" signer="Apple Developer ID" status="pending" />
               <Row artifact=".AppImage" platform="Linux" signer="Checksum only" status="none" />
               <Row artifact=".deb" platform="Linux" signer="Checksum only" status="none" />
+              <Row artifact=".rpm" platform="Linux" signer="Checksum only" status="none" />
+              <Row artifact=".tar.gz" platform="Linux" signer="Checksum only" status="none" />
             </tbody>
           </table>
         </div>
@@ -112,6 +123,11 @@ export default function CodeSigningPage() {
           Linux packages are not signed the way Windows and macOS ones are,
           because Linux has no single authority that vouches for a downloaded
           installer. Compare the published checksum instead.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          A ZIP is a container rather than a signed file: the app inside it
+          carries the signature, and the archive itself is covered by its
+          checksum like the Linux packages are.
         </p>
       </section>
 
@@ -141,13 +157,23 @@ export default function CodeSigningPage() {
           On Windows, right-click the installer, open Properties, and look at
           the Digital Signatures tab. On macOS and Linux, from a terminal:
         </p>
-        <pre className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-4 text-xs">
+        {/* Commands are wrapped nowhere: a path broken across two lines is one
+            that does not paste back. This scrolls on purpose. */}
+        <pre
+          data-sideways
+          className="overflow-x-auto rounded-lg border border-border bg-muted/40 p-4 text-xs"
+        >
           <code>{`# macOS
 codesign -dv --verbose=4 /Applications/Casparel.app
 
-# Linux
-sha256sum Casparel-1.0.0-x86_64.AppImage`}</code>
+# Any download, against the list published with the release
+sha256sum -c --ignore-missing SHA256SUMS.txt`}</code>
         </pre>
+        <p className="text-sm text-muted-foreground">
+          Every release publishes a SHA256SUMS.txt covering every file in it.
+          Download it beside the installer and that one command answers whether
+          the file is the one the build produced.
+        </p>
         <p className="text-sm text-muted-foreground">
           When Windows signing is in place, the publisher will read SignPath
           Foundation rather than Casparel. That is expected: they issue the

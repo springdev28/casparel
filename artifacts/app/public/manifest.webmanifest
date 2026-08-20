@@ -1,0 +1,58 @@
+{
+  "id": "/",
+  "name": "Casparel",
+  "short_name": "Casparel",
+  "description": "Classes, an open education library, schedules, canvases and AI source research in one workspace.",
+  "start_url": "/resources",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0e3ca5",
+  "background_color": "#f8f7f4",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [
+    "education",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/icons/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Library",
+      "short_name": "Library",
+      "description": "Search the open education library",
+      "url": "/resources"
+    },
+    {
+      "name": "Schedule",
+      "short_name": "Schedule",
+      "description": "What is on today",
+      "url": "/schedule"
+    },
+    {
+      "name": "Classes",
+      "short_name": "Classes",
+      "description": "Your classes and their work",
+      "url": "/classes"
+    }
+  ]
+}

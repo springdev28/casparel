@@ -45,19 +45,42 @@ CASPAREL_URL=http://localhost:5173 pnpm --filter @workspace/desktop dev
 ## Building installers
 
 ```sh
-pnpm --filter @workspace/desktop build:mac    # dmg, x64 + arm64
-pnpm --filter @workspace/desktop build:win    # nsis installer
-pnpm --filter @workspace/desktop build:linux  # AppImage + deb
+pnpm --filter @workspace/desktop build:mac    # dmg + zip
+pnpm --filter @workspace/desktop build:win    # nsis installer + zip
+pnpm --filter @workspace/desktop build:linux  # AppImage, deb, rpm, tar.gz
 ```
+
+Every target is built for both x64 and arm64, so a release is fourteen files.
+What each format is for:
+
+| Format | Who it is for |
+|--------|---------------|
+| `.dmg` | macOS, the normal way |
+| `.zip` (macOS) | a managed fleet, which wants a bundle it can copy rather than an image it has to mount |
+| `.exe` | Windows, the normal way |
+| `.zip` (Windows) | a machine whose user cannot install software — common in a school |
+| `.AppImage` | any Linux, without touching the package manager |
+| `.deb` | Debian, Ubuntu |
+| `.rpm` | Fedora, RHEL, openSUSE |
+| `.tar.gz` | no root, or a distribution none of the above match |
 
 Installers land in `release/`. electron-builder can only build macOS targets on
 macOS, so a full three-platform release needs a matrix (or a CI runner per OS).
+The `.rpm` target shells out to `rpmbuild`; on Debian and Ubuntu that is
+`apt-get install rpm`, and the Linux build fails without it.
 
-A successful build says nothing about what the installers contain, and the
-things that go wrong there are invisible until somebody installs the app: the
+A successful build says nothing about what the packages contain, and the things
+that go wrong there are invisible until somebody installs the app: the
 applications-menu entry, the icon sizes actually shipped, whether the
-`casparel://` scheme is registered at all. `pnpm run verify:package` opens the
-built `.deb` and checks them; the release workflow runs it on the Linux job.
+`casparel://` scheme is registered at all, and — since arm64 is cross-packaged
+on an x64 runner — whether an arm64 package holds arm64 binaries at all.
+`pnpm run verify:package` opens each of the eight Linux packages and checks
+them; the release workflow runs it on the Linux job.
+
+The release also publishes `SHA256SUMS.txt`. The Linux packages are unsigned
+and will stay that way — there is no AppImage equivalent of Authenticode — so a
+digest is the only thing a person can check a download against. See
+`/code-signing` on the website.
 
 Signing needs credentials that are deliberately not in the repository:
 

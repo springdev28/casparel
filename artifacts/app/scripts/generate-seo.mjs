@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Generates public/robots.txt and public/sitemap.xml before `vite build`.
+ * Generates public/sitemap.xml, public/_seo/routes.json and
+ * public/manifest.webmanifest before `vite build`.
  *
  * A resource-discovery product has to be crawlable, but the app is a
  * client-rendered SPA, so search engines only ever see whatever static files
@@ -25,6 +26,20 @@ const publicDir = resolve(here, "..", "public");
 const rawSiteUrl = process.env.SITE_URL ?? "https://casparel.com";
 // Normalise: absolute origin, no trailing slash.
 const origin = rawSiteUrl.replace(/\/+$/, "");
+
+/**
+ * Where the app is mounted, matching `base` in vite.config.ts.
+ *
+ * The manifest is the one generated file whose contents are URLs the browser
+ * resolves itself, so it is the one that breaks if this is assumed to be "/".
+ * Normalised to a leading and trailing slash so `${basePath}icons/...` is
+ * right whether BASE_PATH is set or not.
+ */
+const basePath =
+  `/${(process.env.BASE_PATH ?? "/").replace(/^\/+|\/+$/g, "")}/`.replace(
+    /^\/\/+/,
+    "/",
+  );
 
 /**
  * Publicly reachable routes (see App.tsx <Router/>), and what each one is.
@@ -197,6 +212,99 @@ const routeMetadata = {
 // "Disallow: /". Instead the API app owns GET /robots.txt (see api-server
 // app.ts), so removing the static file here lets every request reach that
 // route, the same way sitemap.xml is already served by the app.
+/**
+ * What a browser needs in order to install the web app.
+ *
+ * This is the fourth way to get Casparel, alongside the two stores and the
+ * desktop installers, and the only one that needs nobody's approval: a
+ * manifest makes the same build installable from the browser on Android, iOS
+ * and every desktop, on the day it deploys. It is generated rather than
+ * checked in because two of its fields are already deploy variables — the
+ * origin below and BASE_PATH — and a hand-maintained copy would be wrong on
+ * any deploy that set either.
+ *
+ * The values worth explaining:
+ *
+ *  • `id` is "/" and stays "/" whatever start_url becomes. A browser keys an
+ *    installed app on it, so changing it later would not update the installed
+ *    app; it would offer a second one alongside it.
+ *  • `start_url` is the library rather than "/". An installed icon is a way
+ *    into the product, and "/" is the page that explains the product to
+ *    someone who has not got it yet. The library is public, so it works
+ *    signed out and becomes the app shell once signed in.
+ *  • `display: standalone` rather than fullscreen: this is a reading and
+ *    planning tool, and taking the clock and battery away from someone
+ *    working to a timetable is a strange thing to do.
+ *  • The two colours are the ones the native apps already use — the brand
+ *    panel from the drawing every icon is generated from, and the light
+ *    background of the mobile splash screen — so an installed web app opens
+ *    the same colour as the installed Android one.
+ */
+const manifest = {
+  id: `${basePath}`,
+  name: "Casparel",
+  short_name: "Casparel",
+  description:
+    "Classes, an open education library, schedules, canvases and AI source research in one workspace.",
+  start_url: `${basePath}resources`,
+  scope: basePath,
+  display: "standalone",
+  orientation: "any",
+  theme_color: "#0e3ca5",
+  background_color: "#f8f7f4",
+  lang: "en",
+  dir: "ltr",
+  categories: ["education", "productivity"],
+  icons: [
+    {
+      src: `${basePath}icons/pwa-192.png`,
+      sizes: "192x192",
+      type: "image/png",
+      purpose: "any",
+    },
+    {
+      src: `${basePath}icons/pwa-512.png`,
+      sizes: "512x512",
+      type: "image/png",
+      purpose: "any",
+    },
+    {
+      // Separate entry rather than "any maskable" on the icons above: a
+      // launcher told one icon is both crops the full-bleed one to its mask
+      // and cuts the edges off the book.
+      src: `${basePath}icons/pwa-maskable-512.png`,
+      sizes: "512x512",
+      type: "image/png",
+      purpose: "maskable",
+    },
+  ],
+  /*
+   * Long-press an installed icon and these are the entries offered. Kept to
+   * the three things someone opens the app to do rather than a copy of the
+   * navigation: a shortcut menu that mirrors the sidebar is a worse sidebar.
+   */
+  shortcuts: [
+    {
+      name: "Library",
+      short_name: "Library",
+      description: "Search the open education library",
+      url: `${basePath}resources`,
+    },
+    {
+      name: "Schedule",
+      short_name: "Schedule",
+      description: "What is on today",
+      url: `${basePath}schedule`,
+    },
+    {
+      name: "Classes",
+      short_name: "Classes",
+      description: "Your classes and their work",
+      url: `${basePath}classes`,
+    },
+  ],
+};
+
 await mkdir(resolve(publicDir, "_seo"), { recursive: true });
 await writeFile(resolve(publicDir, "sitemap.xml"), sitemap, "utf8");
 await writeFile(
@@ -204,7 +312,15 @@ await writeFile(
   `${JSON.stringify(routeMetadata, null, 2)}\n`,
   "utf8",
 );
+await writeFile(
+  resolve(publicDir, "manifest.webmanifest"),
+  `${JSON.stringify(manifest, null, 2)}\n`,
+  "utf8",
+);
 
 console.log(
   `[seo] wrote sitemap.xml (${routes.filter((r) => r.sitemap !== false).length} urls) and _seo/routes.json (${routes.length} routes) for ${origin}; robots.txt is served by the API app`,
+);
+console.log(
+  `[pwa] wrote manifest.webmanifest (${manifest.icons.length} icons, ${manifest.shortcuts.length} shortcuts) scoped to ${basePath}`,
 );

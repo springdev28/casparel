@@ -87,7 +87,12 @@ const VIEWPORTS = [
 const PAGES = (
   process.env.AUDIT_FIT_PAGES ??
   "/dashboard,/profile,/settings,/plans,/schedule,/classes,/goals,/lists," +
-    "/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101"
+    "/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101," +
+    // The two pages a visitor reaches before they have an account. Added
+    // after both were measured for the first time and both were wrong on a
+    // phone: the signing table squeezed four columns into 375px until the
+    // browser broke "Windows" and "macOS" in half.
+    "/download,/code-signing"
 )
   .split(",")
   .filter(Boolean);

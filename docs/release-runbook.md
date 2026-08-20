@@ -17,6 +17,7 @@ to the same account and read the same library.
 | iOS and Android binaries | `.github/workflows/mobile-release.yml` (EAS) |
 | Store upload | the same workflow, on a tag |
 | Desktop installers and GitHub release | `.github/workflows/desktop-release.yml` |
+| The installable web app | the frontend deploy; nobody approves it |
 | Store listings, screenshots, review answers | a person, in each console |
 | Accounts, certificates, service keys | a person, once |
 
@@ -98,12 +99,34 @@ pnpm --filter @workspace/mobile exec eas build --profile preview --platform all
 
 # what goes to the stores
 pnpm --filter @workspace/mobile exec eas build --profile production --platform all
+
+# the same release as above, as an .apk someone can install from a link
+pnpm --filter @workspace/mobile exec eas build --profile production-apk --platform android
 ```
 
 Or from the Actions tab: **Mobile release** → Run workflow, choosing platform
 and profile. The `preview` profile produces an APK rather than an app bundle on
 purpose, because an `.aab` can only be uploaded to Play, never installed from a
 link.
+
+`production-apk` is the one to hand to somebody whose phone has no Play Store,
+which in some countries is most of them. It extends `production`, so it is the
+same code on the same channel talking to the same host, and it sets
+`autoIncrement: false` so it carries the version the `.aab` already claimed
+rather than consuming the next one. `check:release` enforces all three, because
+an Android download offered on the website that is quietly a different build
+from the store's is a support problem that takes weeks to identify.
+
+Two things to know before publishing one:
+
+- **It is signed with the upload key, not Play's app-signing key.** Android
+  refuses to install an update whose signature differs from the installed copy,
+  so a sideloaded APK and a Play install are not interchangeable: a person has
+  to uninstall one to move to the other. This is inherent to Play App Signing,
+  not something the profile can fix.
+- **It never goes to the store.** The release workflow refuses to submit after
+  a `production-apk` run — `eas submit --latest` would otherwise pick it up,
+  and Play does not take APKs.
 
 ### Releasing
 
@@ -219,6 +242,41 @@ The shell checks for a newer release on launch and offers a Help menu item that
 opens the releases page. It reads the public releases API and stays quiet when
 it gets nothing; the repository is public, so this works as soon as the first
 release exists. See `artifacts/desktop/README.md`.
+
+## The web app itself
+
+The fourth way to get Casparel, and the only one nobody has to approve: a
+browser will install the site as an app — its own window, its own icon, and
+the pages already opened readable without a connection. It ships whenever the
+frontend deploys. There is no build to make, no store to submit to, and no
+`VITE_*` variable to set the day it goes live, because there is no link to
+anywhere else: `/download` offers the install itself.
+
+Three generated things make it installable, and none of them is written by
+hand:
+
+- `manifest.webmanifest`, written by `artifacts/app/scripts/generate-seo.mjs`
+  before every Vite build, because two of its fields are deploy variables
+  (`SITE_URL` and `BASE_PATH`).
+- The icons under `artifacts/app/public/icons/`, generated from the same
+  drawing as the iOS and Android ones by
+  `node artifacts/mobile/scripts/build-icons.mjs`.
+- `artifacts/app/public/sw.js`, the service worker, which is copied verbatim
+  and is the only file in the app no other file imports.
+
+Any of those can be individually fine while the result is not installable, so
+after building the app:
+
+```bash
+pnpm --filter @workspace/app run build
+node artifacts/app/scripts/audit-installable.mjs
+```
+
+It asks a real browser: whether the manifest is accepted, whether every icon
+it names exists and is really the size it claims, whether the worker takes
+control, and whether a navigation still returns the app with the network cut —
+while the API still fails rather than answering from a cache, which is the one
+thing an offline copy must not do. CI runs it on every pull request.
 
 ## After a release
 

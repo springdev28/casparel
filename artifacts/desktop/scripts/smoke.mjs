@@ -92,13 +92,28 @@ function runCase(name, { deepLink, script }) {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let out = "";
+    let err = "";
     child.stdout.on("data", (chunk) => (out += chunk));
-    child.stderr.on("data", () => {});
+    /*
+     * Kept rather than discarded, for the case where the shell never reports.
+     * "NO RESULT" on its own says a launch produced no verdict but not why,
+     * and the two ordinary reasons -- dist/ not compiled, and Electron's
+     * binary never downloaded -- both announce themselves clearly on stderr.
+     * Seven identical "NO RESULT" lines sent a reader looking for a bug in the
+     * shell when the answer was one line the runner had thrown away.
+     */
+    child.stderr.on("data", (chunk) => (err += chunk));
     const timer = setTimeout(() => child.kill("SIGKILL"), 25_000);
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      resolve({ name, result: "NO RESULT", reason: error.message });
+    });
     child.on("exit", () => {
       clearTimeout(timer);
       const line = out.split("\n").find((l) => l.startsWith("SMOKE:"));
-      resolve({ name, result: line ? line.slice(6).trim() : "NO RESULT" });
+      if (line) return resolve({ name, result: line.slice(6).trim() });
+      const reason = err.trim().split("\n").filter(Boolean).pop();
+      resolve({ name, result: "NO RESULT", reason });
     });
   });
 }
@@ -133,10 +148,11 @@ const expected = {
 
 let failed = 0;
 for (const [name, options] of cases) {
-  const { result } = await runCase(name, options);
+  const { result, reason } = await runCase(name, options);
   const ok = result === expected[name];
   if (!ok) failed += 1;
   console.log(`${ok ? "ok  " : "FAIL"} ${name.padEnd(46)} ${result}`);
+  if (!ok && reason) console.log(`     ${reason}`);
 }
 
 server.close();

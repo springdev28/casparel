@@ -194,7 +194,34 @@ function profileEnv(name, seen = new Set()) {
   return { ...inherited, ...(profile.env ?? {}) };
 }
 
-const shippingProfiles = ["development", "preview", "production"];
+/**
+ * One inherited field of a profile, following `extends` the same way.
+ *
+ * Reading the field off the profile object directly is wrong for any profile
+ * that extends another, and reads as right: a profile that inherits its
+ * channel reports `undefined`, which is indistinguishable from one that has
+ * no channel at all.
+ */
+function profileValue(name, field, seen = new Set()) {
+  const profile = eas?.build?.[name];
+  if (!profile || seen.has(name)) return undefined;
+  seen.add(name);
+  if (profile[field] !== undefined) return profile[field];
+  return profile.extends ? profileValue(profile.extends, field, seen) : undefined;
+}
+
+const shippingProfiles = ["development", "preview", "production", "production-apk"];
+
+/**
+ * The profile that produces an Android build a person can install from a link.
+ *
+ * `production` is an .aab, which is a thing Play accepts and nothing else can
+ * open, so Android's only downloadable format was whatever the internal
+ * `preview` profile happened to produce. That is a different build of a
+ * different channel: offering it as "the Android app" means the app people
+ * sideload is not the app the store ships.
+ */
+const DIRECT_DOWNLOAD_PROFILE = "production-apk";
 
 if (eas) {
   if (eas.cli?.appVersionSource !== "remote" && eas.cli?.appVersionSource !== "local") {
@@ -223,6 +250,71 @@ if (eas) {
     if (profile?.distribution === "internal" && profile?.android?.buildType !== "apk") {
       fail(
         `eas.json: build profile "${name}" distributes internally but does not set android.buildType to "apk". An app bundle can only be uploaded to Play, not installed from a link.`,
+      );
+    }
+  }
+
+  /*
+   * A development-client build needs the development client in the app.
+   *
+   * `developmentClient: true` tells EAS to build the dev-client variant, and
+   * that variant is provided by the expo-dev-client package. Without it the
+   * flag describes a build that cannot exist, and EAS says so twenty minutes
+   * in -- which is exactly the kind of wait this file exists to prevent.
+   */
+  const pkgJson = readJson(path.join(MOBILE, "package.json"));
+  const hasDevClient = Boolean(
+    pkgJson?.dependencies?.["expo-dev-client"] ??
+      pkgJson?.devDependencies?.["expo-dev-client"],
+  );
+  for (const [name, profile] of Object.entries(eas.build ?? {})) {
+    if (profile?.developmentClient === true && !hasDevClient) {
+      fail(
+        `eas.json: build profile "${name}" sets developmentClient: true, but expo-dev-client is not a dependency. ` +
+          "Either add the package or drop the flag; as written the profile cannot build.",
+      );
+    }
+  }
+
+  /*
+   * Android must have something a person can install without a store.
+   *
+   * Not every Android phone has Play -- and in the places where it does not,
+   * a downloadable APK is the only way the app exists at all. It has to be
+   * the production build rather than a test channel: an app offered on the
+   * website as "Casparel for Android" that is a different build from the one
+   * in the store is a support problem waiting to happen.
+   */
+  const direct = eas.build?.[DIRECT_DOWNLOAD_PROFILE];
+  if (!direct) {
+    fail(
+      `eas.json: build profile "${DIRECT_DOWNLOAD_PROFILE}" is missing, so the only Android artefact is an .aab, which nobody can install from a link.`,
+    );
+  } else {
+    if (direct.android?.buildType !== "apk") {
+      fail(
+        `eas.json: build profile "${DIRECT_DOWNLOAD_PROFILE}" must set android.buildType to "apk"; that is its entire purpose.`,
+      );
+    }
+    if (profileEnv(DIRECT_DOWNLOAD_PROFILE).EXPO_PUBLIC_DOMAIN !== profileEnv("production").EXPO_PUBLIC_DOMAIN) {
+      fail(
+        `eas.json: build profile "${DIRECT_DOWNLOAD_PROFILE}" points at a different host from "production". A sideloaded app that talks to somewhere else is not the same app.`,
+      );
+    }
+    const directChannel = profileValue(DIRECT_DOWNLOAD_PROFILE, "channel");
+    const productionChannel = profileValue("production", "channel");
+    if (directChannel !== productionChannel) {
+      fail(
+        `eas.json: build profile "${DIRECT_DOWNLOAD_PROFILE}" is on channel ${JSON.stringify(directChannel)} rather than production's ${JSON.stringify(productionChannel)}, so a download from the website would receive different updates from a download from the store.`,
+      );
+    }
+    // The .aab and the .apk are the same release in two wrappers. Letting the
+    // APK build increment the shared remote version code would make the next
+    // store build skip a number for no reason, and would give the two files
+    // different versions of what is meant to be one release.
+    if (direct.autoIncrement !== false) {
+      fail(
+        `eas.json: build profile "${DIRECT_DOWNLOAD_PROFILE}" must set autoIncrement to false, so the APK carries the same version as the .aab it accompanies rather than consuming the next one.`,
       );
     }
   }
