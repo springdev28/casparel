@@ -295,6 +295,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # A job output, not a step output. The first version added a step that
+    # wrote this to $GITHUB_OUTPUT and pointed tag_name at it -- which made
+    # publishing, the one step here that must never break, depend on plumbing
+    # that had never run. A job output is evaluated from the same expression
+    # directly, so the publish step below is left exactly as it was and the
+    # verify jobs still get one canonical answer.
+    #
+    # On a tag push github.ref_name IS the tag. On a dispatch it is the branch,
+    # so the name has to come from the job that made the tag.
+    outputs:
+      tag: ${{ needs.tag.outputs.name || github.ref_name }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -304,8 +315,31 @@ jobs:
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          # On a tag push github.ref_name IS the tag. On a dispatch it is the
-          # branch, so the name has to come from the job that made the tag.
           tag_name: ${{ needs.tag.outputs.name || github.ref_name }}
           files: installers/*
           generate_release_notes: true
+
+  # Every release is now installed and run before anyone downloads it.
+  #
+  # The build legs above check what they just built, each on the one runner that
+  # built it -- so macOS Intel and Windows arm64 were never covered, and neither
+  # was the published file itself as opposed to the one still sitting on the
+  # build machine. These jobs download what was actually published and run it on
+  # a machine of each architecture.
+  #
+  # They run after publishing rather than before because there is nothing to
+  # download until the release exists. A failure here does not unpublish
+  # anything; it turns the run red and names what is wrong with a release that
+  # is already out, which is the difference between finding out today and
+  # finding out from a user.
+  verify-macos:
+    needs: release
+    uses: ./.github/workflows/desktop-verify-macos.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+
+  verify-windows:
+    needs: release
+    uses: ./.github/workflows/desktop-verify-windows.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
