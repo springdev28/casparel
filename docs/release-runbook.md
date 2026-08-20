@@ -17,6 +17,7 @@ to the same account and read the same library.
 | iOS and Android binaries | `.github/workflows/mobile-release.yml` (EAS) |
 | Store upload | the same workflow, on a tag |
 | Desktop installers and GitHub release | `.github/workflows/desktop-release.yml` |
+| The installable web app | the frontend deploy; nobody approves it |
 | Store listings, screenshots, review answers | a person, in each console |
 | Accounts, certificates, service keys | a person, once |
 
@@ -241,6 +242,41 @@ The shell checks for a newer release on launch and offers a Help menu item that
 opens the releases page. It reads the public releases API and stays quiet when
 it gets nothing; the repository is public, so this works as soon as the first
 release exists. See `artifacts/desktop/README.md`.
+
+## The web app itself
+
+The fourth way to get Casparel, and the only one nobody has to approve: a
+browser will install the site as an app — its own window, its own icon, and
+the pages already opened readable without a connection. It ships whenever the
+frontend deploys. There is no build to make, no store to submit to, and no
+`VITE_*` variable to set the day it goes live, because there is no link to
+anywhere else: `/download` offers the install itself.
+
+Three generated things make it installable, and none of them is written by
+hand:
+
+- `manifest.webmanifest`, written by `artifacts/app/scripts/generate-seo.mjs`
+  before every Vite build, because two of its fields are deploy variables
+  (`SITE_URL` and `BASE_PATH`).
+- The icons under `artifacts/app/public/icons/`, generated from the same
+  drawing as the iOS and Android ones by
+  `node artifacts/mobile/scripts/build-icons.mjs`.
+- `artifacts/app/public/sw.js`, the service worker, which is copied verbatim
+  and is the only file in the app no other file imports.
+
+Any of those can be individually fine while the result is not installable, so
+after building the app:
+
+```bash
+pnpm --filter @workspace/app run build
+node artifacts/app/scripts/audit-installable.mjs
+```
+
+It asks a real browser: whether the manifest is accepted, whether every icon
+it names exists and is really the size it claims, whether the worker takes
+control, and whether a navigation still returns the app with the network cut —
+while the API still fails rather than answering from a cache, which is the one
+thing an offline copy must not do. CI runs it on every pull request.
 
 ## After a release
 
