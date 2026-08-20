@@ -11,12 +11,19 @@
  * the Intel app and skipped launching it, on the one machine that could run it.
  * It only ever worked on Apple Silicon, where both names happen to be `arm64`.
  *
- * Rosetta 2 is the other half. An x86_64 binary spawned on an Apple Silicon Mac
- * with Rosetta installed is translated by the kernel with no help from the
- * caller -- no `arch -x86_64` wrapper, nothing. So the Intel image IS launchable
- * on the arm64 runner, and the old guard was the only thing preventing it.
- * Without Rosetta the spawn fails with "Bad CPU type in executable", which is a
- * fact about the runner rather than a defect in the build, so it is a skip.
+ * Rosetta is deliberately not consulted, and that is a reversal. An x86_64
+ * binary does start on Apple Silicon under translation, so treating the Intel
+ * image as launchable there looked like free coverage. It measured the wrong
+ * thing and then failed: the 1.0.2 gate ran the Intel image under Rosetta, got
+ * a process that lived its full sixty seconds and printed nothing, and blocked
+ * the release on a result no one could interpret -- translation is slow enough
+ * on a cold runner that "broken build" and "needed longer" produce the same
+ * silence. A longer timeout only measures translation more patiently.
+ *
+ * What an Intel owner runs is the x64 binary on an Intel CPU, and the only
+ * thing that tests it is an Intel machine. There is one in the release
+ * workflow and one in desktop-verify-macos.yml. Anywhere else, a non-native
+ * image is inspected and its launch is a named skip.
  */
 
 /** What `lipo -archs` calls each architecture, in `process.arch` terms. */
@@ -37,31 +44,21 @@ export function normaliseArchs(archs) {
 }
 
 /**
- * @param {{archs: string[], hostArch: string, hasRosetta?: boolean}} input
+ * @param {{archs: string[], hostArch: string}} input
  *   archs as `lipo -archs` reports them, hostArch as `process.arch` reports it.
- * @returns {{launch: boolean, translated?: boolean, why?: string}}
+ * @returns {{launch: boolean, why?: string}}
  */
-export function launchPlan({ archs, hostArch, hasRosetta = false }) {
+export function launchPlan({ archs, hostArch }) {
   const usable = normaliseArchs(archs);
 
   if (usable.length === 0) {
     return { launch: false, why: "the executable reported no architectures" };
   }
   if (usable.includes(hostArch)) {
-    return { launch: true, translated: false };
+    return { launch: true };
   }
-  // The only translation macOS offers, and only in this direction.
-  if (hostArch === "arm64" && usable.includes("x64")) {
-    return hasRosetta
-      ? { launch: true, translated: true }
-      : {
-          launch: false,
-          why:
-            "this is the Intel image and the host is Apple Silicon without " +
-            "Rosetta 2, so nothing here can start it. Run this leg on an " +
-            "Intel machine, which tests the CPU it was built for anyway.",
-        };
-  }
+  // Natively or not at all. See the note above on why Rosetta is not a third
+  // answer here.
   return {
     launch: false,
     why:

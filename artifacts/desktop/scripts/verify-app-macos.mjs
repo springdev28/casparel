@@ -294,29 +294,7 @@ console.log(`note: code signature -> ${signing}`);
 
 // --------------------------------------------------- install it, and run it
 
-// Rosetta translates an Intel binary on spawn with no help from the caller, so
-// the only question is whether it is installed. Asking the system to run a
-// trivial Intel binary answers it; looking for a path under /Library/Apple
-// guesses at an implementation detail instead.
-//
-// This is deliberately NOT how an Intel Mac gets verified. Translation
-// exercises the bundle, not the CPU it was built for, so
-// desktop-verify-macos.yml keeps a real Intel runner for that. What this buys
-// is the release gate: that workflow builds on Apple Silicon and would
-// otherwise publish an Intel image nothing had ever started, which is exactly
-// how 1.0.1 went out. Launched-under-translation is said out loud, in the
-// check's own label, so a log cannot be misread as the Intel runner's result.
-function hasRosetta() {
-  if (process.arch !== "arm64") return false;
-  try {
-    run("/usr/bin/arch", ["-x86_64", "/usr/bin/true"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const plan = launchPlan({ archs, hostArch, hasRosetta: hasRosetta() });
+const plan = launchPlan({ archs, hostArch });
 if (!plan.launch) {
   // Not a pass. The remaining checks are the ones that matter most, and a run
   // that cannot perform them has to say so in the tally rather than in a
@@ -330,21 +308,6 @@ if (!plan.launch) {
   );
   process.exit(failures === 0 ? 0 : 1);
 }
-// Carried into the check's own label rather than left in a note above it: the
-// summary line is what people read, and "it launches" meaning "it launches
-// under emulation" is the kind of detail that goes missing between the two.
-const launchLabel =
-  "the installed app launches and loads a page" +
-  (plan.translated ? " (under Rosetta 2, not on an Intel CPU)" : "");
-if (plan.translated) {
-  console.log(
-    "note: this is the Intel image on Apple Silicon. Rosetta 2 can start it, " +
-      "which\n      exercises the bundle but not the CPU it was built for. " +
-      "desktop-verify-macos.yml\n      runs the same checks on a real Intel " +
-      "machine.",
-  );
-}
-
 // Copy it out first, exactly as dragging to /Applications would: an app that
 // only works while its read-only image is mounted is a broken app.
 const installed = path.join(staged, appName);
@@ -440,7 +403,7 @@ const appOutput = (launched.out || "(nothing)")
   .join("\n");
 
 check(
-  launchLabel,
+  "the installed app launches and loads a page",
   launched.ok,
   launched.ok ? "" : `${launched.why}\n     --- app output ---\n${appOutput}`,
 );

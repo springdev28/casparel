@@ -34,35 +34,30 @@ is("x86_64 is what Node calls x64", toNodeArch("x86_64"), "x64");
 is(
   "the Intel build launches on an Intel host",
   launchPlan({ archs: ["x86_64"], hostArch: "x64" }),
-  { launch: true, translated: false },
+  { launch: true },
 );
 
 // The pairing that already worked, which is why the bug stayed hidden.
 is(
   "the arm64 build launches on an arm64 host",
   launchPlan({ archs: ["arm64"], hostArch: "arm64" }),
-  { launch: true, translated: false },
+  { launch: true },
 );
 
-// Rosetta 2 translates on spawn, so the Intel image IS runnable here.
+// Natively or not at all. Rosetta does start the Intel image on Apple Silicon,
+// and the 1.0.2 gate proved that is the wrong thing to measure: the translated
+// process lived its whole timeout in silence, which is indistinguishable from a
+// broken build. Only an Intel CPU answers the question this check asks.
 is(
-  "the Intel build launches on Apple Silicon with Rosetta",
-  launchPlan({ archs: ["x86_64"], hostArch: "arm64", hasRosetta: true }),
-  { launch: true, translated: true },
-);
-
-// Without it the spawn dies on "Bad CPU type", which is the runner's shape and
-// not a defect in the build, so it must not become a launch attempt.
-is(
-  "the Intel build does not launch on Apple Silicon without Rosetta",
+  "the Intel build does not launch on Apple Silicon",
   launchPlan({ archs: ["x86_64"], hostArch: "arm64" }).launch,
   false,
 );
 
-// Translation runs one way only. There is no arm64-on-Intel.
+// And there is no translation in the other direction to be tempted by.
 is(
   "the arm64 build never launches on Intel",
-  launchPlan({ archs: ["arm64"], hostArch: "x64", hasRosetta: true }).launch,
+  launchPlan({ archs: ["arm64"], hostArch: "x64" }).launch,
   false,
 );
 
@@ -73,16 +68,13 @@ is(
     launchPlan({ archs: ["x86_64", "arm64"], hostArch: "x64" }),
     launchPlan({ archs: ["x86_64", "arm64"], hostArch: "arm64" }),
   ],
-  [
-    { launch: true, translated: false },
-    { launch: true, translated: false },
-  ],
+  [{ launch: true }, { launch: true }],
 );
 
 // lipo failing leaves nothing to reason about; do not guess.
 is(
   "no architectures means no launch",
-  launchPlan({ archs: [], hostArch: "arm64", hasRosetta: true }).launch,
+  launchPlan({ archs: [], hostArch: "arm64" }).launch,
   false,
 );
 
