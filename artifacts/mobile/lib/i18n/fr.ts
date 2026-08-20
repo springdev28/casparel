@@ -10,8 +10,8 @@
  * Google Classroom, the App Store.
  */
 const FR: Record<string, string> = {
-  "1,500 activities, 500 goals, 300 lists and 150 canvases, with 90 discovery searches and 25 deep reports a day.": "1 500 activités, 500 objectifs, 300 listes et 150 canevas, avec 90 recherches de découverte et 25 rapports approfondis par jour.",
-  "20 classes of 300, 1,000 activities, the seating planner, and 60 discovery searches with 15 deep reports a day.": "20 classes de 300, 1 000 activités, le planificateur de placement, et 60 recherches de découverte avec 15 rapports approfondis par jour.",
+  "1,500 activities, 500 goals, 300 lists and 150 canvases, with 90 discovery searches and 25 deep reports a day.": "1 500 activités, 500 objectifs, 300 listes et 150 canevas, avec 90 recherches de découverte et 25 rapports approfondis par jour.",
+  "20 classes of 300, 1,000 activities, the seating planner, and 60 discovery searches with 15 deep reports a day.": "20 classes de 300, 1 000 activités, le planificateur de placement, et 60 recherches de découverte avec 15 rapports approfondis par jour.",
   "25 classes of up to 400, the explainable seating planner, and 60 discovery searches with 15 deep reports a day.": "25 classes de 400 au maximum, le planificateur de placement qui explique ses choix, et 60 recherches de découverte avec 15 rapports approfondis par jour.",
   "400 activities, 150 goals, 75 lists and 40 canvases, with 30 AI discovery searches and 8 cited deep reports a day.": "400 activités, 150 objectifs, 75 listes et 40 canevas, avec 30 recherches de découverte par IA et 8 rapports approfondis sourcés par jour.",
   "5 classes of 100, 250 activities, 100 goals and 50 lists, with 20 AI discovery searches and 5 deep reports a day.": "5 classes de 100, 250 activités, 100 objectifs et 50 listes, avec 20 recherches de découverte par IA et 5 rapports approfondis par jour.",
