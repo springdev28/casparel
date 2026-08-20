@@ -23,7 +23,10 @@
  *   node scripts/verify-app-macos.mjs [path/to/Casparel.dmg] [--expect-version=1.0.0]
  *
  * With no argument it takes the .dmg from release/ that matches this machine's
- * architecture. Exit 0 all good, 1 a real defect, 75 the check could not be
+ * architecture. The release workflow names one explicitly and runs this once
+ * per image, because "the one matching this machine" is one image and the
+ * release ships two: 1.0.1's Intel .dmg went out having never been opened by
+ * anything. Exit 0 all good, 1 a real defect, 75 the check could not be
  * performed (not macOS, no image to test).
  *
  * A check can also be skipped, which is neither of those. This runs against a
@@ -39,6 +42,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { launchPlan } from "./launch-plan.mjs";
 import { classifySmokeVerdict, smokeVerdict } from "./smoke-verdict.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -290,33 +294,55 @@ console.log(`note: code signature -> ${signing}`);
 
 // --------------------------------------------------- install it, and run it
 
-// lipo and Node spell the same CPU differently: `lipo -archs` says "x86_64"
-// where process.arch says "x64". Comparing them directly meant an Intel image
-// on an Intel Mac never looked runnable, so the launch -- the whole point of
-// this script -- was skipped, and the run still reported "11/11 checks passed".
-// A green run that quietly did not do the thing it exists to do is worse than a
-// red one, and it hid behind a note nobody would read twice.
-const ARCH_ALIASES = { x64: ["x64", "x86_64", "i386"], arm64: ["arm64"] };
-const runnableHere = archs.some((arch) =>
-  (ARCH_ALIASES[hostArch] ?? [hostArch]).includes(arch),
-);
+// Rosetta translates an Intel binary on spawn with no help from the caller, so
+// the only question is whether it is installed. Asking the system to run a
+// trivial Intel binary answers it; looking for a path under /Library/Apple
+// guesses at an implementation detail instead.
+//
+// This is deliberately NOT how an Intel Mac gets verified. Translation
+// exercises the bundle, not the CPU it was built for, so
+// desktop-verify-macos.yml keeps a real Intel runner for that. What this buys
+// is the release gate: that workflow builds on Apple Silicon and would
+// otherwise publish an Intel image nothing had ever started, which is exactly
+// how 1.0.1 went out. Launched-under-translation is said out loud, in the
+// check's own label, so a log cannot be misread as the Intel runner's result.
+function hasRosetta() {
+  if (process.arch !== "arm64") return false;
+  try {
+    run("/usr/bin/arch", ["-x86_64", "/usr/bin/true"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-if (!runnableHere) {
+const plan = launchPlan({ archs, hostArch, hasRosetta: hasRosetta() });
+if (!plan.launch) {
   // Not a pass. The remaining checks are the ones that matter most, and a run
   // that cannot perform them has to say so in the tally rather than in a
   // footnote -- otherwise "inspected but not launched" reads as full marks.
-  const why =
-    `this image is for ${archs.join("/") || "an unknown architecture"} and ` +
-    `the host is ${hostArch}, so nothing could be launched here. Run this leg ` +
-    `on a machine of the image's own architecture.`;
-  skip("the app copies out of the image", why);
-  skip("the installed app launches and loads a page", why);
-  skip("the packaged window is hardened against the page it loads", why);
+  skip("the app copies out of the image", plan.why);
+  skip("the installed app launches and loads a page", plan.why);
+  skip("the packaged window is hardened against the page it loads", plan.why);
   const passedSoFar = checks - failures - skipped;
   console.log(
     `\n${passedSoFar}/${checks} checks passed, ${skipped} skipped (not runnable on this host)`,
   );
   process.exit(failures === 0 ? 0 : 1);
+}
+// Carried into the check's own label rather than left in a note above it: the
+// summary line is what people read, and "it launches" meaning "it launches
+// under emulation" is the kind of detail that goes missing between the two.
+const launchLabel =
+  "the installed app launches and loads a page" +
+  (plan.translated ? " (under Rosetta 2, not on an Intel CPU)" : "");
+if (plan.translated) {
+  console.log(
+    "note: this is the Intel image on Apple Silicon. Rosetta 2 can start it, " +
+      "which\n      exercises the bundle but not the CPU it was built for. " +
+      "desktop-verify-macos.yml\n      runs the same checks on a real Intel " +
+      "machine.",
+  );
 }
 
 // Copy it out first, exactly as dragging to /Applications would: an app that
@@ -414,7 +440,7 @@ const appOutput = (launched.out || "(nothing)")
   .join("\n");
 
 check(
-  "the installed app launches and loads a page",
+  launchLabel,
   launched.ok,
   launched.ok ? "" : `${launched.why}\n     --- app output ---\n${appOutput}`,
 );

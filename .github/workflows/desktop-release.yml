@@ -122,10 +122,34 @@ jobs:
       # the app out of the read-only image, and starts it against a local
       # stand-in for casparel.com -- so a green leg means a window that reached
       # a page, not a build that produced a file.
+      #
+      # Once per image, because the release ships two and "the one this machine
+      # matches" is one. 1.0.1's Intel .dmg was published having never been
+      # opened by anything: the runner is Apple Silicon, so the arm64 image got
+      # all fourteen checks and the x64 image got none. Both are inspected now;
+      # the Intel one is also launched when the runner has Rosetta 2, and named
+      # as a skip with its reason when it does not, because a runner without a
+      # translator is a fact about the runner and not a defect in the build.
       - name: Check the macOS app runs
         if: matrix.artifact == 'macos'
         working-directory: artifacts/desktop
-        run: node scripts/verify-app-macos.mjs
+        shell: bash
+        run: |
+          shopt -s nullglob
+          images=(release/*.dmg)
+          if [ ${#images[@]} -eq 0 ]; then
+            echo "::error title=No disk image::the build produced no .dmg to check."
+            exit 1
+          fi
+          # Both are reported before the step fails, so a red run says whether
+          # one architecture broke or every one of them did.
+          status=0
+          for image in "${images[@]}"; do
+            echo "::group::$(basename "$image")"
+            node scripts/verify-app-macos.mjs "$image" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
 
       # And the third platform, which was the last one where nothing had ever
       # run what ships. It installs the .exe silently, reads the metadata
