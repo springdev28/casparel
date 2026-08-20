@@ -59,6 +59,7 @@ const SCHEMA_FOR: Record<string, string> = {
   "/api/activity/recent": "GetRecentActivityResponse",
   "/api/classes": "ListClassesResponse",
   "/api/classes/31": "GetClassResponse",
+  "/api/classes/31/seating-chart": "GetSeatingChartResponse",
   "/api/classes/31/student-goals": "ListClassStudentGoalsResponse",
   "/api/lists": "ListResourceListsResponse",
   "/api/class-invitations": "ListClassInvitationsResponse",

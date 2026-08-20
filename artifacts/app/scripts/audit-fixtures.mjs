@@ -501,6 +501,67 @@ export const FIXTURES = {
   "/api/activity/recent": [],
   "/api/classes": [CLASS],
   "/api/classes/31": CLASS,
+  /*
+   * The class workspace's own tabs, now that each one has an address.
+   *
+   * Without these the assignments tab renders "nothing assigned" and the
+   * classroom designer renders an empty room, which is a page rendering
+   * correctly and telling nobody anything.
+   */
+  "/api/classes/31/assignments": [
+    {
+      id: 91,
+      classId: 31,
+      title: "Read chapter 4 before Thursday",
+      instructions: "Focus on the worked examples at the end.",
+      resourceId: 101,
+      activityId: null,
+      dueAt: "2026-09-04T16:00:00.000Z",
+      createdAt: "2026-08-28T09:00:00.000Z",
+      resourceTitle: RESOURCE.title,
+      resourceUrl: RESOURCE.url,
+      activityTitle: null,
+      completedAt: null,
+      completed: false,
+    },
+  ],
+  "/api/classes/31/seating-chart": {
+    classId: 31,
+    rows: 4,
+    columns: 5,
+    layoutMode: "grid",
+    desks: [
+      {
+        id: "d1",
+        kind: "desk",
+        shape: "rectangle",
+        // Percentages of the room, not pixels: x and y cap at 100 and a desk
+        // at 60. Written in pixels first, and the contract said so.
+        x: 20,
+        y: 25,
+        width: 22,
+        height: 12,
+        rotation: 0,
+        capacity: 2,
+        label: "Front left",
+        text: null,
+      },
+    ],
+    students: [
+      {
+        userId: 2,
+        name: "Ada Karahan",
+        avatarUrl: null,
+        gradeOrDept: "Year 12",
+        teacherNote: null,
+        customRole: null,
+        seatRow: 1,
+        seatColumn: 1,
+        seatDeskId: "d1",
+        seatPosition: 0,
+      },
+    ],
+  },
   "/api/lists": [RESOURCE_LIST],
   "/api/lists/44": RESOURCE_LIST_DETAIL,
   // The generated client builds these as /api/users/{id}, .../library and

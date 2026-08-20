@@ -53,7 +53,7 @@ const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
   "/dashboard,/profile,/resources,/catalog,/settings,/plans," +
     "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people," +
-    "/canvases,/classes/31,/lists/44,/profile/2,/guide,/tutorial,/admin," +
+    "/canvases,/classes/31,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/admin," +
     // The resource detail page, which was left out for a long time because it
     // rendered its error boundary: one endpoint had no fixture, the default
     // empty array reached `workflow?.steps[key]`, and the page crashed. Both
@@ -278,8 +278,37 @@ async function collect(pagePath, language, signedIn, viewport) {
     waitUntil: "networkidle",
     timeout: 45000,
   });
-  // The bridge translates on an animation frame after paint.
-  await page.waitForTimeout(400);
+  /*
+   * Wait for the bridge to have run, rather than for 400ms and a hope.
+   *
+   * It translates on an animation frame after paint and then sets
+   * <html lang> to the language it applied, so that attribute is the actual
+   * signal that a pass has happened. The fixed wait was a guess about how long
+   * that takes, and it was a guess made when renders happened one at a time --
+   * with four in flight it went from comfortable to marginal, and one run
+   * reported a string as untranslated that two runs either side of it did not.
+   *
+   * A flaky audit is worse than a slow one: it teaches whoever sees it to run
+   * it again rather than to read it.
+   *
+   * The short settle after is still there, for the mutations the first pass
+   * schedules; what changed is that it starts counting from a known point
+   * instead of from `goto` returning.
+   */
+  await page
+    .waitForFunction(
+      (want) => document.documentElement.lang === want,
+      language,
+      { timeout: 10000 },
+    )
+    .catch(() => {
+      // Not fatal: a page that never sets it is a page this run should still
+      // read, and report on, rather than skip.
+      console.error(
+        `  !  ${pagePath} [${language}] never set <html lang>; read anyway`,
+      );
+    });
+  await page.waitForTimeout(300);
   const strings = await page.evaluate(COLLECT);
   await context.close();
   return strings;

@@ -1594,8 +1594,18 @@ export function SeatingChartEditor({
                 {!readOnly && (
                   <div className="mb-3 flex gap-2">
                     <div>
-                      <Label className="text-xs">Rows</Label>
+                      {/*
+                        htmlFor and id, not a <Label> sitting beside a field.
+                        Rendered on its own the word "Rows" is styled text: a
+                        screen reader announces the number field with no name
+                        at all, in a panel where two identical spinners sit
+                        side by side.
+                      */}
+                      <Label className="text-xs" htmlFor="seating-rows">
+                        Rows
+                      </Label>
                       <Input
+                        id="seating-rows"
                         type="number"
                         min={1}
                         max={10}
@@ -1607,8 +1617,11 @@ export function SeatingChartEditor({
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Columns</Label>
+                      <Label className="text-xs" htmlFor="seating-columns">
+                        Columns
+                      </Label>
                       <Input
+                        id="seating-columns"
                         type="number"
                         min={1}
                         max={10}
@@ -1770,6 +1783,7 @@ export function SeatingChartEditor({
                   onChange={(event) => setStudentSuggestion(event.target.value)}
                   maxLength={1000}
                   rows={5}
+                  aria-label="Your seating suggestion for the teacher"
                   placeholder="Explain what you would like changed and why…"
                   data-testid="seating-suggestion-input"
                 />
@@ -1917,6 +1931,10 @@ export function SeatingChartEditor({
                     onChange={(event) => setPriorities(event.target.value)}
                     maxLength={1000}
                     rows={3}
+                    // A placeholder is not a name: it disappears the moment
+                    // somebody types, and it is never read as the field's
+                    // label by anything.
+                    aria-label="What the seating plan should prioritise"
                     placeholder="Optional priorities…"
                     disabled={!plan.seatingPlanner}
                   />

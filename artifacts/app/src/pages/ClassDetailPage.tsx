@@ -51,7 +51,28 @@ import ActivitiesPage from './ActivitiesPage';
 import CanvasesPage from './CanvasesPage';
 import { counted } from "@/lib/counted";
 
-type ClassTab = 'members' | 'notes' | 'forum' | 'designer' | 'assignments' | 'activities' | 'resources' | 'canvas';
+/**
+ * The eight sections of a class workspace.
+ *
+ * One list, because there were two: this union and a string array beside the
+ * `?tab=` reader that had to be kept identical by hand for a tab to be
+ * linkable at all.
+ */
+const CLASS_TABS = [
+  'members',
+  'notes',
+  'forum',
+  'designer',
+  'assignments',
+  'activities',
+  'resources',
+  'canvas',
+] as const;
+
+type ClassTab = (typeof CLASS_TABS)[number];
+
+const isClassTab = (value: string | null): value is ClassTab =>
+  value !== null && (CLASS_TABS as readonly string[]).includes(value);
 
 const FORMAT_COLORS: Record<string, string> = {
   article: 'bg-blue-100 text-blue-700',
@@ -71,9 +92,6 @@ export default function ClassDetailPage() {
   const classId = Number(id);
   const workflowParams = new URLSearchParams(routeSearch);
   const requestedTab = workflowParams.get('tab');
-  const initialTab: ClassTab = requestedTab && ['members', 'notes', 'forum', 'designer', 'assignments', 'activities', 'resources', 'canvas'].includes(requestedTab)
-    ? requestedTab as ClassTab
-    : 'members';
   const initialActivityId = Number(workflowParams.get('activity')) || null;
   const initialResourceId = Number(workflowParams.get('resource')) || null;
 
@@ -86,7 +104,27 @@ export default function ClassDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<{ userId: number; name: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<ClassTab>(initialTab);
+  /*
+   * Which section is open is part of the address, not component state.
+   *
+   * The page already read `?tab=` on the way in, so a link to a class's
+   * assignments worked -- and then clicking a tab changed nothing about the
+   * address, so the back button left the class entirely, a refresh dropped you
+   * back on Members, and the thing in the address bar was never the thing on
+   * the screen. Deriving it from the address instead of copying it into state
+   * makes all three work for free, and it is also the only way anything could
+   * ever audit the other seven: they had no address to ask for.
+   */
+  const activeTab: ClassTab = isClassTab(requestedTab) ? requestedTab : 'members';
+  const setActiveTab = (tab: ClassTab) => {
+    const next = new URLSearchParams(routeSearch);
+    // 'members' is what no `tab` at all means, so it is written as the absence
+    // of one rather than as a parameter that says the default out loud.
+    if (tab === 'members') next.delete('tab');
+    else next.set('tab', tab);
+    const query = next.toString();
+    setLocation(`/classes/${classId}${query ? `?${query}` : ''}`);
+  };
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [editSubject, setEditSubject] = useState('');

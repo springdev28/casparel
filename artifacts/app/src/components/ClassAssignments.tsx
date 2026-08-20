@@ -444,13 +444,23 @@ export function ClassAssignments({
                   {assignment.completed && <Check size={15} />}
                 </button>
                 <div className="min-w-48 flex-1">
+                  {/*
+                    The teacher's own words, all three: what they set, what
+                    they said about it, and the resource they attached. The
+                    bridge would rewrite an assignment title into whichever
+                    language the reader happens to be in.
+                  */}
                   <p
+                    translate="no"
                     className={`text-sm font-medium ${assignment.completed ? "line-through text-muted-foreground" : ""}`}
                   >
                     {assignment.title}
                   </p>
                   {assignment.instructions && (
-                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                    <p
+                      translate="no"
+                      className="mt-0.5 line-clamp-1 text-xs text-muted-foreground"
+                    >
                       {assignment.instructions}
                     </p>
                   )}
@@ -461,10 +471,14 @@ export function ClassAssignments({
                       </span>
                     )}
                     {assignment.resourceTitle && (
-                      <span>Resource: {assignment.resourceTitle}</span>
+                      <span>
+                        Resource: <span translate="no">{assignment.resourceTitle}</span>
+                      </span>
                     )}
                     {assignment.activityTitle && (
-                      <span>Activity: {assignment.activityTitle}</span>
+                      <span>
+                        Activity: <span translate="no">{assignment.activityTitle}</span>
+                      </span>
                     )}
                     {isTeacher && analytics && (
                       <span>
@@ -480,6 +494,11 @@ export function ClassAssignments({
                   <Button
                     size="sm"
                     variant="outline"
+                    // Icon and nothing else, in a list of assignments: named
+                    // after the resource it opens, or the row it belongs to,
+                    // so a screen reader hears which one. The title is the
+                    // teacher's own, so the label is a shape rule.
+                    aria-label={`Open ${assignment.resourceTitle ?? assignment.title}`}
                     onClick={() =>
                       assignment.resourceUrl
                         ? window.open(
@@ -490,7 +509,7 @@ export function ClassAssignments({
                         : setLocation(`/resources/${assignment.resourceId}`)
                     }
                   >
-                    <ExternalLink size={13} />
+                    <ExternalLink size={13} aria-hidden="true" />
                   </Button>
                 )}
                 {assignment.activityId && (
