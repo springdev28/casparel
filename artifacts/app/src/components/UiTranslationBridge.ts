@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { AUTH_LANGUAGE_KEY, type AuthLanguage } from "../lib/auth-locale";
-import { loadDictionary, translateUiString } from "../lib/ui-translations";
+import {
+  isDictionaryLoaded,
+  loadDictionary,
+  translateUiString,
+} from "../lib/ui-translations";
 
 /**
  * Translates the rendered UI in place, for every language that has a
@@ -194,7 +198,23 @@ export default function UiTranslationBridge() {
     const pendingNodes = new Set<Node>();
     const apply = () => {
       if (document.body) translateSubtree(document.body, language);
-      document.documentElement.lang = language;
+      /*
+       * `lang` is set once the words are actually here.
+       *
+       * It states what the document is, and browsers act on it: a screen
+       * reader takes its pronunciation from it, browser translation offers
+       * itself based on it. Setting it on the first pass -- which now runs
+       * before the dictionary has arrived -- announces Turkish over English
+       * text, and a screen reader reads English words with Turkish
+       * phonetics.
+       *
+       * English needs nothing fetched, so it is true immediately. A language
+       * with no dictionary is never loaded and never claimed, which is right:
+       * that reader is served English, so the document is English.
+       */
+      if (language === "en" || isDictionaryLoaded(language)) {
+        document.documentElement.lang = language;
+      }
     };
     const flush = () => {
       frame = 0;

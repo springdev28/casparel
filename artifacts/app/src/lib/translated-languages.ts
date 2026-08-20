@@ -1,12 +1,16 @@
 /**
  * Which languages have a dictionary -- the codes alone, no dictionaries.
  *
- * `index.ts` already derives this from `DICTIONARIES`, but importing it there
- * pulls all five dictionaries into whatever bundle asks. The one caller that
- * needs the answer is the app entry, deciding whether to load the translation
- * bridge at all, and dragging a few hundred kilobytes of strings into the
- * entry chunk to answer "is there anything to load" would defeat the point of
- * loading the bridge lazily.
+ * `index.ts` derives this from its loader table, but the one caller that needs
+ * the answer is the app entry, deciding whether to load the translation bridge
+ * at all -- and importing that module pulls in the plural rules and shape
+ * rules with it, to answer "is there anything to load".
+ *
+ * It used to pull in far more than that: the dictionaries were static imports,
+ * so asking `index.ts` anything dragged all five, a few hundred kilobytes of
+ * strings, into the entry chunk. They are dynamic imports now, so the cost of
+ * the alternative is smaller than it was -- but the entry still only needs a
+ * list of five codes, and this is that list.
  *
  * They live beside the dictionaries rather than inside that directory,
  * because every file in there is a dictionary -- the audit script and several

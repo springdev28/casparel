@@ -65,6 +65,31 @@ const LOADING: Partial<Record<AuthLanguage, Promise<void>>> = {};
  * chunk that will not load should leave the reader with English, not with an
  * error boundary.
  */
+/**
+ * Is this language's dictionary in hand *now*?
+ *
+ * Not to be confused with `hasDictionary` in translated-languages.ts, which
+ * answers whether one exists at all. This one is about the network.
+ *
+ * The document's `lang` attribute depends on it. `lang` states what the
+ * document *is*, and a browser acts on that: a screen reader picks its
+ * pronunciation rules from it, and browser translation offers to translate
+ * based on it. Announcing `lang="tr"` over English text tells a screen reader
+ * to read English words with Turkish phonetics.
+ *
+ * That could not happen while the dictionaries were bundled, because the
+ * first translation pass had every word it needed. Now they arrive over the
+ * network, so there is a window where the language is chosen and the words
+ * are not here yet, and `lang` has to wait for them.
+ *
+ * A language with no dictionary is never "loaded", which is also correct: the
+ * product serves English to that reader, so the document is in English and
+ * should say so.
+ */
+export function isDictionaryLoaded(language: AuthLanguage): boolean {
+  return Boolean(LOADED[language]);
+}
+
 export async function loadDictionary(language: AuthLanguage): Promise<void> {
   if (language === "en" || LOADED[language]) return;
   const loader = LOADERS[language];
