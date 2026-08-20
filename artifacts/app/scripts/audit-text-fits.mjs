@@ -19,6 +19,23 @@
  * a decision to truncate and this leaves it alone; the failure here is the
  * silent kind, where the last letter is simply gone.
  *
+ * And a second, related failure it did not see at first: an element that fits
+ * its own box perfectly well and sticks out past the right edge of the screen.
+ * On /resources at 375px the "Submit resource" button ran 9px past the edge in
+ * Spanish and 32px in German. Text fitting its box and the box fitting the
+ * screen are different questions, and only the second gets worse the longer
+ * the translation is.
+ *
+ * A scrollable ancestor is not an excuse, which took a measurement to settle.
+ * The first version of this skipped anything inside an overflow-x container,
+ * on the theory that scrollable means reachable -- and that swallowed the very
+ * case it was written for, because <main> carries overflow-x: auto as a
+ * generic safety valve. The button was reachable by dragging the page
+ * sideways. It was also off the edge of a phone screen until you did, and a
+ * page that scrolls horizontally on a phone is the defect rather than the
+ * remedy. So this reports them, and a genuine sideways region -- a carousel, a
+ * wide table -- gets named in DELIBERATELY_SIDEWAYS when one appears.
+ *
  *   node scripts/audit-text-fits.mjs
  *   AUDIT_FIT_LANGS=de node scripts/audit-text-fits.mjs
  *
@@ -86,8 +103,44 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
+/**
+ * Regions that are meant to scroll sideways, and so may exceed the screen.
+ *
+ * Empty today. Named by selector rather than inferred from overflow-x,
+ * because "has an overflow-x" is what a container gets as a precaution and
+ * "is a carousel" is a decision somebody made.
+ */
+const DELIBERATELY_SIDEWAYS = process.env.AUDIT_FIT_SIDEWAYS ?? "[data-sideways]";
+
 const MEASURE = `(() => {
   const clipped = [];
+  const viewport = document.documentElement.clientWidth;
+  const SIDEWAYS_ON_PURPOSE = ${JSON.stringify(DELIBERATELY_SIDEWAYS)};
+
+  /*
+   * Anything reaching past the right edge of the screen.
+   *
+   * Position-fixed elements are skipped -- a drawer parked off-screen is how
+   * a drawer waits -- and so is anything inside a container that scrolls
+   * horizontally on purpose, which is a decision rather than an accident.
+   */
+  for (const element of document.querySelectorAll('body *')) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) continue;
+    const style = getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    if (style.position === 'fixed') continue;
+    const over = Math.round(rect.right - viewport);
+    if (over <= 1) continue;
+    if (element.closest(SIDEWAYS_ON_PURPOSE)) continue;
+    clipped.push({
+      text: (element.textContent || '').trim().slice(0, 60),
+      over,
+      where: String(element.className).slice(0, 60),
+      tag: element.tagName.toLowerCase(),
+      offScreen: true,
+    });
+  }
   for (const element of document.querySelectorAll('*')) {
     // Leaf nodes only: a container's overflow is its children's problem, and
     // reporting both says the same thing twice.
@@ -177,8 +230,9 @@ for (const language of LANGUAGES) {
       rendered += 1;
       for (const entry of await page.evaluate(MEASURE)) {
         const key =
-          `${pagePath} @${viewport.name}  ${JSON.stringify(entry.text)}  ` +
-          `[${entry.tag}.${entry.where}]`;
+          `${pagePath} @${viewport.name}  ` +
+          `${entry.offScreen ? "past the right edge: " : ""}` +
+          `${JSON.stringify(entry.text)}  [${entry.tag}.${entry.where}]`;
         const seen = clippedIn.get(key) ?? new Map();
         seen.set(language, entry.over);
         clippedIn.set(key, seen);

@@ -2157,7 +2157,19 @@ export default function ResourcesPage() {
                   : "Browse the library or search the open education catalog"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/*
+          Wraps, because these two labels are longer in every other language.
+          At 375px "Generador de citas / Enviar recurso" ran 9px past the right
+          edge and "Zitiergenerator / Ressource einreichen" ran 32px past it.
+
+          Measured rather than assumed: <main> has overflow-x: auto, so the
+          button was reachable by dragging the page sideways, not lost. That
+          makes it a smaller bug than it looks and still a bug -- a phone page
+          that scrolls horizontally is a defect, and a primary action that
+          starts off the edge of the screen is one whether or not you can drag
+          to it.
+        */}
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             onClick={() => openCitation()}
