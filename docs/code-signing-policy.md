@@ -12,6 +12,20 @@ it stands and as it will operate once a certificate is issued; the sections
 that depend on one are marked. Releases before that point are unsigned, and
 this document says so rather than implying otherwise.
 
+Everything except the certificates themselves is in place. The release workflow
+reads the signing credentials, electron-builder signs and then notarises from
+them without further configuration, and the platform verifiers check the result.
+The verifiers take their cue from whether a certificate is configured: with none
+they report what they found and assert nothing, and the moment one exists an
+unsigned or unreadable signature **fails the release** rather than printing a
+note. That switch is the point — a signing step that quietly stops working would
+otherwise produce unsigned installers and a green run, and the first person to
+notice would be a user reading a Gatekeeper warning.
+
+What is missing is exactly two things, and neither can be obtained from inside
+this repository: an Apple Developer Program membership, and a Windows
+certificate. See **Turning signing on** below.
+
 ## Scope
 
 This policy covers the **Casparel desktop application** — the Electron shell
@@ -128,6 +142,75 @@ than it has.
 - **Signing requests are approved individually**, as described above. Once
   signing is in place this becomes an enforced control rather than a
   commitment, because SignPath itself requires the approval.
+
+## Turning signing on
+
+Nothing in this repository can produce a certificate; both have to be bought or
+granted by an outside party, and both are tied to a legal identity. Once they
+exist, they become GitHub Actions secrets and the next release is signed with no
+code change — the workflow already reads every name below.
+
+**None of these values may ever be committed.** They go in
+`Settings → Secrets and variables → Actions` on the repository and nowhere else.
+A certificate that reaches a commit is burned and has to be revoked and
+reissued, and git history keeps it whether or not the commit is reverted.
+
+### macOS
+
+Requires an **Apple Developer Program** membership (US$99/year, individual or
+organisation). An organisation membership needs a D-U-N-S number and takes
+noticeably longer to be granted.
+
+1. In the Apple Developer portal, create a **Developer ID Application**
+   certificate — not "Mac App Distribution", which only signs App Store builds
+   and will not satisfy Gatekeeper for a direct download.
+2. Export it from Keychain Access as a `.p12` with a password, then
+   `base64 -i cert.p12 | pbcopy`.
+3. Create an **app-specific password** at appleid.apple.com for notarisation.
+   The Apple ID's own password will not work.
+
+| Secret | Value |
+| --- | --- |
+| `CSC_LINK` | the base64 of the `.p12` |
+| `CSC_KEY_PASSWORD` | the password set during export |
+| `APPLE_ID` | the Apple ID email |
+| `APPLE_APP_SPECIFIC_PASSWORD` | the app-specific password, not the account one |
+| `APPLE_TEAM_ID` | the ten-character Team ID from the portal |
+
+Signing and notarisation are one step: electron-builder notarises straight after
+signing when those three `APPLE_*` variables are present, and staples the ticket
+so the app opens without the machine having to reach Apple. The first
+notarisation of a release adds several minutes per architecture.
+
+### Windows
+
+The plan of record is a **SignPath Foundation** certificate, which is free for
+open-source projects and holds the private key in an HSM the project never
+touches. Applications are reviewed, and approval is not immediate. A commercial
+OV certificate is the alternative if that is declined; note that SmartScreen
+reputation for an OV certificate builds over time, so early downloads may still
+be warned about, while an EV certificate starts with reputation but requires a
+hardware token that a hosted runner cannot use directly.
+
+SignPath is a signing *service* rather than a certificate file: artifacts are
+submitted to it and come back signed, so wiring it up replaces `CSC_LINK` for
+Windows with SignPath's submission action and its own credentials. That change
+is not made in advance, because it needs the organisation and project
+identifiers that only exist once the application is approved.
+
+### Confirming it worked
+
+The next release after the secrets are added should show, in place of today's
+`note:` lines:
+
+```
+ok   the app is signed with a real identity (Authority=Developer ID Application: ...)
+ok   the installer carries a valid Authenticode signature (Valid via pwsh)
+```
+
+If a signature is missing or unreadable while a certificate is configured, the
+release fails instead of publishing. Verify a published artifact yourself with
+the commands under **How to verify a download**.
 
 ## How to verify a download
 

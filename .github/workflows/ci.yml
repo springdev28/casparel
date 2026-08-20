@@ -281,6 +281,13 @@ jobs:
       - name: Check which images a host can launch
         run: pnpm --filter @workspace/desktop run test:launch-plan
 
+      # And the third: whether an unsigned installer is a fact or a failure.
+      # It has to be both, at different times -- a note while no certificate
+      # exists, a hard failure once one does -- and the day that flips is the
+      # day nobody is watching this particular check.
+      - name: Check how signatures are judged
+        run: pnpm --filter @workspace/desktop run test:signing
+
       - name: Smoke-test the desktop shell
         run: pnpm --filter @workspace/desktop run smoke
 

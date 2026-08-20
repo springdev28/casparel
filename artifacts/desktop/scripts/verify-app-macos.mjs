@@ -43,6 +43,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchPlan } from "./launch-plan.mjs";
+import {
+  UNSIGNED,
+  classifySigning,
+  macSigningState,
+} from "./signing-verdict.mjs";
 import { classifySmokeVerdict, smokeVerdict } from "./smoke-verdict.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -138,6 +143,10 @@ console.log(`Host:  macOS ${os.release()} ${hostArch}\n`);
 const versionFlag = process.argv
   .slice(2)
   .find((argument) => argument.startsWith("--expect-version="));
+// Set by the release workflow when a signing certificate is configured, so a
+// signature is asserted only on releases that meant to have one.
+const EXPECT_SIGNED = process.env.CASPAREL_EXPECT_SIGNED === "true";
+
 const expectedVersion = versionFlag
   ? versionFlag.slice("--expect-version=".length)
   : JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
@@ -276,21 +285,43 @@ check(
   ),
 );
 
-// Reported, never failed on. Today there is deliberately no certificate; the
-// point is that the run says which it was rather than leaving it unknown.
-let signing = "unsigned";
+// Reported when nothing was configured to sign, asserted when something was.
+// See signing-verdict.mjs: a note cannot fail, so leaving this as a note past
+// the day a certificate exists would let signing break silently.
+//
+// codesign writes to stderr on success as well as failure, and exits non-zero
+// for an unsigned bundle, so both streams are read and the throw is not an
+// error case -- it is how an unsigned app answers.
+let codesignOutput = "";
 try {
-  const output = run("codesign", ["-dv", "--verbose=4", appPath], {
+  codesignOutput = run("codesign", ["-dv", "--verbose=4", appPath], {
     stdio: ["ignore", "pipe", "pipe"],
   });
-  signing = output.includes("Authority=") ? "signed" : "ad-hoc or unsigned";
 } catch (error) {
-  const text = `${error.stderr ?? ""}`;
-  signing = /Authority=/.test(text)
-    ? text.split("\n").find((line) => line.startsWith("Authority=")) ?? "signed"
-    : "unsigned (no signature)";
+  codesignOutput = `${error.stdout ?? ""}${error.stderr ?? ""}`;
 }
-console.log(`note: code signature -> ${signing}`);
+
+const signing = classifySigning({
+  state: macSigningState(codesignOutput),
+  detail:
+    codesignOutput
+      .split("\n")
+      .find((line) => line.startsWith("Authority=")) ??
+    (macSigningState(codesignOutput) === UNSIGNED
+      ? "no signing identity"
+      : "could not be read"),
+  expected: EXPECT_SIGNED,
+});
+
+if (signing.kind === "note") {
+  console.log(`note: code signature -> ${signing.detail}`);
+} else {
+  check(
+    `the app is signed with a real identity (${signing.detail})`,
+    signing.kind === "pass",
+    signing.reason,
+  );
+}
 
 // --------------------------------------------------- install it, and run it
 

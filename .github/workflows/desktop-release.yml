@@ -139,6 +139,12 @@ jobs:
         if: matrix.artifact == 'macos'
         working-directory: artifacts/desktop
         shell: bash
+        # Whether this release MEANT to be signed. The verifier reports the
+        # signature either way; with this true it also fails when there is not
+        # one, so a signing step that breaks cannot pass quietly. The secret's
+        # value is never used here, only whether it is set.
+        env:
+          CASPAREL_EXPECT_SIGNED: ${{ secrets.CSC_LINK != '' }}
         run: |
           shopt -s nullglob
           images=(release/*.dmg)
@@ -163,6 +169,8 @@ jobs:
       - name: Check the Windows app runs
         if: matrix.artifact == 'windows'
         working-directory: artifacts/desktop
+        env:
+          CASPAREL_EXPECT_SIGNED: ${{ secrets.CSC_LINK != '' }}
         run: node scripts/verify-app-windows.mjs
 
       - name: Upload installers
@@ -215,6 +223,8 @@ jobs:
       - name: Check the Intel app runs on Intel
         working-directory: artifacts/desktop
         shell: bash
+        env:
+          CASPAREL_EXPECT_SIGNED: ${{ secrets.CSC_LINK != '' }}
         run: |
           # The runner has to BE Intel. Apple Silicon runs x64 binaries under
           # Rosetta well enough to pass, so if this label ever moved the job

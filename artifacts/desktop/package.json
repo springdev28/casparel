@@ -25,7 +25,8 @@
     "smoke": "node scripts/run-smoke.mjs",
     "verify:package": "node scripts/verify-package.mjs",
     "test:verdicts": "node scripts/smoke-verdict.test.mjs",
-    "test:launch-plan": "node scripts/launch-plan.test.mjs"
+    "test:launch-plan": "node scripts/launch-plan.test.mjs",
+    "test:signing": "node scripts/signing-verdict.test.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

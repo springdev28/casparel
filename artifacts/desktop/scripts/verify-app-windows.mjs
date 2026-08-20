@@ -36,9 +36,16 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  classifySigning,
+  windowsSigningState,
+} from "./signing-verdict.mjs";
 import { classifySmokeVerdict, smokeVerdict } from "./smoke-verdict.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// Set by the release workflow when a signing certificate is configured, so a
+// signature is asserted only on releases that meant to have one.
+const EXPECT_SIGNED = process.env.CASPAREL_EXPECT_SIGNED === "true";
 const EXIT_INCONCLUSIVE = 75;
 const PORT = 4462;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
@@ -212,12 +219,28 @@ function readAuthenticodeStatus(file) {
 }
 
 const signing = readAuthenticodeStatus(installer);
-console.log(
-  signing.status
-    ? `note: Authenticode status -> ${signing.status} (via ${signing.via})`
-    : `note: Authenticode status -> could not be determined; every probe failed` +
-        `\n      ${signing.reasons.join("\n      ")}`,
-);
+const signingDetail = signing.status
+  ? `${signing.status} via ${signing.via}`
+  : `could not be determined; every probe failed: ${signing.reasons.join("; ")}`;
+const signingVerdict = classifySigning({
+  state: windowsSigningState(signing.status),
+  detail: signingDetail,
+  expected: EXPECT_SIGNED,
+});
+
+// A note while no certificate exists, a real check once one does. See
+// signing-verdict.mjs: a note cannot fail, and this probe in particular spent a
+// version stuck on "unknown", which is exactly the state that would go on
+// reassuring people after signing quietly stopped working.
+if (signingVerdict.kind === "note") {
+  console.log(`note: Authenticode status -> ${signingVerdict.detail}`);
+} else {
+  check(
+    `the installer carries a valid Authenticode signature (${signingVerdict.detail})`,
+    signingVerdict.kind === "pass",
+    signingVerdict.reason,
+  );
+}
 
 // ----------------------------------------------------------------- install it
 
