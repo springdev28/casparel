@@ -38,6 +38,17 @@
  * role switch, the control that moves you between the student and teacher
  * halves of the product, announcing as "switch, off".
  *
+ * Contrast is not checked here either, and that one took a measurement to
+ * settle. Rendering all eight screens in both colour schemes and computing
+ * WCAG ratios reported fourteen failures, and every one was an artefact: the
+ * paywall and onboarding heroes are white text on a LinearGradient, and a
+ * walker looking for a solid backgroundColor skips straight past a gradient to
+ * the page behind it and reports white-on-white. The rest were Feather icon
+ * glyphs, which are private-use codepoints rather than words. Nothing real.
+ * The palettes are covered by session-palette.test.ts and the scheme by
+ * mobileFollowsTheScheme.test.ts; the web's audit-pages.mjs learned to read
+ * gradient stops off the back of this.
+ *
  * What it does not check, having looked: whether the translated text fits the
  * box drawn for it. That is a real class -- the web app had nine of them, one
  * visible as "Desactivadc" in a toolbar -- and measuring every screen here in

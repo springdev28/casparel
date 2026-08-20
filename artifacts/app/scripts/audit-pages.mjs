@@ -190,10 +190,41 @@ const CONTRAST = `(() => {
     return 0.2126*r + 0.7152*g + 0.0722*b; };
   const parse = (s) => { const m = s.match(/rgba?\\(([^)]+)\\)/); if (!m) return null;
     const p = m[1].split(',').map(x => parseFloat(x)); return { rgb: [p[0],p[1],p[2]], a: p.length>3 ? p[3] : 1 }; };
-  const bgOf = (el) => { let n = el;
-    while (n && n !== document.documentElement) { const c = parse(getComputedStyle(n).backgroundColor);
-      if (c && c.a > 0.5) return c.rgb; n = n.parentElement; }
-    const c = parse(getComputedStyle(document.body).backgroundColor); return c ? c.rgb : [255,255,255]; };
+  /*
+   * Every background the text could be sitting on, nearest first.
+   *
+   * A gradient has no backgroundColor, so walking for one skipped straight
+   * past it to whatever solid colour was behind — which is a surface the
+   * reader never sees. That is wrong in both directions: it reported white
+   * hero text on a dark gradient as 1.07 against the page behind it, and it
+   * passed dark text on a gradient tile by measuring it against the card
+   * underneath.
+   *
+   * So a gradient contributes all of its colour stops, and the caller takes
+   * the worst. Approximate on purpose — a stop is not the colour under any
+   * particular letter — but it bounds the answer, which "the wrong element's
+   * background" never did.
+   */
+  const stopsOf = (image) => {
+    const found = [];
+    for (const m of image.matchAll(/rgba?\(([^)]+)\)/g)) {
+      const p = m[1].split(',').map(x => parseFloat(x));
+      if (p.length < 3 || (p.length > 3 && p[3] <= 0.5)) continue;
+      found.push([p[0], p[1], p[2]]);
+    }
+    return found;
+  };
+  const bgsOf = (el) => { let n = el;
+    while (n && n !== document.documentElement) {
+      const st = getComputedStyle(n);
+      const image = st.backgroundImage;
+      if (image && image !== 'none' && image.includes('gradient')) {
+        const stops = stopsOf(image);
+        if (stops.length) return stops;
+      }
+      const c = parse(st.backgroundColor);
+      if (c && c.a > 0.5) return [c.rgb]; n = n.parentElement; }
+    const c = parse(getComputedStyle(document.body).backgroundColor); return [c ? c.rgb : [255,255,255]]; };
   const out = [];
   for (const el of document.querySelectorAll('a,button,h1,h2,h3,p,span,li,label')) {
     const txt = (el.textContent || '').trim();
@@ -204,8 +235,13 @@ const CONTRAST = `(() => {
     if (st.visibility === 'hidden' || st.display === 'none') continue;
     if (parseFloat(st.opacity) === 0) continue;
     const fg = parse(st.color); if (!fg) continue;
-    const L1 = lum(fg.rgb), L2 = lum(bgOf(el));
-    const ratio = (Math.max(L1,L2) + 0.05) / (Math.min(L1,L2) + 0.05);
+    const L1 = lum(fg.rgb);
+    // The worst stop, not the average: a gradient is legible only where it is
+    // hardest to read.
+    const ratio = Math.min(...bgsOf(el).map((bg) => {
+      const L2 = lum(bg);
+      return (Math.max(L1,L2) + 0.05) / (Math.min(L1,L2) + 0.05);
+    }));
     const size = parseFloat(st.fontSize);
     const large = size >= 24 || (size >= 18.66 && parseInt(st.fontWeight) >= 700);
     const min = large ? 3 : 4.5;
