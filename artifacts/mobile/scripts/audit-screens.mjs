@@ -296,7 +296,16 @@ function screens(resourceId, classId) {
 }
 
 const TABS = [
-  { name: "dashboard", route: "/", expect: /Dashboard|Hi,/ },
+  /*
+   * The due-work section, not the greeting.
+   *
+   * A greeting renders whether or not anything else worked -- it is drawn
+   * from the account, which is already in hand. "Nothing is due" is only
+   * reached after /assignments/today has answered, so it says the request
+   * went out, came back, and the section rendered its empty state. This
+   * account is new, so empty is the right expectation.
+   */
+  { name: "dashboard", route: "/", expect: /Nothing is due/i },
   { name: "resources", route: "/resources", expect: /Resources/ },
   // The title has to be on the screen, not merely the word "Schedule": the
   // failure being guarded against renders the whole screen perfectly and

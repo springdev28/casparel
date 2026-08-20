@@ -3565,6 +3565,42 @@ export const GetOembedThumbnailResponse = zod.object({
 
 
 /**
+ * Across every class this account belongs to, with the class named on each row and whether this account has marked it done. Assignments with no due date sort last by when they were set, not first -- an undated task is not urgent.
+ * @summary Everything set for you across your classes, soonest due first
+ */
+export const ListMyAssignmentsResponseItem = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "className": zod.string(),
+  "title": zod.string(),
+  "instructions": zod.string().nullable(),
+  "resourceId": zod.int().nullable(),
+  "activityId": zod.int().nullable(),
+  "dueAt": zod.coerce.date().nullable(),
+  "completedAt": zod.coerce.date().nullable(),
+  "completed": zod.boolean().describe('Whether this account has marked it done.')
+}).describe('One assignment as the person it was set for sees it -- which is why the class is named here rather than left as an id, and why `completed` is this account\'s answer rather than the class\'s.')
+export const ListMyAssignmentsResponse = zod.array(ListMyAssignmentsResponseItem)
+
+
+/**
+ * Completion is per person, not per assignment: a teacher marking their own copy does not mark it for the class.
+ * @summary Mark an assignment done, or not done after all
+ */
+export const SetAssignmentCompletionParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const SetAssignmentCompletionBody = zod.object({
+  "completed": zod.boolean()
+})
+
+export const SetAssignmentCompletionResponse = zod.object({
+  "completed": zod.boolean()
+})
+
+
+/**
  * @summary Paths other people have published, most used first
  */
 export const ListCommunityPathsResponseItem = zod.object({

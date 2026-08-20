@@ -5,6 +5,28 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * One assignment as the person it was set for sees it -- which is why the class is named here rather than left as an id, and why `completed` is this account's answer rather than the class's.
+ */
+export interface AssignedWork {
+  id: number;
+  classId: number;
+  className: string;
+  title: string;
+  /** @nullable */
+  instructions: string | null;
+  /** @nullable */
+  resourceId: number | null;
+  /** @nullable */
+  activityId: number | null;
+  /** @nullable */
+  dueAt: string | null;
+  /** @nullable */
+  completedAt: string | null;
+  /** Whether this account has marked it done. */
+  completed: boolean;
+}
+
 export type CommunityPathLevel = typeof CommunityPathLevel[keyof typeof CommunityPathLevel];
 
 
@@ -2663,6 +2685,14 @@ url: string;
 export type GetOembedThumbnail200 = {
   /** @nullable */
   thumbnailUrl: string | null;
+};
+
+export type SetAssignmentCompletionBody = {
+  completed: boolean;
+};
+
+export type SetAssignmentCompletion200 = {
+  completed: boolean;
 };
 
 export type PublishGoalAsPathBody = {

@@ -20,6 +20,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { ErrorState } from '@/components/ErrorState';
+import { DueWork } from '@/components/DueWork';
 import { StudySets } from '@/components/StudySets';
 import { MessagesButton } from '@/components/MessagesButton';
 import type { ActivityItem } from '@workspace/api-client-react';
@@ -290,6 +291,9 @@ export default function DashboardScreen() {
           isFailed={summaryFailed}
         />
       </View>
+
+      {/* What somebody else set, before what you set yourself */}
+      <DueWork />
 
       {/* Study sets, one tap from studying them */}
       <StudySets />

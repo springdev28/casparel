@@ -2878,6 +2878,62 @@ paths:
                   thumbnailUrl: { type: ["string", "null"], format: uri }
         "400": { description: "The url is missing, unparseable, or not http(s)" }
 
+  /assignments/today:
+    get:
+      operationId: listMyAssignments
+      tags: [classes]
+      summary: Everything set for you across your classes, soonest due first
+      description: >-
+        Across every class this account belongs to, with the class named on
+        each row and whether this account has marked it done. Assignments with
+        no due date sort last by when they were set, not first -- an
+        undated task is not urgent.
+      responses:
+        "200":
+          description: Assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssignedWork"
+        "401": { description: Not authenticated }
+
+  /assignments/{id}/completion:
+    patch:
+      operationId: setAssignmentCompletion
+      tags: [classes]
+      summary: Mark an assignment done, or not done after all
+      description: >-
+        Completion is per person, not per assignment: a teacher marking their
+        own copy does not mark it for the class.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [completed]
+              properties:
+                completed: { type: boolean }
+      responses:
+        "200":
+          description: The state it is now in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [completed]
+                properties:
+                  completed: { type: boolean }
+        "401": { description: Not authenticated }
+        "403": { description: Not a member of the class this belongs to }
+
   /learning-goal-templates:
     get:
       operationId: listCommunityPaths
@@ -3010,6 +3066,39 @@ paths:
 
 components:
   schemas:
+    AssignedWork:
+      type: object
+      description: >-
+        One assignment as the person it was set for sees it -- which is why the
+        class is named here rather than left as an id, and why `completed` is
+        this account's answer rather than the class's.
+      required:
+        [
+          id,
+          classId,
+          className,
+          title,
+          instructions,
+          resourceId,
+          activityId,
+          dueAt,
+          completedAt,
+          completed,
+        ]
+      properties:
+        id: { type: integer }
+        classId: { type: integer }
+        className: { type: string }
+        title: { type: string }
+        instructions: { type: ["string", "null"] }
+        resourceId: { type: ["integer", "null"] }
+        activityId: { type: ["integer", "null"] }
+        dueAt: { type: ["string", "null"], format: date-time }
+        completedAt: { type: ["string", "null"], format: date-time }
+        completed:
+          type: boolean
+          description: Whether this account has marked it done.
+
     CommunityPath:
       type: object
       description: >-

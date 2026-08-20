@@ -117,10 +117,12 @@ const UNDESCRIBED: Record<string, string> = {
 const NOT_DESCRIBED_YET: Record<string, string> = {
   "/forum": "the forum: posts, comments, votes, materials, reports",
   "/canvases": "the collaborative canvas and its sharing",
-  "/classes/{id}/assignments": "assignments, class analytics, the continue queue",
-  "/classes/{id}/analytics": "assignments, class analytics, the continue queue",
-  "/assignments": "assignments, class analytics, the continue queue",
-  "/workflow": "assignments, class analytics, the continue queue",
+  // Setting and removing assignments, and the teacher's analytics. What a
+  // learner needs -- what is due, and marking it done -- came off this list;
+  // what is left is the teacher's half and the desktop-shaped workflow queue.
+  "/classes/{id}/assignments": "setting and removing a class's assignments",
+  "/classes/{id}/analytics": "the teacher's class analytics",
+  "/workflow": "the continue-studying queue",
 };
 
 /** "METHOD /path" for every route any router registers, with {param} params. */

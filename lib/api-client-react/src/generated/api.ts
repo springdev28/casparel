@@ -25,6 +25,7 @@ import type {
   AdminOverview,
   AssignResourceBody,
   AssignResourceResponse,
+  AssignedWork,
   AuthResponse,
   BulkInviteInput,
   BulkInviteResult,
@@ -116,6 +117,8 @@ import type {
   SeatingPlanSuggestionInput,
   SeatingStudent,
   SendMessageInput,
+  SetAssignmentCompletion200,
+  SetAssignmentCompletionBody,
   ShareListInput,
   SharedStudyActivity,
   SourceReview,
@@ -9191,6 +9194,157 @@ export function useGetOembedThumbnail<TData = Awaited<ReturnType<typeof getOembe
 
 
 
+
+export const getListMyAssignmentsUrl = () => {
+
+
+
+
+  return `/api/assignments/today`
+}
+
+/**
+ * Across every class this account belongs to, with the class named on each row and whether this account has marked it done. Assignments with no due date sort last by when they were set, not first -- an undated task is not urgent.
+ * @summary Everything set for you across your classes, soonest due first
+ */
+export const listMyAssignments = async ( options?: Parameters<typeof customFetch>[1]): Promise<AssignedWork[]> => {
+
+  return customFetch<AssignedWork[]>(getListMyAssignmentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyAssignmentsQueryKey = () => {
+    return [
+    `/api/assignments/today`
+    ] as const;
+    }
+
+
+export const getListMyAssignmentsQueryOptions = <TData = Awaited<ReturnType<typeof listMyAssignments>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyAssignmentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyAssignments>>> = ({ signal }) => listMyAssignments({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyAssignments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyAssignmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyAssignments>>>
+export type ListMyAssignmentsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Everything set for you across your classes, soonest due first
+ */
+
+export function useListMyAssignments<TData = Awaited<ReturnType<typeof listMyAssignments>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyAssignments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyAssignmentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetAssignmentCompletionUrl = (id: number,) => {
+
+
+
+
+  return `/api/assignments/${id}/completion`
+}
+
+/**
+ * Completion is per person, not per assignment: a teacher marking their own copy does not mark it for the class.
+ * @summary Mark an assignment done, or not done after all
+ */
+export const setAssignmentCompletion = async (id: number,
+    setAssignmentCompletionBody: SetAssignmentCompletionBody, options?: Parameters<typeof customFetch>[1]): Promise<SetAssignmentCompletion200> => {
+
+  return customFetch<SetAssignmentCompletion200>(getSetAssignmentCompletionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setAssignmentCompletionBody)
+  }
+);}
+
+
+
+
+
+export const getSetAssignmentCompletionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAssignmentCompletion>>, TError,{id: number;data: BodyType<SetAssignmentCompletionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAssignmentCompletion>>, TError,{id: number;data: BodyType<SetAssignmentCompletionBody>}, TContext> => {
+
+const mutationKey = ['setAssignmentCompletion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAssignmentCompletion>>, {id: number;data: BodyType<SetAssignmentCompletionBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setAssignmentCompletion(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAssignmentCompletionMutationResult = NonNullable<Awaited<ReturnType<typeof setAssignmentCompletion>>>
+    export type SetAssignmentCompletionMutationBody = BodyType<SetAssignmentCompletionBody>
+    export type SetAssignmentCompletionMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark an assignment done, or not done after all
+ */
+export const useSetAssignmentCompletion = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAssignmentCompletion>>, TError,{id: number;data: BodyType<SetAssignmentCompletionBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setAssignmentCompletion>>,
+        TError,
+        {id: number;data: BodyType<SetAssignmentCompletionBody>},
+        TContext
+      > => {
+      return useMutation(getSetAssignmentCompletionMutationOptions(options));
+    }
 
 export const getListCommunityPathsUrl = () => {
 
