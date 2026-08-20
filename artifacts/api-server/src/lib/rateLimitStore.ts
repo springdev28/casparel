@@ -16,6 +16,26 @@ import { pool } from "@workspace/db";
  * in-memory store (useful when DATABASE_URL is not available).
  */
 
+/*
+ * Row level security is enabled here rather than in a migration, because this
+ * table is not made by one.
+ *
+ * Migration 0050 closes the REST API that Supabase publishes over every table
+ * in the public schema, by looping `pg_tables` and enabling RLS on each. That
+ * loop runs at migration time, and this table is created at boot -- after
+ * migrations -- so it has never existed when the loop looks, and has been the
+ * one table in the database reachable with the project's anon key. It maps a
+ * limiter prefix and a client key, which is an address or an account id, to a
+ * request count.
+ *
+ * `ENABLE`, not `FORCE`, for the same reason 0050 says: FORCE applies to the
+ * owner too, and with no policies written it would refuse the app itself. The
+ * app connects as the table's owner and owners bypass RLS; PostgREST connects
+ * as `authenticator` and switches to `anon`, which owns nothing and is
+ * refused.
+ *
+ * Enabling twice is a no-op, so this runs on every boot and cannot drift back.
+ */
 const CREATE_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS rate_limit_hits (
     key        TEXT        NOT NULL,
@@ -25,6 +45,7 @@ const CREATE_TABLE_SQL = `
   );
   CREATE INDEX IF NOT EXISTS rate_limit_hits_reset_time_idx
     ON rate_limit_hits (reset_time);
+  ALTER TABLE rate_limit_hits ENABLE ROW LEVEL SECURITY;
 `;
 
 /** Call once at startup (after runMigrations). */
