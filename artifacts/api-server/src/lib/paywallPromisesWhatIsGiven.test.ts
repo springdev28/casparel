@@ -1,10 +1,15 @@
 /**
  * Every number on the paywall is a number the server actually allows.
  *
- * The phone's paywall sells each plan in prose -- "400 activities, 150 goals,
- * 75 lists and 40 canvases, with 30 AI discovery searches and 8 cited deep
- * reports a day" -- and the server enforces the same allowances from two
- * tables in entitlements.ts. Neither knows about the other.
+ * Both clients sell each plan in prose -- "400 activities, 150 goals, 75 lists
+ * and 40 canvases, with 30 AI discovery searches and 8 cited deep reports a
+ * day" -- and the server enforces the same allowances from two tables in
+ * entitlements.ts. None of the three knows about the other two.
+ *
+ * The web's plan-copy.ts says so itself, at the top: "the client cannot import
+ * server code, so this file is the hand-kept mirror, and a number changed
+ * there must be changed here in the same commit." That is the right
+ * instruction and there was nothing making it true.
  *
  * This is the one place in the product where a disagreement costs somebody
  * money. A paywall promising more than the server gives is a customer paying
@@ -36,6 +41,10 @@ const paywall = readFileSync(
   resolve(repo, "artifacts/mobile/app/paywall.tsx"),
   "utf8",
 );
+const webCopy = readFileSync(
+  resolve(repo, "artifacts/app/src/lib/plan-copy.ts"),
+  "utf8",
+);
 
 /**
  * The plan name each block sells, and the copy that sells it.
@@ -44,8 +53,31 @@ const paywall = readFileSync(
  * carries a title that is the plan name and a body that is the pitch.
  */
 const SOLD = [...paywall.matchAll(/title:\s*'([^']+)',\s*\n\s*body:\s*'([^']+)',/g)].map(
-  (match) => ({ plan: match[1], copy: match[2] }),
+  (match) => ({ plan: match[1], copy: match[2], where: "phone paywall" }),
 );
+
+/**
+ * The web's cards, which carry their tier directly.
+ *
+ * Each card is a `tier:` followed by a blurb and two bullet lists, and every
+ * string in all three is checked -- the bullets are where the detail is, and
+ * the detail is what a buyer compares. Everything from one `tier:` to the next
+ * belongs to that card.
+ */
+const WEB_CARDS = (() => {
+  // The trailing cast is optional: one card is written `tier: "institutional"
+  // as PlanTier`, and without allowing for it that card was never found --
+  // so its lines were read as the previous card's, and this reported the Pro
+  // plan as selling the Institutional plan's canvases.
+  const starts = [...webCopy.matchAll(/\n\s*tier:\s*"([\w-]+)"(?:\s+as\s+\w+)?\s*,/g)];
+  return starts.map((start, index) => ({
+    tier: start[1] as keyof typeof CAPACITY_BY_TIER,
+    copy: webCopy.slice(
+      start.index,
+      index + 1 < starts.length ? starts[index + 1].index : webCopy.length,
+    ),
+  }));
+})();
 
 /**
  * Which tier each plan name on the paywall is.
@@ -133,8 +165,40 @@ describe("what the paywall promises", () => {
     ).toEqual([]);
   });
 
+  it("found the web's plan cards", () => {
+    expect(WEB_CARDS.length, "no tier cards found in plan-copy.ts").toBeGreaterThanOrEqual(9);
+  });
+
+  it.each(
+    WEB_CARDS.map((card, index) => [`${card.tier} #${index}`, card] as const),
+  )("is what the server gives, on the web: %s", (_label, card) => {
+    /*
+     * Every number in the card, not the first of each kind. `matchAll`, not
+     * `exec`: a card says "1,500 activities" in its blurb and "1,500 study
+     * activities" in its bullets, and a check that stopped at the first would
+     * have left the list a buyer actually reads unread.
+     */
+    let checked = 0;
+    for (const claim of CLAIMS) {
+      for (const found of card.copy.matchAll(new RegExp(claim.pattern, "g"))) {
+        checked += 1;
+        const allowed = claim.read(card.tier);
+        expect(
+          asNumber(found[1]),
+          `plan-copy.ts sells ${card.tier} with "${found[0]}" and the server ` +
+            `allows ${allowed} ${claim.what}`,
+        ).toBe(allowed);
+      }
+    }
+    expect(
+      checked,
+      `no allowance in the ${card.tier} card matched any pattern; the copy ` +
+        `was reworded and this check went quiet`,
+    ).toBeGreaterThan(0);
+  });
+
   it.each(SOLD.map((sold, index) => [`${sold.plan} #${index}`, sold] as const))(
-    "is what the server gives: %s",
+    "is what the server gives, on the phone: %s",
     (_label, sold) => {
       const tier = TIER_FOR_PLAN[sold.plan];
       const checked: string[] = [];
