@@ -265,6 +265,26 @@ const SHAPE_RULES: Array<{
    * which is what the protection was standing in for.
    */
   {
+    match: /^Open (.+)$/,
+    render: {
+      tr: (t) => `${t} kaynağını aç`,
+      es: (t) => `Abrir ${t}`,
+      fr: (t) => `Ouvrir ${t}`,
+      pt: (t) => `Abrir ${t}`,
+      de: (t) => `${t} öffnen`,
+    },
+  },
+  {
+    match: /^Remove (.+)$/,
+    render: {
+      tr: (t) => `${t} kaynağını kaldır`,
+      es: (t) => `Quitar ${t}`,
+      fr: (t) => `Retirer ${t}`,
+      pt: (t) => `Remover ${t}`,
+      de: (t) => `${t} entfernen`,
+    },
+  },
+  {
     match: /^Add step to (.+)$/,
     render: {
       tr: (t) => `${t} hedefine adım ekle`,

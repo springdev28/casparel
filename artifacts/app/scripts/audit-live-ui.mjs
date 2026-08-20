@@ -353,9 +353,19 @@ async function main() {
     const READABLE_TEXT = [
       ["/resources", "main p", "secondary text on the page"],
       [
+        /*
+         * The two links under the welcome card. This used to be one sentence
+         * with the links spliced through it, and was selected by its opening
+         * words; the sentence is gone because a sentence split by an
+         * interpolation cannot be translated. The contrast question is the
+         * same and now belongs to the link, which is the only text left here.
+         */
         "/tutorial",
-        "p:has-text('You can revisit this any time')",
-        "the note under the welcome card",
+        // Scoped to main: the sidebar has its own link to /settings, and an
+        // unscoped selector picks that one up first and measures the dark
+        // navigation instead of the card this check is about.
+        'main a[href="/settings"]',
+        "the link under the welcome card",
       ],
     ];
 
@@ -364,7 +374,14 @@ async function main() {
       await page.waitForTimeout(2500);
       const copy = page.locator(selector).first();
       if (!(await copy.count())) {
-        fail(`${label} can be read`, `nothing matched ${selector} on ${path}`);
+        /*
+         * check(..., false), not fail(...). There is no `fail` in this file
+         * and never was, so this branch threw a ReferenceError instead of
+         * reporting -- and it threw the first time it was ever reached, which
+         * is how a reporting path that has never run goes wrong. The run died
+         * with "fail is not defined" and said nothing about the selector.
+         */
+        check(`${label} can be read`, false, `nothing matched ${selector} on ${path}`);
         continue;
       }
       const colour = await copy.evaluate((node) => getComputedStyle(node).color);

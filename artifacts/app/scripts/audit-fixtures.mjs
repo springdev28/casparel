@@ -294,6 +294,48 @@ const RESOURCE_LIST = {
 };
 
 /**
+ * The list detail page's own answer, which carries its items.
+ *
+ * /api/lists returns the card without them; the detail page asks for the list
+ * by id and renders what is inside it. Both pages exist and only the card was
+ * ever audited.
+ */
+const RESOURCE_LIST_DETAIL = {
+  ...RESOURCE_LIST,
+  items: [
+    {
+      id: 501,
+      listId: 44,
+      resourceId: 101,
+      note: "Chapters 1 to 3 cover everything on the mock.",
+      addedAt: "2026-04-03T09:00:00.000Z",
+      position: 0,
+      resource: RESOURCE,
+    },
+  ],
+};
+
+/**
+ * Somebody else's public profile, and the library they chose to show.
+ *
+ * Not the audit account: the page renders differently for your own profile,
+ * and the version worth checking is the one you see of a stranger -- block,
+ * report, recommend, and a library filtered by their visibility settings.
+ */
+const OTHER_PROFILE = {
+  id: 2,
+  name: "Ada Karahan",
+  role: "student",
+  websiteUrl: null,
+  avatarUrl: null,
+  bio: "Second year, mostly mechanics.",
+  subjects: ["Physics"],
+  gradeOrDept: "Year 12",
+};
+
+const OTHER_LIBRARY = { resources: [RESOURCE], lists: [RESOURCE_LIST] };
+
+/**
  * A canvas, so the canvases page is audited with a canvas on it.
  *
  * Without one the list rendered its empty state and every audit passed on a
@@ -460,6 +502,12 @@ export const FIXTURES = {
   "/api/classes": [CLASS],
   "/api/classes/31": CLASS,
   "/api/lists": [RESOURCE_LIST],
+  "/api/lists/44": RESOURCE_LIST_DETAIL,
+  // The generated client builds these as /api/users/{id}, .../library and
+  // .../safety; the page opens all three at once.
+  "/api/users/2": OTHER_PROFILE,
+  "/api/users/2/library": OTHER_LIBRARY,
+  "/api/users/2/safety": { blocked: false },
   "/api/canvases": [CANVAS],
   "/api/canvases/12": CANVAS,
   "/api/class-invitations": [],

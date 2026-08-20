@@ -86,7 +86,7 @@ const VIEWPORTS = [
 const PAGES = (
   process.env.AUDIT_FIT_PAGES ??
   "/dashboard,/profile,/settings,/plans,/schedule,/classes,/goals,/lists," +
-    "/canvases,/classes/31,/guide,/tutorial,/resources,/resources/101"
+    "/canvases,/classes/31,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101"
 )
   .split(",")
   .filter(Boolean);
