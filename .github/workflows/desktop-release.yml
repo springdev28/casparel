@@ -126,10 +126,15 @@ jobs:
       # Once per image, because the release ships two and "the one this machine
       # matches" is one. 1.0.1's Intel .dmg was published having never been
       # opened by anything: the runner is Apple Silicon, so the arm64 image got
-      # all fourteen checks and the x64 image got none. Both are inspected now;
-      # the Intel one is also launched when the runner has Rosetta 2, and named
-      # as a skip with its reason when it does not, because a runner without a
-      # translator is a fact about the runner and not a defect in the build.
+      # all fourteen checks and the x64 image got none.
+      #
+      # This leg inspects both and launches the arm64 one. The Intel launch is a
+      # named skip here and happens for real in verify-intel below. Rosetta was
+      # tried and removed: it starts the Intel image, so it looked like free
+      # coverage, but on the 1.0.2 gate the translated process lived its whole
+      # sixty-second timeout in silence -- and "the build is broken" and
+      # "translation was still warming up" look exactly alike from here. A gate
+      # that cannot tell those apart blocks releases on nothing.
       - name: Check the macOS app runs
         if: matrix.artifact == 'macos'
         working-directory: artifacts/desktop
@@ -173,6 +178,61 @@ jobs:
             artifacts/desktop/release/*.deb
           if-no-files-found: error
 
+  # The Intel half of the macOS check, on an Intel CPU.
+  #
+  # electron-builder cross-builds the x64 .dmg happily on Apple Silicon, so the
+  # build matrix has no reason to include an Intel runner and adding one there
+  # would produce a second set of installers to reconcile. Running it as its own
+  # job after the build instead means no rebuild: it takes the images the matrix
+  # already produced and starts the one this machine is native to.
+  #
+  # It gates the release deliberately. An Intel .dmg that nobody can open is a
+  # defect in the release, not a footnote to it, and 1.0.1 shipped exactly that.
+  verify-intel:
+    needs: build
+    # macos-13 is retired. macos-15-intel and macos-26-intel are the Intel
+    # labels that still exist; a retired label does not fail, it queues until
+    # the job times out, so this is pinned to a live one rather than guessed.
+    runs-on: macos-15-intel
+    # Short on purpose. The work is a download and a launch; anything near this
+    # ceiling means the runner label is not being served, and waiting out the
+    # build job's 45 minutes to learn that helps nobody.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # No pnpm install: the checks are plain Node with no dependencies, and
+      # they test the built image rather than anything assembled here.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: casparel-desktop-macos
+          path: images
+
+      - name: Check the Intel app runs on Intel
+        working-directory: artifacts/desktop
+        shell: bash
+        run: |
+          # The runner has to BE Intel. Apple Silicon runs x64 binaries under
+          # Rosetta well enough to pass, so if this label ever moved the job
+          # would sail through while proving nothing -- a false assurance is
+          # worse than the gap it closes.
+          actual=$(uname -m)
+          if [ "$actual" != "x86_64" ]; then
+            echo "::error title=Wrong runner architecture::This job exists to run the Intel build on an Intel CPU, but uname -m says ${actual}."
+            exit 1
+          fi
+          image="$GITHUB_WORKSPACE/images/Casparel-$(node -p "require('./package.json').version")-x64.dmg"
+          if [ ! -f "$image" ]; then
+            echo "::error title=No Intel image::${image} is not among the build's artifacts."
+            ls -l "$GITHUB_WORKSPACE/images" || true
+            exit 1
+          fi
+          node scripts/verify-app-macos.mjs "$image"
+
   # Tagging from CI exists because a release needs a tag and not everyone who
   # can run this workflow can push one. It runs AFTER the build on purpose: a
   # tag is a permanent claim that a commit was released, and it should not be
@@ -187,7 +247,10 @@ jobs:
   # all would happen next.
   tag:
     if: inputs.release
-    needs: build
+    # verify-intel too, or it gates nothing: a tag is a permanent claim that a
+    # commit was released, and it should not be made for a commit whose Intel
+    # installer does not open.
+    needs: [build, verify-intel]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -224,9 +287,10 @@ jobs:
 
   release:
     # Two ways in: somebody pushed a desktop-v* tag, or this run just made one.
-    needs: [build, tag]
+    needs: [build, verify-intel, tag]
     if: >-
       !cancelled() && needs.build.result == 'success' &&
+      needs['verify-intel'].result == 'success' &&
       (startsWith(github.ref, 'refs/tags/desktop-v') || needs.tag.result == 'success')
     runs-on: ubuntu-latest
     permissions:
