@@ -71,6 +71,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # electron-builder shells out to rpmbuild for the .rpm target and fails
+      # the whole Linux leg without it. The runner image does not carry it, and
+      # the same package provides `rpm`, which verify:package uses to read back
+      # the architecture of what was built.
+      - name: Install RPM tooling
+        if: matrix.artifact == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rpm
+
       - name: Build installers
         working-directory: artifacts/desktop
         shell: bash
@@ -142,11 +150,20 @@ jobs:
           name: casparel-desktop-${{ matrix.artifact }}
           # Only the distributables. The unpacked app directories are build
           # intermediates and would multiply the upload size for nothing.
+          #
+          # The .zip lines are the macOS bundle and the Windows no-installer
+          # build; the .tar.gz is the Linux one. Between them they cover the
+          # people an installer cannot serve: a managed fleet that copies an
+          # app rather than mounting an image, and a school machine whose user
+          # cannot install software at all.
           path: |
             artifacts/desktop/release/*.dmg
             artifacts/desktop/release/*.exe
+            artifacts/desktop/release/*.zip
             artifacts/desktop/release/*.AppImage
             artifacts/desktop/release/*.deb
+            artifacts/desktop/release/*.rpm
+            artifacts/desktop/release/*.tar.gz
           if-no-files-found: error
 
   # macOS, on a machine of each architecture, before anything is published.
@@ -249,6 +266,24 @@ jobs:
         with:
           path: installers
           merge-multiple: true
+
+      # What a download can be checked against.
+      #
+      # The Linux packages are not signed and are not going to be -- there is
+      # no equivalent of Authenticode or a Developer ID for an AppImage a
+      # person downloads from a web page -- so a published digest is the only
+      # thing standing between a user and a file that is not the one we built.
+      # /code-signing on the website tells people to compare one; until now
+      # there was nothing to compare it to.
+      #
+      # Written from the release directory so the file names in it are bare,
+      # which is what `sha256sum -c` expects to find beside it.
+      - name: Write the checksums
+        working-directory: installers
+        run: |
+          sha256sum * > ../SHA256SUMS.txt
+          mv ../SHA256SUMS.txt .
+          cat SHA256SUMS.txt
 
       - name: Publish the release
         uses: softprops/action-gh-release@v2

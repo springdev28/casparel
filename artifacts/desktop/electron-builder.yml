@@ -50,6 +50,13 @@ mac:
   target:
     - target: dmg
       arch: [x64, arm64]
+    # A .app in a .zip, for the people a .dmg does not serve: anyone deploying
+    # Casparel across a fleet with a management tool, which wants a bundle it
+    # can copy rather than a disk image it has to mount, and anyone on a
+    # connection where mounting a 100 MB image to drag one file out of it is a
+    # poor trade.
+    - target: zip
+      arch: [x64, arm64]
   icon: build/icon.png
   darkModeSupport: true
   # Required for the app to reach casparel.com under the hardened runtime.
@@ -60,6 +67,12 @@ mac:
 win:
   target:
     - target: nsis
+      arch: [x64, arm64]
+    # Unpack and run, no installer. Windows in a school is frequently a machine
+    # the person using it cannot install software on, and an installer that
+    # needs rights they do not have is the same as no download at all. This is
+    # also the form that can be inspected before it is run.
+    - target: zip
       arch: [x64, arm64]
   icon: build/icon.png
 
@@ -93,9 +106,25 @@ linux:
     # What an application search has to match. Nobody types "Casparel" when
     # they do not yet know the product is installed.
     Keywords: education;study;learning;library;research;classes;
+  # Four formats and both architectures, because "Linux" is not one thing to
+  # install onto. A .deb serves Debian and Ubuntu, a .rpm serves Fedora, RHEL
+  # and openSUSE, an AppImage serves everything without touching the package
+  # manager, and a .tar.gz serves the case none of those do: no root, or a
+  # distribution whose packaging none of them match.
+  #
+  # arm64 is not a rounding error here. It is every Raspberry Pi and every
+  # Windows-on-ARM or Apple-silicon machine running Linux in a VM, and until
+  # now the only architecture with a desktop app was the one the release runner
+  # happened to be.
   target:
-    - AppImage
-    - deb
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
+    - target: rpm
+      arch: [x64, arm64]
+    - target: tar.gz
+      arch: [x64, arm64]
 
 # Where updates and releases come from. electron-builder needs this even for
 # a local build: the .deb target generates auto-update metadata, and without a
