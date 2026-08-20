@@ -211,6 +211,34 @@ const RESOURCE_LIST = {
 };
 
 /**
+ * A canvas, so the canvases page is audited with a canvas on it.
+ *
+ * Without one the list rendered its empty state and every audit passed on a
+ * page with a heading and a button -- no title, no owner, no relative date,
+ * no share menu. The page had never been audited at all: all four lists named
+ * `/canvas`, which is not a route, so the catch-all redirected them to
+ * `/resources` and they read that page twice.
+ */
+const CANVAS = {
+  id: 12,
+  title: "Photosynthesis map",
+  description: "Light reactions on the left, Calvin cycle on the right.",
+  ownerId: 1,
+  classId: null,
+  visibility: "private",
+  classAccess: "view",
+  shareToken: null,
+  document: { nodes: [], edges: [] },
+  version: 3,
+  createdAt: "2026-04-02T09:00:00.000Z",
+  updatedAt: "2026-04-09T16:20:00.000Z",
+  owner: { id: 1, name: "Audit Student" },
+  class: null,
+  collaboratorCount: 2,
+  permissions: { canView: true, canEdit: true, canManage: true, role: "owner" },
+};
+
+/**
  * A block on a day the grid is actually showing.
  *
  * The schedule renders one week at a time, so a fixed date would fall outside
@@ -349,6 +377,8 @@ export const FIXTURES = {
   "/api/classes": [CLASS],
   "/api/classes/31": CLASS,
   "/api/lists": [RESOURCE_LIST],
+  "/api/canvases": [CANVAS],
+  "/api/canvases/12": CANVAS,
   "/api/class-invitations": [],
   "/api/google-classroom/status": { connected: false, configured: false },
   "/api/lists/shared": [],

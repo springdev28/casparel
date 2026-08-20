@@ -7,7 +7,18 @@
  */
 const TR: Record<string, string> = {
   // The code signing page: how a downloaded installer can be checked.
+  "An open workspace for connected ideas.": "Bağlantılı fikirler için açık bir çalışma alanı.",
+  "Canvas menu": "Tuval menüsü",
+  "Chosen collaborators": "Seçilen ortaklar",
+  "Class editor": "Sınıf düzenleyicisi",
+  "Class viewer": "Sınıf izleyicisi",
+  "Edited": "Düzenlendi",
+  "Editor": "Düzenleyici",
+  "Everyone in the class": "Sınıftaki herkes",
   "How we sign our downloads": "İndirmelerimizi nasıl imzalıyoruz",
+  "Link sharing on": "Bağlantı paylaşımı açık",
+  "Only you": "Yalnızca sen",
+  "Owner": "Sahip",
   "explains how to verify a desktop download.": "bir masaüstü indirmesinin nasıl doğrulanacağını anlatır.",
   "Code signing": "Kod imzalama",
   "How to check that a Casparel download is really ours": "Bir Casparel indirmesinin gerçekten bize ait olduğunu nasıl doğrularsınız",
@@ -414,6 +425,7 @@ const TR: Record<string, string> = {
   "Make this list visible to all members of a class.": "Bu listeyi sınıfın tüm üyelerine görünür yapın.",
   "Manage and join your classes": "Sınıflarınızı yönetin ve katılın",
   "Manage your weekly study plan": "Haftalık çalışma planınızı yönetin",
+  "Map a topic, plan a project, or create a shared class board.": "Bir konuyu haritalandır, bir proje planla ya da paylaşılan bir sınıf panosu oluştur.",
   "Mark complete": "Tamamlandı olarak işaretle",
   "Mathematics": "Matematik",
   "Member added!": "Üye eklendi!",

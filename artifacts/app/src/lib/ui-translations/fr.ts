@@ -7,7 +7,18 @@
  */
 const FR: Record<string, string> = {
   // The code signing page: how a downloaded installer can be checked.
+  "An open workspace for connected ideas.": "Un espace ouvert pour des idées reliées.",
+  "Canvas menu": "Menu du tableau",
+  "Chosen collaborators": "Collaborateurs choisis",
+  "Class editor": "Éditeur de la classe",
+  "Class viewer": "Lecteur de la classe",
+  "Edited": "Modifié",
+  "Editor": "Éditeur",
+  "Everyone in the class": "Toute la classe",
   "How we sign our downloads": "Comment nous signons nos téléchargements",
+  "Link sharing on": "Partage par lien activé",
+  "Only you": "Vous seul",
+  "Owner": "Propriétaire",
   "explains how to verify a desktop download.": "explique comment vérifier un téléchargement pour ordinateur.",
   "Code signing": "Signature de code",
   "How to check that a Casparel download is really ours": "Comment vérifier qu'un téléchargement Casparel vient bien de nous",
@@ -414,6 +425,7 @@ const FR: Record<string, string> = {
   "Make this list visible to all members of a class.": "Rendez cette liste visible à tous les membres d'une classe.",
   "Manage and join your classes": "Gérez et rejoignez vos classes",
   "Manage your weekly study plan": "Gérez votre plan d'étude hebdomadaire",
+  "Map a topic, plan a project, or create a shared class board.": "Cartographiez un sujet, planifiez un projet ou créez un tableau de classe partagé.",
   "Mark complete": "Marquer comme terminé",
   "Mathematics": "Mathématiques",
   "Member added!": "Membre ajouté !",

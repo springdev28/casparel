@@ -50,7 +50,7 @@ const PUBLIC_PAGES = (process.env.AUDIT_REACH_PUBLIC ?? "/,/resources,/plans,/su
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_REACH_PAGES ??
   "/dashboard,/profile,/settings,/plans,/schedule,/classes,/goals,/forum," +
-    "/messages,/activities,/lists,/people,/canvas,/resources,/resources/101,/admin"
+    "/messages,/activities,/lists,/people,/canvases,/resources,/resources/101,/admin"
 )
   .split(",")
   .filter(Boolean);

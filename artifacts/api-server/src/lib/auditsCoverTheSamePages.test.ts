@@ -22,6 +22,15 @@
  * written. It has to be named in that file's SKIPS list with a reason, so the
  * omission is a decision on the page rather than a list that quietly fell
  * behind.
+ *
+ * The lists agreeing is not enough on its own, which took a second bug to
+ * show. All four named `/canvas`. The router declares `/canvases`, and its
+ * catch-all redirects anything unmatched to `/resources` -- so every audit
+ * loaded the resources page a second time, passed on it, and reported it as
+ * canvas coverage. Four lists in perfect agreement about a page that does not
+ * exist, and the real canvases page never audited once. So the routes are
+ * held against App.tsx too: a page an audit claims to check has to be a page
+ * the router actually serves.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -56,6 +65,11 @@ function routesIn(source: string, listName: string): string[] {
 const renders = routesIn(read("audit-pages.mjs"), "SIGNED_IN_PAGES");
 const translations = routesIn(read("audit-translation.mjs"), "SIGNED_IN_PAGES");
 const userContent = routesIn(read("audit-user-content.mjs"), "PAGES");
+const reachable = [
+  ...routesIn(read("audit-reachable.mjs"), "PUBLIC_PAGES"),
+  ...routesIn(read("audit-reachable.mjs"), "SIGNED_IN_PAGES"),
+];
+const fits = routesIn(read("audit-text-fits.mjs"), "PAGES");
 
 /**
  * Routes an audit leaves out on purpose, and why.
@@ -66,6 +80,32 @@ const userContent = routesIn(read("audit-user-content.mjs"), "PAGES");
  * bridge to damage.
  */
 const USER_CONTENT_SKIPS = new Set(["/catalog", "/settings", "/plans"]);
+
+/**
+ * Every path the router declares, with its parameters as they are written.
+ *
+ * `<Route path="/profile/:userId">` becomes `/profile/:userId` here, and an
+ * audit naming `/resources/101` matches it by shape: same number of segments,
+ * and each segment either identical or a `:parameter` the audit filled in.
+ */
+const ROUTES = [
+  ...readFileSync(
+    resolve(scripts, "../src/App.tsx"),
+    "utf8",
+  ).matchAll(/<Route\s+path="([^"]+)"/g),
+].map((match) => match[1]);
+
+/** Does the router serve this address, parameters included. */
+function served(route: string): boolean {
+  const asked = route.split("/");
+  return ROUTES.some((declared) => {
+    const parts = declared.split("/");
+    if (parts.length !== asked.length) return false;
+    return parts.every(
+      (part, index) => part.startsWith(":") || part === asked[index],
+    );
+  });
+}
 
 describe("the browser audits", () => {
   it("each name a list this test can read", () => {
@@ -94,6 +134,33 @@ describe("the browser audits", () => {
       "these routes are read for translation but never checked for user " +
         "content the bridge could rewrite; add them to PAGES in " +
         "audit-user-content.mjs, or to USER_CONTENT_SKIPS here with a reason",
+    ).toEqual([]);
+  });
+
+  it("found the router's own list of routes", () => {
+    expect(ROUTES.length, "no <Route path> found in App.tsx").toBeGreaterThanOrEqual(20);
+  });
+
+  it.each([
+    ["audit-pages.mjs", () => renders],
+    ["audit-translation.mjs", () => translations],
+    ["audit-user-content.mjs", () => userContent],
+    ["audit-reachable.mjs", () => reachable],
+    ["audit-text-fits.mjs", () => fits],
+  ])("only checks pages the router serves: %s", (_name, get) => {
+    /*
+     * An address the router does not declare is not a page that fails to
+     * load -- the catch-all redirects it to /resources, which renders
+     * perfectly. So the audit passes, on the wrong page, and reports the
+     * coverage of a page it never opened. There is no output anywhere that
+     * looks different from the real thing.
+     */
+    const nowhere = get().filter((route) => !served(route));
+    expect(
+      nowhere,
+      "these are not routes in App.tsx, so the catch-all redirects them to " +
+        "/resources: the audit renders the resources page again, passes, and " +
+        "reports it as coverage of a page nobody has ever audited",
     ).toEqual([]);
   });
 

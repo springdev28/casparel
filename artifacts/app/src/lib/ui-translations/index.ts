@@ -247,6 +247,37 @@ const SHAPE_RULES: Array<{
       de: (t) => `Wie sicher bist du, dass du „${t}“ erreicht hast?`,
     },
   },
+  {
+    /*
+     * "2 named collaborators". A rule rather than a COUNTED entry because
+     * COUNTED keys on a single lowercase word after the number, and this one
+     * is two.
+     */
+    match: /^(\d[\d.,]*) named collaborators?$/,
+    render: {
+      tr: (n) => `${n} adlı ortak`,
+      es: (n) => `${n} ${n === "1" ? "colaborador indicado" : "colaboradores indicados"}`,
+      fr: (n) => `${n} ${n === "1" ? "collaborateur nommé" : "collaborateurs nommés"}`,
+      pt: (n) => `${n} ${n === "1" ? "colaborador indicado" : "colaboradores indicados"}`,
+      de: (n) => `${n} ${n === "1" ? "benannte Person" : "benannte Personen"}`,
+    },
+  },
+  {
+    /*
+     * "Manage Photosynthesis map" -- the accessible name of the menu button on
+     * a canvas card, named after the canvas so that a list of them does not
+     * read as "button, button, button". The name is the reader's own, so the
+     * label can only be translated around it.
+     */
+    match: /^Manage (.+)$/,
+    render: {
+      tr: (t) => `${t} yönet`,
+      es: (t) => `Gestionar ${t}`,
+      fr: (t) => `Gérer ${t}`,
+      pt: (t) => `Gerir ${t}`,
+      de: (t) => `${t} verwalten`,
+    },
+  },
 ];
 
 /** "93% evidence score" — a number and a label, so no fixed key can match. */

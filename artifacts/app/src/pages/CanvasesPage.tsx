@@ -45,7 +45,32 @@ import {
 } from "@workspace/edu-ds/components/ui/select";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useGetMe, useListClasses, UserRole } from "@workspace/api-client-react";
+import { counted } from "@/lib/counted";
 import { canvasRequest, type SchoolarCanvas } from "../lib/canvas-api";
+
+/**
+ * The role and visibility names, written out rather than interpolated.
+ *
+ * Both are database enums and both were being shown to the reader as-is:
+ * `role.replace("-", " ")` rendered "class editor", and `${visibility} access`
+ * rendered "private access". A word built at render time is not a string
+ * anything can translate, so every reader saw the enum in English -- and the
+ * enum is not what a person calls these things in the first place.
+ */
+const ROLE_NAME: Record<SchoolarCanvas["permissions"]["role"], string> = {
+  owner: "Owner",
+  editor: "Editor",
+  viewer: "Viewer",
+  "class-editor": "Class editor",
+  "class-viewer": "Class viewer",
+};
+
+const VISIBILITY_NAME: Record<SchoolarCanvas["visibility"], string> = {
+  private: "Only you",
+  people: "Chosen collaborators",
+  class: "Everyone in the class",
+  link: "Link sharing on",
+};
 
 export default function CanvasesPage({
   classIdOverride,
@@ -154,23 +179,54 @@ export default function CanvasesPage({
               <Icon size={18} />
             </span>
             <div className="flex items-center gap-1">
-              <Badge variant="outline" className="capitalize">
-                {canvas.permissions.role.replace("-", " ")}
+              <Badge variant="outline">
+                {ROLE_NAME[canvas.permissions.role]}
               </Badge>
               {canvas.permissions.canManage ? <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="size-8" aria-label={`Manage ${canvas.title}`} title="Canvas menu"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48"><DropdownMenuItem onClick={() => setLocation(`/canvases/${canvas.id}?panel=details`)}><Pencil className="mr-2 size-4" />Edit details</DropdownMenuItem><DropdownMenuItem onClick={() => setLocation(`/canvases/${canvas.id}?panel=share`)}><Share2 className="mr-2 size-4" />Sharing and access</DropdownMenuItem><DropdownMenuItem className="text-destructive-text focus:text-destructive-text" onClick={() => void deleteCanvasFromCard(canvas)}><Trash2 className="mr-2 size-4" />Delete canvas</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : null}
             </div>
           </div>
-          <CardTitle className="line-clamp-2 text-base">{canvas.title}</CardTitle>
-          <p className="line-clamp-2 text-sm text-muted-foreground">
-            {canvas.description || "An open workspace for connected ideas."}
-          </p>
+          {/*
+            The reader's own words, in both. Without this the bridge rewrites
+            somebody's canvas title into whichever language they happen to be
+            reading in -- the same failure as flashcards and class names, on
+            the one page no audit had ever opened.
+          */}
+          <CardTitle translate="no" className="line-clamp-2 text-base">
+            {canvas.title}
+          </CardTitle>
+          {canvas.description ? (
+            <p translate="no" className="line-clamp-2 text-sm text-muted-foreground">
+              {canvas.description}
+            </p>
+          ) : (
+            <p className="line-clamp-2 text-sm text-muted-foreground">
+              An open workspace for connected ideas.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="flex-1 space-y-2 pt-4 text-xs text-muted-foreground">
           {canvas.class ? (
-            <p className="flex items-center gap-2"><School size={13} /> {canvas.class.name}</p>
+            <p className="flex items-center gap-2">
+              <School size={13} className="shrink-0" />{" "}
+              <span translate="no">{canvas.class.name}</span>
+            </p>
           ) : null}
-          <p className="flex items-center gap-2"><Users size={13} /> {canvas.collaboratorCount} named collaborator{canvas.collaboratorCount === 1 ? "" : "s"}</p>
-          <p className="flex items-center gap-2"><Link2 size={13} /> {canvas.visibility === "link" ? "Link sharing on" : `${canvas.visibility} access`}</p>
+          {/*
+            counted(), not "{n} collaborator{n === 1 ? '' : 's'}". Written that
+            way it is three DOM text nodes, and the bridge matches whole nodes,
+            so the plural rule never saw a phrase to apply.
+          */}
+          <p className="flex items-center gap-2">
+            <Users size={13} className="shrink-0" />{" "}
+            {counted(
+              canvas.collaboratorCount,
+              "named collaborator",
+              "named collaborators",
+            )}
+          </p>
+          <p className="flex items-center gap-2">
+            <Link2 size={13} className="shrink-0" /> {VISIBILITY_NAME[canvas.visibility]}
+          </p>
           <p>Edited {formatDistanceToNow(new Date(canvas.updatedAt), { addSuffix: true, locale })}</p>
         </CardContent>
         <CardFooter className="justify-end border-t pt-4">

@@ -60,7 +60,7 @@ const PORT = Number(process.env.AUDIT_UC_PORT ?? 4327);
 
 const PAGES = (
   process.env.AUDIT_UC_PAGES ??
-  "/dashboard,/activities,/classes,/goals,/lists,/schedule,/messages,/forum,/canvas,/people,/profile,/resources,/admin,/resources/101"
+  "/dashboard,/activities,/classes,/goals,/lists,/schedule,/messages,/forum,/canvases,/people,/profile,/resources,/admin,/resources/101"
 )
   .split(",")
   .filter(Boolean);
