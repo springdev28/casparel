@@ -24,6 +24,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
+import { inParallel } from "./in-parallel.mjs";
 import { launchOptions } from "./chromium.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -297,53 +298,75 @@ let checked = 0;
  * everything that changes what English renders.
  */
 const englishCache = new Map();
-async function collectEnglish(pagePath, signedIn, viewport) {
+function collectEnglish(pagePath, signedIn, viewport) {
   const key = `${pagePath}|${signedIn}|${viewport.name}`;
+  /*
+   * The promise is cached, not the result.
+   *
+   * With the renders running several at a time, two tasks reach the same key
+   * before either has finished, both miss, and English is opened twice --
+   * which is the cost this cache exists to remove. Storing the promise means
+   * the second one waits on the first.
+   */
   if (!englishCache.has(key)) {
-    englishCache.set(key, await collect(pagePath, "en", signedIn, viewport));
+    englishCache.set(key, collect(pagePath, "en", signedIn, viewport));
   }
   return englishCache.get(key);
 }
 
 for (const language of LANGS) {
-  const gaps = new Map();
-  const identical = deliberatelyIdentical(language);
   for (const [pages, signedIn] of [
     [PAGES, false],
     [SIGNED_IN_PAGES, true],
   ]) {
     for (const pagePath of pages) {
       for (const viewport of VIEWPORTS) {
-        let englishStrings;
-        let translatedStrings;
-        try {
-          [englishStrings, translatedStrings] = await Promise.all([
-            collectEnglish(pagePath, signedIn, viewport),
-            collect(pagePath, language, signedIn, viewport),
-          ]);
-        } catch (error) {
-          console.error(
-            `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
-          );
-          continue;
-        }
-        checked += 1;
-        // A string that survives untouched into the translated render, and was
-        // present in English too, had no dictionary entry that matched.
-        const stillEnglish = new Set(translatedStrings);
-        for (const text of englishStrings) {
-          if (stillEnglish.has(text) && !identical.has(text)) {
-            const where = gaps.get(text) ?? new Set();
-            where.add(
-              `${signedIn ? "signed-in " : ""}${pagePath} @${viewport.name}`,
-            );
-            gaps.set(text, where);
-          }
-        }
+        TASKS.push({ language, pagePath, signedIn, viewport });
       }
     }
   }
-  report.set(language, gaps);
+}
+
+const IDENTICAL = new Map(
+  LANGS.map((language) => [language, deliberatelyIdentical(language)]),
+);
+
+const findings = await inParallel(TASKS, async (task) => {
+  const { language, pagePath, signedIn, viewport } = task;
+  let englishStrings;
+  let translatedStrings;
+  try {
+    [englishStrings, translatedStrings] = await Promise.all([
+      collectEnglish(pagePath, signedIn, viewport),
+      collect(pagePath, language, signedIn, viewport),
+    ]);
+  } catch (error) {
+    console.error(
+      `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
+    );
+    return null;
+  }
+  // A string that survives untouched into the translated render, and was
+  // present in English too, had no dictionary entry that matched.
+  const identical = IDENTICAL.get(language);
+  const stillEnglish = new Set(translatedStrings);
+  const untranslated = englishStrings.filter(
+    (text) => stillEnglish.has(text) && !identical.has(text),
+  );
+  return { task, untranslated };
+});
+
+for (const language of LANGS) report.set(language, new Map());
+for (const finding of findings) {
+  if (!finding) continue;
+  const { language, pagePath, signedIn, viewport } = finding.task;
+  checked += 1;
+  const gaps = report.get(language);
+  for (const text of finding.untranslated) {
+    const where = gaps.get(text) ?? new Set();
+    where.add(`${signedIn ? "signed-in " : ""}${pagePath} @${viewport.name}`);
+    gaps.set(text, where);
+  }
 }
 
 await browser.close();

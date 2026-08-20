@@ -37,6 +37,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
+import { inParallel } from "./in-parallel.mjs";
 import { launchOptions } from "./chromium.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -161,47 +162,66 @@ const browser = await chromium.launch(launchOptions());
 const failures = [];
 let rendered = 0;
 
+/*
+ * Every render as one list, a few at a time. The per-page line is printed
+ * afterwards, in this list's order, so the log reads the same however the
+ * renders finished.
+ */
+const TASKS = [];
 for (const [pages, signedOut] of [
   [PUBLIC_PAGES, true],
   [SIGNED_IN_PAGES, false],
 ]) {
   for (const pagePath of pages) {
-  for (const viewport of VIEWPORTS) {
-    const context = await browser.newContext({
-      viewport: { width: viewport.width, height: viewport.height },
-    });
-    await installSession(context, {
-      language: "en",
-      // Admin for /admin, which renders a different surface entirely.
-      ...(pagePath === "/admin"
-        ? { role: "admin", activeRole: "admin", accountRole: "admin" }
-        : { role: "student" }),
-      signedOut,
-    });
-    const page = await context.newPage();
-    try {
-      await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
-        waitUntil: "networkidle",
-        timeout: 45000,
-      });
-      await page.waitForTimeout(500);
-      rendered += 1;
-      const problems = await page.evaluate(CHECK);
-      for (const problem of problems) {
-        failures.push(
-          `${signedOut ? "" : "signed-in "}${pagePath} @${viewport.name}: ${problem}`,
-        );
-      }
-      console.log(
-        `  ${problems.length ? "!! " : "ok "} ${pagePath} @${viewport.name}` +
-          `${signedOut ? "" : " [signed in]"}`,
-      );
-    } catch (error) {
-      console.error(`  !  ${pagePath} @${viewport.name} failed: ${error.message}`);
+    for (const viewport of VIEWPORTS) {
+      TASKS.push({ pagePath, viewport, signedOut });
     }
+  }
+}
+
+const checked = await inParallel(TASKS, async ({ pagePath, viewport, signedOut }) => {
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+  });
+  await installSession(context, {
+    language: "en",
+    // Admin for /admin, which renders a different surface entirely.
+    ...(pagePath === "/admin"
+      ? { role: "admin", activeRole: "admin", accountRole: "admin" }
+      : { role: "student" }),
+    signedOut,
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
+      waitUntil: "networkidle",
+      timeout: 45000,
+    });
+    await page.waitForTimeout(500);
+    return { pagePath, viewport, signedOut, problems: await page.evaluate(CHECK) };
+  } catch (error) {
+    return { pagePath, viewport, signedOut, error: error.message };
+  } finally {
     await context.close();
   }
+});
+
+for (const result of checked) {
+  const { pagePath, viewport, signedOut } = result;
+  if (result.error) {
+    console.error(`  !  ${pagePath} @${viewport.name} failed: ${result.error}`);
+    continue;
   }
+  rendered += 1;
+  for (const problem of result.problems) {
+    failures.push(
+      `${signedOut ? "" : "signed-in "}${pagePath} @${viewport.name}: ${problem}`,
+    );
+  }
+  console.log(
+    `  ${result.problems.length ? "!! " : "ok "} ${pagePath} @${viewport.name}` +
+      `${signedOut ? "" : " [signed in]"}`,
+  );
 }
 
 await browser.close();

@@ -55,6 +55,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
+import { inParallel } from "./in-parallel.mjs";
 import { launchOptions } from "./chromium.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -347,54 +348,77 @@ const browser = await chromium.launch(launchOptions());
 const clippedIn = new Map();
 let rendered = 0;
 
+/*
+ * One flat list of renders, run a few at a time.
+ *
+ * The nesting below expressed "every page in every language at every width",
+ * which is a description of the work rather than an order it has to happen in:
+ * each render is its own browser context against a static file server. The
+ * findings are folded into `clippedIn` afterwards, in the list's order, so the
+ * report reads the same however the renders finished.
+ */
+const TASKS = [];
 for (const language of LANGUAGES) {
   for (const viewport of VIEWPORTS) {
-  for (const pagePath of PAGES) {
-    const context = await browser.newContext({
-      viewport: { width: viewport.width, height: viewport.height },
-    });
-    await context.addInitScript((lang) => {
-      try {
-        localStorage.setItem("schoolar_language", lang);
-      } catch {
-        /* storage disabled */
-      }
-    }, language);
-    await installSession(context, { language, role: "student" });
-    const page = await context.newPage();
-    try {
-      await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
-        waitUntil: "networkidle",
-        timeout: 45000,
-      });
-      // The bridge rewrites after paint, and a box measured before it has done
-      // so is a box measured in English.
-      await page.waitForTimeout(600);
-      rendered += 1;
-      for (const entry of await page.evaluate(MEASURE)) {
-        const kind = entry.offScreen
-          ? "past the right edge: "
-          : entry.brokenWord
-            ? "one word broken across lines: "
-            : entry.placeholder
-              ? "placeholder wider than its field: "
-              : "";
-        // Keyed by where the element is, not by what it says: see addressOf.
-        const key =
-          `${pagePath} @${viewport.name} ${kind}${entry.address} ` +
-          `[${entry.tag}.${entry.where}]`;
-        const seen = clippedIn.get(key) ?? { by: new Map(), says: new Map() };
-        seen.by.set(language, entry.over);
-        seen.says.set(language, entry.text);
-        clippedIn.set(key, seen);
-      }
-    } catch (error) {
-      console.error(
-        `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
-      );
+    for (const pagePath of PAGES) {
+      TASKS.push({ language, viewport, pagePath });
     }
+  }
+}
+
+const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }) => {
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+  });
+  await context.addInitScript((lang) => {
+    try {
+      localStorage.setItem("schoolar_language", lang);
+    } catch {
+      /* storage disabled */
+    }
+  }, language);
+  await installSession(context, { language, role: "student" });
+  const page = await context.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
+      waitUntil: "networkidle",
+      timeout: 45000,
+    });
+    // The bridge rewrites after paint, and a box measured before it has done
+    // so is a box measured in English.
+    await page.waitForTimeout(600);
+    const entries = await page.evaluate(MEASURE);
+    return { language, viewport, pagePath, entries };
+  } catch (error) {
+    console.error(
+      `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
+    );
+    return null;
+  } finally {
     await context.close();
   }
+});
+
+for (const result of measured) {
+  if (!result) continue;
+  const { language, viewport, pagePath, entries } = result;
+  rendered += 1;
+  for (const entry of entries) {
+    const kind = entry.offScreen
+      ? "past the right edge: "
+      : entry.brokenWord
+        ? "one word broken across lines: "
+        : entry.placeholder
+          ? "placeholder wider than its field: "
+          : "";
+    // Keyed by where the element is, not by what it says: see addressOf.
+    const key =
+      `${pagePath} @${viewport.name} ${kind}${entry.address} ` +
+      `[${entry.tag}.${entry.where}]`;
+    const seen = clippedIn.get(key) ?? { by: new Map(), says: new Map() };
+    seen.by.set(language, entry.over);
+    seen.says.set(language, entry.text);
+    clippedIn.set(key, seen);
   }
 }
 

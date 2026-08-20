@@ -25,6 +25,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { inParallel } from "./in-parallel.mjs";
 import { installSession } from "./audit-fixtures.mjs";
 
 const ROOT = path.resolve(
@@ -387,15 +388,6 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
   }
 }
 
-const results = [];
-for (const pathname of PAGES) {
-  for (const scheme of ["dark", "light"]) {
-    results.push(await auditGuarded(pathname, scheme, 1280));
-  }
-  results.push(await auditGuarded(pathname, "dark", 390));
-}
-// Signed-in pages vary by saved palette, not by prefers-color-scheme, so that
-// is what is swept here.
 /**
  * Signed-in sweep: which saved palette, and which colorScheme to render it under.
  *
@@ -417,19 +409,32 @@ const SIGNED_IN_SWEEP = [
   ["brandDark", "dark"],
 ];
 
+/*
+ * Every render this run will do, listed before any of it happens.
+ *
+ * Each is its own browser context, so the loops that used to await one render
+ * at a time were describing the sweep rather than requiring an order. The
+ * report below reads `results` in this list's order, so what it prints does
+ * not depend on which render finished first.
+ */
+const RENDERS = [];
+for (const pathname of PAGES) {
+  for (const scheme of ["dark", "light"]) {
+    RENDERS.push([pathname, scheme, 1280, {}]);
+  }
+  RENDERS.push([pathname, "dark", 390, {}]);
+}
 for (const pathname of SIGNED_IN_PAGES) {
   for (const [palette, colorScheme] of SIGNED_IN_SWEEP) {
-    results.push(
-      await auditGuarded(pathname, colorScheme, 1280, { signedIn: true, palette }),
-    );
+    RENDERS.push([pathname, colorScheme, 1280, { signedIn: true, palette }]);
   }
-  results.push(
-    await auditGuarded(pathname, "dark", 390, {
-      signedIn: true,
-      palette: "dark",
-    }),
-  );
+  RENDERS.push([pathname, "dark", 390, { signedIn: true, palette: "dark" }]);
 }
+
+const results = await inParallel(RENDERS, ([pathname, scheme, width, options]) =>
+  auditGuarded(pathname, scheme, width, options),
+);
+
 await browser.close();
 server.close();
 
