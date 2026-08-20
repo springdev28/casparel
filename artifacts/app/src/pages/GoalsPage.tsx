@@ -664,8 +664,21 @@ export default function GoalsPage() {
               <p className="text-xs text-muted-foreground">Review and update goals for students in your classes.</p>
             </div>
             <Select value={managedClassId ? String(managedClassId) : ""} onValueChange={(value) => setManagedClassId(Number(value))}>
-              <SelectTrigger className="w-56"><SelectValue placeholder="Select a class" /></SelectTrigger>
-              <SelectContent>{teacherClasses.map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent>
+              {/*
+                The trigger shows the chosen class's name, which is the
+                teacher's own word and must not be rewritten -- and
+                translate="no" on the SelectItem does not reach the copy Radix
+                paints into the trigger. The placeholder is product wording, so
+                it is rendered separately rather than protected along with it.
+              */}
+              <SelectTrigger className="w-56">
+                {managedClassId ? (
+                  <span translate="no"><SelectValue /></span>
+                ) : (
+                  <span className="text-muted-foreground">Select a class</span>
+                )}
+              </SelectTrigger>
+              <SelectContent>{teacherClasses.map((item) => <SelectItem key={item.id} value={String(item.id)} translate="no">{item.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           {studentGoalsLoading ? <Skeleton className="h-24 w-full" /> : !(studentGoals as StudentLearningGoal[] | undefined)?.length ? (

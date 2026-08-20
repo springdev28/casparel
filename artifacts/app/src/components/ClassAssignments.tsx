@@ -62,6 +62,36 @@ type Analytics = {
   }>;
 };
 
+/**
+ * Analytics, or nothing -- decided once, here, rather than at five call sites.
+ *
+ * `analytics?.assignments.length` guards the wrong level: the chain stops if
+ * `analytics` is null and then reads `.length` off whatever `.assignments`
+ * turns out to be. Anything truthy that is not this shape -- an array, an
+ * error body, an endpoint answering something else -- crashes the whole
+ * assignments tab into the error boundary. It did: the class workspace was
+ * unusable for a teacher and fine for a student, because only a teacher asks
+ * for this.
+ *
+ * The same shape of bug as the resource page's `workflow?.steps[key]`, and
+ * the same fix: decide at the boundary what came back, so nothing downstream
+ * has to ask.
+ *
+ * Returning null on a bad answer is deliberate. Completion percentages are a
+ * detail on a row; the assignments themselves are the page, and losing the
+ * detail must not lose the page.
+ */
+function asAnalytics(value: unknown): Analytics | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<Analytics>;
+  if (!Array.isArray(candidate.assignments)) return null;
+  return {
+    studentCount:
+      typeof candidate.studentCount === "number" ? candidate.studentCount : 0,
+    assignments: candidate.assignments,
+  };
+}
+
 const TOKEN_KEY = "schoolar_token";
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -125,7 +155,7 @@ export function ClassAssignments({
         ]);
       setAssignments(assignmentRows);
       setActivities(activityRows);
-      setAnalytics(analyticsRows);
+      setAnalytics(asAnalytics(analyticsRows));
       setJoinCode(codeRows?.joinCode ?? null);
     } catch (error) {
       toast({
@@ -530,9 +560,14 @@ export function ClassAssignments({
                     size="sm"
                     variant="ghost"
                     className="text-destructive-text"
+                    // Named after what it deletes. This is the button that
+                    // removes a piece of set work from a whole class, in a
+                    // list where every row has one, and it was announced as
+                    // "button".
+                    aria-label={`Delete ${assignment.title}`}
                     onClick={() => void deleteAssignment(assignment.id)}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={14} aria-hidden="true" />
                   </Button>
                 )}
               </CardContent>
