@@ -102,6 +102,10 @@ const SCREENS = [
   { path: "/(tabs)/classes", session: "in" },
   { path: "/(tabs)/profile", session: "in" },
   { path: "/paywall", session: "in" },
+  // The flashcard player, with the set below standing in for a real one. Every
+  // other screen here renders a list; this one renders a single card, and the
+  // strings on it -- Term, Answer, Tap to turn over -- exist nowhere else.
+  { path: "/study/7", session: "in" },
 ];
 
 const MIME = {
@@ -164,6 +168,28 @@ function stubbedBody(pathname) {
   }
   if (pathname.includes("/dashboard")) {
     return { resourceCount: 0, reviewCount: 0, classCount: 0, upcomingCount: 0 };
+  }
+  if (pathname.endsWith("/study-activities")) {
+    // Two cards, because the player's controls differ on the first and the
+    // last: one card would render both as disabled and check neither.
+    return [
+      {
+        id: 7,
+        ownerId: 1,
+        workspaceRole: "student",
+        classId: null,
+        title: "Audit study set",
+        subject: "Mathematics",
+        mode: "flashcards",
+        shareToken: null,
+        cards: [
+          { id: "a", term: "derivative", answer: "rate of change" },
+          { id: "b", term: "integral", answer: "area under a curve" },
+        ],
+        createdAt: "2026-03-02T09:00:00.000Z",
+        updatedAt: "2026-03-02T09:00:00.000Z",
+      },
+    ];
   }
   return [];
 }

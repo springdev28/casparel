@@ -96,6 +96,10 @@ function RootLayoutNav() {
         options={{ title: t('Class'), headerBackTitle: t("Back") }}
       />
       <Stack.Screen
+        name="study/[id]"
+        options={{ title: t('Study'), headerBackTitle: t("Back") }}
+      />
+      <Stack.Screen
         name="paywall"
         options={{ presentation: "modal", headerShown: false }}
       />
