@@ -51,7 +51,7 @@ const PUBLIC_PAGES = (process.env.AUDIT_REACH_PUBLIC ?? "/,/resources,/plans,/su
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_REACH_PAGES ??
   "/dashboard,/profile,/settings,/plans,/schedule,/classes,/goals,/forum," +
-    "/messages,/activities,/lists,/people,/canvases,/classes/31,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101,/admin"
+    "/messages,/activities,/lists,/people,/canvases,/classes/31,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101,/admin"
 )
   .split(",")
   .filter(Boolean);
