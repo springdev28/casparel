@@ -1,6 +1,6 @@
 name: Verify the macOS app
 
-# Opens a published .dmg on a real Mac and checks the app inside it starts.
+# Opens a built .dmg on a real Mac and checks the app inside it starts.
 #
 # This exists because "the build succeeded" and "the application runs" are
 # different claims, and only the first one was ever being made. The Linux .deb
@@ -12,9 +12,14 @@ name: Verify the macOS app
 # Neither macOS nor Windows can be built or run anywhere else in this project,
 # so a hosted runner is the only machine that can answer the question at all.
 #
-# Run it from the Actions tab against any published tag. Both architectures are
-# checked: an Intel Mac runs the x64 binary on an Intel CPU, which no Apple
-# Silicon runner reproduces.
+# Both architectures are checked: an Intel Mac runs the x64 binary on an Intel
+# CPU, which no Apple Silicon runner reproduces and which the build runner can
+# therefore only inspect.
+#
+# The release workflow calls this on the images it just built, before it tags
+# anything, and it is the only thing in the release that launches a macOS app.
+# Run it from the Actions tab against a published tag to audit a release that is
+# already out.
 
 on:
   workflow_dispatch:
@@ -25,19 +30,39 @@ on:
         required: true
         default: desktop-v1.0.0
   # Called by the release workflow, so every release is checked without anybody
-  # remembering to. `inputs.tag` reads the same either way.
+  # remembering to.
+  #
+  # Two sources, because the same checks are wanted at two different moments and
+  # running them twice was the actual state of this repository for a release:
+  # the Intel image was launched once from the build's artifacts and again from
+  # the published assets, on two separate Intel runners, proving the same thing
+  # about the same bytes.
+  #
+  #   artifact  the images the build just produced, BEFORE anything is
+  #             published. This is how the release gates itself: a .dmg nobody
+  #             can open should not become a permanent tag.
+  #   tag       the assets attached to a published release. This is the manual
+  #             path, for auditing something already out.
+  #
+  # Exactly one. The version comes from whichever was given -- from the tag when
+  # auditing a release, because the working tree may have moved on since; from
+  # package.json when gating, because there the tree IS what is being released.
   workflow_call:
     inputs:
       tag:
-        description: 'Release tag to verify'
+        description: 'Release tag to verify (omit when passing an artifact)'
         type: string
-        required: true
+        required: false
+      artifact:
+        description: 'Build artifact holding the .dmg files (omit when passing a tag)'
+        type: string
+        required: false
 
 concurrency:
-  # Keyed on the tag, not the ref. A release calling this must not cancel
-  # somebody's manual verification of a different version, and two runs against
-  # the same tag are genuinely redundant.
-  group: desktop-verify-macos-${{ inputs.tag }}
+  # Keyed on whichever source was named, not on the ref. A release gating itself
+  # must not cancel somebody's manual verification of a different version, and
+  # two runs against the same images are genuinely redundant.
+  group: desktop-verify-macos-${{ inputs.tag || format('{0}-{1}', github.run_id, inputs.artifact) }}
   cancel-in-progress: true
 
 permissions:
@@ -78,18 +103,34 @@ jobs:
       # deliberately tests the SHIPPED bundle rather than anything built here.
       # Installing the workspace would only add a way for this to pass while
       # the released artifact is broken.
-      - name: Download the released disk image
+      - name: Refuse an ambiguous request
+        run: |
+          # One source or the other. Given both, "which did it check?" has no
+          # answer anybody could read off the run, and given neither there is
+          # nothing to check at all -- either way, silently picking one would
+          # make a green run mean nothing in particular.
+          tag='${{ inputs.tag }}'
+          artifact='${{ inputs.artifact }}'
+          if [ -n "$tag" ] && [ -n "$artifact" ]; then
+            echo "::error title=Ambiguous input::Pass a tag or an artifact, not both."
+            exit 1
+          fi
+          if [ -z "$tag" ] && [ -z "$artifact" ]; then
+            echo "::error title=Nothing to verify::Pass either a tag or an artifact."
+            exit 1
+          fi
+
+      # Gating a release: the images the build just made, before publication.
+      - uses: actions/download-artifact@v4
+        if: inputs.artifact != ''
+        with:
+          name: ${{ inputs.artifact }}
+          path: images
+
+      - name: Pick the disk image this leg tests
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          version="${TAG#desktop-v}"
-          echo "VERSION=${version}" >> "$GITHUB_ENV"
-          # The image this machine can actually execute, so "it launches" is a
-          # real result rather than a skipped one. Taken from the matrix rather
-          # than from uname, so a runner label that silently changes
-          # architecture cannot quietly test the same image twice.
-          asset="Casparel-${version}-${{ matrix.arch }}.dmg"
-
           # The runner has to BE the architecture this leg claims to test.
           # Apple Silicon runs x64 binaries under Rosetta perfectly well, so if
           # a label quietly moved to Apple Silicon this leg would sail through
@@ -101,15 +142,41 @@ jobs:
             echo "::error title=Wrong runner architecture::This leg tests ${{ matrix.arch }} and expected uname -m to say ${expected}, but the runner says ${actual}. Testing the ${{ matrix.arch }} image here would not exercise the CPU it is built for."
             exit 1
           fi
-          echo "Runner is ${actual}, as expected for ${{ matrix.arch }}; fetching ${asset}"
-          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
-          if ! curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/app.dmg" "$url"; then
-            echo "::error title=Asset not found::${url} could not be downloaded. Check the tag and the asset name."
-            exit 1
+          echo "Runner is ${actual}, as expected for ${{ matrix.arch }}."
+
+          if [ -n "${TAG}" ]; then
+            # Auditing a published release. The version comes from the tag,
+            # never from the tree: the tree may have moved on since, and a
+            # check that reads the wrong version passes for the wrong reasons.
+            version="${TAG#desktop-v}"
+            asset="Casparel-${version}-${{ matrix.arch }}.dmg"
+            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
+            echo "Fetching ${asset} from ${TAG}"
+            if ! curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/app.dmg" "$url"; then
+              echo "::error title=Asset not found::${url} could not be downloaded. Check the tag and the asset name."
+              exit 1
+            fi
+          else
+            # Gating a release. Nothing is published yet, so the tree is the
+            # only statement of what version this is -- and it is the right one,
+            # because the tree is what is about to be released.
+            version=$(node -p "require('$GITHUB_WORKSPACE/artifacts/desktop/package.json').version")
+            asset="Casparel-${version}-${{ matrix.arch }}.dmg"
+            echo "Taking ${asset} from the build's artifacts"
+            if [ ! -f "$GITHUB_WORKSPACE/images/${asset}" ]; then
+              echo "::error title=No ${{ matrix.arch }} image::${asset} is not among the build's artifacts."
+              ls -l "$GITHUB_WORKSPACE/images" || true
+              exit 1
+            fi
+            cp "$GITHUB_WORKSPACE/images/${asset}" "$RUNNER_TEMP/app.dmg"
           fi
+
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
           ls -lh "$RUNNER_TEMP/app.dmg"
           shasum -a 256 "$RUNNER_TEMP/app.dmg"
 
       - name: Mount it, inspect it, run it
         working-directory: artifacts/desktop
+        env:
+          CASPAREL_EXPECT_SIGNED: ${{ secrets.CSC_LINK != '' }}
         run: node scripts/verify-app-macos.mjs "$RUNNER_TEMP/app.dmg" "--expect-version=$VERSION"

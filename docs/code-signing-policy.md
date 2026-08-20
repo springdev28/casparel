@@ -81,10 +81,20 @@ The chain is:
    `.deb` and checks what it actually contains — the applications-menu entry,
    the installed icon sizes, the declared licence, and whether the
    `casparel://` scheme is registered — before anything is uploaded.
-4. The tag is created **after** every platform has built successfully, never
-   before, and is never moved once it exists. A released version number
-   therefore always refers to one commit and one set of artifacts.
-5. The installers are attached to a GitHub release on the public repository.
+4. On macOS, `artifacts/desktop/scripts/verify-app-macos.mjs` mounts each
+   built `.dmg` on a runner of that image's own architecture — Apple Silicon
+   for the arm64 image, Intel for the x64 one — reads the bundle's identity,
+   copies the app out of the read-only image and starts it. Both images are
+   checked before anything is published, by one job rather than the two that
+   used to run the Intel image twice.
+5. The tag is created **after** every platform has built and every installer
+   has been opened, never before, and is never moved once it exists. A released
+   version number therefore always refers to one commit and one set of
+   artifacts.
+6. The installers are attached to a GitHub release on the public repository.
+   Windows is additionally re-checked afterwards on both architectures, from
+   the published assets, because the Windows arm64 installer has no
+   before-publication equivalent yet.
 
 Anyone can re-run this from the same tag and compare. The source is public and
 MIT licensed, and the workflow is in the repository alongside it.
@@ -127,8 +137,9 @@ than it has.
 - **Every artifact is built on a GitHub-hosted runner**, from the commit the
   run was started against, by the workflow in this repository. There is no
   path by which a locally built binary becomes a release.
-- **The tag is created only after every platform has built**, and is never
-  moved.
+- **The tag is created only after every platform has built and every macOS
+  installer has been opened and run** on a machine of its own architecture, and
+  is never moved.
 
 **Operational commitments by the maintainers**, not enforced by tooling:
 

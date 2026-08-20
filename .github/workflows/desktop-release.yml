@@ -117,50 +117,13 @@ jobs:
         working-directory: artifacts/desktop
         run: pnpm run verify:package
 
-      # The macOS half of the same idea, and it was missing entirely. This
-      # mounts the .dmg, checks the bundle's identity and architecture, copies
-      # the app out of the read-only image, and starts it against a local
-      # stand-in for casparel.com -- so a green leg means a window that reached
-      # a page, not a build that produced a file.
-      #
-      # Once per image, because the release ships two and "the one this machine
-      # matches" is one. 1.0.1's Intel .dmg was published having never been
-      # opened by anything: the runner is Apple Silicon, so the arm64 image got
-      # all fourteen checks and the x64 image got none.
-      #
-      # This leg inspects both and launches the arm64 one. The Intel launch is a
-      # named skip here and happens for real in verify-intel below. Rosetta was
-      # tried and removed: it starts the Intel image, so it looked like free
-      # coverage, but on the 1.0.2 gate the translated process lived its whole
-      # sixty-second timeout in silence -- and "the build is broken" and
-      # "translation was still warming up" look exactly alike from here. A gate
-      # that cannot tell those apart blocks releases on nothing.
-      - name: Check the macOS app runs
-        if: matrix.artifact == 'macos'
-        working-directory: artifacts/desktop
-        shell: bash
-        # Whether this release MEANT to be signed. The verifier reports the
-        # signature either way; with this true it also fails when there is not
-        # one, so a signing step that breaks cannot pass quietly. The secret's
-        # value is never used here, only whether it is set.
-        env:
-          CASPAREL_EXPECT_SIGNED: ${{ secrets.CSC_LINK != '' }}
-        run: |
-          shopt -s nullglob
-          images=(release/*.dmg)
-          if [ ${#images[@]} -eq 0 ]; then
-            echo "::error title=No disk image::the build produced no .dmg to check."
-            exit 1
-          fi
-          # Both are reported before the step fails, so a red run says whether
-          # one architecture broke or every one of them did.
-          status=0
-          for image in "${images[@]}"; do
-            echo "::group::$(basename "$image")"
-            node scripts/verify-app-macos.mjs "$image" || status=1
-            echo "::endgroup::"
-          done
-          exit $status
+      # macOS is NOT checked here. It used to be, and that step is what the
+      # verify-macos job below replaced: this runner is Apple Silicon, so it
+      # could launch the arm64 image and only inspect the Intel one, and the
+      # release ships both. Keeping it would mean the arm64 image is launched
+      # twice per release -- once here, once by a job that also covers Intel,
+      # running the same script over the same file. One place launches macOS
+      # apps, and it is the one that can launch all of them.
 
       # And the third platform, which was the last one where nothing had ever
       # run what ships. It installs the .exe silently, reads the metadata
@@ -186,62 +149,27 @@ jobs:
             artifacts/desktop/release/*.deb
           if-no-files-found: error
 
-  # The Intel half of the macOS check, on an Intel CPU.
+  # macOS, on a machine of each architecture, before anything is published.
   #
-  # electron-builder cross-builds the x64 .dmg happily on Apple Silicon, so the
-  # build matrix has no reason to include an Intel runner and adding one there
-  # would produce a second set of installers to reconcile. Running it as its own
-  # job after the build instead means no rebuild: it takes the images the matrix
-  # already produced and starts the one this machine is native to.
+  # The build leg used to do this, on the runner that built the images, and that
+  # runner is Apple Silicon -- so the Intel .dmg was built by every release and
+  # started by nothing, which is how 1.0.1 shipped one nobody had opened.
   #
-  # It gates the release deliberately. An Intel .dmg that nobody can open is a
-  # defect in the release, not a footnote to it, and 1.0.1 shipped exactly that.
-  verify-intel:
+  # This is the same workflow that audits a published release, handed the
+  # build's artifacts instead of a tag. It was previously two things: this gate
+  # and a second post-publish run of the identical matrix, which launched the
+  # same Intel image a second time on a second Intel runner to learn the same
+  # fact. One definition, one run, and it runs BEFORE the tag exists, because a
+  # tag is a permanent claim and an installer nobody can open should not earn
+  # one. A check that can only report after publication cannot do that job.
+  verify-macos:
     needs: build
-    # macos-13 is retired. macos-15-intel and macos-26-intel are the Intel
-    # labels that still exist; a retired label does not fail, it queues until
-    # the job times out, so this is pinned to a live one rather than guessed.
-    runs-on: macos-15-intel
-    # Short on purpose. The work is a download and a launch; anything near this
-    # ceiling means the runner label is not being served, and waiting out the
-    # build job's 45 minutes to learn that helps nobody.
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      # No pnpm install: the checks are plain Node with no dependencies, and
-      # they test the built image rather than anything assembled here.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: casparel-desktop-macos
-          path: images
-
-      - name: Check the Intel app runs on Intel
-        working-directory: artifacts/desktop
-        shell: bash
-        env:
-          CASPAREL_EXPECT_SIGNED: ${{ secrets.CSC_LINK != '' }}
-        run: |
-          # The runner has to BE Intel. Apple Silicon runs x64 binaries under
-          # Rosetta well enough to pass, so if this label ever moved the job
-          # would sail through while proving nothing -- a false assurance is
-          # worse than the gap it closes.
-          actual=$(uname -m)
-          if [ "$actual" != "x86_64" ]; then
-            echo "::error title=Wrong runner architecture::This job exists to run the Intel build on an Intel CPU, but uname -m says ${actual}."
-            exit 1
-          fi
-          image="$GITHUB_WORKSPACE/images/Casparel-$(node -p "require('./package.json').version")-x64.dmg"
-          if [ ! -f "$image" ]; then
-            echo "::error title=No Intel image::${image} is not among the build's artifacts."
-            ls -l "$GITHUB_WORKSPACE/images" || true
-            exit 1
-          fi
-          node scripts/verify-app-macos.mjs "$image"
+    uses: ./.github/workflows/desktop-verify-macos.yml
+    with:
+      artifact: casparel-desktop-macos
+    # For CSC_LINK, which decides whether an unsigned artifact is a note or a
+    # failure. Reusable workflows inherit nothing by default.
+    secrets: inherit
 
   # Tagging from CI exists because a release needs a tag and not everyone who
   # can run this workflow can push one. It runs AFTER the build on purpose: a
@@ -257,10 +185,10 @@ jobs:
   # all would happen next.
   tag:
     if: inputs.release
-    # verify-intel too, or it gates nothing: a tag is a permanent claim that a
-    # commit was released, and it should not be made for a commit whose Intel
-    # installer does not open.
-    needs: [build, verify-intel]
+    # verify-macos too, or it gates nothing: a tag is a permanent claim that a
+    # commit was released, and it should not be made for a commit whose
+    # installers do not open.
+    needs: [build, verify-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -297,10 +225,10 @@ jobs:
 
   release:
     # Two ways in: somebody pushed a desktop-v* tag, or this run just made one.
-    needs: [build, verify-intel, tag]
+    needs: [build, verify-macos, tag]
     if: >-
       !cancelled() && needs.build.result == 'success' &&
-      needs['verify-intel'].result == 'success' &&
+      needs['verify-macos'].result == 'success' &&
       (startsWith(github.ref, 'refs/tags/desktop-v') || needs.tag.result == 'success')
     runs-on: ubuntu-latest
     permissions:
@@ -329,25 +257,16 @@ jobs:
           files: installers/*
           generate_release_notes: true
 
-  # Every release is now installed and run before anyone downloads it.
+  # Windows, on a machine of each architecture, from what was published.
   #
-  # The build legs above check what they just built, each on the one runner that
-  # built it -- so macOS Intel and Windows arm64 were never covered, and neither
-  # was the published file itself as opposed to the one still sitting on the
-  # build machine. These jobs download what was actually published and run it on
-  # a machine of each architecture.
+  # The build leg runs the x64 installer on the x64 runner that built it, so
+  # Windows arm64 is covered by nothing else. This runs after publishing because
+  # it downloads the release: a failure here unpublishes nothing, it turns the
+  # run red and names what is wrong with a release already out.
   #
-  # They run after publishing rather than before because there is nothing to
-  # download until the release exists. A failure here does not unpublish
-  # anything; it turns the run red and names what is wrong with a release that
-  # is already out, which is the difference between finding out today and
-  # finding out from a user.
-  verify-macos:
-    needs: release
-    uses: ./.github/workflows/desktop-verify-macos.yml
-    with:
-      tag: ${{ needs.release.outputs.tag }}
-
+  # macOS is gated BEFORE publication instead (see verify-macos above), which is
+  # the stronger arrangement and the one Windows should move to as well -- it
+  # needs the same artifact-or-tag treatment the macOS workflow just got.
   verify-windows:
     needs: release
     uses: ./.github/workflows/desktop-verify-windows.yml
