@@ -247,6 +247,103 @@ const SHAPE_RULES: Array<{
       de: (t) => `Wie sicher bist du, dass du „${t}“ erreicht hast?`,
     },
   },
+  /*
+   * The accessible names of the per-item controls on a list.
+   *
+   * Every one of these is "a verb and the reader's own title", which is what
+   * makes a list of icon buttons legible to a screen reader: "Delete button"
+   * six times over says nothing. The title in the middle is the reason none of
+   * them can be a dictionary key, and the reason they were reached for the
+   * blunt instrument instead -- translate="no" on the button, which stops the
+   * bridge touching the name and also stops it touching everything else on the
+   * element. On the goals page that swallowed the "Add a path step…"
+   * placeholder, and on the schedule the "Export to Calendar" tooltip: pure
+   * product wording, in English in all five languages, invisible to the
+   * translation audit because the audit skips protected elements by design.
+   *
+   * A rule per shape translates around the name and leaves the name alone,
+   * which is what the protection was standing in for.
+   */
+  {
+    match: /^Add step to (.+)$/,
+    render: {
+      tr: (t) => `${t} hedefine adım ekle`,
+      es: (t) => `Añadir un paso a ${t}`,
+      fr: (t) => `Ajouter une étape à ${t}`,
+      pt: (t) => `Adicionar um passo a ${t}`,
+      de: (t) => `Schritt zu ${t} hinzufügen`,
+    },
+  },
+  {
+    match: /^Move (.+) up$/,
+    render: {
+      tr: (t) => `${t} yukarı taşı`,
+      es: (t) => `Subir ${t}`,
+      fr: (t) => `Déplacer ${t} vers le haut`,
+      pt: (t) => `Mover ${t} para cima`,
+      de: (t) => `${t} nach oben verschieben`,
+    },
+  },
+  {
+    match: /^Move (.+) down$/,
+    render: {
+      tr: (t) => `${t} aşağı taşı`,
+      es: (t) => `Bajar ${t}`,
+      fr: (t) => `Déplacer ${t} vers le bas`,
+      pt: (t) => `Mover ${t} para baixo`,
+      de: (t) => `${t} nach unten verschieben`,
+    },
+  },
+  {
+    match: /^Rename (.+)$/,
+    render: {
+      tr: (t) => `${t} yeniden adlandır`,
+      es: (t) => `Renombrar ${t}`,
+      fr: (t) => `Renommer ${t}`,
+      pt: (t) => `Renomear ${t}`,
+      de: (t) => `${t} umbenennen`,
+    },
+  },
+  {
+    match: /^Delete (.+)$/,
+    render: {
+      tr: (t) => `${t} sil`,
+      es: (t) => `Eliminar ${t}`,
+      fr: (t) => `Supprimer ${t}`,
+      pt: (t) => `Eliminar ${t}`,
+      de: (t) => `${t} löschen`,
+    },
+  },
+  {
+    match: /^Complete (.+)$/,
+    render: {
+      tr: (t) => `${t} adımını tamamla`,
+      es: (t) => `Completar ${t}`,
+      fr: (t) => `Terminer ${t}`,
+      pt: (t) => `Concluir ${t}`,
+      de: (t) => `${t} abschließen`,
+    },
+  },
+  {
+    match: /^Undo (.+)$/,
+    render: {
+      tr: (t) => `${t} adımını geri al`,
+      es: (t) => `Deshacer ${t}`,
+      fr: (t) => `Annuler ${t}`,
+      pt: (t) => `Anular ${t}`,
+      de: (t) => `${t} rückgängig machen`,
+    },
+  },
+  {
+    match: /^Export (.+) to calendar$/,
+    render: {
+      tr: (t) => `${t} takvime aktar`,
+      es: (t) => `Exportar ${t} al calendario`,
+      fr: (t) => `Exporter ${t} vers le calendrier`,
+      pt: (t) => `Exportar ${t} para o calendário`,
+      de: (t) => `${t} in den Kalender exportieren`,
+    },
+  },
   {
     /*
      * "2 named collaborators". A rule rather than a COUNTED entry because

@@ -174,10 +174,20 @@ const ADMIN_USER_ROW = {
   bannedReason: null,
 };
 
+/*
+ * A goal with every field the contract marks required.
+ *
+ * `subject`, `level` and `updatedAt` were missing, and all three are required
+ * in openapi.yaml. The goals page renders subject and level as badges, so
+ * every audit read that card with two empty 22px pills on it and passed --
+ * the page was never rendered as a reader would see it.
+ */
 const LEARNING_GOAL = {
   id: 7,
   userId: 1,
   title: "Master Full-Stack Development",
+  subject: "Web development",
+  level: "intermediate",
   description: "Work through the fundamentals, then build something real.",
   targetDate: "2026-12-01",
   status: "active",
@@ -187,6 +197,7 @@ const LEARNING_GOAL = {
     { id: "s2", title: "TypeScript", done: false },
   ],
   createdAt: "2026-03-02T09:00:00.000Z",
+  updatedAt: "2026-04-11T09:00:00.000Z",
 };
 
 const CLASS = {

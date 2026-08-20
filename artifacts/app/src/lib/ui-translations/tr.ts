@@ -8,6 +8,7 @@
 const TR: Record<string, string> = {
   // The code signing page: how a downloaded installer can be checked.
   "An open workspace for connected ideas.": "Bağlantılı fikirler için açık bir çalışma alanı.",
+  "Back to conversations": "Sohbetlere dön",
   "Canvas menu": "Tuval menüsü",
   "Chosen collaborators": "Seçilen ortaklar",
   "Class editor": "Sınıf düzenleyicisi",
@@ -17,7 +18,9 @@ const TR: Record<string, string> = {
   "Everyone in the class": "Sınıftaki herkes",
   "How we sign our downloads": "İndirmelerimizi nasıl imzalıyoruz",
   "Link sharing on": "Bağlantı paylaşımı açık",
+  "Not included": "Dahil değil",
   "Only you": "Yalnızca sen",
+  "Open navigation": "Gezinmeyi aç",
   "Owner": "Sahip",
   "explains how to verify a desktop download.": "bir masaüstü indirmesinin nasıl doğrulanacağını anlatır.",
   "Code signing": "Kod imzalama",

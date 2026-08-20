@@ -1699,7 +1699,6 @@ export default function SchedulePage() {
                     // hovering, which is the one thing a screen-reader user
                     // does not have.
                     aria-label={`Export ${block.title} to calendar`}
-                    translate="no"
                     title="Export to Calendar"
                   >
                     <Download size={14} aria-hidden="true" />

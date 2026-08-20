@@ -8,6 +8,7 @@
 const FR: Record<string, string> = {
   // The code signing page: how a downloaded installer can be checked.
   "An open workspace for connected ideas.": "Un espace ouvert pour des idées reliées.",
+  "Back to conversations": "Retour aux conversations",
   "Canvas menu": "Menu du tableau",
   "Chosen collaborators": "Collaborateurs choisis",
   "Class editor": "Éditeur de la classe",
@@ -17,7 +18,9 @@ const FR: Record<string, string> = {
   "Everyone in the class": "Toute la classe",
   "How we sign our downloads": "Comment nous signons nos téléchargements",
   "Link sharing on": "Partage par lien activé",
+  "Not included": "Non inclus",
   "Only you": "Vous seul",
+  "Open navigation": "Ouvrir la navigation",
   "Owner": "Propriétaire",
   "explains how to verify a desktop download.": "explique comment vérifier un téléchargement pour ordinateur.",
   "Code signing": "Signature de code",

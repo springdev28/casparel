@@ -55,6 +55,19 @@ const SIGNED_IN_PAGES = (
   .split(",")
   .filter(Boolean);
 
+/**
+ * Desktop and a phone.
+ *
+ * The controls that exist only below md were never checked: the navigation
+ * button that opens the whole menu on a phone, the button that leaves a
+ * conversation, the icon-only search button. Each is the only way to do
+ * something, and each is invisible at 1280px.
+ */
+const VIEWPORTS = [
+  { width: 1280, height: 900, name: "desktop" },
+  { width: 375, height: 812, name: "phone" },
+];
+
 const MIME = {
   ".js": "text/javascript",
   ".css": "text/css",
@@ -153,8 +166,9 @@ for (const [pages, signedOut] of [
   [SIGNED_IN_PAGES, false],
 ]) {
   for (const pagePath of pages) {
+  for (const viewport of VIEWPORTS) {
     const context = await browser.newContext({
-      viewport: { width: 1280, height: 900 },
+      viewport: { width: viewport.width, height: viewport.height },
     });
     await installSession(context, {
       language: "en",
@@ -174,15 +188,19 @@ for (const [pages, signedOut] of [
       rendered += 1;
       const problems = await page.evaluate(CHECK);
       for (const problem of problems) {
-        failures.push(`${signedOut ? "" : "signed-in "}${pagePath}: ${problem}`);
+        failures.push(
+          `${signedOut ? "" : "signed-in "}${pagePath} @${viewport.name}: ${problem}`,
+        );
       }
       console.log(
-        `  ${problems.length ? "!! " : "ok "} ${pagePath}${signedOut ? "" : " [signed in]"}`,
+        `  ${problems.length ? "!! " : "ok "} ${pagePath} @${viewport.name}` +
+          `${signedOut ? "" : " [signed in]"}`,
       );
     } catch (error) {
-      console.error(`  !  ${pagePath} failed: ${error.message}`);
+      console.error(`  !  ${pagePath} @${viewport.name} failed: ${error.message}`);
     }
     await context.close();
+  }
   }
 }
 

@@ -230,9 +230,26 @@ const COLLECT = `(() => {
  */
 const browser = await chromium.launch(launchOptions());
 
-/** Every visible prose string on one page, in one language. */
-async function collect(pagePath, language, signedIn) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+/**
+ * Desktop and a phone.
+ *
+ * This rendered only at 1280px, which meant every `md:hidden` region was
+ * invisible to it -- and those regions are not a smaller version of the
+ * desktop, they are different markup with different strings. The schedule's
+ * whole phone view of the week is one of them; so is the search field's short
+ * placeholder, which only exists below 768px. A string that renders only on a
+ * phone was never once read in another language.
+ */
+const VIEWPORTS = [
+  { width: 1280, height: 900, name: "desktop" },
+  { width: 375, height: 812, name: "phone" },
+];
+
+/** Every visible prose string on one page, in one language, at one width. */
+async function collect(pagePath, language, signedIn, viewport) {
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+  });
   await context.addInitScript(
     ([lang]) => {
       try {
@@ -274,26 +291,32 @@ for (const language of LANGS) {
     [SIGNED_IN_PAGES, true],
   ]) {
     for (const pagePath of pages) {
-      let englishStrings;
-      let translatedStrings;
-      try {
-        [englishStrings, translatedStrings] = await Promise.all([
-          collect(pagePath, "en", signedIn),
-          collect(pagePath, language, signedIn),
-        ]);
-      } catch (error) {
-        console.error(`  !  ${pagePath} [${language}] failed: ${error.message}`);
-        continue;
-      }
-      checked += 1;
-      // A string that survives untouched into the translated render, and was
-      // present in English too, had no dictionary entry that matched.
-      const stillEnglish = new Set(translatedStrings);
-      for (const text of englishStrings) {
-        if (stillEnglish.has(text) && !identical.has(text)) {
-          const where = gaps.get(text) ?? new Set();
-          where.add(`${signedIn ? "signed-in " : ""}${pagePath}`);
-          gaps.set(text, where);
+      for (const viewport of VIEWPORTS) {
+        let englishStrings;
+        let translatedStrings;
+        try {
+          [englishStrings, translatedStrings] = await Promise.all([
+            collect(pagePath, "en", signedIn, viewport),
+            collect(pagePath, language, signedIn, viewport),
+          ]);
+        } catch (error) {
+          console.error(
+            `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
+          );
+          continue;
+        }
+        checked += 1;
+        // A string that survives untouched into the translated render, and was
+        // present in English too, had no dictionary entry that matched.
+        const stillEnglish = new Set(translatedStrings);
+        for (const text of englishStrings) {
+          if (stillEnglish.has(text) && !identical.has(text)) {
+            const where = gaps.get(text) ?? new Set();
+            where.add(
+              `${signedIn ? "signed-in " : ""}${pagePath} @${viewport.name}`,
+            );
+            gaps.set(text, where);
+          }
         }
       }
     }

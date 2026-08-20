@@ -126,6 +126,29 @@ const MEASURE = `(() => {
   const SIDEWAYS_ON_PURPOSE = ${JSON.stringify(DELIBERATELY_SIDEWAYS)};
 
   /*
+   * Where an element sits, in words that do not change with the language.
+   *
+   * The report groups a finding by a key so that the same box measured in six
+   * languages is one line, and so that a box already too small for its own
+   * English is reported separately -- a layout bug rather than a translation
+   * one. That key used to be built from the text, which is the one thing that
+   * *does* change with the language, so nothing ever grouped: the English and
+   * the Spanish were two different findings about the same element, and the
+   * English control never fired. The search field on /resources was reported
+   * as breaking in five translations when it does not fit its own English
+   * either.
+   */
+  const addressOf = (element) => {
+    const steps = [];
+    for (let node = element; node && node !== document.body; node = node.parentElement) {
+      const siblings = [...(node.parentElement?.children ?? [])];
+      steps.unshift(node.tagName.toLowerCase() + ':' + siblings.indexOf(node));
+      if (steps.length >= 6) break;
+    }
+    return steps.join('>');
+  };
+
+  /*
    * Anything reaching past the right edge of the screen.
    *
    * Position-fixed elements are skipped -- a drawer parked off-screen is how
@@ -146,6 +169,7 @@ const MEASURE = `(() => {
       over,
       where: String(element.className).slice(0, 60),
       tag: element.tagName.toLowerCase(),
+      address: addressOf(element),
       offScreen: true,
     });
   }
@@ -209,7 +233,53 @@ const MEASURE = `(() => {
       over: lines.size,
       where: String(parent.className).slice(0, 60),
       tag: parent.tagName.toLowerCase(),
+      address: addressOf(node.parentElement),
       brokenWord: true,
+    });
+  }
+
+  /*
+   * A placeholder wider than the field it sits in.
+   *
+   * A placeholder is an attribute, not a text node, so every check above walks
+   * straight past it -- and an input never overflows, it just stops drawing.
+   * "Add a path step…" fits at 375px; "Pfadschritt hinzufügen" became
+   * "Pfadschritt hinzuf", which reads as a different instruction rather than a
+   * truncated one, and there is no ellipsis to say so.
+   *
+   * Measured by rendering the text: the same font on a canvas, against the
+   * field's content box. Off by a pixel or two on letter-spacing, so the
+   * threshold is generous -- what matters is a word going missing, not a
+   * descender touching the edge.
+   */
+  const ruler = document.createElement('canvas').getContext('2d');
+  for (const field of document.querySelectorAll('input[placeholder], textarea[placeholder]')) {
+    const placeholder = (field.getAttribute('placeholder') || '').trim();
+    if (!placeholder) continue;
+    const rect = field.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) continue;
+    const style = getComputedStyle(field);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    // A textarea wraps; only a single-line field truncates.
+    if (field.tagName === 'TEXTAREA') continue;
+    ruler.font = style.font ||
+      (style.fontStyle + ' ' + style.fontWeight + ' ' + style.fontSize + ' ' + style.fontFamily);
+    const room =
+      rect.width -
+      parseFloat(style.paddingLeft || '0') -
+      parseFloat(style.paddingRight || '0') -
+      parseFloat(style.borderLeftWidth || '0') -
+      parseFloat(style.borderRightWidth || '0');
+    const needed = ruler.measureText(placeholder).width;
+    const over = Math.round(needed - room);
+    if (over <= 4) continue;
+    clipped.push({
+      text: placeholder,
+      over,
+      where: String(field.className).slice(0, 60),
+      tag: field.tagName.toLowerCase(),
+      address: addressOf(field),
+      placeholder: true,
     });
   }
 
@@ -238,6 +308,7 @@ const MEASURE = `(() => {
       over,
       where: String(element.className).slice(0, 60),
       tag: element.tagName.toLowerCase(),
+      address: addressOf(element),
     });
   }
   return clipped;
@@ -305,12 +376,16 @@ for (const language of LANGUAGES) {
           ? "past the right edge: "
           : entry.brokenWord
             ? "one word broken across lines: "
-            : "";
+            : entry.placeholder
+              ? "placeholder wider than its field: "
+              : "";
+        // Keyed by where the element is, not by what it says: see addressOf.
         const key =
-          `${pagePath} @${viewport.name}  ${kind}` +
-          `${JSON.stringify(entry.text)}  [${entry.tag}.${entry.where}]`;
-        const seen = clippedIn.get(key) ?? new Map();
-        seen.set(language, entry.over);
+          `${pagePath} @${viewport.name} ${kind}${entry.address} ` +
+          `[${entry.tag}.${entry.where}]`;
+        const seen = clippedIn.get(key) ?? { by: new Map(), says: new Map() };
+        seen.by.set(language, entry.over);
+        seen.says.set(language, entry.text);
         clippedIn.set(key, seen);
       }
     } catch (error) {
@@ -341,14 +416,18 @@ if (rendered === 0) {
  */
 const translationsOnly = [];
 const englishToo = [];
-for (const [key, byLanguage] of clippedIn) {
-  const languages = [...byLanguage.keys()];
-  const worst = Math.max(...byLanguage.values());
+for (const [key, seen] of clippedIn) {
+  const languages = [...seen.by.keys()];
+  const worst = Math.max(...seen.by.values());
   const measure = key.includes("one word broken across lines:")
     ? `broken in ${languages.join(", ")}, across up to ${worst} lines`
     : `clipped in ${languages.join(", ")}, by up to ${worst}px`;
-  const line = `${key}\n      ${measure}`;
-  if (byLanguage.has("en")) englishToo.push(line);
+  // The worst language's own words, so the report names what a reader sees.
+  const worstLanguage = languages.find((l) => seen.by.get(l) === worst) ?? languages[0];
+  const line =
+    `${key}\n      ${JSON.stringify(seen.says.get(worstLanguage))} (${worstLanguage})` +
+    `\n      ${measure}`;
+  if (seen.by.has("en")) englishToo.push(line);
   else translationsOnly.push(line);
 }
 

@@ -130,6 +130,7 @@ import {
   isSameWork,
 } from "@workspace/resource-identity";
 import { counted } from "@/lib/counted";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
 const GRADE_LEVEL_OPTIONS = [
@@ -1046,6 +1047,7 @@ function CardSkeletons({ count = 6 }: { count?: number }) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function ResourcesPage() {
+  const isMobile = useIsMobile();
   const [, setLocation] = useLocation();
   const { language: interfaceLanguage } = useAuthLanguage();
   const routeSearch = useRouteSearch();
@@ -2372,10 +2374,25 @@ export default function ResourcesPage() {
               />
               <Input
                 ref={inputRef}
-                className="pl-9 pr-9 h-11 text-base"
+                /*
+                  The right padding is there to clear the X, and the X only
+                  exists once something is typed. Held unconditionally it cost
+                  24px of an already-tight phone row, which was the difference
+                  between "Rechercher des ressources…" fitting and being cut.
+                */
+                className={`h-11 pl-9 text-base ${inputValue ? "pr-9" : "pr-3"}`}
                 aria-label="Search resources"
+                /*
+                  The examples are the point of this placeholder and a phone
+                  never sees them: at 375px the field has room for about
+                  "Search anything, " and the rest is simply gone, in every
+                  language. A short instruction that fits beats a long one
+                  truncated mid-example.
+                */
                 placeholder={
-                  'Search anything, "photosynthesis", "MIT calculus", "Python for beginners"…'
+                  isMobile
+                    ? "Search resources…"
+                    : 'Search anything, "photosynthesis", "MIT calculus", "Python for beginners"…'
                 }
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -2392,13 +2409,22 @@ export default function ResourcesPage() {
                 </button>
               )}
             </div>
+            {/*
+              The word is a desktop luxury. With it, the button took 150px of a
+              375px row and left the field 176 -- room for "Search resource"
+              and not the rest, before any translation made it worse. Icon only
+              below sm, with the name kept on the button so a screen reader
+              still hears "Search" either way.
+            */}
             <Button
               type="submit"
               size="lg"
-              className="shrink-0"
+              className="shrink-0 px-3 sm:px-8"
+              aria-label="Search"
               disabled={!inputValue.trim()}
             >
-              <Search size={15} className="mr-1.5" /> Search
+              <Search size={15} className="sm:mr-1.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Search</span>
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
