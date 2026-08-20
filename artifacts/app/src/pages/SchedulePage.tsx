@@ -1620,7 +1620,16 @@ export default function SchedulePage() {
                   <p translate="no" className="font-medium text-sm truncate">{block.title}</p>
                   <p className="text-xs text-muted-foreground">
                     {block.date} ·{" "}
-                    {`${block.startTime.slice(0, 5)}\u2013${block.endTime.slice(0, 5)}`}
+                    {/*
+                      Kept on one line. index.css sets overflow-wrap: anywhere
+                      below 768px, so on a phone this range was breaking after
+                      the dash -- "09:00-" on one line and "10:30" on the next,
+                      which reads as two separate times rather than one span.
+                      The break before it, at the middle dot, is still allowed.
+                    */}
+                    <span className="whitespace-nowrap">
+                      {`${block.startTime.slice(0, 5)}\u2013${block.endTime.slice(0, 5)}`}
+                    </span>
                   </p>
                   {block.resourceId != null && (
                     <ResourceBadge resourceId={block.resourceId} />

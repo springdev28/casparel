@@ -36,6 +36,14 @@
  * remedy. So this reports them, and a genuine sideways region -- a carousel, a
  * wide table -- gets named in DELIBERATELY_SIDEWAYS when one appears.
  *
+ * And a third, which is what a too-narrow box looks like when the page has
+ * already been protected against overflowing: a single word broken across two
+ * lines. index.css sets overflow-wrap: anywhere below 768px, so on a phone
+ * nothing overflows -- it gets chopped instead, and the first two checks see a
+ * page where everything fits. "Objetivo:" on the dashboard was squeezed by a
+ * flex row until it rendered as "Objetivo" with the colon alone underneath,
+ * and both of those checks passed on it.
+ *
  *   node scripts/audit-text-fits.mjs
  *   AUDIT_FIT_LANGS=de node scripts/audit-text-fits.mjs
  *
@@ -141,6 +149,70 @@ const MEASURE = `(() => {
       offScreen: true,
     });
   }
+  /*
+   * A single word broken across two lines.
+   *
+   * Not overflow and not off-screen -- the text is entirely visible, and the
+   * box it sits in is exactly as wide as it was told to be. What happened is
+   * that a flex item shrank below its content: every child of a flex row is a
+   * flex item, and a flex item's default is to shrink. "Goal:" survives that
+   * in English. "Objetivo:" at 375px, next to a long goal title, was squeezed
+   * until the browser broke it, leaving the colon alone on the second line.
+   *
+   * A word has no spaces in it, so a run of text with no whitespace occupying
+   * more than one line box means the break happened *inside* a word. For a
+   * short label that is never the intent.
+   *
+   * Three things are skipped, all of them somebody having already decided:
+   * word-break: break-all and overflow-wrap: break-word, which are the
+   * break-all and break-words utilities written on the element itself;
+   * hyphens: auto, which breaks with a hyphen at a syllable and is correct
+   * typography rather than a mistake; and user content, where an unbroken
+   * 40-character title is the reader's own doing.
+   *
+   * What is deliberately *not* skipped is overflow-wrap: anywhere, even
+   * though it is the mechanism doing the breaking. index.css sets it on a
+   * whole region below 768px as an anti-overflow safety valve, and it
+   * inherits -- so on a phone it quietly converts every too-narrow box on the
+   * page from an overflow this audit would catch into a chopped word it would
+   * not. That is the distinction between the two values here: break-word is
+   * written on the element that wants it, anywhere rains down from a media
+   * query on everything below it. Excluding both, as the first draft did,
+   * meant this check passed on the exact bug it was written for.
+   */
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const word = node.data.trim();
+    if (!word || /\\s/.test(word)) continue;
+    // A long token -- a URL, a hash, a file name -- has to break somewhere.
+    if (word.length > 24) continue;
+    const parent = node.parentElement;
+    if (!parent) continue;
+    if (parent.closest('[translate="no"], [data-user-content], code, pre')) continue;
+    if (String(parent.className).includes(${JSON.stringify(DELIBERATELY_CLIPPED)})) continue;
+    const style = getComputedStyle(parent);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    if (style.wordBreak === 'break-all') continue;
+    if (style.overflowWrap === 'break-word') continue;
+    if (style.hyphens === 'auto') continue;
+
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const lines = new Set(
+      [...range.getClientRects()]
+        .filter((rect) => rect.width > 0 && rect.height > 0)
+        .map((rect) => Math.round(rect.top)),
+    );
+    if (lines.size < 2) continue;
+    clipped.push({
+      text: word,
+      over: lines.size,
+      where: String(parent.className).slice(0, 60),
+      tag: parent.tagName.toLowerCase(),
+      brokenWord: true,
+    });
+  }
+
   for (const element of document.querySelectorAll('*')) {
     // Leaf nodes only: a container's overflow is its children's problem, and
     // reporting both says the same thing twice.
@@ -229,9 +301,13 @@ for (const language of LANGUAGES) {
       await page.waitForTimeout(600);
       rendered += 1;
       for (const entry of await page.evaluate(MEASURE)) {
+        const kind = entry.offScreen
+          ? "past the right edge: "
+          : entry.brokenWord
+            ? "one word broken across lines: "
+            : "";
         const key =
-          `${pagePath} @${viewport.name}  ` +
-          `${entry.offScreen ? "past the right edge: " : ""}` +
+          `${pagePath} @${viewport.name}  ${kind}` +
           `${JSON.stringify(entry.text)}  [${entry.tag}.${entry.where}]`;
         const seen = clippedIn.get(key) ?? new Map();
         seen.set(language, entry.over);
@@ -268,7 +344,10 @@ const englishToo = [];
 for (const [key, byLanguage] of clippedIn) {
   const languages = [...byLanguage.keys()];
   const worst = Math.max(...byLanguage.values());
-  const line = `${key}\n      clipped in ${languages.join(", ")}, by up to ${worst}px`;
+  const measure = key.includes("one word broken across lines:")
+    ? `broken in ${languages.join(", ")}, across up to ${worst} lines`
+    : `clipped in ${languages.join(", ")}, by up to ${worst}px`;
+  const line = `${key}\n      ${measure}`;
   if (byLanguage.has("en")) englishToo.push(line);
   else translationsOnly.push(line);
 }

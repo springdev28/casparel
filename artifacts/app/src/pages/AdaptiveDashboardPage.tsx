@@ -480,13 +480,22 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
               </div>
             )}
 
-            <span className="flex gap-2 text-sm text-muted-foreground">
-              <Target size={16} />
-              Goal:{" "}
+            {/*
+              Every child of a flex row is a flex item, and a flex item shrinks
+              below its content. "Goal:" is short enough to survive that in
+              English; "Objetivo:" at 375px, beside a long goal title, was
+              squeezed until it broke across two lines with the colon alone on
+              the second. So the icon and the label are told not to shrink, and
+              the row wraps instead: the title moves to its own line, which is
+              what there was never room for.
+            */}
+            <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm text-muted-foreground">
+              <Target size={16} className="shrink-0 translate-y-0.5" />
+              <span className="shrink-0">Goal:</span>
               {activeGoal?.title ? (
                 <span translate="no">{activeGoal.title}</span>
               ) : (
-                "Create a goal to build your path"
+                <span>Create a goal to build your path</span>
               )}
             </span>
           </CardContent>
