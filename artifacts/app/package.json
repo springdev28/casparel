@@ -7,7 +7,7 @@
     "dev": "sh -c 'lsof -ti :\"${PORT:-23863}\" 2>/dev/null | xargs kill -9 2>/dev/null; true' && vite --config vite.config.ts --host 0.0.0.0",
     "build": "node scripts/generate-seo.mjs && vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

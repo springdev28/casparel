@@ -168,10 +168,17 @@ let rendered = 0;
  * renders finished.
  */
 const TASKS = [];
-for (const [pages, signedOut] of [
+/*
+ * Typed, because a bare array of [strings, boolean] pairs infers as
+ * (boolean | string[])[][] and then `pages` might be a boolean as far as
+ * anything checking this file can tell.
+ */
+/** @type {Array<[string[], boolean]>} */
+const GROUPS = [
   [PUBLIC_PAGES, true],
   [SIGNED_IN_PAGES, false],
-]) {
+];
+for (const [pages, signedOut] of GROUPS) {
   for (const pagePath of pages) {
     for (const viewport of VIEWPORTS) {
       TASKS.push({ pagePath, viewport, signedOut });
@@ -198,9 +205,18 @@ const checked = await inParallel(TASKS, async ({ pagePath, viewport, signedOut }
       timeout: 45000,
     });
     await page.waitForTimeout(500);
-    return { pagePath, viewport, signedOut, problems: await page.evaluate(CHECK) };
+    return {
+      pagePath,
+      viewport,
+      signedOut,
+      problems: await page.evaluate(CHECK),
+      error: null,
+    };
   } catch (error) {
-    return { pagePath, viewport, signedOut, error: error.message };
+    // Same shape either way: a result that sometimes has `problems` and
+    // sometimes does not is a result nothing downstream can read without
+    // asking which kind it is.
+    return { pagePath, viewport, signedOut, problems: [], error: error.message };
   } finally {
     await context.close();
   }
