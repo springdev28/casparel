@@ -723,7 +723,14 @@ export default function ClassDetailPage() {
             <p className="text-sm font-medium text-foreground">No resources assigned yet</p>
             {isTeacher && (
               <p className="text-xs text-muted-foreground mt-1">
-                Open a resource and click <strong>Assign to Class</strong> to add it here.
+                {/*
+                  One sentence, not a sentence with a bolded phrase inside it.
+                  Written with <strong> through the middle it reached the
+                  bridge as "Open a resource and click", "Assign to Class" and
+                  "to add it here." -- three fragments that reassemble in
+                  English and in nothing else.
+                */}
+                Open a resource and click Assign to Class to add it here.
               </p>
             )}
           </div>

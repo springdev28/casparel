@@ -249,8 +249,27 @@ const VIEWPORTS = [
 /** How many pages this run actually opened in a browser. */
 let rendered = 0;
 
+/**
+ * Whose product this is.
+ *
+ * Half of Casparel only exists for a teacher: the roster tools, the classroom
+ * designer's editing controls, member notes, assigning work. This audit signed
+ * in as a student and read the other half, and the render audit signs in as a
+ * teacher and reads this one -- two audits, each complete about its own
+ * account, neither able to see what the other saw.
+ *
+ * Reading the class page as a teacher found 29 strings with no entry in any
+ * dictionary, and an error boundary: the assignments tab crashed for a teacher
+ * and worked for a student, so the render audit rendered the crash and this
+ * one never asked.
+ *
+ * Signed-out pages are read once. There is no teacher's version of a page you
+ * have not signed in to.
+ */
+const ROLES = (process.env.AUDIT_TRANSLATION_ROLES ?? "student,teacher").split(",");
+
 /** Every visible prose string on one page, in one language, at one width. */
-async function collect(pagePath, language, signedIn, viewport) {
+async function collect(pagePath, language, signedIn, viewport, role) {
   rendered += 1;
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
@@ -272,7 +291,13 @@ async function collect(pagePath, language, signedIn, viewport) {
   // As a student, not the admin this fixture defaults to: the panels a
   // student or teacher opens are the ones nearly every reader sees, and an
   // admin session renders different ones in their place.
-  await installSession(context, { language, role: "student", signedOut: !signedIn });
+  await installSession(context, {
+    language,
+    ...(role === "teacher"
+      ? { role: "teacher", activeRole: "teacher" }
+      : { role: "student" }),
+    signedOut: !signedIn,
+  });
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
     waitUntil: "networkidle",
@@ -327,8 +352,8 @@ let checked = 0;
  * everything that changes what English renders.
  */
 const englishCache = new Map();
-function collectEnglish(pagePath, signedIn, viewport) {
-  const key = `${pagePath}|${signedIn}|${viewport.name}`;
+function collectEnglish(pagePath, signedIn, viewport, role) {
+  const key = `${pagePath}|${signedIn}|${viewport.name}|${role}`;
   /*
    * The promise is cached, not the result.
    *
@@ -338,7 +363,7 @@ function collectEnglish(pagePath, signedIn, viewport) {
    * the second one waits on the first.
    */
   if (!englishCache.has(key)) {
-    englishCache.set(key, collect(pagePath, "en", signedIn, viewport));
+    englishCache.set(key, collect(pagePath, "en", signedIn, viewport, role));
   }
   return englishCache.get(key);
 }
@@ -366,7 +391,11 @@ for (const language of LANGS) {
   for (const [pages, signedIn] of GROUPS) {
     for (const pagePath of pages) {
       for (const viewport of VIEWPORTS) {
-        TASKS.push({ language, pagePath, signedIn, viewport });
+        for (const role of ROLES) {
+          // A signed-out page has no teacher's version of itself.
+          if (!signedIn && role !== ROLES[0]) continue;
+          TASKS.push({ language, pagePath, signedIn, viewport, role });
+        }
       }
     }
   }
@@ -377,17 +406,17 @@ const IDENTICAL = new Map(
 );
 
 const findings = await inParallel(TASKS, async (task) => {
-  const { language, pagePath, signedIn, viewport } = task;
+  const { language, pagePath, signedIn, viewport, role } = task;
   let englishStrings;
   let translatedStrings;
   try {
     [englishStrings, translatedStrings] = await Promise.all([
-      collectEnglish(pagePath, signedIn, viewport),
-      collect(pagePath, language, signedIn, viewport),
+      collectEnglish(pagePath, signedIn, viewport, role),
+      collect(pagePath, language, signedIn, viewport, role),
     ]);
   } catch (error) {
     console.error(
-      `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
+      `  !  ${pagePath} [${language} @${viewport.name} as ${role}] failed: ${error.message}`,
     );
     return null;
   }
@@ -404,12 +433,14 @@ const findings = await inParallel(TASKS, async (task) => {
 for (const language of LANGS) report.set(language, new Map());
 for (const finding of findings) {
   if (!finding) continue;
-  const { language, pagePath, signedIn, viewport } = finding.task;
+  const { language, pagePath, signedIn, viewport, role } = finding.task;
   checked += 1;
   const gaps = report.get(language);
   for (const text of finding.untranslated) {
     const where = gaps.get(text) ?? new Set();
-    where.add(`${signedIn ? "signed-in " : ""}${pagePath} @${viewport.name}`);
+    where.add(
+      `${signedIn ? `${role} ` : ""}${pagePath} @${viewport.name}`,
+    );
     gaps.set(text, where);
   }
 }
