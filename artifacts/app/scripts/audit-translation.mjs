@@ -127,6 +127,11 @@ const COLLECT = `(() => {
     // Operating systems and the signing vendor, on the code signing page.
     'Windows','macOS','Linux','SignPath Foundation','Apple Developer ID',
     'MIT OpenCourseWare','MIT','OpenStax','Khan Academy',
+    // The canvas is drawn by React Flow, which credits itself in a link at
+    // the corner. Its functional labels -- Zoom In, Mini Map, Control Panel
+    // -- are in the dictionaries and do get translated; the library's own
+    // name is not ours to translate.
+    'React Flow','React Flow attribution',
     'Free','Plus','Pro','Student Plus','Student Pro','Teacher Plus','Teacher Pro','Institutional',
     'English','Español','Français','Deutsch','Português','Türkçe','Email','e-mail',
   ]);

@@ -55,6 +55,24 @@ the reason the "engineering quality" figure would be scored differently today.
 The scores have deliberately not been re-run — a review is worth more when it
 is not quietly edited to agree with the present.
 
+A second thing has moved since, and it changes what "a real mobile codebase"
+in the summary above is worth. The server registers 184 routes and
+`lib/api-spec/openapi.yaml` described 113 of them. Everything the clients are
+built from is generated out of that file, so the other 71 were features no
+generated client could call — the forum, the canvas, direct messages, the
+assignment workflow, goal templates. That is not a gap in the phone app's
+design; it is the reason the phone app is smaller than the product. Study
+activities had the same problem until recently, which is why the phone had no
+flashcards.
+
+`contractDescribesEveryRoute.test.ts` now holds the two lists together: a
+route stays out of the contract only with a written reason, and the features
+still missing are named in a list a fourth test keeps honest. Direct messages
+came off it first — five endpoints described, a conversation list and a thread
+on the phone, reachable from the dashboard header. The rest of that list is
+the most concrete backlog this document has for closing the web/phone gap, and
+each entry is a day's work rather than a design question.
+
 ## Chances of winning
 
 No entrant count, judge distribution or base rate is available, so any percentage is judgment rather than statistics.

@@ -792,11 +792,11 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
         </header>
 
         {canEdit ? (
-          <div className="absolute bottom-4 left-1/2 z-20 flex max-w-[calc(100%-7rem)] -translate-x-1/2 gap-1 overflow-x-auto border border-white/15 bg-slate-950/92 p-1.5 shadow-xl backdrop-blur" style={{ borderRadius: 8 }}>
-            <Button size="sm" variant="ghost" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("note")}><StickyNote className="mr-2 size-4" />Note</Button>
-            <Button size="sm" variant="ghost" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("heading")}><Heading className="mr-2 size-4" />Heading</Button>
-            <Button size="sm" variant="ghost" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("link")}><Link2 className="mr-2 size-4" />Link</Button>
-            <Button size="sm" variant="ghost" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => setResourceOpen(true)}><BookOpen className="mr-2 size-4" />Resource</Button>
+          <div className="absolute bottom-4 left-1/2 z-20 flex max-w-[calc(100%-1.5rem)] -translate-x-1/2 gap-1 overflow-x-auto sm:max-w-[calc(100%-7rem)] border border-white/15 bg-slate-950/92 p-1.5 shadow-xl backdrop-blur" style={{ borderRadius: 8 }}>
+            <Button size="sm" variant="ghost" aria-label="Note" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("note")}><StickyNote className="size-4 sm:mr-2" /><span className="hidden sm:inline">Note</span></Button>
+            <Button size="sm" variant="ghost" aria-label="Heading" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("heading")}><Heading className="size-4 sm:mr-2" /><span className="hidden sm:inline">Heading</span></Button>
+            <Button size="sm" variant="ghost" aria-label="Link" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("link")}><Link2 className="size-4 sm:mr-2" /><span className="hidden sm:inline">Link</span></Button>
+            <Button size="sm" variant="ghost" aria-label="Resource" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => setResourceOpen(true)}><BookOpen className="size-4 sm:mr-2" /><span className="hidden sm:inline">Resource</span></Button>
           </div>
         ) : null}
 

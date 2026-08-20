@@ -277,6 +277,17 @@ function screens(resourceId, classId) {
     classId
       ? { name: "class detail", route: `/class/${classId}`, expect: new RegExp(CLASS_NAME) }
       : null,
+    /*
+     * Messages, which is reached from the dashboard header rather than a tab.
+     *
+     * The account this run makes is brand new and has nobody to talk to, so
+     * the empty state is the right expectation -- and it is still an
+     * end-to-end check worth having, because it only appears once the request
+     * has gone out, come back and returned an empty list. A screen that threw,
+     * or one whose hook 404ed because the endpoint was never described in
+     * openapi.yaml, shows something else.
+     */
+    { name: "messages", route: "/messages", expect: /No conversations yet/i },
     // The screen the whole Shipaton submission turns on. It renders before any
     // store connection exists, which is the state CI is always in, so what is
     // checked is that it says something rather than throwing.
