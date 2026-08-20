@@ -444,7 +444,7 @@ export default function ClassDetailPage() {
                             <>
                               <p className="text-sm text-muted-foreground">
                                 Found <strong>{roster.length}</strong> student{roster.length !== 1 ? 's' : ''}.{' '}
-                                <span className="text-green-600 dark:text-green-400">{linked.length} matched</span> to accounts.{' '}
+                                <span className="text-success-text">{linked.length} matched</span> to accounts.{' '}
                                 <span className="text-muted-foreground">{unlinked.length} have no account yet.</span>
                               </p>
                               <div className="max-h-56 overflow-y-auto divide-y divide-border rounded-md border">
@@ -455,7 +455,7 @@ export default function ClassDetailPage() {
                                       <p className="text-xs text-muted-foreground">{s.email}</p>
                                     </div>
                                     {s.linkedUserId
-                                      ? <CheckCircle2 size={16} className="text-green-600 dark:text-green-400 shrink-0" />
+                                      ? <CheckCircle2 size={16} className="text-success-text shrink-0" />
                                       : <AlertCircle size={16} className="text-muted-foreground shrink-0" />}
                                   </div>
                                 ))}
@@ -659,7 +659,7 @@ export default function ClassDetailPage() {
         <DialogContent><DialogHeader><DialogTitle>Remove {memberToRemove?.name}?</DialogTitle><DialogDescription>They will lose access to this class and its shared resources. You can add them again later.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setMemberToRemove(null)}>Cancel</Button><Button variant="destructive" onClick={handleRemoveMember} disabled={removeClassMember.isPending} data-testid="remove-class-member-confirm">{removeClassMember.isPending ? "Removing…" : "Remove Member"}</Button></DialogFooter></DialogContent>
       </Dialog>
 
-      {activeTab === 'notes' && isTeacher && <section className="space-y-4"><div><h2 className="text-lg font-semibold">Member notes</h2><p className="text-sm text-muted-foreground">Private teacher notes for planning support, seating, and follow-up.</p></div><div className="grid gap-3 lg:grid-cols-2">{(seatingChart?.students ?? []).map((student) => <Card key={student.userId}><CardHeader className="pb-2"><CardTitle translate="no" className="text-sm">{student.name}</CardTitle>{student.gradeOrDept && <CardDescription>{student.gradeOrDept}</CardDescription>}</CardHeader><CardContent className="space-y-3"><Textarea value={noteDrafts[student.userId] ?? ''} onChange={(event) => setNoteDrafts((current) => ({ ...current, [student.userId]: event.target.value }))} rows={5} maxLength={2000} placeholder="Private note about learning needs, collaboration, or classroom placement…" /><div className="flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setLocation(`/profile/${student.userId}?classId=${classId}`)}>Open profile</Button><Button size="sm" onClick={() => void saveMemberNote(student.userId)} disabled={updateStudentNote.isPending}>Save note</Button></div></CardContent></Card>)}</div>{!seatingChart?.students.length && <p className="border-y py-10 text-center text-sm text-muted-foreground">No students are enrolled yet.</p>}</section>}
+      {activeTab === 'notes' && isTeacher && <section className="space-y-4"><div><h2 className="text-lg font-semibold">Member notes</h2><p className="text-sm text-muted-foreground">Private teacher notes for planning support, seating, and follow-up.</p></div><div className="grid gap-3 lg:grid-cols-2">{(seatingChart?.students ?? []).map((student) => <Card key={student.userId}><CardHeader className="pb-2"><CardTitle translate="no" className="text-sm">{student.name}</CardTitle>{student.gradeOrDept && <CardDescription>{student.gradeOrDept}</CardDescription>}</CardHeader><CardContent className="space-y-3"><Textarea aria-label={`Private note about ${student.name}`} translate="no" value={noteDrafts[student.userId] ?? ''} onChange={(event) => setNoteDrafts((current) => ({ ...current, [student.userId]: event.target.value }))} rows={5} maxLength={2000} placeholder="Private note about learning needs, collaboration, or classroom placement…" /><div className="flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setLocation(`/profile/${student.userId}?classId=${classId}`)}>Open profile</Button><Button size="sm" onClick={() => void saveMemberNote(student.userId)} disabled={updateStudentNote.isPending}>Save note</Button></div></CardContent></Card>)}</div>{!seatingChart?.students.length && <p className="border-y py-10 text-center text-sm text-muted-foreground">No students are enrolled yet.</p>}</section>}
 
       {activeTab === 'designer' && (isTeacher || ownMembership?.role === "student") && <SeatingChartEditor classId={classId} readOnly={!isTeacher} />}
 
@@ -670,7 +670,7 @@ export default function ClassDetailPage() {
       {activeTab === 'canvas' && <CanvasesPage classIdOverride={classId} embedded />}
 
       {activeTab === 'resources' && isTeacher && (classRecommendations as ClassResourceRecommendation[] | undefined)?.some((item) => item.status === ClassResourceRecommendationStatus.pending) && (
-        <section className="rounded-xl border border-amber-300 bg-amber-50/60 p-4 dark:bg-amber-950/20" data-testid="student-recommendations-bar">
+        <section className="rounded-xl border border-warning-text/40 bg-warning-text/10 p-4" data-testid="student-recommendations-bar">
           <div className="mb-3"><h2 className="font-semibold">Student recommendations</h2><p className="text-xs text-muted-foreground">Review student suggestions before they become class resources.</p></div>
           <div className="space-y-2">
             {(classRecommendations as ClassResourceRecommendation[]).filter((item) => item.status === ClassResourceRecommendationStatus.pending).map((item) => (

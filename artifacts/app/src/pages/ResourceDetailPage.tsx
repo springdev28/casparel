@@ -298,7 +298,7 @@ const TRUST_META: Record<
   SourceReview["trustLevel"],
   { label: string; icon: typeof ShieldCheck; color: string }
 > = {
-  high: { label: "Highly Trusted", icon: ShieldCheck, color: "text-green-600" },
+  high: { label: "Highly Trusted", icon: ShieldCheck, color: "text-success-text" },
   medium: {
     label: "Generally Trusted",
     icon: Shield,
@@ -712,7 +712,7 @@ function SourceReviewPanel({
                 (data.concerns?.length ?? 0) > 0) && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <section className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-                    <h3 className="mb-2 text-sm font-semibold text-emerald-800">
+                    <h3 className="mb-2 text-sm font-semibold text-success-text">
                       Evidence-backed strengths
                     </h3>
                     <ul className="space-y-2 text-xs leading-relaxed">
@@ -722,7 +722,7 @@ function SourceReviewPanel({
                     </ul>
                   </section>
                   <section className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-                    <h3 className="mb-2 text-sm font-semibold text-amber-800">
+                    <h3 className="mb-2 text-sm font-semibold text-warning-text">
                       Concerns and caveats
                     </h3>
                     <ul className="space-y-2 text-xs leading-relaxed">
@@ -1587,7 +1587,7 @@ export default function ResourceDetailPage() {
                       }
                     >
                       {complete ? (
-                        <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                        <CheckCircle2 className="size-4 shrink-0 text-success-text" />
                       ) : (
                         <span className="flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px]">
                           {number}

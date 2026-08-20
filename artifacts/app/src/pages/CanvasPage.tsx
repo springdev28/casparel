@@ -756,8 +756,14 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
                 <DropdownMenuTrigger asChild>
                   <button type="button" className="flex min-w-0 flex-1 items-center gap-2 px-1 text-left">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold">{canvas.title}</span>
-                      <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ?? `${canvas.owner?.name ?? "Casparel"} canvas`}</span>
+                      {/* A canvas title, and the name under it, are written
+                          by a person, so neither is the bridge's to rewrite.
+                          The fallback used to build `${owner} canvas` as one
+                          string, which protects this product's own word along
+                          with the name; "Canvas by" is product wording and
+                          translates, the name does not. */}
+                      <span translate="no" className="block truncate text-sm font-semibold">{canvas.title}</span>
+                      <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ? <span translate="no">{canvas.class.name}</span> : <>Canvas by <span translate="no">{canvas.owner?.name ?? "Casparel"}</span></>}</span>
                     </span>
                     <ChevronDown className="size-3.5 shrink-0 text-slate-400" />
                   </button>
@@ -770,8 +776,8 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
               </DropdownMenu>
             ) : (
               <div className="min-w-0 px-1 text-left">
-                <span className="block truncate text-sm font-semibold">{canvas.title}</span>
-                <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ?? `${canvas.owner?.name ?? "Casparel"} canvas`}</span>
+                <span translate="no" className="block truncate text-sm font-semibold">{canvas.title}</span>
+                <span className="block truncate text-[11px] text-slate-400">{canvas.class?.name ? <span translate="no">{canvas.class.name}</span> : <>Canvas by <span translate="no">{canvas.owner?.name ?? "Casparel"}</span></>}</span>
               </div>
             )}
           </div>

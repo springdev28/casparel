@@ -47,12 +47,12 @@
  * Exit codes: 0 every marker protected, 1 something is exposed, 2 the run
  * could not look (no build, no browser, nothing rendered).
  */
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
 import { launchOptions } from "./chromium.mjs";
+import { serveBuild } from "./serve-build.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../dist/public");
@@ -60,7 +60,7 @@ const PORT = Number(process.env.AUDIT_UC_PORT ?? 4327);
 
 const PAGES = (
   process.env.AUDIT_UC_PAGES ??
-  "/dashboard,/activities,/classes,/goals,/lists,/schedule,/messages,/forum,/canvases,/classes/31,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/people,/profile,/resources,/admin,/resources/101"
+  "/dashboard,/activities,/classes,/goals,/lists,/schedule,/messages,/forum,/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/people,/profile,/resources,/admin,/resources/101"
 )
   .split(",")
   .filter(Boolean);
@@ -126,17 +126,6 @@ function markUserText(value) {
   return value;
 }
 
-const MIME = {
-  ".js": "text/javascript",
-  ".css": "text/css",
-  ".html": "text/html",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".woff2": "font/woff2",
-  ".json": "application/json",
-  ".ico": "image/x-icon",
-};
-
 if (!fs.existsSync(ROOT)) {
   console.error(`No build found at ${ROOT}. Run the app build first.`);
   process.exit(2);
@@ -150,19 +139,7 @@ try {
   process.exit(2);
 }
 
-const server = http
-  .createServer((req, res) => {
-    const url = decodeURIComponent((req.url ?? "/").split("?")[0]);
-    let file = path.join(ROOT, url);
-    if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      file = path.join(ROOT, "index.html");
-    }
-    res.writeHead(200, {
-      "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream",
-    });
-    res.end(fs.readFileSync(file));
-  })
-  .listen(PORT, "127.0.0.1");
+const server = serveBuild(ROOT, PORT);
 
 /**
  * Runs in the page: every marker on screen, and whether it is protected.

@@ -38,7 +38,7 @@ function Row({ artifact, platform, signer, status }: {
         <span
           className={
             status === "pending"
-              ? "rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+              ? "rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-warning-text"
               : "text-xs text-muted-foreground"
           }
         >
@@ -75,7 +75,7 @@ export default function CodeSigningPage() {
       </header>
 
       <div className="flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
-        <TriangleAlert className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <TriangleAlert className="mt-0.5 size-5 shrink-0 text-warning-text" />
         <div className="space-y-1 text-sm">
           <p className="font-medium">The desktop installers are not signed yet.</p>
           <p className="text-muted-foreground">

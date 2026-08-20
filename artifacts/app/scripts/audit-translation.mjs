@@ -19,13 +19,13 @@
  *   AUDIT_LANGS=tr node scripts/audit-translation.mjs
  *   AUDIT_TRANSLATION_MAX=0 node …                # fail on any gap (default)
  */
-import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
 import { inParallel } from "./in-parallel.mjs";
 import { launchOptions } from "./chromium.mjs";
+import { serveBuild } from "./serve-build.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../dist/public");
@@ -53,7 +53,7 @@ const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
   "/dashboard,/profile,/resources,/catalog,/settings,/plans," +
     "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people," +
-    "/canvases,/canvases/12,/classes/31,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/admin," +
+    "/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/admin," +
     // The resource detail page, which was left out for a long time because it
     // rendered its error boundary: one endpoint had no fixture, the default
     // empty array reached `workflow?.steps[key]`, and the page crashed. Both
@@ -90,17 +90,6 @@ function deliberatelyIdentical(language) {
   return identical;
 }
 
-const MIME = {
-  ".js": "text/javascript",
-  ".css": "text/css",
-  ".html": "text/html",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".woff2": "font/woff2",
-  ".json": "application/json",
-  ".ico": "image/x-icon",
-};
-
 if (!fs.existsSync(ROOT)) {
   console.error(`No build found at ${ROOT}. Run the app build first.`);
   process.exit(2);
@@ -114,19 +103,7 @@ try {
   process.exit(2);
 }
 
-const server = http
-  .createServer((req, res) => {
-    const url = decodeURIComponent((req.url ?? "/").split("?")[0]);
-    let file = path.join(ROOT, url);
-    if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      file = path.join(ROOT, "index.html");
-    }
-    res.writeHead(200, {
-      "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream",
-    });
-    res.end(fs.readFileSync(file));
-  })
-  .listen(PORT, "127.0.0.1");
+const server = serveBuild(ROOT, PORT);
 
 /**
  * Runs in the page: every visible string that still looks like English prose.

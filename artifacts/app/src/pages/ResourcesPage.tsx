@@ -3473,7 +3473,7 @@ export default function ResourcesPage() {
 
             {webError && !webLoading && webRateLimited && (
               <div className="py-6 text-center">
-                <p className="text-sm text-amber-600 font-medium">
+                <p className="text-sm text-warning-text font-medium">
                   {webDailyLimited
                     ? "Your daily search limit has been reached."
                     : "Too many searches were started at once."}

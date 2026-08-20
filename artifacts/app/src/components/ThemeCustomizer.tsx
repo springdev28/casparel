@@ -327,31 +327,58 @@ function separatorFor(...surfaceHexes: string[]) {
   return `${hue} ${Math.round(saturation * 1000) / 10}% ${Math.round(best.lightness * 1000) / 10}%`;
 }
 
-// The two destructive reds from the design tokens, as HSL channels.
-const DESTRUCTIVE_TEXT_ON_LIGHT = "0 73.7% 41.8%"; // #b91c1c
-const DESTRUCTIVE_TEXT_ON_DARK = "0 90.6% 70.8%"; // #f87171
-const DESTRUCTIVE_TEXT_LUMINANCE = {
-  onLight: relativeLuminance("#b91c1c"),
-  onDark: relativeLuminance("#f87171"),
-};
+/**
+ * The status colours from the design tokens: one shade meant for a light
+ * surface, one for a dark one, each keeping its hex beside the HSL channels so
+ * the luminance below is measured from the same colour the token names.
+ *
+ * Mirrored from artifacts/schoolar-edu/tokens.json. Keep them in step: these
+ * are written onto :root's inline style and so outrank the stylesheet.
+ */
+const STATUS_TEXT = {
+  destructive: {
+    onLight: { hsl: "0 73.7% 41.8%", hex: "#b91c1c" },
+    onDark: { hsl: "0 90.6% 70.8%", hex: "#f87171" },
+  },
+  success: {
+    onLight: { hsl: "163 93.5% 24.3%", hex: "#047857" },
+    onDark: { hsl: "158 64.4% 51.6%", hex: "#34d399" },
+  },
+  warning: {
+    onLight: { hsl: "26 90.5% 37.1%", hex: "#b45309" },
+    onDark: { hsl: "43 96.4% 56.3%", hex: "#fbbf24" },
+  },
+  info: {
+    onLight: { hsl: "201 96.3% 32.2%", hex: "#0369a1" },
+    onDark: { hsl: "198 93.2% 59.6%", hex: "#38bdf8" },
+  },
+} as const;
 
 /**
- * Pick the destructive red that stays readable against this palette.
+ * Pick the shade of a status colour that stays readable against this palette.
  *
- * Error text, delete actions and the at-limit usage counts are the messages a
- * user least wants to miss, and a custom palette can put them on a surface the
- * token was not chosen for. The design system ships one red for light surfaces
- * and one for dark; this picks whichever holds up better against *both* the
- * page background and the card surface, since destructive text appears on each.
+ * An error, a warning, a "matched" and an at-limit usage count are the messages
+ * a user least wants to miss, and a custom palette can put any of them on a
+ * surface the token was not chosen for. This picks whichever of the two shades
+ * holds up better against *both* the page background and the card surface,
+ * since status text appears on each.
+ *
+ * The alternative -- a fixed shade with a `dark:` variant beside it -- does not
+ * work in this product at all. Casparel has no `.dark` class: the palette is
+ * applied as inline custom properties, so `dark:text-emerald-400` is a class
+ * that can never match, and the light shade is what a reader on a dark
+ * background gets. See darkVariantsCannotMatch.test.ts.
  */
-function contrastingDestructiveText(background: string, surface: string) {
+function contrastingStatusText(
+  status: keyof typeof STATUS_TEXT,
+  background: string,
+  surface: string,
+) {
   const surfaces = [relativeLuminance(background), relativeLuminance(surface)];
-  const worst = (candidate: number) =>
-    Math.min(...surfaces.map((s) => contrastRatio(candidate, s)));
-  return worst(DESTRUCTIVE_TEXT_LUMINANCE.onDark) >
-    worst(DESTRUCTIVE_TEXT_LUMINANCE.onLight)
-    ? DESTRUCTIVE_TEXT_ON_DARK
-    : DESTRUCTIVE_TEXT_ON_LIGHT;
+  const worst = (hex: string) =>
+    Math.min(...surfaces.map((s) => contrastRatio(relativeLuminance(hex), s)));
+  const { onLight, onDark } = STATUS_TEXT[status];
+  return worst(onDark.hex) > worst(onLight.hex) ? onDark.hsl : onLight.hsl;
 }
 
 function applyColors(colors: InterfaceColors) {
@@ -393,7 +420,23 @@ function applyColors(colors: InterfaceColors) {
     "--sidebar-foreground": primaryForeground,
     "--sidebar-primary": primary,
     "--sidebar-primary-foreground": primaryForeground,
-    "--destructive-text": contrastingDestructiveText(
+    "--destructive-text": contrastingStatusText(
+      "destructive",
+      colors.background,
+      colors.surface,
+    ),
+    "--success-text": contrastingStatusText(
+      "success",
+      colors.background,
+      colors.surface,
+    ),
+    "--warning-text": contrastingStatusText(
+      "warning",
+      colors.background,
+      colors.surface,
+    ),
+    "--info-text": contrastingStatusText(
+      "info",
       colors.background,
       colors.surface,
     ),

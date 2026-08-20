@@ -29,7 +29,7 @@ export function VerificationBadge({
       className={
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold " +
         (pending
-          ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+          ? "border-amber-500/40 bg-amber-500/10 text-warning-text"
           : "border-destructive/40 bg-destructive/10 text-destructive-text") +
         (className ? " " + className : "")
       }

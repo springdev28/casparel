@@ -50,7 +50,7 @@ function activityIcon(type: string) {
     case ActivityItemType.resource: return <BookOpen size={14} className="text-primary-text" />;
     case ActivityItemType.list: return <List size={14} className="text-accent" />;
     case ActivityItemType.schedule: return <Calendar size={14} className="text-purple-500" />;
-    case ActivityItemType.class: return <GraduationCap size={14} className="text-emerald-600" />;
+    case ActivityItemType.class: return <GraduationCap size={14} className="text-success-text" />;
     default: return <MessageSquare size={14} className="text-muted-foreground" />;
   }
 }

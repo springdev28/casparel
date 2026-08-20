@@ -1,0 +1,76 @@
+/**
+ * Serve `dist/public` to the browser audits, and stay up.
+ *
+ * Five audits each carried their own copy of this: the same MIME table, the
+ * same single-page fallback to index.html, the same `fs.readFileSync` with
+ * nothing around it. One copy is now here, which matters less for the
+ * duplication than for what the duplication was hiding.
+ *
+ * `readFileSync` inside a request handler throws, and an exception thrown in a
+ * `http.createServer` callback is an uncaught exception, which kills the
+ * process. So anything that removes a file while an audit is running -- a
+ * `vite build` in another terminal wipes `dist/` before it writes it again --
+ * ends the run with a stack trace from node:fs that mentions neither the
+ * audit, nor the page, nor the build that caused it. That happened twice while
+ * this file was being written.
+ *
+ * A dropped file is now a status code, which the audit reports as a page it
+ * could not load, naming the page. Replacing the build underneath a run is
+ * still a mistake -- do not do it -- but it reads as one.
+ */
+import fs from "node:fs";
+import http from "node:http";
+import path from "node:path";
+
+const MIME = {
+  ".js": "text/javascript",
+  ".mjs": "text/javascript",
+  ".css": "text/css",
+  ".html": "text/html",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".webp": "image/webp",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".json": "application/json",
+  ".map": "application/json",
+  ".ico": "image/x-icon",
+  ".txt": "text/plain",
+  ".wasm": "application/wasm",
+};
+
+/**
+ * @param {string} root the built site, usually dist/public
+ * @param {number} port
+ * @returns {import("node:http").Server} already listening on 127.0.0.1
+ */
+export function serveBuild(root, port) {
+  return http
+    .createServer((req, res) => {
+      try {
+        const url = decodeURIComponent((req.url ?? "/").split("?")[0]);
+        // Anything the router owns gets the app shell, which is how a
+        // client-side route like /classes/31 loads at all.
+        let file = path.join(root, url);
+        if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+          file = path.join(root, "index.html");
+        }
+        const body = fs.readFileSync(file);
+        res.writeHead(200, {
+          "Content-Type": MIME[path.extname(file)] ?? "application/octet-stream",
+        });
+        res.end(body);
+      } catch (error) {
+        // Never throw out of here: this callback runs on the server's own
+        // stack, so an exception is uncaught and takes the whole audit with
+        // it, reported as an fs error with no idea which page asked.
+        res.writeHead(503, { "Content-Type": "text/plain" });
+        res.end(
+          `the build under ${root} could not be read: ${error.message}\n` +
+            `If a build is running, wait for it to finish and run the audit again.`,
+        );
+      }
+    })
+    .listen(port, "127.0.0.1");
+}
