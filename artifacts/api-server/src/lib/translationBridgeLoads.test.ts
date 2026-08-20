@@ -29,12 +29,22 @@ const languages = readFileSync(
   "utf8",
 );
 
-/** The keys of the DICTIONARIES object literal. */
+/**
+ * The keys of the DICTIONARIES object literal.
+ *
+ * Bounded by the closing brace at the start of a line rather than by a fixed
+ * indent: how deeply the literal is nested is Prettier's decision, and
+ * reformatting it once already made this read every key as absent.
+ */
 function dictionaryLanguages(): string[] {
   const start = index.indexOf("export const DICTIONARIES");
   expect(start, "DICTIONARIES is gone from the translation index").toBeGreaterThan(-1);
-  const body = index.slice(start, index.indexOf("\n  };", start));
-  return [...body.matchAll(/^\s{4}(\w+):/gm)].map((match) => match[1]).sort();
+  const end = index.indexOf("\n};", start);
+  expect(end, "the DICTIONARIES literal is not closed").toBeGreaterThan(start);
+  const body = index.slice(start, end);
+  const keys = [...body.matchAll(/^\s+(\w+):/gm)].map((match) => match[1]).sort();
+  expect(keys.length, "no languages were found in DICTIONARIES").toBeGreaterThan(0);
+  return keys;
 }
 
 /** The codes the app entry consults, which must not import a dictionary. */
@@ -76,5 +86,26 @@ describe("the translation bridge", () => {
     expect(languages).not.toMatch(/from "\.\/ui-translations/);
     expect(entry).toContain('from "./lib/translated-languages"');
     expect(entry).not.toMatch(/from "\.\/lib\/ui-translations"/);
+  });
+
+  /*
+   * Loading the bridge lazily only helps if the bridge is small, and it was
+   * not: statically importing five dictionaries put all five in one chunk, so
+   * a Spanish reader downloaded German, French, Portuguese and Turkish to use
+   * none of them. Each dictionary is now its own chunk. A static import here
+   * would silently merge them back into one, which no test would otherwise
+   * notice -- the app would still be correct, just several times heavier.
+   */
+  it("fetches one dictionary rather than bundling every dictionary", () => {
+    for (const language of dictionaryLanguages()) {
+      expect(
+        index,
+        `${language} must be loaded with import("./${language}") so it is its own chunk`,
+      ).toContain(`import("./${language}")`);
+      expect(
+        index,
+        `${language} is statically imported, which puts every dictionary in one chunk`,
+      ).not.toMatch(new RegExp(`^import .* from "\\./${language}"`, "m"));
+    }
   });
 });

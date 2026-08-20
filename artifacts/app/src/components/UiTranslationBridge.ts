@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { AUTH_LANGUAGE_KEY, type AuthLanguage } from "../lib/auth-locale";
-import { translateUiString } from "../lib/ui-translations";
+import { loadUiTranslations, translateUiString } from "../lib/ui-translations";
 
 /**
  * Translates the rendered UI in place, for every language that has a
@@ -61,15 +61,23 @@ const NO_TRANSLATE_SELECTOR =
  * placeholder holds somebody's name -- a search box pre-filled with a class
  * -- is still theirs.
  */
-const NO_TRANSLATE_ATTRIBUTES_SELECTOR = '[translate="no"], [data-user-content]';
+const NO_TRANSLATE_ATTRIBUTES_SELECTOR =
+  '[translate="no"], [data-user-content]';
 
 const TEXT_ORIGINALS = new WeakMap<Text, string>();
 const ATTRIBUTE_ORIGINALS = new WeakMap<Element, Map<string, string>>();
-const TRANSLATED_ATTRIBUTES = ["aria-label", "placeholder", "title", "alt"] as const;
+const TRANSLATED_ATTRIBUTES = [
+  "aria-label",
+  "placeholder",
+  "title",
+  "alt",
+] as const;
 
 function currentLanguage(): AuthLanguage {
   try {
-    return (localStorage.getItem(AUTH_LANGUAGE_KEY) as AuthLanguage | null) ?? "en";
+    return (
+      (localStorage.getItem(AUTH_LANGUAGE_KEY) as AuthLanguage | null) ?? "en"
+    );
   } catch {
     return "en";
   }
@@ -190,11 +198,27 @@ function translateSubtree(root: Node, language: AuthLanguage) {
 export default function UiTranslationBridge() {
   useEffect(() => {
     let language = currentLanguage();
+    let disposed = false;
     let frame = 0;
     const pendingNodes = new Set<Node>();
     const apply = () => {
       if (document.body) translateSubtree(document.body, language);
       document.documentElement.lang = language;
+    };
+    /*
+     * The dictionary is a chunk of its own, so it has to arrive before there
+     * is anything to translate with. Until it does every lookup returns
+     * English, which is what the page already shows -- so the wait costs a
+     * paint in the reader's own language, not a wrong one.
+     *
+     * The language is re-read rather than captured: a reader who changes it
+     * while their first dictionary is still in flight would otherwise get the
+     * page they abandoned.
+     */
+    const applyWhenLoaded = (requested: AuthLanguage) => {
+      void loadUiTranslations(requested).then(() => {
+        if (!disposed && language === requested) apply();
+      });
     };
     const flush = () => {
       frame = 0;
@@ -208,6 +232,7 @@ export default function UiTranslationBridge() {
       if (!frame) frame = window.requestAnimationFrame(flush);
     };
     apply();
+    applyWhenLoaded(language);
 
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
@@ -226,10 +251,14 @@ export default function UiTranslationBridge() {
 
     const handleLanguage = (event: Event) => {
       language = (event as CustomEvent<AuthLanguage>).detail;
+      // Restores English first when the new language has yet to arrive, so a
+      // switch never leaves the previous language's words on the page.
       apply();
+      applyWhenLoaded(language);
     };
     document.addEventListener(LANGUAGE_EVENT, handleLanguage);
     return () => {
+      disposed = true;
       observer.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
       pendingNodes.clear();

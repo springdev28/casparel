@@ -23,6 +23,9 @@ executableName: casparel
 
 files:
   - dist/**/*
+  # The compiler's incremental cache lives in dist so that cleaning the output
+  # also clears it; it is a build artefact, not part of the app.
+  - "!dist/.tsbuildinfo"
   - package.json
 
 # Signing and notarisation need credentials that do not belong in the repo.

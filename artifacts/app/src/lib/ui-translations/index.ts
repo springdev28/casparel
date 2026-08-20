@@ -13,26 +13,70 @@
  * "translate everything" is measurable instead of assumed.
  */
 import type { AuthLanguage } from "../auth-locale";
-import TR from "./tr";
-import ES from "./es";
-import FR from "./fr";
-import PT from "./pt";
-import DE from "./de";
+
+type Dictionary = Record<string, string>;
+type DictionaryLoader = () => Promise<{ default: Dictionary }>;
 
 /**
  * A language with no entry here is served English, unchanged — which is the
  * honest failure: half-machine-translated copy is worse than none. Adding a
  * language is one module and one line, and `TRANSLATED_LANGUAGES` below keeps
  * tooling and the audit in step automatically.
+ *
+ * The entries are loaders rather than the dictionaries themselves, because a
+ * static import of all five puts all five in one chunk: every reader
+ * downloaded roughly 200 kB gzipped of translations to use at most a fifth of
+ * it, and an English reader downloaded them to use none. Written this way each
+ * dictionary is its own chunk and only the chosen language is fetched.
+ * `bundlesOneDictionary.test.ts` keeps it that way.
  */
-export const DICTIONARIES: Partial<Record<AuthLanguage, Record<string, string>>> =
-  {
-    tr: TR,
-    es: ES,
-    fr: FR,
-    pt: PT,
-    de: DE,
-  };
+export const DICTIONARIES: Partial<Record<AuthLanguage, DictionaryLoader>> = {
+  tr: () => import("./tr"),
+  es: () => import("./es"),
+  fr: () => import("./fr"),
+  pt: () => import("./pt"),
+  de: () => import("./de"),
+};
+
+/**
+ * Dictionaries already fetched, keyed by language.
+ *
+ * `translateUiString` is called once per text node on every DOM mutation, so
+ * it has to stay synchronous — awaiting inside a MutationObserver callback
+ * would translate the page a frame late, visibly, on every render. Fetching is
+ * therefore separated from looking up: callers await `loadUiTranslations`
+ * once, and every lookup after that reads this map with no further waiting.
+ */
+const fetched = new Map<AuthLanguage, Dictionary>();
+const inFlight = new Map<AuthLanguage, Promise<void>>();
+
+/**
+ * Fetch one language's dictionary, if it has one and it is not already here.
+ *
+ * Resolves either way: a language with no dictionary and a chunk that failed
+ * to load are the same outcome for the reader, English, and neither is worth
+ * rejecting over. Concurrent callers share one request.
+ */
+export function loadUiTranslations(language: AuthLanguage): Promise<void> {
+  if (fetched.has(language)) return Promise.resolve();
+  const existing = inFlight.get(language);
+  if (existing) return existing;
+  const load = DICTIONARIES[language];
+  if (!load) return Promise.resolve();
+  const request = load()
+    .then((module) => {
+      fetched.set(language, module.default);
+    })
+    .catch(() => {
+      // A dropped chunk leaves the page in English, which is what it already
+      // shows. Clearing the in-flight entry lets a later render try again.
+    })
+    .finally(() => {
+      inFlight.delete(language);
+    });
+  inFlight.set(language, request);
+  return request;
+}
 
 /**
  * Counted phrases, which no whole-string dictionary can hold: the number is
@@ -125,7 +169,9 @@ const COUNTED: Record<string, Partial<Record<AuthLanguage, CountRule>>> = {
  * can ever match it, and it stayed English in every language while the words
  * around it translated.
  */
-const TODAY_RULE: Partial<Record<AuthLanguage, (a: string, b: string) => string>> = {
+const TODAY_RULE: Partial<
+  Record<AuthLanguage, (a: string, b: string) => string>
+> = {
   tr: (a, b) => `bugün ${a} / ${b}`,
   es: (a, b) => `${a} / ${b} hoy`,
   fr: (a, b) => `${a} / ${b} aujourd’hui`,
@@ -201,8 +247,10 @@ const SHAPE_RULES: Array<{
     match: /^(\d[\d.,]*) library resources? selected for this goal$/,
     render: {
       tr: (n) => `bu hedef için ${n} kütüphane kaynağı seçildi`,
-      es: (n) => `${n} recursos de la biblioteca seleccionados para este objetivo`,
-      fr: (n) => `${n} ressources de la bibliothèque sélectionnées pour cet objectif`,
+      es: (n) =>
+        `${n} recursos de la biblioteca seleccionados para este objetivo`,
+      fr: (n) =>
+        `${n} ressources de la bibliothèque sélectionnées pour cet objectif`,
       de: (n) => `${n} Bibliotheksressourcen für dieses Ziel ausgewählt`,
       pt: (n) => `${n} recursos da biblioteca selecionados para esta meta`,
     },
@@ -373,9 +421,12 @@ const SHAPE_RULES: Array<{
     match: /^(\d[\d.,]*) named collaborators?$/,
     render: {
       tr: (n) => `${n} adlı ortak`,
-      es: (n) => `${n} ${n === "1" ? "colaborador indicado" : "colaboradores indicados"}`,
-      fr: (n) => `${n} ${n === "1" ? "collaborateur nommé" : "collaborateurs nommés"}`,
-      pt: (n) => `${n} ${n === "1" ? "colaborador indicado" : "colaboradores indicados"}`,
+      es: (n) =>
+        `${n} ${n === "1" ? "colaborador indicado" : "colaboradores indicados"}`,
+      fr: (n) =>
+        `${n} ${n === "1" ? "collaborateur nommé" : "collaborateurs nommés"}`,
+      pt: (n) =>
+        `${n} ${n === "1" ? "colaborador indicado" : "colaboradores indicados"}`,
       de: (n) => `${n} ${n === "1" ? "benannte Person" : "benannte Personen"}`,
     },
   },
@@ -407,13 +458,14 @@ const EVIDENCE_RULE: Partial<Record<AuthLanguage, (n: string) => string>> = {
 };
 
 /** "3 of 10" — a progress shape, not a sentence, so it is its own rule. */
-const OF_RULE: Partial<Record<AuthLanguage, (a: string, b: string) => string>> = {
-  tr: (a, b) => `${a} / ${b}`,
-  es: (a, b) => `${a} de ${b}`,
-  fr: (a, b) => `${a} sur ${b}`,
-  de: (a, b) => `${a} von ${b}`,
-  pt: (a, b) => `${a} de ${b}`,
-};
+const OF_RULE: Partial<Record<AuthLanguage, (a: string, b: string) => string>> =
+  {
+    tr: (a, b) => `${a} / ${b}`,
+    es: (a, b) => `${a} de ${b}`,
+    fr: (a, b) => `${a} sur ${b}`,
+    de: (a, b) => `${a} von ${b}`,
+    pt: (a, b) => `${a} de ${b}`,
+  };
 
 /**
  * The translation for one UI string, or the string unchanged.
@@ -421,9 +473,12 @@ const OF_RULE: Partial<Record<AuthLanguage, (a: string, b: string) => string>> =
  * Surrounding whitespace is preserved: the DOM often splits a sentence across
  * text nodes, and eating the spaces between them runs the words together.
  */
-export function translateUiString(value: string, language: AuthLanguage): string {
+export function translateUiString(
+  value: string,
+  language: AuthLanguage,
+): string {
   if (language === "en") return value;
-  const dictionary = DICTIONARIES[language];
+  const dictionary = fetched.get(language);
   if (!dictionary) return value;
   const leading = value.match(/^\s*/)?.[0] ?? "";
   const trailing = value.match(/\s*$/)?.[0] ?? "";
