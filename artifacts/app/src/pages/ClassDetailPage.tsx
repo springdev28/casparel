@@ -369,7 +369,7 @@ export default function ClassDetailPage() {
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0">
               <CardTitle translate="no" className="text-xl">{cls.name}</CardTitle>
-              <CardDescription>{cls.subject} · {cls.gradeLevel}</CardDescription>
+              <CardDescription translate="no">{cls.subject} · {cls.gradeLevel}</CardDescription>
             </div>
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <Badge variant="secondary">{counted(cls.members.length, "member", "members")}</Badge>
@@ -512,7 +512,7 @@ export default function ClassDetailPage() {
               )}
             </div>
           </div>
-          {cls.description && <p className="text-sm text-muted-foreground mt-2">{cls.description}</p>}
+          {cls.description && <p translate="no" className="text-sm text-muted-foreground mt-2">{cls.description}</p>}
         </CardHeader>
       </Card>
 
@@ -528,7 +528,16 @@ export default function ClassDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <nav className="-mx-3 overflow-x-auto border-y bg-card px-3 py-2 text-card-foreground sm:mx-0 sm:border sm:p-2" aria-label="Class workspace sections" style={{ borderRadius: 8 }}>
+      {/*
+        data-sideways: this strip is meant to scroll horizontally, and
+        does -- eight tabs will not fit a phone in any language, and they
+        do not fit 1280px in French either. The fit audit reports
+        anything past the right edge of the screen on purpose, because a
+        page that scrolls sideways on a phone is usually the bug rather
+        than the remedy; a named region is how a real carousel says it is
+        the exception. This is the first one.
+      */}
+      <nav data-sideways className="-mx-3 overflow-x-auto border-y bg-card px-3 py-2 text-card-foreground sm:mx-0 sm:border sm:p-2" aria-label="Class workspace sections" style={{ borderRadius: 8 }}>
         <div className="flex w-max min-w-full gap-1">
           {classTabs.map(({ id: tabId, label, icon: Icon }) => (
             <button key={tabId} type="button" onClick={() => setActiveTab(tabId)} className={`flex h-10 shrink-0 items-center gap-2 px-3 text-sm font-medium transition-colors ${activeTab === tabId ? 'bg-primary text-primary-foreground' : 'text-card-foreground/80 hover:bg-accent hover:text-card-foreground'}`} style={{ borderRadius: 6 }}>
@@ -556,17 +565,17 @@ export default function ClassDetailPage() {
                       {member.user.avatarUrl ? <img src={member.user.avatarUrl} alt={member.user.name + " profile"} className="h-full w-full object-cover" /> : <span className="text-xs font-semibold text-muted-foreground uppercase">{member.user.name.charAt(0)}</span>}
                     </div>
                     <div>
-                      <button className="text-left text-sm font-medium text-foreground hover:text-primary-text hover:underline" onClick={() => setLocation(`/profile/${member.userId}${isTeacher ? `?classId=${classId}` : ""}`)}>{member.user.name}</button>
+                      <button className="text-left text-sm font-medium text-foreground hover:text-primary-text hover:underline" onClick={() => setLocation(`/profile/${member.userId}${isTeacher ? `?classId=${classId}` : ""}`)} translate="no">{member.user.name}</button>
                       {member.user.gradeOrDept && (
-                        <p className="text-xs text-muted-foreground">{member.user.gradeOrDept}</p>
+                        <p translate="no" className="text-xs text-muted-foreground">{member.user.gradeOrDept}</p>
                       )}
                     </div>
                   </div>
                   <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
                     {member.customRole && roleEditorFor !== member.userId && (
-                      <Badge variant="outline" className="border-primary/40 text-primary-text" data-testid="member-custom-role">{member.customRole}</Badge>
+                      <Badge variant="outline" className="border-primary/40 text-primary-text" data-testid="member-custom-role" translate="no">{member.customRole}</Badge>
                     )}
-                    <Badge variant={member.role === 'teacher' ? 'default' : 'secondary'} className="capitalize">{member.role}</Badge>
+                    <Badge variant={member.role === 'teacher' ? 'default' : 'secondary'}>{member.role === 'teacher' ? 'Teacher' : 'Student'}</Badge>
                     <span className="text-xs text-muted-foreground hidden sm:inline">
                       Joined {formatDistanceToNow(new Date(member.joinedAt), { addSuffix: true, locale })}
                     </span>

@@ -52,7 +52,7 @@ const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
   "/dashboard,/profile,/resources,/catalog,/settings,/plans," +
     "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people," +
-    "/canvases,/admin," +
+    "/canvases,/classes/31,/admin," +
     // The resource detail page, which was left out for a long time because it
     // rendered its error boundary: one endpoint had no fixture, the default
     // empty array reached `workflow?.steps[key]`, and the page crashed. Both
