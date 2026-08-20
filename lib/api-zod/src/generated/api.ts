@@ -3531,6 +3531,19 @@ export const AnswerConversationRequestResponse = zod.object({
 
 
 /**
+ * Fetched server-side against a strict hostname allowlist, so the client neither picks the provider nor makes the outbound request. A URL from anywhere else answers `null` rather than an error: not having a thumbnail is a normal outcome, not a failure.
+ * @summary A thumbnail for a URL, from the provider's own oEmbed endpoint
+ */
+export const GetOembedThumbnailQueryParams = zod.object({
+  "url": zod.url()
+})
+
+export const GetOembedThumbnailResponse = zod.object({
+  "thumbnailUrl": zod.url().nullable()
+})
+
+
+/**
  * Returns defaults for an account that has never set anything, rather than 404, so a client can read this before the user has touched a single setting.
  * @summary Everything this account has chosen about how Casparel behaves
  */
@@ -3551,15 +3564,15 @@ export const getMyPreferencesResponseSearchHistoryItemQueryMax = 300;
 
 export const GetMyPreferencesResponse = zod.object({
   "userId": zod.int(),
-  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullish().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
+  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullable().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
   "interfaceColors": zod.union([zod.object({
   "background": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneBackgroundRegExp),
   "surface": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneSurfaceRegExp),
   "primary": zod.string().regex(getMyPreferencesResponseInterfaceColorsOnePrimaryRegExp),
   "accent": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneAccentRegExp)
-}),zod.null()]).optional(),
-  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullish(),
-  "ambientIntensity": zod.number().min(getMyPreferencesResponseAmbientIntensityMin).max(getMyPreferencesResponseAmbientIntensityMax).nullish(),
+}),zod.null()]),
+  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullable(),
+  "ambientIntensity": zod.number().min(getMyPreferencesResponseAmbientIntensityMin).max(getMyPreferencesResponseAmbientIntensityMax).nullable(),
   "readNotificationIds": zod.array(zod.int()),
   "dashboardGoalIds": zod.record(zod.string(), zod.int()),
   "continueStudying": zod.record(zod.string(), zod.array(zod.int())),
@@ -3572,7 +3585,7 @@ export const GetMyPreferencesResponse = zod.object({
   "searchedAt": zod.coerce.date(),
   "filters": zod.record(zod.string(), zod.union([zod.string(),zod.number(),zod.boolean()])).optional().describe('What the search ran with. Without it a recent search replays as its words alone.')
 })),
-  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullish(),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullable(),
   "allowMessageRequests": zod.boolean(),
   "tutorialSeen": zod.boolean(),
   "updatedAt": zod.coerce.date()
@@ -3648,15 +3661,15 @@ export const updateMyPreferencesResponseSearchHistoryItemQueryMax = 300;
 
 export const UpdateMyPreferencesResponse = zod.object({
   "userId": zod.int(),
-  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullish().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
+  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullable().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
   "interfaceColors": zod.union([zod.object({
   "background": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneBackgroundRegExp),
   "surface": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneSurfaceRegExp),
   "primary": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOnePrimaryRegExp),
   "accent": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneAccentRegExp)
-}),zod.null()]).optional(),
-  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullish(),
-  "ambientIntensity": zod.number().min(updateMyPreferencesResponseAmbientIntensityMin).max(updateMyPreferencesResponseAmbientIntensityMax).nullish(),
+}),zod.null()]),
+  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullable(),
+  "ambientIntensity": zod.number().min(updateMyPreferencesResponseAmbientIntensityMin).max(updateMyPreferencesResponseAmbientIntensityMax).nullable(),
   "readNotificationIds": zod.array(zod.int()),
   "dashboardGoalIds": zod.record(zod.string(), zod.int()),
   "continueStudying": zod.record(zod.string(), zod.array(zod.int())),
@@ -3669,7 +3682,7 @@ export const UpdateMyPreferencesResponse = zod.object({
   "searchedAt": zod.coerce.date(),
   "filters": zod.record(zod.string(), zod.union([zod.string(),zod.number(),zod.boolean()])).optional().describe('What the search ran with. Without it a recent search replays as its words alone.')
 })),
-  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullish(),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullable(),
   "allowMessageRequests": zod.boolean(),
   "tutorialSeen": zod.boolean(),
   "updatedAt": zod.coerce.date()

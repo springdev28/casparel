@@ -23,23 +23,23 @@ export interface UserPreferences {
      * Null when the account has never chosen. A client falls back to the device's language then, not to English.
      * @nullable
      */
-  language?: UserPreferencesLanguage;
-  interfaceColors?: InterfaceColors | null;
+  language: UserPreferencesLanguage;
+  interfaceColors: InterfaceColors | null;
   /** @nullable */
-  ambientStyle?: UserPreferencesAmbientStyle;
+  ambientStyle: UserPreferencesAmbientStyle;
   /**
      * @minimum 0.5
      * @maximum 2
      * @nullable
      */
-  ambientIntensity?: number | null;
+  ambientIntensity: number | null;
   readNotificationIds: number[];
   dashboardGoalIds: UserPreferencesDashboardGoalIds;
   continueStudying: UserPreferencesContinueStudying;
   pendingCheckIns: UserPreferencesPendingCheckIns;
   searchHistory: SearchHistoryEntry[];
   /** @nullable */
-  resourceSearchState?: UserPreferencesResourceSearchState;
+  resourceSearchState: UserPreferencesResourceSearchState;
   allowMessageRequests: boolean;
   tutorialSeen: boolean;
   updatedAt: Date;

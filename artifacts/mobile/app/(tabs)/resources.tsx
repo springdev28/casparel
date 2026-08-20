@@ -17,10 +17,12 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
-import { useListResources } from '@workspace/api-client-react';
+import {
+  getOembedThumbnail,
+  useListResources,
+} from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { Resource } from '@workspace/api-client-react';
-import { apiOrigin } from '@/utils/api-host';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { ErrorState } from '@/components/ErrorState';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -56,9 +58,11 @@ function useOembedThumbnail(url: string, enabled: boolean) {
   return useQuery<string | null>({
     queryKey: ['oembed-thumbnail', url],
     queryFn: async () => {
-      const res = await fetch(`${apiOrigin}/api/resources/oembed?url=${encodeURIComponent(url)}`);
-      if (!res.ok) return null;
-      const data = await res.json() as { thumbnailUrl: string | null };
+      // Through the generated client, like everything else. This was a
+      // hand-rolled fetch for as long as /resources/oembed was absent from
+      // openapi.yaml -- and a failure stays null rather than an error,
+      // because a resource with no thumbnail is a normal resource.
+      const data = await getOembedThumbnail({ url });
       return data.thumbnailUrl ?? null;
     },
     enabled,

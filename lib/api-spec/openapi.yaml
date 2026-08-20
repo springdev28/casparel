@@ -2814,6 +2814,33 @@ paths:
         "404": { description: "No such request, or it is not yours to answer" }
 
 
+  /resources/oembed:
+    get:
+      operationId: getOembedThumbnail
+      tags: [resources]
+      summary: A thumbnail for a URL, from the provider's own oEmbed endpoint
+      description: >-
+        Fetched server-side against a strict hostname allowlist, so the client
+        neither picks the provider nor makes the outbound request. A URL from
+        anywhere else answers `null` rather than an error: not having a
+        thumbnail is a normal outcome, not a failure.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string, format: uri }
+      responses:
+        "200":
+          description: The thumbnail, if the provider has one
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [thumbnailUrl]
+                properties:
+                  thumbnailUrl: { type: ["string", "null"], format: uri }
+        "400": { description: "The url is missing, unparseable, or not http(s)" }
+
   /users/me/preferences:
     get:
       operationId: getMyPreferences
@@ -2898,14 +2925,23 @@ components:
         Read by the web app, the phone app and the desktop shell. The phone
         reached it with a hand-rolled fetch for as long as it was undescribed,
         which is what the contract-route test exists to stop.
+      # All of them: the server fills every key from a default for an account
+      # that has never set anything, so a client never has to tell "absent"
+      # from "null". Leaving the nullable ones out of `required` would generate
+      # `string | null | undefined` for a field that is only ever the first two.
       required:
         [
           userId,
+          language,
+          interfaceColors,
+          ambientStyle,
+          ambientIntensity,
           readNotificationIds,
           dashboardGoalIds,
           continueStudying,
           pendingCheckIns,
           searchHistory,
+          resourceSearchState,
           allowMessageRequests,
           tutorialSeen,
           updatedAt,

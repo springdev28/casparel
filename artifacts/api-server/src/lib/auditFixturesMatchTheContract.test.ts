@@ -52,6 +52,7 @@ const { FIXTURES } = await import("../../../app/scripts/audit-fixtures.mjs");
 const SCHEMA_FOR: Record<string, string> = {
   "/api/users/me": "GetMeResponse",
   "/api/users/me/usage": "GetMyUsageResponse",
+  "/api/users/me/preferences": "GetMyPreferencesResponse",
   "/api/resources": "ListResourcesResponse",
   "/api/resources/101": "GetResourceResponse",
   "/api/resources/101/source-review": "GetResourceSourceReviewResponse",

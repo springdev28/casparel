@@ -43,6 +43,12 @@ const specPath = resolve(here, "../../../../lib/api-spec/openapi.yaml");
  * hand-rolled `adminRequest` fetch in AdminPage.tsx. The second kind is a
  * decision that could be revisited -- an admin app on a phone would need
  * them -- rather than a rule.
+ *
+ * A reason has to be true, not merely plausible. /resources/oembed sat here as
+ * "the endpoint other sites call to embed a Casparel resource", which sounded
+ * right and was wrong: the phone app's resource list called it too, by hand,
+ * because it was undescribed. Before adding a row, check who actually calls
+ * the route.
  */
 const UNDESCRIBED: Record<string, string> = {
   "GET /auth/google/callback":
@@ -53,8 +59,6 @@ const UNDESCRIBED: Record<string, string> = {
     "an iCal feed a calendar app subscribes to; it serves text/calendar, not JSON",
   "POST /webhooks/revenuecat":
     "posted to by RevenueCat's servers, authenticated by its own shared secret",
-  "GET /resources/oembed":
-    "the oEmbed endpoint other sites call to embed a Casparel resource",
 
   // The admin surface. AdminPage.tsx calls these through its own fetch
   // wrapper rather than a generated hook, so they are undescribed on purpose

@@ -60,6 +60,8 @@ import type {
   GCShareResult,
   GCStatus,
   GetDiscoverCapabilities200,
+  GetOembedThumbnail200,
+  GetOembedThumbnailParams,
   GetResourceSourceReviewParams,
   HealthStatus,
   JoinClassInput,
@@ -9027,6 +9029,91 @@ export const useAnswerConversationRequest = <TError = ErrorType<void>,
       > => {
       return useMutation(getAnswerConversationRequestMutationOptions(options));
     }
+
+export const getGetOembedThumbnailUrl = (params: GetOembedThumbnailParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/resources/oembed?${stringifiedParams}` : `/api/resources/oembed`
+}
+
+/**
+ * Fetched server-side against a strict hostname allowlist, so the client neither picks the provider nor makes the outbound request. A URL from anywhere else answers `null` rather than an error: not having a thumbnail is a normal outcome, not a failure.
+ * @summary A thumbnail for a URL, from the provider's own oEmbed endpoint
+ */
+export const getOembedThumbnail = async (params: GetOembedThumbnailParams, options?: Parameters<typeof customFetch>[1]): Promise<GetOembedThumbnail200> => {
+
+  return customFetch<GetOembedThumbnail200>(getGetOembedThumbnailUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOembedThumbnailQueryKey = (params?: GetOembedThumbnailParams,) => {
+    return [
+    `/api/resources/oembed`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOembedThumbnailQueryOptions = <TData = Awaited<ReturnType<typeof getOembedThumbnail>>, TError = ErrorType<void>>(params: GetOembedThumbnailParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOembedThumbnail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOembedThumbnailQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOembedThumbnail>>> = ({ signal }) => getOembedThumbnail(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOembedThumbnail>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOembedThumbnailQueryResult = NonNullable<Awaited<ReturnType<typeof getOembedThumbnail>>>
+export type GetOembedThumbnailQueryError = ErrorType<void>
+
+
+/**
+ * @summary A thumbnail for a URL, from the provider's own oEmbed endpoint
+ */
+
+export function useGetOembedThumbnail<TData = Awaited<ReturnType<typeof getOembedThumbnail>>, TError = ErrorType<void>>(
+ params: GetOembedThumbnailParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOembedThumbnail>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOembedThumbnailQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMyPreferencesUrl = () => {
 

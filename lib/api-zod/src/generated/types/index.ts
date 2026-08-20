@@ -97,6 +97,8 @@ export * from './gCShareInput';
 export * from './gCShareResult';
 export * from './gCStatus';
 export * from './getDiscoverCapabilities200';
+export * from './getOembedThumbnail200';
+export * from './getOembedThumbnailParams';
 export * from './getResourceSourceReviewMode';
 export * from './getResourceSourceReviewParams';
 export * from './healthStatus';
