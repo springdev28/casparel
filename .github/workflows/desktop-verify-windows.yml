@@ -21,10 +21,24 @@ on:
         type: string
         required: true
         default: desktop-v1.0.0
+  # Called by the release workflow, so every release is checked without anybody
+  # remembering to. `inputs.tag` reads the same either way.
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to verify'
+        type: string
+        required: true
 
 concurrency:
-  group: desktop-verify-windows-${{ github.ref }}
+  # Keyed on the tag, not the ref. A release calling this must not cancel
+  # somebody's manual verification of a different version, and two runs against
+  # the same tag are genuinely redundant.
+  group: desktop-verify-windows-${{ inputs.tag }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   verify:

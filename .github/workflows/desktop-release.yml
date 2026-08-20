@@ -207,17 +207,50 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      tag: ${{ steps.which.outputs.tag }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: installers
           merge-multiple: true
 
+      # Resolved once, here, because three places now need it and an expression
+      # copied three times is an expression that drifts in two of them.
+      # On a tag push github.ref_name IS the tag. On a dispatch it is the
+      # branch, so the name has to come from the job that made the tag.
+      - name: Which tag is being released
+        id: which
+        run: echo "tag=${{ needs.tag.outputs.name || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          # On a tag push github.ref_name IS the tag. On a dispatch it is the
-          # branch, so the name has to come from the job that made the tag.
-          tag_name: ${{ needs.tag.outputs.name || github.ref_name }}
+          tag_name: ${{ steps.which.outputs.tag }}
           files: installers/*
           generate_release_notes: true
+
+  # Every release is now installed and run before anyone downloads it.
+  #
+  # The build legs above check what they just built, each on the one runner that
+  # built it -- so macOS Intel and Windows arm64 were never covered, and neither
+  # was the published file itself as opposed to the one still sitting on the
+  # build machine. These jobs download what was actually published and run it on
+  # a machine of each architecture.
+  #
+  # They run after publishing rather than before because there is nothing to
+  # download until the release exists. A failure here does not unpublish
+  # anything; it turns the run red and names what is wrong with a release that
+  # is already out, which is the difference between finding out today and
+  # finding out from a user.
+  verify-macos:
+    needs: release
+    uses: ./.github/workflows/desktop-verify-macos.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+
+  verify-windows:
+    needs: release
+    uses: ./.github/workflows/desktop-verify-windows.yml
+    with:
+      tag: ${{ needs.release.outputs.tag }}
