@@ -61,6 +61,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useDateLocale, useIntlLocale } from "@/lib/date-locale";
 import {
   useGetResource,
+  recommendResourceToPerson,
   useListResourceReviews,
   useCreateResourceReview,
   useListResourceLists,
@@ -1088,12 +1089,9 @@ export default function ResourceDetailPage() {
     if (!selectedRecipientId) return;
     setPersonSending(true);
     try {
-      await authenticatedRequest("/resources/" + resourceId + "/recommend", {
-        method: "POST",
-        body: JSON.stringify({
-          recipientId: selectedRecipientId,
-          note: personRecommendNote.trim() || undefined,
-        }),
+      await recommendResourceToPerson(resourceId, {
+        recipientId: selectedRecipientId,
+        note: personRecommendNote.trim() || undefined,
       });
       const recipient = recommendationPeople.find((person) => person.id === selectedRecipientId);
       toast({

@@ -106,10 +106,7 @@ const NOT_DESCRIBED_YET: Record<string, string> = {
   "/classes/{id}/analytics": "assignments, class analytics, the continue queue",
   "/assignments": "assignments, class analytics, the continue queue",
   "/workflow": "assignments, class analytics, the continue queue",
-  "/learning-goal-templates": "goal templates and cloning one",
-  "/users/me/access": "the account's own entitlements",
   "/classes/{id}/shared-lists": "lists a class shares",
-  "/resources/{id}/recommend": "a student recommending a resource to a class",
 };
 
 /** "METHOD /path" for every route any router registers, with {param} params. */

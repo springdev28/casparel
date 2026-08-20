@@ -45,6 +45,7 @@ import type {
   ClassResourceRecommendationInput,
   ClassResourceRecommendationReview,
   ClassWithMembers,
+  CommunityPath,
   Conversation,
   ConversationRequestAnswer,
   ConversationThread,
@@ -60,6 +61,7 @@ import type {
   GCShareResult,
   GCStatus,
   GetDiscoverCapabilities200,
+  GetMyAccess200,
   GetOembedThumbnail200,
   GetOembedThumbnailParams,
   GetResourceSourceReviewParams,
@@ -84,8 +86,11 @@ import type {
   PrefetchResourceResponse,
   PresetAvatarInput,
   PublicUser,
+  PublishGoalAsPathBody,
   PublishStudyActivity201,
   PublishStudyActivityBody,
+  RecommendResourceToPerson201,
+  RecommendResourceToPersonBody,
   RegisterInput,
   ReorderListItemsInput,
   ReportUserInput,
@@ -9030,6 +9035,78 @@ export const useAnswerConversationRequest = <TError = ErrorType<void>,
       return useMutation(getAnswerConversationRequestMutationOptions(options));
     }
 
+export const getRecommendResourceToPersonUrl = (id: number,) => {
+
+
+
+
+  return `/api/resources/${id}/recommend`
+}
+
+/**
+ * @summary Send a resource to one person, with an optional note
+ */
+export const recommendResourceToPerson = async (id: number,
+    recommendResourceToPersonBody: RecommendResourceToPersonBody, options?: Parameters<typeof customFetch>[1]): Promise<RecommendResourceToPerson201> => {
+
+  return customFetch<RecommendResourceToPerson201>(getRecommendResourceToPersonUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(recommendResourceToPersonBody)
+  }
+);}
+
+
+
+
+
+export const getRecommendResourceToPersonMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recommendResourceToPerson>>, TError,{id: number;data: BodyType<RecommendResourceToPersonBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof recommendResourceToPerson>>, TError,{id: number;data: BodyType<RecommendResourceToPersonBody>}, TContext> => {
+
+const mutationKey = ['recommendResourceToPerson'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof recommendResourceToPerson>>, {id: number;data: BodyType<RecommendResourceToPersonBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  recommendResourceToPerson(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RecommendResourceToPersonMutationResult = NonNullable<Awaited<ReturnType<typeof recommendResourceToPerson>>>
+    export type RecommendResourceToPersonMutationBody = BodyType<RecommendResourceToPersonBody>
+    export type RecommendResourceToPersonMutationError = ErrorType<void>
+
+    /**
+ * @summary Send a resource to one person, with an optional note
+ */
+export const useRecommendResourceToPerson = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof recommendResourceToPerson>>, TError,{id: number;data: BodyType<RecommendResourceToPersonBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof recommendResourceToPerson>>,
+        TError,
+        {id: number;data: BodyType<RecommendResourceToPersonBody>},
+        TContext
+      > => {
+      return useMutation(getRecommendResourceToPersonMutationOptions(options));
+    }
+
 export const getGetOembedThumbnailUrl = (params: GetOembedThumbnailParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9103,6 +9180,303 @@ export function useGetOembedThumbnail<TData = Awaited<ReturnType<typeof getOembe
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetOembedThumbnailQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCommunityPathsUrl = () => {
+
+
+
+
+  return `/api/learning-goal-templates`
+}
+
+/**
+ * @summary Paths other people have published, most used first
+ */
+export const listCommunityPaths = async ( options?: Parameters<typeof customFetch>[1]): Promise<CommunityPath[]> => {
+
+  return customFetch<CommunityPath[]>(getListCommunityPathsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCommunityPathsQueryKey = () => {
+    return [
+    `/api/learning-goal-templates`
+    ] as const;
+    }
+
+
+export const getListCommunityPathsQueryOptions = <TData = Awaited<ReturnType<typeof listCommunityPaths>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommunityPaths>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCommunityPathsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityPaths>>> = ({ signal }) => listCommunityPaths({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCommunityPaths>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCommunityPathsQueryResult = NonNullable<Awaited<ReturnType<typeof listCommunityPaths>>>
+export type ListCommunityPathsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Paths other people have published, most used first
+ */
+
+export function useListCommunityPaths<TData = Awaited<ReturnType<typeof listCommunityPaths>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCommunityPaths>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCommunityPathsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPublishGoalAsPathUrl = () => {
+
+
+
+
+  return `/api/learning-goal-templates`
+}
+
+/**
+ * @summary Publish one of your own goals as a path others can clone
+ */
+export const publishGoalAsPath = async (publishGoalAsPathBody: PublishGoalAsPathBody, options?: Parameters<typeof customFetch>[1]): Promise<CommunityPath> => {
+
+  return customFetch<CommunityPath>(getPublishGoalAsPathUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(publishGoalAsPathBody)
+  }
+);}
+
+
+
+
+
+export const getPublishGoalAsPathMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishGoalAsPath>>, TError,{data: BodyType<PublishGoalAsPathBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishGoalAsPath>>, TError,{data: BodyType<PublishGoalAsPathBody>}, TContext> => {
+
+const mutationKey = ['publishGoalAsPath'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishGoalAsPath>>, {data: BodyType<PublishGoalAsPathBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  publishGoalAsPath(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishGoalAsPathMutationResult = NonNullable<Awaited<ReturnType<typeof publishGoalAsPath>>>
+    export type PublishGoalAsPathMutationBody = BodyType<PublishGoalAsPathBody>
+    export type PublishGoalAsPathMutationError = ErrorType<void>
+
+    /**
+ * @summary Publish one of your own goals as a path others can clone
+ */
+export const usePublishGoalAsPath = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishGoalAsPath>>, TError,{data: BodyType<PublishGoalAsPathBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishGoalAsPath>>,
+        TError,
+        {data: BodyType<PublishGoalAsPathBody>},
+        TContext
+      > => {
+      return useMutation(getPublishGoalAsPathMutationOptions(options));
+    }
+
+export const getCloneCommunityPathUrl = (id: number,) => {
+
+
+
+
+  return `/api/learning-goal-templates/${id}/clone`
+}
+
+/**
+ * @summary Take a copy of somebody's path as a goal of your own
+ */
+export const cloneCommunityPath = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<LearningGoal> => {
+
+  return customFetch<LearningGoal>(getCloneCommunityPathUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCloneCommunityPathMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cloneCommunityPath>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cloneCommunityPath>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['cloneCommunityPath'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cloneCommunityPath>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  cloneCommunityPath(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CloneCommunityPathMutationResult = NonNullable<Awaited<ReturnType<typeof cloneCommunityPath>>>
+
+    export type CloneCommunityPathMutationError = ErrorType<void>
+
+    /**
+ * @summary Take a copy of somebody's path as a goal of your own
+ */
+export const useCloneCommunityPath = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cloneCommunityPath>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cloneCommunityPath>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCloneCommunityPathMutationOptions(options));
+    }
+
+export const getGetMyAccessUrl = () => {
+
+
+
+
+  return `/api/users/me/access`
+}
+
+/**
+ * Checked on load, because a ban applied while somebody is signed in has to reach them without waiting for their next request to fail. Carries the address to appeal to, since being told you are banned and not told who to ask is not an answer.
+ * @summary Whether this account is allowed to use Casparel at all
+ */
+export const getMyAccess = async ( options?: Parameters<typeof customFetch>[1]): Promise<GetMyAccess200> => {
+
+  return customFetch<GetMyAccess200>(getGetMyAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyAccessQueryKey = () => {
+    return [
+    `/api/users/me/access`
+    ] as const;
+    }
+
+
+export const getGetMyAccessQueryOptions = <TData = Awaited<ReturnType<typeof getMyAccess>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyAccess>>> = ({ signal }) => getMyAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyAccessQueryResult = NonNullable<Awaited<ReturnType<typeof getMyAccess>>>
+export type GetMyAccessQueryError = ErrorType<void>
+
+
+/**
+ * @summary Whether this account is allowed to use Casparel at all
+ */
+
+export function useGetMyAccess<TData = Awaited<ReturnType<typeof getMyAccess>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyAccessQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

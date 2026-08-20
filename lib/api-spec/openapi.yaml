@@ -2814,6 +2814,43 @@ paths:
         "404": { description: "No such request, or it is not yours to answer" }
 
 
+  /resources/{id}/recommend:
+    post:
+      # Not `recommendResource`: there is already a class-level
+      # recommendation, and the generated names would collide in any file that
+      # does both.
+      operationId: recommendResourceToPerson
+      tags: [resources]
+      summary: Send a resource to one person, with an optional note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recipientId]
+              properties:
+                recipientId: { type: integer }
+                note: { type: string, maxLength: 500 }
+      responses:
+        "201":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent]
+                properties:
+                  sent: { type: boolean }
+        "400": { description: "A valid resource and a different recipient are required" }
+        "401": { description: Not authenticated }
+        "404": { description: No such resource or recipient }
+
   /resources/oembed:
     get:
       operationId: getOembedThumbnail
@@ -2840,6 +2877,93 @@ paths:
                 properties:
                   thumbnailUrl: { type: ["string", "null"], format: uri }
         "400": { description: "The url is missing, unparseable, or not http(s)" }
+
+  /learning-goal-templates:
+    get:
+      operationId: listCommunityPaths
+      tags: [learning-goals]
+      summary: Paths other people have published, most used first
+      responses:
+        "200":
+          description: Community paths
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommunityPath"
+        "401": { description: Not authenticated }
+    post:
+      operationId: publishGoalAsPath
+      tags: [learning-goals]
+      summary: Publish one of your own goals as a path others can clone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [goalId]
+              properties:
+                goalId: { type: integer }
+      responses:
+        "201":
+          description: The published path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommunityPath"
+        "400": { description: A valid goal is required }
+        "401": { description: Not authenticated }
+        "404": { description: "No such goal, or it is not yours" }
+
+  /learning-goal-templates/{id}/clone:
+    post:
+      operationId: cloneCommunityPath
+      tags: [learning-goals]
+      summary: Take a copy of somebody's path as a goal of your own
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: The goal this created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+        "400": { description: Invalid community path }
+        "401": { description: Not authenticated }
+        "404": { description: Community path not found }
+
+  /users/me/access:
+    get:
+      operationId: getMyAccess
+      tags: [auth]
+      summary: Whether this account is allowed to use Casparel at all
+      description: >-
+        Checked on load, because a ban applied while somebody is signed in has
+        to reach them without waiting for their next request to fail. Carries
+        the address to appeal to, since being told you are banned and not told
+        who to ask is not an answer.
+      responses:
+        "200":
+          description: The account's standing
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [banned, bannedAt, bannedReason, adminContact]
+                properties:
+                  banned: { type: boolean }
+                  bannedAt: { type: ["string", "null"], format: date-time }
+                  bannedReason: { type: ["string", "null"] }
+                  adminContact:
+                    type: string
+                    description: Where to appeal.
+        "401": { description: Not authenticated }
 
   /users/me/preferences:
     get:
@@ -2886,6 +3010,48 @@ paths:
 
 components:
   schemas:
+    CommunityPath:
+      type: object
+      description: >-
+        A goal somebody published for other people to clone. `creatorName` is
+        stored on the row rather than joined, so a path stays attributed after
+        the account that made it is deleted.
+      required:
+        [
+          id,
+          creatorId,
+          creatorName,
+          sourceGoalId,
+          title,
+          subject,
+          description,
+          level,
+          pathSteps,
+          useCount,
+          createdAt,
+        ]
+      properties:
+        id: { type: integer }
+        creatorId: { type: integer }
+        creatorName: { type: string }
+        sourceGoalId: { type: integer }
+        title: { type: string }
+        subject: { type: string }
+        description: { type: ["string", "null"] }
+        level: { type: string, enum: [beginner, intermediate, advanced] }
+        pathSteps:
+          type: array
+          items:
+            type: object
+            required: [id, title, query, completed]
+            properties:
+              id: { type: string }
+              title: { type: string }
+              query: { type: string }
+              completed: { type: boolean }
+        useCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+
     InterfaceColors:
       type: object
       required: [background, surface, primary, accent]

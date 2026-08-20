@@ -5,6 +5,40 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+export type CommunityPathLevel = typeof CommunityPathLevel[keyof typeof CommunityPathLevel];
+
+
+export const CommunityPathLevel = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export type CommunityPathPathStepsItem = {
+  id: string;
+  title: string;
+  query: string;
+  completed: boolean;
+};
+
+/**
+ * A goal somebody published for other people to clone. `creatorName` is stored on the row rather than joined, so a path stays attributed after the account that made it is deleted.
+ */
+export interface CommunityPath {
+  id: number;
+  creatorId: number;
+  creatorName: string;
+  sourceGoalId: number;
+  title: string;
+  subject: string;
+  /** @nullable */
+  description: string | null;
+  level: CommunityPathLevel;
+  pathSteps: CommunityPathPathStepsItem[];
+  useCount: number;
+  createdAt: string;
+}
+
 export interface InterfaceColors {
   /** @pattern ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$ */
   background: string;
@@ -2612,6 +2646,16 @@ export const SearchUsersRole = {
   teacher: 'teacher',
 } as const;
 
+export type RecommendResourceToPersonBody = {
+  recipientId: number;
+  /** @maxLength 500 */
+  note?: string;
+};
+
+export type RecommendResourceToPerson201 = {
+  sent: boolean;
+};
+
 export type GetOembedThumbnailParams = {
 url: string;
 };
@@ -2619,5 +2663,19 @@ url: string;
 export type GetOembedThumbnail200 = {
   /** @nullable */
   thumbnailUrl: string | null;
+};
+
+export type PublishGoalAsPathBody = {
+  goalId: number;
+};
+
+export type GetMyAccess200 = {
+  banned: boolean;
+  /** @nullable */
+  bannedAt: string | null;
+  /** @nullable */
+  bannedReason: string | null;
+  /** Where to appeal. */
+  adminContact: string;
 };
 

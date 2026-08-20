@@ -3531,6 +3531,27 @@ export const AnswerConversationRequestResponse = zod.object({
 
 
 /**
+ * @summary Send a resource to one person, with an optional note
+ */
+export const RecommendResourceToPersonParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const recommendResourceToPersonBodyNoteMax = 500;
+
+
+
+export const RecommendResourceToPersonBody = zod.object({
+  "recipientId": zod.int(),
+  "note": zod.string().max(recommendResourceToPersonBodyNoteMax).optional()
+})
+
+export const RecommendResourceToPersonResponse = zod.object({
+  "sent": zod.boolean()
+})
+
+
+/**
  * Fetched server-side against a strict hostname allowlist, so the client neither picks the provider nor makes the outbound request. A URL from anywhere else answers `null` rather than an error: not having a thumbnail is a normal outcome, not a failure.
  * @summary A thumbnail for a URL, from the provider's own oEmbed endpoint
  */
@@ -3540,6 +3561,105 @@ export const GetOembedThumbnailQueryParams = zod.object({
 
 export const GetOembedThumbnailResponse = zod.object({
   "thumbnailUrl": zod.url().nullable()
+})
+
+
+/**
+ * @summary Paths other people have published, most used first
+ */
+export const ListCommunityPathsResponseItem = zod.object({
+  "id": zod.int(),
+  "creatorId": zod.int(),
+  "creatorName": zod.string(),
+  "sourceGoalId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullable(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "query": zod.string(),
+  "completed": zod.boolean()
+})),
+  "useCount": zod.int(),
+  "createdAt": zod.coerce.date()
+}).describe('A goal somebody published for other people to clone. `creatorName` is stored on the row rather than joined, so a path stays attributed after the account that made it is deleted.')
+export const ListCommunityPathsResponse = zod.array(ListCommunityPathsResponseItem)
+
+
+/**
+ * @summary Publish one of your own goals as a path others can clone
+ */
+export const PublishGoalAsPathBody = zod.object({
+  "goalId": zod.int()
+})
+
+export const PublishGoalAsPathResponse = zod.object({
+  "id": zod.int(),
+  "creatorId": zod.int(),
+  "creatorName": zod.string(),
+  "sourceGoalId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullable(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string(),
+  "title": zod.string(),
+  "query": zod.string(),
+  "completed": zod.boolean()
+})),
+  "useCount": zod.int(),
+  "createdAt": zod.coerce.date()
+}).describe('A goal somebody published for other people to clone. `creatorName` is stored on the row rather than joined, so a path stays attributed after the account that made it is deleted.')
+
+
+/**
+ * @summary Take a copy of somebody's path as a goal of your own
+ */
+export const CloneCommunityPathParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const cloneCommunityPathResponsePathStepsItemIdMax = 80;
+
+export const cloneCommunityPathResponsePathStepsItemTitleMax = 200;
+
+export const cloneCommunityPathResponsePathStepsItemQueryMax = 300;
+
+
+
+export const CloneCommunityPathResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemQueryMax),
+  "completed": zod.boolean()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * Checked on load, because a ban applied while somebody is signed in has to reach them without waiting for their next request to fail. Carries the address to appeal to, since being told you are banned and not told who to ask is not an answer.
+ * @summary Whether this account is allowed to use Casparel at all
+ */
+export const GetMyAccessResponse = zod.object({
+  "banned": zod.boolean(),
+  "bannedAt": zod.coerce.date().nullable(),
+  "bannedReason": zod.string().nullable(),
+  "adminContact": zod.string().describe('Where to appeal.')
 })
 
 
