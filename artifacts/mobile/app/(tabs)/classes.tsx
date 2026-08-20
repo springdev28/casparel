@@ -252,7 +252,7 @@ export default function ClassesScreen() {
     } catch (failure) {
       Alert.alert(
         action === 'accept' ? t('Could not join the class') : t('Could not decline'),
-        describeApiFailure(failure, t('Please try again.')),
+        describeApiFailure(failure, t('Please try again.'), t),
       );
     } finally {
       setAnswering(null);

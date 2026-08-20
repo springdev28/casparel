@@ -30,24 +30,41 @@ function serverSentence(error: unknown): string | null {
   return typeof detail === "string" && detail.trim() ? detail.trim() : null;
 }
 
-export function describeAuthFailure(error: unknown, action: AuthAction): string {
+type Translate = (key: string) => string;
+
+/**
+ * The translator is passed in rather than pulled from a hook, so this stays a
+ * plain function the login and register screens can both call from a catch
+ * block. The default is identity, so a caller that has no translator to hand
+ * gets English rather than a crash -- but every caller in the app passes one.
+ *
+ * These sentences were English in all six languages until the check that
+ * holds the phone's strings against its dictionaries stopped reading `.tsx`
+ * only. Sign-in failure is the first thing a new account can hit, and it was
+ * the least translated screen in the product.
+ */
+export function describeAuthFailure(
+  error: unknown,
+  action: AuthAction,
+  t: Translate = (key) => key,
+): string {
   const status = (error as ApiFailure | null)?.status;
 
   // No status at all means the request never got an answer: a phone on a train,
   // aeroplane mode, or the server unreachable. Everything else here is a reply.
   if (status === undefined) {
-    return "Could not reach Casparel. Check your connection and try again.";
+    return t("Could not reach Casparel. Check your connection and try again.");
   }
   if (status === 429) {
     return (
       serverSentence(error) ??
-      "Too many attempts. Please wait a few minutes and try again."
+      t("Too many attempts. Please wait a few minutes and try again.")
     );
   }
   if (status === 403) {
     return (
       serverSentence(error) ??
-      "This account cannot sign in. Contact support@casparel.com."
+      t("This account cannot sign in. Contact support@casparel.com.")
     );
   }
   if (action === "register" && (status === 400 || status === 409)) {
@@ -62,17 +79,17 @@ export function describeAuthFailure(error: unknown, action: AuthAction): string 
      */
     const sentence = serverSentence(error);
     if (sentence && !/already in use/i.test(sentence)) return sentence;
-    return "That email already has a Casparel account. Try signing in instead.";
+    return t("That email already has a Casparel account. Try signing in instead.");
   }
   if (action === "login" && (status === 401 || status === 400)) {
-    return "Invalid email or password. Please try again.";
+    return t("Invalid email or password. Please try again.");
   }
   if (status >= 500) {
     // Their credentials are not the problem, and telling them so sends them
     // to reset a password that works.
-    return "Casparel is having trouble right now. Please try again shortly.";
+    return t("Casparel is having trouble right now. Please try again shortly.");
   }
   return action === "login"
-    ? "Could not sign you in just now. Please try again."
-    : "Could not create your account. Please try again.";
+    ? t("Could not sign you in just now. Please try again.")
+    : t("Could not create your account. Please try again.");
 }

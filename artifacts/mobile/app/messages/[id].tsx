@@ -153,7 +153,7 @@ export default function ConversationScreen() {
         refresh();
       },
       onError: (sendError) =>
-        setFailure(describeApiFailure(sendError, t('Could not send that.'))),
+        setFailure(describeApiFailure(sendError, t('Could not send that.'), t)),
     },
   });
   const answer = useAnswerConversationRequest({
@@ -164,7 +164,7 @@ export default function ConversationScreen() {
       },
       onError: (answerError) =>
         setFailure(
-          describeApiFailure(answerError, t('Could not answer that request.')),
+          describeApiFailure(answerError, t('Could not answer that request.'), t),
         ),
     },
   });

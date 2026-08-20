@@ -11,6 +11,18 @@
  * and `ZodError.message` is a JSON array of issue objects. Showing that to a
  * person is worse than any fallback, so a server "sentence" is only used when
  * it actually reads like one.
+ *
+ * The two sentences this file owns are translated. They were not, and nothing
+ * noticed, because the check that holds the phone's English against its five
+ * dictionaries read `.tsx` files only -- and every module that turns a failure
+ * into words is a `.ts`. A Turkish reader with no signal got an English
+ * apology.
+ *
+ * The translator is passed in rather than pulled from a hook, so this stays a
+ * plain function that a screen, an Alert or a catch block can all call. The
+ * server's own sentence is still preferred when it reads like one, and that
+ * arrives in whatever language the API speaks -- which is a separate problem,
+ * on the other side of the wire.
  */
 
 type ApiFailure = {
@@ -33,13 +45,19 @@ function readsLikeASentence(value: string): boolean {
   return /[a-z]/i.test(text);
 }
 
-export function describeApiFailure(error: unknown, fallback: string): string {
+type Translate = (key: string) => string;
+
+export function describeApiFailure(
+  error: unknown,
+  fallback: string,
+  t: Translate = (key) => key,
+): string {
   const failure = error as ApiFailure | null;
   const status = failure?.status;
 
   // No status means no answer arrived: aeroplane mode, a dead tunnel, a train.
   if (status === undefined) {
-    return "Could not reach Casparel. Check your connection and try again.";
+    return t("Could not reach Casparel. Check your connection and try again.");
   }
 
   const sentence = failure?.data?.error;
@@ -48,7 +66,7 @@ export function describeApiFailure(error: unknown, fallback: string): string {
   }
 
   if (status >= 500) {
-    return "Casparel is having trouble right now. Please try again shortly.";
+    return t("Casparel is having trouble right now. Please try again shortly.");
   }
   return fallback;
 }

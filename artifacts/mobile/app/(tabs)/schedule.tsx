@@ -472,7 +472,7 @@ function CreateStudySessionModal({
       // invitee whose privacy preference refuses the invite, a missing
       // resource. Blaming the URL for all of them left people retyping one
       // that was never wrong.
-      setError(describeApiFailure(error, t('Could not create the session. Please try again.')));
+      setError(describeApiFailure(error, t('Could not create the session. Please try again.'), t));
     }
   }
 

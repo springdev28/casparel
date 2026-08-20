@@ -110,6 +110,17 @@ const SCREENS = [
   // no other entry here renders it. Its empty state and its section headings
   // exist nowhere else.
   { path: "/messages", session: "in" },
+  /*
+   * Goals, also reached from the dashboard rather than a tab.
+   *
+   * The list and the detail are both here because they say different things:
+   * the list carries the status word and the empty state, the detail carries
+   * the level, the step hints and "Every step is done." The detail is also
+   * the only screen in the app with a checkbox, and its two labels -- mark as
+   * done, mark as not done -- exist nowhere else.
+   */
+  { path: "/goals", session: "in" },
+  { path: "/goals/11", session: "in" },
 ];
 
 const MIME = {
@@ -172,6 +183,34 @@ function stubbedBody(pathname) {
   }
   if (pathname.includes("/dashboard")) {
     return { resourceCount: 0, reviewCount: 0, classCount: 0, upcomingCount: 0 };
+  }
+  if (pathname.endsWith("/learning-goals")) {
+    /*
+     * One goal, part-way through, with a level and a status.
+     *
+     * Part-way matters: a path with every step done, or none, renders only
+     * one of the two step states, and the tick and the strike-through are
+     * half of what this screen is.
+     */
+    return [
+      {
+        id: 11,
+        userId: 1,
+        title: "Audit goal",
+        subject: "Mathematics",
+        description: "Standing in for a real goal.",
+        level: "intermediate",
+        preferredFormats: null,
+        targetDate: null,
+        status: "active",
+        pathSteps: [
+          { id: "s1", title: "Read the chapter", query: "chapter", completed: true },
+          { id: "s2", title: "Try the practice set", query: "practice", completed: false },
+        ],
+        createdAt: "2026-03-02T09:00:00.000Z",
+        updatedAt: "2026-03-02T09:00:00.000Z",
+      },
+    ];
   }
   if (pathname.endsWith("/study-activities")) {
     // Two cards, because the player's controls differ on the first and the

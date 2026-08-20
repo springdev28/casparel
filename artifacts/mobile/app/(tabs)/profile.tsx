@@ -287,7 +287,7 @@ export default function ProfileScreen() {
       Alert.alert(t('Saved'), t('Your profile has been updated.'));
     } catch (error) {
       Alert.alert(t('Could not save your profile'),
-        describeApiFailure(error, t('Please check the fields and try again.')),
+        describeApiFailure(error, t('Please check the fields and try again.'), t),
       );
     }
   }
@@ -348,7 +348,7 @@ export default function ProfileScreen() {
       queryClient.clear();
     } catch (error) {
       Alert.alert(t('Could not switch role'),
-        describeApiFailure(error, t('Please try again.')),
+        describeApiFailure(error, t('Please try again.'), t),
       );
     } finally {
       setSwitching(false);

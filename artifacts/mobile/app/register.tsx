@@ -61,7 +61,7 @@ export default function RegisterScreen() {
           login(data.token, data.user);
         },
         onError: (error) => {
-          setErrorMsg(describeAuthFailure(error, 'register'));
+          setErrorMsg(describeAuthFailure(error, 'register', t));
         },
       },
     );

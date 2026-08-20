@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ErrorState } from '@/components/ErrorState';
 import { DueWork } from '@/components/DueWork';
 import { StudySets } from '@/components/StudySets';
+import { GoalsSummary } from '@/components/GoalsSummary';
 import { MessagesButton } from '@/components/MessagesButton';
 import type { ActivityItem } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
@@ -294,6 +295,9 @@ export default function DashboardScreen() {
 
       {/* What somebody else set, before what you set yourself */}
       <DueWork />
+
+      {/* The goals with the fewest steps left, one tap from ticking one off */}
+      <GoalsSummary />
 
       {/* Study sets, one tap from studying them */}
       <StudySets />

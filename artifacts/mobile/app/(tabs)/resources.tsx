@@ -26,6 +26,7 @@ import type { Resource } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { ErrorState } from '@/components/ErrorState';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { formatLabel } from '@/utils/labels';
 
 function getYouTubeId(url: string): string | null {
   try {
@@ -155,7 +156,7 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
             {item.title}
           </Text>
           <View style={styles.badgeRow}>
-            <Badge variant="default">{item.format}</Badge>
+            <Badge variant="default">{formatLabel(item.format, t)}</Badge>
             <Badge variant="secondary">{item.subject}</Badge>
             {item.verificationStatus === 'unverified' ? (
               <View style={[styles.verifyChip, { borderColor: colors.chart3 + '66', backgroundColor: colors.chart3 + '1A' }]}>

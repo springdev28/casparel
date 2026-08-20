@@ -81,6 +81,22 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 11,
     letterSpacing: 0.2,
-    textTransform: "capitalize",
+    /*
+     * No textTransform.
+     *
+     * This carried `capitalize`, which in React Native upper-cases the first
+     * letter of *every* word. It was there because badges were being handed
+     * database enums -- "article", "student", "pdf" -- and capitalising them
+     * made a column value look like a label. It made "pdf" into "Pdf".
+     *
+     * It also reached the two kinds of text it had no business touching. A
+     * badge often holds something the reader typed: a subject, a year group.
+     * "IB physics HL" is not ours to re-case. And once the enums became
+     * written words, those words get translated -- so a French reader saw
+     * "En Cours" and a Turkish one "Devam Ediyor", which is not how either
+     * language capitalises a phrase.
+     *
+     * Callers pass the words they want shown. See mobile utils/labels.ts.
+     */
   },
 });

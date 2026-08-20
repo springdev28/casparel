@@ -322,7 +322,7 @@ export default function StudySetScreen() {
             { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
           ]}
         >
-          {describeApiFailure(error, t('Could not refresh this set.'))}
+          {describeApiFailure(error, t('Could not refresh this set.'), t)}
         </Text>
       ) : null}
     </ScrollView>

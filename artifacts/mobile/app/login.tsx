@@ -45,7 +45,7 @@ export default function LoginScreen() {
           login(data.token, data.user);
         },
         onError: (error) => {
-          setErrorMsg(describeAuthFailure(error, 'login'));
+          setErrorMsg(describeAuthFailure(error, 'login', t));
         },
       }
     );

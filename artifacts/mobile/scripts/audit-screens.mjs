@@ -60,6 +60,8 @@ const BLOCK_TITLE = "Audit revision block";
 const RESOURCE_TITLE = "Audit reading on tides";
 /** Made by a teacher, joined from the phone, then opened. */
 const CLASS_NAME = "Audit physics set";
+const GOAL_TITLE = "Audit goal: master tides";
+const GOAL_STEP = "Read the tides chapter";
 /** Typed into the phone's own form, then looked for on the schedule. */
 const SESSION_TITLE = "Audit revision huddle";
 
@@ -266,7 +268,7 @@ function isInterestingFailure(url, status, signedIn) {
  * worth catching, so each expectation names something only that screen's data
  * can produce -- not its title, which the shell draws either way.
  */
-function screens(resourceId, classId) {
+function screens(resourceId, classId, goalId) {
   return [
     ...TABS,
     // The detail screens are reached by tapping a row, so nothing above ever
@@ -288,6 +290,20 @@ function screens(resourceId, classId) {
      * openapi.yaml, shows something else.
      */
     { name: "messages", route: "/messages", expect: /No conversations yet/i },
+    /*
+     * Goals, reached from the dashboard rather than a tab.
+     *
+     * The list expectation is the goal's own title, not the word "Goals":
+     * the heading is drawn by the shell whether or not /learning-goals ever
+     * answered, and a list that renders its frame and none of its rows is
+     * exactly the failure worth catching.
+     */
+    goalId ? { name: "goals", route: "/goals", expect: new RegExp(GOAL_TITLE) } : null,
+    // The detail screen, which is where the tick actually happens. The step
+    // title only appears once the path has been read out of the goal.
+    goalId
+      ? { name: "goal detail", route: `/goals/${goalId}`, expect: new RegExp(GOAL_STEP) }
+      : null,
     // The screen the whole Shipaton submission turns on. It renders before any
     // store connection exists, which is the state CI is always in, so what is
     // checked is that it says something rather than throwing.
@@ -493,6 +509,57 @@ async function main() {
     const resourceId = resource.status === 201 ? (await resource.json()).id : null;
 
     /*
+     * One learning goal, then a path put on it, so the goal screens have
+     * something in them -- and so the only thing the phone *writes* about
+     * progress gets exercised end to end rather than only rendered.
+     *
+     * The path arrives in a second request on purpose. LearningGoalInput has
+     * no pathSteps: the server writes its own four-step scaffold on create
+     * and only the PATCH takes a path. Sending steps to POST looks like it
+     * works -- 201, a goal, a path -- and none of the steps are the ones you
+     * sent, which is worth knowing here rather than discovering on a phone.
+     *
+     * Two steps with the first already done: that is the state where the
+     * progress bar is neither empty nor full, so a bar that renders at a
+     * fixed width, or one that divides by the wrong number, is visible rather
+     * than plausible.
+     */
+    const goal = await fetch(`${BASE}/api/learning-goals`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        title: GOAL_TITLE,
+        subject: "Physics",
+        level: "intermediate",
+      }),
+    });
+    check("the server accepts a learning goal", goal.status === 201, `${goal.status}`);
+    const goalId = goal.status === 201 ? (await goal.json()).id : null;
+    if (goalId) {
+      const path = await fetch(`${BASE}/api/learning-goals/${goalId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          pathSteps: [
+            { id: "s1", title: GOAL_STEP, query: GOAL_STEP, completed: true },
+            { id: "s2", title: "Try the practice set", query: "tides practice", completed: false },
+          ],
+        }),
+      });
+      const written = path.status === 200 ? await path.json() : null;
+      check(
+        "and keeps a path written onto it, ticks and all",
+        Boolean(
+          written &&
+            written.pathSteps?.length === 2 &&
+            written.pathSteps[0]?.title === GOAL_STEP &&
+            written.pathSteps[0]?.completed === true,
+        ),
+        `${path.status} ${JSON.stringify(written?.pathSteps ?? null).slice(0, 120)}`,
+      );
+    }
+
+    /*
      * A class, joined the way a pupil joins one: from the invitation card on
      * the classes screen.
      *
@@ -568,7 +635,7 @@ async function main() {
         }, origin?.localStorage ?? []);
       }
 
-      for (const tab of screens(resourceId, classId)) {
+      for (const tab of screens(resourceId, classId, goalId)) {
         const tabPage = await context.newPage();
         tabPage.on("pageerror", (error) =>
           pageErrors.push(`${scheme} ${tab.name}: ${String(error).slice(0, 200)}`),

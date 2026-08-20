@@ -5,6 +5,8 @@ import { Image } from 'expo-image';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import type { PublicUser } from '@workspace/api-client-react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { roleLabel } from '@/utils/labels';
 
 interface UserProfileCardProps {
   user: PublicUser;
@@ -17,6 +19,7 @@ interface UserProfileCardProps {
  * Used by study-session invitee lists and anywhere a compact profile summary is needed.
  */
 export function UserProfileCard({ user, onPress }: UserProfileCardProps) {
+  const { t } = useLanguage();
   const colors = useColors();
 
   return (
@@ -71,7 +74,7 @@ export function UserProfileCard({ user, onPress }: UserProfileCardProps) {
         ) : null}
 
         <View style={styles.meta}>
-          <Badge variant="secondary">{user.role}</Badge>
+          <Badge variant="secondary">{roleLabel(user.role, t)}</Badge>
           {user.subjects && user.subjects.length > 0 && (
             <Text
               style={[styles.subjects, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}

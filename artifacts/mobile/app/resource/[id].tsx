@@ -21,6 +21,7 @@ import { Feather } from '@expo/vector-icons';
 import type { Review } from '@workspace/api-client-react';
 import { SourceReviewSection } from '@/components/SourceReviewSection';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { formatLabel } from '@/utils/labels';
 
 function StarRow({ rating }: { rating: number }) {
   const colors = useColors();
@@ -167,7 +168,7 @@ export default function ResourceDetailScreen() {
           </Text>
           <View style={styles.heroBadges}>
             <Badge variant="outline" style={{ borderColor: colors.primaryForeground + '60' }}>
-              {resource.format}
+              {formatLabel(resource.format, t)}
             </Badge>
             <Badge variant="outline" style={{ borderColor: colors.primaryForeground + '60' }}>
               {resource.subject}

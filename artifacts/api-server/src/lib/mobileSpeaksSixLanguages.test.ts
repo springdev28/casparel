@@ -52,17 +52,33 @@ function dictionaryFor(language: string): Record<string, string> {
   );
 }
 
-function screens(dir: string): string[] {
+/**
+ * Every source file that can ask for a string, which is not only the screens.
+ *
+ * This read `.tsx` alone, on the reasonable-sounding idea that user-facing
+ * text lives in components. It does not: `utils/` holds the plain-TypeScript
+ * modules that turn a failure into the sentence somebody reads --
+ * auth-errors, purchase-errors, api-failure -- and the table that turns a
+ * database enum into a word. Those call `t()` like anything else, and every
+ * one of their strings was invisible here, so a missing translation in them
+ * shipped silently in all five languages.
+ *
+ * Tests are skipped: their fixtures quote English on purpose.
+ */
+function sources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name);
-    if (entry.isDirectory()) return screens(full);
-    return entry.name.endsWith(".tsx") ? [full] : [];
+    if (entry.isDirectory()) return sources(full);
+    if (/\.(test|spec)\.tsx?$/.test(entry.name)) return [];
+    return /\.tsx?$/.test(entry.name) ? [full] : [];
   });
 }
 
-const files = [...screens(join(appRoot, "app")), ...screens(join(appRoot, "components"))].map(
-  (path) => ({ where: relative(appRoot, path), text: readFileSync(path, "utf8") }),
-);
+const files = [
+  ...sources(join(appRoot, "app")),
+  ...sources(join(appRoot, "components")),
+  ...sources(join(appRoot, "utils")),
+].map((path) => ({ where: relative(appRoot, path), text: readFileSync(path, "utf8") }));
 
 /** `—` in the source is an em dash at runtime, and that is the key. */
 function decode(text: string) {
@@ -189,6 +205,8 @@ describe("the phone app's translations", () => {
       "Student Pro",
       "Teacher Plus",
       "Teacher Pro",
+      // The school licence, which is a plan name like the seven above it.
+      "Institutional",
       "App Store",
       "Google Play",
       // RevenueCat package types and internal action names, compared against
@@ -196,6 +214,10 @@ describe("the phone app's translations", () => {
       "ANNUAL",
       "MONTHLY",
       "TEMPLATE",
+      // A RevenueCat error code, matched against a failure rather than shown.
+      // Its siblings -- PURCHASE_CANCELLED, NETWORK_ERROR -- carry an
+      // underscore and so never looked like a sentence; this one is a word.
+      "OFFLINE",
       // A font family, not a word.
       "Menlo",
       /*
