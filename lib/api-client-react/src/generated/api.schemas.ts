@@ -1317,6 +1317,121 @@ export type StudySessionWithParticipants = StudySession & ({
   myStatus: string | null;
 });
 
+export interface StudyActivityCard {
+  /** @maxLength 80 */
+  id: string;
+  /** @maxLength 500 */
+  term: string;
+  /** @maxLength 1000 */
+  answer: string;
+  choices?: string[];
+  correctChoiceIndex?: number;
+  /** @nullable */
+  imageData?: string | null;
+  /** @nullable */
+  imageAlt?: string | null;
+}
+
+export type StudyActivityWorkspaceRole = typeof StudyActivityWorkspaceRole[keyof typeof StudyActivityWorkspaceRole];
+
+
+export const StudyActivityWorkspaceRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;
+
+export type StudyActivityMode = typeof StudyActivityMode[keyof typeof StudyActivityMode];
+
+
+export const StudyActivityMode = {
+  all: 'all',
+  flashcards: 'flashcards',
+  practice: 'practice',
+  quiz: 'quiz',
+  'true-false': 'true-false',
+  match: 'match',
+  scramble: 'scramble',
+  'missing-word': 'missing-word',
+  random: 'random',
+} as const;
+
+export interface StudyActivity {
+  id: number;
+  ownerId: number;
+  workspaceRole: StudyActivityWorkspaceRole;
+  /** @nullable */
+  classId?: number | null;
+  title: string;
+  /** @nullable */
+  subject?: string | null;
+  mode: StudyActivityMode;
+  /** @nullable */
+  shareToken?: string | null;
+  cards: StudyActivityCard[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SharedStudyActivityMode = typeof SharedStudyActivityMode[keyof typeof SharedStudyActivityMode];
+
+
+export const SharedStudyActivityMode = {
+  all: 'all',
+  flashcards: 'flashcards',
+  practice: 'practice',
+  quiz: 'quiz',
+  'true-false': 'true-false',
+  match: 'match',
+  scramble: 'scramble',
+  'missing-word': 'missing-word',
+  random: 'random',
+} as const;
+
+export interface SharedStudyActivity {
+  id: number;
+  title: string;
+  /** @nullable */
+  subject?: string | null;
+  mode: SharedStudyActivityMode;
+  /** @nullable */
+  classId?: number | null;
+  cards: StudyActivityCard[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type StudyActivityInputMode = typeof StudyActivityInputMode[keyof typeof StudyActivityInputMode];
+
+
+export const StudyActivityInputMode = {
+  all: 'all',
+  flashcards: 'flashcards',
+  practice: 'practice',
+  quiz: 'quiz',
+  'true-false': 'true-false',
+  match: 'match',
+  scramble: 'scramble',
+  'missing-word': 'missing-word',
+  random: 'random',
+} as const;
+
+export interface StudyActivityInput {
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  title: string;
+  subject?: string;
+  mode?: StudyActivityInputMode;
+  /** @nullable */
+  classId?: number | null;
+  sourceResourceId?: number;
+  sourceActivityId?: number;
+  remixedFromActivityId?: number;
+  /** @maxItems 100 */
+  cards: StudyActivityCard[];
+}
+
 export interface StudySessionInput {
   /** @minLength 1 */
   title: string;
@@ -2072,6 +2187,39 @@ export type ListScheduleBlocksParams = {
  * ISO date of the Monday to load (YYYY-MM-DD)
  */
 weekStart?: string;
+};
+
+export type ListStudyActivitiesParams = {
+/**
+ * A class you belong to or teach. Without it, your own activities in the workspace role you are currently in.
+ */
+classId?: number;
+};
+
+export type PublishStudyActivityBodyDestination = typeof PublishStudyActivityBodyDestination[keyof typeof PublishStudyActivityBodyDestination];
+
+
+export const PublishStudyActivityBodyDestination = {
+  catalog: 'catalog',
+  forum: 'forum',
+} as const;
+
+export type PublishStudyActivityBody = {
+  destination?: PublishStudyActivityBodyDestination;
+};
+
+export type PublishStudyActivity201Destination = typeof PublishStudyActivity201Destination[keyof typeof PublishStudyActivity201Destination];
+
+
+export const PublishStudyActivity201Destination = {
+  catalog: 'catalog',
+  forum: 'forum',
+} as const;
+
+export type PublishStudyActivity201 = {
+  materialId: number;
+  shareToken: string;
+  destination: PublishStudyActivity201Destination;
 };
 
 export type SearchUsersParams = {

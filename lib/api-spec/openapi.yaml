@@ -1953,6 +1953,172 @@ paths:
           description: Deleted
 
   # ── Study Sessions ────────────────────────────────────────────────────────
+  # Study activities: the flashcard, quiz and practice sets a person builds
+  # from a resource or from scratch. These have been served since the feature
+  # shipped and were never described here, so the generated clients could not
+  # reach them at all and the phone app -- which has no hand-written API layer
+  # -- simply did not have the feature.
+  /study-activities:
+    get:
+      operationId: listStudyActivities
+      tags: [study-activities]
+      summary: List your own study activities, or a class's
+      parameters:
+        - name: classId
+          in: query
+          required: false
+          schema: { type: integer }
+          description: >-
+            A class you belong to or teach. Without it, your own activities in
+            the workspace role you are currently in.
+      responses:
+        "200":
+          description: Study activities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StudyActivity"
+        "401": { description: Not authenticated }
+        "403": { description: Not a member of this class }
+    post:
+      operationId: createStudyActivity
+      tags: [study-activities]
+      summary: Create a study activity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudyActivityInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudyActivity"
+        "400": { description: Needs a title and at least two complete cards }
+        "401": { description: Not authenticated }
+        "403": { description: Not a member of this class }
+
+  /study-activities/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+    patch:
+      operationId: updateStudyActivity
+      tags: [study-activities]
+      summary: Replace a study activity's title, subject, mode and cards
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StudyActivityInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudyActivity"
+        "400": { description: Invalid study activity }
+        "401": { description: Not authenticated }
+        "403": { description: Not yours to edit }
+        "404": { description: No such activity }
+    delete:
+      operationId: deleteStudyActivity
+      tags: [study-activities]
+      summary: Delete a study activity
+      responses:
+        "204": { description: Deleted }
+        "401": { description: Not authenticated }
+        "403": { description: Not yours to delete }
+        "404": { description: No such activity }
+
+  /study-activities/{id}/copy:
+    post:
+      operationId: copyStudyActivity
+      tags: [study-activities]
+      summary: Copy someone else's activity into your own workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "201":
+          description: Your copy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StudyActivity"
+        "400": { description: Invalid activity id }
+        "401": { description: Not authenticated }
+        "403": { description: You do not have access to this activity }
+        "404": { description: No such activity }
+
+  /study-activities/{id}/publish:
+    post:
+      operationId: publishStudyActivity
+      tags: [study-activities]
+      summary: Share an activity to the catalogue or the forum
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                destination:
+                  type: string
+                  enum: [catalog, forum]
+                  default: catalog
+      responses:
+        "201":
+          description: Published
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [materialId, shareToken, destination]
+                properties:
+                  materialId: { type: integer }
+                  shareToken: { type: string }
+                  destination:
+                    type: string
+                    enum: [catalog, forum]
+        "401": { description: Not authenticated }
+        "404": { description: No such activity }
+
+  /study-activities/shared/{token}:
+    get:
+      operationId: getSharedStudyActivity
+      tags: [study-activities]
+      summary: Read a published activity by its share token, without an account
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The shared activity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedStudyActivity"
+        "404": { description: Shared activity not found }
+
   /study-sessions:
     get:
       operationId: listStudySessions
@@ -3532,6 +3698,114 @@ components:
               items:
                 $ref: "#/components/schemas/StudySessionParticipant"
             myStatus: { type: ["string", "null"] }
+
+    # One card in a study activity. `choices` and `correctChoiceIndex` are only
+    # meaningful for the quiz modes; flashcards carry a term and an answer.
+    StudyActivityCard:
+      type: object
+      required: [id, term, answer]
+      properties:
+        id: { type: string, maxLength: 80 }
+        term: { type: string, maxLength: 500 }
+        answer: { type: string, maxLength: 1000 }
+        choices:
+          type: array
+          items: { type: string }
+        correctChoiceIndex: { type: integer }
+        imageData: { type: ["string", "null"] }
+        imageAlt: { type: ["string", "null"] }
+
+    StudyActivity:
+      type: object
+      required:
+        [id, ownerId, workspaceRole, title, mode, cards, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        ownerId: { type: integer }
+        workspaceRole: { type: string, enum: [student, teacher] }
+        classId: { type: ["integer", "null"] }
+        title: { type: string }
+        subject: { type: ["string", "null"] }
+        mode:
+          type: string
+          enum:
+            [
+              all,
+              flashcards,
+              practice,
+              quiz,
+              true-false,
+              match,
+              scramble,
+              missing-word,
+              random,
+            ]
+        shareToken: { type: ["string", "null"] }
+        cards:
+          type: array
+          items: { $ref: "#/components/schemas/StudyActivityCard" }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    # What a reader without an account gets: the set itself, and nothing about
+    # who owns it or which class it belongs to.
+    SharedStudyActivity:
+      type: object
+      required: [id, title, mode, cards, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        subject: { type: ["string", "null"] }
+        mode:
+          type: string
+          enum:
+            [
+              all,
+              flashcards,
+              practice,
+              quiz,
+              true-false,
+              match,
+              scramble,
+              missing-word,
+              random,
+            ]
+        classId: { type: ["integer", "null"] }
+        cards:
+          type: array
+          items: { $ref: "#/components/schemas/StudyActivityCard" }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    StudyActivityInput:
+      type: object
+      required: [title, cards]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 160 }
+        subject: { type: string }
+        mode:
+          type: string
+          enum:
+            [
+              all,
+              flashcards,
+              practice,
+              quiz,
+              true-false,
+              match,
+              scramble,
+              missing-word,
+              random,
+            ]
+          default: flashcards
+        classId: { type: ["integer", "null"] }
+        sourceResourceId: { type: integer }
+        sourceActivityId: { type: integer }
+        remixedFromActivityId: { type: integer }
+        cards:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/StudyActivityCard" }
 
     StudySessionInput:
       type: object

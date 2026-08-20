@@ -71,11 +71,14 @@ import type {
   ListProvenanceShowcase200,
   ListResourcesParams,
   ListScheduleBlocksParams,
+  ListStudyActivitiesParams,
   LoginInput,
   PrefetchResourceBody,
   PrefetchResourceResponse,
   PresetAvatarInput,
   PublicUser,
+  PublishStudyActivity201,
+  PublishStudyActivityBody,
   RegisterInput,
   ReorderListItemsInput,
   ReportUserInput,
@@ -100,10 +103,13 @@ import type {
   SeatingPlanSuggestionInput,
   SeatingStudent,
   ShareListInput,
+  SharedStudyActivity,
   SourceReview,
   StudentLearningGoal,
   StudentNoteInput,
   StudentRoleInput,
+  StudyActivity,
+  StudyActivityInput,
   StudySessionInput,
   StudySessionPatch,
   StudySessionRsvp,
@@ -6158,6 +6164,524 @@ export const useDeleteScheduleBlock = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteScheduleBlockMutationOptions(options));
     }
+
+export const getListStudyActivitiesUrl = (params?: ListStudyActivitiesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/study-activities?${stringifiedParams}` : `/api/study-activities`
+}
+
+/**
+ * @summary List your own study activities, or a class's
+ */
+export const listStudyActivities = async (params?: ListStudyActivitiesParams, options?: Parameters<typeof customFetch>[1]): Promise<StudyActivity[]> => {
+
+  return customFetch<StudyActivity[]>(getListStudyActivitiesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStudyActivitiesQueryKey = (params?: ListStudyActivitiesParams,) => {
+    return [
+    `/api/study-activities`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListStudyActivitiesQueryOptions = <TData = Awaited<ReturnType<typeof listStudyActivities>>, TError = ErrorType<void>>(params?: ListStudyActivitiesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStudyActivities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStudyActivitiesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStudyActivities>>> = ({ signal }) => listStudyActivities(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStudyActivities>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStudyActivitiesQueryResult = NonNullable<Awaited<ReturnType<typeof listStudyActivities>>>
+export type ListStudyActivitiesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List your own study activities, or a class's
+ */
+
+export function useListStudyActivities<TData = Awaited<ReturnType<typeof listStudyActivities>>, TError = ErrorType<void>>(
+ params?: ListStudyActivitiesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStudyActivities>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStudyActivitiesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStudyActivityUrl = () => {
+
+
+
+
+  return `/api/study-activities`
+}
+
+/**
+ * @summary Create a study activity
+ */
+export const createStudyActivity = async (studyActivityInput: StudyActivityInput, options?: Parameters<typeof customFetch>[1]): Promise<StudyActivity> => {
+
+  return customFetch<StudyActivity>(getCreateStudyActivityUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(studyActivityInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStudyActivityMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStudyActivity>>, TError,{data: BodyType<StudyActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStudyActivity>>, TError,{data: BodyType<StudyActivityInput>}, TContext> => {
+
+const mutationKey = ['createStudyActivity'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStudyActivity>>, {data: BodyType<StudyActivityInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStudyActivity(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStudyActivityMutationResult = NonNullable<Awaited<ReturnType<typeof createStudyActivity>>>
+    export type CreateStudyActivityMutationBody = BodyType<StudyActivityInput>
+    export type CreateStudyActivityMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a study activity
+ */
+export const useCreateStudyActivity = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStudyActivity>>, TError,{data: BodyType<StudyActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStudyActivity>>,
+        TError,
+        {data: BodyType<StudyActivityInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStudyActivityMutationOptions(options));
+    }
+
+export const getUpdateStudyActivityUrl = (id: number,) => {
+
+
+
+
+  return `/api/study-activities/${id}`
+}
+
+/**
+ * @summary Replace a study activity's title, subject, mode and cards
+ */
+export const updateStudyActivity = async (id: number,
+    studyActivityInput: StudyActivityInput, options?: Parameters<typeof customFetch>[1]): Promise<StudyActivity> => {
+
+  return customFetch<StudyActivity>(getUpdateStudyActivityUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(studyActivityInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateStudyActivityMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStudyActivity>>, TError,{id: number;data: BodyType<StudyActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStudyActivity>>, TError,{id: number;data: BodyType<StudyActivityInput>}, TContext> => {
+
+const mutationKey = ['updateStudyActivity'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStudyActivity>>, {id: number;data: BodyType<StudyActivityInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateStudyActivity(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStudyActivityMutationResult = NonNullable<Awaited<ReturnType<typeof updateStudyActivity>>>
+    export type UpdateStudyActivityMutationBody = BodyType<StudyActivityInput>
+    export type UpdateStudyActivityMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace a study activity's title, subject, mode and cards
+ */
+export const useUpdateStudyActivity = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStudyActivity>>, TError,{id: number;data: BodyType<StudyActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStudyActivity>>,
+        TError,
+        {id: number;data: BodyType<StudyActivityInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateStudyActivityMutationOptions(options));
+    }
+
+export const getDeleteStudyActivityUrl = (id: number,) => {
+
+
+
+
+  return `/api/study-activities/${id}`
+}
+
+/**
+ * @summary Delete a study activity
+ */
+export const deleteStudyActivity = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteStudyActivityUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteStudyActivityMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStudyActivity>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteStudyActivity>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteStudyActivity'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteStudyActivity>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteStudyActivity(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteStudyActivityMutationResult = NonNullable<Awaited<ReturnType<typeof deleteStudyActivity>>>
+
+    export type DeleteStudyActivityMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a study activity
+ */
+export const useDeleteStudyActivity = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStudyActivity>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteStudyActivity>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteStudyActivityMutationOptions(options));
+    }
+
+export const getCopyStudyActivityUrl = (id: number,) => {
+
+
+
+
+  return `/api/study-activities/${id}/copy`
+}
+
+/**
+ * @summary Copy someone else's activity into your own workspace
+ */
+export const copyStudyActivity = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<StudyActivity> => {
+
+  return customFetch<StudyActivity>(getCopyStudyActivityUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCopyStudyActivityMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof copyStudyActivity>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof copyStudyActivity>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['copyStudyActivity'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof copyStudyActivity>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  copyStudyActivity(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CopyStudyActivityMutationResult = NonNullable<Awaited<ReturnType<typeof copyStudyActivity>>>
+
+    export type CopyStudyActivityMutationError = ErrorType<void>
+
+    /**
+ * @summary Copy someone else's activity into your own workspace
+ */
+export const useCopyStudyActivity = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof copyStudyActivity>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof copyStudyActivity>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCopyStudyActivityMutationOptions(options));
+    }
+
+export const getPublishStudyActivityUrl = (id: number,) => {
+
+
+
+
+  return `/api/study-activities/${id}/publish`
+}
+
+/**
+ * @summary Share an activity to the catalogue or the forum
+ */
+export const publishStudyActivity = async (id: number,
+    publishStudyActivityBody?: PublishStudyActivityBody, options?: Parameters<typeof customFetch>[1]): Promise<PublishStudyActivity201> => {
+
+  return customFetch<PublishStudyActivity201>(getPublishStudyActivityUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(publishStudyActivityBody)
+  }
+);}
+
+
+
+
+
+export const getPublishStudyActivityMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStudyActivity>>, TError,{id: number;data?: BodyType<PublishStudyActivityBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishStudyActivity>>, TError,{id: number;data?: BodyType<PublishStudyActivityBody>}, TContext> => {
+
+const mutationKey = ['publishStudyActivity'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishStudyActivity>>, {id: number;data?: BodyType<PublishStudyActivityBody>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  publishStudyActivity(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishStudyActivityMutationResult = NonNullable<Awaited<ReturnType<typeof publishStudyActivity>>>
+    export type PublishStudyActivityMutationBody = BodyType<PublishStudyActivityBody> | undefined
+    export type PublishStudyActivityMutationError = ErrorType<void>
+
+    /**
+ * @summary Share an activity to the catalogue or the forum
+ */
+export const usePublishStudyActivity = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStudyActivity>>, TError,{id: number;data?: BodyType<PublishStudyActivityBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishStudyActivity>>,
+        TError,
+        {id: number;data?: BodyType<PublishStudyActivityBody>},
+        TContext
+      > => {
+      return useMutation(getPublishStudyActivityMutationOptions(options));
+    }
+
+export const getGetSharedStudyActivityUrl = (token: string,) => {
+
+
+
+
+  return `/api/study-activities/shared/${token}`
+}
+
+/**
+ * @summary Read a published activity by its share token, without an account
+ */
+export const getSharedStudyActivity = async (token: string, options?: Parameters<typeof customFetch>[1]): Promise<SharedStudyActivity> => {
+
+  return customFetch<SharedStudyActivity>(getGetSharedStudyActivityUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSharedStudyActivityQueryKey = (token: string,) => {
+    return [
+    `/api/study-activities/shared/${token}`
+    ] as const;
+    }
+
+
+export const getGetSharedStudyActivityQueryOptions = <TData = Awaited<ReturnType<typeof getSharedStudyActivity>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSharedStudyActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSharedStudyActivityQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSharedStudyActivity>>> = ({ signal }) => getSharedStudyActivity(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSharedStudyActivity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSharedStudyActivityQueryResult = NonNullable<Awaited<ReturnType<typeof getSharedStudyActivity>>>
+export type GetSharedStudyActivityQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read a published activity by its share token, without an account
+ */
+
+export function useGetSharedStudyActivity<TData = Awaited<ReturnType<typeof getSharedStudyActivity>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSharedStudyActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSharedStudyActivityQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListStudySessionsUrl = () => {
 

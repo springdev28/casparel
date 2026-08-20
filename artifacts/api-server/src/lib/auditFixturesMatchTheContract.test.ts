@@ -65,6 +65,7 @@ const SCHEMA_FOR: Record<string, string> = {
   "/api/google-classroom/status": "GetGCStatusResponse",
   "/api/schedule": "ListScheduleBlocksResponse",
   "/api/study-sessions": "ListStudySessionsResponse",
+  "/api/study-activities": "ListStudyActivitiesResponse",
   "/api/discover/capabilities": "GetDiscoverCapabilitiesResponse",
   "/api/learning-signals": "GetLearningSignalsResponse",
   "/api/admin/overview": "GetAdminOverviewResponse",

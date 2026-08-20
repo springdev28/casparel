@@ -523,6 +523,18 @@ jobs:
           fi
           exit "$status"
 
+      # openapi.yaml is hand-written and everything downstream is generated
+      # from it, so a schema that is subtly wrong is caught by nothing: the
+      # client compiles against the mistake and it surfaces as a field that is
+      # undefined on somebody's screen. The fixture test holds the audit
+      # fixtures against these same schemas, which cannot catch this -- two
+      # hand-written things agreeing about a third says nothing about the
+      # third. This asks the server, which is already running here.
+      - name: Check the catalogue describes what the server sends
+        run: pnpm --filter @workspace/api-server exec vitest run src/contractDescribesTheServer.live.test.ts
+        env:
+          VERIFY_LIVE_URL: http://localhost:4319
+
       # Exit 75 means the run could not be performed (a rate-limit window),
       # which is not a product failure and must not be reported as one.
       - name: Run the flows
