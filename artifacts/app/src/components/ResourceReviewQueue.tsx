@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import { formatName } from "@/lib/resource-format";
 
 interface QueueItem {
   id: number;
@@ -169,7 +170,7 @@ export function ResourceReviewQueue() {
                       <ExternalLink size={13} className="shrink-0 opacity-60" />
                     </a>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {item.subject} · {item.gradeLevel} · {item.format} ·
+                      {item.subject} · {item.gradeLevel} · {formatName(item.format)} ·
                       waiting {daysWaiting(item.createdAt)}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">

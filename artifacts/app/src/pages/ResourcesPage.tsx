@@ -131,6 +131,7 @@ import {
 } from "@workspace/resource-identity";
 import { counted } from "@/lib/counted";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { formatName } from "@/lib/resource-format";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
 const GRADE_LEVEL_OPTIONS = [
@@ -350,9 +351,9 @@ function useOembedThumbnail(url: string, enabled: boolean) {
 function FormatBadge({ format }: { format: string }) {
   return (
     <span
-      className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[format] ?? FORMAT_COLORS.other}`}
+      className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${FORMAT_COLORS[format] ?? FORMAT_COLORS.other}`}
     >
-      {format}
+      {formatName(format)}
     </span>
   );
 }

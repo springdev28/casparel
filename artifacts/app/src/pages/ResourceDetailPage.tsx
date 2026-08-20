@@ -88,6 +88,7 @@ import type { SourceReview } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
 import { counted } from "@/lib/counted";
+import { formatName } from "@/lib/resource-format";
 
 // ── Media helpers ────────────────────────────────────────────────────────────
 
@@ -1201,8 +1202,8 @@ export default function ResourceDetailPage() {
               </CardDescription>
             </div>
             <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-              <Badge variant="secondary" className="capitalize">
-                {resource.format}
+              <Badge variant="secondary">
+                {formatName(resource.format)}
               </Badge>
 
               {/* Review the Source */}

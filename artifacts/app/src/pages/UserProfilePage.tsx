@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@workspace/edu-ds/comp
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { useGetPublicProfile, getGetPublicProfileQueryKey, useGetUserLibrary, getGetUserLibraryQueryKey, useGetUserSafetyStatus, getGetUserSafetyStatusQueryKey, useBlockUser, useUnblockUser, useReportUser, ReportUserInputReason, useGetSeatingChart, getGetSeatingChartQueryKey, useUpdateStudentNote } from '@workspace/api-client-react';
+import { formatName } from "@/lib/resource-format";
 
 export default function UserProfilePage() {
   const { userId } = useParams<{ userId: string }>();
@@ -150,7 +151,7 @@ export default function UserProfilePage() {
           ) : (library.data?.resources.length || library.data?.lists.length) ? (
             <>
               {library.data.lists.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lists</p><div className="space-y-2">{library.data.lists.map((item) => <button key={item.id} onClick={() => setLocation("/lists/" + item.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><List size={16} className="text-primary-text" /><span><span className="block text-sm font-medium">{item.name}</span>{item.description && <span className="block text-xs text-muted-foreground">{item.description}</span>}</span></button>)}</div></div>}
-              {library.data.resources.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resources</p><div className="space-y-2">{library.data.resources.map((resource) => <button key={resource.id} onClick={() => setLocation("/resources/" + resource.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><BookOpen size={16} className="text-primary-text" /><span><span className="block text-sm font-medium">{resource.title}</span><span className="block text-xs text-muted-foreground">{resource.subject} · {resource.format}</span></span></button>)}</div></div>}
+              {library.data.resources.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resources</p><div className="space-y-2">{library.data.resources.map((resource) => <button key={resource.id} onClick={() => setLocation("/resources/" + resource.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><BookOpen size={16} className="text-primary-text" /><span><span className="block text-sm font-medium">{resource.title}</span><span className="block text-xs text-muted-foreground">{resource.subject} · {formatName(resource.format)}</span></span></button>)}</div></div>}
             </>
           ) : <p className="text-sm text-muted-foreground">This user has not added anything to their library yet.</p>}
         </CardContent>

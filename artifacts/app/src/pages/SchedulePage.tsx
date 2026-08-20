@@ -112,6 +112,7 @@ function buildGoogleCalUrl(session: {
 import type { StudySessionWithParticipants } from "@workspace/api-client-react";
 import { Link, useSearch as useRouteSearch } from "wouter";
 import { LoadFailure } from "@/components/LoadFailure";
+import { formatName } from "@/lib/resource-format";
 
 /**
  * One clock for this page.
@@ -391,7 +392,7 @@ function ResourcePicker({
               )}
               <span className="truncate flex-1">{r.title}</span>
               <Badge variant="outline" className="text-[10px] shrink-0">
-                {r.format}
+                {formatName(r.format)}
               </Badge>
             </button>
           ))}

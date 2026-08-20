@@ -48,6 +48,7 @@ import {
 } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
 import { counted } from "@/lib/counted";
+import { formatName } from "@/lib/resource-format";
 
 const FORMAT_COLORS: Record<string, string> = {
   article: 'bg-blue-100 text-blue-700',
@@ -540,8 +541,8 @@ function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps
                 <h3 className="text-sm font-medium text-foreground flex-1 min-w-0">
                   {item.resource.title}
                 </h3>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
-                  {item.resource.format}
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
+                  {formatName(item.resource.format)}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>

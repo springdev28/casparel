@@ -45,6 +45,7 @@ import {
   useUpdateUserPreferences,
   useUserPreferences,
 } from "../lib/user-preferences";
+import { formatName } from "@/lib/resource-format";
 
 const path = [
   {
@@ -451,7 +452,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                     <div className="min-w-0">
                       <p className="truncate font-semibold">{resource.title}</p>
                       <p className="text-sm text-muted-foreground">
-                        {resource.subject} · {resource.format}
+                        {resource.subject} · {formatName(resource.format)}
                         {resourceEffectiveness(
                           resource.avgRating,
                           resource.reviewCount,

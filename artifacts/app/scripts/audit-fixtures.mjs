@@ -58,14 +58,29 @@ const USER = {
   createdAt: "2026-01-05T09:00:00.000Z",
 };
 
-// Free rather than unlimited on purpose: it renders the usage meters and the
-// upgrade CTA, which is strictly more surface to check than the one-line
-// "unlimited" state.
+/*
+ * Free rather than unlimited on purpose: it renders the usage meters and the
+ * upgrade CTA, which is strictly more surface to check than the one-line
+ * "unlimited" state.
+ *
+ * `tier` and `capacity` are required and were both missing, so every meter the
+ * capacity block drives rendered from undefined -- on the settings page, the
+ * plan card and the upgrade prompts.
+ */
 const USAGE = {
   plan: "Free",
+  tier: "free",
   unlimited: false,
   aiSearch: { used: 1, limit: 3, window: "day" },
-  deepResearch: { used: 2, limit: 2, window: "day" },
+  deepResearch: { used: 2, limit: 2, window: "month" },
+  capacity: {
+    classesOwned: { used: 1, limit: 1 },
+    classMembers: { used: 0, limit: 30 },
+    studyActivities: { used: 6, limit: 25 },
+    resourceLists: { used: 2, limit: 5 },
+    learningGoals: { used: 3, limit: 10 },
+    canvases: { used: 1, limit: 3 },
+  },
 };
 
 /**
@@ -149,14 +164,23 @@ const RESOURCE = {
   description:
     "A standard undergraduate text, openly licensed and maintained by its author.",
   url: "https://example.org/linear-algebra",
-  type: "book",
+  /*
+   * `format`, from the enum, and not `type: "book"`. The API has no `type` and
+   * no "book": the column is a not-null enum of article/video/pdf/podcast/
+   * interactive/other. So every render of the library and the detail page was
+   * of a resource with no format at all, which is the field the type icon, the
+   * filter chip and the card label all read.
+   *
+   * `submittedById` was null and the column is not-null. `language` and
+   * `source` were invented -- the server returns neither.
+   */
+  format: "pdf",
   subject: "Mathematics",
   gradeLevel: "Undergraduate",
-  language: "en",
-  source: "Open Library",
+  thumbnailUrl: null,
   verificationStatus: "verified",
   verificationNote: null,
-  submittedById: null,
+  submittedById: 2,
   // The names the API actually returns. These read averageRating/ratingCount,
   // which nothing consumes, so every render had no rating at all and the
   // resource card printed "NaN% evidence score" -- reported by the translation
@@ -192,14 +216,26 @@ const LEARNING_GOAL = {
   targetDate: "2026-12-01",
   status: "active",
   progress: 25,
+  /*
+   * `query` and `completed`, which is what the contract says a step is. These
+   * read `done`, so the app -- which reads `completed` -- saw two unfinished
+   * steps and printed "0 of 2" beside a step that was finished.
+   */
   pathSteps: [
-    { id: "s1", title: "HTML and CSS", done: true },
-    { id: "s2", title: "TypeScript", done: false },
+    { id: "s1", title: "HTML and CSS", query: "html css fundamentals", completed: true },
+    { id: "s2", title: "TypeScript", query: "typescript for beginners", completed: false },
   ],
   createdAt: "2026-03-02T09:00:00.000Z",
   updatedAt: "2026-04-11T09:00:00.000Z",
 };
 
+/*
+ * A class with a roster on it.
+ *
+ * `members` is required and was absent, so the class detail page was audited
+ * with its member list, its roles and its seating all rendering from nothing,
+ * beside a header claiming 24 members.
+ */
 const CLASS = {
   id: 31,
   name: "Physics A-level",
@@ -209,6 +245,42 @@ const CLASS = {
   teacherId: 1,
   memberCount: 24,
   createdAt: "2026-01-14T09:00:00.000Z",
+  members: [
+    {
+      userId: 1,
+      classId: 31,
+      role: "teacher",
+      customRole: null,
+      joinedAt: "2026-01-14T09:00:00.000Z",
+      user: {
+        id: 1,
+        name: "Audit Account",
+        role: "teacher",
+        websiteUrl: null,
+        avatarUrl: null,
+        bio: "Checking that every surface renders.",
+        subjects: ["Mathematics", "Physics"],
+        gradeOrDept: "Year 12",
+      },
+    },
+    {
+      userId: 2,
+      classId: 31,
+      role: "student",
+      customRole: null,
+      joinedAt: "2026-01-20T09:00:00.000Z",
+      user: {
+        id: 2,
+        name: "Ada Karahan",
+        role: "student",
+        websiteUrl: null,
+        avatarUrl: null,
+        bio: "Second year, mostly mechanics.",
+        subjects: ["Physics"],
+        gradeOrDept: "Year 12",
+      },
+    },
+  ],
 };
 
 const RESOURCE_LIST = {

@@ -14,6 +14,7 @@ import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Card, CardContent } from "@workspace/edu-ds/components/ui/card";
 import { Progress } from "@workspace/edu-ds/components/ui/progress";
+import { formatName } from "@/lib/resource-format";
 
 type WorkflowAction =
   | "review"
@@ -184,7 +185,7 @@ export function ContinueWorkflows() {
                   {/* The user's own goal, list or canvas title. */}
                   <p translate="no" className="truncate text-sm font-semibold">{item.title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {item.subject} · {item.format}
+                    {item.subject} · {formatName(item.format)}
                     {item.classShare?.name ? ` · ${item.classShare.name}` : ""}
                   </p>
                   <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground sm:hidden">
