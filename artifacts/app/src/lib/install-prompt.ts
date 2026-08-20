@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /**
  * Whether the browser will install Casparel, and how to ask it to.
@@ -16,7 +16,13 @@ import { useEffect, useState } from "react";
  *
  * So the page cannot promise a button, and must not render a dead one. What it
  * can always do is say which of those three situations the reader is in, which
- * is what `installability` answers.
+ * is what `useInstallability` answers.
+ *
+ * The event is caught once for the whole app rather than by the component that
+ * draws the button, because it is fired once for the whole app: it arrives when
+ * the browser finishes deciding, which is whenever it is, and a visitor who
+ * reads two pages before opening /download would otherwise find the offer gone
+ * — the browser considers itself to have offered, and does not repeat it.
  */
 
 /** Not in lib.dom: the event is Chromium's, and still not in the standard. */
@@ -41,50 +47,129 @@ function isStandalone(): boolean {
   return (navigator as { standalone?: boolean }).standalone === true;
 }
 
+/**
+ * That this browser installed Casparel, remembered across tabs and reloads.
+ *
+ * `display-mode: standalone` is only true inside the installed window, and a
+ * browser tells an ordinary tab nothing about an app it has installed — so
+ * after installing, the tab the reader installed *from* went back to
+ * explaining how to install, which is the one thing they no longer need.
+ * (`navigator.getInstalledRelatedApps` is meant for this and answered with an
+ * empty list for an app that was demonstrably installed, so it is not what
+ * this leans on.)
+ *
+ * Stale in one direction only, and it repairs itself: a browser fires
+ * `beforeinstallprompt` when the app is installable, which it is not while it
+ * is installed, so an uninstall is announced by the next prompt and clears
+ * this.
+ */
+const INSTALLED_KEY = "schoolar_installed";
+
+function remembered(): boolean {
+  try {
+    return localStorage.getItem(INSTALLED_KEY) === "1";
+  } catch {
+    return false; // storage disabled, or a private window that forbids it
+  }
+}
+
+function remember(yes: boolean): void {
+  try {
+    if (yes) localStorage.setItem(INSTALLED_KEY, "1");
+    else localStorage.removeItem(INSTALLED_KEY);
+  } catch {
+    /* nothing to do: the state is then merely per-tab */
+  }
+}
+
+let deferred: BeforeInstallPromptEvent | null = null;
+let installed = isStandalone() || remembered();
+let watching = false;
+const subscribers = new Set<() => void>();
+
+function changed() {
+  for (const notify of subscribers) notify();
+}
+
+/**
+ * Start listening, once, as early in the app's life as possible.
+ *
+ * Called from the entry point rather than from the card, so the event is
+ * already in hand by the time anyone navigates to the page that offers it.
+ */
+export function watchInstallPrompt(): void {
+  if (watching || typeof window === "undefined") return;
+  watching = true;
+  // Running in the installed window is proof, and it is proof the ordinary
+  // tabs of the same browser have no other way of getting: someone who
+  // installed through the browser's own menu never went through the button.
+  if (isStandalone()) remember(true);
+  window.addEventListener("beforeinstallprompt", (event) => {
+    /*
+     * Chromium shows its own install affordance in the address bar by
+     * default. Preventing that is what makes this page's button the offer
+     * rather than a second one beside it -- and it is only correct because
+     * the event is kept: a prevented prompt that is then thrown away is an
+     * install the reader can no longer perform at all.
+     */
+    event.preventDefault();
+    deferred = event as BeforeInstallPromptEvent;
+    // Offered means installable means not installed: this is where a copy
+    // that has since been uninstalled stops being remembered as present.
+    installed = false;
+    remember(false);
+    changed();
+  });
+  window.addEventListener("appinstalled", () => {
+    installed = true;
+    remember(true);
+    deferred = null;
+    changed();
+  });
+}
+
+function subscribe(notify: () => void): () => void {
+  subscribers.add(notify);
+  return () => subscribers.delete(notify);
+}
+
+function snapshot(): Installability {
+  if (installed) return "installed";
+  return deferred ? "ready" : "manual";
+}
+
+/** What is on the server, where there is no browser to ask. */
+function serverSnapshot(): Installability {
+  return "manual";
+}
+
 export function useInstallability(): {
   state: Installability;
   install: () => Promise<void>;
 } {
-  const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installed, setInstalled] = useState(isStandalone);
-
-  useEffect(() => {
-    const onPrompt = (event: Event) => {
-      /*
-       * Chromium shows its own install affordance in the address bar by
-       * default. Preventing that is what makes this page's button the offer
-       * rather than a second one beside it -- and it is only correct because
-       * the event is kept: a prevented prompt that is then thrown away is an
-       * install the reader can no longer perform at all.
-       */
-      event.preventDefault();
-      setPrompt(event as BeforeInstallPromptEvent);
-    };
-    const onInstalled = () => {
-      setInstalled(true);
-      setPrompt(null);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
+  const state = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
 
   async function install() {
+    const prompt = deferred;
     if (!prompt) return;
+    // Cleared before the dialog opens, not after: the browser will not accept
+    // the same event twice, so a second press while the first dialog is open
+    // would do nothing and look like a broken button.
+    deferred = null;
+    changed();
     await prompt.prompt();
-    await prompt.userChoice;
-    // Single-use: the browser will not accept the same event twice, so keeping
-    // it would leave a button that silently does nothing on the second press.
-    setPrompt(null);
+    const { outcome } = await prompt.userChoice;
+    if (outcome === "accepted") {
+      // `appinstalled` follows, but not always promptly -- and Chrome reloads
+      // the tab it installed from, which would lose an answer held only in
+      // memory. Recording it here is what makes the card correct afterwards.
+      installed = true;
+      remember(true);
+      changed();
+    }
   }
 
-  return {
-    state: installed ? "installed" : prompt ? "ready" : "manual",
-    install,
-  };
+  return { state, install };
 }
 
 /**
