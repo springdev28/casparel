@@ -36,6 +36,15 @@ import {
 const LANGUAGE_EVENT = "schoolar-language-change";
 
 /**
+ * Set on <html> while this bridge has translation still to do.
+ *
+ * Exported so the translation audit can wait on it rather than on a timer.
+ * It describes real state -- the document is mid-translation -- so it is
+ * worth having whether or not anything is watching.
+ */
+export const BUSY_ATTRIBUTE = "data-translating";
+
+/**
  * Subtrees this bridge leaves alone.
  *
  * `translate="no"` is the standard attribute for it, honoured by browser
@@ -216,15 +225,42 @@ export default function UiTranslationBridge() {
         document.documentElement.lang = language;
       }
     };
+    /*
+     * Whether this bridge owes the document any work, stated on the document.
+     *
+     * Translation is batched into an animation frame, and the dictionary
+     * arrives over the network, so there are two moments when the page is
+     * rendered but not yet translated. Both last a few milliseconds and
+     * neither is visible to a reader.
+     *
+     * They are visible to anything that reads the page mechanically. The
+     * translation audit waited on `lang` and then a fixed 300ms, which is a
+     * guess about how long those moments take -- and under a parallel run it
+     * guessed wrong about once in eight hundred renders, reporting a string
+     * that was sitting in the dictionary the whole time. A number that is
+     * usually long enough is the kind of check that sends the next person
+     * hunting for a missing entry that is right there.
+     *
+     * So the bridge says it, and the audit can wait for a fact instead. It is
+     * one attribute on <html>, which the observer does not watch (it observes
+     * body), so setting it cannot feed back into the work it describes.
+     */
+    const owes = (pending: boolean) => {
+      if (pending) document.documentElement.setAttribute(BUSY_ATTRIBUTE, "");
+      else document.documentElement.removeAttribute(BUSY_ATTRIBUTE);
+    };
+
     const flush = () => {
       frame = 0;
       for (const node of pendingNodes) {
         if (node.isConnected) translateSubtree(node, language);
       }
       pendingNodes.clear();
+      owes(false);
     };
     const schedule = (node: Node) => {
       pendingNodes.add(node);
+      owes(true);
       if (!frame) frame = window.requestAnimationFrame(flush);
     };
 
@@ -243,9 +279,15 @@ export default function UiTranslationBridge() {
      * were still in flight, whatever the observer did with it meanwhile.
      */
     let cancelled = false;
+    // Owed from the first paint until the words are here and applied.
+    owes(language !== "en" && !isDictionaryLoaded(language));
     apply();
     void loadDictionary(language).then(() => {
-      if (!cancelled) apply();
+      if (cancelled) return;
+      apply();
+      // Only settled if nothing arrived while the chunk was in flight; a
+      // scheduled frame still owes its flush.
+      if (!frame) owes(false);
     });
 
     const observer = new MutationObserver((mutations) => {
@@ -268,15 +310,21 @@ export default function UiTranslationBridge() {
       // Switching language mid-session needs the new dictionary, which this
       // reader has almost certainly never fetched. Paint what is known now
       // -- for English, that is the whole job -- and again when it lands.
+      owes(language !== "en" && !isDictionaryLoaded(language));
       apply();
       const chosen = language;
       void loadDictionary(chosen).then(() => {
-        if (!cancelled && language === chosen) apply();
+        if (cancelled || language !== chosen) return;
+        apply();
+        if (!frame) owes(false);
       });
     };
     document.addEventListener(LANGUAGE_EVENT, handleLanguage);
     return () => {
       cancelled = true;
+      // An unmounted bridge owes nothing; leaving the attribute behind would
+      // make the document look permanently mid-translation.
+      owes(false);
       observer.disconnect();
       if (frame) window.cancelAnimationFrame(frame);
       pendingNodes.clear();

@@ -298,9 +298,21 @@ async function collect(pagePath, language, signedIn, viewport, role) {
    * A flaky audit is worse than a slow one: it teaches whoever sees it to run
    * it again rather than to read it.
    *
-   * The short settle after is still there, for the mutations the first pass
-   * schedules; what changed is that it starts counting from a known point
-   * instead of from `goto` returning.
+   * Then it waits for the bridge to say it has nothing left to do.
+   *
+   * `lang` alone is not enough. The bridge batches translation into an
+   * animation frame, so a node that renders in the frame before the sample is
+   * translated about sixteen milliseconds later -- invisible to a reader,
+   * and squarely inside the gap this used to bridge with a fixed 300ms. Under
+   * a parallel run that guess was wrong about once in eight hundred renders,
+   * and it failed in the worst possible way: it reported a string as
+   * untranslated while that exact string sat in the dictionary, which sends
+   * whoever reads the report hunting for an entry that is right there.
+   *
+   * `data-translating` is set on <html> while the bridge owes the document
+   * work -- a dictionary still in flight, or a frame still to flush -- so
+   * this waits on the thing itself rather than on how long it usually takes.
+   * The short settle stays, for mutations that arrive after the wait clears.
    */
   await page
     .waitForFunction(
@@ -313,6 +325,17 @@ async function collect(pagePath, language, signedIn, viewport, role) {
       // read, and report on, rather than skip.
       console.error(
         `  !  ${pagePath} [${language}] never set <html lang>; read anyway`,
+      );
+    });
+  await page
+    .waitForFunction(
+      () => !document.documentElement.hasAttribute("data-translating"),
+      undefined,
+      { timeout: 10000 },
+    )
+    .catch(() => {
+      console.error(
+        `  !  ${pagePath} [${language}] still translating after 10s; read anyway`,
       );
     });
   await page.waitForTimeout(300);
