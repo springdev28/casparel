@@ -23,7 +23,10 @@
  *   node scripts/verify-app-macos.mjs [path/to/Casparel.dmg]
  *
  * With no argument it takes the .dmg from release/ that matches this machine's
- * architecture. Exit 0 all good, 1 a real defect, 75 the check could not be
+ * architecture. The release workflow names one explicitly and runs this once
+ * per image, because "the one matching this machine" is one image and the
+ * release ships two: 1.0.1's Intel .dmg went out having never been opened by
+ * anything. Exit 0 all good, 1 a real defect, 75 the check could not be
  * performed (not macOS, no image to test).
  *
  * A check can also be skipped, which is neither of those. This runs against a
@@ -39,6 +42,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { launchPlan } from "./launch-plan.mjs";
 import { classifySmokeVerdict, smokeVerdict } from "./smoke-verdict.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -276,13 +280,34 @@ console.log(`note: code signature -> ${signing}`);
 
 // --------------------------------------------------- install it, and run it
 
-const runnableHere = archs.includes(hostArch);
-if (!runnableHere) {
+// Rosetta translates an Intel binary on spawn with no help from the caller, so
+// the only question is whether it is installed. Asking the system to run a
+// trivial Intel binary answers it; looking for a path under /Library/Apple
+// guesses at an implementation detail instead.
+function hasRosetta() {
+  if (process.arch !== "arm64") return false;
+  try {
+    run("/usr/bin/arch", ["-x86_64", "/usr/bin/true"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const plan = launchPlan({ archs, hostArch, hasRosetta: hasRosetta() });
+if (!plan.launch) {
+  // The build is fine; this machine cannot start it. Named as skips rather than
+  // a note so the summary counts them, instead of reporting a full pass over a
+  // run where the two checks that matter most never happened.
+  skip("the installed app launches and loads a page", plan.why);
+  skip("the packaged window is hardened against the page it loads", plan.why);
   console.log(
-    `\nnote: this image is for ${archs.join("/") || "an unknown architecture"} and the host is ${hostArch}, so it was inspected but not launched.`,
+    `\n${checks - failures - skipped}/${checks} checks passed, ${skipped} skipped (this host cannot run this image)`,
   );
-  console.log(`\n${checks - failures}/${checks} checks passed`);
   process.exit(failures === 0 ? 0 : 1);
+}
+if (plan.translated) {
+  console.log("note: Intel build on Apple Silicon, running under Rosetta 2.");
 }
 
 // Copy it out first, exactly as dragging to /Applications would: an app that

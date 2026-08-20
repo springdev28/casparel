@@ -47,23 +47,34 @@ jobs:
           TAG: ${{ inputs.tag }}
         run: |
           version="${TAG#desktop-v}"
-          # macos-latest runners are arm64; take the image this machine can
-          # actually execute, so "it launches" is a real result rather than a
-          # skipped one.
-          arch=$(uname -m)
-          case "$arch" in
-            arm64) asset="Casparel-${version}-arm64.dmg" ;;
-            *)     asset="Casparel-${version}-x64.dmg" ;;
-          esac
-          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
-          echo "Runner is ${arch}; fetching ${asset}"
-          if ! curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/app.dmg" "$url"; then
-            echo "::error title=Asset not found::${url} could not be downloaded. Check the tag and the asset name."
-            exit 1
-          fi
-          ls -lh "$RUNNER_TEMP/app.dmg"
-          shasum -a 256 "$RUNNER_TEMP/app.dmg"
+          # Both, not the one matching this machine. A release ships an arm64
+          # and an x64 image, and taking only the host's arch meant the Intel
+          # one was never opened -- which is how 1.0.1 shipped an Intel .dmg
+          # nothing had ever looked inside. Both are inspected either way; the
+          # Intel one is also launched when the runner has Rosetta 2, and named
+          # as a skip with its reason when it does not.
+          echo "Runner is $(uname -m); fetching both images"
+          for arch in arm64 x64; do
+            asset="Casparel-${version}-${arch}.dmg"
+            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${asset}"
+            if ! curl -fsSL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/${arch}.dmg" "$url"; then
+              echo "::error title=Asset not found::${url} could not be downloaded. Check the tag and the asset name."
+              exit 1
+            fi
+            ls -lh "$RUNNER_TEMP/${arch}.dmg"
+            shasum -a 256 "$RUNNER_TEMP/${arch}.dmg"
+          done
 
-      - name: Mount it, inspect it, run it
+      - name: Mount them, inspect them, run them
         working-directory: artifacts/desktop
-        run: node scripts/verify-app-macos.mjs "$RUNNER_TEMP/app.dmg"
+        run: |
+          # Both are reported before the step fails. Stopping at the first bad
+          # image hides the state of the other one, and "did this break one
+          # architecture or all of them" is the first question anybody asks.
+          status=0
+          for arch in arm64 x64; do
+            echo "::group::${arch}"
+            node scripts/verify-app-macos.mjs "$RUNNER_TEMP/${arch}.dmg" || status=1
+            echo "::endgroup::"
+          done
+          exit $status

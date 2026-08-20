@@ -29,6 +29,20 @@ files:
 # Set CSC_LINK / CSC_KEY_PASSWORD (macOS, Windows) in the release environment;
 # unsigned builds are produced without them, which is fine for local testing.
 mac:
+  # The .app is named after this, not after productName, so the top-level
+  # executableName above reached macOS and shipped `casparel.app` -- what a
+  # person sees in Finder and in /Applications after dragging it across. The
+  # Dock and menu bar read CFBundleName and said "Casparel", so the same
+  # application answered to two different names depending on where you looked,
+  # and the one users install under was the wrong one. macOS will not paper
+  # over it either: CFBundleDisplayName is ignored when it disagrees with the
+  # bundle's own filename, precisely so an app cannot present itself as
+  # something it is not.
+  #
+  # The lowercase name is for Linux, where the executable, the .desktop entry
+  # and the icon paths are all derived from it. Naming it here per-platform
+  # keeps that where it belongs instead of leaking into the other two.
+  executableName: Casparel
   category: public.app-category.education
   target:
     - target: dmg

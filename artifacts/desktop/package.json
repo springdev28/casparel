@@ -24,7 +24,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "smoke": "node scripts/run-smoke.mjs",
     "verify:package": "node scripts/verify-package.mjs",
-    "test:verdicts": "node scripts/smoke-verdict.test.mjs"
+    "test:verdicts": "node scripts/smoke-verdict.test.mjs",
+    "test:launch-plan": "node scripts/launch-plan.test.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -252,6 +252,15 @@ jobs:
       - name: Check how packaged smoke results are read
         run: pnpm --filter @workspace/desktop run test:verdicts
 
+      # The other decision the release checks make with no Electron in sight:
+      # whether this host can start the binary inside an image at all. It
+      # compared `lipo -archs` output against `process.arch`, and those two
+      # disagree about the name of Intel -- lipo says x86_64, Node says x64 --
+      # so the Intel build could never have been launched on the one kind of
+      # machine able to run it, and the run would have said so in no way at all.
+      - name: Check which images a host can launch
+        run: pnpm --filter @workspace/desktop run test:launch-plan
+
       - name: Smoke-test the desktop shell
         run: pnpm --filter @workspace/desktop run smoke
 
