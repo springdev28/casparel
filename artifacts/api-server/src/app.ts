@@ -117,6 +117,30 @@ app.use("/api/auth/register", authLimiter, authAccountLimiter);
 app.use("/api", loginCompatRouter);
 app.use("/api", router);
 
+/**
+ * Extensions the frontend build emits. A request for one of these that
+ * `express.static` did not answer is a file that is not on disk.
+ *
+ * A list rather than "any path with a dot in it", so a client-side route can
+ * always carry a dot in an id or a slug without being mistaken for a file.
+ */
+const ASSET_EXTENSIONS = new Set([
+  ".js", ".mjs", ".cjs", ".css", ".map",
+  ".json", ".txt", ".xml", ".webmanifest",
+  ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".avif", ".ico",
+  ".woff", ".woff2", ".ttf", ".otf", ".eot",
+  ".wasm", ".mp3", ".mp4", ".webm",
+]);
+
+/** Is this address asking for a build artefact rather than a page? */
+export function isAssetRequest(pathname: string): boolean {
+  // /assets is the build's own directory. Nothing else is ever served from it,
+  // so a miss there is a miss whatever it is named.
+  if (pathname.startsWith("/assets/")) return true;
+  const extension = path.extname(pathname).toLowerCase();
+  return extension !== "" && ASSET_EXTENSIONS.has(extension);
+}
+
 if (process.env.NODE_ENV === "production") {
   // FRONTEND_PUBLIC_DIR exists so this branch can be tested. Everything about
   // how a page is served to a crawler lives in here, and it used to be
@@ -176,6 +200,35 @@ if (process.env.NODE_ENV === "production") {
   app.get("/{*path}", (req, res, next) => {
     if (req.path.startsWith("/api")) {
       next();
+      return;
+    }
+
+    // A file that is not there is not the app.
+    //
+    // Everything below this line serves index.html, which is right for a
+    // client-side route -- /resources/2 is not a file and never was. It was
+    // also being done for /assets/index-OLD.js, and that is a different
+    // request with a different right answer: the browser asked for a script
+    // and got 200 with a page of HTML, so it parsed `<!DOCTYPE html>` as
+    // JavaScript and failed.
+    //
+    // How badly depends on which script it was. A lazy chunk fails inside
+    // React, where the error boundary catches it -- but as a syntax error
+    // about a `<`, which describes nothing that is actually wrong. The entry
+    // script fails before React exists, and then there is no boundary to
+    // catch anything: an empty <div id="root">, no message, no reload button,
+    // a blank window.
+    //
+    // A tab reaches this in ordinary use because a deploy removes the
+    // previous build's hashed files, so a tab still running the old shell
+    // asks for chunks that were deleted minutes ago. Thirteen deploys landed
+    // on the day this was found.
+    //
+    // A missing file is now a 404, which is a thing the browser and the
+    // console can both report honestly. Client-side routes are unaffected:
+    // they have no file extension, which is what separates the two cases.
+    if (isAssetRequest(req.path)) {
+      res.status(404).type("text/plain").send("Not found");
       return;
     }
 

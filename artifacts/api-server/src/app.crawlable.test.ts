@@ -131,4 +131,40 @@ describe("a page a search engine asks for", () => {
     const res = await request(app).get("/resources");
     expect(res.headers["cache-control"]).toContain("no-cache");
   });
+
+  /*
+   * The other half of the fallback, and the half that had no test.
+   *
+   * Serving index.html for /dashboard is right. Serving it for a build file
+   * that is not on disk is not: the browser asked for a module, gets 200 and
+   * a page of HTML, parses `<!DOCTYPE html>` as JavaScript and stops. React
+   * never mounts, so nothing renders and no error boundary exists to say so
+   * -- a blank window and a syntax error pointing at a line of markup.
+   *
+   * A deploy deletes the previous build's hashed files, so any tab still
+   * running the old shell asks for chunks that are gone. That is the whole
+   * distance between "we shipped" and "somebody's screen went blank".
+   */
+  it("404s a build file that is not on disk instead of answering with a page", async () => {
+    for (const missing of [
+      "/assets/index-BL0GGthY.css",
+      "/assets/ResourceDetailPage-D9nUuMPq.js",
+      "/assets/space-grotesk-latin.woff2",
+      "/sw.js",
+    ]) {
+      const res = await request(app).get(missing);
+      expect(res.status, `${missing} should be 404`).toBe(404);
+      expect(
+        res.text,
+        `${missing} was answered with the app shell, which the browser will ` +
+          `try to parse as the kind of file it asked for`,
+      ).not.toContain("<div id=\"root\"></div>");
+    }
+  });
+
+  it("still serves a file that is on disk", async () => {
+    const res = await request(app).get("/_seo/routes.json");
+    expect(res.status).toBe(200);
+    expect(res.body.origin).toBe("https://casparel.com");
+  });
 });

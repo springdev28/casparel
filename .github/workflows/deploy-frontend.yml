@@ -314,6 +314,15 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-session.mjs
 
+      # A tab somebody left open while this very workflow shipped a new build.
+      # Every page is a lazy import and a deploy replaces the hashed chunks, so
+      # the old shell asks for files that are gone. This drives that, and the
+      # answer has to be that the app reloads itself onto the new build --
+      # not a blank window, and not a message asking for a click.
+      - name: Audit a tab left open across a deploy
+        working-directory: artifacts/app
+        run: node scripts/audit-stale-build.mjs
+
       - name: Build API (bundles the SPA into dist/public)
         run: pnpm --filter @workspace/api-server run build
         env:
