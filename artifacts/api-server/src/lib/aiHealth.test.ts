@@ -20,7 +20,11 @@ describe("AI health", () => {
   it("knows nothing before any call, and says so", () => {
     // "ok" here would be a guess presented as a fact: a server that has served
     // no AI request has no evidence either way.
-    expect(aiHealth()).toEqual({ state: "unknown", checkedAt: null });
+    expect(aiHealth()).toEqual({
+      state: "unknown",
+      reason: "never-attempted",
+      checkedAt: null,
+    });
   });
 
   it("reports ok after a call succeeds", async () => {
@@ -52,9 +56,19 @@ describe("AI health", () => {
     await throughAi("discovery", async () => "result");
     const health = aiHealth(Date.now() + 16 * 60 * 1000);
     expect(health.state).toBe("unknown");
-    // The timestamp survives: "nothing recent" and "nothing ever" are
-    // different answers, and the last one seen is the useful half.
+    /*
+     * "Nothing recent" and "nothing ever" are different answers, and this used
+     * to say which only through `checkedAt` being non-null -- a two-step
+     * inference at the moment somebody is trying to find out whether the
+     * headline feature is broken. Production actually reported the other case,
+     * and reading it took exactly that inference.
+     */
+    expect(health.reason).toBe("last-result-expired");
     expect(health.checkedAt).not.toBeNull();
+    // And what it was when anybody last knew: a provider that was failing an
+    // hour ago is a different starting point from one that was fine.
+    expect(health.lastState).toBe("ok");
+    expect(health.lastOperation).toBe("discovery");
   });
 
   it("never lets a key out through the error field", async () => {
