@@ -67,11 +67,23 @@ flashcards.
 
 `contractDescribesEveryRoute.test.ts` now holds the two lists together: a
 route stays out of the contract only with a written reason, and the features
-still missing are named in a list a fourth test keeps honest. Direct messages
-came off it first — five endpoints described, a conversation list and a thread
-on the phone, reachable from the dashboard header. The rest of that list is
-the most concrete backlog this document has for closing the web/phone gap, and
-each entry is a day's work rather than a design question.
+still missing are named in a list a fourth test keeps honest.
+
+Fourteen of the seventy-one have been described since, and the count is 127 of
+184. Direct messages came first — five endpoints, a conversation list and a
+thread on the phone, reachable from the dashboard header. Then five more that
+were each a hand-rolled `fetch` sitting where a generated call should have
+been: preferences, the ban check, oEmbed thumbnails, one-to-one resource
+recommendations, and goal templates. Each of those deleted a hand-written copy
+of a schema that nothing held against the server, including the one guarding
+whether a banned account may use the product at all.
+
+What is left is three features rather than fifty scattered routes: the forum
+(21 endpoints), the canvas (11), and assignments with class analytics (9).
+That is the most concrete backlog this document has for closing the web/phone
+gap. Each is a week rather than a day, and each is a design question about
+what the feature should be on a phone rather than a translation of what it is
+on the web.
 
 ## Chances of winning
 

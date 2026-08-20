@@ -38,9 +38,10 @@ const specPath = resolve(here, "../../../../lib/api-spec/openapi.yaml");
 /**
  * Routes served on purpose without a contract entry, and why.
  *
- * Two kinds: URLs somebody else's software calls, which no generated client
- * would ever want; and the admin surface, which the web app reaches through a
- * hand-rolled `adminRequest` fetch in AdminPage.tsx. The second kind is a
+ * Three kinds: URLs somebody else's software calls, which no generated client
+ * would ever want; the admin surface, which the web app reaches through a
+ * hand-rolled `adminRequest` fetch in AdminPage.tsx; and one route nothing
+ * calls at all. The second kind is a
  * decision that could be revisited -- an admin app on a phone would need
  * them -- rather than a rule.
  *
@@ -63,6 +64,20 @@ const UNDESCRIBED: Record<string, string> = {
   // The admin surface. AdminPage.tsx calls these through its own fetch
   // wrapper rather than a generated hook, so they are undescribed on purpose
   // for now. Worth describing the day anything but that page needs them.
+  /*
+   * Served, described nowhere, and called by nothing.
+   *
+   * Its own comment says "other lists shared with this class (not Class
+   * Resources)", which is a real distinction -- but the class detail page uses
+   * /classes/{id}/resources-list instead, and /lists/shared covers the
+   * account-wide case. Describing it would generate a client for code no
+   * surface reaches; deleting it is a call for somebody who knows whether it
+   * was half of something planned. Recorded here so the next person does not
+   * have to work that out again.
+   */
+  "GET /classes/{id}/shared-lists":
+    "no client calls it; describe it when one does, or delete it",
+
   "GET /admin/users": "admin surface, called through AdminPage's own fetch",
   "GET /admin/users/{id}/details":
     "admin surface, called through AdminPage's own fetch",
@@ -106,7 +121,6 @@ const NOT_DESCRIBED_YET: Record<string, string> = {
   "/classes/{id}/analytics": "assignments, class analytics, the continue queue",
   "/assignments": "assignments, class analytics, the continue queue",
   "/workflow": "assignments, class analytics, the continue queue",
-  "/classes/{id}/shared-lists": "lists a class shares",
 };
 
 /** "METHOD /path" for every route any router registers, with {param} params. */
