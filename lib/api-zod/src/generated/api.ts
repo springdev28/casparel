@@ -3530,3 +3530,149 @@ export const AnswerConversationRequestResponse = zod.object({
 })
 
 
+/**
+ * Returns defaults for an account that has never set anything, rather than 404, so a client can read this before the user has touched a single setting.
+ * @summary Everything this account has chosen about how Casparel behaves
+ */
+export const getMyPreferencesResponseInterfaceColorsOneBackgroundRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const getMyPreferencesResponseInterfaceColorsOneSurfaceRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const getMyPreferencesResponseInterfaceColorsOnePrimaryRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const getMyPreferencesResponseInterfaceColorsOneAccentRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const getMyPreferencesResponseAmbientIntensityMin = 0.5;
+export const getMyPreferencesResponseAmbientIntensityMax = 2;
+
+export const getMyPreferencesResponsePendingCheckInsConceptMax = 300;
+
+export const getMyPreferencesResponsePendingCheckInsPromptMax = 600;
+
+export const getMyPreferencesResponseSearchHistoryItemQueryMax = 300;
+
+
+
+export const GetMyPreferencesResponse = zod.object({
+  "userId": zod.int(),
+  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullish().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
+  "interfaceColors": zod.union([zod.object({
+  "background": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneBackgroundRegExp),
+  "surface": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneSurfaceRegExp),
+  "primary": zod.string().regex(getMyPreferencesResponseInterfaceColorsOnePrimaryRegExp),
+  "accent": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneAccentRegExp)
+}),zod.null()]).optional(),
+  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullish(),
+  "ambientIntensity": zod.number().min(getMyPreferencesResponseAmbientIntensityMin).max(getMyPreferencesResponseAmbientIntensityMax).nullish(),
+  "readNotificationIds": zod.array(zod.int()),
+  "dashboardGoalIds": zod.record(zod.string(), zod.int()),
+  "continueStudying": zod.record(zod.string(), zod.array(zod.int())),
+  "pendingCheckIns": zod.record(zod.string(), zod.object({
+  "concept": zod.string().max(getMyPreferencesResponsePendingCheckInsConceptMax),
+  "prompt": zod.string().max(getMyPreferencesResponsePendingCheckInsPromptMax)
+})),
+  "searchHistory": zod.array(zod.object({
+  "query": zod.string().max(getMyPreferencesResponseSearchHistoryItemQueryMax),
+  "searchedAt": zod.coerce.date(),
+  "filters": zod.record(zod.string(), zod.union([zod.string(),zod.number(),zod.boolean()])).optional().describe('What the search ran with. Without it a recent search replays as its words alone.')
+})),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullish(),
+  "allowMessageRequests": zod.boolean(),
+  "tutorialSeen": zod.boolean(),
+  "updatedAt": zod.coerce.date()
+}).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')
+
+
+/**
+ * Only the keys present are changed. Unknown keys are rejected rather than ignored, so a typo in a client is a 400 here instead of a setting that silently never applies.
+ * @summary Change some of them
+ */
+export const updateMyPreferencesBodyInterfaceColorsOneBackgroundRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesBodyInterfaceColorsOneSurfaceRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesBodyInterfaceColorsOnePrimaryRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesBodyInterfaceColorsOneAccentRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesBodyAmbientIntensityMin = 0.5;
+export const updateMyPreferencesBodyAmbientIntensityMax = 2;
+
+export const updateMyPreferencesBodyReadNotificationIdsMax = 500;
+
+export const updateMyPreferencesBodyContinueStudyingMaxOne = 6;
+
+export const updateMyPreferencesBodyPendingCheckInsConceptMax = 300;
+
+export const updateMyPreferencesBodyPendingCheckInsPromptMax = 600;
+
+export const updateMyPreferencesBodySearchHistoryItemQueryMax = 300;
+
+export const updateMyPreferencesBodySearchHistoryMax = 12;
+
+
+
+export const UpdateMyPreferencesBody = zod.object({
+  "language": zod.enum(['en', 'es', 'fr', 'de', 'pt', 'tr']).optional(),
+  "interfaceColors": zod.union([zod.object({
+  "background": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOneBackgroundRegExp),
+  "surface": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOneSurfaceRegExp),
+  "primary": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOnePrimaryRegExp),
+  "accent": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOneAccentRegExp)
+}),zod.null()]).optional(),
+  "ambientStyle": zod.enum(['off', 'net', 'globe', 'halo', 'cells', 'rings', 'topology']).optional(),
+  "ambientIntensity": zod.number().min(updateMyPreferencesBodyAmbientIntensityMin).max(updateMyPreferencesBodyAmbientIntensityMax).optional(),
+  "readNotificationIds": zod.array(zod.int()).max(updateMyPreferencesBodyReadNotificationIdsMax).optional(),
+  "dashboardGoalIds": zod.record(zod.string(), zod.int()).optional(),
+  "continueStudying": zod.record(zod.string(), zod.array(zod.int()).max(updateMyPreferencesBodyContinueStudyingMaxOne)).optional(),
+  "pendingCheckIns": zod.record(zod.string(), zod.object({
+  "concept": zod.string().max(updateMyPreferencesBodyPendingCheckInsConceptMax),
+  "prompt": zod.string().max(updateMyPreferencesBodyPendingCheckInsPromptMax)
+})).optional(),
+  "searchHistory": zod.array(zod.object({
+  "query": zod.string().max(updateMyPreferencesBodySearchHistoryItemQueryMax),
+  "searchedAt": zod.coerce.date(),
+  "filters": zod.record(zod.string(), zod.union([zod.string(),zod.number(),zod.boolean()])).optional().describe('What the search ran with. Without it a recent search replays as its words alone.')
+})).max(updateMyPreferencesBodySearchHistoryMax).optional(),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullish(),
+  "allowMessageRequests": zod.boolean().optional(),
+  "tutorialSeen": zod.boolean().optional()
+}).describe('Only the keys present are changed.')
+
+export const updateMyPreferencesResponseInterfaceColorsOneBackgroundRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesResponseInterfaceColorsOneSurfaceRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesResponseInterfaceColorsOnePrimaryRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesResponseInterfaceColorsOneAccentRegExp = new RegExp('^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$');
+export const updateMyPreferencesResponseAmbientIntensityMin = 0.5;
+export const updateMyPreferencesResponseAmbientIntensityMax = 2;
+
+export const updateMyPreferencesResponsePendingCheckInsConceptMax = 300;
+
+export const updateMyPreferencesResponsePendingCheckInsPromptMax = 600;
+
+export const updateMyPreferencesResponseSearchHistoryItemQueryMax = 300;
+
+
+
+export const UpdateMyPreferencesResponse = zod.object({
+  "userId": zod.int(),
+  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullish().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
+  "interfaceColors": zod.union([zod.object({
+  "background": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneBackgroundRegExp),
+  "surface": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneSurfaceRegExp),
+  "primary": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOnePrimaryRegExp),
+  "accent": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneAccentRegExp)
+}),zod.null()]).optional(),
+  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullish(),
+  "ambientIntensity": zod.number().min(updateMyPreferencesResponseAmbientIntensityMin).max(updateMyPreferencesResponseAmbientIntensityMax).nullish(),
+  "readNotificationIds": zod.array(zod.int()),
+  "dashboardGoalIds": zod.record(zod.string(), zod.int()),
+  "continueStudying": zod.record(zod.string(), zod.array(zod.int())),
+  "pendingCheckIns": zod.record(zod.string(), zod.object({
+  "concept": zod.string().max(updateMyPreferencesResponsePendingCheckInsConceptMax),
+  "prompt": zod.string().max(updateMyPreferencesResponsePendingCheckInsPromptMax)
+})),
+  "searchHistory": zod.array(zod.object({
+  "query": zod.string().max(updateMyPreferencesResponseSearchHistoryItemQueryMax),
+  "searchedAt": zod.coerce.date(),
+  "filters": zod.record(zod.string(), zod.union([zod.string(),zod.number(),zod.boolean()])).optional().describe('What the search ran with. Without it a recent search replays as its words alone.')
+})),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullish(),
+  "allowMessageRequests": zod.boolean(),
+  "tutorialSeen": zod.boolean(),
+  "updatedAt": zod.coerce.date()
+}).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')
+
+

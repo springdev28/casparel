@@ -5,6 +5,172 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+export interface InterfaceColors {
+  /** @pattern ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$ */
+  background: string;
+  /** @pattern ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$ */
+  surface: string;
+  /** @pattern ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$ */
+  primary: string;
+  /** @pattern ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$ */
+  accent: string;
+}
+
+/**
+ * What the search ran with. Without it a recent search replays as its words alone.
+ */
+export type SearchHistoryEntryFilters = {[key: string]: string | number | boolean};
+
+export interface SearchHistoryEntry {
+  /** @maxLength 300 */
+  query: string;
+  searchedAt: string;
+  /** What the search ran with. Without it a recent search replays as its words alone. */
+  filters?: SearchHistoryEntryFilters;
+}
+
+export interface PendingCheckIn {
+  /** @maxLength 300 */
+  concept: string;
+  /** @maxLength 600 */
+  prompt: string;
+}
+
+/**
+ * Null when the account has never chosen. A client falls back to the device's language then, not to English.
+ * @nullable
+ */
+export type UserPreferencesLanguage = typeof UserPreferencesLanguage[keyof typeof UserPreferencesLanguage] | null;
+
+
+export const UserPreferencesLanguage = {
+  en: 'en',
+  es: 'es',
+  fr: 'fr',
+  de: 'de',
+  pt: 'pt',
+  tr: 'tr',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UserPreferencesAmbientStyle = typeof UserPreferencesAmbientStyle[keyof typeof UserPreferencesAmbientStyle] | null;
+
+
+export const UserPreferencesAmbientStyle = {
+  off: 'off',
+  net: 'net',
+  globe: 'globe',
+  halo: 'halo',
+  cells: 'cells',
+  rings: 'rings',
+  topology: 'topology',
+} as const;
+
+export type UserPreferencesDashboardGoalIds = {[key: string]: number};
+
+export type UserPreferencesContinueStudying = {[key: string]: number[]};
+
+export type UserPreferencesPendingCheckIns = {[key: string]: PendingCheckIn};
+
+/**
+ * @nullable
+ */
+export type UserPreferencesResourceSearchState = { [key: string]: unknown } | null;
+
+/**
+ * Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.
+ */
+export interface UserPreferences {
+  userId: number;
+  /**
+     * Null when the account has never chosen. A client falls back to the device's language then, not to English.
+     * @nullable
+     */
+  language?: UserPreferencesLanguage;
+  interfaceColors?: InterfaceColors | null;
+  /** @nullable */
+  ambientStyle?: UserPreferencesAmbientStyle;
+  /**
+     * @minimum 0.5
+     * @maximum 2
+     * @nullable
+     */
+  ambientIntensity?: number | null;
+  readNotificationIds: number[];
+  dashboardGoalIds: UserPreferencesDashboardGoalIds;
+  continueStudying: UserPreferencesContinueStudying;
+  pendingCheckIns: UserPreferencesPendingCheckIns;
+  searchHistory: SearchHistoryEntry[];
+  /** @nullable */
+  resourceSearchState?: UserPreferencesResourceSearchState;
+  allowMessageRequests: boolean;
+  tutorialSeen: boolean;
+  updatedAt: string;
+}
+
+export type UserPreferencesPatchLanguage = typeof UserPreferencesPatchLanguage[keyof typeof UserPreferencesPatchLanguage];
+
+
+export const UserPreferencesPatchLanguage = {
+  en: 'en',
+  es: 'es',
+  fr: 'fr',
+  de: 'de',
+  pt: 'pt',
+  tr: 'tr',
+} as const;
+
+export type UserPreferencesPatchAmbientStyle = typeof UserPreferencesPatchAmbientStyle[keyof typeof UserPreferencesPatchAmbientStyle];
+
+
+export const UserPreferencesPatchAmbientStyle = {
+  off: 'off',
+  net: 'net',
+  globe: 'globe',
+  halo: 'halo',
+  cells: 'cells',
+  rings: 'rings',
+  topology: 'topology',
+} as const;
+
+export type UserPreferencesPatchDashboardGoalIds = {[key: string]: number};
+
+export type UserPreferencesPatchContinueStudying = {[key: string]: number[]};
+
+export type UserPreferencesPatchPendingCheckIns = {[key: string]: PendingCheckIn};
+
+/**
+ * @nullable
+ */
+export type UserPreferencesPatchResourceSearchState = { [key: string]: unknown } | null;
+
+/**
+ * Only the keys present are changed.
+ */
+export interface UserPreferencesPatch {
+  language?: UserPreferencesPatchLanguage;
+  interfaceColors?: InterfaceColors | null;
+  ambientStyle?: UserPreferencesPatchAmbientStyle;
+  /**
+     * @minimum 0.5
+     * @maximum 2
+     */
+  ambientIntensity?: number;
+  /** @maxItems 500 */
+  readNotificationIds?: number[];
+  dashboardGoalIds?: UserPreferencesPatchDashboardGoalIds;
+  continueStudying?: UserPreferencesPatchContinueStudying;
+  pendingCheckIns?: UserPreferencesPatchPendingCheckIns;
+  /** @maxItems 12 */
+  searchHistory?: SearchHistoryEntry[];
+  /** @nullable */
+  resourceSearchState?: UserPreferencesPatchResourceSearchState;
+  allowMessageRequests?: boolean;
+  tutorialSeen?: boolean;
+}
+
 export interface ConversationParticipant {
   id: number;
   name: string;

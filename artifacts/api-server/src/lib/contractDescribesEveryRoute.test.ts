@@ -103,7 +103,6 @@ const NOT_DESCRIBED_YET: Record<string, string> = {
   "/assignments": "assignments, class analytics, the continue queue",
   "/workflow": "assignments, class analytics, the continue queue",
   "/learning-goal-templates": "goal templates and cloning one",
-  "/users/me/preferences": "the account's own preferences",
   "/users/me/access": "the account's own entitlements",
   "/classes/{id}/shared-lists": "lists a class shares",
   "/resources/{id}/recommend": "a student recommending a resource to a class",

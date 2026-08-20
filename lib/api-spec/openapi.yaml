@@ -1,3 +1,16 @@
+# The source of truth. Everything the clients are built from -- the React
+# hooks, the zod schemas, the types -- is generated out of this file, so a
+# route that is not described here is a route no client can call. See
+# artifacts/api-server/src/lib/contractDescribesEveryRoute.test.ts, which
+# holds this file against the routes the server actually registers.
+#
+# Regenerate after any change:
+#   pnpm --filter @workspace/api-spec run codegen
+#
+# One trap, hit three times while this file was being extended: a comma inside
+# a flow mapping starts another key. `{ description: Not found, or not yours }`
+# parses as two keys, and the validator's complaint names neither the comma nor
+# the line. Quote any inline description containing a comma.
 openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
@@ -2801,8 +2814,186 @@ paths:
         "404": { description: "No such request, or it is not yours to answer" }
 
 
+  /users/me/preferences:
+    get:
+      operationId: getMyPreferences
+      tags: [auth]
+      summary: Everything this account has chosen about how Casparel behaves
+      description: >-
+        Returns defaults for an account that has never set anything, rather
+        than 404, so a client can read this before the user has touched a
+        single setting.
+      responses:
+        "200":
+          description: The account's preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "401": { description: Not authenticated }
+    patch:
+      operationId: updateMyPreferences
+      tags: [auth]
+      summary: Change some of them
+      description: >-
+        Only the keys present are changed. Unknown keys are rejected rather
+        than ignored, so a typo in a client is a 400 here instead of a setting
+        that silently never applies.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPreferencesPatch"
+      responses:
+        "200":
+          description: The preferences, as they now stand
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "400": { description: "A value was out of range, or a key is not known" }
+        "401": { description: Not authenticated }
+        "413": { description: Preferences payload is too large }
+
+
 components:
   schemas:
+    InterfaceColors:
+      type: object
+      required: [background, surface, primary, accent]
+      properties:
+        background: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+        surface: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+        primary: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+        accent: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+
+    SearchHistoryEntry:
+      type: object
+      required: [query, searchedAt]
+      properties:
+        query: { type: string, maxLength: 300 }
+        searchedAt: { type: string, format: date-time }
+        filters:
+          type: object
+          description: >-
+            What the search ran with. Without it a recent search replays as its
+            words alone.
+          additionalProperties:
+            oneOf:
+              - { type: string }
+              - { type: number }
+              - { type: boolean }
+
+    PendingCheckIn:
+      type: object
+      required: [concept, prompt]
+      properties:
+        concept: { type: string, maxLength: 300 }
+        prompt: { type: string, maxLength: 600 }
+
+    UserPreferences:
+      type: object
+      description: >-
+        Read by the web app, the phone app and the desktop shell. The phone
+        reached it with a hand-rolled fetch for as long as it was undescribed,
+        which is what the contract-route test exists to stop.
+      required:
+        [
+          userId,
+          readNotificationIds,
+          dashboardGoalIds,
+          continueStudying,
+          pendingCheckIns,
+          searchHistory,
+          allowMessageRequests,
+          tutorialSeen,
+          updatedAt,
+        ]
+      properties:
+        userId: { type: integer }
+        language:
+          type: ["string", "null"]
+          enum: [en, es, fr, de, pt, tr, null]
+          description: >-
+            Null when the account has never chosen. A client falls back to the
+            device's language then, not to English.
+        interfaceColors:
+          oneOf:
+            - $ref: "#/components/schemas/InterfaceColors"
+            - type: "null"
+        ambientStyle:
+          type: ["string", "null"]
+          enum: [off, net, globe, halo, cells, rings, topology, null]
+        ambientIntensity: { type: ["number", "null"], minimum: 0.5, maximum: 2 }
+        readNotificationIds:
+          type: array
+          items: { type: integer }
+        dashboardGoalIds:
+          type: object
+          additionalProperties: { type: integer }
+        continueStudying:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: integer }
+        pendingCheckIns:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PendingCheckIn"
+        searchHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchHistoryEntry"
+        resourceSearchState:
+          type: ["object", "null"]
+          additionalProperties: true
+        allowMessageRequests: { type: boolean }
+        tutorialSeen: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    UserPreferencesPatch:
+      type: object
+      description: Only the keys present are changed.
+      additionalProperties: false
+      properties:
+        language: { type: string, enum: [en, es, fr, de, pt, tr] }
+        interfaceColors:
+          oneOf:
+            - $ref: "#/components/schemas/InterfaceColors"
+            - type: "null"
+        ambientStyle:
+          type: string
+          enum: [off, net, globe, halo, cells, rings, topology]
+        ambientIntensity: { type: number, minimum: 0.5, maximum: 2 }
+        readNotificationIds:
+          type: array
+          maxItems: 500
+          items: { type: integer }
+        dashboardGoalIds:
+          type: object
+          additionalProperties: { type: integer }
+        continueStudying:
+          type: object
+          additionalProperties:
+            type: array
+            maxItems: 6
+            items: { type: integer }
+        pendingCheckIns:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PendingCheckIn"
+        searchHistory:
+          type: array
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/SearchHistoryEntry"
+        resourceSearchState:
+          type: ["object", "null"]
+          additionalProperties: true
+        allowMessageRequests: { type: boolean }
+        tutorialSeen: { type: boolean }
+
     ConversationParticipant:
       type: object
       required: [id, name, role]
