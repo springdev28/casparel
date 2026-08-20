@@ -245,8 +245,12 @@ const VIEWPORTS = [
   { width: 375, height: 812, name: "phone" },
 ];
 
+/** How many pages this run actually opened in a browser. */
+let rendered = 0;
+
 /** Every visible prose string on one page, in one language, at one width. */
 async function collect(pagePath, language, signedIn, viewport) {
+  rendered += 1;
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
   });
@@ -283,6 +287,24 @@ async function collect(pagePath, language, signedIn, viewport) {
 const report = new Map(); // language -> Map(string -> pages[])
 let checked = 0;
 
+/**
+ * The English render of a page, kept.
+ *
+ * Every language is compared against English, and English does not change
+ * between them -- but this rendered it again for each one, so a five-language
+ * run opened the same page in English five times. Half of every run was
+ * re-reading the control. Keyed by page, width and session, which is
+ * everything that changes what English renders.
+ */
+const englishCache = new Map();
+async function collectEnglish(pagePath, signedIn, viewport) {
+  const key = `${pagePath}|${signedIn}|${viewport.name}`;
+  if (!englishCache.has(key)) {
+    englishCache.set(key, await collect(pagePath, "en", signedIn, viewport));
+  }
+  return englishCache.get(key);
+}
+
 for (const language of LANGS) {
   const gaps = new Map();
   const identical = deliberatelyIdentical(language);
@@ -296,7 +318,7 @@ for (const language of LANGS) {
         let translatedStrings;
         try {
           [englishStrings, translatedStrings] = await Promise.all([
-            collect(pagePath, "en", signedIn, viewport),
+            collectEnglish(pagePath, signedIn, viewport),
             collect(pagePath, language, signedIn, viewport),
           ]);
         } catch (error) {
@@ -357,7 +379,11 @@ if (process.env.AUDIT_TRANSLATION_JSON) {
   );
 }
 
-console.log(`\n${checked} page render(s) checked across ${LANGS.length} language(s).`);
+console.log(
+  `\n${checked} page comparison(s) across ${LANGS.length} language(s), from ` +
+    `${rendered} browser render(s): English is opened once per page, width and ` +
+    `session rather than once per language.`,
+);
 
 /*
  * A run that rendered nothing proves nothing.

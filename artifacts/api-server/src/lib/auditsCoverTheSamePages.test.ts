@@ -77,9 +77,19 @@ const fits = routesIn(read("audit-text-fits.mjs"), "PAGES");
  * `/catalog`, `/settings` and `/plans` are in the translation audit and not in
  * the user-content one because they render nothing a user typed: a price, a
  * plan name and a toggle are all product wording, so there is no field for the
- * bridge to damage.
+ * bridge to damage. `/guide` and `/tutorial` are there for the same reason and
+ * more plainly: both are written documents shipped in the bundle.
  */
-const USER_CONTENT_SKIPS = new Set(["/catalog", "/settings", "/plans"]);
+const USER_CONTENT_SKIPS = new Set([
+  "/catalog",
+  "/settings",
+  "/plans",
+  // The guide and the tour are written documents. Every string on both is
+  // product prose shipped in the bundle -- there is no field on either page
+  // that a reader can type into, so there is nothing for the bridge to damage.
+  "/guide",
+  "/tutorial",
+]);
 
 /**
  * Every path the router declares, with its parameters as they are written.
