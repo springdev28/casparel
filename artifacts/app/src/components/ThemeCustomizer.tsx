@@ -257,6 +257,76 @@ function readableTextTint(tint: string, background: string, surface: string) {
   return contrastingForeground(background);
 }
 
+/**
+ * How far a hairline has to separate itself from the surface it sits on.
+ *
+ * 1.3:1, which is what the design system's own tokens measure: the light
+ * border is 1.27:1 against the page and 1.40:1 against a card, the dark one
+ * 1.57:1 and 1.31:1. Below this a divider disappears; much above it and every
+ * card is drawn in outline rather than resting on the page.
+ */
+const MIN_SEPARATOR_CONTRAST = 1.3;
+
+/**
+ * The hairline for this palette: visible on every surface, loud on none.
+ *
+ * `--border` and `--input` were the two tokens applyColors never wrote, and a
+ * variable that is never written keeps whatever `:root` says -- which is the
+ * *light* theme's near-white `30 14.7% 86.7%`, because the palette is applied
+ * as inline custom properties rather than by adding `.dark`. So an account
+ * that chose a dark background got a near-white line around every card, input,
+ * table row and separator in the product, at about 12:1 against the surface it
+ * was supposed to quietly delimit.
+ *
+ * It went unseen for as long as it did because a border is one pixel wide, and
+ * a contrast audit looks at text. The seating chart's grid draws its dot
+ * pattern with `hsl(var(--border))` as a *background*, which is the single
+ * place in the app where the border colour is wide enough for an audit to
+ * sample -- 57 findings on one page, all of them the same missing line.
+ *
+ * Same shape as readableMutedForeground: walk the lightness axis away from the
+ * surfaces and stop at the first value that separates from all of them. The
+ * hue and saturation come from the page background, so the line carries the
+ * palette's own tint rather than reading as a grey stripe across it.
+ */
+function separatorFor(...surfaceHexes: string[]) {
+  const [hue, saturationPercent] = hexToHsl(surfaceHexes[0])
+    .replace(/%/g, "")
+    .split(" ")
+    .map(Number);
+  // Capped: a vivid canvas would otherwise draw every divider in full colour.
+  const saturation = Math.min(saturationPercent, 18) / 100;
+  const surfaces = surfaceHexes.map(relativeLuminance);
+  const worst = (lightness: number) =>
+    Math.min(
+      ...surfaces.map((surface) =>
+        contrastRatio(hslChannelsToLuminance(hue, saturation, lightness), surface),
+      ),
+    );
+
+  // Outward from where the surfaces themselves sit, toward whichever end of
+  // the axis has room left in it.
+  const lightnesses = surfaceHexes.map(
+    (hex) => Number(hexToHsl(hex).replace(/%/g, "").split(" ")[2]) / 100,
+  );
+  const towardLight = Math.max(...surfaces) < 0.4;
+  const from = towardLight ? Math.max(...lightnesses) : Math.min(...lightnesses);
+  let best = { lightness: from, ratio: 0 };
+  for (let step = 1; step <= 60; step++) {
+    const lightness = towardLight
+      ? Math.min(1, from + step * 0.012)
+      : Math.max(0, from - step * 0.012);
+    const ratio = worst(lightness);
+    if (ratio > best.ratio) best = { lightness, ratio };
+    if (ratio >= MIN_SEPARATOR_CONTRAST) {
+      return `${hue} ${Math.round(saturation * 1000) / 10}% ${Math.round(lightness * 1000) / 10}%`;
+    }
+  }
+  // Surfaces at opposite ends leave no single line that separates from both;
+  // the most visible one available is the honest answer.
+  return `${hue} ${Math.round(saturation * 1000) / 10}% ${Math.round(best.lightness * 1000) / 10}%`;
+}
+
 // The two destructive reds from the design tokens, as HSL channels.
 const DESTRUCTIVE_TEXT_ON_LIGHT = "0 73.7% 41.8%"; // #b91c1c
 const DESTRUCTIVE_TEXT_ON_DARK = "0 90.6% 70.8%"; // #f87171
@@ -336,6 +406,19 @@ function applyColors(colors: InterfaceColors) {
     "--accent-foreground": accentForeground,
     "--sidebar-accent": accent,
     "--sidebar-accent-foreground": accentForeground,
+    // Every hairline in the product: card outlines, table rules, separators,
+    // the seating grid's dot pattern. One value has to work on the page canvas
+    // and on a card, so both are handed to it.
+    "--border": separatorFor(colors.background, colors.surface),
+    // Field outlines are the same line, and the design tokens give them the
+    // same value in both themes.
+    "--input": separatorFor(colors.background, colors.surface),
+    // The sidebar is filled with the brand colour rather than a surface, so
+    // its own divider is measured against that instead.
+    "--sidebar-border": separatorFor(colors.primary),
+    // A focus ring on the sidebar has to clear the brand fill it sits on, and
+    // the foreground already contrasts with it by construction.
+    "--sidebar-ring": primaryForeground,
   };
   for (const [property, value] of Object.entries(properties))
     root.style.setProperty(property, value);

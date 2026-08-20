@@ -51,7 +51,7 @@ const PUBLIC_PAGES = (process.env.AUDIT_REACH_PUBLIC ?? "/,/resources,/plans,/su
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_REACH_PAGES ??
   "/dashboard,/profile,/settings,/plans,/schedule,/classes,/goals,/forum," +
-    "/messages,/activities,/lists,/people,/canvases,/classes/31,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101,/admin"
+    "/messages,/activities,/lists,/people,/canvases,/canvases/12,/classes/31,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101,/admin"
 )
   .split(",")
   .filter(Boolean);
@@ -68,6 +68,19 @@ const VIEWPORTS = [
   { width: 1280, height: 900, name: "desktop" },
   { width: 375, height: 812, name: "phone" },
 ];
+
+/**
+ * Whose product is being checked.
+ *
+ * The teacher's half of Casparel has controls the student's does not, and this
+ * signed in as a student. Accessible names happened to be covered anyway --
+ * the render audit takes the fixture's default, which is a teacher, and looks
+ * for unnamed controls too -- but nothing else here was: an <img> with no alt
+ * decision, or an id used twice, in markup only a teacher renders was
+ * invisible to both audits. The seating editor's Rows and Columns fields carry
+ * fixed ids and only a teacher ever sees them.
+ */
+const ROLES = (process.env.AUDIT_REACH_ROLES ?? "student,teacher").split(",");
 
 const MIME = {
   ".js": "text/javascript",
@@ -181,12 +194,17 @@ const GROUPS = [
 for (const [pages, signedOut] of GROUPS) {
   for (const pagePath of pages) {
     for (const viewport of VIEWPORTS) {
-      TASKS.push({ pagePath, viewport, signedOut });
+      for (const role of ROLES) {
+        // A signed-out page has no teacher's version of itself, and the admin
+        // panel is a third account entirely.
+        if ((signedOut || pagePath === "/admin") && role !== ROLES[0]) continue;
+        TASKS.push({ pagePath, viewport, signedOut, role });
+      }
     }
   }
 }
 
-const checked = await inParallel(TASKS, async ({ pagePath, viewport, signedOut }) => {
+const checked = await inParallel(TASKS, async ({ pagePath, viewport, signedOut, role }) => {
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
   });
@@ -195,7 +213,9 @@ const checked = await inParallel(TASKS, async ({ pagePath, viewport, signedOut }
     // Admin for /admin, which renders a different surface entirely.
     ...(pagePath === "/admin"
       ? { role: "admin", activeRole: "admin", accountRole: "admin" }
-      : { role: "student" }),
+      : role === "teacher"
+        ? { role: "teacher", activeRole: "teacher" }
+        : { role: "student" }),
     signedOut,
   });
   const page = await context.newPage();
@@ -209,6 +229,7 @@ const checked = await inParallel(TASKS, async ({ pagePath, viewport, signedOut }
       pagePath,
       viewport,
       signedOut,
+      role,
       problems: await page.evaluate(CHECK),
       error: null,
     };
@@ -216,14 +237,14 @@ const checked = await inParallel(TASKS, async ({ pagePath, viewport, signedOut }
     // Same shape either way: a result that sometimes has `problems` and
     // sometimes does not is a result nothing downstream can read without
     // asking which kind it is.
-    return { pagePath, viewport, signedOut, problems: [], error: error.message };
+    return { pagePath, viewport, signedOut, role, problems: [], error: error.message };
   } finally {
     await context.close();
   }
 });
 
 for (const result of checked) {
-  const { pagePath, viewport, signedOut } = result;
+  const { pagePath, viewport, signedOut, role } = result;
   if (result.error) {
     console.error(`  !  ${pagePath} @${viewport.name} failed: ${result.error}`);
     continue;
@@ -231,12 +252,12 @@ for (const result of checked) {
   rendered += 1;
   for (const problem of result.problems) {
     failures.push(
-      `${signedOut ? "" : "signed-in "}${pagePath} @${viewport.name}: ${problem}`,
+      `${signedOut ? "" : `${role} `}${pagePath} @${viewport.name}: ${problem}`,
     );
   }
   console.log(
     `  ${result.problems.length ? "!! " : "ok "} ${pagePath} @${viewport.name}` +
-      `${signedOut ? "" : " [signed in]"}`,
+      `${signedOut ? "" : ` [${role}]`}`,
   );
 }
 
