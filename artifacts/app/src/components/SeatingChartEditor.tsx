@@ -1588,7 +1588,15 @@ export function SeatingChartEditor({
               Front
             </div>
           </CardHeader>
-          <CardContent className="overflow-x-auto p-3 sm:p-5">
+          {/*
+            data-sideways: a room plan is as wide as the room. Five columns at
+            a 104px minimum cannot fit a 375px phone and should not try -- this
+            card scrolls, which is the right answer for a floor plan and the
+            wrong one for almost anything else, so it says so explicitly rather
+            than letting the fit audit infer it from an overflow-x that any
+            container might carry as a precaution.
+          */}
+          <CardContent data-sideways className="overflow-x-auto p-3 sm:p-5">
             {layoutMode === "grid" ? (
               <>
                 {!readOnly && (

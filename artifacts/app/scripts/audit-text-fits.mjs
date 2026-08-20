@@ -101,6 +101,18 @@ const PAGES = (
  */
 const DELIBERATELY_CLIPPED = "sr-only";
 
+/**
+ * Whose product is being measured.
+ *
+ * Half of Casparel only exists for a teacher, and every box in that half had
+ * only ever been measured against English -- this audit signed in as a
+ * student. The teacher plan ladder alone is a column of long lines
+ * ("Nachvollziehbarer Sitzplaner (regelbasiert)"), and the classroom
+ * designer's controls are a dense panel of short ones, which is exactly the
+ * shape that runs out of room first in German.
+ */
+const ROLES = (process.env.AUDIT_FIT_ROLES ?? "student,teacher").split(",");
+
 const MIME = {
   ".js": "text/javascript",
   ".css": "text/css",
@@ -361,12 +373,14 @@ const TASKS = [];
 for (const language of LANGUAGES) {
   for (const viewport of VIEWPORTS) {
     for (const pagePath of PAGES) {
-      TASKS.push({ language, viewport, pagePath });
+      for (const role of ROLES) {
+        TASKS.push({ language, viewport, pagePath, role });
+      }
     }
   }
 }
 
-const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }) => {
+const measured = await inParallel(TASKS, async ({ language, viewport, pagePath, role }) => {
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
   });
@@ -377,7 +391,12 @@ const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }
       /* storage disabled */
     }
   }, language);
-  await installSession(context, { language, role: "student" });
+  await installSession(context, {
+    language,
+    ...(role === "teacher"
+      ? { role: "teacher", activeRole: "teacher" }
+      : { role: "student" }),
+  });
   const page = await context.newPage();
   try {
     await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
@@ -388,7 +407,7 @@ const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }
     // so is a box measured in English.
     await page.waitForTimeout(600);
     const entries = await page.evaluate(MEASURE);
-    return { language, viewport, pagePath, entries };
+    return { language, viewport, pagePath, role, entries };
   } catch (error) {
     console.error(
       `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
@@ -401,7 +420,7 @@ const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }
 
 for (const result of measured) {
   if (!result) continue;
-  const { language, viewport, pagePath, entries } = result;
+  const { language, viewport, pagePath, role, entries } = result;
   rendered += 1;
   for (const entry of entries) {
     const kind = entry.offScreen
@@ -413,7 +432,7 @@ for (const result of measured) {
           : "";
     // Keyed by where the element is, not by what it says: see addressOf.
     const key =
-      `${pagePath} @${viewport.name} ${kind}${entry.address} ` +
+      `${pagePath} @${viewport.name} as ${role} ${kind}${entry.address} ` +
       `[${entry.tag}.${entry.where}]`;
     const seen = clippedIn.get(key) ?? { by: new Map(), says: new Map() };
     seen.by.set(language, entry.over);

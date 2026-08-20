@@ -1095,7 +1095,14 @@ export default function ActivitiesPage({
               : "Create, edit, and study your own term-and-answer sets."}
           </p>
         </div>
-        {!viewOnly && <div className="flex gap-2">
+        {/*
+          Wraps. These two are a fixed row inside a header that wraps, so the
+          header lets the pair onto its own line and then they do not fit it
+          either: "Importer un CSV / Quizlet" beside "Nouvelle activité" ran
+          57px off a 375px screen in all five translations. Wrapping the pair
+          as well lets the second drop under the first.
+        */}
+        {!viewOnly && <div className="flex flex-wrap gap-2">
           <input ref={importRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" className="hidden" onChange={(event) => void importSet(event.target.files?.[0])} />
           <Button variant="outline" onClick={() => importRef.current?.click()}><FileUp className="mr-2 size-4" /> Import CSV / Quizlet</Button>
           <Button onClick={() => openNewSet()}><Plus className="mr-2 size-4" /> New activity</Button>
