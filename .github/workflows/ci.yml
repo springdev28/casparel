@@ -22,7 +22,18 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Measured, not guessed. The browser audits are the bulk of this job and
+    # they grew: 6m30s to render every page in five palettes, 7m to read them
+    # in five languages at two widths, and several minutes each for the fit,
+    # reachability and state audits. At 20 the job was being cancelled partway
+    # through the fit audit, which reads in the run summary exactly like a
+    # push superseding it and is not that at all -- three commits in a row
+    # were reported as "cancelled" when they had simply run out of clock.
+    #
+    # This is headroom rather than a target. If a full run ever approaches it,
+    # the answer is to make the audits render fewer pages or share a browser,
+    # not to raise this again.
+    timeout-minutes: 45
     env:
       # The desktop package pulls a ~100MB Electron runtime in postinstall.
       # Most of this job only needs its types, which ship in the package
