@@ -508,6 +508,22 @@ export const FIXTURES = {
    * classroom designer renders an empty room, which is a page rendering
    * correctly and telling nobody anything.
    */
+  /*
+   * A teacher's completion figures. Without these the assignments tab renders
+   * for a teacher with no export button, no class summary and no per-row
+   * percentage -- three surfaces that only a teacher ever sees, and the ones
+   * the tab exists for.
+   */
+  "/api/classes/31/analytics": {
+    studentCount: 24,
+    assignments: [
+      { id: 91, title: "Read chapter 4 before Thursday", completions: 9, completionRate: 38 },
+    ],
+  },
+  "/api/classes/31/join-code": { joinCode: "PHY-4821" },
+  "/api/classes/31/invitations": [],
+  "/api/classes/31/resource-recommendations": [],
+  "/api/classes/31/resources-list": { id: 77, name: "Physics A-level shared list", items: [] },
   "/api/classes/31/assignments": [
     {
       id: 91,

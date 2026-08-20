@@ -412,7 +412,7 @@ export default function ClassDetailPage() {
             <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <Badge variant="secondary">{counted(cls.members.length, "member", "members")}</Badge>
               {isTeacher && <Button size="sm" variant="outline" onClick={() => setEditDialogOpen(true)}><Pencil size={14} className="mr-1.5" />Edit info</Button>}
-              {isTeacher && <Button size="sm" variant="outline" onClick={() => joinCode ? void navigator.clipboard.writeText(joinCode).then(() => toast({ title: 'Class code copied' })) : void refreshJoinCode()}><KeyRound size={14} className="mr-1.5" />{joinCode ?? 'Create class code'}</Button>}
+              {isTeacher && <Button size="sm" variant="outline" onClick={() => joinCode ? void navigator.clipboard.writeText(joinCode).then(() => toast({ title: 'Class code copied' })) : void refreshJoinCode()}><KeyRound size={14} className="mr-1.5" aria-hidden="true" />{/* A code is a code: read out to a room and typed in by thirty people. */}{joinCode ? <span translate="no">{joinCode}</span> : 'Create class code'}</Button>}
               {isTeacher && joinCode && <Button size="icon" variant="ghost" className="size-8" title="Create a new class code" onClick={() => void refreshJoinCode()}><RefreshCw size={14} /></Button>}
 
               {/* Sync Roster, visible to all teachers; state varies by GC connection */}
