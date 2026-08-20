@@ -81,14 +81,48 @@ export type AiHealth = {
    * would be a guess presented as a fact.
    */
   state: "ok" | "failing" | "unknown";
+  /**
+   * Which kind of `unknown`, since there are two and they are different news:
+   * nothing has been attempted since this process started, or a result was
+   * recorded and has aged out.
+   */
+  reason?: "never-attempted" | "last-result-expired";
   checkedAt: string | null;
   lastOperation?: string;
+  /** What the aged-out result said, for the `last-result-expired` case. */
+  lastState?: "ok" | "failing";
   error?: string;
 };
 
 export function aiHealth(now = Date.now()): AiHealth {
-  if (!last || now - last.at > FRESH_FOR_MS) {
-    return { state: "unknown", checkedAt: last ? isoAt(last.at) : null };
+  /*
+   * "unknown" covers two situations that need different answers, so it says
+   * which.
+   *
+   * Nothing has been attempted since this process started -- a quiet server,
+   * or a feature nobody has reached -- and a result that has aged out are both
+   * "we do not know", and they are not the same news. Production reported
+   * `state: "unknown", checkedAt: null` and the only way to tell those apart
+   * was to notice that checkedAt was null, work out what that implied, and
+   * trust the implication. That is a two-step inference at the moment somebody
+   * is trying to find out whether the product's headline feature is broken.
+   *
+   * `reason` is additive: `state` keeps its three values, so nothing reading
+   * it needs to change.
+   */
+  if (!last) {
+    return { state: "unknown", reason: "never-attempted", checkedAt: null };
+  }
+  if (now - last.at > FRESH_FOR_MS) {
+    return {
+      state: "unknown",
+      reason: "last-result-expired",
+      checkedAt: isoAt(last.at),
+      // What it was, the last time anybody knew. A provider that was failing
+      // an hour ago is a different starting point from one that was fine.
+      lastOperation: last.operation,
+      lastState: last.ok ? "ok" : "failing",
+    };
   }
   return {
     state: last.ok ? "ok" : "failing",

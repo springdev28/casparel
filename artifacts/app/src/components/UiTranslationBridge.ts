@@ -132,8 +132,26 @@ function translateSubtree(root: Node, language: AuthLanguage) {
     return;
   }
   if (!(root instanceof Element)) return;
-  if (root.matches(NO_TRANSLATE_SELECTOR)) return;
+  /*
+   * The same distinction the walker below draws, one level up, and it was
+   * missing here.
+   *
+   * The observer schedules the *target* of an attribute mutation, so an input
+   * whose placeholder changes after mount arrives at this function as the
+   * root. `input` is in NO_TRANSLATE_SELECTOR -- its value is the reader's
+   * own -- so this returned before touching anything, and that placeholder
+   * stayed in English for good.
+   *
+   * It only showed up once the audit rendered at phone width: the resources
+   * search field swaps to a short placeholder below 768px, and a placeholder
+   * that arrives after the first paint is the only kind that takes this path.
+   * Every static one is reached as a descendant of the initial pass and
+   * translated fine, which is why this looked like it worked.
+   */
+  if (root.matches(NO_TRANSLATE_ATTRIBUTES_SELECTOR)) return;
   translateAttributes(root, language);
+  // Content protected, attributes already handled: nothing left to walk into.
+  if (root.matches(NO_TRANSLATE_SELECTOR)) return;
   const walker = document.createTreeWalker(
     root,
     NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,

@@ -37,7 +37,9 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" });
   res.end(fs.readFileSync(file));
 });
-await new Promise((r) => server.listen(PORT, r));
+await new Promise((ready) => {
+  server.listen(PORT, () => ready(undefined));
+});
 
 const browser = await chromium.launch(launchOptions());
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });

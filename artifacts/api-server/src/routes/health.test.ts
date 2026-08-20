@@ -54,7 +54,13 @@ describe("GET /api/healthz", () => {
 
   it("says nothing about the AI provider until something has used it", async () => {
     const res = await request(buildApp()).get("/api/healthz");
-    expect(res.body.ai).toEqual({ state: "unknown", checkedAt: null });
+    // `reason` is what makes the two kinds of "unknown" readable without an
+    // inference: nothing attempted yet, or a result that has aged out.
+    expect(res.body.ai).toEqual({
+      state: "unknown",
+      reason: "never-attempted",
+      checkedAt: null,
+    });
   });
 
   it("reports a failing AI provider, and which call saw it", async () => {

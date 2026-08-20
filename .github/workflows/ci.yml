@@ -22,7 +22,18 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Measured, not guessed. The browser audits are the bulk of this job and
+    # they grew: 6m30s to render every page in five palettes, 7m to read them
+    # in five languages at two widths, and several minutes each for the fit,
+    # reachability and state audits. At 20 the job was being cancelled partway
+    # through the fit audit, which reads in the run summary exactly like a
+    # push superseding it and is not that at all -- three commits in a row
+    # were reported as "cancelled" when they had simply run out of clock.
+    #
+    # This is headroom rather than a target. If a full run ever approaches it,
+    # the answer is to make the audits render fewer pages or share a browser,
+    # not to raise this again.
+    timeout-minutes: 45
     env:
       # The desktop package pulls a ~100MB Electron runtime in postinstall.
       # Most of this job only needs its types, which ship in the package
@@ -192,6 +203,15 @@ jobs:
       - name: Audit that text fits its box
         working-directory: artifacts/app
         run: node scripts/audit-text-fits.mjs
+
+      # The half of the interface that does not appear in a screenshot. An icon
+      # button with no label looks fine and is the word "button" to everybody
+      # using a screen reader — and the icon reads as the label to whoever
+      # wrote it, which is why it is the easiest thing to leave out. Casparel is
+      # a school product, so this is the norm rather than the exception.
+      - name: Audit that every control is reachable
+        working-directory: artifacts/app
+        run: node scripts/audit-reachable.mjs
 
       # An empty state must never stand in for a loading one: "Your library is
       # empty" is a claim about the account, and painting it mid-load tells a
@@ -511,6 +531,18 @@ jobs:
             exit 0
           fi
           exit "$status"
+
+      # openapi.yaml is hand-written and everything downstream is generated
+      # from it, so a schema that is subtly wrong is caught by nothing: the
+      # client compiles against the mistake and it surfaces as a field that is
+      # undefined on somebody's screen. The fixture test holds the audit
+      # fixtures against these same schemas, which cannot catch this -- two
+      # hand-written things agreeing about a third says nothing about the
+      # third. This asks the server, which is already running here.
+      - name: Check the catalogue describes what the server sends
+        run: pnpm --filter @workspace/api-server exec vitest run src/contractDescribesTheServer.live.test.ts
+        env:
+          VERIFY_LIVE_URL: http://localhost:4319
 
       # Exit 75 means the run could not be performed (a rate-limit window),
       # which is not a product failure and must not be reported as one.

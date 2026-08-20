@@ -20,7 +20,7 @@
  * already has, so "it started" means a window that reached a page rather than
  * a process that had not exited yet.
  *
- *   node scripts/verify-app-macos.mjs [path/to/Casparel.dmg]
+ *   node scripts/verify-app-macos.mjs [path/to/Casparel.dmg] [--expect-version=1.0.0]
  *
  * With no argument it takes the .dmg from release/ that matches this machine's
  * architecture. The release workflow names one explicitly and runs this once
@@ -99,7 +99,7 @@ if (process.platform !== "darwin") {
 const hostArch = process.arch === "arm64" ? "arm64" : "x64";
 
 function findImage() {
-  const explicit = process.argv[2];
+  const explicit = process.argv.slice(2).find((a) => !a.startsWith("--"));
   if (explicit) return path.resolve(explicit);
   const releaseDir = path.join(ROOT, "release");
   if (!fs.existsSync(releaseDir)) return null;
@@ -125,9 +125,23 @@ if (!image || !fs.existsSync(image)) {
 console.log(`Image: ${image}`);
 console.log(`Host:  macOS ${os.release()} ${hostArch}\n`);
 
-const expectedVersion = JSON.parse(
-  fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
-).version;
+// The version to expect, which is NOT simply what the working tree says.
+//
+// This script is always newer than a published artifact it is pointed at, and
+// package.json moves on: main cut 1.0.1 while desktop-v1.0.0 was the published
+// release, so reading the tree here would have failed a perfectly good 1.0.0
+// image for not being 1.0.1. Same shape as asking an old build about a probe it
+// predates -- the check has to be told which release it is looking at.
+//
+// --expect-version wins when given; the tree is the right default only for the
+// release workflow, where the tree IS what was built.
+const versionFlag = process.argv
+  .slice(2)
+  .find((argument) => argument.startsWith("--expect-version="));
+const expectedVersion = versionFlag
+  ? versionFlag.slice("--expect-version=".length)
+  : JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+const versionSource = versionFlag ? "from --expect-version" : "from package.json";
 
 // --------------------------------------------------------------- mount it
 
@@ -213,7 +227,7 @@ check(
 check(
   `the bundle version is ${expectedVersion}`,
   plist.CFBundleShortVersionString === expectedVersion,
-  `Info.plist says ${JSON.stringify(plist.CFBundleShortVersionString)}, package.json says ${expectedVersion}`,
+  `Info.plist says ${JSON.stringify(plist.CFBundleShortVersionString)}, and this run expected ${expectedVersion} (${versionSource})`,
 );
 check(
   "the display name is Casparel",
@@ -284,6 +298,14 @@ console.log(`note: code signature -> ${signing}`);
 // the only question is whether it is installed. Asking the system to run a
 // trivial Intel binary answers it; looking for a path under /Library/Apple
 // guesses at an implementation detail instead.
+//
+// This is deliberately NOT how an Intel Mac gets verified. Translation
+// exercises the bundle, not the CPU it was built for, so
+// desktop-verify-macos.yml keeps a real Intel runner for that. What this buys
+// is the release gate: that workflow builds on Apple Silicon and would
+// otherwise publish an Intel image nothing had ever started, which is exactly
+// how 1.0.1 went out. Launched-under-translation is said out loud, in the
+// check's own label, so a log cannot be misread as the Intel runner's result.
 function hasRosetta() {
   if (process.arch !== "arm64") return false;
   try {
@@ -296,18 +318,31 @@ function hasRosetta() {
 
 const plan = launchPlan({ archs, hostArch, hasRosetta: hasRosetta() });
 if (!plan.launch) {
-  // The build is fine; this machine cannot start it. Named as skips rather than
-  // a note so the summary counts them, instead of reporting a full pass over a
-  // run where the two checks that matter most never happened.
+  // Not a pass. The remaining checks are the ones that matter most, and a run
+  // that cannot perform them has to say so in the tally rather than in a
+  // footnote -- otherwise "inspected but not launched" reads as full marks.
+  skip("the app copies out of the image", plan.why);
   skip("the installed app launches and loads a page", plan.why);
   skip("the packaged window is hardened against the page it loads", plan.why);
+  const passedSoFar = checks - failures - skipped;
   console.log(
-    `\n${checks - failures - skipped}/${checks} checks passed, ${skipped} skipped (this host cannot run this image)`,
+    `\n${passedSoFar}/${checks} checks passed, ${skipped} skipped (not runnable on this host)`,
   );
   process.exit(failures === 0 ? 0 : 1);
 }
+// Carried into the check's own label rather than left in a note above it: the
+// summary line is what people read, and "it launches" meaning "it launches
+// under emulation" is the kind of detail that goes missing between the two.
+const launchLabel =
+  "the installed app launches and loads a page" +
+  (plan.translated ? " (under Rosetta 2, not on an Intel CPU)" : "");
 if (plan.translated) {
-  console.log("note: Intel build on Apple Silicon, running under Rosetta 2.");
+  console.log(
+    "note: this is the Intel image on Apple Silicon. Rosetta 2 can start it, " +
+      "which\n      exercises the bundle but not the CPU it was built for. " +
+      "desktop-verify-macos.yml\n      runs the same checks on a real Intel " +
+      "machine.",
+  );
 }
 
 // Copy it out first, exactly as dragging to /Applications would: an app that
@@ -405,7 +440,7 @@ const appOutput = (launched.out || "(nothing)")
   .join("\n");
 
 check(
-  "the installed app launches and loads a page",
+  launchLabel,
   launched.ok,
   launched.ok ? "" : `${launched.why}\n     --- app output ---\n${appOutput}`,
 );

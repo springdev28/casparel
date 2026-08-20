@@ -57,13 +57,16 @@ export function launchPlan({ archs, hostArch, hasRosetta = false }) {
       : {
           launch: false,
           why:
-            "this is the Intel build and the host is Apple Silicon without " +
-            "Rosetta 2 installed, so nothing here can start it. Install " +
-            "Rosetta on the runner, or run this on an Intel machine.",
+            "this is the Intel image and the host is Apple Silicon without " +
+            "Rosetta 2, so nothing here can start it. Run this leg on an " +
+            "Intel machine, which tests the CPU it was built for anyway.",
         };
   }
   return {
     launch: false,
-    why: `this image is for ${usable.join("/")} and the host is ${hostArch}, which cannot execute it`,
+    why:
+      `this image is for ${usable.join("/")} and the host is ${hostArch}, so ` +
+      `nothing could be launched here. Run this leg on a machine of the ` +
+      `image's own architecture.`,
   };
 }

@@ -1,0 +1,28 @@
+// The audit scripts, type-checked.
+//
+// They are plain .mjs and no tsconfig included them, so nothing looked at them
+// at all: `node --check` validates syntax and stops there. A refactor of
+// audit-translation.mjs deleted a `const TASKS = []` and left every push to it
+// in place, three other audits were re-run and that one was not, and CI found
+// it -- as `ReferenceError: TASKS is not defined`, after the whole job had
+// built and rendered its way to the point of running it.
+//
+// checkJs catches exactly that, in a second, before anything is built.
+// `strict` is off deliberately: these are scripts that hand strings to a
+// browser and read back whatever comes, and the value here is "this name does
+// not exist", not a null-safety audit of code that already runs.
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "module": "esnext",
+    "target": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["scripts/**/*.mjs"]
+}

@@ -48,6 +48,7 @@ import {
 } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
 import { counted } from "@/lib/counted";
+import { formatName } from "@/lib/resource-format";
 
 const FORMAT_COLORS: Record<string, string> = {
   article: 'bg-blue-100 text-blue-700',
@@ -385,7 +386,7 @@ export default function ListDetailPage() {
       {/* List Info */}
       <div>
         <h1 translate="no" className="text-2xl font-bold text-foreground">{list.name}</h1>
-        {list.description && <p className="text-muted-foreground text-sm mt-1">{list.description}</p>}
+        {list.description && <p translate="no" className="text-muted-foreground text-sm mt-1">{list.description}</p>}
         <p className="text-xs text-muted-foreground mt-1">{counted(list.itemCount, "item", "items")}</p>
       </div>
 
@@ -401,6 +402,7 @@ export default function ListDetailPage() {
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
+          accessibility={{ screenReaderInstructions: REORDER_INSTRUCTIONS }}
         >
           <SortableContext
             items={displayItems.map((i) => i.id)}
@@ -537,19 +539,29 @@ function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps
             )}
             <div className="flex-1 min-w-0">
               <div className="flex items-start gap-2 flex-wrap">
-                <h3 className="text-sm font-medium text-foreground flex-1 min-w-0">
+                {/*
+                  h2, not h3. The page has one h1 -- the list's name -- and
+                  each resource is a section directly under it, so h3 skipped
+                  a level. A screen reader announces the outline, and a gap in
+                  it reads as a missing heading the reader then goes looking
+                  for. All the styling is on the class; only the level moved.
+                */}
+                <h2
+                  translate="no"
+                  className="text-sm font-medium text-foreground flex-1 min-w-0"
+                >
                   {item.resource.title}
-                </h3>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 capitalize ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
-                  {item.resource.format}
+                </h2>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${FORMAT_COLORS[item.resource.format] ?? FORMAT_COLORS.other}`}>
+                  {formatName(item.resource.format)}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
+              <p translate="no" className="text-xs text-muted-foreground mt-0.5">{item.resource.subject} · {item.resource.gradeLevel}</p>
               {item.resource.description && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.resource.description}</p>
+                <p translate="no" className="text-sm text-muted-foreground mt-1 line-clamp-2">{item.resource.description}</p>
               )}
               {item.note && (
-                <p className="text-xs text-muted-foreground italic mt-1">Note: {item.note}</p>
+                <p className="text-xs text-muted-foreground italic mt-1">Note: <span translate="no">{item.note}</span></p>
               )}
               <div className="flex items-center gap-2 mt-2">
                 <StarRating value={item.resource.avgRating} size="sm" />
@@ -557,9 +569,23 @@ function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              {/*
+                Both are icons and nothing else, so both need a name -- and
+                the name is the resource, because this list renders one pair
+                per row and "link, button, link, button" tells a screen-reader
+                reader nothing about which row they are on. The title is the
+                reader's own, so the label is a shape rule rather than an
+                entry; see SHAPE_RULES in ui-translations.
+              */}
               <Button size="sm" variant="outline" asChild>
-                <a href={item.resource.url} target="_blank" rel="noopener noreferrer" data-testid="open-resource-link">
-                  <ExternalLink size={13} />
+                <a
+                  href={item.resource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Open ${item.resource.title}`}
+                  data-testid="open-resource-link"
+                >
+                  <ExternalLink size={13} aria-hidden="true" />
                 </a>
               </Button>
               {isOwner && (
@@ -569,9 +595,10 @@ function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps
                   className="text-destructive-text hover:text-destructive-text hover:bg-destructive/10"
                   onClick={() => onRemove(item.id)}
                   disabled={isRemoving}
+                  aria-label={`Remove ${item.resource.title}`}
                   data-testid="remove-item-button"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={13} aria-hidden="true" />
                 </Button>
               )}
             </div>
@@ -581,6 +608,22 @@ function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps
     </div>
   );
 }
+
+/**
+ * Our own reordering instructions, in one sentence.
+ *
+ * dnd-kit ships a default paragraph and it is English-only -- the one piece of
+ * text on this page that exists solely for somebody using a screen reader, and
+ * so the only one nobody would ever have seen was untranslated. The library's
+ * version is also written across several source lines, with that indentation
+ * inside the text node; the bridge matches whole trimmed nodes, so it could
+ * never have keyed on it anyway. One sentence, one node, one entry.
+ */
+const REORDER_INSTRUCTIONS = {
+  draggable:
+    "Press space to pick up a resource, the arrow keys to move it, space " +
+    "again to drop it, and escape to cancel.",
+};
 
 interface SortableItemProps {
   item: ListItemData;

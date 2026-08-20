@@ -20,6 +20,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { ErrorState } from '@/components/ErrorState';
+import { StudySets } from '@/components/StudySets';
 import type { ActivityItem } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -287,6 +288,9 @@ export default function DashboardScreen() {
           isFailed={summaryFailed}
         />
       </View>
+
+      {/* Study sets, one tap from studying them */}
+      <StudySets />
 
       {/* Recent Activity */}
       <View style={styles.section}>

@@ -35,7 +35,9 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" });
   res.end(fs.readFileSync(file));
 });
-await new Promise((r) => server.listen(PORT, r));
+await new Promise((ready) => {
+  server.listen(PORT, () => ready(undefined));
+});
 
 const browser = await chromium.launch(launchOptions());
 
@@ -44,6 +46,10 @@ function expiredToken() {
   return `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ userId: 1, role: "teacher", accountRole: "admin", exp: Date.now() - 60_000 })}.audit`;
 }
 
+/**
+ * @param {string} label
+ * @param {{ token?: string, api401?: boolean }} [options]
+ */
 async function visit(label, { token, api401 = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await installSession(ctx);

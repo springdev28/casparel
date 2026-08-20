@@ -502,6 +502,7 @@ export default function ProfileScreen() {
                   value={form.name}
                   onChangeText={(v) => setForm((p) => ({ ...p, name: v }))}
                   style={[styles.input, { borderColor: colors.border, color: colors.foreground, fontFamily: colors.fontFamily.sans, backgroundColor: colors.background, borderRadius: colors.radius }]}
+                  accessibilityLabel={t('Display name')}
                   placeholder={t('Your name')}
                   placeholderTextColor={colors.mutedForeground}
                   maxLength={100}
@@ -539,7 +540,8 @@ export default function ProfileScreen() {
               value={form.bio}
               onChangeText={(v) => setForm((p) => ({ ...p, bio: v }))}
               style={[styles.textarea, { borderColor: colors.border, color: colors.foreground, fontFamily: colors.fontFamily.sans, backgroundColor: colors.background, borderRadius: colors.radius }]}
-              placeholder="Tell others about yourself…"
+              accessibilityLabel={t('Bio')}
+              placeholder={t('Tell others about yourself…')}
               placeholderTextColor={colors.mutedForeground}
               multiline
               maxLength={300}
@@ -572,7 +574,8 @@ export default function ProfileScreen() {
                 value={subjectInput}
                 onChangeText={setSubjectInput}
                 style={[styles.subjectInput, { borderColor: colors.border, color: colors.foreground, fontFamily: colors.fontFamily.sans, backgroundColor: colors.background, borderRadius: colors.radius }]}
-                placeholder="Add a subject…"
+                accessibilityLabel={t('Add a subject')}
+                placeholder={t('Add a subject…')}
                 placeholderTextColor={colors.mutedForeground}
                 onSubmitEditing={() => addSubject(subjectInput)}
                 returnKeyType="done"
@@ -639,7 +642,8 @@ export default function ProfileScreen() {
                 value={form.gradeOrDept}
                 onChangeText={(v) => setForm((p) => ({ ...p, gradeOrDept: v }))}
                 style={[styles.input, { borderColor: colors.border, color: colors.foreground, fontFamily: colors.fontFamily.sans, backgroundColor: colors.background, borderRadius: colors.radius }]}
-                placeholder={isTeacher ? 'e.g. Science Department' : 'e.g. Grade 10'}
+                accessibilityLabel={isTeacher ? t('Department') : t('Grade level')}
+                placeholder={isTeacher ? t('e.g. Science Department') : t('e.g. Grade 10')}
                 placeholderTextColor={colors.mutedForeground}
               />
             </View>
@@ -651,6 +655,8 @@ export default function ProfileScreen() {
                 value={form.timezone}
                 onChangeText={(v) => setForm((p) => ({ ...p, timezone: v }))}
                 style={[styles.input, { borderColor: colors.border, color: colors.foreground, fontFamily: colors.fontFamily.sans, backgroundColor: colors.background, borderRadius: colors.radius }]}
+                accessibilityLabel={t('Timezone')}
+                // An IANA timezone id, which is the same in every language.
                 placeholder="e.g. America/New_York"
                 placeholderTextColor={colors.mutedForeground}
               />
@@ -663,6 +669,7 @@ export default function ProfileScreen() {
                 value={form.websiteUrl}
                 onChangeText={(v) => setForm((p) => ({ ...p, websiteUrl: v }))}
                 style={[styles.input, { borderColor: colors.border, color: colors.foreground, fontFamily: colors.fontFamily.sans, backgroundColor: colors.background, borderRadius: colors.radius }]}
+                accessibilityLabel={t('Website / Social link')}
                 placeholder="https://…"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="url"
@@ -738,6 +745,10 @@ export default function ProfileScreen() {
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
             <Switch
+              // "Switch, off" was all a screen reader had to go on, for the
+              // control that changes which half of the product you are in.
+              accessibilityLabel={t('Teacher mode')}
+              accessibilityHint={t('Switches between the student and teacher workspaces')}
               value={isTeacher}
               onValueChange={handleRoleToggle}
               trackColor={{ false: colors.muted, true: colors.primary + 'AA' }}

@@ -98,6 +98,27 @@ type CommunityPath = {
   createdAt: string;
 };
 
+/**
+ * The level and status enums, written out.
+ *
+ * Both were rendered as the stored value with a `capitalize` class over the
+ * top. That reads acceptably in English and nowhere else: the bridge matches
+ * whole strings, and "intermediate" is not a phrase anybody wrote a
+ * translation for. Falling back to the raw value keeps a level this table has
+ * not heard of visible rather than blank.
+ */
+const LEVEL_NAME: Record<string, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+};
+
+const STATUS_NAME: Record<string, string> = {
+  active: "Active",
+  paused: "Paused",
+  completed: "Completed",
+};
+
 function escapeStudyPackHtml(value: string) {
   return value.replace(
     /[&<>"']/g,
@@ -696,8 +717,8 @@ export default function GoalsPage() {
                 <CardHeader className="pb-3">
                   <div className="flex flex-wrap gap-2">
                     <Badge translate="no" variant="secondary">{path.subject}</Badge>
-                    <Badge variant="outline" className="capitalize">
-                      {path.level}
+                    <Badge variant="outline">
+                      {LEVEL_NAME[path.level] ?? path.level}
                     </Badge>
                   </div>
                   <CardTitle translate="no" className="mt-2 text-base">{path.title}</CardTitle>
@@ -802,11 +823,21 @@ export default function GoalsPage() {
                     <div>
                       <CardTitle translate="no" className="text-lg">{goal.title}</CardTitle>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <Badge variant="secondary">{goal.subject}</Badge>
-                        <Badge variant="outline" className="capitalize">
-                          {goal.level}
-                        </Badge>
-                        <Badge className="capitalize">{goal.status}</Badge>
+                        {/*
+                          The subject is whatever the reader typed -- "Web
+                          development", "Kimya" -- so the bridge must leave it
+                          alone. The community card three hundred lines up
+                          already marks its identical badge; this one did not.
+
+                          Level and status were the enum itself, capitalised by
+                          CSS: "intermediate", "active". A word made by
+                          styling a database value is not a string anything can
+                          translate, and it is not what a person calls it
+                          either.
+                        */}
+                        <Badge translate="no" variant="secondary">{goal.subject}</Badge>
+                        <Badge variant="outline">{LEVEL_NAME[goal.level] ?? goal.level}</Badge>
+                        <Badge>{STATUS_NAME[goal.status] ?? goal.status}</Badge>
                       </div>
                     </div>
                     <div className="flex items-center">
@@ -881,8 +912,18 @@ export default function GoalsPage() {
                           <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive-text" onClick={() => deleteStep(goal, step.id)} aria-label={`Delete ${step.title}`} translate="no"><Trash2 size={14} /></Button>
                         </div>
                       ))}
-                      <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); void addStep(goal); }}>
-                        <Input value={newStepTitles[goal.id] ?? ""} onChange={(event) => setNewStepTitles((current) => ({ ...current, [goal.id]: event.target.value }))} placeholder="Add a path step…" aria-label={`Add step to ${goal.title}`} translate="no" />
+                      {/*
+                        Wraps, because it could not fit. At 375px the
+                        button left the field about 164px and
+                        "Adicionar uma etapa do caminho…" needs 278 --
+                        so four of the five translations were cut
+                        mid-word, which reads as a different
+                        instruction rather than a truncated one. The
+                        button drops to its own line and the field
+                        gets the row.
+                      */}
+                      <form className="mt-2 flex flex-wrap gap-2" onSubmit={(event) => { event.preventDefault(); void addStep(goal); }}>
+                        <Input className="min-w-52 flex-1" value={newStepTitles[goal.id] ?? ""} onChange={(event) => setNewStepTitles((current) => ({ ...current, [goal.id]: event.target.value }))} placeholder="Add a path step…" aria-label={`Add step to ${goal.title}`} />
                         <Button type="submit" size="sm" disabled={!newStepTitles[goal.id]?.trim()}><Plus className="mr-1 size-4" /> Add</Button>
                       </form>
                     </div>

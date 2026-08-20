@@ -19,6 +19,31 @@
  * a decision to truncate and this leaves it alone; the failure here is the
  * silent kind, where the last letter is simply gone.
  *
+ * And a second, related failure it did not see at first: an element that fits
+ * its own box perfectly well and sticks out past the right edge of the screen.
+ * On /resources at 375px the "Submit resource" button ran 9px past the edge in
+ * Spanish and 32px in German. Text fitting its box and the box fitting the
+ * screen are different questions, and only the second gets worse the longer
+ * the translation is.
+ *
+ * A scrollable ancestor is not an excuse, which took a measurement to settle.
+ * The first version of this skipped anything inside an overflow-x container,
+ * on the theory that scrollable means reachable -- and that swallowed the very
+ * case it was written for, because <main> carries overflow-x: auto as a
+ * generic safety valve. The button was reachable by dragging the page
+ * sideways. It was also off the edge of a phone screen until you did, and a
+ * page that scrolls horizontally on a phone is the defect rather than the
+ * remedy. So this reports them, and a genuine sideways region -- a carousel, a
+ * wide table -- gets named in DELIBERATELY_SIDEWAYS when one appears.
+ *
+ * And a third, which is what a too-narrow box looks like when the page has
+ * already been protected against overflowing: a single word broken across two
+ * lines. index.css sets overflow-wrap: anywhere below 768px, so on a phone
+ * nothing overflows -- it gets chopped instead, and the first two checks see a
+ * page where everything fits. "Objetivo:" on the dashboard was squeezed by a
+ * flex row until it rendered as "Objetivo" with the colon alone underneath,
+ * and both of those checks passed on it.
+ *
  *   node scripts/audit-text-fits.mjs
  *   AUDIT_FIT_LANGS=de node scripts/audit-text-fits.mjs
  *
@@ -30,6 +55,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
+import { inParallel } from "./in-parallel.mjs";
 import { launchOptions } from "./chromium.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -61,7 +87,7 @@ const VIEWPORTS = [
 const PAGES = (
   process.env.AUDIT_FIT_PAGES ??
   "/dashboard,/profile,/settings,/plans,/schedule,/classes,/goals,/lists," +
-    "/resources,/resources/101"
+    "/canvases,/classes/31,/lists/44,/profile/2,/guide,/tutorial,/resources,/resources/101"
 )
   .split(",")
   .filter(Boolean);
@@ -86,8 +112,178 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
+/**
+ * Regions that are meant to scroll sideways, and so may exceed the screen.
+ *
+ * Empty today. Named by selector rather than inferred from overflow-x,
+ * because "has an overflow-x" is what a container gets as a precaution and
+ * "is a carousel" is a decision somebody made.
+ */
+const DELIBERATELY_SIDEWAYS = process.env.AUDIT_FIT_SIDEWAYS ?? "[data-sideways]";
+
 const MEASURE = `(() => {
   const clipped = [];
+  const viewport = document.documentElement.clientWidth;
+  const SIDEWAYS_ON_PURPOSE = ${JSON.stringify(DELIBERATELY_SIDEWAYS)};
+
+  /*
+   * Where an element sits, in words that do not change with the language.
+   *
+   * The report groups a finding by a key so that the same box measured in six
+   * languages is one line, and so that a box already too small for its own
+   * English is reported separately -- a layout bug rather than a translation
+   * one. That key used to be built from the text, which is the one thing that
+   * *does* change with the language, so nothing ever grouped: the English and
+   * the Spanish were two different findings about the same element, and the
+   * English control never fired. The search field on /resources was reported
+   * as breaking in five translations when it does not fit its own English
+   * either.
+   */
+  const addressOf = (element) => {
+    const steps = [];
+    for (let node = element; node && node !== document.body; node = node.parentElement) {
+      const siblings = [...(node.parentElement?.children ?? [])];
+      steps.unshift(node.tagName.toLowerCase() + ':' + siblings.indexOf(node));
+      if (steps.length >= 6) break;
+    }
+    return steps.join('>');
+  };
+
+  /*
+   * Anything reaching past the right edge of the screen.
+   *
+   * Position-fixed elements are skipped -- a drawer parked off-screen is how
+   * a drawer waits -- and so is anything inside a container that scrolls
+   * horizontally on purpose, which is a decision rather than an accident.
+   */
+  for (const element of document.querySelectorAll('body *')) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) continue;
+    const style = getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    if (style.position === 'fixed') continue;
+    const over = Math.round(rect.right - viewport);
+    if (over <= 1) continue;
+    if (element.closest(SIDEWAYS_ON_PURPOSE)) continue;
+    clipped.push({
+      text: (element.textContent || '').trim().slice(0, 60),
+      over,
+      where: String(element.className).slice(0, 60),
+      tag: element.tagName.toLowerCase(),
+      address: addressOf(element),
+      offScreen: true,
+    });
+  }
+  /*
+   * A single word broken across two lines.
+   *
+   * Not overflow and not off-screen -- the text is entirely visible, and the
+   * box it sits in is exactly as wide as it was told to be. What happened is
+   * that a flex item shrank below its content: every child of a flex row is a
+   * flex item, and a flex item's default is to shrink. "Goal:" survives that
+   * in English. "Objetivo:" at 375px, next to a long goal title, was squeezed
+   * until the browser broke it, leaving the colon alone on the second line.
+   *
+   * A word has no spaces in it, so a run of text with no whitespace occupying
+   * more than one line box means the break happened *inside* a word. For a
+   * short label that is never the intent.
+   *
+   * Three things are skipped, all of them somebody having already decided:
+   * word-break: break-all and overflow-wrap: break-word, which are the
+   * break-all and break-words utilities written on the element itself;
+   * hyphens: auto, which breaks with a hyphen at a syllable and is correct
+   * typography rather than a mistake; and user content, where an unbroken
+   * 40-character title is the reader's own doing.
+   *
+   * What is deliberately *not* skipped is overflow-wrap: anywhere, even
+   * though it is the mechanism doing the breaking. index.css sets it on a
+   * whole region below 768px as an anti-overflow safety valve, and it
+   * inherits -- so on a phone it quietly converts every too-narrow box on the
+   * page from an overflow this audit would catch into a chopped word it would
+   * not. That is the distinction between the two values here: break-word is
+   * written on the element that wants it, anywhere rains down from a media
+   * query on everything below it. Excluding both, as the first draft did,
+   * meant this check passed on the exact bug it was written for.
+   */
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const word = node.data.trim();
+    if (!word || /\\s/.test(word)) continue;
+    // A long token -- a URL, a hash, a file name -- has to break somewhere.
+    if (word.length > 24) continue;
+    const parent = node.parentElement;
+    if (!parent) continue;
+    if (parent.closest('[translate="no"], [data-user-content], code, pre')) continue;
+    if (String(parent.className).includes(${JSON.stringify(DELIBERATELY_CLIPPED)})) continue;
+    const style = getComputedStyle(parent);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    if (style.wordBreak === 'break-all') continue;
+    if (style.overflowWrap === 'break-word') continue;
+    if (style.hyphens === 'auto') continue;
+
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const lines = new Set(
+      [...range.getClientRects()]
+        .filter((rect) => rect.width > 0 && rect.height > 0)
+        .map((rect) => Math.round(rect.top)),
+    );
+    if (lines.size < 2) continue;
+    clipped.push({
+      text: word,
+      over: lines.size,
+      where: String(parent.className).slice(0, 60),
+      tag: parent.tagName.toLowerCase(),
+      address: addressOf(node.parentElement),
+      brokenWord: true,
+    });
+  }
+
+  /*
+   * A placeholder wider than the field it sits in.
+   *
+   * A placeholder is an attribute, not a text node, so every check above walks
+   * straight past it -- and an input never overflows, it just stops drawing.
+   * "Add a path step…" fits at 375px; "Pfadschritt hinzufügen" became
+   * "Pfadschritt hinzuf", which reads as a different instruction rather than a
+   * truncated one, and there is no ellipsis to say so.
+   *
+   * Measured by rendering the text: the same font on a canvas, against the
+   * field's content box. Off by a pixel or two on letter-spacing, so the
+   * threshold is generous -- what matters is a word going missing, not a
+   * descender touching the edge.
+   */
+  const ruler = document.createElement('canvas').getContext('2d');
+  for (const field of document.querySelectorAll('input[placeholder], textarea[placeholder]')) {
+    const placeholder = (field.getAttribute('placeholder') || '').trim();
+    if (!placeholder) continue;
+    const rect = field.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) continue;
+    const style = getComputedStyle(field);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    // A textarea wraps; only a single-line field truncates.
+    if (field.tagName === 'TEXTAREA') continue;
+    ruler.font = style.font ||
+      (style.fontStyle + ' ' + style.fontWeight + ' ' + style.fontSize + ' ' + style.fontFamily);
+    const room =
+      rect.width -
+      parseFloat(style.paddingLeft || '0') -
+      parseFloat(style.paddingRight || '0') -
+      parseFloat(style.borderLeftWidth || '0') -
+      parseFloat(style.borderRightWidth || '0');
+    const needed = ruler.measureText(placeholder).width;
+    const over = Math.round(needed - room);
+    if (over <= 4) continue;
+    clipped.push({
+      text: placeholder,
+      over,
+      where: String(field.className).slice(0, 60),
+      tag: field.tagName.toLowerCase(),
+      address: addressOf(field),
+      placeholder: true,
+    });
+  }
+
   for (const element of document.querySelectorAll('*')) {
     // Leaf nodes only: a container's overflow is its children's problem, and
     // reporting both says the same thing twice.
@@ -113,6 +309,7 @@ const MEASURE = `(() => {
       over,
       where: String(element.className).slice(0, 60),
       tag: element.tagName.toLowerCase(),
+      address: addressOf(element),
     });
   }
   return clipped;
@@ -151,45 +348,77 @@ const browser = await chromium.launch(launchOptions());
 const clippedIn = new Map();
 let rendered = 0;
 
+/*
+ * One flat list of renders, run a few at a time.
+ *
+ * The nesting below expressed "every page in every language at every width",
+ * which is a description of the work rather than an order it has to happen in:
+ * each render is its own browser context against a static file server. The
+ * findings are folded into `clippedIn` afterwards, in the list's order, so the
+ * report reads the same however the renders finished.
+ */
+const TASKS = [];
 for (const language of LANGUAGES) {
   for (const viewport of VIEWPORTS) {
-  for (const pagePath of PAGES) {
-    const context = await browser.newContext({
-      viewport: { width: viewport.width, height: viewport.height },
-    });
-    await context.addInitScript((lang) => {
-      try {
-        localStorage.setItem("schoolar_language", lang);
-      } catch {
-        /* storage disabled */
-      }
-    }, language);
-    await installSession(context, { language, role: "student" });
-    const page = await context.newPage();
-    try {
-      await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
-        waitUntil: "networkidle",
-        timeout: 45000,
-      });
-      // The bridge rewrites after paint, and a box measured before it has done
-      // so is a box measured in English.
-      await page.waitForTimeout(600);
-      rendered += 1;
-      for (const entry of await page.evaluate(MEASURE)) {
-        const key =
-          `${pagePath} @${viewport.name}  ${JSON.stringify(entry.text)}  ` +
-          `[${entry.tag}.${entry.where}]`;
-        const seen = clippedIn.get(key) ?? new Map();
-        seen.set(language, entry.over);
-        clippedIn.set(key, seen);
-      }
-    } catch (error) {
-      console.error(
-        `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
-      );
+    for (const pagePath of PAGES) {
+      TASKS.push({ language, viewport, pagePath });
     }
+  }
+}
+
+const measured = await inParallel(TASKS, async ({ language, viewport, pagePath }) => {
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+  });
+  await context.addInitScript((lang) => {
+    try {
+      localStorage.setItem("schoolar_language", lang);
+    } catch {
+      /* storage disabled */
+    }
+  }, language);
+  await installSession(context, { language, role: "student" });
+  const page = await context.newPage();
+  try {
+    await page.goto(`http://127.0.0.1:${PORT}${pagePath}`, {
+      waitUntil: "networkidle",
+      timeout: 45000,
+    });
+    // The bridge rewrites after paint, and a box measured before it has done
+    // so is a box measured in English.
+    await page.waitForTimeout(600);
+    const entries = await page.evaluate(MEASURE);
+    return { language, viewport, pagePath, entries };
+  } catch (error) {
+    console.error(
+      `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
+    );
+    return null;
+  } finally {
     await context.close();
   }
+});
+
+for (const result of measured) {
+  if (!result) continue;
+  const { language, viewport, pagePath, entries } = result;
+  rendered += 1;
+  for (const entry of entries) {
+    const kind = entry.offScreen
+      ? "past the right edge: "
+      : entry.brokenWord
+        ? "one word broken across lines: "
+        : entry.placeholder
+          ? "placeholder wider than its field: "
+          : "";
+    // Keyed by where the element is, not by what it says: see addressOf.
+    const key =
+      `${pagePath} @${viewport.name} ${kind}${entry.address} ` +
+      `[${entry.tag}.${entry.where}]`;
+    const seen = clippedIn.get(key) ?? { by: new Map(), says: new Map() };
+    seen.by.set(language, entry.over);
+    seen.says.set(language, entry.text);
+    clippedIn.set(key, seen);
   }
 }
 
@@ -211,11 +440,18 @@ if (rendered === 0) {
  */
 const translationsOnly = [];
 const englishToo = [];
-for (const [key, byLanguage] of clippedIn) {
-  const languages = [...byLanguage.keys()];
-  const worst = Math.max(...byLanguage.values());
-  const line = `${key}\n      clipped in ${languages.join(", ")}, by up to ${worst}px`;
-  if (byLanguage.has("en")) englishToo.push(line);
+for (const [key, seen] of clippedIn) {
+  const languages = [...seen.by.keys()];
+  const worst = Math.max(...seen.by.values());
+  const measure = key.includes("one word broken across lines:")
+    ? `broken in ${languages.join(", ")}, across up to ${worst} lines`
+    : `clipped in ${languages.join(", ")}, by up to ${worst}px`;
+  // The worst language's own words, so the report names what a reader sees.
+  const worstLanguage = languages.find((l) => seen.by.get(l) === worst) ?? languages[0];
+  const line =
+    `${key}\n      ${JSON.stringify(seen.says.get(worstLanguage))} (${worstLanguage})` +
+    `\n      ${measure}`;
+  if (seen.by.has("en")) englishToo.push(line);
   else translationsOnly.push(line);
 }
 

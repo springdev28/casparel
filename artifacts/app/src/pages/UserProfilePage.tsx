@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@workspace/edu-ds/comp
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { useGetPublicProfile, getGetPublicProfileQueryKey, useGetUserLibrary, getGetUserLibraryQueryKey, useGetUserSafetyStatus, getGetUserSafetyStatusQueryKey, useBlockUser, useUnblockUser, useReportUser, ReportUserInputReason, useGetSeatingChart, getGetSeatingChartQueryKey, useUpdateStudentNote } from '@workspace/api-client-react';
+import { formatName } from "@/lib/resource-format";
 
 export default function UserProfilePage() {
   const { userId } = useParams<{ userId: string }>();
@@ -104,7 +105,7 @@ export default function UserProfilePage() {
             </div>
             {/* Name + role */}
             <div className="flex-1 min-w-0 pt-1">
-              <p className="text-xl font-semibold text-foreground truncate">{profile.name}</p>
+              <p translate="no" className="text-xl font-semibold text-foreground truncate">{profile.name}</p>
               <div className="mt-2">
                 <Badge variant="secondary" className="capitalize">
                   {profile.role}
@@ -149,8 +150,8 @@ export default function UserProfilePage() {
             <p className="text-sm text-muted-foreground">This user’s library is private or limited to classmates.</p>
           ) : (library.data?.resources.length || library.data?.lists.length) ? (
             <>
-              {library.data.lists.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lists</p><div className="space-y-2">{library.data.lists.map((item) => <button key={item.id} onClick={() => setLocation("/lists/" + item.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><List size={16} className="text-primary-text" /><span><span className="block text-sm font-medium">{item.name}</span>{item.description && <span className="block text-xs text-muted-foreground">{item.description}</span>}</span></button>)}</div></div>}
-              {library.data.resources.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resources</p><div className="space-y-2">{library.data.resources.map((resource) => <button key={resource.id} onClick={() => setLocation("/resources/" + resource.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><BookOpen size={16} className="text-primary-text" /><span><span className="block text-sm font-medium">{resource.title}</span><span className="block text-xs text-muted-foreground">{resource.subject} · {resource.format}</span></span></button>)}</div></div>}
+              {library.data.lists.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lists</p><div className="space-y-2">{library.data.lists.map((item) => <button key={item.id} onClick={() => setLocation("/lists/" + item.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><List size={16} className="text-primary-text" /><span><span translate="no" className="block text-sm font-medium">{item.name}</span>{item.description && <span translate="no" className="block text-xs text-muted-foreground">{item.description}</span>}</span></button>)}</div></div>}
+              {library.data.resources.length > 0 && <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resources</p><div className="space-y-2">{library.data.resources.map((resource) => <button key={resource.id} onClick={() => setLocation("/resources/" + resource.id)} className="flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:border-primary"><BookOpen size={16} className="text-primary-text" /><span><span translate="no" className="block text-sm font-medium">{resource.title}</span><span className="block text-xs text-muted-foreground"><span translate="no">{resource.subject}</span> · {formatName(resource.format)}</span></span></button>)}</div></div>}
             </>
           ) : <p className="text-sm text-muted-foreground">This user has not added anything to their library yet.</p>}
         </CardContent>
@@ -177,7 +178,7 @@ export default function UserProfilePage() {
           <CardContent>
             <div className="flex flex-wrap gap-2">
               {profile.subjects.map((s) => (
-                <Badge key={s} variant="secondary">{s}</Badge>
+                <Badge key={s} translate="no" variant="secondary">{s}</Badge>
               ))}
             </div>
           </CardContent>
@@ -189,7 +190,7 @@ export default function UserProfilePage() {
         <Card>
           <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-sm"><GraduationCap size={15} className="text-muted-foreground" />Details</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {profile.gradeOrDept && <div className="flex items-center gap-2"><GraduationCap size={15} className="shrink-0 text-muted-foreground" /><span className="w-28 shrink-0 text-sm text-muted-foreground">{profile.role === "teacher" ? "Department" : "Grade"}</span><span className="text-sm text-foreground">{profile.gradeOrDept}</span></div>}
+            {profile.gradeOrDept && <div className="flex items-center gap-2"><GraduationCap size={15} className="shrink-0 text-muted-foreground" /><span className="w-28 shrink-0 text-sm text-muted-foreground">{profile.role === "teacher" ? "Department" : "Grade"}</span><span translate="no" className="text-sm text-foreground">{profile.gradeOrDept}</span></div>}
             {profile.gradeOrDept && profile.websiteUrl && <Separator />}
             {profile.websiteUrl && <a href={profile.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary-text hover:underline"><Globe size={15} className="shrink-0" /><span className="min-w-0 flex-1 truncate">{profile.websiteUrl}</span><ExternalLink size={14} className="shrink-0" /></a>}
           </CardContent>

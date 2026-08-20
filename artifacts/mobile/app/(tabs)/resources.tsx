@@ -279,7 +279,10 @@ export default function ResourcesScreen() {
           <TextInput
             value={search}
             onChangeText={handleSearch}
-            placeholder="Search resources…"
+            // A field a screen reader would otherwise announce as an
+            // unnamed text box: the magnifier beside it is not a name.
+            accessibilityLabel={t('Search resources')}
+            placeholder={t('Search resources…')}
             placeholderTextColor={colors.mutedForeground}
             style={[
               styles.searchInput,

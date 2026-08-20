@@ -112,6 +112,7 @@ function buildGoogleCalUrl(session: {
 import type { StudySessionWithParticipants } from "@workspace/api-client-react";
 import { Link, useSearch as useRouteSearch } from "wouter";
 import { LoadFailure } from "@/components/LoadFailure";
+import { formatName } from "@/lib/resource-format";
 
 /**
  * One clock for this page.
@@ -391,7 +392,7 @@ function ResourcePicker({
               )}
               <span className="truncate flex-1">{r.title}</span>
               <Badge variant="outline" className="text-[10px] shrink-0">
-                {r.format}
+                {formatName(r.format)}
               </Badge>
             </button>
           ))}
@@ -1463,16 +1464,34 @@ export default function SchedulePage() {
         </Button>
       </div>
 
-      {/* Weekly Grid */}
+      {/*
+        Weekly Grid, on a screen wide enough to lay seven days beside each
+        other.
+
+        On a phone it used to collapse to a single column, and a column of
+        seven days is not a week: each cell keeps the 148px it needs to line up
+        with its neighbours, so an untouched week was a thousand pixels of
+        "No plans" to scroll past -- and then the same blocks again, in the
+        list below, which was already the phone's view of the week and has been
+        all along. Hidden here, rather than squeezed.
+      */}
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-2 rounded-xl border bg-card/90 p-3 text-card-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80 md:grid-cols-7 [&_.text-muted-foreground]:text-card-foreground/70">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="space-y-2">
-              <Skeleton className="h-6 w-full" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="hidden gap-2 rounded-xl border bg-card/90 p-3 text-card-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80 md:grid md:grid-cols-7 [&_.text-muted-foreground]:text-card-foreground/70">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            ))}
+          </div>
+          {/* The phone waits on a list, so it waits on list-shaped skeletons. */}
+          <div className="space-y-2 md:hidden">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            ))}
+          </div>
+        </>
       ) : blocksFailed ? (
         <LoadFailure
           error={blocksError}
@@ -1482,7 +1501,7 @@ export default function SchedulePage() {
           }}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-2 rounded-xl border bg-card/90 p-3 text-card-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80 md:grid-cols-7 [&_.text-muted-foreground]:text-card-foreground/70">
+        <div className="hidden gap-2 rounded-xl border bg-card/90 p-3 text-card-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80 md:grid md:grid-cols-7 [&_.text-muted-foreground]:text-card-foreground/70">
           {weekDays.map((day, i) => {
             const dayBlocks = blocksForDay(day);
             const daySessions = studySessionsForDay(day);
@@ -1607,21 +1626,62 @@ export default function SchedulePage() {
         </Dialog>
       )}
 
-      {/* Upcoming blocks list (mobile fallback / extra context) */}
-      {!isLoading && blocks && blocks.length > 0 && (
+      {/*
+        The week, on a phone.
+
+        Not a fallback any more: below md this is the only view of the week, so
+        it has to say something when the week is empty. It used to render
+        nothing at all in that case, which was invisible while the grid above
+        was still filling the screen with seven "No plans" cells.
+      */}
+      {!isLoading && !blocksFailed && (
         <div className="md:hidden space-y-2">
           <h2 className="font-semibold text-foreground text-sm">
             This week&apos;s blocks
           </h2>
-          {blocks.map((block) => (
+          {!blocks?.length && (
+            <Card>
+              <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                No plans
+              </CardContent>
+            </Card>
+          )}
+          {blocks?.map((block) => (
             <Card key={block.id} data-testid="schedule-block-mobile">
               <CardContent className="py-3 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p translate="no" className="font-medium text-sm truncate">{block.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {block.date} ·{" "}
-                    {`${block.startTime.slice(0, 5)}\u2013${block.endTime.slice(0, 5)}`}
+                    {/*
+                      Was the raw block.date -- "2026-08-20". Tolerable while
+                      this was extra context under a grid that spelled the day
+                      out; not tolerable now that it is the only place a phone
+                      is told when the block is.
+                    */}
+                    {format(parseISO(block.date), "MMM d", { locale })} ·{" "}
+                    {/*
+                      Kept on one line. index.css sets overflow-wrap: anywhere
+                      below 768px, so on a phone this range was breaking after
+                      the dash -- "09:00-" on one line and "10:30" on the next,
+                      which reads as two separate times rather than one span.
+                      The break before it, at the middle dot, is still allowed.
+                    */}
+                    <span className="whitespace-nowrap">
+                      {`${block.startTime.slice(0, 5)}\u2013${block.endTime.slice(0, 5)}`}
+                    </span>
                   </p>
+                  {/*
+                    The grid cell showed these and this card did not, which
+                    only mattered once the grid stopped rendering on a phone.
+                  */}
+                  {block.notes && (
+                    <p
+                      translate="no"
+                      className="truncate text-xs text-muted-foreground/80"
+                    >
+                      {block.notes}
+                    </p>
+                  )}
                   {block.resourceId != null && (
                     <ResourceBadge resourceId={block.resourceId} />
                   )}
@@ -1640,7 +1700,6 @@ export default function SchedulePage() {
                     // hovering, which is the one thing a screen-reader user
                     // does not have.
                     aria-label={`Export ${block.title} to calendar`}
-                    translate="no"
                     title="Export to Calendar"
                   >
                     <Download size={14} aria-hidden="true" />

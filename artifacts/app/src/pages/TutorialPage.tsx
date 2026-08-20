@@ -212,16 +212,21 @@ export default function TutorialPage() {
           </div>
         </div>
 
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          You can revisit this any time from{" "}
+        {/*
+          Two whole link labels rather than one sentence with two links inside
+          it. Written as a sentence, this reached the bridge as the fragments
+          "You can revisit this any time from", ", or read the" and "complete
+          guide" -- three pieces that happen to reassemble in Spanish and do
+          not in German, where the verb belongs at the end. A sentence split by
+          an interpolation cannot be translated; a label can.
+        */}
+        <p className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-muted-foreground">
           <Link href="/settings" className="font-medium text-primary-text hover:underline">
-            Settings
+            Replay this tour from Settings
           </Link>
-          , or read the{" "}
           <Link href="/guide" className="font-medium text-primary-text hover:underline">
-            complete guide
+            Read the complete guide
           </Link>
-          .
         </p>
       </div>
     </div>

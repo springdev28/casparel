@@ -2529,6 +2529,286 @@ export const DeleteScheduleBlockResponse = zod.void()
 
 
 /**
+ * @summary List your own study activities, or a class's
+ */
+export const ListStudyActivitiesQueryParams = zod.object({
+  "classId": zod.coerce.number().int().optional().describe('A class you belong to or teach. Without it, your own activities in the workspace role you are currently in.')
+})
+
+export const listStudyActivitiesResponseCardsItemIdMax = 80;
+
+export const listStudyActivitiesResponseCardsItemTermMax = 500;
+
+export const listStudyActivitiesResponseCardsItemAnswerMax = 1000;
+
+
+
+export const ListStudyActivitiesResponseItem = zod.object({
+  "id": zod.int(),
+  "ownerId": zod.int(),
+  "workspaceRole": zod.enum(['student', 'teacher']),
+  "classId": zod.int().nullish(),
+  "title": zod.string(),
+  "subject": zod.string().nullish(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']),
+  "shareToken": zod.string().nullish(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(listStudyActivitiesResponseCardsItemIdMax),
+  "term": zod.string().max(listStudyActivitiesResponseCardsItemTermMax),
+  "answer": zod.string().max(listStudyActivitiesResponseCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).optional(),
+  "correctChoiceIndex": zod.int().optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListStudyActivitiesResponse = zod.array(ListStudyActivitiesResponseItem)
+
+
+/**
+ * @summary Create a study activity
+ */
+export const createStudyActivityBodyTitleMin = 2;
+export const createStudyActivityBodyTitleMax = 160;
+
+export const createStudyActivityBodyModeDefault = `flashcards`;
+export const createStudyActivityBodyCardsItemIdMax = 80;
+
+export const createStudyActivityBodyCardsItemTermMax = 500;
+
+export const createStudyActivityBodyCardsItemAnswerMax = 1000;
+
+export const createStudyActivityBodyCardsMax = 100;
+
+
+
+export const CreateStudyActivityBody = zod.object({
+  "title": zod.string().min(createStudyActivityBodyTitleMin).max(createStudyActivityBodyTitleMax),
+  "subject": zod.string().optional(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']).default(createStudyActivityBodyModeDefault),
+  "classId": zod.int().nullish(),
+  "sourceResourceId": zod.int().optional(),
+  "sourceActivityId": zod.int().optional(),
+  "remixedFromActivityId": zod.int().optional(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(createStudyActivityBodyCardsItemIdMax),
+  "term": zod.string().max(createStudyActivityBodyCardsItemTermMax),
+  "answer": zod.string().max(createStudyActivityBodyCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).optional(),
+  "correctChoiceIndex": zod.int().optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})).max(createStudyActivityBodyCardsMax)
+})
+
+export const createStudyActivityResponseCardsItemIdMax = 80;
+
+export const createStudyActivityResponseCardsItemTermMax = 500;
+
+export const createStudyActivityResponseCardsItemAnswerMax = 1000;
+
+
+
+export const CreateStudyActivityResponse = zod.object({
+  "id": zod.int(),
+  "ownerId": zod.int(),
+  "workspaceRole": zod.enum(['student', 'teacher']),
+  "classId": zod.int().nullish(),
+  "title": zod.string(),
+  "subject": zod.string().nullish(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']),
+  "shareToken": zod.string().nullish(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(createStudyActivityResponseCardsItemIdMax),
+  "term": zod.string().max(createStudyActivityResponseCardsItemTermMax),
+  "answer": zod.string().max(createStudyActivityResponseCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).optional(),
+  "correctChoiceIndex": zod.int().optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Replace a study activity's title, subject, mode and cards
+ */
+export const UpdateStudyActivityParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const updateStudyActivityBodyTitleMin = 2;
+export const updateStudyActivityBodyTitleMax = 160;
+
+export const updateStudyActivityBodyModeDefault = `flashcards`;
+export const updateStudyActivityBodyCardsItemIdMax = 80;
+
+export const updateStudyActivityBodyCardsItemTermMax = 500;
+
+export const updateStudyActivityBodyCardsItemAnswerMax = 1000;
+
+export const updateStudyActivityBodyCardsMax = 100;
+
+
+
+export const UpdateStudyActivityBody = zod.object({
+  "title": zod.string().min(updateStudyActivityBodyTitleMin).max(updateStudyActivityBodyTitleMax),
+  "subject": zod.string().optional(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']).default(updateStudyActivityBodyModeDefault),
+  "classId": zod.int().nullish(),
+  "sourceResourceId": zod.int().optional(),
+  "sourceActivityId": zod.int().optional(),
+  "remixedFromActivityId": zod.int().optional(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(updateStudyActivityBodyCardsItemIdMax),
+  "term": zod.string().max(updateStudyActivityBodyCardsItemTermMax),
+  "answer": zod.string().max(updateStudyActivityBodyCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).optional(),
+  "correctChoiceIndex": zod.int().optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})).max(updateStudyActivityBodyCardsMax)
+})
+
+export const updateStudyActivityResponseCardsItemIdMax = 80;
+
+export const updateStudyActivityResponseCardsItemTermMax = 500;
+
+export const updateStudyActivityResponseCardsItemAnswerMax = 1000;
+
+
+
+export const UpdateStudyActivityResponse = zod.object({
+  "id": zod.int(),
+  "ownerId": zod.int(),
+  "workspaceRole": zod.enum(['student', 'teacher']),
+  "classId": zod.int().nullish(),
+  "title": zod.string(),
+  "subject": zod.string().nullish(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']),
+  "shareToken": zod.string().nullish(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(updateStudyActivityResponseCardsItemIdMax),
+  "term": zod.string().max(updateStudyActivityResponseCardsItemTermMax),
+  "answer": zod.string().max(updateStudyActivityResponseCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).optional(),
+  "correctChoiceIndex": zod.int().optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a study activity
+ */
+export const DeleteStudyActivityParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteStudyActivityResponse = zod.void()
+
+
+/**
+ * @summary Copy someone else's activity into your own workspace
+ */
+export const CopyStudyActivityParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const copyStudyActivityResponseCardsItemIdMax = 80;
+
+export const copyStudyActivityResponseCardsItemTermMax = 500;
+
+export const copyStudyActivityResponseCardsItemAnswerMax = 1000;
+
+
+
+export const CopyStudyActivityResponse = zod.object({
+  "id": zod.int(),
+  "ownerId": zod.int(),
+  "workspaceRole": zod.enum(['student', 'teacher']),
+  "classId": zod.int().nullish(),
+  "title": zod.string(),
+  "subject": zod.string().nullish(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']),
+  "shareToken": zod.string().nullish(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(copyStudyActivityResponseCardsItemIdMax),
+  "term": zod.string().max(copyStudyActivityResponseCardsItemTermMax),
+  "answer": zod.string().max(copyStudyActivityResponseCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).optional(),
+  "correctChoiceIndex": zod.int().optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Share an activity to the catalogue or the forum
+ */
+export const PublishStudyActivityParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const publishStudyActivityBodyDestinationDefault = `catalog`;
+
+export const PublishStudyActivityBody = zod.object({
+  "destination": zod.enum(['catalog', 'forum']).default(publishStudyActivityBodyDestinationDefault)
+})
+
+export const PublishStudyActivityResponse = zod.object({
+  "materialId": zod.int(),
+  "shareToken": zod.string(),
+  "destination": zod.enum(['catalog', 'forum'])
+})
+
+
+/**
+ * @summary Read a published activity by its share token, without an account
+ */
+export const GetSharedStudyActivityParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const getSharedStudyActivityResponseCardsItemIdMax = 80;
+
+export const getSharedStudyActivityResponseCardsItemTermMax = 500;
+
+export const getSharedStudyActivityResponseCardsItemAnswerMax = 1000;
+
+
+
+export const GetSharedStudyActivityResponse = zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string().nullish(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']),
+  "classId": zod.int().nullish(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(getSharedStudyActivityResponseCardsItemIdMax),
+  "term": zod.string().max(getSharedStudyActivityResponseCardsItemTermMax),
+  "answer": zod.string().max(getSharedStudyActivityResponseCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).optional(),
+  "correctChoiceIndex": zod.int().optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
  * @summary List study sessions for the current user (organised + invited)
  */
 export const ListStudySessionsResponseItem = zod.object({

@@ -247,6 +247,154 @@ const SHAPE_RULES: Array<{
       de: (t) => `Wie sicher bist du, dass du „${t}“ erreicht hast?`,
     },
   },
+  /*
+   * The accessible names of the per-item controls on a list.
+   *
+   * Every one of these is "a verb and the reader's own title", which is what
+   * makes a list of icon buttons legible to a screen reader: "Delete button"
+   * six times over says nothing. The title in the middle is the reason none of
+   * them can be a dictionary key, and the reason they were reached for the
+   * blunt instrument instead -- translate="no" on the button, which stops the
+   * bridge touching the name and also stops it touching everything else on the
+   * element. On the goals page that swallowed the "Add a path step…"
+   * placeholder, and on the schedule the "Export to Calendar" tooltip: pure
+   * product wording, in English in all five languages, invisible to the
+   * translation audit because the audit skips protected elements by design.
+   *
+   * A rule per shape translates around the name and leaves the name alone,
+   * which is what the protection was standing in for.
+   */
+  {
+    match: /^Open (.+)$/,
+    render: {
+      tr: (t) => `${t} kaynağını aç`,
+      es: (t) => `Abrir ${t}`,
+      fr: (t) => `Ouvrir ${t}`,
+      pt: (t) => `Abrir ${t}`,
+      de: (t) => `${t} öffnen`,
+    },
+  },
+  {
+    match: /^Remove (.+)$/,
+    render: {
+      tr: (t) => `${t} kaynağını kaldır`,
+      es: (t) => `Quitar ${t}`,
+      fr: (t) => `Retirer ${t}`,
+      pt: (t) => `Remover ${t}`,
+      de: (t) => `${t} entfernen`,
+    },
+  },
+  {
+    match: /^Add step to (.+)$/,
+    render: {
+      tr: (t) => `${t} hedefine adım ekle`,
+      es: (t) => `Añadir un paso a ${t}`,
+      fr: (t) => `Ajouter une étape à ${t}`,
+      pt: (t) => `Adicionar um passo a ${t}`,
+      de: (t) => `Schritt zu ${t} hinzufügen`,
+    },
+  },
+  {
+    match: /^Move (.+) up$/,
+    render: {
+      tr: (t) => `${t} yukarı taşı`,
+      es: (t) => `Subir ${t}`,
+      fr: (t) => `Déplacer ${t} vers le haut`,
+      pt: (t) => `Mover ${t} para cima`,
+      de: (t) => `${t} nach oben verschieben`,
+    },
+  },
+  {
+    match: /^Move (.+) down$/,
+    render: {
+      tr: (t) => `${t} aşağı taşı`,
+      es: (t) => `Bajar ${t}`,
+      fr: (t) => `Déplacer ${t} vers le bas`,
+      pt: (t) => `Mover ${t} para baixo`,
+      de: (t) => `${t} nach unten verschieben`,
+    },
+  },
+  {
+    match: /^Rename (.+)$/,
+    render: {
+      tr: (t) => `${t} yeniden adlandır`,
+      es: (t) => `Renombrar ${t}`,
+      fr: (t) => `Renommer ${t}`,
+      pt: (t) => `Renomear ${t}`,
+      de: (t) => `${t} umbenennen`,
+    },
+  },
+  {
+    match: /^Delete (.+)$/,
+    render: {
+      tr: (t) => `${t} sil`,
+      es: (t) => `Eliminar ${t}`,
+      fr: (t) => `Supprimer ${t}`,
+      pt: (t) => `Eliminar ${t}`,
+      de: (t) => `${t} löschen`,
+    },
+  },
+  {
+    match: /^Complete (.+)$/,
+    render: {
+      tr: (t) => `${t} adımını tamamla`,
+      es: (t) => `Completar ${t}`,
+      fr: (t) => `Terminer ${t}`,
+      pt: (t) => `Concluir ${t}`,
+      de: (t) => `${t} abschließen`,
+    },
+  },
+  {
+    match: /^Undo (.+)$/,
+    render: {
+      tr: (t) => `${t} adımını geri al`,
+      es: (t) => `Deshacer ${t}`,
+      fr: (t) => `Annuler ${t}`,
+      pt: (t) => `Anular ${t}`,
+      de: (t) => `${t} rückgängig machen`,
+    },
+  },
+  {
+    match: /^Export (.+) to calendar$/,
+    render: {
+      tr: (t) => `${t} takvime aktar`,
+      es: (t) => `Exportar ${t} al calendario`,
+      fr: (t) => `Exporter ${t} vers le calendrier`,
+      pt: (t) => `Exportar ${t} para o calendário`,
+      de: (t) => `${t} in den Kalender exportieren`,
+    },
+  },
+  {
+    /*
+     * "2 named collaborators". A rule rather than a COUNTED entry because
+     * COUNTED keys on a single lowercase word after the number, and this one
+     * is two.
+     */
+    match: /^(\d[\d.,]*) named collaborators?$/,
+    render: {
+      tr: (n) => `${n} adlı ortak`,
+      es: (n) => `${n} ${n === "1" ? "colaborador indicado" : "colaboradores indicados"}`,
+      fr: (n) => `${n} ${n === "1" ? "collaborateur nommé" : "collaborateurs nommés"}`,
+      pt: (n) => `${n} ${n === "1" ? "colaborador indicado" : "colaboradores indicados"}`,
+      de: (n) => `${n} ${n === "1" ? "benannte Person" : "benannte Personen"}`,
+    },
+  },
+  {
+    /*
+     * "Manage Photosynthesis map" -- the accessible name of the menu button on
+     * a canvas card, named after the canvas so that a list of them does not
+     * read as "button, button, button". The name is the reader's own, so the
+     * label can only be translated around it.
+     */
+    match: /^Manage (.+)$/,
+    render: {
+      tr: (t) => `${t} yönet`,
+      es: (t) => `Gestionar ${t}`,
+      fr: (t) => `Gérer ${t}`,
+      pt: (t) => `Gerir ${t}`,
+      de: (t) => `${t} verwalten`,
+    },
+  },
 ];
 
 /** "93% evidence score" — a number and a label, so no fixed key can match. */

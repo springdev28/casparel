@@ -58,14 +58,29 @@ const USER = {
   createdAt: "2026-01-05T09:00:00.000Z",
 };
 
-// Free rather than unlimited on purpose: it renders the usage meters and the
-// upgrade CTA, which is strictly more surface to check than the one-line
-// "unlimited" state.
+/*
+ * Free rather than unlimited on purpose: it renders the usage meters and the
+ * upgrade CTA, which is strictly more surface to check than the one-line
+ * "unlimited" state.
+ *
+ * `tier` and `capacity` are required and were both missing, so every meter the
+ * capacity block drives rendered from undefined -- on the settings page, the
+ * plan card and the upgrade prompts.
+ */
 const USAGE = {
   plan: "Free",
+  tier: "free",
   unlimited: false,
   aiSearch: { used: 1, limit: 3, window: "day" },
-  deepResearch: { used: 2, limit: 2, window: "day" },
+  deepResearch: { used: 2, limit: 2, window: "month" },
+  capacity: {
+    classesOwned: { used: 1, limit: 1 },
+    classMembers: { used: 0, limit: 30 },
+    studyActivities: { used: 6, limit: 25 },
+    resourceLists: { used: 2, limit: 5 },
+    learningGoals: { used: 3, limit: 10 },
+    canvases: { used: 1, limit: 3 },
+  },
 };
 
 /**
@@ -149,14 +164,23 @@ const RESOURCE = {
   description:
     "A standard undergraduate text, openly licensed and maintained by its author.",
   url: "https://example.org/linear-algebra",
-  type: "book",
+  /*
+   * `format`, from the enum, and not `type: "book"`. The API has no `type` and
+   * no "book": the column is a not-null enum of article/video/pdf/podcast/
+   * interactive/other. So every render of the library and the detail page was
+   * of a resource with no format at all, which is the field the type icon, the
+   * filter chip and the card label all read.
+   *
+   * `submittedById` was null and the column is not-null. `language` and
+   * `source` were invented -- the server returns neither.
+   */
+  format: "pdf",
   subject: "Mathematics",
   gradeLevel: "Undergraduate",
-  language: "en",
-  source: "Open Library",
+  thumbnailUrl: null,
   verificationStatus: "verified",
   verificationNote: null,
-  submittedById: null,
+  submittedById: 2,
   // The names the API actually returns. These read averageRating/ratingCount,
   // which nothing consumes, so every render had no rating at all and the
   // resource card printed "NaN% evidence score" -- reported by the translation
@@ -174,21 +198,44 @@ const ADMIN_USER_ROW = {
   bannedReason: null,
 };
 
+/*
+ * A goal with every field the contract marks required.
+ *
+ * `subject`, `level` and `updatedAt` were missing, and all three are required
+ * in openapi.yaml. The goals page renders subject and level as badges, so
+ * every audit read that card with two empty 22px pills on it and passed --
+ * the page was never rendered as a reader would see it.
+ */
 const LEARNING_GOAL = {
   id: 7,
   userId: 1,
   title: "Master Full-Stack Development",
+  subject: "Web development",
+  level: "intermediate",
   description: "Work through the fundamentals, then build something real.",
   targetDate: "2026-12-01",
   status: "active",
   progress: 25,
+  /*
+   * `query` and `completed`, which is what the contract says a step is. These
+   * read `done`, so the app -- which reads `completed` -- saw two unfinished
+   * steps and printed "0 of 2" beside a step that was finished.
+   */
   pathSteps: [
-    { id: "s1", title: "HTML and CSS", done: true },
-    { id: "s2", title: "TypeScript", done: false },
+    { id: "s1", title: "HTML and CSS", query: "html css fundamentals", completed: true },
+    { id: "s2", title: "TypeScript", query: "typescript for beginners", completed: false },
   ],
   createdAt: "2026-03-02T09:00:00.000Z",
+  updatedAt: "2026-04-11T09:00:00.000Z",
 };
 
+/*
+ * A class with a roster on it.
+ *
+ * `members` is required and was absent, so the class detail page was audited
+ * with its member list, its roles and its seating all rendering from nothing,
+ * beside a header claiming 24 members.
+ */
 const CLASS = {
   id: 31,
   name: "Physics A-level",
@@ -198,6 +245,42 @@ const CLASS = {
   teacherId: 1,
   memberCount: 24,
   createdAt: "2026-01-14T09:00:00.000Z",
+  members: [
+    {
+      userId: 1,
+      classId: 31,
+      role: "teacher",
+      customRole: null,
+      joinedAt: "2026-01-14T09:00:00.000Z",
+      user: {
+        id: 1,
+        name: "Audit Account",
+        role: "teacher",
+        websiteUrl: null,
+        avatarUrl: null,
+        bio: "Checking that every surface renders.",
+        subjects: ["Mathematics", "Physics"],
+        gradeOrDept: "Year 12",
+      },
+    },
+    {
+      userId: 2,
+      classId: 31,
+      role: "student",
+      customRole: null,
+      joinedAt: "2026-01-20T09:00:00.000Z",
+      user: {
+        id: 2,
+        name: "Ada Karahan",
+        role: "student",
+        websiteUrl: null,
+        avatarUrl: null,
+        bio: "Second year, mostly mechanics.",
+        subjects: ["Physics"],
+        gradeOrDept: "Year 12",
+      },
+    },
+  ],
 };
 
 const RESOURCE_LIST = {
@@ -208,6 +291,76 @@ const RESOURCE_LIST = {
   classId: null,
   itemCount: 6,
   createdAt: "2026-04-02T09:00:00.000Z",
+};
+
+/**
+ * The list detail page's own answer, which carries its items.
+ *
+ * /api/lists returns the card without them; the detail page asks for the list
+ * by id and renders what is inside it. Both pages exist and only the card was
+ * ever audited.
+ */
+const RESOURCE_LIST_DETAIL = {
+  ...RESOURCE_LIST,
+  items: [
+    {
+      id: 501,
+      listId: 44,
+      resourceId: 101,
+      note: "Chapters 1 to 3 cover everything on the mock.",
+      addedAt: "2026-04-03T09:00:00.000Z",
+      position: 0,
+      resource: RESOURCE,
+    },
+  ],
+};
+
+/**
+ * Somebody else's public profile, and the library they chose to show.
+ *
+ * Not the audit account: the page renders differently for your own profile,
+ * and the version worth checking is the one you see of a stranger -- block,
+ * report, recommend, and a library filtered by their visibility settings.
+ */
+const OTHER_PROFILE = {
+  id: 2,
+  name: "Ada Karahan",
+  role: "student",
+  websiteUrl: null,
+  avatarUrl: null,
+  bio: "Second year, mostly mechanics.",
+  subjects: ["Physics"],
+  gradeOrDept: "Year 12",
+};
+
+const OTHER_LIBRARY = { resources: [RESOURCE], lists: [RESOURCE_LIST] };
+
+/**
+ * A canvas, so the canvases page is audited with a canvas on it.
+ *
+ * Without one the list rendered its empty state and every audit passed on a
+ * page with a heading and a button -- no title, no owner, no relative date,
+ * no share menu. The page had never been audited at all: all four lists named
+ * `/canvas`, which is not a route, so the catch-all redirected them to
+ * `/resources` and they read that page twice.
+ */
+const CANVAS = {
+  id: 12,
+  title: "Photosynthesis map",
+  description: "Light reactions on the left, Calvin cycle on the right.",
+  ownerId: 1,
+  classId: null,
+  visibility: "private",
+  classAccess: "view",
+  shareToken: null,
+  document: { nodes: [], edges: [] },
+  version: 3,
+  createdAt: "2026-04-02T09:00:00.000Z",
+  updatedAt: "2026-04-09T16:20:00.000Z",
+  owner: { id: 1, name: "Audit Student" },
+  class: null,
+  collaboratorCount: 2,
+  permissions: { canView: true, canEdit: true, canManage: true, role: "owner" },
 };
 
 /**
@@ -349,6 +502,14 @@ export const FIXTURES = {
   "/api/classes": [CLASS],
   "/api/classes/31": CLASS,
   "/api/lists": [RESOURCE_LIST],
+  "/api/lists/44": RESOURCE_LIST_DETAIL,
+  // The generated client builds these as /api/users/{id}, .../library and
+  // .../safety; the page opens all three at once.
+  "/api/users/2": OTHER_PROFILE,
+  "/api/users/2/library": OTHER_LIBRARY,
+  "/api/users/2/safety": { blocked: false },
+  "/api/canvases": [CANVAS],
+  "/api/canvases/12": CANVAS,
   "/api/class-invitations": [],
   "/api/google-classroom/status": { connected: false, configured: false },
   "/api/lists/shared": [],

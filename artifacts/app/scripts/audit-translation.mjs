@@ -24,6 +24,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { installSession } from "./audit-fixtures.mjs";
+import { inParallel } from "./in-parallel.mjs";
 import { launchOptions } from "./chromium.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -52,7 +53,7 @@ const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
   "/dashboard,/profile,/resources,/catalog,/settings,/plans," +
     "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people," +
-    "/canvas,/admin," +
+    "/canvases,/classes/31,/lists/44,/profile/2,/guide,/tutorial,/admin," +
     // The resource detail page, which was left out for a long time because it
     // rendered its error boundary: one endpoint had no fixture, the default
     // empty array reached `workflow?.steps[key]`, and the page crashed. Both
@@ -230,9 +231,30 @@ const COLLECT = `(() => {
  */
 const browser = await chromium.launch(launchOptions());
 
-/** Every visible prose string on one page, in one language. */
-async function collect(pagePath, language, signedIn) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+/**
+ * Desktop and a phone.
+ *
+ * This rendered only at 1280px, which meant every `md:hidden` region was
+ * invisible to it -- and those regions are not a smaller version of the
+ * desktop, they are different markup with different strings. The schedule's
+ * whole phone view of the week is one of them; so is the search field's short
+ * placeholder, which only exists below 768px. A string that renders only on a
+ * phone was never once read in another language.
+ */
+const VIEWPORTS = [
+  { width: 1280, height: 900, name: "desktop" },
+  { width: 375, height: 812, name: "phone" },
+];
+
+/** How many pages this run actually opened in a browser. */
+let rendered = 0;
+
+/** Every visible prose string on one page, in one language, at one width. */
+async function collect(pagePath, language, signedIn, viewport) {
+  rendered += 1;
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+  });
   await context.addInitScript(
     ([lang]) => {
       try {
@@ -266,39 +288,101 @@ async function collect(pagePath, language, signedIn) {
 const report = new Map(); // language -> Map(string -> pages[])
 let checked = 0;
 
+/**
+ * The English render of a page, kept.
+ *
+ * Every language is compared against English, and English does not change
+ * between them -- but this rendered it again for each one, so a five-language
+ * run opened the same page in English five times. Half of every run was
+ * re-reading the control. Keyed by page, width and session, which is
+ * everything that changes what English renders.
+ */
+const englishCache = new Map();
+function collectEnglish(pagePath, signedIn, viewport) {
+  const key = `${pagePath}|${signedIn}|${viewport.name}`;
+  /*
+   * The promise is cached, not the result.
+   *
+   * With the renders running several at a time, two tasks reach the same key
+   * before either has finished, both miss, and English is opened twice --
+   * which is the cost this cache exists to remove. Storing the promise means
+   * the second one waits on the first.
+   */
+  if (!englishCache.has(key)) {
+    englishCache.set(key, collect(pagePath, "en", signedIn, viewport));
+  }
+  return englishCache.get(key);
+}
+
+/*
+ * One flat list of everything to look at, then all of it a few at a time.
+ *
+ * This was four nested loops rendering one page at a time. Each render is an
+ * independent context against a static server, so the nesting was expressing
+ * the shape of the report rather than any real dependency -- and the report is
+ * assembled from the results afterwards either way.
+ */
+const TASKS = [];
+/*
+ * Typed, because a bare array of [strings, boolean] pairs infers as
+ * (boolean | string[])[][] and then `pages` might be a boolean as far as
+ * anything checking this file can tell.
+ */
+/** @type {Array<[string[], boolean]>} */
+const GROUPS = [
+  [PAGES, false],
+  [SIGNED_IN_PAGES, true],
+];
 for (const language of LANGS) {
-  const gaps = new Map();
-  const identical = deliberatelyIdentical(language);
-  for (const [pages, signedIn] of [
-    [PAGES, false],
-    [SIGNED_IN_PAGES, true],
-  ]) {
+  for (const [pages, signedIn] of GROUPS) {
     for (const pagePath of pages) {
-      let englishStrings;
-      let translatedStrings;
-      try {
-        [englishStrings, translatedStrings] = await Promise.all([
-          collect(pagePath, "en", signedIn),
-          collect(pagePath, language, signedIn),
-        ]);
-      } catch (error) {
-        console.error(`  !  ${pagePath} [${language}] failed: ${error.message}`);
-        continue;
-      }
-      checked += 1;
-      // A string that survives untouched into the translated render, and was
-      // present in English too, had no dictionary entry that matched.
-      const stillEnglish = new Set(translatedStrings);
-      for (const text of englishStrings) {
-        if (stillEnglish.has(text) && !identical.has(text)) {
-          const where = gaps.get(text) ?? new Set();
-          where.add(`${signedIn ? "signed-in " : ""}${pagePath}`);
-          gaps.set(text, where);
-        }
+      for (const viewport of VIEWPORTS) {
+        TASKS.push({ language, pagePath, signedIn, viewport });
       }
     }
   }
-  report.set(language, gaps);
+}
+
+const IDENTICAL = new Map(
+  LANGS.map((language) => [language, deliberatelyIdentical(language)]),
+);
+
+const findings = await inParallel(TASKS, async (task) => {
+  const { language, pagePath, signedIn, viewport } = task;
+  let englishStrings;
+  let translatedStrings;
+  try {
+    [englishStrings, translatedStrings] = await Promise.all([
+      collectEnglish(pagePath, signedIn, viewport),
+      collect(pagePath, language, signedIn, viewport),
+    ]);
+  } catch (error) {
+    console.error(
+      `  !  ${pagePath} [${language} @${viewport.name}] failed: ${error.message}`,
+    );
+    return null;
+  }
+  // A string that survives untouched into the translated render, and was
+  // present in English too, had no dictionary entry that matched.
+  const identical = IDENTICAL.get(language);
+  const stillEnglish = new Set(translatedStrings);
+  const untranslated = englishStrings.filter(
+    (text) => stillEnglish.has(text) && !identical.has(text),
+  );
+  return { task, untranslated };
+});
+
+for (const language of LANGS) report.set(language, new Map());
+for (const finding of findings) {
+  if (!finding) continue;
+  const { language, pagePath, signedIn, viewport } = finding.task;
+  checked += 1;
+  const gaps = report.get(language);
+  for (const text of finding.untranslated) {
+    const where = gaps.get(text) ?? new Set();
+    where.add(`${signedIn ? "signed-in " : ""}${pagePath} @${viewport.name}`);
+    gaps.set(text, where);
+  }
 }
 
 await browser.close();
@@ -334,7 +418,11 @@ if (process.env.AUDIT_TRANSLATION_JSON) {
   );
 }
 
-console.log(`\n${checked} page render(s) checked across ${LANGS.length} language(s).`);
+console.log(
+  `\n${checked} page comparison(s) across ${LANGS.length} language(s), from ` +
+    `${rendered} browser render(s): English is opened once per page, width and ` +
+    `session rather than once per language.`,
+);
 
 /*
  * A run that rendered nothing proves nothing.
