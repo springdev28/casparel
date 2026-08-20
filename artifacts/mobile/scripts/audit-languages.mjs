@@ -106,6 +106,10 @@ const SCREENS = [
   // other screen here renders a list; this one renders a single card, and the
   // strings on it -- Term, Answer, Tap to turn over -- exist nowhere else.
   { path: "/study/7", session: "in" },
+  // Messages, which is reached from the dashboard header rather than a tab, so
+  // no other entry here renders it. Its empty state and its section headings
+  // exist nowhere else.
+  { path: "/messages", session: "in" },
 ];
 
 const MIME = {
