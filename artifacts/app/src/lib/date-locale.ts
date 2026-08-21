@@ -3,7 +3,7 @@
  *
  * Every date in the signed-in app is written by date-fns, and date-fns
  * formats in English unless it is handed a locale. Nothing was handing it
- * one. So a reader who picked Español saw their schedule week as "Mon Aug 17"
+ * one. So a reader who picked Türkçe saw their schedule week as "Mon Aug 17"
  * through "Sun Aug 23", their reading lists "5 months ago", and their study
  * sessions "Thu, Aug 20" -- in an app that had already translated every
  * heading around them.
@@ -38,10 +38,6 @@ const LANGUAGE_EVENT = "schoolar-language-change";
  */
 const LOCALES: Record<AuthLanguage, typeof enUS> = {
   en: enUS,
-  es,
-  fr,
-  de,
-  pt: ptBR,
   tr,
 };
 
@@ -54,20 +50,16 @@ export function dateLocale(language: AuthLanguage): typeof enUS {
  *
  * A handful of places format with the platform's own Intl rather than
  * date-fns. Those called `toLocaleString()` with no argument, which uses the
- * *browser's* locale -- so a reader who picked Español on a machine set to
+ * *browser's* locale -- so a reader who picked Türkçe on a machine set to
  * English got "8/10/2026, 6:20:00 PM" in their inbox. One place did pass a
  * tag, `"tr-TR"`, and only for Turkish; the other four languages fell through
- * to the same undefined. This is the answer for all six.
+ * to the same undefined. This is the answer for every language on offer.
  */
 const INTL_TAGS: Record<AuthLanguage, string> = {
   // en-GB rather than en-US, to match the 24-hour clock the schedule already
   // decided on: two clocks on one screen is the thing that decision avoided,
   // and it would come straight back if the inbox printed 6:20:00 PM.
   en: "en-GB",
-  es: "es-ES",
-  fr: "fr-FR",
-  de: "de-DE",
-  pt: "pt-BR",
   tr: "tr-TR",
 };
 

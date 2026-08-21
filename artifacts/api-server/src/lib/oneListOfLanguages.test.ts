@@ -22,7 +22,7 @@
  *
  * Two of the six pairings are already held elsewhere and are not repeated:
  * datesFollowTheLanguage.test.ts pins the web picker against date-locale's
- * two tables, and mobileSpeaksSixLanguages.test.ts pins the phone's
+ * two tables, and mobileSpeaksItsLanguages.test.ts pins the phone's
  * dictionaries and its CFBundleLocalizations. This file is the part nobody
  * was checking: whether the two clients and the server agree at all.
  */

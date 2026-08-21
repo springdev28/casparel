@@ -63,7 +63,7 @@ const APP_ORIGIN = "https://casparel.com";
  * The languages to shoot. All six by default; narrow it while iterating,
  * because sixty frames at 3× take a while and most of that is font settling.
  */
-const LANGUAGES = (process.env.STORE_LANGS ?? "en,es,fr,de,pt,tr").split(",");
+const LANGUAGES = (process.env.STORE_LANGS ?? "en,tr").split(",");
 const RUN = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 const EMAIL = `store-${RUN}@example.test`;
 const PASSWORD = "store-Passw0rd!shots";

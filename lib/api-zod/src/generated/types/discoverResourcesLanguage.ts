@@ -12,9 +12,5 @@ export type DiscoverResourcesLanguage = typeof DiscoverResourcesLanguage[keyof t
 export const DiscoverResourcesLanguage = {
   any: 'any',
   en: 'en',
-  es: 'es',
-  fr: 'fr',
-  de: 'de',
-  pt: 'pt',
   tr: 'tr',
 } as const;

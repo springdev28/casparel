@@ -30,7 +30,7 @@ import { serveBuild } from "./serve-build.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../dist/public");
 const PORT = Number(process.env.AUDIT_TRANSLATION_PORT ?? 4326);
-const LANGS = (process.env.AUDIT_LANGS ?? "tr,es,fr,de,pt").split(",").filter(Boolean);
+const LANGS = (process.env.AUDIT_LANGS ?? "tr").split(",").filter(Boolean);
 /** How many untranslated strings may remain before this fails. */
 const BUDGET = Number(process.env.AUDIT_TRANSLATION_MAX ?? 0);
 

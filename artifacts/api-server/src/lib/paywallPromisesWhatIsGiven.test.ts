@@ -31,7 +31,7 @@
  * number the server compares against.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AI_RATES_BY_TIER, CAPACITY_BY_TIER } from "./entitlements";
@@ -246,13 +246,22 @@ describe("what the paywall promises", () => {
      * changed in English and left behind in five other files, and that shows
      * up as a different set.
      */
-    const dictionaries = ["es", "fr", "de", "pt", "tr"].map((language) => ({
-      language,
-      text: readFileSync(
-        resolve(repo, `artifacts/mobile/lib/i18n/${language}.ts`),
-        "utf8",
-      ),
-    }));
+    /*
+     * Whichever dictionaries are there, rather than a list written here.
+     *
+     * This named five, which was the set the day it was written; the product
+     * later went to English and Turkish and this failed on a file that had
+     * been deliberately deleted. A test that hardcodes the language list
+     * fails for the language list changing, which is not what it is about --
+     * it is about a price being edited in English and not in translation.
+     */
+    const dictionaryDir = resolve(repo, "artifacts/mobile/lib/i18n");
+    const dictionaries = readdirSync(dictionaryDir)
+      .filter((name) => /^[a-z]{2}\.ts$/.test(name))
+      .map((name) => ({
+        language: name.replace(/\.ts$/, ""),
+        text: readFileSync(resolve(dictionaryDir, name), "utf8"),
+      }));
 
     /*
      * A thousands separator is whatever the language uses.

@@ -20,7 +20,7 @@
  * <Text> element or in a label, title or placeholder prop, and fails on
  * anything that looks like a sentence and is not going through `t()`.
  *
- * Product names are exempt by name, because they are the same in six
+ * Product names are exempt by name, because they are the same in every
  * languages: Casparel, and the plan names Free, Plus and Pro.
  */
 import { describe, expect, it } from "vitest";
@@ -196,7 +196,7 @@ describe("the phone app's translations", () => {
      * language. Each is a decision rather than an oversight.
      */
     const NOT_FOR_THE_READER = new Set([
-      // Product and plan names, identical in all six.
+      // Product and plan names, identical in every language.
       "Casparel",
       "Free",
       "Plus",
@@ -312,18 +312,20 @@ describe("the phone app's translations", () => {
     ).toEqual([]);
   });
 
-  it("tells the App Store the same six languages it can actually speak", () => {
+  it("tells the App Store the languages it can actually speak", () => {
     /*
      * CFBundleLocalizations is what iOS reports and what the App Store listing
      * shows under "Languages". It was absent, so a phone that had just been
-     * taught Spanish, French, German, Portuguese and Turkish would have been
-     * listed as English-only -- and nobody searching the store in their own
-     * language would have found it.
+     * taught another language would have been listed as English-only -- and
+     * nobody searching the store in their own language would have found it.
      *
      * Checked against the dictionaries rather than against a copy of the list,
      * so the claim on the store page cannot outlive the translations behind
-     * it, in either direction: a seventh language added to the app has to be
-     * declared, and a language declared here has to have a dictionary.
+     * it, in either direction: a language added to the app has to be
+     * declared, and a language declared here has to have a dictionary. That
+     * also means dropping one is a single edit -- delete the dictionary and
+     * the declaration follows, rather than the store advertising a language
+     * the app no longer speaks.
      */
     const appJson = JSON.parse(readFileSync(join(appRoot, "app.json"), "utf8")) as {
       expo: { ios?: { infoPlist?: Record<string, unknown> } };

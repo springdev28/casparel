@@ -78,6 +78,7 @@ import type {
   ListItem,
   ListItemInput,
   ListProvenanceShowcase200,
+  ListProvenanceShowcaseParams,
   ListResourcesParams,
   ListScheduleBlocksParams,
   ListStudyActivitiesParams,
@@ -4543,21 +4544,29 @@ export function useListFeaturedResources<TData = Awaited<ReturnType<typeof listF
 
 
 
-export const getListProvenanceShowcaseUrl = () => {
+export const getListProvenanceShowcaseUrl = (params?: ListProvenanceShowcaseParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/resources/provenance-showcase`
+  return stringifiedParams.length > 0 ? `/api/resources/provenance-showcase?${stringifiedParams}` : `/api/resources/provenance-showcase`
 }
 
 /**
  * Real catalogue sources with the same registry-based provenance verdict the resource pages show. Personalised to the caller's own saved resources when an auth header is present, otherwise the most-saved resources across the platform. Public and unauthenticated-safe: it returns only fields already public on a resource, and no AI is involved (provenance is a deterministic registry check).
+ * Entries are ordered for the reader's language: sources in it first, then sources whose language the address does not establish, then the rest. Ranked rather than filtered, so a library holding nothing in that language still shows what it has -- each entry carries its own `language` so a source in another one can be labelled rather than passed off as the reader's.
  * @summary Sources with their provenance verdicts, for the landing hero
  */
-export const listProvenanceShowcase = async ( options?: Parameters<typeof customFetch>[1]): Promise<ListProvenanceShowcase200> => {
+export const listProvenanceShowcase = async (params?: ListProvenanceShowcaseParams, options?: Parameters<typeof customFetch>[1]): Promise<ListProvenanceShowcase200> => {
 
-  return customFetch<ListProvenanceShowcase200>(getListProvenanceShowcaseUrl(),
+  return customFetch<ListProvenanceShowcase200>(getListProvenanceShowcaseUrl(params),
   {
     ...options,
     method: 'GET'
@@ -4570,23 +4579,23 @@ export const listProvenanceShowcase = async ( options?: Parameters<typeof custom
 
 
 
-export const getListProvenanceShowcaseQueryKey = () => {
+export const getListProvenanceShowcaseQueryKey = (params?: ListProvenanceShowcaseParams,) => {
     return [
-    `/api/resources/provenance-showcase`
+    `/api/resources/provenance-showcase`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListProvenanceShowcaseQueryOptions = <TData = Awaited<ReturnType<typeof listProvenanceShowcase>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProvenanceShowcase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListProvenanceShowcaseQueryOptions = <TData = Awaited<ReturnType<typeof listProvenanceShowcase>>, TError = ErrorType<unknown>>(params?: ListProvenanceShowcaseParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProvenanceShowcase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListProvenanceShowcaseQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListProvenanceShowcaseQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProvenanceShowcase>>> = ({ signal }) => listProvenanceShowcase({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProvenanceShowcase>>> = ({ signal }) => listProvenanceShowcase(params, { signal, ...requestOptions });
 
 
 
@@ -4604,11 +4613,11 @@ export type ListProvenanceShowcaseQueryError = ErrorType<unknown>
  */
 
 export function useListProvenanceShowcase<TData = Awaited<ReturnType<typeof listProvenanceShowcase>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProvenanceShowcase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListProvenanceShowcaseParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProvenanceShowcase>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListProvenanceShowcaseQueryOptions(options)
+  const queryOptions = getListProvenanceShowcaseQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

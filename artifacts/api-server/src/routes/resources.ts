@@ -84,6 +84,10 @@ import {
   wordStartPattern,
 } from "../lib/searchTerms";
 import { logger } from "../lib/logger";
+import {
+  languageOfSourceUrl,
+  languageRank,
+} from "../lib/sourceLanguage";
 import { getAccountEntitlements } from "../lib/entitlements";
 import { validationMessage } from "../lib/validationMessage";
 
@@ -2114,8 +2118,36 @@ async function fetchOembedThumbnail(oembedUrl: string): Promise<string | null> {
  * returned, and unverified submissions stay hidden by the usual visibility
  * rule, so an unauthenticated caller cannot use this to enumerate the queue.
  */
+/**
+ * How many rows each tier fetches before the reader's language is applied.
+ *
+ * The card shows six. Ranking six by language can only reorder them, so the
+ * tier has to hand up more than it needs for the preference to mean anything
+ * -- a shelf of twenty with four English on it can put those four first,
+ * where a shelf of six all-Turkish cannot.
+ */
+const CANDIDATES = 30;
+
+/** The showcase shows this many, whatever it had to read to choose them. */
+const SHOWN = 6;
+
 router.get("/resources/provenance-showcase", async (req, res): Promise<void> => {
   const viewerId = optionalViewerId(req);
+  /*
+   * Whose language the card is for.
+   *
+   * The hero offered an English reader "İspanyolca" from tr.wikibooks.org:
+   * a real source with a correct provenance verdict, in a language they do
+   * not read, under a heading about researching sources for them. The
+   * catalogue happened to be mostly Turkish and nothing here asked.
+   *
+   * Defaults to English because that is what the product is written in, and
+   * because a caller that does not say has no preference to honour.
+   */
+  const readerLanguage =
+    typeof req.query.language === "string" && /^[a-z]{2}$/.test(req.query.language)
+      ? req.query.language
+      : "en";
   const visibility = resourceVisibilityCondition(
     viewerId,
     isAdminRequest(req),
@@ -2153,13 +2185,13 @@ router.get("/resources/provenance-showcase", async (req, res): Promise<void> => 
         )
         .groupBy(resourcesTable.id)
         .orderBy(sql`max(${listItemsTable.addedAt}) desc`)
-        .limit(6);
+        .limit(CANDIDATES);
     }
     return base
       .where(visibility)
       .groupBy(resourcesTable.id)
       .orderBy(sql`count(distinct ${listItemsTable.listId}) desc`, resourcesTable.id)
-      .limit(6);
+      .limit(CANDIDATES);
   }
 
   /**
@@ -2180,7 +2212,7 @@ router.get("/resources/provenance-showcase", async (req, res): Promise<void> => 
       .from(resourcesTable)
       .where(visibility)
       .orderBy(desc(resourcesTable.createdAt))
-      .limit(6);
+      .limit(CANDIDATES);
   }
 
   /**
@@ -2231,7 +2263,27 @@ router.get("/resources/provenance-showcase", async (req, res): Promise<void> => 
       return;
     }
 
-    const entries = rows.map((row) => {
+    /*
+     * The reader's language first, then sources whose language is not
+     * established, then the rest -- and only then cut to six.
+     *
+     * Ranked rather than filtered. A library that holds nothing in the
+     * reader's language should still show what it has; an empty hero teaches
+     * nobody anything about the product, and the entries carry their own
+     * language now, so a source in another one arrives labelled rather than
+     * passed off. `sort` is stable in Node, so within a tier the order each
+     * query chose -- most saved, most recent -- survives.
+     */
+    const ranked = [...rows]
+      .map((row) => ({ row, language: languageOfSourceUrl(row.url) }))
+      .sort(
+        (a, b) =>
+          languageRank(a.language, readerLanguage) -
+          languageRank(b.language, readerLanguage),
+      )
+      .slice(0, SHOWN);
+
+    const entries = ranked.map(({ row, language }) => {
       // linkChecked=false: this endpoint never makes outbound requests, so it
       // must not claim the link was checked just now.
       const provenance = addProvenance({ url: row.url }, false);
@@ -2249,6 +2301,10 @@ router.get("/resources/provenance-showcase", async (req, res): Promise<void> => 
         provenanceLevel: provenance.provenanceLevel,
         provenanceSignals: provenance.provenanceSignals,
         savedCount: Number(row.savedCount ?? 0),
+        // Null when the address does not say, which is not the same as
+        // English. The card shows a note only for a language it knows about
+        // and that is not the reader's.
+        language,
       };
     });
 

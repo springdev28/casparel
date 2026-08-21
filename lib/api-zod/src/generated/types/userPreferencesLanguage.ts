@@ -15,9 +15,5 @@ export type UserPreferencesLanguage = typeof UserPreferencesLanguage[keyof typeo
 
 export const UserPreferencesLanguage = {
   en: 'en',
-  es: 'es',
-  fr: 'fr',
-  de: 'de',
-  pt: 'pt',
   tr: 'tr',
 } as const;

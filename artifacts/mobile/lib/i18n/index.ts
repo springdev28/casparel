@@ -1,9 +1,9 @@
 /**
  * The phone app in the language the account already chose.
  *
- * The web app has offered six languages for a while, and stores the choice on
+ * The web app offers English and Turkish, and stores the choice on
  * the account so it follows the person rather than the device. The phone app
- * had no idea any of that existed: somebody who set Español on the web, closed
+ * had no idea any of that existed: somebody who set Türkçe on the web, closed
  * the laptop and opened the phone got English, on the same account, on the
  * same day.
  *
@@ -20,28 +20,16 @@
  * string is visible in the source rather than hiding behind a bridge that
  * silently did not match.
  */
-import de from "./de";
-import es from "./es";
-import fr from "./fr";
-import pt from "./pt";
 import tr from "./tr";
 
 export const LANGUAGES = [
   { code: "en", label: "English" },
-  { code: "es", label: "Español" },
-  { code: "fr", label: "Français" },
-  { code: "de", label: "Deutsch" },
-  { code: "pt", label: "Português" },
   { code: "tr", label: "Türkçe" },
 ] as const;
 
 export type Language = (typeof LANGUAGES)[number]["code"];
 
 const DICTIONARIES: Partial<Record<Language, Record<string, string>>> = {
-  es,
-  fr,
-  de,
-  pt,
   tr,
 };
 
@@ -54,8 +42,6 @@ const DICTIONARIES: Partial<Record<Language, Record<string, string>>> = {
  * over a screen that was otherwise entirely in Turkish. Intl already knows
  * this in every language; it only needed to be told which one.
  *
- * pt-BR, not pt-PT: the dictionary is Brazilian Portuguese, and a date in one
- * country's wording beside a sentence in another's reads like two products.
  */
 const INTL_TAGS: Record<Language, string> = {
   // en-GB rather than en-US, for the 24-hour clock. The web app made that
@@ -63,10 +49,6 @@ const INTL_TAGS: Record<Language, string> = {
   // 12-hour for the same blocks, which is the two-clocks problem across two
   // clients rather than within one screen.
   en: "en-GB",
-  es: "es-ES",
-  fr: "fr-FR",
-  de: "de-DE",
-  pt: "pt-BR",
   tr: "tr-TR",
 };
 

@@ -21,4 +21,9 @@ export interface ProvenanceShowcaseEntry {
   provenanceSignals: string[];
   /** How many lists across the platform hold this resource. */
   savedCount: number;
+  /**
+     * The source's language as read from its address, or null when the address does not say. Null is not "English": it means the language was not established, and a client should not claim one.
+     * @nullable
+     */
+  language?: string | null;
 }

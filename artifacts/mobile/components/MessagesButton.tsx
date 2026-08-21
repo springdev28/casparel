@@ -44,7 +44,7 @@ export function MessagesButton() {
       accessibilityRole="button"
       /*
        * A bare adjective is not a dictionary key: "3 unread" needs a noun to
-       * agree with in most of the six languages, and the badge counts message
+       * agree with in the languages this ships in, and the badge counts message
        * requests as well as unread messages, so the noun is the conversation
        * rather than the message.
        */

@@ -13,7 +13,7 @@ const SUPPORT_EMAIL = "support@casparel.com";
  *
  * Deliberately a faithful summary rather than a second copy of the policy.
  * The complete document lives in the repository, versioned and reviewed like
- * the code it describes; keeping a full duplicate here, in six languages,
+ * the code it describes; keeping a full duplicate here, in every language,
  * would guarantee the two drift, and a security policy that contradicts
  * itself is worse than one that is one click away.
  *

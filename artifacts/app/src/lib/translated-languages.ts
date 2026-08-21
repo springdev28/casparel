@@ -24,10 +24,6 @@ import type { AuthLanguage } from "./auth-locale";
 
 export const TRANSLATED_LANGUAGE_CODES: readonly AuthLanguage[] = [
   "tr",
-  "es",
-  "fr",
-  "pt",
-  "de",
 ];
 
 export function hasDictionary(language: AuthLanguage): boolean {

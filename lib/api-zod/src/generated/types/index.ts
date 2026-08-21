@@ -131,6 +131,7 @@ export * from './learningSignals';
 export * from './listItem';
 export * from './listItemInput';
 export * from './listProvenanceShowcase200';
+export * from './listProvenanceShowcaseParams';
 export * from './listResourcesDateAdded';
 export * from './listResourcesFormat';
 export * from './listResourcesParams';

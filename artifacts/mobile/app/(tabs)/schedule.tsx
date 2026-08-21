@@ -80,7 +80,7 @@ function clock(date: Date, locale: string): string {
  * while the web app drew "09:00" from the same row -- the same two-clocks
  * problem the web resolved, only spread across two clients instead of one
  * screen. Same resolution, same reason: it is the form the data is in, and
- * the form five of the six languages use.
+ * the form every language but English uses.
  */
 function formatTime(time: string): string {
   return time.slice(0, 5);

@@ -223,13 +223,13 @@ for (const pagePath of PAGES) {
   // with a dictionary loaded and a bridge running over the whole page.
   await context.addInitScript(() => {
     try {
-      localStorage.setItem("schoolar_language", "es");
+      localStorage.setItem("schoolar_language", "tr");
     } catch {
       /* storage disabled */
     }
   });
   await installSession(context, {
-    language: "es",
+    language: "tr",
     // A student for every page but one. The admin panel renders a different
     // surface -- other people's names, emails and bios, which is the most
     // sensitive user content in the product -- and a student sees none of it.

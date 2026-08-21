@@ -2,7 +2,7 @@
 /**
  * Every screen of the phone app, in every language, rendered.
  *
- * `mobileSpeaksSixLanguages.test.ts` reads the source and answers "is every
+ * `mobileSpeaksItsLanguages.test.ts` reads the source and answers "is every
  * string wrapped and is every wrapped string translated". That is the cheap
  * half and it runs in a third of a second. It cannot answer the half that
  * matters to somebody holding the phone: does the screen still come up.
@@ -26,7 +26,7 @@
  * with a passthrough did not fail this, because the tab bar underneath was
  * still translated and the two renders still differed. It only catches a
  * screen where nothing at all is translated. The source check
- * (mobileSpeaksSixLanguages.test.ts) is what catches one missed string; this
+ * (mobileSpeaksItsLanguages.test.ts) is what catches one missed string; this
  * is what catches a screen that no longer comes up.
  *
  * The accessible-name half rides along because the pages are already rendered
@@ -81,7 +81,7 @@ const EXPORT_DIR =
 const PORT = Number(process.env.MOBILE_LANG_PORT ?? 4328);
 const APP_ORIGIN = "https://casparel.com";
 
-const LANGUAGES = (process.env.MOBILE_LANGS ?? "en,es,fr,de,pt,tr").split(",");
+const LANGUAGES = (process.env.MOBILE_LANGS ?? "en,tr").split(",");
 
 /**
  * Each route, and the session it needs to actually be that route.
@@ -378,7 +378,7 @@ async function main() {
         }
         for (const crash of crashes) failures.push(`${where}: ${crash.slice(0, 160)}`);
         // Once per route, not once per language: a nameless control is the
-        // same control in all six, and six copies of it is five of noise.
+        // same control in every language, and one copy per language is noise.
         if (language === LANGUAGES[0]) {
           for (const control of await page.evaluate(NAMELESS)) {
             failures.push(`${screen.path}: no accessible name: ${control}`);

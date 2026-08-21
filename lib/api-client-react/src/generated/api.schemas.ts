@@ -101,10 +101,6 @@ export type UserPreferencesLanguage = typeof UserPreferencesLanguage[keyof typeo
 
 export const UserPreferencesLanguage = {
   en: 'en',
-  es: 'es',
-  fr: 'fr',
-  de: 'de',
-  pt: 'pt',
   tr: 'tr',
 } as const;
 
@@ -171,10 +167,6 @@ export type UserPreferencesPatchLanguage = typeof UserPreferencesPatchLanguage[k
 
 export const UserPreferencesPatchLanguage = {
   en: 'en',
-  es: 'es',
-  fr: 'fr',
-  de: 'de',
-  pt: 'pt',
   tr: 'tr',
 } as const;
 
@@ -1390,6 +1382,11 @@ export interface ProvenanceShowcaseEntry {
   provenanceSignals: string[];
   /** How many lists across the platform hold this resource. */
   savedCount: number;
+  /**
+     * The source's language as read from its address, or null when the address does not say. Null is not "English": it means the language was not established, and a client should not claim one.
+     * @nullable
+     */
+  language?: string | null;
 }
 
 export type ResourceInputFormat = typeof ResourceInputFormat[keyof typeof ResourceInputFormat];
@@ -2462,10 +2459,6 @@ export type DiscoverResourcesLanguage = typeof DiscoverResourcesLanguage[keyof t
 export const DiscoverResourcesLanguage = {
   any: 'any',
   en: 'en',
-  es: 'es',
-  fr: 'fr',
-  de: 'de',
-  pt: 'pt',
   tr: 'tr',
 } as const;
 
@@ -2533,6 +2526,14 @@ export const DiscoverResourcesContentLength = {
   medium: 'medium',
   long: 'long',
 } as const;
+
+export type ListProvenanceShowcaseParams = {
+/**
+ * The reader's interface language, as a two-letter code. Orders the entries; it does not filter them. Defaults to `en`.
+ * @pattern ^[a-z]{2}$
+ */
+language?: string;
+};
 
 export type ListProvenanceShowcase200 = {
   /** True when drawn from the caller's own saves. */

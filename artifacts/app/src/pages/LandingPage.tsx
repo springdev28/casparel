@@ -31,6 +31,21 @@ import {
   useListProvenanceShowcase,
   getListProvenanceShowcaseQueryKey,
 } from "@workspace/api-client-react";
+import { getInitialLanguage } from "../lib/auth-locale";
+
+/**
+ * A language code as a word, for the note on a source that is not in the
+ * reader's. Only the six this product ships; anything else falls back to the
+ * code itself, which is more honest than inventing a name for it.
+ */
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: "English",
+  tr: "Turkish",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  pt: "Portuguese",
+};
 
 /** What the product does. */
 const CAPABILITIES = [
@@ -169,13 +184,26 @@ function useShowcaseSources(): {
   cards: ShowcaseCard[];
   personalised: boolean;
 } {
-  const { data } = useListProvenanceShowcase({
-    query: {
-      queryKey: getListProvenanceShowcaseQueryKey(),
-      staleTime: 5 * 60_000,
-      retry: false,
+  /*
+   * The reader's language goes with the request.
+   *
+   * The hero offered an English reader "İspanyolca" from tr.wikibooks.org --
+   * a real source, a correct verdict, and a language they do not read, under
+   * a heading about researching sources for them. The server ranks by this;
+   * it does not filter, so a library with nothing in the reader's language
+   * still shows what it has, labelled.
+   */
+  const language = getInitialLanguage();
+  const { data } = useListProvenanceShowcase(
+    { language },
+    {
+      query: {
+        queryKey: getListProvenanceShowcaseQueryKey({ language }),
+        staleTime: 5 * 60_000,
+        retry: false,
+      },
     },
-  });
+  );
 
   const entries = data?.entries ?? [];
   if (entries.length === 0) {
@@ -188,9 +216,23 @@ function useShowcaseSources(): {
         PROVENANCE_PRESENTATION[entry.provenanceLevel] ??
         PROVENANCE_PRESENTATION.unknown;
       const saves = entry.savedCount ?? 0;
+      /*
+       * Say so when a source is not in the reader's language.
+       *
+       * Null means the address did not establish one, which is not the same
+       * as English -- so nothing is claimed for those. A known mismatch is
+       * worth a word: it is the difference between a card that misleads and
+       * one that is simply telling you what it found.
+       */
+      const otherLanguage =
+        entry.language && entry.language !== language
+          ? (LANGUAGE_NAMES[entry.language] ?? entry.language.toUpperCase())
+          : null;
       return {
         name: entry.title,
-        kind: [entry.host, entry.subject].filter(Boolean).join(" · "),
+        kind: [entry.host, entry.subject, otherLanguage]
+          .filter(Boolean)
+          .join(" · "),
         verdict: presentation.verdict,
         tone: presentation.tone,
         summary:

@@ -7,7 +7,7 @@
  *     survives a restart and is available before any network call returns.
  *  2. The account preference, fetched once after sign-in. This is the reason
  *     the context exists at all: the language is a property of the person,
- *     not of the device, and somebody who chose Español on the web should not
+ *     not of the device, and somebody who chose Türkçe on the web should not
  *     have to choose it again here.
  *  3. English.
  *

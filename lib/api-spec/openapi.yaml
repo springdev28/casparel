@@ -1298,7 +1298,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [any, en, es, fr, de, pt, tr]
+            enum: [any, en, tr]
             default: en
           description: Preferred catalog language, or any to avoid restricting language
         - name: page
@@ -1524,6 +1524,21 @@ paths:
         resources across the platform. Public and unauthenticated-safe: it
         returns only fields already public on a resource, and no AI is
         involved (provenance is a deterministic registry check).
+
+        Entries are ordered for the reader's language: sources in it first,
+        then sources whose language the address does not establish, then the
+        rest. Ranked rather than filtered, so a library holding nothing in
+        that language still shows what it has -- each entry carries its own
+        `language` so a source in another one can be labelled rather than
+        passed off as the reader's.
+      parameters:
+        - name: language
+          in: query
+          required: false
+          description: >-
+            The reader's interface language, as a two-letter code. Orders the
+            entries; it does not filter them. Defaults to `en`.
+          schema: { type: string, pattern: "^[a-z]{2}$" }
       responses:
         "200":
           description: Showcase entries, most relevant first
@@ -3205,7 +3220,7 @@ components:
         userId: { type: integer }
         language:
           type: ["string", "null"]
-          enum: [en, es, fr, de, pt, tr, null]
+          enum: [en, tr, null]
           description: >-
             Null when the account has never chosen. A client falls back to the
             device's language then, not to English.
@@ -3248,7 +3263,7 @@ components:
       description: Only the keys present are changed.
       additionalProperties: false
       properties:
-        language: { type: string, enum: [en, es, fr, de, pt, tr] }
+        language: { type: string, enum: [en, tr] }
         interfaceColors:
           oneOf:
             - $ref: "#/components/schemas/InterfaceColors"
@@ -4194,6 +4209,13 @@ components:
         savedCount:
           type: integer
           description: How many lists across the platform hold this resource.
+        language:
+          type: ["string", "null"]
+          description: >-
+            The source's language as read from its address, or null when the
+            address does not say. Null is not "English": it means the language
+            was not established, and a client should not claim one.
+
 
     Resource:
       type: object

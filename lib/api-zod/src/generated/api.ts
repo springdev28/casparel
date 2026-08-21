@@ -1928,7 +1928,7 @@ export const DiscoverResourcesQueryParams = zod.object({
   "format": zod.coerce.string().optional().describe('Formats wanted, comma-separated from article, video, pdf, podcast, interactive and other. One value behaves as it always did; several widen, because a reader who wants a video or a pdf should not have to search twice'),
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
-  "language": zod.enum(['any', 'en', 'es', 'fr', 'de', 'pt', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Preferred catalog language, or any to avoid restricting language'),
+  "language": zod.enum(['any', 'en', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Preferred catalog language, or any to avoid restricting language'),
   "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number. Each page resumes where the previous one ended, so a page past the stored results returns an empty list rather than repeating earlier ones'),
   "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery'),
   "exactPhrase": zod.coerce.string().optional().describe('Title or description must contain this phrase, truncated to 160 characters'),
@@ -2019,8 +2019,16 @@ export const ListFeaturedResourcesResponse = zod.array(ListFeaturedResourcesResp
 
 /**
  * Real catalogue sources with the same registry-based provenance verdict the resource pages show. Personalised to the caller's own saved resources when an auth header is present, otherwise the most-saved resources across the platform. Public and unauthenticated-safe: it returns only fields already public on a resource, and no AI is involved (provenance is a deterministic registry check).
+ * Entries are ordered for the reader's language: sources in it first, then sources whose language the address does not establish, then the rest. Ranked rather than filtered, so a library holding nothing in that language still shows what it has -- each entry carries its own `language` so a source in another one can be labelled rather than passed off as the reader's.
  * @summary Sources with their provenance verdicts, for the landing hero
  */
+export const listProvenanceShowcaseQueryLanguageRegExp = new RegExp('^[a-z]{2}$');
+
+
+export const ListProvenanceShowcaseQueryParams = zod.object({
+  "language": zod.coerce.string().regex(listProvenanceShowcaseQueryLanguageRegExp).optional().describe('The reader\'s interface language, as a two-letter code. Orders the entries; it does not filter them. Defaults to `en`.')
+})
+
 export const ListProvenanceShowcaseResponse = zod.object({
   "personalised": zod.boolean().describe('True when drawn from the caller\'s own saves.'),
   "entries": zod.array(zod.object({
@@ -2030,7 +2038,8 @@ export const ListProvenanceShowcaseResponse = zod.object({
   "subject": zod.string().nullish(),
   "provenanceLevel": zod.enum(['institutional', 'established', 'independent', 'unknown']),
   "provenanceSignals": zod.array(zod.string()),
-  "savedCount": zod.int().describe('How many lists across the platform hold this resource.')
+  "savedCount": zod.int().describe('How many lists across the platform hold this resource.'),
+  "language": zod.string().nullish().describe('The source\'s language as read from its address, or null when the address does not say. Null is not \"English\": it means the language was not established, and a client should not claim one.')
 }).describe('One source and what the provenance check says about it. Mirrors the registry-based classification used on resource pages; never AI output.'))
 })
 
@@ -3720,7 +3729,7 @@ export const getMyPreferencesResponseSearchHistoryItemQueryMax = 300;
 
 export const GetMyPreferencesResponse = zod.object({
   "userId": zod.int(),
-  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullable().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
+  "language": zod.union([zod.literal('en'),zod.literal('tr'),zod.literal(null)]).nullable().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
   "interfaceColors": zod.union([zod.object({
   "background": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneBackgroundRegExp),
   "surface": zod.string().regex(getMyPreferencesResponseInterfaceColorsOneSurfaceRegExp),
@@ -3774,7 +3783,7 @@ export const updateMyPreferencesBodySearchHistoryMax = 12;
 
 
 export const UpdateMyPreferencesBody = zod.object({
-  "language": zod.enum(['en', 'es', 'fr', 'de', 'pt', 'tr']).optional(),
+  "language": zod.enum(['en', 'tr']).optional(),
   "interfaceColors": zod.union([zod.object({
   "background": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOneBackgroundRegExp),
   "surface": zod.string().regex(updateMyPreferencesBodyInterfaceColorsOneSurfaceRegExp),
@@ -3817,7 +3826,7 @@ export const updateMyPreferencesResponseSearchHistoryItemQueryMax = 300;
 
 export const UpdateMyPreferencesResponse = zod.object({
   "userId": zod.int(),
-  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal(null)]).nullable().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
+  "language": zod.union([zod.literal('en'),zod.literal('tr'),zod.literal(null)]).nullable().describe('Null when the account has never chosen. A client falls back to the device\'s language then, not to English.'),
   "interfaceColors": zod.union([zod.object({
   "background": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneBackgroundRegExp),
   "surface": zod.string().regex(updateMyPreferencesResponseInterfaceColorsOneSurfaceRegExp),

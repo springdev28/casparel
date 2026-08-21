@@ -199,7 +199,16 @@ describe("dates in the web app", () => {
     const dateFns = table("LOCALES");
     const intl = table("INTL_TAGS");
 
-    expect(offered.length, "no languages found in the picker").toBeGreaterThanOrEqual(6);
+    /*
+     * That the picker was read at all, not how long it is.
+     *
+     * This asked for at least six, which was the number the day it was
+     * written. The list is a product decision -- it went to English and
+     * Turkish -- and a test that pins the count turns every such decision
+     * into a failing build with nothing wrong behind it. Two is the floor:
+     * English, and at least one language to be translated into.
+     */
+    expect(offered.length, "no languages found in the picker").toBeGreaterThanOrEqual(2);
     for (const code of offered) {
       // Shorthand (`es,`) or a mapping (`pt: ptBR,`) -- both are an answer.
       expect(dateFns, `${code} has no date-fns locale`).toMatch(

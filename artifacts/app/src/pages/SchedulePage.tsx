@@ -124,7 +124,7 @@ import { formatName } from "@/lib/resource-format";
  * screen, in a tool whose whole job is telling you when things are.
  *
  * Twenty-four hour wins because it is what the blocks already store and show,
- * and what five of the six languages the app offers use anyway.
+ * and what every language the app offers but English uses anyway.
  */
 function clock(value: Date | string): string {
   return typeof value === "string" ? value.slice(0, 5) : format(value, "HH:mm");

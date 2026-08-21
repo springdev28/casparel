@@ -152,7 +152,7 @@ const router: IRouter = Router();
 const hexColor = z.string().regex(/^#[0-9a-f]{6}$/i);
 const userPreferencesPatch = z
   .object({
-    language: z.enum(["en", "es", "fr", "de", "pt", "tr"]).optional(),
+    language: z.enum(["en", "tr"]).optional(),
     interfaceColors: z
       .object({
         background: hexColor,

@@ -11,9 +11,5 @@ export type UserPreferencesPatchLanguage = typeof UserPreferencesPatchLanguage[k
 
 export const UserPreferencesPatchLanguage = {
   en: 'en',
-  es: 'es',
-  fr: 'fr',
-  de: 'de',
-  pt: 'pt',
   tr: 'tr',
 } as const;

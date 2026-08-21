@@ -69,7 +69,7 @@ const PORT = Number(process.env.AUDIT_FIT_PORT ?? 4329);
  * own English is not a translation problem, and reporting it here would send
  * the next person looking in the dictionaries.
  */
-const LANGUAGES = (process.env.AUDIT_FIT_LANGS ?? "en,es,fr,de,pt,tr").split(",");
+const LANGUAGES = (process.env.AUDIT_FIT_LANGS ?? "en,tr").split(",");
 
 /**
  * Desktop and a narrow phone.
