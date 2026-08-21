@@ -4322,7 +4322,7 @@ export const getDiscoverResourcesUrl = (params: DiscoverResourcesParams,) => {
 }
 
 /**
- * @summary Search the stored open-education catalog
+ * @summary Search the stored catalog and, when requested, the live public web
  */
 export const discoverResources = async (params: DiscoverResourcesParams, options?: Parameters<typeof customFetch>[1]): Promise<DiscoveredResource[]> => {
 
@@ -4369,7 +4369,7 @@ export type DiscoverResourcesQueryError = ErrorType<void>
 
 
 /**
- * @summary Search the stored open-education catalog
+ * @summary Search the stored catalog and, when requested, the live public web
  */
 
 export function useDiscoverResources<TData = Awaited<ReturnType<typeof discoverResources>>, TError = ErrorType<void>>(
@@ -4561,7 +4561,7 @@ export const getListProvenanceShowcaseUrl = (params?: ListProvenanceShowcasePara
 
 /**
  * Real catalogue sources with the same registry-based provenance verdict the resource pages show. Personalised to the caller's own saved resources when an auth header is present, otherwise the most-saved resources across the platform. Public and unauthenticated-safe: it returns only fields already public on a resource, and no AI is involved (provenance is a deterministic registry check).
- * Entries are ordered for the reader's language: sources in it first, then sources whose language the address does not establish, then the rest. Ranked rather than filtered, so a library holding nothing in that language still shows what it has -- each entry carries its own `language` so a source in another one can be labelled rather than passed off as the reader's.
+ * Entries whose address establishes a different language are excluded. Sources whose language cannot be established remain eligible; the client falls back to its built-in example when no suitable real source exists.
  * @summary Sources with their provenance verdicts, for the landing hero
  */
 export const listProvenanceShowcase = async (params?: ListProvenanceShowcaseParams, options?: Parameters<typeof customFetch>[1]): Promise<ListProvenanceShowcase200> => {

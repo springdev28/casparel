@@ -27,7 +27,7 @@ format?: string;
 subject?: string;
 gradeLevel?: string;
 /**
- * Preferred catalog language, or any to avoid restricting language
+ * Required result language, or any to allow all languages
  */
 language?: DiscoverResourcesLanguage;
 /**
@@ -39,6 +39,10 @@ page?: number;
  * Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
  */
 resultType?: DiscoverResourcesResultType;
+/**
+ * Search the live public web in addition to the stored catalog. Signed-in requests use their AI discovery allowance; anonymous requests continue to receive stored-catalog results without spending AI capacity.
+ */
+includeWeb?: boolean;
 /**
  * Title or description must contain this phrase, truncated to 160 characters
  */

@@ -189,7 +189,9 @@ function fakeAIResponse(items: unknown[]) {
 }
 
 /** A minimal valid resource item matching the DiscoverResourcesResponse schema. */
-function makeItem(overrides: { url?: string; title?: string } = {}) {
+function makeItem(
+  overrides: { url?: string; title?: string; language?: "en" | "tr" } = {},
+) {
   return {
     title: overrides.title ?? "Khan Academy, Algebra",
     url: overrides.url ?? "https://www.khanacademy.org/math/algebra",
@@ -199,6 +201,7 @@ function makeItem(overrides: { url?: string; title?: string } = {}) {
     thumbnailUrl: null,
     subject: "Math",
     gradeLevel: "9th Grade",
+    language: overrides.language ?? "en",
   };
 }
 
@@ -500,6 +503,45 @@ describe("GET /api/resources/discover, filtering", () => {
     expect(openai.responses.create).toHaveBeenCalledTimes(1);
     // Reachability was checked exactly once
     expect(filterReachableUrls).toHaveBeenCalledTimes(1);
+    const prompt = (
+      vi.mocked(openai.responses.create).mock.calls[0][0] as { input: string }
+    ).input;
+    expect(prompt).toContain("class and lecture notes");
+    expect(prompt).toContain("Instagram");
+    expect(prompt).toContain("X/Twitter");
+    expect(prompt).toContain("Mastodon");
+    expect(prompt).toContain("any other publicly indexed social");
+  });
+
+  it("merges stored catalog and live-web results when the client requests full discovery", async () => {
+    const stored = makeItem({
+      url: "https://openstax.org/details/books/algebra",
+      title: "OpenStax Algebra",
+    });
+    const live = Array.from({ length: 8 }, (_, index) =>
+      makeItem({
+        url: `https://www.instagram.com/p/algebra-${index}/`,
+        title: `Algebra lesson ${index}`,
+      }),
+    );
+    vi.mocked(searchCatalog).mockResolvedValue([stored]);
+    vi.mocked(openai.responses.create).mockResolvedValueOnce(
+      fakeAIResponse(live),
+    );
+    vi.mocked(filterReachableUrls).mockResolvedValueOnce(live);
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra", includeWeb: true });
+
+    expect(res.status).toBe(200);
+    expect(openai.responses.create).toHaveBeenCalledTimes(1);
+    expect(res.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ url: stored.url }),
+        expect.objectContaining({ url: live[0].url }),
+      ]),
+    );
   });
 
   it("silently drops dead URLs from the response", async () => {
@@ -532,6 +574,35 @@ describe("GET /api/resources/discover, filtering", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("GET /api/resources/discover, retry when too few results survive", () => {
+  it("retries instead of returning a known wrong-language result", async () => {
+    const turkish = makeItem({
+      url: "https://tr.wikibooks.org/wiki/Cebir",
+      title: "Cebir",
+      language: "tr",
+    });
+    const english = makeItem({
+      url: "https://en.wikibooks.org/wiki/Algebra",
+      title: "Algebra",
+      language: "en",
+    });
+    vi.mocked(openai.responses.create)
+      .mockResolvedValueOnce(fakeAIResponse([turkish]))
+      .mockResolvedValueOnce(fakeAIResponse([english]));
+    vi.mocked(filterReachableUrls)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([english]);
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "algebra", language: "en" });
+
+    expect(res.status).toBe(200);
+    expect(openai.responses.create).toHaveBeenCalledTimes(2);
+    expect(res.body).toEqual([
+      expect.objectContaining({ url: english.url, language: "en" }),
+    ]);
+  });
+
   it("calls the AI a second time when fewer than 3 URLs survive", async () => {
     // Distinct titles per item: same-titled pages on one domain are one work
     // as far as the response is concerned, and would arrive as one card.

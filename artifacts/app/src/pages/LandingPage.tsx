@@ -187,11 +187,10 @@ function useShowcaseSources(): {
   /*
    * The reader's language goes with the request.
    *
-   * The hero offered an English reader "İspanyolca" from tr.wikibooks.org --
-   * a real source, a correct verdict, and a language they do not read, under
-   * a heading about researching sources for them. The server ranks by this;
-   * it does not filter, so a library with nothing in the reader's language
-   * still shows what it has, labelled.
+   * The hero once offered an English reader "İspanyolca" from
+   * tr.wikibooks.org. The server now excludes known mismatches, and this
+   * client-side check is deliberate defence in depth for stale caches or an
+   * older server still answering during a deployment.
    */
   const language = getInitialLanguage();
   const { data } = useListProvenanceShowcase(
@@ -205,7 +204,9 @@ function useShowcaseSources(): {
     },
   );
 
-  const entries = data?.entries ?? [];
+  const entries = (data?.entries ?? []).filter(
+    (entry) => !entry.language || entry.language === language,
+  );
   if (entries.length === 0) {
     return { cards: SOURCE_EXAMPLES, personalised: false };
   }

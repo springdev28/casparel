@@ -1449,6 +1449,23 @@ export const DiscoveredResourceFormat = {
   other: 'other',
 } as const;
 
+/**
+ * @nullable
+ */
+export type DiscoveredResourceLanguage = typeof DiscoveredResourceLanguage[keyof typeof DiscoveredResourceLanguage] | null;
+
+
+export const DiscoveredResourceLanguage = {
+  en: 'en',
+  es: 'es',
+  fr: 'fr',
+  de: 'de',
+  pt: 'pt',
+  tr: 'tr',
+  multilingual: 'multilingual',
+  other: 'other',
+} as const;
+
 export type DiscoveredResourceProvenanceLevel = typeof DiscoveredResourceProvenanceLevel[keyof typeof DiscoveredResourceProvenanceLevel];
 
 
@@ -1471,6 +1488,8 @@ export interface DiscoveredResource {
   subject?: string | null;
   /** @nullable */
   gradeLevel?: string | null;
+  /** @nullable */
+  language?: DiscoveredResourceLanguage;
   /** Where this result sits in the ranking for the query that returned it. Sortable as plain text, so a client asking for more results sends back the largest cursor it holds as the `after` parameter. Absent on results that did not come from the stored catalog. */
   cursor?: string;
   /** The stored catalog row this result came from. A client asking for more results sends back the largest one it holds as `sinceId`, so works stored while it was reading are offered even though they rank above the point it has read to. Absent on results that did not come from the stored catalog. */
@@ -2349,7 +2368,7 @@ format?: string;
 subject?: string;
 gradeLevel?: string;
 /**
- * Preferred catalog language, or any to avoid restricting language
+ * Required result language, or any to allow all languages
  */
 language?: DiscoverResourcesLanguage;
 /**
@@ -2361,6 +2380,10 @@ page?: number;
  * Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
  */
 resultType?: DiscoverResourcesResultType;
+/**
+ * Search the live public web in addition to the stored catalog. Signed-in requests use their AI discovery allowance; anonymous requests continue to receive stored-catalog results without spending AI capacity.
+ */
+includeWeb?: boolean;
 /**
  * Title or description must contain this phrase, truncated to 160 characters
  */
@@ -2459,6 +2482,10 @@ export type DiscoverResourcesLanguage = typeof DiscoverResourcesLanguage[keyof t
 export const DiscoverResourcesLanguage = {
   any: 'any',
   en: 'en',
+  es: 'es',
+  fr: 'fr',
+  de: 'de',
+  pt: 'pt',
   tr: 'tr',
 } as const;
 
@@ -2529,7 +2556,7 @@ export const DiscoverResourcesContentLength = {
 
 export type ListProvenanceShowcaseParams = {
 /**
- * The reader's interface language, as a two-letter code. Orders the entries; it does not filter them. Defaults to `en`.
+ * The reader's interface language, as a two-letter code. Known mismatches are excluded. Defaults to `en`.
  * @pattern ^[a-z]{2}$
  */
 language?: string;

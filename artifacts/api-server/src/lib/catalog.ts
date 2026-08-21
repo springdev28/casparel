@@ -149,6 +149,7 @@ export type CatalogSearchItem = {
   thumbnailUrl: string | null;
   subject: string | null;
   gradeLevel: string | null;
+  language?: string | null;
   sourceCredibility?: SourceCredibility;
   /** Where this row sits in the ranking. See {@link catalogCursor}. */
   cursor?: string;
@@ -1898,6 +1899,7 @@ export async function searchCatalog(
         thumbnailUrl: null,
         subject: row.subject,
         gradeLevel: row.gradeLevel,
+        language: row.language,
         sourceCredibility: readSourceCredibility(row.metadata),
       }));
   }
@@ -1911,6 +1913,7 @@ export async function searchCatalog(
     thumbnailUrl: row.thumbnailUrl,
     subject: row.subject,
     gradeLevel: row.gradeLevel,
+    language: row.language,
     sourceCredibility: readSourceCredibility(row.metadata),
     cursor: catalogCursor(
       Number(row.band),

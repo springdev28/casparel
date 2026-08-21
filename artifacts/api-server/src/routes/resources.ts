@@ -84,10 +84,11 @@ import {
   wordStartPattern,
 } from "../lib/searchTerms";
 import { logger } from "../lib/logger";
+import { languageOfSourceUrl } from "../lib/sourceLanguage";
 import {
-  languageOfSourceUrl,
-  languageRank,
-} from "../lib/sourceLanguage";
+  discoveryCoverageInstructions,
+  filterDiscoveryLanguage,
+} from "../lib/discoveryCoverage";
 import { getAccountEntitlements } from "../lib/entitlements";
 import { validationMessage } from "../lib/validationMessage";
 
@@ -812,14 +813,16 @@ async function callDiscoverAI(
       {
         model: "gpt-5-nano",
         max_output_tokens:
-          maxItems >= 18
-            ? 3200
-            : maxItems >= 16
-              ? 2800
-              : maxItems >= 12
-                ? 2200
-                : 1400,
-        tools: [{ type: "web_search", search_context_size: "low" }],
+          maxItems >= 24
+            ? 4800
+            : maxItems >= 18
+              ? 3200
+              : maxItems >= 16
+                ? 2800
+                : maxItems >= 12
+                  ? 2200
+                  : 1400,
+        tools: [{ type: "web_search", search_context_size: "high" }],
         reasoning: { effort: "low" },
         text: {
           format: {
@@ -847,6 +850,7 @@ async function callDiscoverAI(
                       "thumbnailUrl",
                       "subject",
                       "gradeLevel",
+                      "language",
                     ],
                     properties: {
                       title: { type: "string" },
@@ -867,6 +871,19 @@ async function callDiscoverAI(
                       thumbnailUrl: { type: ["string", "null"] },
                       subject: { type: ["string", "null"] },
                       gradeLevel: { type: ["string", "null"] },
+                      language: {
+                        type: "string",
+                        enum: [
+                          "en",
+                          "es",
+                          "fr",
+                          "de",
+                          "pt",
+                          "tr",
+                          "multilingual",
+                          "other",
+                        ],
+                      },
                     },
                   },
                 },
@@ -1246,6 +1263,7 @@ router.get(
     // cap for the same reason — they reach an ILIKE and an AI prompt.
     const captions = queryBoolean(req.query.captions);
     const transcript = queryBoolean(req.query.transcript);
+    const includeWeb = queryBoolean(req.query.includeWeb) === true;
     let discoverUserId: number | null = null;
     try {
       const { decodeToken } = await import("../lib/auth");
@@ -1395,16 +1413,22 @@ router.get(
       resultType === "people"
         ? process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED === "true"
         : process.env.AI_RESOURCE_SEARCH_ENABLED === "true";
-    if (availableCatalogItems.length > 0 || !aiFallbackEnabled) {
+    const anonymousCatalogOnly =
+      discoverUserId === null && !isAdminRequest(req);
+    if (
+      !aiFallbackEnabled ||
+      (availableCatalogItems.length > 0 &&
+        (!includeWeb || anonymousCatalogOnly))
+    ) {
       res.setHeader("X-Search-Provider", "stored-catalog");
       res.setHeader("X-Search-Cache", "DATABASE");
       sendDiscoverResults(res, availableCatalogItems);
       return;
     }
 
-    // AI discovery needs an account (the allowance is per user, so anonymous
-    // traffic cannot spend it), but every tier has one: Free's small daily
-    // taste, larger allowances on the paid plans. Normal stored-catalog
+    // Live-web discovery needs an account (the allowance is per user, so
+    // anonymous traffic cannot spend it), but every tier has one: Free's small
+    // daily taste, larger allowances on the paid plans. Stored-catalog-only
     // searches stay free and never consume an AI allowance. Only admins are
     // uncapped.
     if (!isAdminRequest(req)) {
@@ -1505,13 +1529,17 @@ router.get(
       sourceQuality,
       captions,
       transcript,
+      includeWeb,
       userId: discoverUserId,
     });
     if (process.env.NODE_ENV !== "test") {
       const cached = discoverCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
         res.setHeader("X-Search-Cache", "HIT");
-        sendDiscoverResults(res, cached.items.filter(isUnsavedResult));
+        sendDiscoverResults(res, [
+          ...availableCatalogItems,
+          ...cached.items.filter(isUnsavedResult),
+        ]);
         return;
       }
       if (cached) discoverCache.delete(cacheKey);
@@ -1628,7 +1656,7 @@ router.get(
         ? 18
         : resultType === "source"
           ? 12
-          : 16;
+          : 24;
 
     const buildPrompt = (excludeUrls: string[] = [], platformPass = false) => {
       const exclusionNote =
@@ -1658,10 +1686,14 @@ router.get(
             : "For broad subject, interest, department, or profession searches, return one best identity URL per distinct person and maximize distinct relevant people; do not spend the first response listing many links for one person. Search specifically for the exact person name first. When a university or country is present, prioritize the official university faculty profile, then Google Scholar or ORCID, then established social profiles. Preserve Turkish characters and also try their ASCII equivalents only as a fallback. Prefer established public-facing educators, researchers, science communicators, and subject professionals when private student profiles cannot be verified."
           : resultType === "source"
             ? "Prefer official organisations, universities, nonprofits, and established educator channels."
-            : "Prefer Khan Academy, MIT OpenCourseWare, Wikipedia, TED-Ed, and CrashCourse when relevant.";
+            : "Rank by direct relevance, educational usefulness, evidence, safety and filter fit. Do not crowd out excellent community, archival, independent, local or niche results merely because a mainstream platform also matches.";
+      const coverageRules =
+        resultType === "content" ? discoveryCoverageInstructions(page) : "";
       return `Suggest up to ${requestedCount} high-quality educational ${kind} for: "${effectiveQuery}"${subjectHint}${gradeHint}${languageHint}${resultType === "content" ? formatHint : ""}${pageHint}
 
-Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. Use the full result allowance and return ${requestedCount} distinct results whenever enough credible matches exist. ${extendedFilterHints} ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
+Search the live web and recommend real, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. Use the full result allowance and return ${requestedCount} distinct results whenever enough suitable matches exist. ${extendedFilterHints} ${sourceRules}
+${coverageRules}
+Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel, and language ("en"|"es"|"fr"|"de"|"pt"|"tr"|"multilingual"|"other").
 Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} ${platformSearchRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
     };
 
@@ -1672,7 +1704,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
         requestedCount,
         discoverUserId,
       );
-      const firstBatch =
+      const validFirstBatch =
         resultType === "source"
           ? rawFirstBatch.filter(
               (item) => isDirectSourceUrl(item.url) && isUnsavedResult(item),
@@ -1680,11 +1712,10 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
           : resultType === "people"
             ? rawFirstBatch.filter((item) => isDirectPeopleProfileUrl(item.url))
             : rawFirstBatch;
-
-      if (firstBatch.length === 0 && resultType === "content") {
-        res.status(502).json({ error: "AI returned invalid resource data" });
-        return;
-      }
+      const firstBatch =
+        resultType === "people"
+          ? validFirstBatch
+          : filterDiscoveryLanguage(validFirstBatch, language);
 
       // Validate all result URLs in parallel with a short timeout. Thumbnail URLs
       // are left to the browser so they cannot hold up otherwise useful results.
@@ -1710,7 +1741,12 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
         res.setHeader("X-Search-Cache", "MISS");
         sendDiscoverResults(
           res,
-          reachable.map((item) => addProvenance(item, resultType !== "people")),
+          [
+            ...availableCatalogItems,
+            ...reachable.map((item) =>
+              addProvenance(item, resultType !== "people"),
+            ),
+          ],
         );
         return;
       }
@@ -1726,10 +1762,15 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
           res.setHeader("X-Search-Cache", "MISS");
           sendDiscoverResults(
             res,
-            reachable.map((item) =>
-              addProvenance(item, resultType !== "people"),
-            ),
+            [
+              ...availableCatalogItems,
+              ...reachable.map((item) =>
+                addProvenance(item, resultType !== "people"),
+              ),
+            ],
           );
+        } else if (availableCatalogItems.length > 0) {
+          sendDiscoverResults(res, availableCatalogItems);
         } else if (resultType === "people") {
           throw new Error("No valid public profiles returned");
         } else {
@@ -1749,7 +1790,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
         requestedCount,
         discoverUserId,
       );
-      const secondBatch =
+      const validSecondBatch =
         resultType === "source"
           ? rawSecondBatch.filter(
               (item) => isDirectSourceUrl(item.url) && isUnsavedResult(item),
@@ -1759,6 +1800,10 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
                 isDirectPeopleProfileUrl(item.url),
               )
             : rawSecondBatch;
+      const secondBatch =
+        resultType === "people"
+          ? validSecondBatch
+          : filterDiscoveryLanguage(validSecondBatch, language);
       const reachableSecond =
         resultType === "people"
           ? secondBatch
@@ -1774,6 +1819,10 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       }
 
       if (merged.length === 0) {
+        if (availableCatalogItems.length > 0) {
+          sendDiscoverResults(res, availableCatalogItems);
+          return;
+        }
         if (resultType === "people") {
           throw new Error("No valid public profiles returned");
         }
@@ -1793,7 +1842,12 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       res.setHeader("X-Search-Cache", "MISS");
       sendDiscoverResults(
         res,
-        merged.map((item) => addProvenance(item, resultType !== "people")),
+        [
+          ...availableCatalogItems,
+          ...merged.map((item) =>
+            addProvenance(item, resultType !== "people"),
+          ),
+        ],
       );
     } catch (err) {
       console.error("Discover AI error:", err);
@@ -1803,7 +1857,14 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       const stale = discoverCache.get(cacheKey);
       if (stale?.items.length) {
         res.setHeader("X-Search-Cache", "STALE");
-        sendDiscoverResults(res, stale.items);
+        sendDiscoverResults(res, [...availableCatalogItems, ...stale.items]);
+        return;
+      }
+
+      if (availableCatalogItems.length > 0) {
+        res.setHeader("X-Search-Provider", "stored-catalog-fallback");
+        res.setHeader("X-Search-Cache", "DATABASE");
+        sendDiscoverResults(res, availableCatalogItems);
         return;
       }
 
@@ -2242,46 +2303,43 @@ router.get("/resources/provenance-showcase", async (req, res): Promise<void> => 
     }
   }
 
+  function suitableForReader<T extends { url: string }>(rows: T[]) {
+    return rows
+      .map((row) => ({ row, language: languageOfSourceUrl(row.url) }))
+      .filter(
+        ({ language }) =>
+          language === null || language === readerLanguage,
+      )
+      .slice(0, SHOWN);
+  }
+
   try {
     let personalised = viewerId !== null;
     let rows = personalised
       ? await tier("saved", () => showcaseRows(true))
       : [];
-    // A signed-in account that has saved nothing yet gets the platform view
-    // rather than an empty card.
-    if (rows.length === 0) {
+    let ranked = suitableForReader(rows);
+    // Empty saves and saves known to be in another language both fall through
+    // to the platform tier. A Turkish personal shelf must not become an English
+    // reader's marketing example merely because it exists.
+    if (ranked.length === 0) {
       personalised = false;
       rows = await tier("platform", () => showcaseRows(false));
+      ranked = suitableForReader(rows);
     }
-    // Nobody has saved anything yet: show the library rather than fiction.
-    if (rows.length === 0) rows = await tier("catalogue", catalogueRows);
+    // No suitable saved source: try the real library before the client uses
+    // its built-in examples.
+    if (ranked.length === 0) {
+      rows = await tier("catalogue", catalogueRows);
+      ranked = suitableForReader(rows);
+    }
     // Every tier that ran blew up: that is a failure, not an empty catalogue.
-    if (rows.length === 0 && attempted > 0 && failed === attempted) {
+    if (ranked.length === 0 && attempted > 0 && failed === attempted) {
       res
         .status(500)
         .json({ error: "Could not build the provenance showcase." });
       return;
     }
-
-    /*
-     * The reader's language first, then sources whose language is not
-     * established, then the rest -- and only then cut to six.
-     *
-     * Ranked rather than filtered. A library that holds nothing in the
-     * reader's language should still show what it has; an empty hero teaches
-     * nobody anything about the product, and the entries carry their own
-     * language now, so a source in another one arrives labelled rather than
-     * passed off. `sort` is stable in Node, so within a tier the order each
-     * query chose -- most saved, most recent -- survives.
-     */
-    const ranked = [...rows]
-      .map((row) => ({ row, language: languageOfSourceUrl(row.url) }))
-      .sort(
-        (a, b) =>
-          languageRank(a.language, readerLanguage) -
-          languageRank(b.language, readerLanguage),
-      )
-      .slice(0, SHOWN);
 
     const entries = ranked.map(({ row, language }) => {
       // linkChecked=false: this endpoint never makes outbound requests, so it

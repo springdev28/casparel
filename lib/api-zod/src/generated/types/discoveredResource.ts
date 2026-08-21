@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DiscoveredResourceFormat } from './discoveredResourceFormat';
+import type { DiscoveredResourceLanguage } from './discoveredResourceLanguage';
 import type { DiscoveredResourceProvenanceLevel } from './discoveredResourceProvenanceLevel';
 
 export interface DiscoveredResource {
@@ -20,6 +21,8 @@ export interface DiscoveredResource {
   subject?: string | null;
   /** @nullable */
   gradeLevel?: string | null;
+  /** @nullable */
+  language?: DiscoveredResourceLanguage;
   /** Where this result sits in the ranking for the query that returned it. Sortable as plain text, so a client asking for more results sends back the largest cursor it holds as the `after` parameter. Absent on results that did not come from the stored catalog. */
   cursor?: string;
   /** The stored catalog row this result came from. A client asking for more results sends back the largest one it holds as `sinceId`, so works stored while it was reading are offered even though they rank above the point it has read to. Absent on results that did not come from the stored catalog. */

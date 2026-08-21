@@ -197,7 +197,7 @@ describe("GET /resources/provenance-showcase", () => {
     expect(res.body.entries[0].title).toBe("Shared favourite");
   });
 
-  it("shows the catalogue when nothing has been saved to any list", async () => {
+  it("does not show a known Turkish catalogue source to an English reader", async () => {
     // A young platform: resources exist, no list has been built yet. The hero
     // must show the real library rather than falling through to the client's
     // hardcoded examples.
@@ -218,12 +218,33 @@ describe("GET /resources/provenance-showcase", () => {
     );
     expect(res.status).toBe(200);
     expect(res.body.personalised).toBe(false);
-    expect(res.body.entries).toHaveLength(1);
-    expect(res.body.entries[0]).toMatchObject({
-      title: "Android Programlama",
-      host: "tr.wikibooks.org",
-      savedCount: 0,
-    });
+    expect(res.body.entries).toEqual([]);
+  });
+
+  it("shows that same Turkish source when Turkish is selected", async () => {
+    rowsByCall = [
+      [],
+      [
+        {
+          id: 11,
+          title: "Android Programlama",
+          url: "https://tr.wikibooks.org/wiki/Android_Programlama",
+          subject: "Okumak",
+          savedCount: 0,
+        },
+      ],
+    ];
+    const res = await request(buildApp())
+      .get("/api/resources/provenance-showcase")
+      .query({ language: "tr" });
+    expect(res.status).toBe(200);
+    expect(res.body.entries).toEqual([
+      expect.objectContaining({
+        title: "Android Programlama",
+        host: "tr.wikibooks.org",
+        language: "tr",
+      }),
+    ]);
   });
 
   it("reads the verdict off the URL, the same rule the resource pages use", async () => {
@@ -279,9 +300,9 @@ describe("GET /resources/provenance-showcase", () => {
       [
         {
           id: 21,
-          title: "Android Programlama",
-          url: "https://tr.wikibooks.org/wiki/Android_Programlama",
-          subject: "Okumak",
+          title: "Android Development",
+          url: "https://en.wikibooks.org/wiki/Android_Development",
+          subject: "Programming",
           savedCount: 0,
         },
       ],
@@ -291,7 +312,7 @@ describe("GET /resources/provenance-showcase", () => {
     );
     expect(res.status).toBe(200);
     expect(res.body.entries).toHaveLength(1);
-    expect(res.body.entries[0].title).toBe("Android Programlama");
+    expect(res.body.entries[0].title).toBe("Android Development");
   });
 
   it("reports a failure instead of pretending the catalogue is empty", async () => {

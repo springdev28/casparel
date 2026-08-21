@@ -6,15 +6,19 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type DiscoverResourcesLanguage = typeof DiscoverResourcesLanguage[keyof typeof DiscoverResourcesLanguage];
+/**
+ * @nullable
+ */
+export type DiscoveredResourceLanguage = typeof DiscoveredResourceLanguage[keyof typeof DiscoveredResourceLanguage] | null;
 
 
-export const DiscoverResourcesLanguage = {
-  any: 'any',
+export const DiscoveredResourceLanguage = {
   en: 'en',
   es: 'es',
   fr: 'fr',
   de: 'de',
   pt: 'pt',
   tr: 'tr',
+  multilingual: 'multilingual',
+  other: 'other',
 } as const;

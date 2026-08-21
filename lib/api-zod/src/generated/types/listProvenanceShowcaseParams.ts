@@ -8,7 +8,7 @@
 
 export type ListProvenanceShowcaseParams = {
 /**
- * The reader's interface language, as a two-letter code. Orders the entries; it does not filter them. Defaults to `en`.
+ * The reader's interface language, as a two-letter code. Known mismatches are excluded. Defaults to `en`.
  * @pattern ^[a-z]{2}$
  */
 language?: string;

@@ -1559,6 +1559,7 @@ export default function ResourcesPage() {
   // Web discover (shown when searching), accumulate across pages
   const discoverParams = {
     q: submittedSearch?.query ?? "",
+    includeWeb: true,
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.format &&
     submittedSearch.format !== "all"

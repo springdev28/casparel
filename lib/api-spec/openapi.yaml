@@ -1268,7 +1268,7 @@ paths:
     get:
       operationId: discoverResources
       tags: [resources]
-      summary: Search the stored open-education catalog
+      summary: Search the stored catalog and, when requested, the live public web
       parameters:
         - name: q
           in: query
@@ -1298,9 +1298,9 @@ paths:
           in: query
           schema:
             type: string
-            enum: [any, en, tr]
+            enum: [any, en, es, fr, de, pt, tr]
             default: en
-          description: Preferred catalog language, or any to avoid restricting language
+          description: Required result language, or any to allow all languages
         - name: page
           in: query
           schema:
@@ -1318,6 +1318,13 @@ paths:
             enum: [content, source, people]
             default: content
           description: Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
+        - name: includeWeb
+          in: query
+          schema: { type: boolean, default: false }
+          description: >-
+            Search the live public web in addition to the stored catalog. Signed-in
+            requests use their AI discovery allowance; anonymous requests continue
+            to receive stored-catalog results without spending AI capacity.
         - name: exactPhrase
           in: query
           schema:
@@ -1525,19 +1532,17 @@ paths:
         returns only fields already public on a resource, and no AI is
         involved (provenance is a deterministic registry check).
 
-        Entries are ordered for the reader's language: sources in it first,
-        then sources whose language the address does not establish, then the
-        rest. Ranked rather than filtered, so a library holding nothing in
-        that language still shows what it has -- each entry carries its own
-        `language` so a source in another one can be labelled rather than
-        passed off as the reader's.
+        Entries whose address establishes a different language are excluded.
+        Sources whose language cannot be established remain eligible; the
+        client falls back to its built-in example when no suitable real source
+        exists.
       parameters:
         - name: language
           in: query
           required: false
           description: >-
-            The reader's interface language, as a two-letter code. Orders the
-            entries; it does not filter them. Defaults to `en`.
+            The reader's interface language, as a two-letter code. Known
+            mismatches are excluded. Defaults to `en`.
           schema: { type: string, pattern: "^[a-z]{2}$" }
       responses:
         "200":
@@ -4302,6 +4307,11 @@ components:
         thumbnailUrl: { type: ["string", "null"] }
         subject: { type: ["string", "null"] }
         gradeLevel: { type: ["string", "null"] }
+        language:
+          {
+            type: ["string", "null"],
+            enum: [en, es, fr, de, pt, tr, multilingual, other, null],
+          }
 
         cursor:
           type: string

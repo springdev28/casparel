@@ -1904,13 +1904,14 @@ export const PrefetchResourceMetadataResponse = zod.object({
 
 
 /**
- * @summary Search the stored open-education catalog
+ * @summary Search the stored catalog and, when requested, the live public web
  */
 
 export const discoverResourcesQueryLanguageDefault = `en`;
 export const discoverResourcesQueryPageDefault = 1;
 
 export const discoverResourcesQueryResultTypeDefault = `content`;
+export const discoverResourcesQueryIncludeWebDefault = false;
 export const discoverResourcesQueryPublishedFromMin = 1000;
 export const discoverResourcesQueryPublishedFromMax = 2200;
 
@@ -1928,9 +1929,10 @@ export const DiscoverResourcesQueryParams = zod.object({
   "format": zod.coerce.string().optional().describe('Formats wanted, comma-separated from article, video, pdf, podcast, interactive and other. One value behaves as it always did; several widen, because a reader who wants a video or a pdf should not have to search twice'),
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
-  "language": zod.enum(['any', 'en', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Preferred catalog language, or any to avoid restricting language'),
+  "language": zod.enum(['any', 'en', 'es', 'fr', 'de', 'pt', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Required result language, or any to allow all languages'),
   "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number. Each page resumes where the previous one ended, so a page past the stored results returns an empty list rather than repeating earlier ones'),
   "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery'),
+  "includeWeb": zod.coerce.boolean().default(discoverResourcesQueryIncludeWebDefault).describe('Search the live public web in addition to the stored catalog. Signed-in requests use their AI discovery allowance; anonymous requests continue to receive stored-catalog results without spending AI capacity.'),
   "exactPhrase": zod.coerce.string().optional().describe('Title or description must contain this phrase, truncated to 160 characters'),
   "exclude": zod.coerce.string().optional().describe('Space-separated words to exclude, truncated to 160 characters; the first eight are applied'),
   "source": zod.coerce.string().optional().describe('Restrict to providers whose name contains this text, truncated to 160 characters'),
@@ -1963,6 +1965,7 @@ export const DiscoverResourcesResponseItem = zod.object({
   "thumbnailUrl": zod.string().nullish(),
   "subject": zod.string().nullish(),
   "gradeLevel": zod.string().nullish(),
+  "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal('multilingual'),zod.literal('other'),zod.literal(null)]).nullish(),
   "cursor": zod.string().optional().describe('Where this result sits in the ranking for the query that returned it. Sortable as plain text, so a client asking for more results sends back the largest cursor it holds as the `after` parameter. Absent on results that did not come from the stored catalog.'),
   "catalogId": zod.int().optional().describe('The stored catalog row this result came from. A client asking for more results sends back the largest one it holds as `sinceId`, so works stored while it was reading are offered even though they rank above the point it has read to. Absent on results that did not come from the stored catalog.'),
   "provenanceLevel": zod.enum(['institutional', 'established', 'independent', 'unknown']).optional(),
@@ -2019,14 +2022,14 @@ export const ListFeaturedResourcesResponse = zod.array(ListFeaturedResourcesResp
 
 /**
  * Real catalogue sources with the same registry-based provenance verdict the resource pages show. Personalised to the caller's own saved resources when an auth header is present, otherwise the most-saved resources across the platform. Public and unauthenticated-safe: it returns only fields already public on a resource, and no AI is involved (provenance is a deterministic registry check).
- * Entries are ordered for the reader's language: sources in it first, then sources whose language the address does not establish, then the rest. Ranked rather than filtered, so a library holding nothing in that language still shows what it has -- each entry carries its own `language` so a source in another one can be labelled rather than passed off as the reader's.
+ * Entries whose address establishes a different language are excluded. Sources whose language cannot be established remain eligible; the client falls back to its built-in example when no suitable real source exists.
  * @summary Sources with their provenance verdicts, for the landing hero
  */
 export const listProvenanceShowcaseQueryLanguageRegExp = new RegExp('^[a-z]{2}$');
 
 
 export const ListProvenanceShowcaseQueryParams = zod.object({
-  "language": zod.coerce.string().regex(listProvenanceShowcaseQueryLanguageRegExp).optional().describe('The reader\'s interface language, as a two-letter code. Orders the entries; it does not filter them. Defaults to `en`.')
+  "language": zod.coerce.string().regex(listProvenanceShowcaseQueryLanguageRegExp).optional().describe('The reader\'s interface language, as a two-letter code. Known mismatches are excluded. Defaults to `en`.')
 })
 
 export const ListProvenanceShowcaseResponse = zod.object({

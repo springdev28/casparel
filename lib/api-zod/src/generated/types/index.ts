@@ -82,6 +82,7 @@ export * from './dashboardSummary';
 export * from './directMessage';
 export * from './discoveredResource';
 export * from './discoveredResourceFormat';
+export * from './discoveredResourceLanguage';
 export * from './discoveredResourceProvenanceLevel';
 export * from './discoverResourcesAccessType';
 export * from './discoverResourcesContentLength';
