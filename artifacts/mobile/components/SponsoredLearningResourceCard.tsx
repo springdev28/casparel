@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Platform, StyleSheet, Text, View } from 'react-native';
-import {
+import mobileAds, {
   MaxAdContentRating,
   NativeAd,
   NativeAdEventType,
@@ -8,7 +8,6 @@ import {
   NativeAsset,
   NativeAssetType,
   TestIds,
-  mobileAds,
   type PaidEvent,
 } from 'react-native-google-mobile-ads';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
