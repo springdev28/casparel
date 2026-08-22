@@ -34,6 +34,7 @@ Use `pnpm run loadtest:smoke` for a read-only smoke profile. Higher-load profile
 ## Documentation
 
 - [Product and engineering handbook](docs/product-handbook.md)
+- [Canonical workflow and mobile polish specification](docs/core-workflow-mobile-polish.md)
 - [Release runbook: iOS, Android and desktop](docs/release-runbook.md)
 - [Audit, testing, and performance report](docs/audit-report-2026-08-15.md)
 - [Shipaton 2026 readiness and roadmap](docs/shipaton-2026-readiness.md)
