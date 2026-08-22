@@ -30,7 +30,7 @@ function rcPrecision(precision: RevenuePrecisions): AdRevenuePrecision {
 
 const common = (adUnitId: string, impressionId: string) => ({
   mediatorName: AdMediatorName.adMob,
-  adFormat: AdFormat.native,
+  adFormat: AdFormat.nativeAd,
   placement: DASHBOARD_SPONSORED_PLACEMENT,
   adUnitId,
   impressionId,
@@ -83,13 +83,20 @@ export async function trackSponsoredAdRevenue(
 }
 
 export async function trackSponsoredAdFailed(adUnitId: string, errorCode?: string | number) {
+  const parsedErrorCode =
+    typeof errorCode === 'number'
+      ? errorCode
+      : errorCode && Number.isFinite(Number(errorCode))
+        ? Number(errorCode)
+        : undefined;
+
   try {
     await Purchases.adTracker.trackAdFailedToLoad({
       mediatorName: AdMediatorName.adMob,
-      adFormat: AdFormat.native,
+      adFormat: AdFormat.nativeAd,
       placement: DASHBOARD_SPONSORED_PLACEMENT,
       adUnitId,
-      mediatorErrorCode: errorCode == null ? undefined : String(errorCode),
+      mediatorErrorCode: parsedErrorCode,
     });
   } catch {
     // Best-effort analytics only.
