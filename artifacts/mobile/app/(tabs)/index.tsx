@@ -24,6 +24,7 @@ import { DueWork } from '@/components/DueWork';
 import { StudySets } from '@/components/StudySets';
 import { GoalsSummary } from '@/components/GoalsSummary';
 import { MessagesButton } from '@/components/MessagesButton';
+import { SponsoredLearningResourceCard } from '@/components/SponsoredLearningResourceCard';
 import type { ActivityItem } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -245,6 +246,10 @@ export default function DashboardScreen() {
         </View>
         <MessagesButton />
       </View>
+
+      {/* A single, unmistakably paid placement. It is deliberately outside
+          Casparel's own ranked resources and disappears for paid plans. */}
+      <SponsoredLearningResourceCard />
 
       {/* Stat Cards */}
       {summaryFailed ? (
