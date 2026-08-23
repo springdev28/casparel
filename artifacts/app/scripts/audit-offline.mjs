@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Audit Offline behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * What the app says when it cannot reach the server.
  *
  * It used to say the person had nothing. The schedule drew "No plans" against

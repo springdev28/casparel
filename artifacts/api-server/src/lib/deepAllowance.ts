@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Deep Allowance logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Which deep-research allowance a person is actually up against.
  *
  * Deep research is enforced by two independent counters (see

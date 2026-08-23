@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile screen role: defines the Expo Router Id screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
+/**
  * A study set, one card at a time.
  *
  * This is the part of Casparel that a phone is better at than a laptop: the

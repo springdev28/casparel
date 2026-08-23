@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Desktop support role: configures or verifies Launch Plan for the Electron distribution.
+ * System connection: participates in packaging, installer metadata, or controlled-window smoke validation.
+ */
+/**
  * Whether the machine running the release checks can actually START the binary
  * inside a .dmg, and when it cannot, why not.
  *

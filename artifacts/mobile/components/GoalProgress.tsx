@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile UI role: provides the reusable Goal Progress component.
+ * System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required.
+ */
+/**
  * How far through a goal you are, as a bar and a fraction.
  *
  * Shared by the list and the detail screen so the two cannot disagree about

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises App.Crawlable.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * What a crawler gets when it asks the real app for a page.
  *
  * This drives the production branch of app.ts — the one that serves the built

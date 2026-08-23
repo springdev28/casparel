@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Knows Its Own Sources.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Casparel can say who published the things Casparel recommends.
  *
  * The quick source check answers from a maintained registry of publishers.

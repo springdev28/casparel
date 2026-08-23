@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Verification Badge component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { ShieldAlert, ShieldX } from "lucide-react";
 
 type Status = "unverified" | "verified" | "rejected" | undefined | null;

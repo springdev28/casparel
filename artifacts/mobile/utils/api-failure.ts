@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Api Failure for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * What a failed request should say to a person.
  *
  * Several screens guessed. Creating a study session answered every failure

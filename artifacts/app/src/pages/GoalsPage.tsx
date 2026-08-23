@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Goals Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import {

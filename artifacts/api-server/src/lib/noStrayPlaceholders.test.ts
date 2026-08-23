@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises No Stray Placeholders.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * No screen may render a lone punctuation mark as its content.
  *
  * The schedule's empty-day cell contained the text ", " -- just a comma. An

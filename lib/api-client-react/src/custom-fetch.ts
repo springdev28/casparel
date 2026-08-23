@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Custom Fetch.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
 };

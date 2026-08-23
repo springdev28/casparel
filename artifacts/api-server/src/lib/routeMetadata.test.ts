@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Route Metadata.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Filling the HTML shell in for one route.
  *
  * These run against the real `artifacts/app/index.html`, not a fixture. The

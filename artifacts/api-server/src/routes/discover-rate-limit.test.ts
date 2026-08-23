@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Verification role: exercises Discover Rate Limit.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import express from "express";

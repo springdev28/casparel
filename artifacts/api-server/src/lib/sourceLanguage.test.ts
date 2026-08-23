@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Source Language.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Reading a source's language off its address, and what happens when it does
  * not say.
  *

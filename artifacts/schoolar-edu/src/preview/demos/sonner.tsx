@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Sonner in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
 import { Toaster } from '../../components/ui/sonner';

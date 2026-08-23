@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Entitlement Parity.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The device and the server have to agree about what somebody bought.
  *
  * Two files decide this, in two packages, with no shared code between them:

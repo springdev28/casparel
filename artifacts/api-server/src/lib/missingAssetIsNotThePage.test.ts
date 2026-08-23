@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Missing Asset Is Not The Page.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A build file that is not on the server is a 404, not the app shell.
  *
  * The SPA fallback is right for a page: /resources/2 is not a file, has never

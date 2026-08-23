@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Validation Message logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * A validation failure, as a sentence rather than a dump.
  *
  * Sixty-five routes answered a bad request with `parsed.error.message`, and

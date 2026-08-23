@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Purchase Errors.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A failed purchase is told apart from a purchase that has not failed.
  *
  * The mobile paywall reported every non-cancellation as "Something went wrong.

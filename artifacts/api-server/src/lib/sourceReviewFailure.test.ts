@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Source Review Failure.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * When a source review fails, the reader is told which failure it was.
  *
  * The panel rendered one sentence for all of them: "Could not retrieve source

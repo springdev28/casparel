@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Provenance Showcase.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for GET /resources/provenance-showcase, the landing hero's data:
  *  • signed out → the platform's most-saved sources, not personalised
  *  • signed in with saves → that account's own saves, personalised

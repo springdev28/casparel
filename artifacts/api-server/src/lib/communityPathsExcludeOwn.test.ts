@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Community Paths Exclude Own.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The community grid may not show you your own shared paths.
  *
  * `GET /learning-goal-templates` returns every shared path, your own

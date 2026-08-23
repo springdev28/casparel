@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Mobile support role: configures or implements Check Release Config for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * Checks the things that decide whether a store build is submittable, before
  * anybody spends twenty minutes of EAS build time finding out.
  *

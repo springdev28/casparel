@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Repository tooling role: implements Search Verdict for workspace development, build, validation, or documentation.
+ * System connection: invoked by package scripts or maintainers; it is not part of the end-user runtime bundle.
+ */
+/**
  * Asks whether a search's results are actually answers.
  *
  * Counting results is not measuring a search. "Cold war" returned fifteen

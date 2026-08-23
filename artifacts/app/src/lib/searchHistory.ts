@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web domain role: centralizes Search History state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
 /** Filter values as stored: primitives only, so they survive a round trip. */
 export type SearchHistoryFilters = Record<string, string | number | boolean>;
 

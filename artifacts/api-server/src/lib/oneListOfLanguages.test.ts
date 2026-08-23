@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises One List Of Languages.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The languages a client offers are the languages the server accepts.
  *
  * Six lists have to agree for a language to work end to end, and they are

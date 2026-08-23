@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Launch Plan.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The cases that decide whether a release check launches the app or only looks
  * at it.
  *

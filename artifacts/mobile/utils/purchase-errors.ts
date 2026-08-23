@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Purchase Errors for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * What a failed purchase actually was.
  *
  * The paywall used to report every non-cancellation as "Something went wrong.

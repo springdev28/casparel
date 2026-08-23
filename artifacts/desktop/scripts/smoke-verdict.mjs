@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Smoke Verdict behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * What a packaged app's SMOKE line means.
  *
  * Separated from verify-app-macos.mjs so it can be tested on any machine. That

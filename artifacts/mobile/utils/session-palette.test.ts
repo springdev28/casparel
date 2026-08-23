@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Session Palette.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The study-session colours are readable, and dark mode is dark.
  *
  * The bug this exists to stop is not subtle: a `#f5f3ff` panel drawn on the

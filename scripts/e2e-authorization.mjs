@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Repository tooling role: implements E2e Authorization for workspace development, build, validation, or documentation.
+ * System connection: invoked by package scripts or maintainers; it is not part of the end-user runtime bundle.
+ */
+/**
  * Whether one account can reach another account's work.
  *
  * This is the failure that matters most and shows least. A handler that

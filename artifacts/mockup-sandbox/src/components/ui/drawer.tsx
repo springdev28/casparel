@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Drawer.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 

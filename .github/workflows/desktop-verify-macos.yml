@@ -1,3 +1,5 @@
+# @fileOverview: Repository role: implements or configures Desktop Verify Macos.
+# System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
 name: Verify the macOS app
 
 # Opens a built .dmg on a real Mac and checks the app inside it starts.

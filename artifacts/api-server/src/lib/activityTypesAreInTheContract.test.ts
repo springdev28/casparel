@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Activity Types Are In The Contract.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Every activity type the server writes is one the contract can return.
  *
  * `GET /activity/recent` reads rows back and hands them to

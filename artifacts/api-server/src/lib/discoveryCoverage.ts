@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Discovery Coverage logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Coverage rules shared by every AI content-discovery pass.
  *
  * Named platforms are examples, not an allow-list. The final instruction is

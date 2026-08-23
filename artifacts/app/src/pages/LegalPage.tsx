@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web screen role: renders the Legal Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
+/**
  * /terms and /privacy.
  *
  * These are not decoration. The mobile paywall links to both, and Apple and

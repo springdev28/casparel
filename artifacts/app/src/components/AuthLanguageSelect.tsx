@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Auth Language Select component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { Languages } from 'lucide-react';
 import { AUTH_LANGUAGES, type AuthLanguage } from '../lib/auth-locale';
 

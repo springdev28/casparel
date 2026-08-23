@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Audit Loading behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * An empty state must never stand in for a loading one.
  *
  * "Your library is empty" is a factual claim about the account. Painting it

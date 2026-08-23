@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web support role: configures or validates the Serve Build part of the Vite/React application.
+ * System connection: participates in browser development, build, quality checks, or deployment.
+ */
+/**
  * Serve `dist/public` to the browser audits, and stay up.
  *
  * Five audits each carried their own copy of this: the same MIME table, the

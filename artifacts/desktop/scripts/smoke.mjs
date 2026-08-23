@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Smoke behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Launches the real desktop shell against a local stand-in for casparel.com
  * and checks the behaviours that are easy to get wrong and impossible to see
  * in a type check.

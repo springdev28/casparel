@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Db Tests Take The Lock.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Every database test file has to take the lock.
  *
  * The lock in dbTestLock.ts is opt-in: a file that does not call

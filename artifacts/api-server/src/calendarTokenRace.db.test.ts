@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Calendar Token Race.Db.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Two requests asking for the calendar at once do not 500.
  *
  * The row that holds an account's iCal secret is made on first read:

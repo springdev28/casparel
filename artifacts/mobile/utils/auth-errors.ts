@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Auth Errors for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * Turning a failed sign-in or sign-up into a sentence a person can act on.
  *
  * The login screen used to ignore the error entirely and always say "Invalid

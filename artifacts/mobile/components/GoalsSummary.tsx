@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile UI role: provides the reusable Goals Summary component.
+ * System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required.
+ */
+/**
  * The goals you are part-way through, on the first screen after sign-in.
  *
  * A section rather than a sixth tab, for the same reason study sets are one:

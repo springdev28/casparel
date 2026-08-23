@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Audits Cover The Same Pages.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The browser audits read the same pages, or say which they skip and why.
  *
  * There are three, and each asks a different question of a rendered page: does

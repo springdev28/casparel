@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Repository tooling role: implements E2e Class Access for workspace development, build, validation, or documentation.
+ * System connection: invoked by package scripts or maintainers; it is not part of the end-user runtime bundle.
+ */
+/**
  * What sharing with a class gives away, and for how long.
  *
  * The other authorization check asks whether a stranger can reach private

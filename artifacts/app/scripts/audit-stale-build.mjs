@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Audit Stale Build behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A tab that was open when a new version shipped does not go blank.
  *
  * Every page in this app is a `lazy(() => import(...))`, and a deploy replaces

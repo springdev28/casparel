@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Client integration role: implements Use Voice Stream for browser/React access to OpenAI-backed capabilities.
+ * System connection: exposes reusable client hooks/utilities while keeping provider-specific behavior outside product pages.
+ */
 import { useCallback, useEffect, useRef } from "react";
 import { useAudioPlayback } from "./useAudioPlayback";
 

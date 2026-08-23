@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Auth Errors.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A failed sign-in says what failed.
  *
  * The login screen ignored the error and always said "Invalid email or

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile state role: owns the app-wide Auth Context context and lifecycle.
+ * System connection: installed by app/_layout.tsx and consumed by screens/components that need shared account state.
+ */
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/utils/secure-storage";

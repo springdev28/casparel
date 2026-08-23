@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Provenance Showcase.Db.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The provenance showcase, checked against a real Postgres.
  *
  * The mocked tests prove the routing (personal → platform → catalogue) but not

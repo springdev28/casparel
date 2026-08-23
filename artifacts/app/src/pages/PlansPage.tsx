@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web screen role: renders the Plans Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
+/**
  * /plans — the standalone plans and checkout page.
  *
  * Deliberately NOT inside the app shell: plans are an account decision, not a

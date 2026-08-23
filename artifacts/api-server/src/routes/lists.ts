@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Lists HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import { eq, sql, and, max, asc, inArray, or } from "drizzle-orm";
 import { db, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, classMembersTable } from "@workspace/db";

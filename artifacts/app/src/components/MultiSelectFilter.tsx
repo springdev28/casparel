@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web UI role: provides the reusable Multi Select Filter component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
+/**
  * A filter that accepts more than one answer.
  *
  * Most of the filter panel was single-select, which quietly turned a question

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Mockup Preview Plugin.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 import glob from "fast-glob";

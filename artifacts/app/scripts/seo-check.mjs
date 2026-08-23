@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Web support role: configures or validates the Seo Check part of the Vite/React application.
+ * System connection: participates in browser development, build, quality checks, or deployment.
+ */
+/**
  * Checks the BUILT index.html carries the product's key phrase.
  *
  * The app renders client-side, so the HTML shipped to the web root is the only

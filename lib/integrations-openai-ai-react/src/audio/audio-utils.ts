@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Client integration role: implements Audio Utils for browser/React access to OpenAI-backed capabilities.
+ * System connection: exposes reusable client hooks/utilities while keeping provider-specific behavior outside product pages.
+ */
+/**
  * Audio utility functions for voice chat.
  * Handles PCM16 decoding and AudioContext initialization.
  */

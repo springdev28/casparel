@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Mobile support role: configures or implements Build Icons for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * Derives every platform icon Casparel ships from one drawing.
  *
  * `assets/images/icon-source.png` is the artwork as it was drawn: a blue

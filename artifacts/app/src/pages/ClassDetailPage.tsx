@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Class Detail Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useState } from 'react';
 import { useParams, useLocation, useSearch as useRouteSearch } from 'wouter';
 import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare, ShieldCheck, Workflow, Pencil, StickyNote, LayoutDashboard, ClipboardList, LibraryBig, KeyRound } from 'lucide-react';

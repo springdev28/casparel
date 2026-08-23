@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Desktop support role: configures or verifies Verify App Windows for the Electron distribution.
+ * System connection: participates in packaging, installer metadata, or controlled-window smoke validation.
+ */
+/**
  * Installs a built .exe the way a person would, and checks the application it
  * installs actually starts.
  *

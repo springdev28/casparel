@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Seating Chart Editor component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { useLocation } from "wouter";

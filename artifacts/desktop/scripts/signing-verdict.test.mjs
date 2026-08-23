@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Signing Verdict.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The cases that decide whether an unsigned installer is a fact or a failure.
  *
  * The pairing that matters is the first two: the SAME unsigned artifact has to

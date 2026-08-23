@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Schedule Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   ChevronLeft,

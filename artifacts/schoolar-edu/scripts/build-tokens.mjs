@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Design-system role: implements or demonstrates Build Tokens in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
+/**
  * Generates the consumable web theme (src/index.css) and the portable token
  * object (src/generated/tokens.tsx) from tokens.json.
  *

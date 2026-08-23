@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Register Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState } from "react";
 import { useLocation, useSearch, Link } from "wouter";
 import { Eye, EyeOff } from "lucide-react";

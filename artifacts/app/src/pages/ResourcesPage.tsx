@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Resources Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useSearch as useRouteSearch, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";

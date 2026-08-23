@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# @fileOverview: Repository tooling role: implements Build Casparel Reports for workspace development, build, validation, or documentation.
+# System connection: invoked by package scripts or maintainers; it is not part of the end-user runtime bundle.
 """Build the branded Casparel product and Shipaton report artifacts."""
 
 from __future__ import annotations

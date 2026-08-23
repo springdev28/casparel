@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Dashboard Greeting.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The dashboard header may not claim things that did not happen.
  *
  * It used to greet everyone with "Welcome back" and tell them "Your path

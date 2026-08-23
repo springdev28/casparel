@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API support role: configures or operates the Build part of the backend package.
+ * System connection: participates in the API package's development, build, validation, or deployment lifecycle.
+ */
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

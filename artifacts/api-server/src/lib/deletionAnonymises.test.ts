@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Deletion Anonymises.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Deleting an account has to reach the copies of your name, not just the row.
  *
  * The users row is anonymised on delete: address, name, bio, subjects, the

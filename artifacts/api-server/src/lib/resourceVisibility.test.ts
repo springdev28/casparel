@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Resource Visibility.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for who can see unverified resources.
  *
  * The rules are load-bearing: too strict and a user's own pending submission

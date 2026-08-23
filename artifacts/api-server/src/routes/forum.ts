@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Forum HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";

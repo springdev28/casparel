@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Code Signing Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect } from "react";
 import { Link } from "wouter";
 import { ExternalLink, FileCheck, ShieldCheck, TriangleAlert } from "lucide-react";

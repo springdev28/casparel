@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Mediawiki logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Importing open educational works from MediaWiki sites.
  *
  * Wikibooks, Wikiversity and Wikipedia all speak the same API, so they share

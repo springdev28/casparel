@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Class Delete Warning.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A destructive dialog has to name what it destroys.
  *
  * Deleting a class said it removed "the class, its memberships, and its class

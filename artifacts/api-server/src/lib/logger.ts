@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Logger logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 import pino from "pino";
 
 const isProduction = process.env.NODE_ENV === "production";

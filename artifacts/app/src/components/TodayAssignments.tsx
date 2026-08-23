@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Today Assignments component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useEffect, useState } from "react";
 import { useIntlLocale } from "@/lib/date-locale";
 import { Bell, BookOpen, Check, Clock3 } from "lucide-react";

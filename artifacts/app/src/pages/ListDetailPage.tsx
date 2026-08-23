@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the List Detail Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical, Users } from 'lucide-react';

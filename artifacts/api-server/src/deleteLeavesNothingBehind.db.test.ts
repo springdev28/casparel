@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Delete Leaves Nothing Behind.Db.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Deleting a list takes its items, and leaving a class does both halves.
  *
  * Two handlers did their work in more than one statement with nothing holding

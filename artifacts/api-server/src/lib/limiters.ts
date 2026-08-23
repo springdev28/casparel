@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Limiters logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { buildRateLimitStore } from "./rateLimitStore";
 import { isAdminRequest } from "./adminAccess";

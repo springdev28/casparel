@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Contract role: defines the OpenAPI source of truth used to generate client hooks and runtime Zod schemas.
+ * System connection: codegen feeds lib/api-client-react and lib/api-zod; Express handlers must implement the same operations.
+ */
 import { defineConfig, InputTransformerFn } from "orval";
 import path from "path";
 

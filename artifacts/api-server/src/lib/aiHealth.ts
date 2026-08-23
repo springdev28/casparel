@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Ai Health logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Whether the AI provider is answering, from the calls the product already
  * makes.
  *

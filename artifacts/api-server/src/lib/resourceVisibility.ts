@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Resource Visibility logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 import type { Request } from "express";
 import { eq, or, type SQL } from "drizzle-orm";
 import { resourcesTable } from "@workspace/db";

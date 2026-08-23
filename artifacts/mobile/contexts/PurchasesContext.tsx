@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile state role: owns the app-wide Purchases Context context and lifecycle.
+ * System connection: installed by app/_layout.tsx and consumed by screens/components that need shared account state.
+ */
 import React, {
   createContext,
   useCallback,

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Refresh Stored Video Subjects.Db.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Correcting the subject on videos that are already stored.
  *
  * The classifier only ever ran at import time, so improving it fixed nothing

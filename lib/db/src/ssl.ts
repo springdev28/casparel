@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Persistence support role: provides Ssl database connection or migration behavior.
+ * System connection: consumed by the API before handlers query the shared Drizzle schema.
+ */
 const SUPABASE_ROOT_CA = `-----BEGIN CERTIFICATE-----
 MIIDxDCCAqygAwIBAgIUbLxMod62P2ktCiAkxnKJwtE9VPYwDQYJKoZIhvcNAQEL
 BQAwazELMAkGA1UEBhMCVVMxEDAOBgNVBAgMB0RlbHdhcmUxEzARBgNVBAcMCk5l

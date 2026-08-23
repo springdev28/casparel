@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Admin Verification.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for the resource verification admin endpoints:
  *  • rejection requires a note (the submitter has nothing to act on otherwise)
  *  • approving stamps reviewer as the source

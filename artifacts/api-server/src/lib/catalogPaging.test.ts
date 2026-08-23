@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Catalog Paging.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Paging over the stored open-education catalog.
  *
  * These cover the reads behind "Search more resources": where a later page

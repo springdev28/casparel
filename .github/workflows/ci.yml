@@ -1,3 +1,5 @@
+# @fileOverview: Repository role: implements or configures Ci.
+# System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
 name: CI
 
 # The checks that must pass before anything reaches production. The deploy

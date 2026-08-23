@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web orchestration role: defines public/protected routes, lazy page boundaries, and application-wide shells.
+ * System connection: rendered by main.tsx; connects session state, generated API hooks, pages, and the shared design system.
+ */
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import {
   MutationCache,

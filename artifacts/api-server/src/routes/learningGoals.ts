@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Learning Goals HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";

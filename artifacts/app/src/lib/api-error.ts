@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Api Error state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * One way to read what actually went wrong from a failed API call.
  *
  * The generated client throws an ApiError carrying the HTTP status and the

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Audit Fixtures Match The Contract.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The audit fixtures are the shapes the contract says they are.
  *
  * audit-fixtures.mjs opens by saying what it is for: "answer the handful of

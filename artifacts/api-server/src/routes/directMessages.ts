@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Direct Messages HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod/v4";

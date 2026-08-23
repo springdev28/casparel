@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Theme Customizer component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Palette, RotateCcw } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Api Failure.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A failed request says what the server said, unless the server said JSON.
  *
  * Several mobile screens guessed instead of reading the answer. Creating a

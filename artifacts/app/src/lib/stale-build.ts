@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Stale Build state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * Did this error come from a build that is no longer on the server?
  *
  * Every page in this app is a `lazy(() => import(...))`, and a deploy replaces

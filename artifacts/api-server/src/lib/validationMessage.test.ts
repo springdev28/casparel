@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Validation Message.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A bad request is answered with a sentence.
  *
  * Sixty-five routes replied with `parsed.error.message`, which is

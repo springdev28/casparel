@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile state role: owns the app-wide Language Context context and lifecycle.
+ * System connection: installed by app/_layout.tsx and consumed by screens/components that need shared account state.
+ */
+/**
  * Which language this phone is showing, and where that answer comes from.
  *
  * Three sources, in this order:

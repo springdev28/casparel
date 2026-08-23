@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Schedule Date Format.Db.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A schedule block's `date` goes out as a date, the way the contract says.
  *
  * The OpenAPI schema declares `date: { type: string, format: date }`, orval

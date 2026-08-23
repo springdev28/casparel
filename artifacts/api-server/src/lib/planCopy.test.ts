@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Plan Copy.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The numbers we advertise must be the numbers we enforce.
  *
  * The same allowances are written down three times, by hand, in three places:

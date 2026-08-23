@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile screen role: defines the Expo Router Index screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
+/**
  * What you are trying to learn, and how far along you are.
  *
  * A goal in Casparel is not a to-do: it carries a subject, a level, and a

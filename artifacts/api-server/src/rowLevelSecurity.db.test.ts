@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Row Level Security.Db.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Every table in the public schema must have row level security enabled.
  *
  * Supabase publishes the public schema through PostgREST, reachable with the

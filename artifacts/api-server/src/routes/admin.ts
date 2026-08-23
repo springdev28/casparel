@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Admin HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";

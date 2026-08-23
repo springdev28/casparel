@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Search Against Database.Db.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * What a search returns, checked against a real Postgres.
  *
  * These cover the defects a mocked database cannot see, because they live in

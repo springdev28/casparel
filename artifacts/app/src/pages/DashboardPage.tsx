@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Dashboard Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { formatDistanceToNow } from 'date-fns';
 import { useDateLocale } from "@/lib/date-locale";
 import {

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Index state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * UI translation dictionaries, one module per language.
  *
  * The app offered six languages while only Turkish had a dictionary, so

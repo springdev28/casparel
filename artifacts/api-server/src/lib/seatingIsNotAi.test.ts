@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Seating Is Not Ai.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The seating planner may not be sold as AI, because it is not one.
  *
  * It is deterministic: pattern rules over seat positions, front distance,

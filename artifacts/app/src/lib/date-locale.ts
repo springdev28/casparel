@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Date Locale state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * The date-fns locale for whichever language the reader chose.
  *
  * Every date in the signed-in app is written by date-fns, and date-fns

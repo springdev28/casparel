@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Toaster.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 import { useToast } from "@/hooks/use-toast"
 import {
   Toast,

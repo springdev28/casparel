@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Toast in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { Button } from '../../components/ui/button';
 import { ToastAction } from '../../components/ui/toast';
 import { Toaster } from '../../components/ui/toaster';

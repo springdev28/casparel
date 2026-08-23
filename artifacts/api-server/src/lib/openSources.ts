@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Open Sources logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Open-access sources beyond the wikis.
  *
  * The catalog had four live sources, all of them MediaWiki, and a reader who

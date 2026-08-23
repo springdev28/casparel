@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Audit Search Results behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Drives the Resources search in a real browser and checks what a reader
  * actually gets: how many result cards render, whether "Search more resources"
  * adds to them, and where the loading placeholders sit while it does.

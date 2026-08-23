@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Repository tooling role: implements E2e Api for workspace development, build, validation, or documentation.
+ * System connection: invoked by package scripts or maintainers; it is not part of the end-user runtime bundle.
+ */
+/**
  * The flows a person actually performs, against a real server and a real
  * database.
  *

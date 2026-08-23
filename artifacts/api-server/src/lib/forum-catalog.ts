@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Forum Catalog logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 export const FORUM_POST_TAGS = new Set([
   "fun",
   "activity",

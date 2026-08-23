@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Webhooks.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for the RevenueCat webhook:
  *  • rejects when the shared secret is not configured (503)
  *  • rejects a wrong/missing Authorization header (401)

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Classes.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for class-mutation authorization after a role downgrade.
  *
  * Key contract: `isClassTeacher` checks the live DB role before checking class

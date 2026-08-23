@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Forum Handle.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The forum names its communities to a reader, not to the database.
  *
  * Every post carried a handle above it, and both forms were wrong. A post in

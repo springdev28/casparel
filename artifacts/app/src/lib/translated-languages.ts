@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Translated Languages state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * Which languages have a dictionary -- the codes alone, no dictionaries.
  *
  * `index.ts` derives this from its loader table, but the one caller that needs

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Desktop support role: configures or verifies Signing Verdict for the Electron distribution.
+ * System connection: participates in packaging, installer metadata, or controlled-window smoke validation.
+ */
+/**
  * Whether an installer's signature is what this release intended it to be.
  *
  * Both platform verifiers already read the signature and print it as a note,

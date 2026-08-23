@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Mobile Icons Exist.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Every icon the phone app asks for is one Feather actually has.
  *
  * `sparkles` is not a Feather icon -- it belongs to a different set -- and the

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Search Terms logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 const GOAL_SEARCH_STOP_WORDS = new Set([
   "a",
   "an",

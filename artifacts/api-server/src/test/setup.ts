@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Verification role: exercises Setup behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
 // Set required env vars before any module is loaded.
 // SESSION_SECRET is read at module-init time in lib/auth.ts.
 process.env.SESSION_SECRET = "test-secret-for-vitest-do-not-use-in-prod";

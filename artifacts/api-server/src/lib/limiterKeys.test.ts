@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Limiter Keys.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A rate limiter keyed on an address must key on the allocation, not the
  * address.
  *

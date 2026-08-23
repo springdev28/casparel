@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Smoke Verdict.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The cases that matter for reading a packaged app's smoke result.
  *
  * The one that caused a false alarm is "app-intact": desktop-v1.0.0 was built

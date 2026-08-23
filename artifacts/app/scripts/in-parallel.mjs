@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web support role: configures or validates the In Parallel part of the Vite/React application.
+ * System connection: participates in browser development, build, quality checks, or deployment.
+ */
+/**
  * Run a list of jobs a few at a time, in order.
  *
  * The browser audits each render every page, in every language, at every

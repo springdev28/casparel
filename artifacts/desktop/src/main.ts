@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Desktop runtime role: implements the thin Electron shell around the canonical Casparel web client.
+ * System connection: controls navigation/deep links and loads the configured web origin; it does not duplicate server data or business logic.
+ */
 import {
   app,
   BrowserWindow,

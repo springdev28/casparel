@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Desktop support role: configures or verifies Verify App Macos for the Electron distribution.
+ * System connection: participates in packaging, installer metadata, or controlled-window smoke validation.
+ */
+/**
  * Opens a built .dmg the way a person would, and checks the application
  * inside it actually starts.
  *

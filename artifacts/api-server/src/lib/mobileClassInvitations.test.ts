@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Mobile Class Invitations.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A pupil can answer a class invitation on the phone.
  *
  * The mobile Classes tab was read-only. It listed the classes you were already

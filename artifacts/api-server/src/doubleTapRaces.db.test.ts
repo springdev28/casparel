@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Double Tap Races.Db.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Pressing a button twice does not produce a 500.
  *
  * Three handlers read a row and then inserted one when the read found none,

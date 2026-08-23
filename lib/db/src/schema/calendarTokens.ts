@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Persistence role: defines the Drizzle tables, relations, and indexes for the Calendar Tokens domain.
+ * System connection: re-exported by schema/index.ts, migrated through lib/db/migrations, and queried by API route/domain modules.
+ */
 import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 

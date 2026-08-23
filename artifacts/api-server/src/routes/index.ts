@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Index HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import authRouter from "./auth";

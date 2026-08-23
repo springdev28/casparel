@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Desktop Shell Is Sandboxed.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The desktop shell keeps all three of its locks, not just enough of them.
  *
  * The shell is an Electron window around remote content: it loads

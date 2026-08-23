@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Api Request state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * A fetch that carries the session.
  *
  * Most of the app talks to the API through the generated React Query hooks,

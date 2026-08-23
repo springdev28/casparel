@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile screen role: defines the Expo Router Id screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
+/**
  * One goal, and the path through it.
  *
  * Ticking a step off is the only thing this screen writes, and it is the

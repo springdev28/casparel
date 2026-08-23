@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository tooling role: implements Run Pnpm for workspace development, build, validation, or documentation.
+ * System connection: invoked by package scripts or maintainers; it is not part of the end-user runtime bundle.
+ */
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 

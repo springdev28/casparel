@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Audit Reachable behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Every control a reader can reach has a name, and every id is one thing.
  *
  * This is the half of the interface that does not appear in a screenshot. An

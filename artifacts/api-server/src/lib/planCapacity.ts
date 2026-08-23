@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Plan Capacity logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Plan capacity, the half of the subscription model that is about stored data
  * rather than AI calls.
  *

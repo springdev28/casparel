@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Audit Languages behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Every screen of the phone app, in every language, rendered.
  *
  * `mobileSpeaksItsLanguages.test.ts` reads the source and answers "is every

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Mobile Follows The Scheme.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A phone screen does not paint a colour the phone's setting cannot change.
  *
  * The schedule screen drew study sessions in a violet family written straight

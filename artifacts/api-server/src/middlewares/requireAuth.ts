@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API boundary role: provides the Require Auth Express middleware used before protected handlers run.
+ * System connection: route modules compose this middleware to establish a trusted request identity or authorization decision.
+ */
 import type { Request, Response, NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";

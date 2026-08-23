@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Mobile Tab Clearance.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Nothing on a tab screen hides under the tab bar.
  *
  * The tab bar is `position: 'absolute'`, so it floats over the content and

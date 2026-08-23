@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Plan Copy Keeps Its Own Rules.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The rules plan-copy.ts states about itself, enforced.
  *
  * Its header lays out four, two of them introduced as "wording rules that

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Google Classroom.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Integration tests for Google Classroom routes.
  *
  * All Google API calls and DB access are fully mocked, no real network or

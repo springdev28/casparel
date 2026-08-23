@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Desktop support role: configures or verifies Verify Package for the Electron distribution.
+ * System connection: participates in packaging, installer metadata, or controlled-window smoke validation.
+ */
+/**
  * Checks what the Linux installers actually contain, after they are built.
  *
  * Everything here is invisible until someone installs the app, and invisible

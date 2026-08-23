@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+/**
+ * @fileOverview Verification role: exercises Run Smoke behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
 import { spawnSync } from "node:child_process";
 
 const command = process.platform === "linux" ? "xvfb-run" : process.execPath;

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Revenuecat for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * RevenueCat configuration + a platform-safe loader for `react-native-purchases`.
  *
  * The native module only exists in a real dev/release build (not Expo Go, not web),

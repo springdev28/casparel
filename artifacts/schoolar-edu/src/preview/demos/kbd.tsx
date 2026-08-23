@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Kbd in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { Command } from 'lucide-react';
 import { Kbd, KbdGroup } from '../../components/ui/kbd';
 import { Row } from '../parts';

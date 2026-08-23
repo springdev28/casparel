@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Auth HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import { eq, and, or, ilike, inArray, ne, sql, desc } from "drizzle-orm";
 import multer from "multer";

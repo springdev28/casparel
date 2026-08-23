@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Auth logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Auth helpers, password hashing (scrypt) and JWT-style signed tokens
  * using only Node built-ins so no extra packages are needed.
  */

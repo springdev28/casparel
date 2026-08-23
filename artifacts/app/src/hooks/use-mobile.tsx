@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web domain role: centralizes Use Mobile state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
 import * as React from 'react';
 
 const MOBILE_BREAKPOINT = 768;

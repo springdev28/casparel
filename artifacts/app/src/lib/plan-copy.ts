@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Plan Copy state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * The one place plan copy lives on the web. The Settings plan section shows
  * `name` + `blurb`; the /plans page renders the full bullet lists. Numbers
  * must match CAPACITY_BY_TIER and AI_RATES_BY_TIER on the server — the client

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Deep Allowance.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A paying customer is not told their deep research is spent when it is not.
  *
  * Deep research is enforced by two counters -- `deepPerDay` over 24 hours and

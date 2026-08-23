@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Contract Is Valid Yaml.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * openapi.yaml parses, and says what its author meant.
  *
  * Codegen validates the spec, but it is the slow way to find out: a round trip

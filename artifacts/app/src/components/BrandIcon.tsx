@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Brand Icon component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useId } from "react";
 
 interface BrandIconProps {

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Index for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * The phone app in the language the account already chose.
  *
  * The web app offers English and Turkish, and stores the choice on

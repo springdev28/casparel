@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Resource Format state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * The name a reader sees for a resource's format.
  *
  * The format is a database enum -- article, video, pdf, podcast, interactive,

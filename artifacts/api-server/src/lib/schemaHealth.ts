@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Schema Health logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Records whether database migrations actually applied at startup.
  *
  * Startup deliberately keeps serving when migrations fail (see index.ts) so a

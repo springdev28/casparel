@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Audit Fixtures.D logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Types for the app's audit fixture module, which is plain JavaScript.
  *
  * artifacts/app/scripts/audit-fixtures.mjs is a script the browser audits load

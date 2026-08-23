@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Mobile Speaks Its Languages.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Every string the phone app shows has a translation in all five languages.
  *
  * The app has no bridge and no DOM: each string is passed through `t()` where

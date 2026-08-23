@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Paywall Promises What Is Given.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Every number on the paywall is a number the server actually allows.
  *
  * Both clients sell each plan in prose -- "400 activities, 150 goals, 75 lists

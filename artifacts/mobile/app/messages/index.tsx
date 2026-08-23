@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile screen role: defines the Expo Router Index screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
+/**
  * Conversations, newest first, with the message requests at the top.
  *
  * Messaging is the most phone-shaped thing in this product and the phone did

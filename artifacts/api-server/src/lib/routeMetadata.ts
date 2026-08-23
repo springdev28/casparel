@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Route Metadata logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Giving each address its own page.
  *
  * The frontend renders in the browser, so the server has one HTML shell and

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile UI role: provides the reusable Study Sets component.
+ * System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required.
+ */
+/**
  * The account's study sets, on the dashboard, one tap from studying them.
  *
  * A section rather than a sixth tab. iOS collapses a tab bar of six into five

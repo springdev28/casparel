@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Format Meta state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * Join resource metadata fields (subject, grade, format, …) into a single
  * "A · B" line, dropping anything empty or a stringified null/undefined.
  *

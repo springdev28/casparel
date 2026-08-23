@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises App.Routing.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests the REAL app, with every router mounted in the real order.
  *
  * Every other route test builds a throwaway express app and mounts a single

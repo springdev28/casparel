@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Source Language logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * What language a source is written in, read off its address.
  *
  * The landing hero showed an English reader "İspanyolca" and "Android

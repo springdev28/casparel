@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Contract Describes The Server.Live.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The catalogue describes what the server actually sends.
  *
  * openapi.yaml is hand-written and everything downstream is generated from it:

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Persistence support role: provides Migrate database connection or migration behavior.
+ * System connection: consumed by the API before handlers query the shared Drizzle schema.
+ */
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";

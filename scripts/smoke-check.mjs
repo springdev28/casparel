@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Repository tooling role: implements Smoke Check for workspace development, build, validation, or documentation.
+ * System connection: invoked by package scripts or maintainers; it is not part of the end-user runtime bundle.
+ */
+/**
  * Asks the deployed site whether it actually works.
  *
  * The CI gate checks the build before it ships. Nothing checked it afterwards,

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Api Host for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * Where the app talks to Casparel.
  *
  * `EXPO_PUBLIC_DOMAIN` is inlined by Metro at bundle time, and every path that

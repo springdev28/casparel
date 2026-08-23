@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile UI role: provides the reusable Due Work component.
+ * System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required.
+ */
+/**
  * What is due, on the first screen, with a box to tick.
  *
  * "What am I supposed to be doing?" is the most phone-shaped question this

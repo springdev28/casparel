@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Messages Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useIntlLocale } from "@/lib/date-locale";
 import { useSearch } from "wouter";

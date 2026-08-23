@@ -1,3 +1,5 @@
+# @fileOverview: Contract role: defines the OpenAPI source of truth used to generate client hooks and runtime Zod schemas.
+# System connection: codegen feeds lib/api-client-react and lib/api-zod; Express handlers must implement the same operations.
 # The source of truth. Everything the clients are built from -- the React
 # hooks, the zod schemas, the types -- is generated out of this file, so a
 # route that is not described here is a route no client can call. See

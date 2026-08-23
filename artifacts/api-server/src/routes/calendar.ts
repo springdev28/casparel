@@ -1,4 +1,8 @@
 /**
+ * @fileOverview API role: implements the Calendar HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
+/**
  * Calendar integration routes.
  *
  * Google Calendar OAuth:

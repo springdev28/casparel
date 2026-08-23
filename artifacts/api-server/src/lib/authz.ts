@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Authz logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Authorization helpers, ownership and membership checks.
  * All helpers return true if the check passes, false otherwise.
  * Route handlers should respond 403 when a check fails.

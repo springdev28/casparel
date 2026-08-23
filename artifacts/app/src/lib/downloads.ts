@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Downloads state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * Where Casparel can be installed from, and whether it can be yet.
  *
  * The three store links used to be `null` constants inside LandingPage, with

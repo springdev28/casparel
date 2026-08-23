@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web domain role: centralizes Canvas Api state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
 export type StudyNodeData = {
   kind: "note" | "heading" | "link" | "resource";
   title: string;

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Repository role: implements or configures Index.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
+/**
  * When two search results are the same work.
  *
  * Shared on purpose. This rule used to exist twice — once in the API and once

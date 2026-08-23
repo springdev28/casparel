@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Reviews HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import { contentLimiter } from "../lib/limiters";
 import { eq, and } from "drizzle-orm";

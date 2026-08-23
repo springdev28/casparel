@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes User Preferences state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * The account's preferences, from the generated client.
  *
  * This module used to be a hand-written copy of the whole thing: the type, the

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Runtime role: assembles the Express application, global middleware, API routers, and error handling.
+ * System connection: index.ts starts it; routes/index.ts supplies the domain routers consumed by every client.
+ */
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";

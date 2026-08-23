@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile screen role: defines the Expo Router Id screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
+/**
  * One conversation: what was said, and a box to say something back.
  *
  * Two things here are not obvious from the endpoint list.

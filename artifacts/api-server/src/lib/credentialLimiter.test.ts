@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Credential Limiter.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Signing in correctly must not use up the allowance for signing in.
  *
  * The credential limiter counted every attempt against the caller's address,

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Translation Bridge Loads.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Every language with a dictionary must actually load the bridge.
  *
  * The app entry decided whether to load UiTranslationBridge with

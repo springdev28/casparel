@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Tr for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * Turkish strings for the phone app, keyed by the exact English source string.
  *
  * A key must reproduce the English exactly -- punctuation, capitalisation and

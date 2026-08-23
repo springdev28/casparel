@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system primitive role: implements the reusable Kbd UI primitive.
+ * System connection: exported through @workspace/edu-ds and composed by product-specific web components and pages.
+ */
 import { cn } from "../../lib/utils"
 
 function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {

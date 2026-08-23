@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Lists Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Plus, List, Trash2, Users } from 'lucide-react';

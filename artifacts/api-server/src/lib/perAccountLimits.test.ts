@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Per Account Limits.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A class of pupils is not one caller, however it looks from outside.
  *
  * Both limiters here counted per address, and a school shares one. Writing was

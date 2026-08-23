@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Counted state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * "5 items" as one string, so the translation bridge can see it.
  *
  * The obvious JSX for a count is `{n} item{n !== 1 ? "s" : ""}`, and React

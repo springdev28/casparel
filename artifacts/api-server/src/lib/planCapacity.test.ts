@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Plan Capacity.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for stored-data plan limits.
  *
  * The database is stubbed so these exercise the decision logic , which tier a

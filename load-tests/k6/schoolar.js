@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Operational verification role: implements the Schoolar load/smoke scenario.
+ * System connection: exercises deployed HTTP surfaces under explicit safety guards and reports latency/error thresholds.
+ */
 import http from "k6/http";
 import exec from "k6/execution";
 import { check, group, sleep } from "k6";

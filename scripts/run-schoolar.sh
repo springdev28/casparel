@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# @fileOverview: Repository tooling role: implements Run Schoolar for workspace development, build, validation, or documentation.
+# System connection: invoked by package scripts or maintainers; it is not part of the end-user runtime bundle.
 set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"

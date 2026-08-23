@@ -1,4 +1,8 @@
 /**
+ * @fileOverview API support role: configures or operates the Db Test Lock part of the backend package.
+ * System connection: participates in the API package's development, build, validation, or deployment lifecycle.
+ */
+/**
  * One database test file at a time.
  *
  * Every *.db.test.ts file empties the tables it is about to seed, because a

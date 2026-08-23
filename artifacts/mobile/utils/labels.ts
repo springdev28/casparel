@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Labels for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * Database enums as words somebody would write.
  *
  * `format` is stored as "article", "video", "pdf"; `role` as "student",

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Plan Section component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
   Card,

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Skeleton in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 // @ts-nocheck
 // react-native / reanimated only available in Expo context
 import React, { useEffect } from "react";

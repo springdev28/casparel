@@ -1,3 +1,5 @@
+# @fileOverview: Repository role: implements or configures Pnpm Workspace.
+# System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
 # ============================================================================
 # SECURITY: Minimum release age for npm packages (supply-chain attack defense)
 # ============================================================================

@@ -1,130 +1,96 @@
-import { useState, type CSSProperties } from "react";
-import { useLocation, Link } from "wouter";
+/**
+ * @fileOverview Web screen role: prepares a resumable first learning task and hands it into the real resource workflow.
+ * System connection: mounted from App.tsx; persists a local draft, updates account tutorial state, and launches Resources onboarding.
+ */
+import { useEffect, useState, type CSSProperties } from "react";
+import { Link, useLocation } from "wouter";
 import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
   Check,
   Compass,
-  LayoutDashboard,
   LibraryBig,
-  Rocket,
+  ListChecks,
   Search,
+  ShieldCheck,
   Sparkles,
   Target,
-  Users,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
+import { Input } from "@workspace/edu-ds/components/ui/input";
+import { firstRunResourcePath } from "../lib/resource-onboarding";
+import {
+  parseTutorialDraft,
+  TUTORIAL_DRAFT_KEY,
+  TUTORIAL_STEP_COUNT,
+  tutorialProgressPercent,
+} from "../lib/tutorial-state";
 import { useUpdateUserPreferences } from "../lib/user-preferences";
 
-type Slide = {
-  icon: LucideIcon;
-  eyebrow: string;
-  title: string;
-  body: string;
-  points: { icon: LucideIcon; text: string }[];
-};
-
-const SLIDES: Slide[] = [
-  {
-    icon: Sparkles,
-    eyebrow: "Welcome",
-    title: "Welcome to Casparel",
-    body: "Your workspace for discovering great learning resources and turning them into real progress, whether you’re studying or teaching.",
-    points: [
-      { icon: Search, text: "Find and vet high-quality resources fast." },
-      { icon: Target, text: "Turn goals into guided, resourced paths." },
-      { icon: Users, text: "Run classes and share work with people." },
-    ],
-  },
-  {
-    icon: Search,
-    eyebrow: "Discover",
-    title: "Find the right resource",
-    body: "Search the shared catalogue or let AI-assisted discovery suggest resources for any topic. Filter by source, format, subject, grade, and rating, and cite anything in a click.",
-    points: [
-      { icon: Search, text: "Keyword search with rich filters." },
-      { icon: Sparkles, text: "AI discovery with provenance signals." },
-      { icon: BookOpen, text: "Built-in citation maker." },
-    ],
-  },
-  {
-    icon: LibraryBig,
-    eyebrow: "Organise",
-    title: "Keep what matters",
-    body: "Save resources to your library, group them into shareable lists, and attach them to goals so the next study step is always clear.",
-    points: [
-      { icon: LibraryBig, text: "Your library holds the resources you add." },
-      { icon: Target, text: "Goals become step-by-step paths." },
-      { icon: BookOpen, text: "Lists you can share with others." },
-    ],
-  },
-  {
-    icon: LayoutDashboard,
-    eyebrow: "Study & teach",
-    title: "Make progress, together",
-    body: "Your dashboard adapts to your check-ins and points to the best next step. Teachers can create classes, assign work, and track completion.",
-    points: [
-      { icon: LayoutDashboard, text: "An adaptive next-best-step dashboard." },
-      { icon: Users, text: "Classes, assignments, and schedules." },
-      { icon: Check, text: "Quick check-ins that shape what’s next." },
-    ],
-  },
-  {
-    icon: Rocket,
-    eyebrow: "You’re set",
-    title: "Ready when you are",
-    body: "That’s the core loop. You can replay this tour or open the complete guide any time from Settings.",
-    points: [
-      { icon: Compass, text: "Replay this tour from Settings → Product tour." },
-      { icon: BookOpen, text: "Every feature is documented in the guide." },
-    ],
-  },
-];
+const WORKFLOW = [
+  { icon: Search, label: "Find", detail: "Search for a real topic or skill." },
+  { icon: ShieldCheck, label: "Verify", detail: "Check who made it and what the source can prove." },
+  { icon: LibraryBig, label: "Save", detail: "Keep the useful resource in your library." },
+  { icon: ListChecks, label: "Organize", detail: "Place it in an ordered Learning List." },
+  { icon: Target, label: "Study", detail: "Turn the list into a focused path." },
+  { icon: Check, label: "Prove", detail: "Record reflection and evidence of progress." },
+] as const;
 
 export default function TutorialPage() {
   const [, setLocation] = useLocation();
-  const [index, setIndex] = useState(0);
+  const [draft, setDraft] = useState(() => {
+    if (typeof window === "undefined") return parseTutorialDraft(null);
+    return parseTutorialDraft(window.localStorage.getItem(TUTORIAL_DRAFT_KEY));
+  });
   const updatePreferences = useUpdateUserPreferences();
+  const normalizedNeed = draft.learningNeed.trim();
+  const progress = tutorialProgressPercent(draft.step);
 
-  const slide = SLIDES[index];
-  const isFirst = index === 0;
-  const isLast = index === SLIDES.length - 1;
-  const Icon = slide.icon;
+  useEffect(() => {
+    // Persist on every meaningful edit so browser reload/back navigation
+    // returns to the exact task and step instead of restarting the slideshow.
+    window.localStorage.setItem(TUTORIAL_DRAFT_KEY, JSON.stringify(draft));
+  }, [draft]);
 
-  function finish() {
-    // Best-effort, the tour should never trap someone if saving is briefly
-    // unavailable, so we navigate regardless of the request outcome.
+  function markSeen() {
+    // Account sync is best-effort: tutorial controls must never trap someone
+    // because preferences are temporarily unavailable.
     updatePreferences.mutate({ tutorialSeen: true });
+  }
+
+  function clearDraft() {
+    window.localStorage.removeItem(TUTORIAL_DRAFT_KEY);
+  }
+
+  function skip() {
+    markSeen();
+    clearDraft();
     setLocation("/dashboard");
   }
 
-  /*
-   * This page paints its own surface, so it declares its own text colours.
-   *
-   * It renders inside AppShell, which layers the ambient effect over the
-   * background and then picks text colours for that effect -- near-white body
-   * text, because it expects a dark composite behind it. The opaque
-   * bg-background below covers the ambient completely, so those near-white
-   * colours landed on a near-white surface: the line under this card measured
-   * 1.09:1, which is invisible, on the first screen a new account ever sees.
-   *
-   * Removing the background instead was tried and is worse. It fixes the body
-   * text (1.09 to 4.53) and breaks the links, which are --primary-text and
-   * tuned for a light surface: over the mesh they measure 1.65, and the
-   * lightness that would fix them is so close to white that a link stops
-   * looking like one. A mid-tone backdrop simply has no room for both.
-   *
-   * So the surface stays and the tokens come with it. These are the values the
-   * shell itself uses when there is no ambient to allow for, which is exactly
-   * this page's situation.
-   */
+  function startRealTask() {
+    if (!normalizedNeed) return;
+    markSeen();
+    clearDraft();
+    // Resources owns search, source review, saving, and activation analytics;
+    // the tutorial only supplies a safe prefilled learning need.
+    setLocation(firstRunResourcePath(normalizedNeed));
+  }
+
+  function move(step: number) {
+    setDraft((current) => ({ ...current, step }));
+  }
+
   return (
-    <div
-      className="flex min-h-[100dvh] items-center justify-center bg-background p-4"
+    <main
+      className="flex min-h-[100dvh] items-center justify-center bg-background p-4 text-foreground"
+      // AppShell chooses light text when an ambient scene is active, but this
+      // page deliberately paints an opaque light surface over that scene.
+      // Keep the surface's own foreground tokens with it so the first screen
+      // remains readable instead of inheriting near-white shell copy.
       style={
         {
           "--foreground": "225 21.1% 7.5%",
@@ -132,103 +98,173 @@ export default function TutorialPage() {
         } as CSSProperties
       }
     >
-      <div className="w-full max-w-xl">
-        <div className="relative overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm">
+      <div className="w-full max-w-3xl">
+        <section className="relative overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm">
           <Button
             type="button"
             size="icon"
             variant="ghost"
             className="absolute right-2 top-2 z-10"
-            onClick={finish}
-            aria-label="Skip the tour"
-            title="Skip the tour"
+            onClick={skip}
+            aria-label="Skip the tutorial"
+            title="Skip the tutorial"
           >
             <X className="size-5" />
           </Button>
 
-          <div className="p-6 sm:p-8">
-            <span className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary-text">
-              <Icon className="size-6" />
-            </span>
-
-            <Badge variant="secondary" className="mt-5 gap-1.5">
-              <Compass className="size-3.5" />
-              {slide.eyebrow}
-            </Badge>
-
-            <h1 className="mt-3 text-2xl font-bold sm:text-3xl">
-              {slide.title}
-            </h1>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground sm:text-base">
-              {slide.body}
-            </p>
-
-            <ul className="mt-5 space-y-2.5">
-              {slide.points.map((point) => {
-                const PointIcon = point.icon;
-                return (
-                  <li key={point.text} className="flex items-start gap-3">
-                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary-text">
-                      <PointIcon className="size-4" />
-                    </span>
-                    <span className="text-sm text-foreground/90">
-                      {point.text}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          {/* Controls */}
-          <div className="flex items-center justify-end gap-3 border-t bg-background/40 px-6 py-4 sm:px-8">
-            <div className="flex items-center gap-2">
-              {!isFirst && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => setIndex((current) => current - 1)}
-                >
-                  <ArrowLeft className="size-4" /> Back
-                </Button>
-              )}
-              {isLast ? (
-                <Button type="button" size="sm" className="gap-1.5" onClick={finish}>
-                  <Rocket className="size-4" /> Get started
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => setIndex((current) => current + 1)}
-                >
-                  Next <ArrowRight className="size-4" />
-                </Button>
-              )}
+          <header className="border-b px-6 pb-4 pt-6 sm:px-8">
+            <div className="flex items-center justify-between gap-4 pr-9">
+              <Badge variant="secondary" className="gap-1.5">
+                <Compass className="size-3.5" /> Guided first task
+              </Badge>
+              <span className="text-xs font-medium text-muted-foreground">
+                Step {draft.step + 1} of {TUTORIAL_STEP_COUNT}
+              </span>
             </div>
-          </div>
-        </div>
+            <div
+              className="mt-4 h-2 overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-label="Tutorial progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progress}
+            >
+              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+            </div>
+          </header>
 
-        {/*
-          Two whole link labels rather than one sentence with two links inside
-          it. Written as a sentence, this reached the bridge as the fragments
-          "You can revisit this any time from", ", or read the" and "complete
-          guide" -- three pieces that happen to reassemble in Spanish and do
-          not in German, where the verb belongs at the end. A sentence split by
-          an interpolation cannot be translated; a label can.
-        */}
-        <p className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-muted-foreground">
-          <Link href="/settings" className="font-medium text-primary-text hover:underline">
-            Replay this tour from Settings
-          </Link>
-          <Link href="/guide" className="font-medium text-primary-text hover:underline">
-            Read the complete guide
-          </Link>
+          <div className="min-h-[25rem] p-6 sm:p-8">
+            {draft.step === 0 ? (
+              <div className="mx-auto max-w-xl">
+                <span className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary-text">
+                  <Sparkles className="size-6" />
+                </span>
+                <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-primary-text">
+                  Begin with something real
+                </p>
+                <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
+                  What do you need to learn or teach right now?
+                </h1>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
+                  Use a genuine topic, question, or skill. Casparel will carry it into Search; this tutorial will not create sample progress or fake data.
+                </p>
+                <label className="mt-6 block text-sm font-medium" htmlFor="tutorial-learning-need">
+                  Learning need
+                </label>
+                <Input
+                  id="tutorial-learning-need"
+                  className="mt-2 h-12 text-base"
+                  value={draft.learningNeed}
+                  maxLength={300}
+                  autoFocus
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, learningNeed: event.target.value }))
+                  }
+                  placeholder="For example: understand derivatives from scratch"
+                  data-testid="tutorial-learning-need"
+                />
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Saved only as a local tutorial draft until you launch Search.
+                </p>
+              </div>
+            ) : null}
+
+            {draft.step === 1 ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary-text">
+                  The complete loop
+                </p>
+                <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
+                  A resource is the beginning, not the finish
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  For <strong className="text-foreground">{normalizedNeed}</strong>, Casparel connects six real product actions. You can stop after saving, or continue into a learning path when it is useful.
+                </p>
+                <ol className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {WORKFLOW.map((item, index) => {
+                    const Icon = item.icon;
+                    return (
+                      <li key={item.label} className="rounded-lg border bg-background/50 p-4">
+                        <div className="flex items-center gap-2">
+                          <span className="flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary-text">
+                            <Icon className="size-4" />
+                          </span>
+                          <span className="text-sm font-semibold">{index + 1}. {item.label}</span>
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.detail}</p>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            ) : null}
+
+            {draft.step === 2 ? (
+              <div className="mx-auto max-w-xl text-center">
+                <span className="mx-auto flex size-14 items-center justify-center rounded-xl bg-primary/10 text-primary-text">
+                  <Search className="size-7" />
+                </span>
+                <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-primary-text">
+                  Do the real task
+                </p>
+                <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
+                  Find your first useful resource
+                </h1>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
+                  Search will open with <strong className="text-foreground">{normalizedNeed}</strong> ready. Choose a result, inspect its source information, and save only what is genuinely useful.
+                </p>
+                <div className="mt-6 rounded-lg border bg-background/50 p-4 text-left">
+                  <p className="text-sm font-semibold">Your activation checklist</p>
+                  <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                    <li className="flex gap-2"><Search className="mt-0.5 size-4 shrink-0 text-primary-text" /> Run the prefilled search.</li>
+                    <li className="flex gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary-text" /> Check source provenance and limitations.</li>
+                    <li className="flex gap-2"><BookOpen className="mt-0.5 size-4 shrink-0 text-primary-text" /> Save one useful result; that completes activation.</li>
+                  </ul>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <footer className="flex flex-wrap items-center justify-between gap-3 border-t bg-background/40 px-6 py-4 sm:px-8">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-1.5"
+              disabled={draft.step === 0}
+              onClick={() => move(draft.step - 1)}
+            >
+              <ArrowLeft className="size-4" /> Back
+            </Button>
+            {draft.step < TUTORIAL_STEP_COUNT - 1 ? (
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5"
+                disabled={!normalizedNeed}
+                onClick={() => move(draft.step + 1)}
+              >
+                Continue <ArrowRight className="size-4" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5"
+                disabled={!normalizedNeed}
+                onClick={startRealTask}
+                data-testid="tutorial-start-search"
+              >
+                Start the real search <Search className="size-4" />
+              </Button>
+            )}
+          </footer>
+        </section>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Skip now and replay this from <Link href="/settings" className="font-medium text-primary-text hover:underline">Settings</Link>, or open the <Link href="/guide" className="font-medium text-primary-text hover:underline">complete guide</Link>.
         </p>
       </div>
-    </div>
+    </main>
   );
 }

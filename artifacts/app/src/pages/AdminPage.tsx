@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Admin Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { ResourceReviewQueue } from "../components/ResourceReviewQueue";
 import { useGetAdminOverview, useGetMe } from "@workspace/api-client-react";

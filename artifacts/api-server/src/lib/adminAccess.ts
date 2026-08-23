@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Admin Access logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 import type { Request } from "express";
 import { decodeToken } from "./auth";
 

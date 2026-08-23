@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Tab Bar for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * How much room a scrolling tab screen has to leave under its content.
  *
  * The tab bar is `position: 'absolute'` (see app/(tabs)/_layout.tsx), so it

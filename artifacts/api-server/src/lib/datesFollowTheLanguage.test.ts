@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Dates Follow The Language.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * No date in the web app is formatted without being told which language.
  *
  * date-fns writes in English unless it is handed a locale, and nothing was

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile UI role: provides the reusable Messages Button component.
+ * System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required.
+ */
+/**
  * The way into messages, and the only place the app says you have any.
  *
  * Not a sixth tab: iOS collapses a tab bar of six into five and a "More"

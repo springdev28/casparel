@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Copy Ownership.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * What a copy must and must not carry over.
  *
  * These are the properties the feature exists for, and each one is a way the

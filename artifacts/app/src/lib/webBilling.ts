@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web domain role: centralizes Web Billing state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
+/**
  * Web card checkout, through RevenueCat Web Billing (Stripe-backed).
  *
  * Why this and not a separate Stripe integration: purchases made here emit the

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Deep Research Budget.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Deep research has to be able to produce what it is asked for.
  *
  * The prompt demands a nuanced 700-1000 word report AND a structured object

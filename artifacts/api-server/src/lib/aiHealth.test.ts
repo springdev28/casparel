@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Ai Health.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * The AI provider's health, as observed from the calls the product makes.
  *
  * Deep research broke in production and the only signal anybody had was a

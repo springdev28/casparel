@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Runtime role: starts the Express process after environment loading, migrations, and startup checks.
+ * System connection: imports app.ts, binds process.env.PORT, and is the production API entry point.
+ */
 // Load a .env file (if present) before any other module initializes. Several
 // imports below, notably @workspace/db, read process.env at import time and
 // throw when a required variable is missing, so this MUST stay the first
