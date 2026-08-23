@@ -1,6 +1,20 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+/**
+ * @fileOverview Web screen role: renders the Admin Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
+import { Fragment, useDeferredValue, useEffect, useState } from "react";
 import { ResourceReviewQueue } from "../components/ResourceReviewQueue";
-import { useGetAdminOverview, useGetMe } from "@workspace/api-client-react";
+import {
+  useBanAdminUser,
+  useGetAdminOverview,
+  useGetMe,
+  useListAdminUsers,
+  useOverrideAdminUserPlan,
+  useUnbanAdminUser,
+  useUpdateAdminPublisherVerification,
+  useUpdateAdminUser,
+  type AdminUser as AdminAccount,
+} from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
   Card,
@@ -26,6 +40,7 @@ import {
   TabsTrigger,
 } from "@workspace/edu-ds/components/ui/tabs";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import { getApiError } from "../lib/api-error";
 import {
   Activity,
   Ban,
@@ -53,29 +68,7 @@ import {
   Trash2,
 } from "lucide-react";
 
-type AdminUser = {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  activeRole: string;
-  teacherVerified: boolean;
-  avatarUrl: string | null;
-  bio: string | null;
-  subjects: string[] | null;
-  gradeOrDept: string | null;
-  timezone: string | null;
-  profileVisibility: string;
-  libraryVisibility: string;
-  showBio: boolean;
-  showSubjects: boolean;
-  showGradeOrDept: boolean;
-  showWebsite: boolean;
-  websiteUrl: string | null;
-  bannedAt: string | null;
-  bannedReason: string | null;
-  createdAt: string;
-};
+type AdminUser = AdminAccount;
 
 type AdminWorkItem = {
   id: number;
@@ -156,10 +149,22 @@ function workItemDate(item: AdminWorkItem) {
   return value ? new Date(value).toLocaleString() : null;
 }
 
+function toLocalDateTimeInput(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16);
+}
+
 const metrics = [
   { key: "users", label: "Total accounts", icon: Users },
-  { key: "students", label: "Students", icon: Users },
-  { key: "teachers", label: "Teachers", icon: Users },
+  { key: "learnerAccounts", label: "Accounts with learner activity", icon: Target },
+  { key: "educatorAccounts", label: "Accounts with educator capability", icon: School },
+  { key: "accountsBothLearnAndTeach", label: "Accounts that learn and teach", icon: Layers3 },
+  { key: "activeClassOwners30d", label: "Active class owners · 30d", icon: Activity },
+  { key: "classLearners", label: "Learners enrolled in classes", icon: GraduationCap },
   { key: "admins", label: "Administrators", icon: ShieldCheck },
   { key: "goals", label: "Learning goals", icon: Target },
   { key: "resources", label: "Resources", icon: BookOpen },
@@ -168,6 +173,14 @@ const metrics = [
 
 function apiUrl(path: string) {
   return import.meta.env.BASE_URL.replace(/\/$/, "") + "/api" + path;
+}
+
+function accountCapabilities(user: AdminUser) {
+  return [
+    "Learner",
+    ...(user.educatorEnabled || user.role === "admin" ? ["Educator"] : []),
+    ...(user.role === "admin" ? ["Administrator"] : []),
+  ];
 }
 
 async function adminRequest(path: string, init?: RequestInit) {
@@ -186,12 +199,20 @@ async function adminRequest(path: string, init?: RequestInit) {
   return response.status === 204 ? null : response.json();
 }
 
+function adminActionError(error: unknown) {
+  return getApiError(error).error ??
+    (error instanceof Error ? error.message : "Please try again.");
+}
+
 export default function AdminPage() {
   const { data, isLoading, isFetching, error, refetch } = useGetAdminOverview();
   const { data: me } = useGetMe();
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [usersLoading, setUsersLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const [roleFilter, setRoleFilter] = useState<"" | AdminUser["role"]>("");
+  const [statusFilter, setStatusFilter] = useState<"" | "active" | "banned">("");
+  const [userOffset, setUserOffset] = useState(0);
   const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
   const [managedUser, setManagedUser] = useState<AdminUser | null>(null);
@@ -199,35 +220,46 @@ export default function AdminPage() {
   const [managedDetailsLoading, setManagedDetailsLoading] = useState(false);
   const [userDraft, setUserDraft] = useState<AdminUser | null>(null);
   const [savingAccount, setSavingAccount] = useState(false);
+  const [planReason, setPlanReason] = useState("");
+  const [banTarget, setBanTarget] = useState<AdminUser | null>(null);
+  const [banReason, setBanReason] = useState("");
+  const [deleteWorkTarget, setDeleteWorkTarget] = useState<{
+    category: AdminWorkCategory;
+    item: AdminWorkItem;
+  } | null>(null);
+  const [deletingWork, setDeletingWork] = useState(false);
+
+  const userPage = useListAdminUsers({
+    q: deferredQuery.trim() || undefined,
+    role: roleFilter || undefined,
+    status: statusFilter || undefined,
+    limit: 25,
+    offset: userOffset,
+  });
+  const updateUser = useUpdateAdminUser();
+  const overridePlan = useOverrideAdminUserPlan();
+  const banAccount = useBanAdminUser();
+  const unbanAccount = useUnbanAdminUser();
+  const updatePublisherVerification = useUpdateAdminPublisherVerification();
+  const usersLoading = userPage.isLoading || userPage.isFetching;
+  const filteredUsers = users;
 
   async function loadUsers() {
-    setUsersLoading(true);
-    try {
-      setUsers((await adminRequest("/admin/users")) as AdminUser[]);
-    } catch (loadError) {
-      toast({
-        title: "Could not load accounts",
-        description: loadError instanceof Error ? loadError.message : "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setUsersLoading(false);
-    }
+    await userPage.refetch();
   }
 
   useEffect(() => {
-    void loadUsers();
-  }, []);
+    if (userPage.data) setUsers(userPage.data.items);
+  }, [userPage.data]);
 
-  const filteredUsers = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    if (!term) return users;
-    return users.filter((user) =>
-      [user.name, user.email, user.role, user.bio, user.gradeOrDept, ...(user.subjects ?? [])]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(term)),
-    );
-  }, [query, users]);
+  useEffect(() => {
+    if (!userPage.error) return;
+    toast({
+      title: "Could not load accounts",
+      description: adminActionError(userPage.error),
+      variant: "destructive",
+    });
+  }, [userPage.error]);
 
   async function manageAccount(user: AdminUser) {
     setManagedUser(user);
@@ -237,6 +269,7 @@ export default function AdminPage() {
       const details = (await adminRequest("/admin/users/" + user.id + "/details")) as AdminUserDetails;
       setManagedDetails(details);
       setUserDraft(details.user);
+      setPlanReason("");
     } catch (loadError) {
       toast({
         title: "Could not load account work",
@@ -252,13 +285,14 @@ export default function AdminPage() {
     if (!userDraft || !managedDetails) return;
     setSavingAccount(true);
     try {
-      const updated = await adminRequest("/admin/users/" + managedDetails.user.id, {
-        method: "PATCH",
-        body: JSON.stringify({
+      const updated = await updateUser.mutateAsync({
+        id: managedDetails.user.id,
+        data: {
           name: userDraft.name,
           email: userDraft.email,
           role: userDraft.role,
           activeRole: userDraft.activeRole,
+          educatorEnabled: userDraft.educatorEnabled,
           bio: userDraft.bio,
           subjects: userDraft.subjects,
           gradeOrDept: userDraft.gradeOrDept,
@@ -270,13 +304,13 @@ export default function AdminPage() {
           showSubjects: userDraft.showSubjects,
           showGradeOrDept: userDraft.showGradeOrDept,
           showWebsite: userDraft.showWebsite,
-        }),
-      }) as AdminUser;
+        },
+      });
       applyUpdatedUser(updated);
       setUserDraft(updated);
       toast({ title: "Account details saved" });
     } catch (error) {
-      toast({ title: "Could not save account", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+      toast({ title: "Could not save account", description: adminActionError(error), variant: "destructive" });
     } finally {
       setSavingAccount(false);
     }
@@ -323,13 +357,20 @@ export default function AdminPage() {
     } catch (error) { toast({ title: "Could not update work", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
   }
 
-  async function deleteWorkItem(category: AdminWorkCategory, item: AdminWorkItem) {
-    if (!managedDetails || !window.confirm(`Permanently delete “${workItemName(item)}”?`)) return;
+  async function confirmDeleteWorkItem() {
+    if (!managedDetails || !deleteWorkTarget) return;
+    const { category, item } = deleteWorkTarget;
+    setDeletingWork(true);
     try {
       await adminRequest(`/admin/users/${managedDetails.user.id}/work/${category}/${item.id}`, { method: "DELETE" });
       setManagedDetails((current) => current ? { ...current, work: { ...current.work, [category]: current.work[category].filter((row) => row.id !== item.id) } } : current);
+      setDeleteWorkTarget(null);
       toast({ title: "User work deleted" });
-    } catch (error) { toast({ title: "Could not delete work", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
+    } catch (error) {
+      toast({ title: "Could not delete work", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setDeletingWork(false);
+    }
   }
 
   function applyUpdatedUser(updated: AdminUser) {
@@ -338,21 +379,28 @@ export default function AdminPage() {
     setManagedDetails((current) => current?.user.id === updated.id ? { ...current, user: updated } : current);
   }
 
-  async function banUser(user: AdminUser) {
-    const reason = window.prompt("Reason for banning this account:", user.bannedReason ?? "");
-    if (reason === null) return;
+  function requestBan(user: AdminUser) {
+    setBanTarget(user);
+    setBanReason(user.bannedReason ?? "");
+  }
+
+  async function confirmBan() {
+    if (!banTarget || banReason.trim().length < 3) return;
+    const user = banTarget;
     setBusyUserId(user.id);
     try {
-      const updated = (await adminRequest("/admin/users/" + user.id + "/ban", {
-        method: "PATCH",
-        body: JSON.stringify({ reason }),
-      })) as AdminUser;
+      const updated = await banAccount.mutateAsync({
+        id: user.id,
+        data: { reason: banReason.trim() },
+      });
       applyUpdatedUser(updated);
+      setBanTarget(null);
+      setBanReason("");
       toast({ title: user.name + " was banned" });
     } catch (actionError) {
       toast({
         title: "Could not ban account",
-        description: actionError instanceof Error ? actionError.message : "Please try again.",
+        description: adminActionError(actionError),
         variant: "destructive",
       });
     } finally {
@@ -363,15 +411,13 @@ export default function AdminPage() {
   async function unbanUser(user: AdminUser) {
     setBusyUserId(user.id);
     try {
-      const updated = (await adminRequest("/admin/users/" + user.id + "/ban", {
-        method: "DELETE",
-      })) as AdminUser;
+      const updated = await unbanAccount.mutateAsync({ id: user.id });
       applyUpdatedUser(updated);
       toast({ title: user.name + " was unbanned" });
     } catch (actionError) {
       toast({
         title: "Could not unban account",
-        description: actionError instanceof Error ? actionError.message : "Please try again.",
+        description: adminActionError(actionError),
         variant: "destructive",
       });
     } finally {
@@ -382,16 +428,43 @@ export default function AdminPage() {
   async function setTeacherVerification(user: AdminUser, verified: boolean) {
     setBusyUserId(user.id);
     try {
-      const updated = (await adminRequest("/admin/users/" + user.id + "/teacher-verification", {
-        method: "PATCH",
-        body: JSON.stringify({ verified }),
-      })) as AdminUser;
+      const updated = await updatePublisherVerification.mutateAsync({
+        id: user.id,
+        data: { verified },
+      });
       applyUpdatedUser(updated);
-      toast({ title: user.name + (verified ? " is now a verified teacher" : " is no longer verified") });
+      toast({ title: user.name + (verified ? " is now publishing-verified" : " is no longer publishing-verified") });
     } catch (actionError) {
       toast({
-        title: "Could not update teacher verification",
-        description: actionError instanceof Error ? actionError.message : "Please try again.",
+        title: "Could not update publishing verification",
+        description: adminActionError(actionError),
+        variant: "destructive",
+      });
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
+  async function savePlanOverride() {
+    if (!userDraft || !managedDetails || planReason.trim().length < 3) return;
+    setBusyUserId(userDraft.id);
+    try {
+      const updated = await overridePlan.mutateAsync({
+        id: userDraft.id,
+        data: {
+          plan: userDraft.plan,
+          expiresAt: userDraft.plan === "free" ? null : userDraft.planExpiresAt ?? null,
+          reason: planReason.trim(),
+        },
+      });
+      applyUpdatedUser(updated);
+      setUserDraft(updated);
+      setPlanReason("");
+      toast({ title: `${updated.name}'s plan is now ${updated.plan}` });
+    } catch (actionError) {
+      toast({
+        title: "Could not override plan",
+        description: adminActionError(actionError),
         variant: "destructive",
       });
     } finally {
@@ -413,6 +486,18 @@ export default function AdminPage() {
   ];
   const largestDropOff = workflowStages.slice(1).reduce((lowest, stage) =>
     (stage.conversion ?? 100) < (lowest.conversion ?? 100) ? stage : lowest,
+  );
+  const reliabilitySloStates = [
+    data?.reliability?.lcpSloMet,
+    data?.reliability?.inpSloMet,
+    data?.reliability?.clsSloMet,
+    data?.reliability?.errorFreeUsersSloMet,
+  ];
+  const hasReliabilitySamples = reliabilitySloStates.some(
+    (value) => typeof value === "boolean",
+  );
+  const reliabilityNeedsAttention = reliabilitySloStates.some(
+    (value) => value === false,
   );
 
   return (
@@ -533,6 +618,104 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+
+          <div className="space-y-3 border-t pt-5">
+            <div>
+              <h3 className="text-sm font-semibold">Beta activation · 30 days</h3>
+              <p className="text-xs text-muted-foreground">
+                First-party workflow events only; search text and student content are excluded.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {[
+                ["Registered", data?.workflow?.activation.registered30d ?? 0],
+                ["Reached first search", data?.workflow?.activation.firstSearchUsers30d ?? 0],
+                ["Checked a source", data?.workflow?.activation.sourceCheckUsers30d ?? 0],
+                ["Activated learners", data?.workflow?.activation.activatedLearners30d ?? 0],
+                ["Activated educators", data?.workflow?.activation.activatedEducators30d ?? 0],
+                ["Classes with 5+ learners", data?.workflow?.activation.classesWithFiveLearners ?? 0],
+                ["Average preview coverage", `${(data?.workflow?.activation.avgPreviewCoverage ?? 0).toFixed(1)}%`],
+                ["Search no-result rate", `${(data?.workflow?.activation.searchNoResultRate ?? 0).toFixed(1)}%`],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="min-w-0 rounded-md border bg-muted/20 p-3">
+                  <p className="text-xs leading-snug text-muted-foreground">{label}</p>
+                  <p className="mt-1 text-lg font-semibold">{value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+              {[
+                ["Registration → search", data?.workflow?.activation.registeredToSearchRate ?? 0],
+                ["Search → source check", data?.workflow?.activation.searchToSourceCheckRate ?? 0],
+                ["Source check → action", data?.workflow?.activation.sourceCheckToActionRate ?? 0],
+                ["D1 return", data?.workflow?.activation.d1ReturnRate ?? 0],
+                ["D7 return", data?.workflow?.activation.d7ReturnRate ?? 0],
+              ].map(([label, rate]) => (
+                <div key={String(label)} className="min-w-0 rounded-md border border-l-2 border-l-primary/40 p-3">
+                  <p className="text-xs leading-snug text-muted-foreground">{label}</p>
+                  <p className="mt-1 text-lg font-semibold">{Number(rate).toFixed(1)}%</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="render-later overflow-hidden">
+        <CardHeader className="gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="size-5 text-primary-text" /> Client reliability · 30 days
+              </CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Authenticated field measurements; route families and error categories only. No URLs, messages, stacks, or learner content.
+              </p>
+            </div>
+            <Badge variant={reliabilityNeedsAttention ? "destructive" : "secondary"}>
+              {!hasReliabilitySamples
+                ? "Awaiting samples"
+                : reliabilityNeedsAttention
+                  ? "SLO attention needed"
+                  : "SLOs met"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ["Measured users", data?.reliability?.measuredUsers30d ?? 0],
+              ["Vital samples", data?.reliability?.vitalSamples30d ?? 0],
+              ["Client errors", data?.reliability?.clientErrors30d ?? 0],
+              ["Render crashes", data?.reliability?.renderCrashes30d ?? 0],
+            ].map(([label, value]) => (
+              <div key={String(label)} className="rounded-md border bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="mt-1 text-xl font-semibold">{value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {[
+              ["LCP p75", data?.reliability?.lcpP75Ms, "≤ 2,500 ms", "ms", data?.reliability?.lcpSloMet],
+              ["INP p75", data?.reliability?.inpP75Ms, "≤ 200 ms", "ms", data?.reliability?.inpSloMet],
+              ["CLS p75", data?.reliability?.clsP75, "≤ 0.1", "", data?.reliability?.clsSloMet],
+              ["Error-free users", hasReliabilitySamples ? data?.reliability?.errorFreeUsersRate : null, "≥ 99%", "%", data?.reliability?.errorFreeUsersSloMet],
+            ].map(([label, value, target, unit, met]) => (
+              <div key={String(label)} className="rounded-md border border-l-2 border-l-primary/40 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  {typeof met === "boolean" ? (
+                    <Badge variant={met ? "secondary" : "destructive"}>{met ? "Met" : "Missed"}</Badge>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-lg font-semibold">
+                  {typeof value === "number" ? `${value}${unit}` : "No sample"}
+                </p>
+                <p className="text-xs text-muted-foreground">SLO {target}</p>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -549,9 +732,22 @@ export default function AdminPage() {
               <RotateCcw className={"mr-2 size-4 " + (usersLoading ? "animate-spin" : "")} /> Refresh
             </Button>
           </div>
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search every account field..." aria-label="Search accounts" className="pl-9" />
+          <div className="grid gap-2 md:grid-cols-[minmax(16rem,1fr)_12rem_12rem]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={query} onChange={(event) => { setQuery(event.target.value); setUserOffset(0); }} placeholder="Search name, email, profile, or subjects..." aria-label="Search accounts" className="pl-9" />
+            </div>
+            <select aria-label="Filter by platform authority" className="h-10 rounded-md border bg-background px-3 text-sm" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value as "" | AdminUser["role"]); setUserOffset(0); }}>
+              <option value="">All authorities</option>
+              <option value="student">Standard accounts</option>
+              <option value="teacher">Legacy educator accounts</option>
+              <option value="admin">Administrators</option>
+            </select>
+            <select aria-label="Filter by account status" className="h-10 rounded-md border bg-background px-3 text-sm" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as "" | "active" | "banned"); setUserOffset(0); }}>
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="banned">Banned</option>
+            </select>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto">
@@ -560,7 +756,7 @@ export default function AdminPage() {
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="pb-2">Account</th>
-                  <th className="pb-2">Role</th>
+                  <th className="pb-2">Capabilities</th>
                   <th className="pb-2">Visibility</th>
                   <th className="pb-2">Joined</th>
                   <th className="pb-2 text-right">Status</th>
@@ -576,7 +772,12 @@ export default function AdminPage() {
                           <p className="text-xs text-muted-foreground">{user.email}</p>
                         </button>
                       </td>
-                      <td className="py-3 capitalize">{user.role} <span className="text-xs text-muted-foreground">({user.activeRole})</span></td>
+                      <td className="py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {accountCapabilities(user).map((capability) => <Badge key={capability} variant="outline">{capability}</Badge>)}
+                        </div>
+                        <span className="mt-1 block text-xs text-muted-foreground">{user.activeRole} workspace</span>
+                      </td>
                       <td className="py-3 text-xs">{user.profileVisibility} profile / {user.libraryVisibility} library</td>
                       <td className="py-3">{new Date(user.createdAt).toLocaleDateString()}</td>
                       <td className="py-3 text-right">
@@ -585,9 +786,9 @@ export default function AdminPage() {
                           <Button size="sm" variant="outline" onClick={() => void manageAccount(user)}>
                             <Settings2 className="mr-1 size-3.5" /> Manage account
                           </Button>
-                          {user.role === "teacher" && (
+                          {user.role !== "admin" && (
                             <Button size="sm" variant="outline" onClick={() => setTeacherVerification(user, !user.teacherVerified)} disabled={busyUserId === user.id}>
-                              <ShieldCheck className="mr-1 size-3.5" /> {user.teacherVerified ? "Remove verification" : "Verify teacher"}
+                              <ShieldCheck className="mr-1 size-3.5" /> {user.teacherVerified ? "Remove verification" : "Verify publisher"}
                             </Button>
                           )}
                           {user.id !== me?.id && (
@@ -596,7 +797,7 @@ export default function AdminPage() {
                                 <RotateCcw className="mr-1 size-3.5" /> Unban
                               </Button>
                             ) : (
-                              <Button size="sm" variant="destructive" onClick={() => banUser(user)} disabled={busyUserId === user.id}>
+                              <Button size="sm" variant="destructive" onClick={() => requestBan(user)} disabled={busyUserId === user.id}>
                                 <Ban className="mr-1 size-3.5" /> Ban
                               </Button>
                             )
@@ -614,7 +815,7 @@ export default function AdminPage() {
                             <div><p className="text-xs font-medium text-muted-foreground">Timezone</p><p>{user.timezone || "Not set"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Website</p><p className="break-all">{user.websiteUrl || "Not set"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Field visibility</p><p>Bio {String(user.showBio)}, subjects {String(user.showSubjects)}, grade {String(user.showGradeOrDept)}, website {String(user.showWebsite)}</p></div>
-                            <div><p className="text-xs font-medium text-muted-foreground">Teacher verification</p><p>{user.role === "teacher" ? (user.teacherVerified ? "Verified" : "Not verified") : "Not applicable"}</p></div>
+                            <div><p className="text-xs font-medium text-muted-foreground">Publishing verification</p><p>{user.role === "admin" ? "Implicitly trusted" : user.teacherVerified ? "Verified" : "Not verified"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Ban date</p><p>{user.bannedAt ? new Date(user.bannedAt).toLocaleString() : "Not banned"}</p></div>
                             <div><p className="text-xs font-medium text-muted-foreground">Ban reason</p><p>{user.bannedReason || "None"}</p></div>
                           </div>
@@ -627,6 +828,17 @@ export default function AdminPage() {
             </table>
           )}
           {!usersLoading && filteredUsers.length === 0 && <p className="py-8 text-center text-muted-foreground">No matching accounts.</p>}
+          {userPage.data && userPage.data.total > 0 ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-sm">
+              <p className="text-muted-foreground">
+                Showing {userPage.data.offset + 1}–{Math.min(userPage.data.offset + userPage.data.items.length, userPage.data.total)} of {userPage.data.total} accounts
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={userOffset === 0 || usersLoading} onClick={() => setUserOffset((current) => Math.max(0, current - 25))}>Previous</Button>
+                <Button variant="outline" size="sm" disabled={userOffset + 25 >= userPage.data.total || usersLoading} onClick={() => setUserOffset((current) => current + 25)}>Next</Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -669,15 +881,16 @@ export default function AdminPage() {
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <label className="space-y-1 text-sm"><span className="font-medium">Name</span><Input value={userDraft.name} onChange={(e) => setUserDraft({ ...userDraft, name: e.target.value })} /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Email</span><Input type="email" value={userDraft.email} onChange={(e) => setUserDraft({ ...userDraft, email: e.target.value })} /></label>
-                    <label className="space-y-1 text-sm"><span className="font-medium">Role</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.role} onChange={(e) => setUserDraft({ ...userDraft, role: e.target.value, activeRole: e.target.value })}><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Administrator</option></select></label>
-                    <label className="space-y-1 text-sm"><span className="font-medium">Active role</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.activeRole} onChange={(e) => setUserDraft({ ...userDraft, activeRole: e.target.value })}><option value="student">Student</option><option value="teacher">Teacher</option>{userDraft.role === "admin" ? <option value="admin">Administrator</option> : null}</select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Platform authority</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.role} onChange={(e) => setUserDraft({ ...userDraft, role: e.target.value as AdminUser["role"] })}><option value="student">Standard account</option><option value="teacher">Legacy educator account</option><option value="admin">Administrator</option></select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Active workspace</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.activeRole} onChange={(e) => setUserDraft({ ...userDraft, activeRole: e.target.value as AdminUser["activeRole"] })}><option value="student">Learner</option>{userDraft.educatorEnabled || userDraft.role === "admin" ? <option value="teacher">Educator</option> : null}</select><span className="block text-xs text-muted-foreground">Administrator is platform authority, not a workspace.</span></label>
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={userDraft.educatorEnabled} onChange={(e) => setUserDraft({ ...userDraft, educatorEnabled: e.target.checked, activeRole: e.target.checked ? userDraft.activeRole : "student" })} /><span><span className="block font-medium">Educator capability</span><span className="text-xs text-muted-foreground">Allows teaching tools independently of the active workspace.</span></span></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Grade / department</span><Input value={userDraft.gradeOrDept ?? ""} onChange={(e) => setUserDraft({ ...userDraft, gradeOrDept: e.target.value || null })} /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Timezone</span><Input value={userDraft.timezone ?? ""} onChange={(e) => setUserDraft({ ...userDraft, timezone: e.target.value || null })} /></label>
                     <label className="space-y-1 text-sm sm:col-span-2"><span className="font-medium">Subjects</span><Input value={userDraft.subjects?.join(", ") ?? ""} onChange={(e) => setUserDraft({ ...userDraft, subjects: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })} /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Website</span><Input value={userDraft.websiteUrl ?? ""} onChange={(e) => setUserDraft({ ...userDraft, websiteUrl: e.target.value || null })} /></label>
                     <label className="space-y-1 text-sm sm:col-span-2 lg:col-span-3"><span className="font-medium">Bio</span><Textarea rows={4} value={userDraft.bio ?? ""} onChange={(e) => setUserDraft({ ...userDraft, bio: e.target.value || null })} /></label>
-                    <label className="space-y-1 text-sm"><span className="font-medium">Profile visibility</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.profileVisibility} onChange={(e) => setUserDraft({ ...userDraft, profileVisibility: e.target.value })}>{["everyone", "classmates", "private"].map((v) => <option key={v}>{v}</option>)}</select></label>
-                    <label className="space-y-1 text-sm"><span className="font-medium">Library visibility</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.libraryVisibility} onChange={(e) => setUserDraft({ ...userDraft, libraryVisibility: e.target.value })}>{["everyone", "classmates", "private"].map((v) => <option key={v}>{v}</option>)}</select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Profile visibility</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.profileVisibility} onChange={(e) => setUserDraft({ ...userDraft, profileVisibility: e.target.value as AdminUser["profileVisibility"] })}>{["everyone", "classmates", "private"].map((v) => <option key={v}>{v}</option>)}</select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Library visibility</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.libraryVisibility} onChange={(e) => setUserDraft({ ...userDraft, libraryVisibility: e.target.value as AdminUser["libraryVisibility"] })}>{["everyone", "classmates", "private"].map((v) => <option key={v}>{v}</option>)}</select></label>
                   </div>
                   <div className="flex flex-wrap gap-4 border p-3" style={{ borderRadius: 8 }}>{[["Bio", "showBio"], ["Subjects", "showSubjects"], ["Grade", "showGradeOrDept"], ["Website", "showWebsite"]].map(([label, key]) => <label key={key} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(userDraft[key as keyof AdminUser])} onChange={(e) => setUserDraft({ ...userDraft, [key]: e.target.checked })} />Show {label}</label>)}</div>
                   <div className="flex justify-end"><Button onClick={() => void saveAccountProfile()} disabled={savingAccount}>{savingAccount ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Save className="mr-2 size-4" />}Save account changes</Button></div>
@@ -755,7 +968,7 @@ export default function AdminPage() {
                                     {item.nodes ? <span>{item.nodes.length} nodes · {item.connectionCount ?? 0} connections</span> : null}
                                   </div>
                                 </div>
-                                <div className="flex shrink-0 items-center gap-1">{date ? <span className="text-xs text-muted-foreground">{date}</span> : null}<Button size="icon" variant="ghost" title="Edit user work" onClick={() => void editWorkItem(key, item)}><Pencil className="size-4" /></Button><Button size="icon" variant="ghost" title="Delete user work" onClick={() => void deleteWorkItem(key, item)}><Trash2 className="size-4 text-destructive-text" /></Button></div>
+                                <div className="flex shrink-0 items-center gap-1">{date ? <span className="text-xs text-muted-foreground">{date}</span> : null}<Button size="icon" variant="ghost" title="Edit user work" onClick={() => void editWorkItem(key, item)}><Pencil className="size-4" /></Button><Button size="icon" variant="ghost" title="Delete user work" onClick={() => setDeleteWorkTarget({ category: key, item })}><Trash2 className="size-4 text-destructive-text" /></Button></div>
                               </div>
                               {description && description !== workItemName(item) ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground">{description}</p> : null}
                               {item.cards?.length ? <div className="mt-2 space-y-1 border-t pt-2 text-xs">{item.cards.map((card) => <p key={card.id}><strong>{card.term}</strong>: {card.answer}{card.hasImage ? " · image attached" : ""}</p>)}</div> : null}
@@ -780,17 +993,50 @@ export default function AdminPage() {
                       managedDetails.user.bannedAt ? (
                         <Button variant="outline" onClick={() => void unbanUser(managedDetails.user)} disabled={busyUserId === managedDetails.user.id}><RotateCcw className="mr-2 size-4" />Unban account</Button>
                       ) : (
-                        <Button variant="destructive" onClick={() => void banUser(managedDetails.user)} disabled={busyUserId === managedDetails.user.id}><Ban className="mr-2 size-4" />Ban account</Button>
+                        <Button variant="destructive" onClick={() => requestBan(managedDetails.user)} disabled={busyUserId === managedDetails.user.id}><Ban className="mr-2 size-4" />Ban account</Button>
                       )
                     ) : <p className="text-sm text-muted-foreground">You cannot ban your own administrator account.</p>}
                   </div>
                 </section>
-                {managedDetails.user.role === "teacher" ? (
+                {userDraft ? (
                   <section className="border p-4" style={{ borderRadius: 8 }}>
-                    <h3 className="font-semibold">Teacher verification</h3>
+                    <h3 className="font-semibold">Plan override</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      This changes server-enforced entitlements. Every override is stored with your administrator ID, the old and new plan, and the reason below.
+                    </p>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <label className="space-y-1 text-sm">
+                        <span className="font-medium">Plan</span>
+                        <select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.plan} onChange={(event) => setUserDraft({ ...userDraft, plan: event.target.value as AdminUser["plan"], planExpiresAt: event.target.value === "free" ? null : userDraft.planExpiresAt })}>
+                          <option value="free">Free</option>
+                          <option value="plus">Plus</option>
+                          <option value="pro">Pro</option>
+                        </select>
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span className="font-medium">Expiry (optional)</span>
+                        <Input type="datetime-local" disabled={userDraft.plan === "free"} min={toLocalDateTimeInput(new Date(Date.now() + 60_000).toISOString())} value={toLocalDateTimeInput(userDraft.planExpiresAt)} onChange={(event) => setUserDraft({ ...userDraft, planExpiresAt: event.target.value ? new Date(event.target.value).toISOString() : null })} />
+                      </label>
+                      <label className="space-y-1 text-sm sm:col-span-2">
+                        <span className="font-medium">Audit reason</span>
+                        <Textarea rows={3} maxLength={1000} value={planReason} onChange={(event) => setPlanReason(event.target.value)} placeholder="Why is this entitlement override necessary?" />
+                        <span className="block text-xs text-muted-foreground">Required · at least 3 characters</span>
+                      </label>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <Button onClick={() => void savePlanOverride()} disabled={planReason.trim().length < 3 || busyUserId === userDraft.id}>
+                        {busyUserId === userDraft.id ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Sparkles className="mr-2 size-4" />}
+                        Save audited plan override
+                      </Button>
+                    </div>
+                  </section>
+                ) : null}
+                {managedDetails.user.role !== "admin" ? (
+                  <section className="border p-4" style={{ borderRadius: 8 }}>
+                    <h3 className="font-semibold">Publishing verification</h3>
                     <p className="mt-1 text-sm text-muted-foreground">Current status: {managedDetails.user.teacherVerified ? "Verified" : "Not verified"}</p>
                     <Button className="mt-4" variant="outline" onClick={() => void setTeacherVerification(managedDetails.user, !managedDetails.user.teacherVerified)} disabled={busyUserId === managedDetails.user.id}>
-                      <ShieldCheck className="mr-2 size-4" />{managedDetails.user.teacherVerified ? "Remove verification" : "Verify teacher"}
+                      <ShieldCheck className="mr-2 size-4" />{managedDetails.user.teacherVerified ? "Remove verification" : "Verify publisher"}
                     </Button>
                   </section>
                 ) : null}
@@ -804,6 +1050,63 @@ export default function AdminPage() {
           ) : (
             <div className="min-h-72 p-6 text-center text-sm text-muted-foreground">Account details could not be loaded.</div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={banTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && busyUserId === null) {
+            setBanTarget(null);
+            setBanReason("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Ban {banTarget?.name ?? "account"}?</DialogTitle>
+            <DialogDescription>
+              The current session will lose access on its next API request. The reason is retained on the account for administrators to review.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="admin-ban-reason" className="text-sm font-medium">Ban reason</label>
+            <Textarea id="admin-ban-reason" autoFocus rows={4} maxLength={500} value={banReason} onChange={(event) => setBanReason(event.target.value)} placeholder="Describe the policy or safety reason..." />
+            <p className="text-xs text-muted-foreground">Required · at least 3 characters · visible to administrators</p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" disabled={busyUserId !== null} onClick={() => { setBanTarget(null); setBanReason(""); }}>Cancel</Button>
+            <Button variant="destructive" disabled={banReason.trim().length < 3 || busyUserId !== null} onClick={() => void confirmBan()}>
+              {busyUserId !== null ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Ban className="mr-2 size-4" />}
+              Ban account
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteWorkTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletingWork) setDeleteWorkTarget(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Permanently delete this work?</DialogTitle>
+            <DialogDescription>
+              “{deleteWorkTarget ? workItemName(deleteWorkTarget.item) : "This item"}” will be removed from the account. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm">
+            Category: {deleteWorkTarget ? workCategories.find(({ key }) => key === deleteWorkTarget.category)?.label : "Unknown"}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" disabled={deletingWork} onClick={() => setDeleteWorkTarget(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={deletingWork} onClick={() => void confirmDeleteWorkItem()}>
+              {deletingWork ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Trash2 className="mr-2 size-4" />}
+              Delete permanently
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -827,7 +1130,7 @@ export default function AdminPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
-            <div><CardTitle>Usage today</CardTitle><p className="mt-1 text-sm text-muted-foreground">Platform-wide AI activity</p></div>
+            <div><CardTitle>Current 24-hour window</CardTitle><p className="mt-1 text-sm text-muted-foreground">Platform-wide AI counters reset when their active window ends</p></div>
             <Activity className="size-5 text-primary-text" />
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
@@ -839,8 +1142,8 @@ export default function AdminPage() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Total AI requests</CardTitle><BarChart3 className="size-5 text-primary-text" /></CardHeader><CardContent><p className="text-3xl font-bold">{data?.usage.totalAiRequests ?? 0}</p></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between"><CardTitle>Estimated AI cost</CardTitle><DollarSign className="size-5 text-primary-text" /></CardHeader><CardContent><p className="text-3xl font-bold">${(data?.usage.estimatedCostUsd ?? 0).toFixed(2)}</p></CardContent></Card>
-        <Card><CardHeader><CardTitle>Last 30 days</CardTitle></CardHeader><CardContent className="space-y-1 text-sm">{data ? Object.entries(data.usage.byFeature).map(([feature, usage]) => <div key={feature} className="flex justify-between"><span className="capitalize">{feature.replaceAll("-", " ")}</span><span className="font-semibold">{usage.month}</span></div>) : <Skeleton className="h-20 w-full" />}</CardContent></Card>
+        <Card><CardHeader className="flex flex-row items-center justify-between"><div><CardTitle>Estimated AI cost</CardTitle><p className="mt-1 text-sm text-muted-foreground">All recorded requests · planning estimate</p></div><DollarSign className="size-5 text-primary-text" /></CardHeader><CardContent><p className="text-3xl font-bold">${(data?.usage.estimatedCostUsd ?? 0).toFixed(2)}</p></CardContent></Card>
+        <Card><CardHeader><CardTitle>Current 30-day counter window</CardTitle></CardHeader><CardContent className="space-y-1 text-sm">{data ? Object.entries(data.usage.byFeature).map(([feature, usage]) => <div key={feature} className="flex justify-between"><span className="capitalize">{feature.replaceAll("-", " ")}</span><span className="font-semibold">{usage.month}</span></div>) : <Skeleton className="h-20 w-full" />}</CardContent></Card>
       </div>
 
       <Card>

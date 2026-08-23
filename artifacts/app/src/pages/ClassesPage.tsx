@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Classes Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState, useEffect } from 'react';
 import { useLocation, useSearch } from 'wouter';
 import { Plus, Users, BookOpen, RefreshCw, LogOut, ExternalLink, Download, AlertCircle, KeyRound } from 'lucide-react';
@@ -12,6 +16,8 @@ import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { normalizeClassJoinCode } from '../lib/class-join-link';
+import { LoadFailure } from '../components/LoadFailure';
 import {
   useListClasses,
   useCreateClass,
@@ -51,7 +57,7 @@ export default function ClassesPage() {
   // Set to true when a GC API call returns 401/403 (token expired/revoked)
   const [gcReconnectNeeded, setGcReconnectNeeded] = useState(false);
 
-  const { data: classes, isLoading } = useListClasses();
+  const { data: classes, isLoading, isError, refetch } = useListClasses();
   const { data: me } = useGetMe();
   const createClass = useCreateClass();
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
@@ -65,7 +71,14 @@ export default function ClassesPage() {
   });
   // Background health check: fetch courses whenever teacher is connected so we catch
   // revoked/expired tokens before the user opens the import dialog.
-  const { data: gcCourses, isLoading: gcCoursesLoading, refetch: refetchCourses, error: gcCoursesError } = useListGCCourses({
+  const {
+    data: gcCourses,
+    isError: gcCoursesIsError,
+    isFetching: gcCoursesFetching,
+    isLoading: gcCoursesLoading,
+    refetch: refetchCourses,
+    error: gcCoursesError,
+  } = useListGCCourses({
     query: {
       enabled: isTeacher && gcStatus?.connected === true,
       queryKey: getListGCCoursesQueryKey(),
@@ -119,6 +132,32 @@ export default function ClassesPage() {
       setPendingAutoConnect(true);
       setLocation('/classes', { replace: true });
     }
+  }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A class invite is a normal app route, so signed-out visitors can carry it
+  // through login or registration and land on a ready-to-confirm join dialog.
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const requestedCode = params.get('join');
+    if (requestedCode === null) return;
+
+    const normalizedCode = normalizeClassJoinCode(requestedCode);
+    if (!normalizedCode) {
+      params.delete('join');
+      const remainingSearch = params.toString();
+      toast({
+        title: 'Invalid class invite',
+        description: 'Ask your teacher for a new eight-character join link.',
+        variant: 'destructive',
+      });
+      setLocation(remainingSearch ? `/classes?${remainingSearch}` : '/classes', {
+        replace: true,
+      });
+      return;
+    }
+
+    setJoinCode(normalizedCode);
+    setJoinDialogOpen(true);
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Once gcStatus loads and we have a pending auto-connect request, initiate OAuth.
@@ -258,8 +297,8 @@ export default function ClassesPage() {
         <div className="flex items-center gap-2 flex-wrap">
 
           <Dialog open={joinDialogOpen} onOpenChange={setJoinDialogOpen}>
-            <DialogTrigger asChild><Button variant="outline" size="sm"><KeyRound size={15} className="mr-1.5" /> Join with code</Button></DialogTrigger>
-            <DialogContent><DialogHeader><DialogTitle>Join a class</DialogTitle><DialogDescription>Enter the 8-character code your teacher shared.</DialogDescription></DialogHeader><form onSubmit={handleJoin} className="space-y-4"><div className="space-y-1.5"><Label htmlFor="join-code">Class code</Label><Input id="join-code" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, '').slice(0, 8))} className="font-mono text-lg uppercase tracking-widest" placeholder="A1B2C3D4" autoComplete="off" /></div><DialogFooter><Button type="submit" disabled={joining || joinCode.length !== 8}>{joining ? 'Joining…' : 'Join class'}</Button></DialogFooter></form></DialogContent>
+            <DialogTrigger asChild><Button variant="outline" size="sm" data-testid="join-class-button"><KeyRound size={15} className="mr-1.5" /> Join with code</Button></DialogTrigger>
+            <DialogContent><DialogHeader><DialogTitle>Join a class</DialogTitle><DialogDescription>Enter the 8-character code your teacher shared.</DialogDescription></DialogHeader><form onSubmit={handleJoin} className="space-y-4"><div className="space-y-1.5"><Label htmlFor="join-code">Class code</Label><Input id="join-code" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase().replace(/[^A-F0-9]/g, '').slice(0, 8))} className="font-mono text-lg uppercase tracking-widest" placeholder="A1B2C3D4" autoComplete="off" data-testid="join-code-input" /></div><DialogFooter><Button type="submit" disabled={joining || joinCode.length !== 8} data-testid="join-class-confirm">{joining ? 'Joining…' : 'Join class'}</Button></DialogFooter></form></DialogContent>
           </Dialog>
 
           {/* Google Classroom, teachers only */}
@@ -425,6 +464,14 @@ export default function ClassesPage() {
                   <Skeleton className="h-8 w-28 shrink-0" />
                 </div>
               ))
+            ) : gcCoursesIsError && gcCourses === undefined ? (
+              <LoadFailure
+                title="Google Classroom courses could not be loaded"
+                description="No course list was returned. Retry or reconnect if Google revoked access."
+                onRetry={() => void refetchCourses()}
+                retrying={gcCoursesFetching}
+                testId="gc-courses-load-error"
+              />
             ) : !gcCourses || gcCourses.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <BookOpen size={32} className="mx-auto mb-2 opacity-40" />
@@ -485,6 +532,17 @@ export default function ClassesPage() {
       </Dialog>
 
       {/* Classes grid */}
+      {isError && classes !== undefined && (
+        <Alert variant="destructive" data-testid="classes-refresh-error">
+          <AlertCircle size={16} />
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>Your saved classes are shown, but the latest update failed.</span>
+            <Button size="sm" variant="outline" onClick={() => void refetch()}>
+              <RefreshCw size={14} className="mr-1.5" /> Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -499,6 +557,17 @@ export default function ClassesPage() {
             </Card>
           ))}
         </div>
+      ) : isError && classes === undefined ? (
+        <Card className="border-destructive/30" data-testid="classes-load-error">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertCircle size={36} className="mb-4 text-destructive-text" />
+            <h3 className="font-semibold text-foreground">Classes could not be loaded</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Your account has not been reported as having no classes. Try the request again.</p>
+            <Button className="mt-4" variant="outline" onClick={() => void refetch()}>
+              <RefreshCw size={14} className="mr-1.5" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
       ) : !classes || classes.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Users size={40} className="text-muted-foreground mb-4" />

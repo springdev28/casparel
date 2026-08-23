@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web domain role: centralizes Auth Locale state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
 import { getApiError } from "./api-error";
 import { useEffect, useState } from "react";
 
@@ -13,6 +17,19 @@ export const AUTH_LANGUAGES = [
 ] as const;
 
 export type AuthLanguage = (typeof AUTH_LANGUAGES)[number]["code"];
+
+export const INTERFACE_LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "tr", label: "Türkçe" },
+] as const;
+
+export type InterfaceLanguage = (typeof INTERFACE_LANGUAGES)[number]["code"];
+
+export function isInterfaceLanguage(
+  language: AuthLanguage,
+): language is InterfaceLanguage {
+  return INTERFACE_LANGUAGES.some((option) => option.code === language);
+}
 
 type AuthCopy = {
   tagline: string;
@@ -47,7 +64,9 @@ type AuthCopy = {
   hidePassword: string;
 };
 
-export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
+// Authentication has a broader localized entry experience. Settings and the
+// signed-in shell deliberately use INTERFACE_LANGUAGES, the product-wide set.
+export const AUTH_COPY = {
   en: {
     tagline: "Your student & teacher productivity platform",
     language: "Language",
@@ -236,7 +255,7 @@ export const AUTH_COPY: Record<AuthLanguage, AuthCopy> = {
     showPassword: "Şifreyi göster",
     hidePassword: "Şifreyi gizle",
   },
-};
+} satisfies Record<string, AuthCopy>;
 
 function browserLanguage(): AuthLanguage {
   const candidates =

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises User Library.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Regression guard for GET /users/:id/library.
  *
  * The handler passes its rows straight to GetUserLibraryResponse.parse(). That

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Pagination.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 import * as React from "react"
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react"
 

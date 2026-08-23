@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Not Found route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { Card, CardContent } from '@workspace/edu-ds/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 

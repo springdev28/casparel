@@ -1,6 +1,22 @@
+/**
+ * @fileOverview API role: implements the Direct Messages HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
-import { z } from "zod/v4";
+import {
+  CreateDirectConversationBody,
+  CreateDirectConversationResponse,
+  GetDirectConversationParams,
+  GetDirectConversationResponse,
+  ListDirectConversationsResponse,
+  RespondToDirectMessageRequestBody,
+  RespondToDirectMessageRequestParams,
+  RespondToDirectMessageRequestResponse,
+  SendDirectMessageBody,
+  SendDirectMessageParams,
+  SendDirectMessageResponse,
+} from "@workspace/api-zod";
 import {
   db,
   directConversationsTable,
@@ -16,11 +32,6 @@ import {
 import { contentLimiter } from "../lib/limiters";
 
 const router: IRouter = Router();
-const createConversationBody = z.object({
-  userId: z.number().int().positive(),
-  body: z.string().trim().min(1).max(4000).optional(),
-});
-const sendMessageBody = z.object({ body: z.string().trim().min(1).max(4000) });
 
 function pair(first: number, second: number) {
   return first < second ? [first, second] as const : [second, first] as const;
@@ -96,7 +107,13 @@ router.get("/direct-messages/conversations", requireAuth, async (req, res): Prom
     ))
     .orderBy(desc(directConversationsTable.updatedAt))
     .limit(100);
-  res.json(await Promise.all(conversations.map((item) => conversationResult(item, userId))));
+  res.json(
+    ListDirectConversationsResponse.parse(
+      await Promise.all(
+        conversations.map((item) => conversationResult(item, userId)),
+      ),
+    ),
+  );
 });
 
 router.post(
@@ -105,8 +122,13 @@ router.post(
   requireAuth,
   async (req, res): Promise<void> => {
     const auth = req as AuthenticatedRequest;
-    const parsed = createConversationBody.safeParse(req.body);
-    if (!parsed.success || parsed.data.userId === auth.userId) {
+    const parsed = CreateDirectConversationBody.safeParse(req.body);
+    const initialBody = parsed.success ? parsed.data.body?.trim() : undefined;
+    if (
+      !parsed.success ||
+      parsed.data.userId === auth.userId ||
+      (parsed.data.body !== undefined && !initialBody)
+    ) {
       res.status(400).json({ error: "Choose another user" });
       return;
     }
@@ -153,24 +175,37 @@ router.post(
         .set({ status: "accepted", updatedAt: new Date().toISOString() })
         .where(eq(directConversationsTable.id, conversation.id)).returning();
     }
-    if (parsed.data.body) {
+    if (initialBody) {
       await db.insert(directMessagesTable).values({
         conversationId: conversation.id,
         senderId: auth.userId,
-        body: parsed.data.body,
+        body: initialBody,
         isAdminMessage: isAdmin,
       });
       [conversation] = await db.update(directConversationsTable)
         .set({ updatedAt: new Date().toISOString() })
         .where(eq(directConversationsTable.id, conversation.id)).returning();
     }
-    res.status(201).json(await conversationResult(conversation, auth.userId));
+    res
+      .status(201)
+      .json(
+        CreateDirectConversationResponse.parse(
+          await conversationResult(conversation, auth.userId),
+        ),
+      );
   },
 );
 
 router.get("/direct-messages/conversations/:id", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
-  const conversation = await conversationForUser(Number(req.params.id), userId);
+  const params = GetDirectConversationParams.safeParse({
+    id: Number(req.params.id),
+  });
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid conversation ID" });
+    return;
+  }
+  const conversation = await conversationForUser(params.data.id, userId);
   if (!conversation) {
     res.status(404).json({ error: "Conversation not found" });
     return;
@@ -184,7 +219,12 @@ router.get("/direct-messages/conversations/:id", requireAuth, async (req, res): 
       ne(directMessagesTable.senderId, userId),
       isNull(directMessagesTable.readAt),
     ));
-  res.json({ ...(await conversationResult(conversation, userId)), messages });
+  res.json(
+    GetDirectConversationResponse.parse({
+      ...(await conversationResult(conversation, userId)),
+      messages,
+    }),
+  );
 });
 
 router.post(
@@ -193,12 +233,16 @@ router.post(
   requireAuth,
   async (req, res): Promise<void> => {
     const auth = req as AuthenticatedRequest;
-    const parsed = sendMessageBody.safeParse(req.body);
-    if (!parsed.success) {
+    const params = SendDirectMessageParams.safeParse({
+      id: Number(req.params.id),
+    });
+    const parsed = SendDirectMessageBody.safeParse(req.body);
+    const body = parsed.success ? parsed.data.body.trim() : "";
+    if (!params.success || !parsed.success || !body) {
       res.status(400).json({ error: "Message must be between 1 and 4000 characters" });
       return;
     }
-    let conversation = await conversationForUser(Number(req.params.id), auth.userId);
+    let conversation = await conversationForUser(params.data.id, auth.userId);
     if (!conversation) {
       res.status(404).json({ error: "Conversation not found" });
       return;
@@ -227,31 +271,43 @@ router.post(
     const [message] = await db.insert(directMessagesTable).values({
       conversationId: conversation.id,
       senderId: auth.userId,
-      body: parsed.data.body,
+      body,
       isAdminMessage: isAdmin,
     }).returning();
     await db.update(directConversationsTable).set({ updatedAt: new Date().toISOString() })
       .where(eq(directConversationsTable.id, conversation.id));
-    res.status(201).json(message);
+    res.status(201).json(SendDirectMessageResponse.parse(message));
   },
 );
 
 router.patch("/direct-messages/conversations/:id/request", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
-  const conversation = await conversationForUser(Number(req.params.id), userId);
-  const action = req.body?.action;
+  const params = RespondToDirectMessageRequestParams.safeParse({
+    id: Number(req.params.id),
+  });
+  const parsed = RespondToDirectMessageRequestBody.safeParse(req.body);
+  const action = parsed.success ? parsed.data.action : null;
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid conversation ID" });
+    return;
+  }
+  const conversation = await conversationForUser(params.data.id, userId);
   if (!conversation || conversation.requestedById === userId || conversation.status !== "pending") {
     res.status(404).json({ error: "Message request not found" });
     return;
   }
-  if (action !== "accept" && action !== "decline") {
+  if (!parsed.success || (action !== "accept" && action !== "decline")) {
     res.status(400).json({ error: "Choose accept or decline" });
     return;
   }
   const [updated] = await db.update(directConversationsTable)
     .set({ status: action === "accept" ? "accepted" : "declined", updatedAt: new Date().toISOString() })
     .where(eq(directConversationsTable.id, conversation.id)).returning();
-  res.json(await conversationResult(updated, userId));
+  res.json(
+    RespondToDirectMessageRequestResponse.parse(
+      await conversationResult(updated, userId),
+    ),
+  );
 });
 
 export default router;

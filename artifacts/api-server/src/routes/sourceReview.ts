@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Source Review HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import {
   Router,
   type IRouter,
@@ -25,6 +29,7 @@ import {
 import { consumeAiQuota, recordAiUsage } from "../lib/aiCostControls";
 import { getAccountEntitlements } from "../lib/entitlements";
 import { buildFreeQuickReview } from "../lib/sourceProvenance";
+import { visibilityForRequest } from "../lib/resourceVisibility";
 import {
   optionalWorkflowUserId,
   recordWorkflowEvent,
@@ -204,7 +209,12 @@ router.get(
       const [savedResource] = await db
         .select()
         .from(resourcesTable)
-        .where(eq(resourcesTable.id, params.data.id));
+        .where(
+          and(
+            eq(resourcesTable.id, params.data.id),
+            visibilityForRequest(req),
+          ),
+        );
       if (!savedResource) {
         res.status(404).json({ error: "Resource not found" });
         return;
@@ -265,15 +275,28 @@ router.get(
     }
 
     const { title, url } = resource;
+    const workflowUserId = optionalWorkflowUserId(req);
     const recordReview = async () => {
-      const userId = optionalWorkflowUserId(req);
-      if (!userId || resource.id === null) return;
-      await recordWorkflowEvent({
-        userId,
-        event: "resource_reviewed",
-        resourceId: resource.id,
-        context: { mode },
-      });
+      if (!workflowUserId) return;
+      await Promise.all([
+        resource.id === null
+          ? Promise.resolve()
+          : recordWorkflowEvent({
+              userId: workflowUserId,
+              event: "resource_reviewed",
+              resourceId: resource.id,
+              context: { mode },
+            }),
+        recordWorkflowEvent({
+          userId: workflowUserId,
+          event:
+            mode === "deep"
+              ? "source_deep_research_completed"
+              : "source_quick_check_completed",
+          resourceId: resource.id,
+          context: { mode },
+        }),
+      ]);
     };
     const canonicalUrl = canonicalResourceUrl(url);
     const reviewKey = mode + ":" + canonicalUrl;
@@ -293,6 +316,17 @@ router.get(
         return;
       }
       deepUnlimited = deepIsAdmin || entitlements.unlimitedAi;
+    }
+    if (workflowUserId) {
+      await recordWorkflowEvent({
+        userId: workflowUserId,
+        event:
+          mode === "deep"
+            ? "source_deep_research_started"
+            : "source_quick_check_started",
+        resourceId: resource.id,
+        context: { mode },
+      });
     }
     const now = new Date().toISOString();
     const cached =

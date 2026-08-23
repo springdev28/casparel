@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Rate Limit Store logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 import type { Store, Options, ClientRateLimitInfo } from "express-rate-limit";
 import { pool } from "@workspace/db";
 

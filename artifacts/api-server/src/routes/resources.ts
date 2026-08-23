@@ -1,4 +1,8 @@
-import { Router, type IRouter } from "express";
+/**
+ * @fileOverview API role: implements the Resources HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
+import { Router, type IRouter, type Response } from "express";
 import {
   eq,
   ne,
@@ -8,6 +12,8 @@ import {
   or,
   inArray,
   notInArray,
+  gt,
+  type SQL,
 } from "drizzle-orm";
 import {
   db,
@@ -17,9 +23,14 @@ import {
   learningGoalsTable,
   activityLogTable,
   catalogResourcesTable,
+  resourcePreviewCacheTable,
 } from "@workspace/db";
-import { publicResourceColumns } from "../lib/resourceColumns";
 import {
+  publicResourceColumns,
+  resourceColumnsForViewer,
+} from "../lib/resourceColumns";
+import {
+  optionalViewerId,
   resourceVisibilityCondition,
   visibilityForRequest,
 } from "../lib/resourceVisibility";
@@ -65,18 +76,37 @@ import {
   type SourceCredibility,
 } from "../lib/catalog";
 import { meaningfulSearchTerms } from "../lib/searchTerms";
+import {
+  inferSearchIntent,
+  inferSearchMaterial,
+  rankCatalogItems,
+  type SearchIntent,
+  type SearchMaterialOption,
+} from "../lib/searchRanking";
 import { logger } from "../lib/logger";
 import { getAccountEntitlements } from "../lib/entitlements";
+import { recordWorkflowEvent } from "../lib/workflowAnalytics";
+import {
+  extractHtmlResourcePreview,
+  normalizeResourcePreview,
+  resourcePreviewCoverage,
+  type ResourcePreview,
+} from "../lib/resourcePreview";
 
 const router: IRouter = Router();
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-async function resourceWithRating(id: number) {
+async function resourceWithRating(
+  id: number,
+  visibility?: SQL,
+  viewerId: number | null = null,
+  admin = false,
+) {
   const [r] = await db
-    .select(publicResourceColumns)
+    .select(resourceColumnsForViewer(viewerId, admin))
     .from(resourcesTable)
-    .where(eq(resourcesTable.id, id));
+    .where(and(eq(resourcesTable.id, id), visibility));
   if (!r) return null;
   const [stats] = await db
     .select({
@@ -178,14 +208,20 @@ async function classifySubmission(
   }
 
   if (accountRole === "admin") {
-    return { verificationStatus: "verified", verificationSource: "trusted-submitter" };
+    return {
+      verificationStatus: "verified",
+      verificationSource: "trusted-submitter",
+    };
   }
   const [submitter] = await db
     .select({ teacherVerified: usersTable.teacherVerified })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   if (submitter?.teacherVerified === true) {
-    return { verificationStatus: "verified", verificationSource: "trusted-submitter" };
+    return {
+      verificationStatus: "verified",
+      verificationSource: "trusted-submitter",
+    };
   }
 
   return { verificationStatus: "unverified", verificationSource: null };
@@ -404,7 +440,10 @@ router.get("/resources", async (req, res): Promise<void> => {
       // omitting verificationStatus so a resource in review looked verified in
       // every listing while the detail route reported it correctly.
       .select({
-        ...publicResourceColumns,
+        ...resourceColumnsForViewer(
+          optionalViewerId(req),
+          isAdminRequest(req),
+        ),
         avgRating: selectedAvgRating,
         reviewCount: selectedReviewCount,
       })
@@ -422,7 +461,10 @@ router.get("/resources", async (req, res): Promise<void> => {
   // two-query-per-result pattern and keeps response time flat as pages grow.
   const rows = await db
     .select({
-      ...publicResourceColumns,
+      ...resourceColumnsForViewer(
+        optionalViewerId(req),
+        isAdminRequest(req),
+      ),
       avgRating,
       reviewCount,
     })
@@ -929,9 +971,44 @@ export function isDirectPeopleProfileUrl(rawUrl: string): boolean {
 }
 
 function addProvenance<
-  T extends { url: string; sourceCredibility?: SourceCredibility },
+  T extends {
+    title: string;
+    url: string;
+    description?: string | null;
+    source?: string | null;
+    thumbnailUrl?: string | null;
+    previewTitle?: string | null;
+    previewDescription?: string | null;
+    previewImageUrl?: string | null;
+    previewAuthor?: string | null;
+    previewPublisher?: string | null;
+    previewPublishedAt?: string | null;
+    previewUpdatedAt?: string | null;
+    previewFaviconUrl?: string | null;
+    previewSource?: ResourcePreview["previewSource"];
+    previewLicense?: string | null;
+    previewAccessType?: "free" | "unknown";
+    sourceCredibility?: SourceCredibility;
+  },
 >(item: T, linkChecked: boolean) {
   const { sourceCredibility, ...publicItem } = item;
+  const checkedAt = new Date().toISOString();
+  const preview = normalizeResourcePreview({
+    title: item.previewTitle ?? item.title,
+    description: item.previewDescription ?? item.description,
+    imageUrl: item.previewImageUrl ?? item.thumbnailUrl,
+    author: item.previewAuthor,
+    publisher: item.previewPublisher ?? item.source,
+    publishedAt: item.previewPublishedAt,
+    updatedAt: item.previewUpdatedAt,
+    faviconUrl: item.previewFaviconUrl,
+    source:
+      item.previewSource ??
+      (item.thumbnailUrl || item.description || item.source
+        ? "extracted"
+        : "none"),
+    checkedAt,
+  });
   try {
     const url = new URL(item.url);
     const host = url.hostname.replace(/^www\./, "").toLowerCase();
@@ -987,20 +1064,63 @@ function addProvenance<
     ];
     return {
       ...publicItem,
+      ...preview,
+      previewLicense: item.previewLicense ?? null,
+      previewAccessType: item.previewAccessType ?? "unknown",
       provenanceLevel,
       provenanceSignals,
       linkChecked,
-      checkedAt: new Date().toISOString(),
+      checkedAt,
     };
   } catch {
     return {
       ...publicItem,
+      ...preview,
+      previewLicense: item.previewLicense ?? null,
+      previewAccessType: item.previewAccessType ?? "unknown",
       provenanceLevel: "unknown" as const,
       provenanceSignals: ["Domain could not be classified"],
       linkChecked: false,
-      checkedAt: new Date().toISOString(),
+      checkedAt,
     };
   }
+}
+
+function sendDiscoveredResources(
+  res: Response,
+  items: readonly { previewMeaningful?: boolean }[],
+) {
+  res.setHeader(
+    "X-Preview-Coverage",
+    Math.round(resourcePreviewCoverage(items) * 100).toString(),
+  );
+  res.json(items);
+}
+
+function rankDiscoveredContent<
+  T extends {
+    title: string;
+    url: string;
+    description?: string | null;
+    format?: string | null;
+    source?: string | null;
+    thumbnailUrl?: string | null;
+    subject?: string | null;
+    gradeLevel?: string | null;
+  },
+>(
+  items: readonly T[],
+  query: string,
+  intent: SearchIntent,
+  material: SearchMaterialOption,
+) {
+  return rankCatalogItems(
+    items.map((item) => ({
+      ...item,
+      material: inferSearchMaterial(item),
+    })),
+    { query, intent, material },
+  );
 }
 
 router.get(
@@ -1021,7 +1141,11 @@ router.get(
       language = "en",
       page = 1,
       resultType = "content",
+      intent = "auto",
+      material = "all",
     } = params.data;
+    const resolvedIntent = inferSearchIntent(q, intent);
+    res.setHeader("X-Search-Intent", resolvedIntent);
     const exactPhrase = queryString(req.query.exactPhrase);
     const excludedWords = queryString(req.query.exclude);
     const sourceFilter = queryString(req.query.source);
@@ -1042,6 +1166,27 @@ router.get(
     } catch {
       // Public discovery remains available without authentication.
     }
+    const sendSearchResults = async (
+      items: readonly { previewMeaningful?: boolean }[],
+    ) => {
+      if (discoverUserId) {
+        await recordWorkflowEvent({
+          userId: discoverUserId,
+          event: "search_submitted",
+          context: {
+            intent: resolvedIntent,
+            material,
+            format: format ?? "any",
+            language,
+            resultType,
+            page,
+            resultCount: items.length,
+            previewCoverage: Math.round(resourcePreviewCoverage(items) * 100),
+          },
+        });
+      }
+      sendDiscoveredResources(res, items);
+    };
     const savedRows = discoverUserId
       ? await db
           .select({ url: resourcesTable.url })
@@ -1070,6 +1215,8 @@ router.get(
       accessType,
       license,
       sourceQuality,
+      intent,
+      material,
     } as const;
     let catalogItems = await searchCatalog(catalogOptions);
     const remoteCatalogMatchesCredibility =
@@ -1094,7 +1241,7 @@ router.get(
     if (availableCatalogItems.length > 0 || !aiFallbackEnabled) {
       res.setHeader("X-Search-Provider", "stored-catalog");
       res.setHeader("X-Search-Cache", "DATABASE");
-      res.json(availableCatalogItems);
+      await sendSearchResults(availableCatalogItems);
       return;
     }
 
@@ -1178,6 +1325,8 @@ router.get(
       license,
       contentLength,
       sourceQuality,
+      intent,
+      material,
       captions,
       transcript,
       userId: discoverUserId,
@@ -1186,7 +1335,7 @@ router.get(
       const cached = discoverCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
         res.setHeader("X-Search-Cache", "HIT");
-        res.json(cached.items.filter(isUnsavedResult));
+        await sendSearchResults(cached.items.filter(isUnsavedResult));
         return;
       }
       if (cached) discoverCache.delete(cacheKey);
@@ -1281,6 +1430,15 @@ router.get(
           ? 12
           : 16;
 
+    const intentHint =
+      resultType === "content"
+        ? `The search intent is ${resolvedIntent}. Rank results for that learning job.`
+        : "";
+    const materialHint =
+      resultType === "content" && material !== "all"
+        ? `Return only ${material} material.`
+        : "";
+
     const buildPrompt = (excludeUrls: string[] = [], platformPass = false) => {
       const exclusionNote =
         excludeUrls.length > 0
@@ -1312,7 +1470,7 @@ router.get(
             : "Prefer Khan Academy, MIT OpenCourseWare, Wikipedia, TED-Ed, and CrashCourse when relevant.";
       return `Suggest up to ${requestedCount} high-quality educational ${kind} for: "${effectiveQuery}"${subjectHint}${gradeHint}${languageHint}${resultType === "content" ? formatHint : ""}${pageHint}
 
-Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. Use the full result allowance and return ${requestedCount} distinct results whenever enough credible matches exist. ${extendedFilterHints} ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
+Search the web and recommend reputable, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. Use the full result allowance and return ${requestedCount} distinct results whenever enough credible matches exist. ${intentHint} ${materialHint} ${extendedFilterHints} ${sourceRules} Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel.
 Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} ${platformSearchRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
     };
 
@@ -1339,10 +1497,19 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
 
       // Validate all result URLs in parallel with a short timeout. Thumbnail URLs
       // are left to the browser so they cannot hold up otherwise useful results.
-      const reachable =
+      const reachableRaw =
         resultType === "people"
           ? firstBatch
           : await filterReachableUrls(firstBatch, 2000);
+      const reachable =
+        resultType === "content"
+          ? rankDiscoveredContent(
+              reachableRaw,
+              effectiveQuery,
+              resolvedIntent,
+              material,
+            )
+          : reachableRaw;
 
       const minimumResults =
         resultType === "people"
@@ -1359,7 +1526,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
             ),
           });
         res.setHeader("X-Search-Cache", "MISS");
-        res.json(
+        await sendSearchResults(
           reachable.map((item) => addProvenance(item, resultType !== "people")),
         );
         return;
@@ -1374,7 +1541,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       if (!paidRetryAllowed()) {
         if (reachable.length > 0) {
           res.setHeader("X-Search-Cache", "MISS");
-          res.json(
+          await sendSearchResults(
             reachable.map((item) =>
               addProvenance(item, resultType !== "people"),
             ),
@@ -1408,10 +1575,19 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
                 isDirectPeopleProfileUrl(item.url),
               )
             : rawSecondBatch;
-      const reachableSecond =
+      const reachableSecondRaw =
         resultType === "people"
           ? secondBatch
           : await filterReachableUrls(secondBatch, 2000);
+      const reachableSecond =
+        resultType === "content"
+          ? rankDiscoveredContent(
+              reachableSecondRaw,
+              effectiveQuery,
+              resolvedIntent,
+              material,
+            )
+          : reachableSecondRaw;
 
       // Merge survivors from both batches, deduplicated by URL
       const merged = [...reachable];
@@ -1432,16 +1608,28 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
         return;
       }
 
+      const rankedMerged =
+        resultType === "content"
+          ? rankDiscoveredContent(
+              merged,
+              effectiveQuery,
+              resolvedIntent,
+              material,
+            )
+          : merged;
+
       if (process.env.NODE_ENV !== "test")
         discoverCache.set(cacheKey, {
           expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS,
-          items: merged.map((item) =>
+          items: rankedMerged.map((item) =>
             addProvenance(item, resultType !== "people"),
           ),
         });
       res.setHeader("X-Search-Cache", "MISS");
-      res.json(
-        merged.map((item) => addProvenance(item, resultType !== "people")),
+      await sendSearchResults(
+        rankedMerged.map((item) =>
+          addProvenance(item, resultType !== "people"),
+        ),
       );
     } catch (err) {
       console.error("Discover AI error:", err);
@@ -1451,7 +1639,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       const stale = discoverCache.get(cacheKey);
       if (stale?.items.length) {
         res.setHeader("X-Search-Cache", "STALE");
-        res.json(stale.items);
+        await sendSearchResults(stale.items);
         return;
       }
 
@@ -1477,8 +1665,218 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
   },
 );
 
-// ── POST /resources/prefetch, public ────────────────────────────────────────
+// ── POST /resources/prefetch, authenticated metadata enrichment ────────────
 // Must stay above /resources/:id
+
+type ResourceFormat =
+  "video" | "pdf" | "podcast" | "article" | "interactive" | "other";
+
+function detectResourceFormat(url: string): ResourceFormat {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.replace(/^www\./, "");
+    if (
+      [
+        "youtube.com",
+        "youtu.be",
+        "vimeo.com",
+        "loom.com",
+        "wistia.com",
+      ].includes(hostname)
+    )
+      return "video";
+    if (parsed.pathname.toLowerCase().endsWith(".pdf")) return "pdf";
+    if (
+      [
+        "podcasts.apple.com",
+        "open.spotify.com",
+        "soundcloud.com",
+        "anchor.fm",
+        "buzzsprout.com",
+      ].includes(hostname)
+    )
+      return "podcast";
+    if (
+      [
+        "kahoot.com",
+        "quizlet.com",
+        "desmos.com",
+        "phet.colorado.edu",
+        "scratch.mit.edu",
+      ].includes(hostname)
+    )
+      return "interactive";
+  } catch {
+    return "other";
+  }
+  return "article";
+}
+
+function youtubeVideoId(url: string) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "youtu.be")
+      return parsed.pathname.slice(1).split("?")[0] || null;
+    if (parsed.hostname.includes("youtube.com")) {
+      const queryId = parsed.searchParams.get("v");
+      if (queryId) return queryId;
+      return parsed.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/)?.[1] ?? null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function previewResponse(preview: ResourcePreview, format: ResourceFormat) {
+  return {
+    title: preview.previewTitle ?? "",
+    description: preview.previewDescription ?? "",
+    format,
+    thumbnailUrl: preview.previewImageUrl,
+    ...preview,
+  };
+}
+
+async function cachedResourcePreview(canonicalUrl: string) {
+  try {
+    const [cached] = await db
+      .select()
+      .from(resourcePreviewCacheTable)
+      .where(
+        and(
+          eq(resourcePreviewCacheTable.canonicalUrl, canonicalUrl),
+          gt(resourcePreviewCacheTable.expiresAt, new Date().toISOString()),
+        ),
+      )
+      .limit(1);
+    if (!cached) return null;
+    return normalizeResourcePreview({
+      title: cached.previewTitle,
+      description: cached.previewDescription,
+      imageUrl: cached.previewImageUrl,
+      author: cached.previewAuthor,
+      publisher: cached.previewPublisher,
+      publishedAt: cached.previewPublishedAt,
+      updatedAt: cached.previewUpdatedAt,
+      faviconUrl: cached.previewFaviconUrl,
+      source: cached.previewSource,
+      checkedAt: cached.previewCheckedAt,
+    });
+  } catch (error) {
+    logger.warn({ err: error }, "Resource preview cache read failed");
+    return null;
+  }
+}
+
+async function cacheResourcePreview(
+  canonicalUrl: string,
+  preview: ResourcePreview,
+) {
+  const expiresAt = new Date(
+    Date.now() +
+      (preview.previewMeaningful
+        ? 7 * 24 * 60 * 60 * 1000
+        : 24 * 60 * 60 * 1000),
+  ).toISOString();
+  const values = {
+    canonicalUrl,
+    previewTitle: preview.previewTitle,
+    previewDescription: preview.previewDescription,
+    previewImageUrl: preview.previewImageUrl,
+    previewAuthor: preview.previewAuthor,
+    previewPublisher: preview.previewPublisher,
+    previewPublishedAt: preview.previewPublishedAt,
+    previewUpdatedAt: preview.previewUpdatedAt,
+    previewFaviconUrl: preview.previewFaviconUrl,
+    previewSource: preview.previewSource,
+    previewCheckedAt: preview.previewCheckedAt,
+    expiresAt,
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    await db
+      .insert(resourcePreviewCacheTable)
+      .values(values)
+      .onConflictDoUpdate({
+        target: resourcePreviewCacheTable.canonicalUrl,
+        set: values,
+      });
+  } catch (error) {
+    logger.warn({ err: error }, "Resource preview cache write failed");
+  }
+}
+
+async function providerCatalogPreview(canonicalUrl: string) {
+  try {
+    const [catalog] = await db
+      .select({
+        title: catalogResourcesTable.title,
+        description: catalogResourcesTable.description,
+        imageUrl: catalogResourcesTable.thumbnailUrl,
+        author: catalogResourcesTable.author,
+        publisher: catalogResourcesTable.provider,
+        publishedAt: catalogResourcesTable.publishedAt,
+        updatedAt: catalogResourcesTable.lastSyncedAt,
+      })
+      .from(catalogResourcesTable)
+      .where(eq(catalogResourcesTable.canonicalUrl, canonicalUrl))
+      .limit(1);
+    return catalog
+      ? normalizeResourcePreview({
+          ...catalog,
+          source: "provider_api",
+        })
+      : null;
+  } catch (error) {
+    logger.warn({ err: error }, "Catalog preview lookup failed");
+    return null;
+  }
+}
+
+async function oembedResourcePreview(url: string) {
+  const parsed = new URL(url);
+  const host = parsed.hostname.toLowerCase();
+  const endpoint =
+    host === "youtu.be" || host === "youtube.com" || host === "www.youtube.com"
+      ? `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+      : host === "vimeo.com" || host === "www.vimeo.com"
+        ? `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`
+        : ["loom.com", "www.loom.com", "share.loom.com"].includes(host)
+          ? `https://www.loom.com/v1/oembed?url=${encodeURIComponent(url)}`
+          : null;
+  if (!endpoint) return null;
+
+  const response = await fetch(endpoint, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) return null;
+  const metadata = (await response.json()) as {
+    title?: unknown;
+    author_name?: unknown;
+    provider_name?: unknown;
+    thumbnail_url?: unknown;
+  };
+  const author =
+    typeof metadata.author_name === "string" ? metadata.author_name : null;
+  return normalizeResourcePreview({
+    title: typeof metadata.title === "string" ? metadata.title : null,
+    description: author ? `Video by ${author}.` : null,
+    imageUrl:
+      typeof metadata.thumbnail_url === "string"
+        ? metadata.thumbnail_url
+        : youtubeVideoId(url)
+          ? `https://img.youtube.com/vi/${youtubeVideoId(url)}/hqdefault.jpg`
+          : null,
+    author,
+    publisher:
+      typeof metadata.provider_name === "string"
+        ? metadata.provider_name
+        : parsed.hostname.replace(/^www\./, ""),
+    source: "oembed",
+  });
+}
 
 router.post(
   "/resources/prefetch",
@@ -1506,179 +1904,79 @@ router.post(
       return;
     }
 
-    // ── 1. Detect format heuristically from the URL ──────────────────────────
-    function detectFormat(
-      u: string,
-    ): "video" | "pdf" | "podcast" | "article" | "interactive" | "other" {
-      try {
-        const parsed = new URL(u);
-        const hostname = parsed.hostname.replace(/^www\./, "");
-        if (
-          [
-            "youtube.com",
-            "youtu.be",
-            "vimeo.com",
-            "loom.com",
-            "wistia.com",
-          ].includes(hostname)
-        )
-          return "video";
-        if (parsed.pathname.toLowerCase().endsWith(".pdf")) return "pdf";
-        if (
-          [
-            "podcasts.apple.com",
-            "open.spotify.com",
-            "soundcloud.com",
-            "anchor.fm",
-            "buzzsprout.com",
-          ].includes(hostname)
-        )
-          return "podcast";
-        if (
-          [
-            "kahoot.com",
-            "quizlet.com",
-            "desmos.com",
-            "phet.colorado.edu",
-            "scratch.mit.edu",
-          ].includes(hostname)
-        )
-          return "interactive";
-      } catch {
-        /* ignore */
-      }
-      return "article";
-    }
-
-    // ── 2. Extract YouTube video ID for thumbnail ────────────────────────────
-    function getYouTubeId(u: string): string | null {
-      try {
-        const p = new URL(u);
-        if (p.hostname === "youtu.be") return p.pathname.slice(1).split("?")[0];
-        if (p.hostname.includes("youtube.com")) {
-          const v = p.searchParams.get("v");
-          if (v) return v;
-          const m = p.pathname.match(/\/(?:embed|shorts)\/([^/?]+)/);
-          if (m) return m[1];
-        }
-      } catch {
-        /* ignore */
-      }
-      return null;
-    }
-
-    const heuristicFormat = detectFormat(url);
-    const ytId = getYouTubeId(url);
-    const ytThumbnail = ytId
-      ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-      : null;
-
-    // ── 3. Read publisher metadata directly, no AI credits ─────────────────
-    const decodeEntities = (value: string) =>
-      value
-        .replace(/&amp;/gi, "&")
-        .replace(/&quot;/gi, '"')
-        .replace(/&#39;|&apos;/gi, "'")
-        .replace(/&lt;/gi, "<")
-        .replace(/&gt;/gi, ">")
-        .replace(/\s+/g, " ")
-        .trim();
-    const metaContent = (html: string, key: string) => {
-      const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const patterns = [
-        new RegExp(
-          `<meta[^>]+(?:name|property)=["']${escaped}["'][^>]+content=["']([^"']*)["'][^>]*>`,
-          "i",
-        ),
-        new RegExp(
-          `<meta[^>]+content=["']([^"']*)["'][^>]+(?:name|property)=["']${escaped}["'][^>]*>`,
-          "i",
-        ),
-      ];
-      for (const pattern of patterns) {
-        const match = html.match(pattern);
-        if (match?.[1]) return decodeEntities(match[1]);
-      }
-      return "";
-    };
+    const heuristicFormat = detectResourceFormat(url);
+    const canonicalUrl = canonicalCatalogUrl(url);
     try {
-      if (ytId) {
-        const oembed = new URL("https://www.youtube.com/oembed");
-        oembed.searchParams.set("url", url);
-        oembed.searchParams.set("format", "json");
-        const response = await fetch(oembed, {
-          headers: { Accept: "application/json" },
-          signal: AbortSignal.timeout(5000),
-        });
-        if (response.ok) {
-          const metadata = (await response.json()) as {
-            title?: unknown;
-            author_name?: unknown;
-            thumbnail_url?: unknown;
-          };
-          const author =
-            typeof metadata.author_name === "string"
-              ? metadata.author_name.trim()
-              : "";
-          res.json({
-            title:
-              typeof metadata.title === "string"
-                ? metadata.title.trim().slice(0, 160)
-                : "",
-            description: author ? `Video by ${author}.` : "",
-            format: "video",
-            thumbnailUrl:
-              typeof metadata.thumbnail_url === "string"
-                ? metadata.thumbnail_url
-                : ytThumbnail,
-          });
-          return;
-        }
+      const cached = await cachedResourcePreview(canonicalUrl);
+      if (cached) {
+        res.setHeader("X-Preview-Cache", "HIT");
+        res.json(previewResponse(cached, heuristicFormat));
+        return;
       }
+
+      const catalogPreview = await providerCatalogPreview(canonicalUrl);
+      if (catalogPreview) {
+        await cacheResourcePreview(canonicalUrl, catalogPreview);
+        res.setHeader("X-Preview-Cache", "MISS");
+        res.json(previewResponse(catalogPreview, heuristicFormat));
+        return;
+      }
+
+      const oembedPreview = await oembedResourcePreview(url);
+      if (oembedPreview) {
+        await cacheResourcePreview(canonicalUrl, oembedPreview);
+        res.setHeader("X-Preview-Cache", "MISS");
+        res.json(previewResponse(oembedPreview, "video"));
+        return;
+      }
+
       if (heuristicFormat === "pdf") {
         const fileName = decodeURIComponent(
           new URL(url).pathname.split("/").pop() ?? "",
         )
           .replace(/\.pdf$/i, "")
           .replace(/[-_]+/g, " ");
-        res.json({
-          title: fileName.slice(0, 160),
-          description: "",
-          format: "pdf",
-          thumbnailUrl: null,
+        const preview = normalizeResourcePreview({
+          title: fileName,
+          publisher: new URL(url).hostname.replace(/^www\./, ""),
+          source: "extracted",
         });
+        await cacheResourcePreview(canonicalUrl, preview);
+        res.setHeader("X-Preview-Cache", "MISS");
+        res.json(previewResponse(preview, "pdf"));
         return;
       }
       const page = await fetchPublicText(url);
-      const titleMatch = page.text.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-      const title = decodeEntities(
-        metaContent(page.text, "og:title") || titleMatch?.[1] || "",
-      ).slice(0, 160);
-      const description = decodeEntities(
-        metaContent(page.text, "og:description") ||
-          metaContent(page.text, "description"),
-      ).slice(0, 300);
-      const rawImage = metaContent(page.text, "og:image");
-      let thumbnailUrl = ytThumbnail;
-      if (rawImage) {
-        try {
-          const candidate = new URL(rawImage, page.url);
-          thumbnailUrl = ["http:", "https:"].includes(candidate.protocol)
-            ? candidate.toString()
-            : ytThumbnail;
-        } catch {
-          /* keep heuristic */
-        }
-      }
-      res.json({ title, description, format: heuristicFormat, thumbnailUrl });
+      const extracted = extractHtmlResourcePreview(page.text, page.url);
+      const preview = extracted.previewPublisher
+        ? extracted
+        : normalizeResourcePreview({
+            title: extracted.previewTitle,
+            description: extracted.previewDescription,
+            imageUrl: extracted.previewImageUrl,
+            author: extracted.previewAuthor,
+            publisher: new URL(page.url).hostname.replace(/^www\./, ""),
+            publishedAt: extracted.previewPublishedAt,
+            updatedAt: extracted.previewUpdatedAt,
+            faviconUrl: extracted.previewFaviconUrl,
+            source: extracted.previewSource,
+            checkedAt: extracted.previewCheckedAt,
+          });
+      await cacheResourcePreview(canonicalUrl, preview);
+      res.setHeader("X-Preview-Cache", "MISS");
+      res.json(previewResponse(preview, heuristicFormat));
     } catch (err) {
       console.warn("Resource metadata prefetch failed:", err);
-      res.json({
-        title: "",
-        description: "",
-        format: heuristicFormat,
-        thumbnailUrl: ytThumbnail,
+      const fallback = normalizeResourcePreview({
+        imageUrl: youtubeVideoId(url)
+          ? `https://img.youtube.com/vi/${youtubeVideoId(url)}/hqdefault.jpg`
+          : null,
+        publisher: new URL(url).hostname.replace(/^www\./, ""),
+        source: youtubeVideoId(url) ? "provider_api" : "none",
       });
+      await cacheResourcePreview(canonicalUrl, fallback);
+      res.setHeader("X-Preview-Cache", "MISS");
+      res.json(previewResponse(fallback, heuristicFormat));
     }
   },
 );
@@ -1698,7 +1996,11 @@ router.post(
     }
     // Verification is always computed server-side, it is absent from
     // CreateResourceBody, so a client can never assert its own status.
-    const verification = await classifySubmission(parsed.data.url, userId, accountRole);
+    const verification = await classifySubmission(
+      parsed.data.url,
+      userId,
+      accountRole,
+    );
     const [resource] = await db
       .insert(resourcesTable)
       .values({
@@ -1708,6 +2010,12 @@ router.post(
         ...verification,
       })
       .returning();
+    await recordWorkflowEvent({
+      userId,
+      event: "resource_saved",
+      resourceId: resource.id,
+      context: { surface: "library", workspaceRole: userRole },
+    });
     res.status(201).json(
       CreateResourceResponse.parse({
         ...resource,
@@ -1789,7 +2097,12 @@ router.get("/resources/:id", async (req, res): Promise<void> => {
     res.status(400).json({ error: params.error.message });
     return;
   }
-  const resource = await resourceWithRating(params.data.id);
+  const resource = await resourceWithRating(
+    params.data.id,
+    visibilityForRequest(req),
+    optionalViewerId(req),
+    isAdminRequest(req),
+  );
   if (!resource) {
     res.status(404).json({ error: "Resource not found" });
     return;
@@ -1826,7 +2139,7 @@ router.patch("/resources/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Resource not found" });
     return;
   }
-  const withRating = await resourceWithRating(resource.id);
+  const withRating = await resourceWithRating(resource.id, undefined, userId);
   res.json(UpdateResourceResponse.parse(withRating));
 });
 
@@ -1866,9 +2179,13 @@ router.delete(
         .where(eq(resourcesTable.id, params.data.id));
     } catch (err) {
       if ((err as { code?: string } | null)?.code === "23503") {
-        logger.error({ err, resourceId: params.data.id }, "Resource delete blocked by a foreign key");
+        logger.error(
+          { err, resourceId: params.data.id },
+          "Resource delete blocked by a foreign key",
+        );
         res.status(409).json({
-          error: "This resource is still referenced elsewhere and could not be deleted.",
+          error:
+            "This resource is still referenced elsewhere and could not be deleted.",
         });
         return;
       }

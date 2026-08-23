@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile screen role: defines the Expo Router Profile screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -35,6 +39,8 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
+import { ErrorState } from '@/components/ErrorState';
 import { PremiumCard } from '@/components/PremiumCard';
 
 const SUBJECT_SUGGESTIONS = [
@@ -66,8 +72,10 @@ function completeness(user: {
 
 /** Calendar integration section for mobile profile */
 function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
-  const { data: calStatus, isLoading } = useGetCalendarStatus();
-  const { data: icalData } = useGetCalendarIcalUrl();
+  const statusQuery = useGetCalendarStatus();
+  const icalQuery = useGetCalendarIcalUrl();
+  const calStatus = statusQuery.data;
+  const icalData = icalQuery.data;
   const disconnectGoogle = useDisconnectCalendarGoogle();
   const queryClient = useQueryClient();
 
@@ -110,12 +118,27 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
     );
   }
 
-  if (isLoading) {
+  if (statusQuery.isLoading) {
     return (
       <View style={[{ backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius, borderWidth: 1, padding: 16, gap: 8 }]}>
         <View style={{ height: 16, width: 120, backgroundColor: colors.border, borderRadius: 4 }} />
         <View style={{ height: 40, backgroundColor: colors.border, borderRadius: 4 }} />
       </View>
+    );
+  }
+
+  // "Not configured" is a real server value. A failed status request must be
+  // shown separately so an outage never changes the meaning of the account UI.
+  if (statusQuery.isError && calStatus === undefined) {
+    return (
+      <ErrorState
+        variant="banner"
+        error={statusQuery.error}
+        retrying={statusQuery.isFetching}
+        onRetry={() => {
+          void statusQuery.refetch();
+        }}
+      />
     );
   }
 
@@ -173,22 +196,37 @@ function CalendarSection({ colors }: { colors: ReturnType<typeof useColors> }) {
         <Text style={{ fontSize: 12, color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
           Subscribe to your schedule in Apple Calendar, Outlook, or any calendar app.
         </Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity
-            onPress={handleCopyIcalUrl}
-            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, paddingVertical: 8 }}
-          >
-            <Feather name="copy" size={14} color={colors.primary} />
-            <Text style={{ fontSize: 13, color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}>Copy URL</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleShareIcalUrl}
-            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 8 }}
-          >
-            <Feather name="share-2" size={14} color="#fff" />
-            <Text style={{ fontSize: 13, color: '#fff', fontFamily: colors.fontFamily.sansMedium }}>Share URL</Text>
-          </TouchableOpacity>
-        </View>
+        {icalQuery.isError && icalData === undefined ? (
+          <ErrorState
+            variant="banner"
+            error={icalQuery.error}
+            retrying={icalQuery.isFetching}
+            onRetry={() => {
+              void icalQuery.refetch();
+            }}
+          />
+        ) : icalQuery.isLoading ? (
+          <Skeleton width="100%" height={38} borderRadius={8} />
+        ) : (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              disabled={!icalUrl}
+              onPress={handleCopyIcalUrl}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, paddingVertical: 8, opacity: icalUrl ? 1 : 0.5 }}
+            >
+              <Feather name="copy" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 13, color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}>Copy URL</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              disabled={!icalUrl}
+              onPress={handleShareIcalUrl}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.primary, borderRadius: colors.radius, paddingVertical: 8, opacity: icalUrl ? 1 : 0.5 }}
+            >
+              <Feather name="share-2" size={14} color="#fff" />
+              <Text style={{ fontSize: 13, color: '#fff', fontFamily: colors.fontFamily.sansMedium }}>Share URL</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -198,6 +236,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { logout, updateToken } = useAuth();
+  const { restart: restartOnboarding } = useOnboarding();
   const deleteAccount = useDeleteMe();
 
   function confirmDeleteAccount() {
@@ -235,7 +274,8 @@ export default function ProfileScreen() {
   }
   const queryClient = useQueryClient();
 
-  const { data: me, isLoading } = useGetMe();
+  const meQuery = useGetMe();
+  const me = meQuery.data;
   const updateMe = useUpdateMe();
   const uploadAvatar = useUploadAvatar();
   const switchRoleMutation = useSwitchRole();
@@ -345,7 +385,7 @@ export default function ProfileScreen() {
     setForm((p) => ({ ...p, subjects: p.subjects.filter((x) => x !== s) }));
   }
 
-  if (isLoading) {
+  if (meQuery.isLoading) {
     return (
       <View style={[styles.flex, { backgroundColor: colors.background, paddingTop: insets.top + webTopPad + 16 }]}>
         <View style={{ padding: 16, gap: 12 }}>
@@ -353,6 +393,32 @@ export default function ProfileScreen() {
           <Skeleton width="100%" height={100} />
           <Skeleton width="100%" height={80} />
         </View>
+      </View>
+    );
+  }
+
+  // Profile fields drive role controls and account writes. Do not render a
+  // plausible-looking blank profile when the authenticated read failed.
+  if (meQuery.isError && me === undefined) {
+    return (
+      <View style={[styles.centeredState, { backgroundColor: colors.background }]}>
+        <ErrorState
+          error={meQuery.error}
+          retrying={meQuery.isFetching}
+          onRetry={() => {
+            void meQuery.refetch();
+          }}
+        />
+      </View>
+    );
+  }
+
+  if (!me) {
+    return (
+      <View style={[styles.centeredState, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
+          Profile data is unavailable. Sign in again and retry.
+        </Text>
       </View>
     );
   }
@@ -665,6 +731,37 @@ export default function ProfileScreen() {
       </Text>
       <PremiumCard />
 
+      {/* Replay changes shared onboarding state; RootLayoutNav owns the route
+          transition so the same flow works after a cold-start first run. */}
+      <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+        GUIDE
+      </Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          activeOpacity={0.7}
+          onPress={() => {
+            void restartOnboarding();
+          }}
+          style={styles.row}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.primary + '15', borderRadius: colors.radius - 2 }]}>
+              <Feather name="compass" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                Replay guided first task
+              </Text>
+              <Text style={[styles.rowDescription, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
+                Practice the Find → Verify → Save workflow with a real topic
+              </Text>
+            </View>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+      </View>
+
       {/* Role switcher */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
         ACCOUNT
@@ -786,6 +883,7 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  centeredState: { flex: 1, justifyContent: 'center', paddingHorizontal: 20 },
   content: { paddingHorizontal: 16, gap: 12 },
   // Title / edit row
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },

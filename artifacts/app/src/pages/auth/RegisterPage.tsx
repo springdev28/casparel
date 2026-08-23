@@ -1,5 +1,9 @@
+/**
+ * @fileOverview Web screen role: renders the Register Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, useSearch, Link } from "wouter";
 import { Eye, EyeOff } from "lucide-react";
 import BrandIcon from "../../components/BrandIcon";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -16,13 +20,20 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useRegister } from "@workspace/api-client-react";
 import { AuthLanguageSelect } from "../../components/AuthLanguageSelect";
 import { describeAuthError, useAuthLanguage } from "../../lib/auth-locale";
+import {
+  authRouteWithNext,
+  getSafeAuthNext,
+} from "../../lib/auth-redirect";
 import { notifySessionChanged } from "../../lib/session";
 import { useSystemDark } from "../../hooks/use-system-dark";
+import { FIRST_RUN_RESOURCE_PATH } from "../../lib/resource-onboarding";
 
 const TOKEN_KEY = "schoolar_token";
 
 export default function RegisterPage() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const next = getSafeAuthNext(search);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,9 +53,9 @@ export default function RegisterPage() {
       // Tell the route guards a session now exists; localStorage writes do not
       // notify the tab that made them.
       notifySessionChanged();
-      // New accounts land on the guided tour first; it marks tutorialSeen and
-      // moves on to the dashboard when finished or skipped.
-      setLocation("/tutorial");
+      // Start with a real learning need. The product tour remains available
+      // from Settings for people who want it.
+      setLocation(next ?? FIRST_RUN_RESOURCE_PATH);
     } catch (err: unknown) {
       toast({
         title: copy.registrationFailed,
@@ -159,7 +170,7 @@ export default function RegisterPage() {
             <p className="mt-4 text-center text-sm text-muted-foreground">
               {copy.hasAccount}{" "}
               <Link
-                href="/auth/login"
+                href={authRouteWithNext("/auth/login", next)}
                 className="text-primary-text font-medium hover:underline"
                 data-testid="login-link"
               >

@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Web support role: configures or validates the Generate Seo part of the Vite/React application.
+ * System connection: participates in browser development, build, quality checks, or deployment.
+ */
+/**
  * Generates public/robots.txt and public/sitemap.xml before `vite build`.
  *
  * A resource-discovery product has to be crawlable, but the app is a

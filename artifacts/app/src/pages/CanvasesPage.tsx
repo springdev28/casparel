@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Canvases Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { formatDistanceToNow } from "date-fns";
@@ -14,6 +18,8 @@ import {
   Share2,
   Trash2,
   Users,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@workspace/edu-ds/components/ui/card";
@@ -43,8 +49,15 @@ import {
   SelectValue,
 } from "@workspace/edu-ds/components/ui/select";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
-import { useGetMe, useListClasses, UserRole } from "@workspace/api-client-react";
-import { canvasRequest, type SchoolarCanvas } from "../lib/canvas-api";
+import {
+  createCanvas as createCanvasApi,
+  deleteCanvas,
+  listCanvases,
+  useGetMe,
+  useListClasses,
+  UserRole,
+} from "@workspace/api-client-react";
+import type { SchoolarCanvas } from "../lib/canvas-api";
 
 export default function CanvasesPage({
   classIdOverride,
@@ -61,6 +74,7 @@ export default function CanvasesPage({
       : new URLSearchParams(routeSearch).get("classId");
   const [canvases, setCanvases] = useState<SchoolarCanvas[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
@@ -77,9 +91,12 @@ export default function CanvasesPage({
   );
 
   async function load() {
+    setLoading(true);
+    setLoadFailed(false);
     try {
-      setCanvases(await canvasRequest<SchoolarCanvas[]>("/canvases"));
+      setCanvases(await listCanvases());
     } catch (error) {
+      setLoadFailed(true);
       toast({
         title: "Could not load canvases",
         description: error instanceof Error ? error.message : "Try again",
@@ -99,14 +116,11 @@ export default function CanvasesPage({
     if (!title.trim()) return;
     setCreating(true);
     try {
-      const canvas = await canvasRequest<SchoolarCanvas>("/canvases", {
-        method: "POST",
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          classId: classId === "personal" ? null : Number(classId),
-          classAccess,
-        }),
+      const canvas = await createCanvasApi({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        classId: classId === "personal" ? null : Number(classId),
+        classAccess,
       });
       setCreateOpen(false);
       setLocation(`/canvases/${canvas.id}`);
@@ -124,7 +138,7 @@ export default function CanvasesPage({
   async function deleteCanvasFromCard(canvas: SchoolarCanvas) {
     if (!window.confirm(`Delete “${canvas.title}”? This cannot be undone.`)) return;
     try {
-      await canvasRequest(`/canvases/${canvas.id}`, { method: "DELETE" });
+      await deleteCanvas(canvas.id);
       setCanvases((current) => current.filter((item) => item.id !== canvas.id));
       toast({ title: "Canvas deleted" });
     } catch (error) {
@@ -137,6 +151,7 @@ export default function CanvasesPage({
   }
 
   const personal = canvases.filter((canvas) => canvas.classId == null);
+  // An embedded class view reuses the collection screen but narrows its cards locally.
   const classCanvases = canvases.filter((canvas) => canvas.classId != null && (!requestedClassId || String(canvas.classId) === requestedClassId));
   const hasVisibleCanvases = requestedClassId
     ? classCanvases.length > 0
@@ -195,8 +210,30 @@ export default function CanvasesPage({
         <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 size-4" /> New canvas</Button>
       </header>
 
+      {loadFailed && canvases.length > 0 ? (
+        <Card className="border-amber-500/30 bg-amber-500/5" data-testid="canvases-refresh-error">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+            <span>Your saved canvases are shown, but the latest update failed.</span>
+            <Button size="sm" variant="outline" onClick={() => void load()}>
+              <RefreshCw className="mr-2 size-4" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {loading ? (
         <div className="flex min-h-52 items-center justify-center"><Loader2 className="size-6 animate-spin text-primary-text" /></div>
+      ) : loadFailed && canvases.length === 0 ? (
+        <Card className="border-destructive/30" data-testid="canvases-load-error">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertTriangle className="mb-3 size-9 text-destructive-text" />
+            <h2 className="font-semibold">Canvases could not be loaded</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Your canvas collection has not been reported as empty.</p>
+            <Button className="mt-4" variant="outline" onClick={() => void load()}>
+              <RefreshCw className="mr-2 size-4" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
       ) : !hasVisibleCanvases ? (
         <section className="border-y py-16 text-center">
           <LayoutDashboard className="mx-auto mb-4 size-10 text-muted-foreground" />

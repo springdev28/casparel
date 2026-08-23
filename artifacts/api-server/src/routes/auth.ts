@@ -1,7 +1,10 @@
+/**
+ * @fileOverview API role: implements the Auth HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import { eq, and, or, ilike, inArray, ne, sql, desc } from "drizzle-orm";
 import multer from "multer";
-import { z } from "zod/v4";
 import {
   db,
   pool,
@@ -40,17 +43,21 @@ import {
   ReportUserParams,
   ReportUserBody,
   ReportUserResponse,
+  GetUserPreferencesResponse,
+  UpdateUserPreferencesBody,
+  UpdateUserPreferencesResponse,
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import { getAccountEntitlements } from "../lib/entitlements";
 import { publicUserColumns } from "../lib/userColumns";
-import { publicResourceColumns } from "../lib/resourceColumns";
+import { resourceColumnsForViewer } from "../lib/resourceColumns";
 import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
+import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 
 const PRESET_AVATARS: Record<
   string,
@@ -140,60 +147,6 @@ function detectRasterImageMime(
 
 const router: IRouter = Router();
 
-const hexColor = z.string().regex(/^#[0-9a-f]{6}$/i);
-const userPreferencesPatch = z
-  .object({
-    language: z.enum(["en", "es", "fr", "de", "pt", "tr"]).optional(),
-    interfaceColors: z
-      .object({
-        background: hexColor,
-        surface: hexColor,
-        primary: hexColor,
-        accent: hexColor,
-      })
-      .nullable()
-      .optional(),
-    ambientStyle: z
-      .enum(["off", "net", "globe", "halo", "cells", "rings", "topology"])
-      .optional(),
-    ambientIntensity: z.number().min(0.5).max(2).optional(),
-    readNotificationIds: z
-      .array(z.number().int().positive())
-      .max(500)
-      .optional(),
-    dashboardGoalIds: z
-      .record(z.string(), z.number().int().positive())
-      .optional(),
-    continueStudying: z
-      .record(z.string(), z.array(z.number().int().positive()).max(6))
-      .optional(),
-    pendingCheckIns: z
-      .record(
-        z.string(),
-        z.object({
-          concept: z.string().trim().min(1).max(300),
-          prompt: z.string().trim().min(1).max(600),
-        }),
-      )
-      .optional(),
-    searchHistory: z
-      .array(
-        z.object({
-          query: z.string().trim().min(1).max(300),
-          searchedAt: z.iso.datetime(),
-        }),
-      )
-      .max(12)
-      .optional(),
-    resourceSearchState: z
-      .record(z.string(), z.unknown())
-      .nullable()
-      .optional(),
-    allowMessageRequests: z.boolean().optional(),
-    tutorialSeen: z.boolean().optional(),
-  })
-  .strict();
-
 function defaultUserPreferences(userId: number) {
   return {
     userId,
@@ -213,6 +166,25 @@ function defaultUserPreferences(userId: number) {
   };
 }
 
+/**
+ * Older accounts may still contain one of the four auth-page-only locales.
+ * Treat those values as unset so the signed-in application never claims a
+ * language it cannot render across all routes.
+ */
+function preferencesResponse(
+  userId: number,
+  preferences?: Record<string, unknown>,
+) {
+  const merged = { ...defaultUserPreferences(userId), ...preferences };
+  return {
+    ...merged,
+    language:
+      merged.language === "en" || merged.language === "tr"
+        ? merged.language
+        : null,
+  };
+}
+
 router.get(
   "/users/me/preferences",
   requireAuth,
@@ -222,7 +194,11 @@ router.get(
       .select()
       .from(userPreferencesTable)
       .where(eq(userPreferencesTable.userId, userId));
-    res.json(preferences ?? defaultUserPreferences(userId));
+    res.json(
+      GetUserPreferencesResponse.parse(
+        preferencesResponse(userId, preferences),
+      ),
+    );
   },
 );
 
@@ -236,7 +212,7 @@ router.patch(
       res.status(413).json({ error: "Preferences payload is too large" });
       return;
     }
-    const parsed = userPreferencesPatch.safeParse(req.body);
+    const parsed = UpdateUserPreferencesBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
       return;
@@ -249,7 +225,11 @@ router.patch(
         set: { ...parsed.data, updatedAt: new Date().toISOString() },
       })
       .returning();
-    res.json(preferences);
+    res.json(
+      UpdateUserPreferencesResponse.parse(
+        preferencesResponse(userId, preferences),
+      ),
+    );
   },
 );
 
@@ -284,6 +264,12 @@ router.post(
       .insert(usersTable)
       .values({ email, passwordHash, name, role })
       .returning(publicUserColumns);
+    await recordWorkflowEvent({
+      userId: user.id,
+      event: "account_registered",
+      context: { workspaceRole: "student" },
+      onceEver: true,
+    });
     const token = issueToken(user.id, user.role, user.activeRole);
     res.status(201).json(RegisterResponse.parse({ user, token }));
   },
@@ -518,19 +504,9 @@ router.patch(
       .set(
         accountRole === "admin"
           ? { activeRole: parsed.data.role }
-          : {
-              role: parsed.data.role,
-              activeRole: parsed.data.role,
-              gradeOrDept: null,
-              // Self-service role changes must drop account verification.
-              // Without this, anyone could self-promote to teacher, get
-              // verified, switch back, and keep verification, which would
-              // make every verified submitter's auto-publish trivially
-              // forgeable.
-              teacherVerified: false,
-              verifiedAt: null,
-              verifiedById: null,
-            },
+          : parsed.data.role === "teacher"
+            ? { activeRole: "teacher", educatorEnabled: true }
+            : { activeRole: "student" },
       )
       .where(eq(usersTable.id, userId))
       .returning(publicUserColumns);
@@ -1001,7 +977,7 @@ router.get(
     const [resources, lists] = await Promise.all([
       db
         .select({
-          ...publicResourceColumns,
+          ...resourceColumnsForViewer(userId, isAdmin),
           avgRating: sql<number>`coalesce((select avg(rating) from reviews where resource_id = resources.id), 0)`,
           reviewCount: sql<number>`cast((select count(*) from reviews where resource_id = resources.id) as int)`,
         })

@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DiscoveredResourceFormat } from './discoveredResourceFormat';
+import type { DiscoveredResourceMaterial } from './discoveredResourceMaterial';
+import type { DiscoveredResourcePreviewAccessType } from './discoveredResourcePreviewAccessType';
+import type { DiscoveredResourcePreviewSource } from './discoveredResourcePreviewSource';
 import type { DiscoveredResourceProvenanceLevel } from './discoveredResourceProvenanceLevel';
 
 export interface DiscoveredResource {
@@ -14,12 +17,35 @@ export interface DiscoveredResource {
   description: string;
   format: DiscoveredResourceFormat;
   source: string;
+  material?: DiscoveredResourceMaterial;
   /** @nullable */
   thumbnailUrl?: string | null;
   /** @nullable */
   subject?: string | null;
   /** @nullable */
   gradeLevel?: string | null;
+  /** @nullable */
+  previewTitle?: string | null;
+  /** @nullable */
+  previewDescription?: string | null;
+  /** @nullable */
+  previewImageUrl?: string | null;
+  /** @nullable */
+  previewAuthor?: string | null;
+  /** @nullable */
+  previewPublisher?: string | null;
+  /** @nullable */
+  previewPublishedAt?: string | null;
+  /** @nullable */
+  previewUpdatedAt?: string | null;
+  /** @nullable */
+  previewFaviconUrl?: string | null;
+  previewSource?: DiscoveredResourcePreviewSource;
+  previewCheckedAt?: string;
+  previewMeaningful?: boolean;
+  /** @nullable */
+  previewLicense?: string | null;
+  previewAccessType?: DiscoveredResourcePreviewAccessType;
   provenanceLevel?: DiscoveredResourceProvenanceLevel;
   provenanceSignals?: string[];
   linkChecked?: boolean;

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable App Shell component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import {
   lazy,
   ReactNode,
@@ -72,7 +76,11 @@ import ThemeCustomizer, { applyDefaultColors } from "./ThemeCustomizer";
 import { AuthLanguageSelect } from "./AuthLanguageSelect";
 import { readSessionClaims, clearSession } from "../lib/session";
 import { usePlan } from "@/lib/use-plan";
-import { useAuthLanguage } from "../lib/auth-locale";
+import {
+  INTERFACE_LANGUAGES,
+  isInterfaceLanguage,
+  useAuthLanguage,
+} from "../lib/auth-locale";
 import {
   Popover,
   PopoverContent,
@@ -395,7 +403,11 @@ export default function AppShell({ children }: AppShellProps) {
     const migrationPatch: UserPreferencesPatch = {};
     if (accountPreferences.language && accountPreferences.language !== language)
       setLanguage(accountPreferences.language);
-    else if (!accountPreferences.language) migrationPatch.language = language;
+    else if (!accountPreferences.language) {
+      const supportedLanguage = isInterfaceLanguage(language) ? language : "en";
+      if (supportedLanguage !== language) setLanguage(supportedLanguage);
+      migrationPatch.language = supportedLanguage;
+    }
     if (accountPreferences.ambientStyle) {
       setAmbientStyle(accountPreferences.ambientStyle);
       localStorage.setItem(
@@ -957,7 +969,9 @@ export default function AppShell({ children }: AppShellProps) {
               <AuthLanguageSelect
                 language={language}
                 label={copy.language}
+                languages={INTERFACE_LANGUAGES}
                 onChange={(next) => {
+                  if (!isInterfaceLanguage(next)) return;
                   setLanguage(next);
                   void updateAccountPreferences
                     .mutateAsync({ language: next })
@@ -1103,7 +1117,9 @@ export default function AppShell({ children }: AppShellProps) {
                     <AuthLanguageSelect
                       language={language}
                       label={copy.language}
+                      languages={INTERFACE_LANGUAGES}
                       onChange={(next) => {
+                        if (!isInterfaceLanguage(next)) return;
                         setLanguage(next);
                         void updateAccountPreferences
                           .mutateAsync({ language: next })

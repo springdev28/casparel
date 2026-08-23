@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Client integration role: implements Index for browser/React access to OpenAI-backed capabilities.
+ * System connection: exposes reusable client hooks/utilities while keeping provider-specific behavior outside product pages.
+ */
+/**
  * Voice chat client utilities for Replit AI Integrations.
  * 
  * Usage:

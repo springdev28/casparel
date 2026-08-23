@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DiscoverResourcesFormat } from './discoverResourcesFormat';
+import type { DiscoverResourcesIntent } from './discoverResourcesIntent';
 import type { DiscoverResourcesLanguage } from './discoverResourcesLanguage';
+import type { DiscoverResourcesMaterial } from './discoverResourcesMaterial';
 import type { DiscoverResourcesResultType } from './discoverResourcesResultType';
 
 export type DiscoverResourcesParams = {
@@ -30,4 +32,12 @@ page?: number;
  * Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
  */
 resultType?: DiscoverResourcesResultType;
+/**
+ * Infer learning intent from the query or apply an explicit intent
+ */
+intent?: DiscoverResourcesIntent;
+/**
+ * Restrict content discovery to a pedagogical material type
+ */
+material?: DiscoverResourcesMaterial;
 };

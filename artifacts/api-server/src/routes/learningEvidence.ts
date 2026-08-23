@@ -1,10 +1,15 @@
+/**
+ * @fileOverview API role: implements the Learning Evidence HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   db,
   classesTable,
   classMembersTable,
   learningEvidenceTable,
+  learningGoalsTable,
 } from "@workspace/db";
 import {
   CreateLearningEvidenceBody,
@@ -19,6 +24,23 @@ import {
 import { contentLimiter } from "../lib/limiters";
 
 const router: IRouter = Router();
+
+function matchesEvidenceIdentity(
+  evidence: {
+    learningGoalId: number | null;
+    pathStepId: string | null;
+    concept: string;
+  },
+  input: {
+    learningGoalId?: number | null;
+    pathStepId?: string | null;
+    concept: string;
+  },
+) {
+  return evidence.learningGoalId === (input.learningGoalId ?? null) &&
+    evidence.pathStepId === (input.pathStepId ?? null) &&
+    evidence.concept === input.concept;
+}
 
 router.get(
   "/learning-evidence",
@@ -45,6 +67,51 @@ router.post(
       res.status(400).json({ error: body.error.message });
       return;
     }
+    if (body.data.pathStepId && !body.data.learningGoalId) {
+      res.status(400).json({ error: "A path step requires a learning goal" });
+      return;
+    }
+    if (body.data.learningGoalId !== null && body.data.learningGoalId !== undefined) {
+      const [ownedGoal] = await db
+        .select({ id: learningGoalsTable.id, pathSteps: learningGoalsTable.pathSteps })
+        .from(learningGoalsTable)
+        .where(
+          and(
+            eq(learningGoalsTable.id, body.data.learningGoalId),
+            eq(learningGoalsTable.userId, userId),
+          ),
+        );
+      if (!ownedGoal) {
+        res.status(403).json({ error: "Learning goal access required" });
+        return;
+      }
+      if (
+        body.data.pathStepId &&
+        !ownedGoal.pathSteps.some((step) => step.id === body.data.pathStepId)
+      ) {
+        res.status(400).json({ error: "Learning path step not found" });
+        return;
+      }
+    }
+    if (body.data.clientSubmissionId) {
+      const [existing] = await db
+        .select()
+        .from(learningEvidenceTable)
+        .where(
+          and(
+            eq(learningEvidenceTable.userId, userId),
+            eq(learningEvidenceTable.clientSubmissionId, body.data.clientSubmissionId),
+          ),
+        );
+      if (existing) {
+        if (!matchesEvidenceIdentity(existing, body.data)) {
+          res.status(409).json({ error: "Submission key already belongs to different evidence" });
+          return;
+        }
+        res.json(CreateLearningEvidenceResponse.parse(existing));
+        return;
+      }
+    }
     const [evidence] = await db
       .insert(learningEvidenceTable)
       .values({
@@ -52,11 +119,45 @@ router.post(
         userId,
         resourceId: body.data.resourceId ?? null,
         learningGoalId: body.data.learningGoalId ?? null,
+        pathStepId: body.data.pathStepId ?? null,
+        studyDurationSeconds: body.data.studyDurationSeconds ?? null,
+        clientSubmissionId: body.data.clientSubmissionId ?? null,
         reflection: body.data.reflection ?? null,
         misconception: body.data.misconception ?? null,
       })
+      .onConflictDoNothing({
+        target: [learningEvidenceTable.userId, learningEvidenceTable.clientSubmissionId],
+      })
       .returning();
-    res.status(201).json(CreateLearningEvidenceResponse.parse(evidence));
+    if (evidence) {
+      res.status(201).json(CreateLearningEvidenceResponse.parse(evidence));
+      return;
+    }
+
+    // A concurrent retry can win after the initial lookup. Read the canonical
+    // record so both callers receive the same evidence instead of a false error.
+    if (!body.data.clientSubmissionId) {
+      res.status(409).json({ error: "Evidence could not be recorded; please retry" });
+      return;
+    }
+    const [concurrentEvidence] = await db
+      .select()
+      .from(learningEvidenceTable)
+      .where(
+        and(
+          eq(learningEvidenceTable.userId, userId),
+          eq(learningEvidenceTable.clientSubmissionId, body.data.clientSubmissionId),
+        ),
+      );
+    if (concurrentEvidence) {
+      if (!matchesEvidenceIdentity(concurrentEvidence, body.data)) {
+        res.status(409).json({ error: "Submission key already belongs to different evidence" });
+        return;
+      }
+      res.json(CreateLearningEvidenceResponse.parse(concurrentEvidence));
+      return;
+    }
+    res.status(409).json({ error: "Evidence could not be recorded; retry with the same submission" });
   },
 );
 
@@ -64,9 +165,9 @@ router.get(
   "/learning-signals",
   requireAuth,
   async (req, res): Promise<void> => {
-    const { userId, userRole } = req as AuthenticatedRequest;
-    if (userRole !== "teacher") {
-      res.status(403).json({ error: "Teacher role required" });
+    const { userId, educatorEnabled } = req as AuthenticatedRequest;
+    if (!educatorEnabled) {
+      res.status(403).json({ error: "Educator capability is required" });
       return;
     }
     const teacherClasses = await db

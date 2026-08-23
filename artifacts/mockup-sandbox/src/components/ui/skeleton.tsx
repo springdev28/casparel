@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Skeleton.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 import { cn } from "@/lib/utils"
 
 function Skeleton({

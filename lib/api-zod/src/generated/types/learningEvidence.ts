@@ -13,6 +13,16 @@ export interface LearningEvidence {
   resourceId?: number | null;
   /** @nullable */
   learningGoalId?: number | null;
+  /** @nullable */
+  pathStepId?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 28800
+     * @nullable
+     */
+  studyDurationSeconds?: number | null;
+  /** @nullable */
+  clientSubmissionId?: string | null;
   concept: string;
   /**
      * @minimum 1

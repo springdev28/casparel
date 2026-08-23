@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Index HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import authRouter from "./auth";
@@ -20,9 +24,14 @@ import learningWorkflowRouter from "./learningWorkflow";
 import canvasesRouter from "./canvases";
 import directMessagesRouter from "./directMessages";
 import webhooksRouter from "./webhooks";
+import analyticsRouter from "./analytics";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
+// Routers declare complete /api-relative paths, so this registry mounts each at
+// the same root. Keeping the list explicit makes the runtime surface auditable
+// and lets apiContractCoverage.test.ts compare it with OpenAPI.
 router.use(healthRouter);
 router.use(authRouter);
 router.use(classesRouter);
@@ -44,5 +53,7 @@ router.use(learningWorkflowRouter);
 router.use(canvasesRouter);
 router.use(directMessagesRouter);
 router.use(webhooksRouter);
+router.use(analyticsRouter);
+router.use(billingRouter);
 
 export default router;

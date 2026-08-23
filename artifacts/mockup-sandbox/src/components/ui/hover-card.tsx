@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Hover Card.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 import * as React from "react"
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card"
 

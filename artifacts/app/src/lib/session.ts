@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web domain role: centralizes Session state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
 const TOKEN_KEY = "schoolar_token";
 const SESSION_EVENT = "schoolar-session-change";
 

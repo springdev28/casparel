@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Spinner in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Row } from '../parts';

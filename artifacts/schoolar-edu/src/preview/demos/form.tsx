@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Form in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { useForm } from 'react-hook-form';
 import { Button } from '../../components/ui/button';
 import {

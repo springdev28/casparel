@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Ai Cost Controls logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { RequestHandler } from "express";
 import { pool } from "@workspace/db";

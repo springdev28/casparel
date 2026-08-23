@@ -1,6 +1,28 @@
+/**
+ * @fileOverview API role: implements the Learning Workflow HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import {
+  CreateClassAssignmentBody,
+  CreateClassAssignmentParams,
+  CreateClassAssignmentResponse,
+  DeleteClassAssignmentParams,
+  DismissWorkflowContinuationParams,
+  GetClassAssignmentAnalyticsParams,
+  GetClassAssignmentAnalyticsResponse,
+  GetResourceWorkflowParams,
+  GetResourceWorkflowResponse,
+  ListClassAssignmentsParams,
+  ListClassAssignmentsResponse,
+  ListContinueWorkflowsResponse,
+  ListTodayAssignmentsResponse,
+  UpdateAssignmentCompletionBody,
+  UpdateAssignmentCompletionParams,
+  UpdateAssignmentCompletionResponse,
+} from "@workspace/api-zod";
 import {
   assignmentCompletionsTable,
   classAssignmentsTable,
@@ -42,11 +64,12 @@ router.get(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId, userRole, accountRole } = req as AuthenticatedRequest;
-    const resourceId = parseId(req.params.id);
-    if (!resourceId) {
+    const params = GetResourceWorkflowParams.safeParse(req.params);
+    if (!params.success) {
       res.status(400).json({ error: "Invalid resource" });
       return;
     }
+    const resourceId = params.data.id;
     const [resource] = await db
       .select({ id: resourcesTable.id })
       .from(resourcesTable)
@@ -145,7 +168,7 @@ router.get(
     const assignmentRequired = assignmentRequiredForRole(userRole, accountRole);
     const nextAction = nextResourceWorkflowAction(steps, assignmentRequired);
 
-    res.json({
+    res.json(GetResourceWorkflowResponse.parse({
       resourceId,
       steps,
       nextAction,
@@ -159,7 +182,7 @@ router.get(
       assignment: assignment
         ? { id: assignment.assignmentId, title: assignment.assignmentTitle }
         : null,
-    });
+    }));
   },
 );
 
@@ -171,11 +194,12 @@ router.delete(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
-    const resourceId = Number(req.params.resourceId);
-    if (!Number.isInteger(resourceId) || resourceId <= 0) {
+    const params = DismissWorkflowContinuationParams.safeParse(req.params);
+    if (!params.success) {
       res.status(400).json({ error: "Invalid resource id" });
       return;
     }
+    const resourceId = params.data.resourceId;
     await db
       .delete(workflowEventsTable)
       .where(
@@ -334,7 +358,7 @@ router.get(
       )
       .slice(0, 6);
 
-    res.json(result);
+    res.json(ListContinueWorkflowsResponse.parse(result));
   },
 );
 
@@ -411,10 +435,19 @@ router.post(
       res.status(404).json({ error: "Class code not found" });
       return;
     }
-    await db
+    const joined = await db
       .insert(classMembersTable)
       .values({ classId: cls.id, userId, role: "student" })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ userId: classMembersTable.userId });
+    if (joined.length) {
+      await recordWorkflowEvent({
+        userId,
+        event: "class_joined",
+        classId: cls.id,
+        context: { method: "join_code" },
+      });
+    }
     res.json({ id: cls.id, name: cls.name });
   },
 );
@@ -473,16 +506,24 @@ router.get(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
-    const classId = parseId(req.params.id);
+    const params = ListClassAssignmentsParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid class" });
+      return;
+    }
+    const classId = params.data.id;
     if (
-      !classId ||
-      (!(await isClassMember(classId, userId)) &&
-        !(await isClassTeacher(classId, userId)))
+      !(await isClassMember(classId, userId)) &&
+      !(await isClassTeacher(classId, userId))
     ) {
       res.status(403).json({ error: "Class access required" });
       return;
     }
-    res.json(await assignmentRows(classId, userId));
+    res.json(
+      ListClassAssignmentsResponse.parse(
+        await assignmentRows(classId, userId),
+      ),
+    );
   },
 );
 
@@ -492,30 +533,37 @@ router.post(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
-    const classId = parseId(req.params.id);
-    if (!classId || !(await isClassTeacher(classId, userId))) {
+    const params = CreateClassAssignmentParams.safeParse(req.params);
+    const body = CreateClassAssignmentBody.safeParse(req.body);
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "Invalid assignment" });
+      return;
+    }
+    const classId = params.data.id;
+    if (!(await isClassTeacher(classId, userId))) {
       res.status(403).json({ error: "Only the class teacher can assign work" });
       return;
     }
-    const title =
-      typeof req.body?.title === "string" ? req.body.title.trim() : "";
-    const instructions =
-      typeof req.body?.instructions === "string"
-        ? req.body.instructions.trim().slice(0, 2000)
-        : "";
-    const resourceId = parseId(String(req.body?.resourceId ?? ""));
-    const activityId = parseId(String(req.body?.activityId ?? ""));
-    const dueAt =
-      typeof req.body?.dueAt === "string" &&
-      !Number.isNaN(Date.parse(req.body.dueAt))
-        ? new Date(req.body.dueAt).toISOString()
-        : null;
-    if (title.length < 2 || title.length > 180 || (resourceId && activityId)) {
+    const title = body.data.title.trim();
+    const instructions = body.data.instructions?.trim() ?? "";
+    const resourceId = body.data.resourceId ?? null;
+    const activityId = body.data.activityId ?? null;
+    const dueAtTimestamp = body.data.dueAt
+      ? Date.parse(body.data.dueAt)
+      : null;
+    if (
+      title.length < 2 ||
+      (resourceId !== null && activityId !== null) ||
+      (dueAtTimestamp !== null && Number.isNaN(dueAtTimestamp))
+    ) {
       res
         .status(400)
         .json({ error: "Add a title and choose at most one linked item" });
       return;
     }
+    const dueAt = dueAtTimestamp === null
+      ? null
+      : new Date(dueAtTimestamp).toISOString();
     if (resourceId) {
       const [resource] = await db
         .select({ id: resourcesTable.id })
@@ -553,15 +601,27 @@ router.post(
         dueAt,
       })
       .returning();
+    const trackedResourceId =
+      resourceId ?? (await workflowResourceForActivity(activityId));
     await recordWorkflowEvent({
       userId,
       event: "assignment_created",
-      resourceId: resourceId ?? (await workflowResourceForActivity(activityId)),
+      resourceId: trackedResourceId,
       activityId,
       classId,
       assignmentId: created.id,
     });
-    res.status(201).json(created);
+    await recordWorkflowEvent({
+      userId,
+      event: "teacher_first_class_activated",
+      resourceId: trackedResourceId,
+      activityId,
+      classId,
+      assignmentId: created.id,
+      context: { action: "assignment_created" },
+      onceEver: true,
+    });
+    res.status(201).json(CreateClassAssignmentResponse.parse(created));
   },
 );
 
@@ -570,9 +630,13 @@ router.delete(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
-    const classId = parseId(req.params.classId);
-    const assignmentId = parseId(req.params.assignmentId);
-    if (!classId || !assignmentId || !(await isClassTeacher(classId, userId))) {
+    const params = DeleteClassAssignmentParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid assignment" });
+      return;
+    }
+    const { classId, assignmentId } = params.data;
+    if (!(await isClassTeacher(classId, userId))) {
       res
         .status(403)
         .json({ error: "Only the class teacher can delete assignments" });
@@ -600,18 +664,22 @@ router.patch(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
-    const assignmentId = parseId(req.params.id);
-    const [assignment] = assignmentId
-      ? await db
-          .select()
-          .from(classAssignmentsTable)
-          .where(eq(classAssignmentsTable.id, assignmentId))
-      : [];
+    const params = UpdateAssignmentCompletionParams.safeParse(req.params);
+    const body = UpdateAssignmentCompletionBody.safeParse(req.body ?? {});
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "Invalid completion request" });
+      return;
+    }
+    const assignmentId = params.data.id;
+    const [assignment] = await db
+      .select()
+      .from(classAssignmentsTable)
+      .where(eq(classAssignmentsTable.id, assignmentId));
     if (!assignment || !(await isClassMember(assignment.classId, userId))) {
       res.status(403).json({ error: "Assignment access required" });
       return;
     }
-    const completed = req.body?.completed !== false;
+    const { completed } = body.data;
     if (completed) {
       await db
         .insert(assignmentCompletionsTable)
@@ -637,7 +705,7 @@ router.patch(
           ),
         );
     }
-    res.json({ completed });
+    res.json(UpdateAssignmentCompletionResponse.parse({ completed }));
   },
 );
 
@@ -651,7 +719,7 @@ router.get(
       .from(classMembersTable)
       .where(eq(classMembersTable.userId, userId));
     if (!memberships.length) {
-      res.json([]);
+      res.json(ListTodayAssignmentsResponse.parse([]));
       return;
     }
     const classIds = memberships.map((row) => row.classId);
@@ -684,12 +752,12 @@ router.get(
         asc(classAssignmentsTable.dueAt),
         asc(classAssignmentsTable.createdAt),
       );
-    res.json(
+    res.json(ListTodayAssignmentsResponse.parse(
       assignments.map((row) => ({
         ...row,
         completed: Boolean(row.completedAt),
       })),
-    );
+    ));
   },
 );
 
@@ -698,8 +766,13 @@ router.get(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
-    const classId = parseId(req.params.id);
-    if (!classId || !(await isClassTeacher(classId, userId))) {
+    const params = GetClassAssignmentAnalyticsParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid class" });
+      return;
+    }
+    const classId = params.data.id;
+    if (!(await isClassTeacher(classId, userId))) {
       res
         .status(403)
         .json({ error: "Only the class teacher can view analytics" });
@@ -729,7 +802,7 @@ router.get(
       .where(eq(classAssignmentsTable.classId, classId))
       .groupBy(classAssignmentsTable.id)
       .orderBy(asc(classAssignmentsTable.dueAt));
-    res.json({
+    res.json(GetClassAssignmentAnalyticsResponse.parse({
       studentCount,
       assignments: assignments.map((item) => ({
         ...item,
@@ -737,7 +810,7 @@ router.get(
           ? Math.round((item.completions / studentCount) * 100)
           : 0,
       })),
-    });
+    }));
   },
 );
 

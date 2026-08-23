@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API support role: configures or operates the Vitest.Config part of the backend package.
+ * System connection: participates in the API package's development, build, validation, or deployment lifecycle.
+ */
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 

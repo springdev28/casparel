@@ -2,7 +2,7 @@
 
 Casparel is a learning workspace for students and teachers: discover and evaluate educational resources, organise study goals and schedules, collaborate in classes, and keep evidence of progress. It ships as a React web app, an Expo mobile app, and an Electron desktop shell backed by an Express/Postgres API.
 
-Start with the [product handbook](docs/product-handbook.md). The [2026 audit report](docs/audit-report-2026-08-15.md) records the current quality baseline, and the separate [Shipaton readiness review](docs/shipaton-2026-readiness.md) covers competition eligibility, win strategy, and roadmap.
+Start with the [codebase guide](docs/codebase-guide.md) for the end-to-end system model and the generated [source file index](docs/source-file-index.md) for the role of every repository file. The [product handbook](docs/product-handbook.md) explains product behavior, the [2026 audit report](docs/audit-report-2026-08-15.md) records the quality baseline, and the separate [Shipaton readiness review](docs/shipaton-2026-readiness.md) covers competition eligibility, win strategy, and roadmap.
 
 ## Local development
 
@@ -31,6 +31,8 @@ Use `pnpm run loadtest:smoke` for a read-only smoke profile. Higher-load profile
 
 ## Documentation
 
+- [Codebase architecture and data-flow guide](docs/codebase-guide.md)
+- [Every-file source index](docs/source-file-index.md)
 - [Product and engineering handbook](docs/product-handbook.md)
 - [Audit, testing, and performance report](docs/audit-report-2026-08-15.md)
 - [Shipaton 2026 readiness and roadmap](docs/shipaton-2026-readiness.md)

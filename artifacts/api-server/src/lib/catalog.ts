@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Catalog logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 import { and, asc, desc, eq, ilike, not, or, sql, type SQL } from "drizzle-orm";
 import {
   catalogResourcesTable,
@@ -6,6 +10,13 @@ import {
   type InsertCatalogResource,
 } from "@workspace/db";
 import { meaningfulSearchTerms } from "./searchTerms";
+import {
+  inferSearchMaterial,
+  rankCatalogItems,
+  type SearchIntentOption,
+  type SearchMaterial,
+  type SearchMaterialOption,
+} from "./searchRanking";
 
 type ResourceFormat = InsertCatalogResource["format"];
 export type SourceCredibility =
@@ -27,6 +38,8 @@ export type CatalogSearchOptions = {
   accessType?: string;
   license?: string;
   sourceQuality?: string;
+  intent?: SearchIntentOption;
+  material?: SearchMaterialOption;
 };
 
 export type CatalogSearchItem = {
@@ -38,7 +51,15 @@ export type CatalogSearchItem = {
   thumbnailUrl: string | null;
   subject: string | null;
   gradeLevel: string | null;
+  previewAuthor: string | null;
+  previewPublisher: string | null;
+  previewPublishedAt: string | null;
+  previewUpdatedAt: string | null;
+  previewLicense: string | null;
+  previewAccessType: "free" | "unknown";
+  previewSource: "provider_api";
   sourceCredibility?: SourceCredibility;
+  material: SearchMaterial;
 };
 
 export function canonicalCatalogUrl(rawUrl: string) {
@@ -1045,13 +1066,17 @@ export async function searchCatalog(
   const relevance = query
     ? sql<number>`case when lower(${catalogResourcesTable.title}) = lower(${query}) then 0 when ${catalogResourcesTable.title} ilike ${`%${query}%`} then 1 when ${catalogResourcesTable.subject} ilike ${`%${query}%`} then 2 else 3 end`
     : sql<number>`3`;
+  const candidateLimit =
+    options.resultType === "source"
+      ? limit * 4
+      : Math.min(200, Math.max(limit * 6, 48));
   const rows = await db
     .select()
     .from(catalogResourcesTable)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(asc(relevance), desc(catalogResourcesTable.lastSyncedAt))
-    .limit(options.resultType === "source" ? limit * 4 : limit)
-    .offset((page - 1) * limit);
+    .limit(candidateLimit)
+    .offset(options.resultType === "source" ? (page - 1) * limit : 0);
 
   if (options.resultType === "source") {
     const seen = new Set<string>();
@@ -1069,10 +1094,23 @@ export async function searchCatalog(
         thumbnailUrl: null,
         subject: row.subject,
         gradeLevel: row.gradeLevel,
+        previewAuthor: row.author,
+        previewPublisher: row.provider,
+        previewPublishedAt: row.publishedAt,
+        previewUpdatedAt: row.lastSyncedAt,
+        previewLicense: row.license,
+        previewAccessType: readAccessType(row.metadata),
+        previewSource: "provider_api" as const,
         sourceCredibility: readSourceCredibility(row.metadata),
+        material: "repository" as const,
       }));
   }
-  return rows.map((row) => ({
+  const rankedRows = rankCatalogItems(rows, {
+    query: options.query,
+    intent: options.intent,
+    material: options.material,
+  }).slice((page - 1) * limit, page * limit);
+  return rankedRows.map((row) => ({
     title: row.title,
     url: row.canonicalUrl,
     description:
@@ -1082,8 +1120,20 @@ export async function searchCatalog(
     thumbnailUrl: row.thumbnailUrl,
     subject: row.subject,
     gradeLevel: row.gradeLevel,
+    previewAuthor: row.author,
+    previewPublisher: row.provider,
+    previewPublishedAt: row.publishedAt,
+    previewUpdatedAt: row.lastSyncedAt,
+    previewLicense: row.license,
+    previewAccessType: readAccessType(row.metadata),
+    previewSource: "provider_api" as const,
     sourceCredibility: readSourceCredibility(row.metadata),
+    material: inferSearchMaterial(row),
   }));
+}
+
+function readAccessType(metadata: Record<string, unknown>): "free" | "unknown" {
+  return metadata.accessType === "free" ? "free" : "unknown";
 }
 
 function readSourceCredibility(

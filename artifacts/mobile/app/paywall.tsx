@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile screen role: defines the Expo Router Paywall screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,12 +23,13 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { usePurchases } from '@/contexts/PurchasesContext';
 import { purchasesSupported, tierForPackage, type RCPackage } from '@/utils/revenuecat';
+import { recordProductEvent } from '@workspace/api-client-react';
 
 const BENEFITS: { icon: string; title: string; body: string }[] = [
   {
     icon: 'book-open',
     title: 'Free',
-    body: 'Library, classes, schedules, citations, and manual seating. No AI features.',
+    body: 'Core library, classes, schedules, and citations. No AI features.',
   },
   {
     icon: 'sparkles',
@@ -34,7 +39,7 @@ const BENEFITS: { icon: string; title: string; body: string }[] = [
   {
     icon: 'award',
     title: 'Pro',
-    body: 'Unlimited account-level AI plus explainable seating-plan suggestions for teachers.',
+    body: 'Unlimited account-level AI. Educators can use explainable seating-plan suggestions on the web.',
   },
 ];
 
@@ -85,11 +90,34 @@ export default function PaywallScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { ready, available, tier, isPlus, isPro, packages, purchase, restore } = usePurchases();
-  const upgradePackages = isPlus ? packages.filter((pkg) => tierForPackage(pkg) === 'pro') : packages;
+  const {
+    ready,
+    available,
+    identityReady,
+    tier,
+    isPlus,
+    isPro,
+    packages,
+    purchase,
+    restore,
+    refresh,
+  } = usePurchases();
+  // Offerings are remote configuration. Ignore unrecognised products instead
+  // of guessing their tier and accidentally selling them as Casparel Pro.
+  const recognisedPackages = packages.filter((pkg) => tierForPackage(pkg) !== null);
+  const upgradePackages = isPlus
+    ? recognisedPackages.filter((pkg) => tierForPackage(pkg) === 'pro')
+    : recognisedPackages;
 
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void recordProductEvent({
+      event: 'paywall_viewed',
+      context: { surface: 'mobile_paywall', plan: tier },
+    }).catch(() => undefined);
+  }, [tier]);
 
   // Default the selection to the annual package when offerings arrive, else the first.
   useEffect(() => {
@@ -126,14 +154,32 @@ export default function PaywallScreen() {
   async function handlePurchase() {
     const pkg = upgradePackages.find((p) => p.identifier === selected);
     if (!pkg) return;
+    const purchasedTier = tierForPackage(pkg);
+    if (!purchasedTier) return;
+    void recordProductEvent({
+      event: 'purchase_started',
+      context: {
+        surface: 'mobile_paywall',
+        plan: purchasedTier,
+      },
+    }).catch(() => undefined);
     setBusy(true);
     const result = await purchase(pkg);
     setBusy(false);
     if (result === 'success') {
-      const purchasedTier = tierForPackage(pkg);
       Alert.alert(`Welcome to Casparel ${purchasedTier === 'pro' ? 'Pro' : 'Plus'}`, 'Your subscription features are now unlocked. Thank you!', [
         { text: 'Great', onPress: close },
       ]);
+    } else if (result === 'sync_pending') {
+      Alert.alert(
+        'Purchase complete',
+        'The store confirmed your purchase, but Casparel is still syncing access. Please use Restore purchases in a moment if the plan does not appear.',
+      );
+    } else if (result === 'identity_not_ready') {
+      Alert.alert(
+        'Account connection needed',
+        'Casparel could not securely connect the store to your signed-in account. Check your connection and try again.',
+      );
     } else if (result === 'error') {
       Alert.alert('Purchase failed', 'Something went wrong. Please try again.');
     } else if (result === 'unsupported') {
@@ -144,13 +190,32 @@ export default function PaywallScreen() {
 
   async function handleRestore() {
     setBusy(true);
-    const ok = await restore();
+    const result = await restore();
     setBusy(false);
-    Alert.alert(
-      ok ? 'Purchases restored' : 'Nothing to restore',
-      ok ? 'Your paid plan is active again.' : "We couldn't find a previous purchase for this account.",
-      ok ? [{ text: 'Great', onPress: close }] : undefined,
-    );
+    if (result === 'restored') {
+      Alert.alert('Purchases restored', 'Your paid plan is active again.', [
+        { text: 'Great', onPress: close },
+      ]);
+    } else if (result === 'not_found') {
+      Alert.alert(
+        'Nothing to restore',
+        "We couldn't find a previous purchase for this account.",
+      );
+    } else if (result === 'sync_pending') {
+      Alert.alert(
+        'Purchase found',
+        'The store found your subscription, but Casparel is still syncing access. Please try Restore purchases again in a moment.',
+      );
+    } else if (result === 'identity_not_ready') {
+      Alert.alert(
+        'Account connection needed',
+        'Casparel could not securely connect the store to your signed-in account. Check your connection and try again.',
+      );
+    } else if (result === 'unsupported') {
+      Alert.alert('Not available here', 'Purchase restoration is only available in the mobile app.');
+    } else {
+      Alert.alert('Restore unavailable', 'Purchases could not be restored right now. Please try again.');
+    }
   }
 
   return (
@@ -272,6 +337,25 @@ export default function PaywallScreen() {
           <View style={styles.loading}>
             <ActivityIndicator color={colors.primary} />
           </View>
+        ) : available && !identityReady ? (
+          <View style={[styles.notice, { borderColor: colors.border, borderRadius: colors.radius }]}>
+            <Text
+              style={[
+                styles.noticeText,
+                {
+                  color: colors.mutedForeground,
+                  fontFamily: colors.fontFamily.sans,
+                },
+              ]}
+            >
+              Casparel could not securely connect purchases to your signed-in account.
+            </Text>
+            <View style={{ marginTop: 12 }}>
+              <Button size="sm" variant="outline" onPress={() => void refresh()}>
+                Retry connection
+              </Button>
+            </View>
+          </View>
         ) : !available || upgradePackages.length === 0 ? (
           <View style={[styles.notice, { borderColor: colors.border, borderRadius: colors.radius }]}>
             <Text
@@ -330,9 +414,10 @@ export default function PaywallScreen() {
         {tier === 'free' && purchasesSupported ? (
           <Pressable
             onPress={handleRestore}
-            disabled={busy}
+            disabled={busy || !identityReady}
             accessibilityRole="button"
             accessibilityLabel="Restore previous purchases"
+            accessibilityState={{ disabled: busy || !identityReady }}
             style={styles.restore}
           >
             <Text
@@ -395,6 +480,7 @@ function PackageOption({
 }) {
   const colors = useColors();
   const packageTier = tierForPackage(pkg);
+  if (!packageTier) return null;
   const period =
     pkg.packageType?.toUpperCase() === 'ANNUAL'
       ? 'Billed yearly'

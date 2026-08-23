@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Slider in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { Slider } from '../../components/ui/slider';
 import { Stack } from '../parts';
 

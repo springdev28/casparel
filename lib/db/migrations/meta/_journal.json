@@ -330,6 +330,62 @@
       "when": 1789372800004,
       "tag": "0046_list_delete_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1789372800005,
+      "tag": "0047_aberrant_lilith",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1789372800006,
+      "tag": "0048_absent_polaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1789372800007,
+      "tag": "0049_fuzzy_maestro",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1789372800008,
+      "tag": "0050_easy_living_lightning",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1789372800009,
+      "tag": "0051_high_enchantress",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1789372800010,
+      "tag": "0052_peaceful_talisman",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1789372800011,
+      "tag": "0053_sharp_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1789372800012,
+      "tag": "0054_free_gabe_jones",
+      "breakpoints": true
     }
   ]
 }

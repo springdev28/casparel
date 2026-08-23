@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web orchestration role: defines public/protected routes, lazy page boundaries, and application-wide shells.
+ * System connection: rendered by main.tsx; connects session state, generated API hooks, pages, and the shared design system.
+ */
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import {
   MutationCache,
@@ -20,6 +24,8 @@ import {
   Switch,
   Router as WouterRouter,
   Redirect,
+  useLocation,
+  useSearch,
 } from "wouter";
 import {
   getGetMeQueryKey,
@@ -32,8 +38,10 @@ import {
 import { applyLastSavedColors } from "./components/ThemeCustomizer";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
+import { authRouteWithNext } from "./lib/auth-redirect";
 import { clearSession, readSessionToken } from "./lib/session";
 import { useSessionClaims } from "./lib/use-session";
+import { installClientTelemetry } from "./lib/client-telemetry";
 
 const AppShell = lazy(() => import("./components/AppShell"));
 const UiTranslationBridge = lazy(
@@ -53,6 +61,7 @@ const ClassesPage = lazy(() => import("./pages/ClassesPage"));
 const ClassDetailPage = lazy(() => import("./pages/ClassDetailPage"));
 const ListsPage = lazy(() => import("./pages/ListsPage"));
 const ListDetailPage = lazy(() => import("./pages/ListDetailPage"));
+const PublicListPage = lazy(() => import("./pages/PublicListPage"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const UserProfilePage = lazy(() => import("./pages/UserProfilePage"));
@@ -278,11 +287,17 @@ function PrivateRoute({
 }: {
   component: React.ComponentType;
 }) {
+  const [location] = useLocation();
+  const search = useSearch();
   // Claims, not the raw token: a token that is present but past its expiry is
   // not a session. Reading localStorage directly also never re-rendered when
   // the token was cleared, which is what kept expired users inside the app.
   const claims = useSessionClaims();
-  if (!claims) return <Redirect to="/auth/login" />;
+  if (!claims) {
+    const query = search ? `?${search}` : "";
+    const next = `${location}${query}${window.location.hash}`;
+    return <Redirect to={authRouteWithNext("/auth/login", next)} />;
+  }
   return (
     <AppShell>
       <Component />
@@ -416,6 +431,9 @@ function Router() {
       <Route path="/classes">
         {() => <PrivateRoute component={ClassesPage} />}
       </Route>
+      <Route path="/lists/shared/:token">
+        {() => <PublicRoute component={PublicListPage} />}
+      </Route>
       <Route path="/lists/:id">
         {() => <PrivateRoute component={ListDetailPage} />}
       </Route>
@@ -442,6 +460,7 @@ function Router() {
 function App() {
   useEffect(() => {
     setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
+    return installClientTelemetry();
   }, []);
 
   return (

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Authz logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Authorization helpers, ownership and membership checks.
  * All helpers return true if the check passes, false otherwise.
  * Route handlers should respond 403 when a check fails.
@@ -17,30 +21,37 @@ import {
 } from "@workspace/db";
 
 /**
- * User is the teacher who created this class AND their current DB role is "teacher".
- * Checks the live account role first, a user who has switched to student cannot
- * perform teacher actions on their existing classes, even with an old teacher JWT.
+ * User has durable educator capability and is either the class owner or a
+ * contextual teacher member. activeRole is intentionally ignored because it
+ * is only the current UI workspace, not authorization truth.
  */
 export async function isClassTeacher(classId: number, userId: number): Promise<boolean> {
-  // Verify live DB role so downgraded accounts cannot retain teacher privileges.
   const [user] = await db
-    .select({ role: usersTable.role, activeRole: usersTable.activeRole })
+    .select({ role: usersTable.role, educatorEnabled: usersTable.educatorEnabled })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   if (!user) return false;
-  // Administrators can inspect and manage every class, including private
-  // member notes, even when previewing the student or teacher workspace.
   if (user.role === "admin") return true;
-  const effectiveRole = user.activeRole ?? user.role;
-  // Teachers retain management access only to classes they own and only while
-  // using the teacher workspace.
-  if (user.role !== "teacher" || effectiveRole !== "teacher") return false;
+  if (!user.educatorEnabled) return false;
 
   const [cls] = await db
-    .select()
+    .select({ teacherId: classesTable.teacherId })
     .from(classesTable)
-    .where(and(eq(classesTable.id, classId), eq(classesTable.teacherId, userId)));
-  return !!cls;
+    .where(eq(classesTable.id, classId));
+  if (!cls) return false;
+  if (cls.teacherId === userId) return true;
+
+  const [membership] = await db
+    .select({ role: classMembersTable.role })
+    .from(classMembersTable)
+    .where(
+      and(
+        eq(classMembersTable.classId, classId),
+        eq(classMembersTable.userId, userId),
+        eq(classMembersTable.role, "teacher"),
+      ),
+    );
+  return !!membership;
 }
 
 /** User is any member of this class (including teacher) */

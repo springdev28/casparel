@@ -1,21 +1,17 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Today Assignments component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useEffect, useState } from "react";
 import { Bell, BookOpen, Check, Clock3 } from "lucide-react";
 import { useLocation } from "wouter";
+import {
+  listTodayAssignments,
+  type TodayAssignment,
+} from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Card, CardContent } from "@workspace/edu-ds/components/ui/card";
-
-type TodayAssignment = {
-  id: number;
-  classId: number;
-  className: string;
-  title: string;
-  instructions: string | null;
-  resourceId: number | null;
-  activityId: number | null;
-  dueAt: string | null;
-  completed: boolean;
-};
 
 export function TodayAssignments() {
   const [, setLocation] = useLocation();
@@ -26,13 +22,8 @@ export function TodayAssignments() {
       Notification.permission === "granted",
   );
   useEffect(() => {
-    fetch("/api/assignments/today", {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("schoolar_token")}`,
-      },
-    })
-      .then((response) => (response.ok ? response.json() : []))
-      .then((rows) => setItems(rows as TodayAssignment[]))
+    listTodayAssignments()
+      .then(setItems)
       .catch(() => setItems([]));
   }, []);
   const pending = items.filter((item) => !item.completed).slice(0, 5);

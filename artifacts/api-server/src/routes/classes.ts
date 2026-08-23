@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Classes HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import { z } from "zod/v4";
 import { eq, sql, and, max, asc, desc } from "drizzle-orm";
@@ -42,6 +46,7 @@ import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAu
 import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher, isClassMember } from "../lib/authz";
 import { getAccountEntitlements } from "../lib/entitlements";
+import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 
 async function resourceWithRating(id: number) {
   const [r] = await db
@@ -216,15 +221,12 @@ router.get("/classes", requireAuth, async (req, res): Promise<void> => {
   res.json(ListClassesResponse.parse(classes.filter(Boolean)));
 });
 
-// POST /classes, teacher role required (verified against live DB, not token claim)
+// POST /classes, durable educator capability required. Workspace selection is
+// presentation state and must not grant or remove authorization.
 router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
-  const [currentUser] = await db
-    .select({ role: usersTable.role, activeRole: usersTable.activeRole })
-    .from(usersTable)
-    .where(eq(usersTable.id, userId));
-  if (!currentUser || !["teacher", "admin"].includes(currentUser.role) || (currentUser.activeRole ?? currentUser.role) !== "teacher") {
-    res.status(403).json({ error: "Only teachers can create classes" });
+  const { userId, educatorEnabled, accountRole } = req as AuthenticatedRequest;
+  if (!educatorEnabled && accountRole !== "admin") {
+    res.status(403).json({ error: "Educator capability is required to create classes" });
     return;
   }
   const parsed = CreateClassBody.safeParse(req.body);
@@ -242,6 +244,12 @@ router.post("/classes", contentLimiter, requireAuth, async (req, res): Promise<v
     .onConflictDoNothing();
   // Auto-create the shared "Class Resources" list for this class
   await db.insert(resourceListsTable).values({ name: "Class Resources", ownerId: userId, classId: cls.id, workspaceRole: "teacher" });
+  await recordWorkflowEvent({
+    userId,
+    event: "class_created",
+    classId: cls.id,
+    context: { workspaceRole: "teacher" },
+  });
   res.status(201).json(CreateClassResponse.parse({ ...cls, memberCount: 1 }));
 });
 
@@ -496,6 +504,21 @@ router.post(
       workspaceRole: role,
       message: `Invitation to join ${cls?.name ?? "a class"}. Accept or decline it from notifications.`,
     });
+    await Promise.all([
+      recordWorkflowEvent({
+        userId,
+        event: "invite_shared",
+        classId,
+        context: { channel: "in_app" },
+      }),
+      recordWorkflowEvent({
+        userId,
+        event: "teacher_first_class_activated",
+        classId,
+        context: { action: "invite_shared" },
+        onceEver: true,
+      }),
+    ]);
     res.status(201).json(await invitationView(invitation.id));
   },
 );
@@ -954,6 +977,24 @@ router.post("/classes/:id/assign", contentLimiter, requireAuth, async (req, res)
     const students = await db.select({ userId: classMembersTable.userId }).from(classMembersTable).where(and(eq(classMembersTable.classId, params.data.id), eq(classMembersTable.role, "student")));
     if (students.length) await db.insert(activityLogTable).values(students.map((student) => ({ userId: student.userId, type: "class" as const, workspaceRole: "student" as const, message: "A new class resource was added: “" + resource.title + "”." })));
   }
+
+  await Promise.all([
+    recordWorkflowEvent({
+      userId,
+      event: "class_shared",
+      resourceId: resource.id,
+      classId: params.data.id,
+      context: { action: "resource_assigned" },
+    }),
+    recordWorkflowEvent({
+      userId,
+      event: "teacher_first_class_activated",
+      resourceId: resource.id,
+      classId: params.data.id,
+      context: { action: "resource_assigned" },
+      onceEver: true,
+    }),
+  ]);
 
   res.json(AssignResourceToClassResponse.parse({ listId: list.id }));
 });

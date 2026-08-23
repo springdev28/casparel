@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile support role: configures or implements Build for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');

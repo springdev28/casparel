@@ -13,6 +13,8 @@ import type { LearningPathStep } from './learningPathStep';
 export interface LearningGoal {
   id: number;
   userId: number;
+  /** @nullable */
+  sourceListId?: number | null;
   title: string;
   subject: string;
   /** @nullable */

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Require Auth.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for requireAuth's allowlisted-admin promotion:
  *  • an allowlisted email on a non-admin row is promoted on any request
  *  • a non-allowlisted email is never promoted

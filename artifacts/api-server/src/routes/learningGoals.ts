@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Learning Goals HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -20,6 +24,7 @@ import {
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher } from "../lib/authz";
+import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 
 const router: IRouter = Router();
 function dateString(
@@ -278,6 +283,15 @@ router.post(
         pathSteps: initialPath(body.data.title, body.data.subject),
       })
       .returning();
+    await recordWorkflowEvent({
+      userId,
+      event: "goal_created",
+      context: {
+        workspaceRole: userRole,
+        level: body.data.level,
+        preferredFormatCount: body.data.preferredFormats?.length ?? 0,
+      },
+    });
     res.status(201).json(CreateLearningGoalResponse.parse(goal));
   },
 );
@@ -312,6 +326,18 @@ router.patch(
     if (!goal) {
       res.status(404).json({ error: "Learning goal not found" });
       return;
+    }
+    const completedStepCount =
+      body.data.pathSteps?.filter((step) => step.completed).length ?? 0;
+    if (completedStepCount > 0) {
+      await recordWorkflowEvent({
+        userId,
+        event: "goal_step_completed",
+        context: {
+          completedStepCount,
+          workspaceRole: userRole,
+        },
+      });
     }
     res.json(UpdateLearningGoalResponse.parse(goal));
   },

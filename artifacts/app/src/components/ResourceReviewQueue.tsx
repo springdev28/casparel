@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+/**
+ * @fileOverview Web UI role: provides the reusable Resource Review Queue component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
+import { useState } from "react";
+import {
+  useListAdminResourceReviewQueue,
+  useUpdateAdminResourceVerification,
+} from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
   Card,
@@ -15,44 +23,8 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-
-interface QueueItem {
-  id: number;
-  title: string;
-  url: string;
-  description: string | null;
-  format: string;
-  subject: string;
-  gradeLevel: string;
-  createdAt: string;
-  verificationStatus: "unverified" | "verified" | "rejected";
-  submittedByName: string | null;
-  submittedByEmail: string | null;
-  submittedByRole: string | null;
-  submitterVerified: boolean | null;
-}
-
-function apiUrl(path: string) {
-  return import.meta.env.BASE_URL.replace(/\/$/, "") + "/api" + path;
-}
-
-async function adminRequest(path: string, init?: RequestInit) {
-  const response = await fetch(apiUrl(path), {
-    ...init,
-    headers: {
-      Authorization: "Bearer " + localStorage.getItem("schoolar_token"),
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    throw new Error(body?.error || "Administrator action failed");
-  }
-  return response.status === 204 ? null : response.json();
-}
+import { getApiError } from "../lib/api-error";
+import { LoadFailure } from "./LoadFailure";
 
 function daysWaiting(createdAt: string) {
   const days = Math.floor(
@@ -62,35 +34,19 @@ function daysWaiting(createdAt: string) {
 }
 
 export function ResourceReviewQueue() {
-  const [items, setItems] = useState<QueueItem[]>([]);
-  const [pendingTotal, setPendingTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [note, setNote] = useState("");
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = (await adminRequest(
-        "/admin/resources/review-queue?status=unverified&limit=50",
-      )) as { items: QueueItem[]; pendingTotal: number };
-      setItems(data.items ?? []);
-      setPendingTotal(data.pendingTotal ?? 0);
-    } catch (error) {
-      toast({
-        title: "Could not load the review queue",
-        description: error instanceof Error ? error.message : undefined,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const queue = useListAdminResourceReviewQueue({
+    status: "unverified",
+    limit: 50,
+    offset: 0,
+  });
+  const updateVerification = useUpdateAdminResourceVerification();
+  const items = queue.data?.items ?? [];
+  const pendingTotal = queue.data?.pendingTotal ?? 0;
+  const loading = queue.isLoading && queue.data === undefined;
+  const failed = queue.isError && queue.data === undefined;
 
   async function decide(
     id: number,
@@ -99,12 +55,11 @@ export function ResourceReviewQueue() {
   ) {
     setBusyId(id);
     try {
-      await adminRequest(`/admin/resources/${id}/verification`, {
-        method: "PATCH",
-        body: JSON.stringify({ status, ...(reason ? { note: reason } : {}) }),
+      await updateVerification.mutateAsync({
+        id,
+        data: { status, ...(reason ? { note: reason } : {}) },
       });
-      setItems((current) => current.filter((item) => item.id !== id));
-      setPendingTotal((current) => Math.max(0, current - 1));
+      await queue.refetch();
       setRejectingId(null);
       setNote("");
       toast({
@@ -113,7 +68,7 @@ export function ResourceReviewQueue() {
     } catch (error) {
       toast({
         title: "Action failed",
-        description: error instanceof Error ? error.message : undefined,
+        description: getApiError(error).error ?? "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -136,18 +91,35 @@ export function ResourceReviewQueue() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => void load()}
-          disabled={loading}
+          onClick={() => void queue.refetch()}
+          disabled={queue.isFetching}
           className="gap-2"
         >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          <RefreshCw size={14} className={queue.isFetching ? "animate-spin" : ""} />
           Refresh
         </Button>
       </CardHeader>
 
       <CardContent>
+        {queue.isError && queue.data !== undefined ? (
+          <LoadFailure
+            variant="banner"
+            title="Review queue could not be refreshed"
+            description="Previously loaded submissions remain visible below."
+            onRetry={() => void queue.refetch()}
+            retrying={queue.isFetching}
+          />
+        ) : null}
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : failed ? (
+          <LoadFailure
+            title="Review queue could not be loaded"
+            description="The app has not confirmed that the moderation queue is empty."
+            onRetry={() => void queue.refetch()}
+            retrying={queue.isFetching}
+            testId="resource-review-queue-load-error"
+          />
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nothing waiting for review. New submissions from unverified accounts

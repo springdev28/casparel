@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Admin Verification.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for the resource verification admin endpoints:
  *  • rejection requires a note (the submitter has nothing to act on otherwise)
  *  • approving stamps reviewer as the source
@@ -12,6 +16,23 @@ import request from "supertest";
 
 let setPayload: Record<string, unknown> | null = null;
 let returnRows: Array<Record<string, unknown>> = [];
+let selectQueue: Array<Array<Record<string, unknown>>> = [];
+
+function selectBuilder(rows: Array<Record<string, unknown>>) {
+  const chain = {
+    from: vi.fn(() => chain),
+    leftJoin: vi.fn(() => chain),
+    where: vi.fn(() => chain),
+    orderBy: vi.fn(() => chain),
+    limit: vi.fn(() => chain),
+    offset: vi.fn(() => chain),
+    then: (
+      resolve: (value: Array<Record<string, unknown>>) => unknown,
+      reject: (reason: unknown) => unknown,
+    ) => Promise.resolve(rows).then(resolve, reject),
+  };
+  return chain;
+}
 
 vi.mock("@workspace/db", () => {
   const stub = (name: string) => ({ _name: name });
@@ -64,6 +85,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   setPayload = null;
   returnRows = [{ id: 5, title: "A resource", verificationStatus: "verified" }];
+  selectQueue = [];
+  vi.mocked(db.select).mockImplementation(
+    () =>
+      selectBuilder(selectQueue.shift() ?? []) as unknown as ReturnType<
+        typeof db.select
+      >,
+  );
   vi.mocked(db.update).mockImplementation(
     () =>
       ({
@@ -75,6 +103,47 @@ beforeEach(() => {
         },
       }) as unknown as ReturnType<typeof db.update>,
   );
+});
+
+describe("GET /api/admin/resources/review-queue", () => {
+  it("returns the requested moderation rows and the authoritative pending total", async () => {
+    selectQueue = [[{
+      id: 5,
+      title: "Waiting resource",
+      url: "https://example.test/resource",
+      description: null,
+      format: "article",
+      subject: "Biology",
+      gradeLevel: "9",
+      thumbnailUrl: null,
+      createdAt: "2026-08-20T00:00:00.000Z",
+      verificationStatus: "unverified",
+      verificationSource: null,
+      verificationNote: null,
+      submittedById: 7,
+      submittedByName: "Ada",
+      submittedByEmail: "ada@example.test",
+      submittedByRole: "student",
+      submitterVerified: false,
+    }], [{ pending: 3 }]];
+
+    const response = await request(buildApp()).get(
+      "/api/admin/resources/review-queue?status=unverified&limit=25&offset=0",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.items).toHaveLength(1);
+    expect(response.body).toMatchObject({ pendingTotal: 3 });
+  });
+
+  it("rejects an unknown queue state instead of silently showing pending", async () => {
+    const response = await request(buildApp()).get(
+      "/api/admin/resources/review-queue?status=approved",
+    );
+
+    expect(response.status).toBe(400);
+    expect(db.select).not.toHaveBeenCalled();
+  });
 });
 
 describe("PATCH /api/admin/resources/:id/verification", () => {

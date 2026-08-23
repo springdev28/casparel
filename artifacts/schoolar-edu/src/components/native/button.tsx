@@ -1,7 +1,11 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Button in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 // @ts-nocheck
 // react-native / expo-haptics only available in Expo context
 import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useColors } from "../../hooks/use-colors";
 
@@ -36,7 +40,12 @@ export function Button({
 
   const handlePress = () => {
     if (disabled || loading) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Haptics are enhancement only. Browsers and some simulators may expose
+    // the module while rejecting the operation, so the primary action cannot
+    // wait for or depend on this promise.
+    if (Platform.OS !== "web") {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    }
     onPress?.();
   };
 

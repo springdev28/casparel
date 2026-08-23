@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Web screen role: renders the Legal Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
+/**
  * /terms and /privacy.
  *
  * These are not decoration. The mobile paywall links to both, and Apple and
@@ -11,13 +15,13 @@
  * The content describes what the code actually does. Anything asserted here is
  * checkable against the repository: the columns in lib/db/src/schema/users.ts,
  * the third parties in artifacts/api-server/src/routes, the deletion route at
- * routes/auth.ts, and the absence of any analytics or tracking SDK.
+ * routes/auth.ts, and the first-party workflow events in workflowEvents.ts.
  */
 import { Link } from "wouter";
 
 const SUPPORT_EMAIL = "support@casparel.com";
 /** Kept in sync by hand; shown so readers can tell how current this is. */
-const LAST_UPDATED = "15 August 2026";
+const LAST_UPDATED = "22 August 2026";
 
 function Section({
   title,
@@ -185,13 +189,26 @@ export function PrivacyPage() {
           searches and deep research runs you have used, so free-tier limits can
           be applied.
         </p>
+        <p>
+          <strong className="text-foreground">Product activity.</strong> We
+          record first-party events such as registration, search, opening a
+          result, checking a source, saving a resource, completing a goal step,
+          joining or using a class, coarse browser performance measurements,
+          and classified application errors. These events use account and
+          resource identifiers, route categories, counts, and timing. Exact
+          page URLs, error messages and stacks, search text, student writing,
+          names, and email addresses are not accepted in the client event
+          payload.
+        </p>
       </Section>
 
       <Section title="What we do not do">
         <p>
-          Casparel contains no analytics, advertising or tracking SDKs. We do not
-          sell your data, we do not build advertising profiles, and we do not
-          share your content with third parties except as described below.
+          Casparel contains no third-party analytics, advertising, or tracking
+          SDKs. Product activity is recorded directly by Casparel to understand
+          whether core learning and classroom workflows work. We do not sell
+          your data, build advertising profiles, or share your content with
+          third parties except as described below.
         </p>
       </Section>
 

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Dialog.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile state role: owns the app-wide Purchases Context context and lifecycle.
+ * System connection: installed by app/_layout.tsx and consumed by screens/components that need shared account state.
+ */
 import React, {
   createContext,
   useCallback,
@@ -8,11 +12,16 @@ import React, {
   useState,
 } from 'react';
 import {
+  reconcileMyEntitlements,
+  type EntitlementReconciliationPlan,
+} from '@workspace/api-client-react';
+import {
   hasPremium,
   loadPurchases,
   purchasesSupported,
   RC_API_KEY,
   subscriptionTier,
+  tierForPackage,
   type SubscriptionTier,
   type PurchasesModule,
   type RCCustomerInfo,
@@ -21,13 +30,28 @@ import {
 } from '@/utils/revenuecat';
 import { useAuth } from '@/contexts/AuthContext';
 
-export type PurchaseResult = 'success' | 'cancelled' | 'error' | 'unsupported';
+export type PurchaseResult =
+  | 'success'
+  | 'sync_pending'
+  | 'identity_not_ready'
+  | 'cancelled'
+  | 'error'
+  | 'unsupported';
+export type RestoreResult =
+  | 'restored'
+  | 'not_found'
+  | 'sync_pending'
+  | 'identity_not_ready'
+  | 'error'
+  | 'unsupported';
 
 interface PurchasesContextValue {
   /** The SDK finished its first load (configured or definitively unavailable). */
   ready: boolean;
   /** RevenueCat is configured and usable on this device. */
   available: boolean;
+  /** The SDK is associated with the authenticated numeric Casparel account. */
+  identityReady: boolean;
   /** Compatibility flag: the user holds either paid entitlement. */
   isPremium: boolean;
   /** RevenueCat's active Free, Plus, or Pro tier. */
@@ -39,7 +63,7 @@ interface PurchasesContextValue {
   currentOffering: RCOffering | null;
   customerInfo: RCCustomerInfo | null;
   purchase: (pkg: RCPackage) => Promise<PurchaseResult>;
-  restore: () => Promise<boolean>;
+  restore: () => Promise<RestoreResult>;
   refresh: () => Promise<void>;
 }
 
@@ -51,6 +75,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const purchasesRef = useRef<PurchasesModule | null>(null);
   const [ready, setReady] = useState(false);
   const [available, setAvailable] = useState(false);
+  const [identityReady, setIdentityReady] = useState(false);
   const [customerInfo, setCustomerInfo] = useState<RCCustomerInfo | null>(null);
   const [currentOffering, setCurrentOffering] = useState<RCOffering | null>(null);
 
@@ -70,6 +95,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       if (!Purchases || !purchasesSupported || !RC_API_KEY) {
         // Web, Expo Go, or missing keys, degrade to a free-only experience.
         setAvailable(false);
+        setIdentityReady(false);
         setReady(true);
         return;
       }
@@ -115,18 +141,28 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     const Purchases = purchasesRef.current;
     if (!Purchases || !available) return;
     let cancelled = false;
+    setIdentityReady(false);
 
     (async () => {
       try {
         if (isAuthenticated && user?.id != null) {
           const { customerInfo: info } = await Purchases.logIn(String(user.id));
-          if (!cancelled) applyCustomerInfo(info);
+          if (!cancelled) {
+            applyCustomerInfo(info);
+            setIdentityReady(true);
+          }
         } else {
           const info = await Purchases.logOut();
-          if (!cancelled) applyCustomerInfo(info);
+          if (!cancelled) {
+            applyCustomerInfo(info);
+            setIdentityReady(true);
+          }
         }
       } catch {
-        // Non-fatal: the anonymous RevenueCat user still works.
+        // Do not enable purchase/restore on an anonymous or stale alias while
+        // a Casparel account is signed in. That purchase would not map to the
+        // numeric user id consumed by the server webhook and reconciliation.
+        if (!cancelled) setIdentityReady(false);
       }
     })();
 
@@ -139,25 +175,55 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     const Purchases = purchasesRef.current;
     if (!Purchases) return;
     try {
-      const [info, offerings] = await Promise.all([
-        Purchases.getCustomerInfo(),
-        Purchases.getOfferings(),
-      ]);
+      // A retry also re-establishes the numeric RevenueCat alias. Merely
+      // refetching Customer Info could leave a signed-in user stuck on the
+      // anonymous identity after a transient logIn failure.
+      setIdentityReady(false);
+      const info =
+        isAuthenticated && user?.id != null
+          ? (await Purchases.logIn(String(user.id))).customerInfo
+          : await Purchases.getCustomerInfo();
+      const offerings = await Purchases.getOfferings();
       applyCustomerInfo(info);
       setCurrentOffering(offerings.current ?? null);
+      setIdentityReady(true);
     } catch {
-      // ignore transient errors
+      setIdentityReady(false);
     }
-  }, [applyCustomerInfo]);
+  }, [applyCustomerInfo, isAuthenticated, user?.id]);
 
   const purchase = useCallback(
     async (pkg: RCPackage): Promise<PurchaseResult> => {
       const Purchases = purchasesRef.current;
       if (!Purchases) return 'unsupported';
+      if (!identityReady || !isAuthenticated || user?.id == null) {
+        return 'identity_not_ready';
+      }
+      const expectedTier = tierForPackage(pkg);
+      if (!expectedTier) return 'error';
       try {
         const { customerInfo: info } = await Purchases.purchasePackage(pkg);
         applyCustomerInfo(info);
-        return 'success';
+        try {
+          const serverPlan = await reconcileMyEntitlements();
+          const localTier = subscriptionTier(info);
+          const rank: Record<SubscriptionTier | EntitlementReconciliationPlan, number> = {
+            free: 0,
+            plus: 1,
+            pro: 2,
+          };
+          // A purchase is fully complete only after the API authority has at
+          // least the same access observed by the native store SDK.
+          return rank[serverPlan.plan] >= rank[expectedTier] &&
+            rank[localTier] >= rank[expectedTier]
+            ? 'success'
+            : 'sync_pending';
+        } catch {
+          // The App Store/Play transaction already succeeded. Never call it a
+          // failed purchase or encourage a duplicate charge because a later
+          // server synchronization request had a transient failure.
+          return 'sync_pending';
+        }
       } catch (e) {
         if (e && typeof e === 'object' && (e as { userCancelled?: boolean }).userCancelled) {
           return 'cancelled';
@@ -165,26 +231,39 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         return 'error';
       }
     },
-    [applyCustomerInfo],
+    [applyCustomerInfo, identityReady, isAuthenticated, user?.id],
   );
 
-  const restore = useCallback(async (): Promise<boolean> => {
+  const restore = useCallback(async (): Promise<RestoreResult> => {
     const Purchases = purchasesRef.current;
-    if (!Purchases) return false;
+    if (!Purchases) return 'unsupported';
+    if (!identityReady || !isAuthenticated || user?.id == null) {
+      return 'identity_not_ready';
+    }
     try {
       const info = await Purchases.restorePurchases();
       applyCustomerInfo(info);
-      return hasPremium(info);
+      const localHasPremium = hasPremium(info);
+      try {
+        const serverPlan = await reconcileMyEntitlements();
+        if (serverPlan.plan !== 'free') return 'restored';
+        return localHasPremium ? 'sync_pending' : 'not_found';
+      } catch {
+        return localHasPremium ? 'sync_pending' : 'error';
+      }
     } catch {
-      return false;
+      return 'error';
     }
-  }, [applyCustomerInfo]);
+  }, [applyCustomerInfo, identityReady, isAuthenticated, user?.id]);
 
   const value = useMemo<PurchasesContextValue>(() => {
-    const tier = subscriptionTier(customerInfo);
+    // Customer Info loaded before logIn belongs to an anonymous or previous
+    // SDK identity. Do not use it to unlock the signed-in account.
+    const tier = identityReady ? subscriptionTier(customerInfo) : 'free';
     return {
       ready,
       available,
+      identityReady,
       tier,
       isPremium: tier !== 'free',
       isPlus: tier === 'plus',
@@ -197,7 +276,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       refresh,
     };
   },
-    [ready, available, customerInfo, currentOffering, purchase, restore, refresh],
+    [ready, available, identityReady, customerInfo, currentOffering, purchase, restore, refresh],
   );
 
   return <PurchasesContext.Provider value={value}>{children}</PurchasesContext.Provider>;

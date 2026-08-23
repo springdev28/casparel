@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Design System Browser in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';

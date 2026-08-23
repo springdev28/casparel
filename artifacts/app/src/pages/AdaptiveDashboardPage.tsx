@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Adaptive Dashboard Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -6,7 +10,6 @@ import {
   CalendarDays,
   Check,
   CircleAlert,
-  Clock3,
   Network,
   RefreshCw,
   Sparkles,
@@ -43,36 +46,49 @@ import {
   useUpdateUserPreferences,
   useUserPreferences,
 } from "../lib/user-preferences";
+import {
+  presentTeacherSignals,
+  weakestTeacherSignal,
+} from "../lib/dashboard-truth";
 
-const path = [
-  {
-    title: "Fractions as parts of a whole",
-    concept: "Fractions as parts of a whole",
-    type: "Video · 8 min",
-    query: "fractions as parts of a whole",
-  },
-  {
-    title: "Equivalent fractions, visually",
-    concept: "Equivalent fractions",
-    type: "Interactive · 12 min",
-    query: "equivalent fractions visual interactive",
-  },
-  {
-    title: "Finding common denominators",
-    concept: "Common denominators",
-    type: "Guided practice · 15 min",
-    query: "finding common denominators guided practice",
-  },
-  {
-    title: "Explain your strategy",
-    concept: "Fraction strategy",
-    type: "Reflection · 5 min",
-    query: "explaining fraction strategies reflection",
-  },
-] as const;
+function readableError(...errors: unknown[]) {
+  const error = errors.find((candidate) => candidate instanceof Error);
+  return error instanceof Error ? error.message : "The server did not return dashboard data.";
+}
 
-function resourceSearch(query: string) {
-  return `/resources?goal=${encodeURIComponent(query)}&subject=Mathematics`;
+function DashboardLoadFailure({
+  title,
+  detail,
+  onRetry,
+  isRetrying,
+}: {
+  title: string;
+  detail: string;
+  onRetry: () => void;
+  isRetrying: boolean;
+}) {
+  return (
+    <div className="mx-auto max-w-4xl p-4 sm:p-8">
+      <Card className="border-destructive" role="alert">
+        <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-3">
+            <CircleAlert className="mt-0.5 shrink-0 text-destructive-text" />
+            <div>
+              <h1 className="font-semibold">{title}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Your data has not been reported as empty. Try the request again.
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" onClick={onRetry} disabled={isRetrying}>
+            <RefreshCw className={cn("mr-2 size-4", isRetrying && "animate-spin")} />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function reviewIntervalDays(confidence: number, understanding: number) {
@@ -96,35 +112,29 @@ function resourceEffectiveness(avgRating: number, reviewCount: number) {
   return Math.round((ratingSignal * 0.7 + confidenceSignal * 0.3) * 100);
 }
 
-const checkIns = [
-  {
-    concept: "Equivalent fractions",
-    prompt: "How confident are you explaining why 1/2 and 2/4 are equal?",
-  },
-  {
-    concept: "Fractions as parts of a whole",
-    prompt: "How confident are you showing a fraction as part of a whole?",
-  },
-  {
-    concept: "Common denominators",
-    prompt: "How confident are you finding a common denominator?",
-  },
-  {
-    concept: "Fraction strategy",
-    prompt: "How confident are you explaining the strategy you used?",
-  },
-] as const;
-
 function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: number; workspaceRole?: string }) {
   const [confidence, setConfidence] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const { data: accountPreferences } = useUserPreferences(Boolean(userId));
   const updateAccountPreferences = useUpdateUserPreferences();
   const [, setLocation] = useLocation();
-  const { data: evidence, isLoading: evidenceLoading } =
-    useListLearningEvidence();
+  const {
+    data: evidence,
+    isLoading: evidenceLoading,
+    isError: evidenceError,
+    error: evidenceQueryError,
+    isFetching: evidenceFetching,
+    refetch: refetchEvidence,
+  } = useListLearningEvidence();
   const createEvidence = useCreateLearningEvidence();
-  const { data: goals } = useListLearningGoals({
+  const {
+    data: goals,
+    isLoading: goalsLoading,
+    isError: goalsError,
+    error: goalsQueryError,
+    isFetching: goalsFetching,
+    refetch: refetchGoals,
+  } = useListLearningGoals({
     query: { queryKey: getListLearningGoalsQueryKey() },
   });
   const updateGoal = useUpdateLearningGoal();
@@ -156,23 +166,36 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
   const progress = path.length ? (completedSteps.size / path.length) * 100 : 0;
   async function togglePathStep(stepId: string) {
     if (!activeGoal) return;
-    await updateGoal.mutateAsync({
-      id: activeGoal.id,
-      data: {
-        pathSteps: activeGoal.pathSteps.map((step) =>
-          step.id === stepId ? { ...step, completed: !step.completed } : step,
-        ),
-      },
-    });
-    await queryClient.invalidateQueries({
-      queryKey: getListLearningGoalsQueryKey(),
-    });
+    try {
+      await updateGoal.mutateAsync({
+        id: activeGoal.id,
+        data: {
+          pathSteps: activeGoal.pathSteps.map((step) =>
+            step.id === stepId ? { ...step, completed: !step.completed } : step,
+          ),
+        },
+      });
+      await queryClient.invalidateQueries({
+        queryKey: getListLearningGoalsQueryKey(),
+      });
+    } catch (error) {
+      toast({
+        title: "Could not update the learning path",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
   }
   const nextStepIndex = path.findIndex(
     (step) => !completedSteps.has(step.concept),
   );
   const libraryCatalogParams = { limit: 50, offset: 0 };
-  const { data: libraryCatalog } = useListResources(libraryCatalogParams, {
+  const {
+    data: libraryCatalog,
+    isError: libraryCatalogError,
+    isFetching: libraryCatalogFetching,
+    refetch: refetchLibraryCatalog,
+  } = useListResources(libraryCatalogParams, {
     query: {
       enabled: Boolean(userId && activeGoal),
       queryKey: getListResourcesQueryKey(libraryCatalogParams),
@@ -282,6 +305,32 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
     if (saved) { try { const parsed = JSON.parse(saved); setCheckIn(parsed); updateAccountPreferences.mutate({ pendingCheckIns: { ...(accountPreferences?.pendingCheckIns ?? {}), [`${workspaceRole}:${activeGoal.id}`]: parsed } }); return; } catch { localStorage.removeItem(pendingCheckInKey(userId, workspaceRole, activeGoal.id)); } }
     if (answeredCount > 0 && answeredCount % 5 === 0) setNeedsContinuation(true); else createNextCheckIn();
   }, [activeGoal?.id, evidence === undefined, accountPreferences === undefined]);
+  const primaryLoading =
+    (goalsLoading && goals === undefined) ||
+    (evidenceLoading && evidence === undefined);
+  const primaryFailed =
+    (goalsError && goals === undefined) ||
+    (evidenceError && evidence === undefined);
+  const libraryCatalogFailed =
+    Boolean(activeGoal) && libraryCatalogError && libraryCatalog === undefined;
+
+  if (primaryLoading) {
+    return (
+      <div className="p-8">
+        <Skeleton className="h-80 w-full" />
+      </div>
+    );
+  }
+  if (primaryFailed) {
+    return (
+      <DashboardLoadFailure
+        title="Your learning dashboard could not be loaded."
+        detail={readableError(goalsQueryError, evidenceQueryError)}
+        onRetry={() => void Promise.all([refetchGoals(), refetchEvidence()])}
+        isRetrying={goalsFetching || evidenceFetching}
+      />
+    );
+  }
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -293,8 +342,9 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
             Welcome back{name ? `, ${name.split(" ")[0]}` : ""}
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Your path adapted after yesterday&apos;s reflection. Here&apos;s the
-            best next step.
+            {latest
+              ? "Your latest check-in and active goal shape what appears next."
+              : "Choose a goal and complete a check-in to start building learning evidence."}
           </p>
         </div>
         <Badge variant="secondary" className="px-4 py-2">
@@ -305,6 +355,24 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
           mastery evidence · {activeGoal?.subject ?? "No active goal"}
         </Badge>
       </header>
+      {(goalsError || evidenceError) && (
+        <Card className="border-amber-300" role="status">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <p className="text-sm">
+              Saved dashboard data is shown, but the latest update could not be loaded.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void Promise.all([refetchGoals(), refetchEvidence()])}
+              disabled={goalsFetching || evidenceFetching}
+            >
+              <RefreshCw className={cn("mr-2 size-4", (goalsFetching || evidenceFetching) && "animate-spin")} />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       <TodayAssignments />
       <ContinueWorkflows />
       <section className="grid gap-5 lg:grid-cols-[1.5fr_.7fr]">
@@ -322,7 +390,9 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
                     {activeGoal?.title ?? "Choose a learning goal"}
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    {activeGoal
+                    {libraryCatalogFailed
+                      ? "Your selected resources could not be loaded"
+                      : activeGoal
                       ? `${continueResources.length} library resource${continueResources.length === 1 ? "" : "s"} selected for this goal`
                       : "Your selected library resources will appear here"}
                   </p>
@@ -343,7 +413,33 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
               </Button>
             </div>
 
-            {continueResources.length ? (
+            {libraryCatalogError && libraryCatalog !== undefined && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 p-3 text-sm" role="status">
+                <span>Saved study resources are shown, but the latest update could not be loaded.</span>
+                <Button size="sm" variant="ghost" onClick={() => void refetchLibraryCatalog()} disabled={libraryCatalogFetching}>
+                  Retry
+                </Button>
+              </div>
+            )}
+
+            {libraryCatalogFailed ? (
+              <div className="my-5 rounded-xl border border-destructive/50 p-5" role="alert">
+                <p className="font-medium">Study resources could not be loaded.</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Your resource selection has not been reported as empty.
+                </p>
+                <Button
+                  className="mt-3"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void refetchLibraryCatalog()}
+                  disabled={libraryCatalogFetching}
+                >
+                  <RefreshCw className={cn("mr-2 size-4", libraryCatalogFetching && "animate-spin")} />
+                  Retry
+                </Button>
+              </div>
+            ) : continueResources.length ? (
               <div className="my-5 divide-y border-y">
                 {continueResources.map((resource) => (
                   <div
@@ -600,41 +696,18 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
   );
 }
 
-const signals = [
-  [
-    CircleAlert,
-    "6 learners share a misconception",
-    "Larger denominators are being treated as larger fractions.",
-  ],
-  [
-    Clock3,
-    "3 learners may be stalled",
-    "No checkpoint evidence in the past four days.",
-  ],
-  [
-    TrendingUp,
-    "This visual model is working",
-    "Understanding improved 24% after this resource.",
-  ],
-] as const;
-
 function TeacherView({ name }: { name?: string }) {
   const [, setLocation] = useLocation();
-  const { data: learningSignals } = useGetLearningSignals();
-  // Guarded field by field: a malformed but successful response (an object
-  // without `signals`) used to throw here, and an uncaught render error takes
-  // the whole app down, not just this panel.
-  const liveSignals = learningSignals?.signals?.length
-    ? learningSignals.signals.map(
-        (signal) =>
-          [
-            signal.stalledCount ? CircleAlert : TrendingUp,
-            `${signal.learnerCount} learners · ${signal.concept}`,
-            signal.commonMisconception ??
-              `Average understanding: ${signal.averageUnderstanding} of 4`,
-          ] as const,
-      )
-    : signals;
+  const {
+    data: learningSignals,
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+  } = useGetLearningSignals();
+  const liveSignals = presentTeacherSignals(learningSignals?.signals);
+  const weakestSignal = weakestTeacherSignal(learningSignals?.signals);
   const understandingPercent = Math.round(
     ((learningSignals?.averageUnderstanding ?? 0) / 4) * 100,
   );
@@ -651,6 +724,24 @@ function TeacherView({ name }: { name?: string }) {
     });
   }
 
+  if (isLoading && learningSignals === undefined) {
+    return (
+      <div className="p-8">
+        <Skeleton className="h-80 w-full" />
+      </div>
+    );
+  }
+  if (isError && learningSignals === undefined) {
+    return (
+      <DashboardLoadFailure
+        title="Class learning evidence could not be loaded."
+        detail={readableError(error)}
+        onRetry={() => void refetch()}
+        isRetrying={isFetching}
+      />
+    );
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -660,7 +751,9 @@ function TeacherView({ name }: { name?: string }) {
             Good morning{name ? `, ${name.split(" ")[0]}` : ""}
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Here&apos;s what your learners&apos; evidence suggests doing next.
+            {liveSignals.length
+              ? "Review the learning signals collected from your classes."
+              : "Learning signals will appear after learners complete check-ins."}
           </p>
         </div>
         <Button onClick={() => comingSoon("Ask Casparel")}>
@@ -668,6 +761,19 @@ function TeacherView({ name }: { name?: string }) {
           Ask Casparel
         </Button>
       </header>
+      {isError && (
+        <Card className="border-amber-300" role="status">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <p className="text-sm">
+              Saved class evidence is shown, but the latest update could not be loaded.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => void refetch()} disabled={isFetching}>
+              <RefreshCw className={cn("mr-2 size-4", isFetching && "animate-spin")} />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Understanding", `${understandingPercent}%`],
@@ -695,24 +801,35 @@ function TeacherView({ name }: { name?: string }) {
               Patterns from reflections and comprehension checks, not clicks.
             </p>
             <div className="space-y-3">
-              {liveSignals.map(([Icon, title, text]) => (
-                <div key={title} className="flex gap-4 rounded-xl border p-4">
-                  <div className="rounded-lg bg-primary/10 p-2 text-primary-text">
-                    <Icon size={18} />
-                  </div>
-                  <div className="flex-1">
-                    <b className="text-sm">{title}</b>
-                    <p className="text-xs text-muted-foreground">{text}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setLocation("/classes")}
-                  >
-                    Review
-                  </Button>
+              {liveSignals.length ? (
+                liveSignals.map((signal) => {
+                  const Icon = signal.stalledCount ? CircleAlert : TrendingUp;
+                  return (
+                    <div key={signal.concept} className="flex gap-4 rounded-xl border p-4">
+                      <div className="rounded-lg bg-primary/10 p-2 text-primary-text">
+                        <Icon size={18} />
+                      </div>
+                      <div className="flex-1">
+                        <b className="text-sm">
+                          {signal.learnerCount} learner{signal.learnerCount === 1 ? "" : "s"} · {signal.concept}
+                        </b>
+                        <p className="text-xs text-muted-foreground">{signal.detail}</p>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => setLocation("/classes")}>
+                        Review
+                      </Button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-xl border border-dashed p-6 text-center">
+                  <Network className="mx-auto mb-2 text-muted-foreground" />
+                  <p className="font-medium">No learning signals yet</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    This is a real empty state. Signals appear when learners in your classes submit check-ins.
+                  </p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
@@ -727,40 +844,42 @@ function TeacherView({ name }: { name?: string }) {
                 </p>
               </div>
             </div>
-            <h3 className="mt-5 font-semibold">
-              Create three readiness groups for tomorrow
-            </h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Checkpoint evidence shows one group needs a visual reteach while
-              another is ready to transfer the concept.
-            </p>
-            <div className="my-5 space-y-2">
-              {[
-                ["Foundation", "6", "Visual model + guided prompts"],
-                ["Practice", "14", "Paired misconception check"],
-                ["Extend", "5", "Ratio transfer challenge"],
-              ].map(([g, n, t]) => (
-                <div key={g} className="rounded-lg bg-muted p-3">
-                  <div className="flex justify-between text-sm">
-                    <b>{g} group</b>
-                    <span>{n} learners</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{t}</p>
+            {weakestSignal ? (
+              <>
+                <h3 className="mt-5 font-semibold">Review {weakestSignal.concept}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {weakestSignal.commonMisconception
+                    ? `Learners reported a shared misconception: ${weakestSignal.commonMisconception}`
+                    : `This concept has the lowest current understanding average: ${weakestSignal.averageUnderstanding} of 4.`}
+                </p>
+                <div className="my-5 grid gap-2 sm:grid-cols-3">
+                  {[
+                    ["Learners", String(weakestSignal.learnerCount)],
+                    ["Average", `${weakestSignal.averageUnderstanding} / 4`],
+                    ["Stalled", String(weakestSignal.stalledCount)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-lg bg-muted p-3">
+                      <p className="text-xs text-muted-foreground">{label}</p>
+                      <p className="mt-1 font-semibold">{value}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <Button className="w-full" onClick={() => setLocation("/classes")}>
-              Review differentiated assignment
-              <ArrowRight size={16} className="ml-2" />
-            </Button>
-            <Button
-              variant="ghost"
-              className="mt-2 w-full"
-              onClick={() => comingSoon("AI grouping suggestions")}
-            >
-              <RefreshCw size={14} className="mr-2" />
-              Try another grouping
-            </Button>
+                <Button className="w-full" onClick={() => setLocation("/classes")}>
+                  Review class evidence
+                  <ArrowRight size={16} className="ml-2" />
+                </Button>
+              </>
+            ) : (
+              <div className="mt-5 rounded-xl border border-dashed p-5">
+                <h3 className="font-semibold">No recommendation yet</h3>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Casparel will suggest a next move after real learner evidence is available.
+                </p>
+                <Button className="mt-4 w-full" variant="outline" onClick={() => setLocation("/classes")}>
+                  Open classes
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </section>
@@ -798,12 +917,21 @@ function TeacherView({ name }: { name?: string }) {
 }
 
 export default function AdaptiveDashboardPage() {
-  const { data: me, isLoading } = useGetMe();
+  const { data: me, isLoading, isError, error, isFetching, refetch } = useGetMe();
   if (isLoading)
     return (
       <div className="p-8">
         <Skeleton className="h-80 w-full" />
       </div>
+    );
+  if (isError && !me)
+    return (
+      <DashboardLoadFailure
+        title="Your account workspace could not be loaded."
+        detail={readableError(error)}
+        onRetry={() => void refetch()}
+        isRetrying={isFetching}
+      />
     );
   return me && (me?.activeRole ?? me?.role) === UserRole.teacher ? (
     <TeacherView name={me.name} />

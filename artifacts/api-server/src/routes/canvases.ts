@@ -1,7 +1,32 @@
+/**
+ * @fileOverview API role: implements the Canvases HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { and, desc, eq, ilike, sql } from "drizzle-orm";
-import { z } from "zod/v4";
+import {
+  CreateCanvasBody,
+  CreateCanvasResponse,
+  DeleteCanvasParams,
+  GetCanvasParams,
+  GetCanvasResponse,
+  GetSharedCanvasParams,
+  GetSharedCanvasResponse,
+  ListCanvasCollaboratorsParams,
+  ListCanvasCollaboratorsResponse,
+  ListCanvasesResponse,
+  PublishCanvasBody,
+  PublishCanvasParams,
+  PublishCanvasResponse,
+  RemoveCanvasCollaboratorParams,
+  UpdateCanvasBody,
+  UpdateCanvasParams,
+  UpdateCanvasResponse,
+  UpsertCanvasCollaboratorBody,
+  UpsertCanvasCollaboratorParams,
+  UpsertCanvasCollaboratorResponse,
+} from "@workspace/api-zod";
 import {
   canvasCollaboratorsTable,
   canvasesTable,
@@ -22,68 +47,11 @@ import { contentLimiter } from "../lib/limiters";
 
 const router: IRouter = Router();
 
-const nodeDataSchema = z.object({
-  kind: z.enum(["note", "heading", "link", "resource"]),
-  title: z.string().max(240),
-  text: z.string().max(10_000).optional(),
-  url: z.string().url().max(2_000).optional(),
-  resourceId: z.number().int().positive().optional(),
-  color: z.string().max(40).optional(),
-});
-
-const documentSchema = z.object({
-  nodes: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(120),
-        type: z.literal("study"),
-        position: z.object({ x: z.number().finite(), y: z.number().finite() }),
-        data: nodeDataSchema,
-      }),
-    )
-    .max(500),
-  edges: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(160),
-        source: z.string().min(1).max(120),
-        target: z.string().min(1).max(120),
-        sourceHandle: z.enum(["top", "right", "bottom", "left"]).optional(),
-        targetHandle: z.enum(["top", "right", "bottom", "left"]).optional(),
-        direction: z.enum(["one-way", "two-way", "line"]).optional(),
-        label: z.string().max(200).optional(),
-      }),
-    )
-    .max(1_000),
-  viewport: z
-    .object({
-      x: z.number().finite(),
-      y: z.number().finite(),
-      zoom: z.number().min(0.1).max(4),
-    })
-    .optional(),
-});
-
-const createCanvasSchema = z.object({
-  title: z.string().trim().min(1).max(160),
-  description: z.string().trim().max(1_000).optional(),
-  classId: z.number().int().positive().nullable().optional(),
-  classAccess: z.enum(["view", "edit"]).optional(),
-});
-
-const updateCanvasSchema = z
-  .object({
-    title: z.string().trim().min(1).max(160).optional(),
-    description: z.string().trim().max(1_000).nullable().optional(),
-    visibility: z.enum(["private", "people", "class", "link"]).optional(),
-    classAccess: z.enum(["view", "edit"]).optional(),
-    document: documentSchema.optional(),
-    expectedVersion: z.number().int().positive().optional(),
-  })
-  .refine((value) => !value.document || value.expectedVersion != null, {
-    message: "expectedVersion is required when saving the canvas",
-  });
-
+/**
+ * Effective permissions are computed once per request and returned to the UI.
+ * The UI uses these flags to expose editing controls, but every mutation still
+ * rechecks them here so a crafted request cannot bypass the collaboration rules.
+ */
 type CanvasAccess = {
   canView: boolean;
   canEdit: boolean;
@@ -99,6 +67,10 @@ async function getCanvasRow(id: number) {
   return canvas ?? null;
 }
 
+/**
+ * Access is intentionally resolved from most explicit to most implicit:
+ * owner/admin, named collaborator, class teacher, then class membership.
+ */
 async function accessForCanvas(
   canvas: Canvas,
   userId: number,
@@ -160,6 +132,7 @@ async function accessForCanvas(
   return null;
 }
 
+/** Attach display references and the caller's effective permissions to a row. */
 async function decorateCanvas(canvas: Canvas, access: CanvasAccess) {
   const [[owner], [cls], [{ collaboratorCount }]] = await Promise.all([
     db
@@ -201,7 +174,7 @@ router.get("/canvases", requireAuth, async (req, res): Promise<void> => {
       return access ? decorateCanvas(canvas, access) : null;
     }),
   );
-  res.json((await Promise.all(visible)).filter(Boolean));
+  res.json(ListCanvasesResponse.parse(visible.filter(Boolean)));
 });
 
 router.post(
@@ -210,9 +183,14 @@ router.post(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
-    const parsed = createCanvasSchema.safeParse(req.body);
+    const parsed = CreateCanvasBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const title = parsed.data.title.trim();
+    if (!title) {
+      res.status(400).json({ error: "Canvas title cannot be blank" });
       return;
     }
     const classId = parsed.data.classId ?? null;
@@ -229,8 +207,8 @@ router.post(
     const [canvas] = await db
       .insert(canvasesTable)
       .values({
-        title: parsed.data.title,
-        description: parsed.data.description || null,
+        title,
+        description: parsed.data.description?.trim() || null,
         ownerId: userId,
         classId,
         visibility: classId ? "class" : "private",
@@ -243,39 +221,49 @@ router.post(
       canManage: true,
       role: "owner",
     };
-    res.status(201).json(await decorateCanvas(canvas, access));
+    res
+      .status(201)
+      .json(CreateCanvasResponse.parse(await decorateCanvas(canvas, access)));
   },
 );
 
 router.get(
   "/canvases/shared/:token",
   async (req, res): Promise<void> => {
+    const parsed = GetSharedCanvasParams.safeParse(req.params);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
     const [canvas] = await db
       .select()
       .from(canvasesTable)
-      .where(eq(canvasesTable.shareToken, req.params.token));
+      .where(eq(canvasesTable.shareToken, parsed.data.token));
     if (!canvas || canvas.visibility !== "link") {
       res.status(404).json({ error: "Shared canvas not found" });
       return;
     }
-    res.json({
-      ...(await decorateCanvas(canvas, {
+    // Parsing with the public schema removes shareToken from the serialized view.
+    res.json(
+      GetSharedCanvasResponse.parse(
+        await decorateCanvas(canvas, {
         canView: true,
         canEdit: false,
         canManage: false,
         role: "viewer",
-      })),
-      shareToken: undefined,
-    });
+        }),
+      ),
+    );
   },
 );
 
 router.get("/canvases/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) {
-    res.status(400).json({ error: "Invalid canvas ID" });
+  const parsed = GetCanvasParams.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
     return;
   }
+  const { id } = parsed.data;
   const canvas = await getCanvasRow(id);
   if (!canvas) {
     res.status(404).json({ error: "Canvas not found" });
@@ -287,7 +275,7 @@ router.get("/canvases/:id", requireAuth, async (req, res): Promise<void> => {
     res.status(403).json({ error: "You do not have access to this canvas" });
     return;
   }
-  res.json(await decorateCanvas(canvas, access));
+  res.json(GetCanvasResponse.parse(await decorateCanvas(canvas, access)));
 });
 
 router.patch(
@@ -295,10 +283,27 @@ router.patch(
   contentLimiter,
   requireAuth,
   async (req, res): Promise<void> => {
-    const id = Number(req.params.id);
-    const parsed = updateCanvasSchema.safeParse(req.body);
-    if (!Number.isInteger(id) || !parsed.success) {
-      res.status(400).json({ error: parsed.success ? "Invalid canvas ID" : parsed.error.message });
+    const parsedParams = UpdateCanvasParams.safeParse(req.params);
+    const parsedBody = UpdateCanvasBody.safeParse(req.body);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: parsedParams.error.message });
+      return;
+    }
+    if (!parsedBody.success) {
+      res.status(400).json({ error: parsedBody.error.message });
+      return;
+    }
+    const { id } = parsedParams.data;
+    const data = parsedBody.data;
+    const title = data.title?.trim();
+    if (data.title !== undefined && !title) {
+      res.status(400).json({ error: "Canvas title cannot be blank" });
+      return;
+    }
+    if (data.document !== undefined && data.expectedVersion == null) {
+      res.status(400).json({
+        error: "expectedVersion is required when saving the canvas",
+      });
       return;
     }
     const canvas = await getCanvasRow(id);
@@ -308,42 +313,48 @@ router.patch(
     }
     const { userId, accountRole } = req as AuthenticatedRequest;
     const access = await accessForCanvas(canvas, userId, accountRole);
-    if (!access?.canView || (parsed.data.document && !access.canEdit)) {
+    if (!access?.canView || (data.document !== undefined && !access.canEdit)) {
       res.status(403).json({ error: "You cannot edit this canvas" });
       return;
     }
     const changesMetadata =
-      parsed.data.title !== undefined ||
-      parsed.data.description !== undefined ||
-      parsed.data.visibility !== undefined ||
-      parsed.data.classAccess !== undefined;
+      data.title !== undefined ||
+      data.description !== undefined ||
+      data.visibility !== undefined ||
+      data.classAccess !== undefined;
     if (changesMetadata && !access.canManage) {
       res.status(403).json({ error: "Only the canvas owner can change sharing settings" });
       return;
     }
     const values: Partial<typeof canvasesTable.$inferInsert> = {
       updatedAt: new Date().toISOString(),
-      ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
-      ...(parsed.data.description !== undefined
-        ? { description: parsed.data.description }
+      ...(data.title !== undefined ? { title } : {}),
+      ...(data.description !== undefined
+        ? {
+            description:
+              typeof data.description === "string"
+                ? data.description.trim()
+                : data.description,
+          }
         : {}),
-      ...(parsed.data.visibility !== undefined
-        ? { visibility: parsed.data.visibility }
+      ...(data.visibility !== undefined
+        ? { visibility: data.visibility }
         : {}),
-      ...(parsed.data.classAccess !== undefined
-        ? { classAccess: parsed.data.classAccess }
+      ...(data.classAccess !== undefined
+        ? { classAccess: data.classAccess }
         : {}),
-      ...(parsed.data.document !== undefined
-        ? { document: parsed.data.document as CanvasDocument }
+      ...(data.document !== undefined
+        ? { document: data.document as CanvasDocument }
         : {}),
     };
-    if (parsed.data.visibility === "link" && !canvas.shareToken) {
+    if (data.visibility === "link" && !canvas.shareToken) {
       values.shareToken = randomBytes(24).toString("base64url");
     }
-    const condition = parsed.data.document
+    // Content saves are version-gated; metadata-only changes do not overwrite graph data.
+    const condition = data.document
       ? and(
           eq(canvasesTable.id, id),
-          eq(canvasesTable.version, parsed.data.expectedVersion!),
+          eq(canvasesTable.version, data.expectedVersion!),
         )
       : eq(canvasesTable.id, id);
     const [updated] = await db
@@ -355,11 +366,13 @@ router.patch(
       const current = await getCanvasRow(id);
       res.status(409).json({
         error: "This canvas changed in another session",
-        current: current ? await decorateCanvas(current, access) : null,
+        current: current
+          ? UpdateCanvasResponse.parse(await decorateCanvas(current, access))
+          : null,
       });
       return;
     }
-    res.json(await decorateCanvas(updated, access));
+    res.json(UpdateCanvasResponse.parse(await decorateCanvas(updated, access)));
   },
 );
 
@@ -368,8 +381,18 @@ router.post(
   contentLimiter,
   requireAuth,
   async (req, res): Promise<void> => {
-    const id = Number(req.params.id);
-    const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
+    const parsedParams = PublishCanvasParams.safeParse(req.params);
+    const parsedBody = PublishCanvasBody.safeParse(req.body ?? {});
+    if (!parsedParams.success) {
+      res.status(400).json({ error: parsedParams.error.message });
+      return;
+    }
+    if (!parsedBody.success) {
+      res.status(400).json({ error: parsedBody.error.message });
+      return;
+    }
+    const { id } = parsedParams.data;
+    const canvas = await getCanvasRow(id);
     if (!canvas) {
       res.status(404).json({ error: "Canvas not found" });
       return;
@@ -394,6 +417,7 @@ router.post(
         .set({ shareToken, visibility: "link", updatedAt: new Date().toISOString() })
         .where(eq(canvasesTable.id, canvas.id));
     }
+    // The stable title lets repeated publishes reuse the same catalog material.
     const materialTitle = `${canvas.title} (Casparel canvas ${canvas.id})`;
     const [existingMaterial] = await db
       .select({ id: forumMaterialsTable.id })
@@ -416,7 +440,7 @@ router.post(
       }).returning({ id: forumMaterialsTable.id });
       materialId = material.id;
     }
-    const destination = req.body?.destination === "forum" ? "forum" : "catalog";
+    const { destination } = parsedBody.data;
     if (destination === "forum") {
       const [existingPost] = await db
         .select({ id: forumPostsTable.id })
@@ -438,13 +462,20 @@ router.post(
         });
       }
     }
-    res.status(201).json({ materialId, shareToken, destination });
+    res
+      .status(201)
+      .json(PublishCanvasResponse.parse({ materialId, shareToken, destination }));
   },
 );
 
 router.delete("/canvases/:id", requireAuth, async (req, res): Promise<void> => {
-  const id = Number(req.params.id);
-  const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
+  const parsed = DeleteCanvasParams.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const { id } = parsed.data;
+  const canvas = await getCanvasRow(id);
   if (!canvas) {
     res.status(404).json({ error: "Canvas not found" });
     return;
@@ -463,8 +494,13 @@ router.get(
   "/canvases/:id/collaborators",
   requireAuth,
   async (req, res): Promise<void> => {
-    const id = Number(req.params.id);
-    const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
+    const parsed = ListCanvasCollaboratorsParams.safeParse(req.params);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const { id } = parsed.data;
+    const canvas = await getCanvasRow(id);
     if (!canvas) {
       res.status(404).json({ error: "Canvas not found" });
       return;
@@ -487,7 +523,7 @@ router.get(
       .from(canvasCollaboratorsTable)
       .innerJoin(usersTable, eq(usersTable.id, canvasCollaboratorsTable.userId))
       .where(eq(canvasCollaboratorsTable.canvasId, id));
-    res.json(collaborators);
+    res.json(ListCanvasCollaboratorsResponse.parse(collaborators));
   },
 );
 
@@ -496,12 +532,21 @@ router.put(
   contentLimiter,
   requireAuth,
   async (req, res): Promise<void> => {
-    const id = Number(req.params.id);
-    const collaboratorUserId = Number(req.params.userId);
-    const role = z.enum(["viewer", "editor"]).safeParse(req.body?.role);
-    const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
-    if (!canvas || !Number.isInteger(collaboratorUserId) || !role.success) {
-      res.status(400).json({ error: "Invalid collaborator request" });
+    const parsedParams = UpsertCanvasCollaboratorParams.safeParse(req.params);
+    const parsedBody = UpsertCanvasCollaboratorBody.safeParse(req.body);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: parsedParams.error.message });
+      return;
+    }
+    if (!parsedBody.success) {
+      res.status(400).json({ error: parsedBody.error.message });
+      return;
+    }
+    const { id, userId: collaboratorUserId } = parsedParams.data;
+    const { role } = parsedBody.data;
+    const canvas = await getCanvasRow(id);
+    if (!canvas) {
+      res.status(404).json({ error: "Canvas not found" });
       return;
     }
     const { userId, accountRole } = req as AuthenticatedRequest;
@@ -522,14 +567,15 @@ router.put(
       res.status(404).json({ error: "User not found" });
       return;
     }
+    // The composite key turns add and role-change into one idempotent operation.
     await db
       .insert(canvasCollaboratorsTable)
-      .values({ canvasId: id, userId: collaboratorUserId, role: role.data, addedById: userId })
+      .values({ canvasId: id, userId: collaboratorUserId, role, addedById: userId })
       .onConflictDoUpdate({
         target: [canvasCollaboratorsTable.canvasId, canvasCollaboratorsTable.userId],
-        set: { role: role.data, addedById: userId },
+        set: { role, addedById: userId },
       });
-    res.json({ ok: true });
+    res.json(UpsertCanvasCollaboratorResponse.parse({ ok: true }));
   },
 );
 
@@ -537,11 +583,15 @@ router.delete(
   "/canvases/:id/collaborators/:userId",
   requireAuth,
   async (req, res): Promise<void> => {
-    const id = Number(req.params.id);
-    const collaboratorUserId = Number(req.params.userId);
-    const canvas = Number.isInteger(id) ? await getCanvasRow(id) : null;
-    if (!canvas || !Number.isInteger(collaboratorUserId)) {
-      res.status(400).json({ error: "Invalid collaborator request" });
+    const parsed = RemoveCanvasCollaboratorParams.safeParse(req.params);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const { id, userId: collaboratorUserId } = parsed.data;
+    const canvas = await getCanvasRow(id);
+    if (!canvas) {
+      res.status(404).json({ error: "Canvas not found" });
       return;
     }
     const { userId, accountRole } = req as AuthenticatedRequest;

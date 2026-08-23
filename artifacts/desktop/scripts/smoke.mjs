@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Smoke behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Launches the real desktop shell against a local stand-in for casparel.com
  * and checks the behaviours that are easy to get wrong and impossible to see
  * in a type check.
@@ -10,7 +14,8 @@
  *     page (did-fail-load fires for subframes too),
  *   • a failed MAIN FRAME must show the offline page,
  *   • a cross-origin server REDIRECT must not load inside the app frame,
- *   • a deep link handed to a cold start must become the first page.
+ *   • a deep link handed to a cold start must become the first page,
+ *   • normal HTTPS links go to the system browser while unsafe protocols do not.
  *
  * Run through `pnpm run smoke`; the wrapper supplies Xvfb on Linux and uses
  * the current desktop session on macOS/Windows.
@@ -103,6 +108,8 @@ const cases = [
     "a cold-start deep link opens that page",
     { script: "deeplink", deepLink: "casparel://resources/123" },
   ],
+  ["an approved external link opens in the browser", { script: "external" }],
+  ["an unsafe external protocol is blocked", { script: "unsafe" }],
 ];
 
 const expected = {
@@ -110,6 +117,8 @@ const expected = {
   "a dead main frame shows the offline page": "offline-page",
   "a cross-origin redirect is refused": "blocked",
   "a cold-start deep link opens that page": "/resources/123",
+  "an approved external link opens in the browser": "https://example.com/approved",
+  "an unsafe external protocol is blocked": "blocked",
 };
 
 let failed = 0;

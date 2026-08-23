@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Class Assignments component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
@@ -8,11 +12,23 @@ import {
   Clipboard,
   Download,
   ExternalLink,
+  Link2,
   Plus,
   RefreshCw,
   Trash2,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import {
+  createClassAssignment,
+  deleteClassAssignment,
+  getClassAssignmentAnalytics,
+  listClassAssignments,
+  listStudyActivities,
+  updateAssignmentCompletion,
+  type ClassAssignment,
+  type ClassAssignmentAnalytics,
+  type StudyActivity,
+} from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Card, CardContent } from "@workspace/edu-ds/components/ui/card";
@@ -36,30 +52,11 @@ import {
 } from "@workspace/edu-ds/components/ui/select";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import { classJoinUrl } from "../lib/class-join-link";
+import { LoadFailure } from "./LoadFailure";
 
 type LinkedResource = { id: number; title: string; url: string };
-type Activity = { id: number; title: string };
-type Assignment = {
-  id: number;
-  title: string;
-  instructions: string | null;
-  resourceId: number | null;
-  activityId: number | null;
-  resourceTitle: string | null;
-  resourceUrl: string | null;
-  activityTitle: string | null;
-  dueAt: string | null;
-  completed: boolean;
-};
-type Analytics = {
-  studentCount: number;
-  assignments: Array<{
-    id: number;
-    title: string;
-    completions: number;
-    completionRate: number;
-  }>;
-};
+type Activity = Pick<StudyActivity, "id" | "title">;
 
 const TOKEN_KEY = "schoolar_token";
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -91,10 +88,12 @@ export function ClassAssignments({
   initialResourceId?: number | null;
 }) {
   const [, setLocation] = useLocation();
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignments, setAssignments] = useState<ClassAssignment[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [analytics, setAnalytics] = useState<ClassAssignmentAnalytics | null>(null);
   const [joinCode, setJoinCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [title, setTitle] = useState("");
@@ -105,33 +104,27 @@ export function ClassAssignments({
   const handledWorkflowHandoff = useRef(false);
 
   async function load() {
+    setLoading(true);
+    setLoadError(null);
     try {
-      const [assignmentRows, activityRows, analyticsRows, codeRows] =
-        await Promise.all([
-          request<Assignment[]>(`/classes/${classId}/assignments`),
-          isTeacher
-            ? request<Activity[]>("/study-activities")
-            : Promise.resolve([]),
-          isTeacher
-            ? request<Analytics>(`/classes/${classId}/analytics`)
-            : Promise.resolve(null),
-          isTeacher
-            ? request<{ joinCode: string | null }>(
-                `/classes/${classId}/join-code`,
-              )
-            : Promise.resolve(null),
-        ]);
+      // Load the primary collection first. If a teacher-only supporting read
+      // fails afterwards, the assignments remain usable under a warning.
+      const assignmentRows = await listClassAssignments(classId);
       setAssignments(assignmentRows);
+      const [activityRows, analyticsRows, codeRows] = await Promise.all([
+        isTeacher ? listStudyActivities() : Promise.resolve([]),
+        isTeacher ? getClassAssignmentAnalytics(classId) : Promise.resolve(null),
+        isTeacher
+          ? request<{ joinCode: string | null }>(`/classes/${classId}/join-code`)
+          : Promise.resolve(null),
+      ]);
       setActivities(activityRows);
       setAnalytics(analyticsRows);
       setJoinCode(codeRows?.joinCode ?? null);
     } catch (error) {
-      toast({
-        title: "Could not load class work",
-        description:
-          error instanceof Error ? error.message : "Please try again",
-        variant: "destructive",
-      });
+      setLoadError(error instanceof Error ? error.message : "Please try again");
+    } finally {
+      setLoading(false);
     }
   }
   useEffect(() => {
@@ -178,21 +171,18 @@ export function ClassAssignments({
     event.preventDefault();
     setSaving(true);
     try {
-      await request(`/classes/${classId}/assignments`, {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          instructions,
-          dueAt: dueAt ? new Date(dueAt).toISOString() : null,
-          resourceId:
-            linkedType === "resource" && linkedId !== "none"
-              ? Number(linkedId)
-              : null,
-          activityId:
-            linkedType === "activity" && linkedId !== "none"
-              ? Number(linkedId)
-              : null,
-        }),
+      await createClassAssignment(classId, {
+        title,
+        instructions,
+        dueAt: dueAt ? new Date(dueAt).toISOString() : null,
+        resourceId:
+          linkedType === "resource" && linkedId !== "none"
+            ? Number(linkedId)
+            : null,
+        activityId:
+          linkedType === "activity" && linkedId !== "none"
+            ? Number(linkedId)
+            : null,
       });
       setTitle("");
       setInstructions("");
@@ -214,11 +204,8 @@ export function ClassAssignments({
     }
   }
 
-  async function setCompleted(assignment: Assignment, completed: boolean) {
-    await request(`/assignments/${assignment.id}/completion`, {
-      method: "PATCH",
-      body: JSON.stringify({ completed }),
-    });
+  async function setCompleted(assignment: ClassAssignment, completed: boolean) {
+    await updateAssignmentCompletion(assignment.id, { completed });
     setAssignments((rows) =>
       rows.map((row) =>
         row.id === assignment.id ? { ...row, completed } : row,
@@ -227,9 +214,7 @@ export function ClassAssignments({
   }
 
   async function deleteAssignment(id: number) {
-    await request(`/classes/${classId}/assignments/${id}`, {
-      method: "DELETE",
-    });
+    await deleteClassAssignment(classId, id);
     await load();
   }
 
@@ -239,6 +224,29 @@ export function ClassAssignments({
       { method: "POST" },
     );
     setJoinCode(result.joinCode);
+  }
+
+  async function copyJoinValue(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: `${label} copied` });
+    } catch {
+      toast({
+        title: `Could not copy ${label.toLowerCase()}`,
+        description: "Copy it manually and try again.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  function copyInviteLink() {
+    if (!joinCode) return;
+    const url = classJoinUrl(
+      window.location.origin,
+      import.meta.env.BASE_URL,
+      joinCode,
+    );
+    if (url) void copyJoinValue(url, "Invite link");
   }
 
   function exportAnalytics() {
@@ -291,22 +299,34 @@ export function ClassAssignments({
               </Button>
             ) : null}
             {joinCode ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigator.clipboard.writeText(joinCode)}
-                title="Copy class join code"
-              >
-                <Clipboard size={14} className="mr-1.5" /> {joinCode}
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void copyJoinValue(joinCode, "Join code")}
+                  title="Copy class join code"
+                  data-testid="class-join-code"
+                >
+                  <Clipboard size={14} className="mr-1.5" /> {joinCode}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={copyInviteLink}
+                  title="Copy a sign-in-safe class invite link"
+                  data-testid="copy-class-join-link"
+                >
+                  <Link2 size={14} className="mr-1.5" /> Copy invite link
+                </Button>
+              </>
             ) : null}
-            <Button variant="outline" size="sm" onClick={refreshCode}>
+            <Button variant="outline" size="sm" onClick={refreshCode} data-testid="create-join-code-button">
               <RefreshCw size={14} className="mr-1.5" />{" "}
               {joinCode ? "New code" : "Create join code"}
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
-                <Button size="sm">
+                <Button size="sm" data-testid="assign-work-button">
                   <Plus size={14} className="mr-1.5" /> Assign work
                 </Button>
               </DialogTrigger>
@@ -326,6 +346,7 @@ export function ClassAssignments({
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
                       required
+                      data-testid="assignment-title-input"
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -336,6 +357,7 @@ export function ClassAssignments({
                       id="assignment-instructions"
                       value={instructions}
                       onChange={(event) => setInstructions(event.target.value)}
+                      data-testid="assignment-instructions-input"
                     />
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -348,7 +370,7 @@ export function ClassAssignments({
                           setLinkedId("none");
                         }}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger data-testid="assignment-link-type">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -369,7 +391,7 @@ export function ClassAssignments({
                         onValueChange={setLinkedId}
                         disabled={linkedType === "none"}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger data-testid="assignment-linked-item">
                           <SelectValue placeholder="Choose" />
                         </SelectTrigger>
                         <SelectContent>
@@ -396,6 +418,7 @@ export function ClassAssignments({
                     <Button
                       type="submit"
                       disabled={saving || title.trim().length < 2}
+                      data-testid="publish-assignment-button"
                     >
                       {saving ? "Publishing…" : "Publish assignment"}
                     </Button>
@@ -418,14 +441,35 @@ export function ClassAssignments({
           % average completion
         </div>
       )}
-      {assignments.length === 0 ? (
+      {loadError && assignments.length > 0 ? (
+        <LoadFailure
+          variant="banner"
+          title="Some class-work details could not be refreshed"
+          description={loadError}
+          onRetry={() => void load()}
+          retrying={loading}
+        />
+      ) : null}
+      {loading && assignments.length === 0 ? (
+        <div className="border py-10 text-center text-sm text-muted-foreground">
+          Loading assignments…
+        </div>
+      ) : loadError && assignments.length === 0 ? (
+        <LoadFailure
+          title="Assignments could not be loaded"
+          description={loadError}
+          onRetry={() => void load()}
+          retrying={loading}
+          testId="class-assignments-load-error"
+        />
+      ) : assignments.length === 0 ? (
         <div className="border py-10 text-center text-sm text-muted-foreground">
           No assignments yet.
         </div>
       ) : (
         <div className="space-y-2">
           {assignments.map((assignment) => (
-            <Card key={assignment.id}>
+            <Card key={assignment.id} data-testid="assignment-card">
               <CardContent className="flex flex-wrap items-center gap-3 py-3">
                 <button
                   type="button"
@@ -438,6 +482,7 @@ export function ClassAssignments({
                   title={
                     assignment.completed ? "Mark incomplete" : "Mark complete"
                   }
+                  data-testid="assignment-completion-toggle"
                 >
                   {assignment.completed && <Check size={15} />}
                 </button>

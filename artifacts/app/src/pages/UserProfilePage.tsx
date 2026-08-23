@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the User Profile Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { User, Globe, Tag, GraduationCap, ExternalLink, ShieldBan, Flag, Loader2, ClipboardPen, BookOpen, List, MessageCircle } from 'lucide-react';

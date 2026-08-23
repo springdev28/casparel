@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Input in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { Input } from '../../components/ui/input';
 import { Stack } from '../parts';
 

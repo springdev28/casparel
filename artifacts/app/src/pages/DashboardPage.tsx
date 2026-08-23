@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Dashboard Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { formatDistanceToNow } from 'date-fns';
 import {
   BookOpen,
@@ -14,6 +18,8 @@ import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
 import { useGetDashboardSummary, useGetRecentActivity } from '@workspace/api-client-react';
 import { ActivityItemType } from '@workspace/api-client-react';
+import { LoadFailure } from '../components/LoadFailure';
+import { getCollectionLoadState } from '../lib/collection-load-state';
 
 function StatCard({
   title,
@@ -63,8 +69,17 @@ function activityBadgeVariant(type: string): 'default' | 'secondary' | 'outline'
 }
 
 export default function DashboardPage() {
-  const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary();
-  const { data: activity, isLoading: activityLoading } = useGetRecentActivity();
+  const summaryQuery = useGetDashboardSummary();
+  const activityQuery = useGetRecentActivity();
+  const summary = summaryQuery.data;
+  const activity = activityQuery.data;
+  const activityItems = activity ?? [];
+  const summaryFailed = summaryQuery.isError && summary === undefined;
+  const activityLoadState = getCollectionLoadState({
+    data: activity,
+    isLoading: activityQuery.isLoading,
+    isError: activityQuery.isError,
+  });
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
@@ -75,14 +90,33 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <section aria-label="Summary statistics">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <StatCard title="Classes" value={summary?.classCount} icon={GraduationCap} loading={summaryLoading} />
-          <StatCard title="Resources" value={summary?.resourceCount} icon={BookOpen} loading={summaryLoading} />
-          <StatCard title="Lists" value={summary?.listCount} icon={List} loading={summaryLoading} />
-          <StatCard title="Reviews" value={summary?.reviewCount} icon={Star} loading={summaryLoading} />
-          <StatCard title="Students" value={summary?.studentCount} icon={Users} loading={summaryLoading} />
-          <StatCard title="Blocks" value={summary?.scheduleBlockCount} icon={Calendar} loading={summaryLoading} />
-        </div>
+        {summaryQuery.isError && summary !== undefined ? (
+          <LoadFailure
+            variant="banner"
+            title="Dashboard totals could not be refreshed"
+            description="The last saved totals remain visible below."
+            onRetry={() => void summaryQuery.refetch()}
+            retrying={summaryQuery.isFetching}
+          />
+        ) : null}
+        {summaryFailed ? (
+          <LoadFailure
+            title="Dashboard totals could not be loaded"
+            description="The app has not confirmed that these totals are zero."
+            onRetry={() => void summaryQuery.refetch()}
+            retrying={summaryQuery.isFetching}
+            testId="dashboard-summary-load-error"
+          />
+        ) : (
+          <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <StatCard title="Classes" value={summary?.classCount} icon={GraduationCap} loading={summaryQuery.isLoading} />
+            <StatCard title="Resources" value={summary?.resourceCount} icon={BookOpen} loading={summaryQuery.isLoading} />
+            <StatCard title="Lists" value={summary?.listCount} icon={List} loading={summaryQuery.isLoading} />
+            <StatCard title="Reviews" value={summary?.reviewCount} icon={Star} loading={summaryQuery.isLoading} />
+            <StatCard title="Students" value={summary?.studentCount} icon={Users} loading={summaryQuery.isLoading} />
+            <StatCard title="Blocks" value={summary?.scheduleBlockCount} icon={Calendar} loading={summaryQuery.isLoading} />
+          </div>
+        )}
       </section>
 
       {/* Recent Activity */}
@@ -92,7 +126,17 @@ export default function DashboardPage() {
           Recent Activity
         </h2>
 
-        {activityLoading ? (
+        {activityQuery.isError && activity !== undefined ? (
+          <LoadFailure
+            variant="banner"
+            title="Recent activity could not be refreshed"
+            description="Previously loaded activity remains visible below."
+            onRetry={() => void activityQuery.refetch()}
+            retrying={activityQuery.isFetching}
+          />
+        ) : null}
+
+        {activityLoadState === 'loading' ? (
           <Card>
             <CardContent className="py-4 space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -106,7 +150,15 @@ export default function DashboardPage() {
               ))}
             </CardContent>
           </Card>
-        ) : !activity || activity.length === 0 ? (
+        ) : activityLoadState === 'error' ? (
+          <LoadFailure
+            title="Recent activity could not be loaded"
+            description="The app has not confirmed that your activity is empty."
+            onRetry={() => void activityQuery.refetch()}
+            retrying={activityQuery.isFetching}
+            testId="dashboard-activity-load-error"
+          />
+        ) : activityLoadState === 'empty' ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Layers size={32} className="mx-auto text-muted-foreground mb-3" />
@@ -116,7 +168,7 @@ export default function DashboardPage() {
         ) : (
           <Card>
             <CardContent className="py-2 divide-y divide-border">
-              {activity.map((item) => (
+              {activityItems.map((item) => (
                 <div key={item.id} className="flex items-start gap-3 py-3" data-testid="activity-item">
                   <div className="mt-0.5 shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-muted">
                     {activityIcon(item.type)}

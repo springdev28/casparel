@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile screen role: defines the Expo Router Login screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -39,7 +43,9 @@ export default function LoginScreen() {
       { data: { email: email.trim(), password } },
       {
         onSuccess: (data) => {
-          login(data.token, data.user);
+          void login(data.token, data.user).catch(() => {
+            setErrorMsg('Could not save your session securely. Please try again.');
+          });
         },
         onError: () => {
           setErrorMsg('Invalid email or password. Please try again.');

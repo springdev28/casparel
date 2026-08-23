@@ -17,6 +17,54 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Record an allowlisted first-party product event
+ */
+
+export const recordProductEventBodyContextSurfaceMax = 48;
+
+export const recordProductEventBodyContextResultTypeMax = 32;
+
+export const recordProductEventBodyContextMaterialMax = 32;
+
+export const recordProductEventBodyContextPositionMax = 100;
+
+export const recordProductEventBodyContextMilestoneMax = 48;
+
+export const recordProductEventBodyContextPlanMax = 24;
+
+export const recordProductEventBodyContextRouteGroupMax = 32;
+
+export const recordProductEventBodyContextValueMin = 0;
+export const recordProductEventBodyContextValueMax = 10000000;
+
+
+
+export const RecordProductEventBody = zod.object({
+  "event": zod.enum(['onboarding_started', 'onboarding_completed', 'search_result_opened', 'paywall_viewed', 'purchase_started', 'web_vital_measured', 'client_error_observed']),
+  "resourceId": zod.int().min(1).optional(),
+  "context": zod.object({
+  "surface": zod.string().max(recordProductEventBodyContextSurfaceMax).optional(),
+  "resultType": zod.string().max(recordProductEventBodyContextResultTypeMax).optional(),
+  "material": zod.string().max(recordProductEventBodyContextMaterialMax).optional(),
+  "position": zod.int().min(1).max(recordProductEventBodyContextPositionMax).optional(),
+  "milestone": zod.string().max(recordProductEventBodyContextMilestoneMax).optional(),
+  "plan": zod.string().max(recordProductEventBodyContextPlanMax).optional(),
+  "workspaceRole": zod.enum(['student', 'teacher']).optional(),
+  "routeGroup": zod.string().max(recordProductEventBodyContextRouteGroupMax).optional(),
+  "metric": zod.enum(['LCP', 'INP', 'CLS', 'TTFB']).optional(),
+  "value": zod.number().min(recordProductEventBodyContextValueMin).max(recordProductEventBodyContextValueMax).optional(),
+  "rating": zod.enum(['good', 'needs-improvement', 'poor']).optional(),
+  "source": zod.enum(['react_boundary', 'window_error', 'unhandled_rejection']).optional(),
+  "errorKind": zod.enum(['chunk_load', 'type_error', 'reference_error', 'range_error', 'syntax_error', 'network_error', 'unknown']).optional()
+}).optional()
+})
+
+export const RecordProductEventResponse = zod.object({
+  "accepted": zod.boolean()
+})
+
+
+/**
  * @summary Register a new user
  */
 export const registerBodyPasswordMin = 8;
@@ -37,6 +85,7 @@ export const RegisterResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher', 'admin']),
   "activeRole": zod.enum(['student', 'teacher']).optional(),
+  "educatorEnabled": zod.boolean().optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -70,6 +119,7 @@ export const LoginResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher', 'admin']),
   "activeRole": zod.enum(['student', 'teacher']).optional(),
+  "educatorEnabled": zod.boolean().optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -103,6 +153,7 @@ export const GetMeResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher', 'admin']),
   "activeRole": zod.enum(['student', 'teacher']).optional(),
+  "educatorEnabled": zod.boolean().optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -148,6 +199,7 @@ export const UpdateMeResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher', 'admin']),
   "activeRole": zod.enum(['student', 'teacher']).optional(),
+  "educatorEnabled": zod.boolean().optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -184,6 +236,7 @@ export const UploadAvatarResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher', 'admin']),
   "activeRole": zod.enum(['student', 'teacher']).optional(),
+  "educatorEnabled": zod.boolean().optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -213,6 +266,7 @@ export const SetPresetAvatarResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher', 'admin']),
   "activeRole": zod.enum(['student', 'teacher']).optional(),
+  "educatorEnabled": zod.boolean().optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -340,7 +394,7 @@ export const ReportUserResponse = zod.object({
 
 
 /**
- * @summary Switch the active role for the current user (student ↔ teacher)
+ * @summary Switch the learner or educator workspace for the current user
  */
 export const SwitchRoleBody = zod.object({
   "role": zod.enum(['student', 'teacher'])
@@ -353,6 +407,7 @@ export const SwitchRoleResponse = zod.object({
   "name": zod.string(),
   "role": zod.enum(['student', 'teacher', 'admin']),
   "activeRole": zod.enum(['student', 'teacher']).optional(),
+  "educatorEnabled": zod.boolean().optional(),
   "avatarUrl": zod.string().nullish(),
   "bio": zod.string().nullish(),
   "subjects": zod.array(zod.string()).nullish(),
@@ -391,12 +446,190 @@ export const GetMyUsageResponse = zod.object({
 
 
 /**
+ * Fetches the current RevenueCat Customer Info for the authenticated Casparel account and updates only its subscription plan fields. Clients call this after purchase or restore so server-side feature gates do not have to wait for webhook delivery.
+ * @summary Reconcile the signed-in account plan from RevenueCat
+ */
+export const ReconcileMyEntitlementsResponse = zod.object({
+  "plan": zod.enum(['free', 'plus', 'pro']),
+  "planExpiresAt": zod.coerce.date().nullable()
+})
+
+
+/**
+ * @summary Get the current account's synchronized interface preferences
+ */
+export const getUserPreferencesResponseInterfaceColorsOneBackgroundRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const getUserPreferencesResponseInterfaceColorsOneSurfaceRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const getUserPreferencesResponseInterfaceColorsOnePrimaryRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const getUserPreferencesResponseInterfaceColorsOneAccentRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const getUserPreferencesResponseAmbientIntensityMin = 0.5;
+export const getUserPreferencesResponseAmbientIntensityMax = 2;
+
+
+export const getUserPreferencesResponseReadNotificationIdsMax = 500;
+
+
+
+export const getUserPreferencesResponseContinueStudyingMaxOne = 6;
+
+export const getUserPreferencesResponsePendingCheckInsConceptMax = 300;
+
+export const getUserPreferencesResponsePendingCheckInsPromptMax = 600;
+
+export const getUserPreferencesResponseSearchHistoryItemQueryMax = 300;
+
+
+export const getUserPreferencesResponseSearchHistoryMax = 12;
+
+
+
+export const GetUserPreferencesResponse = zod.object({
+  "userId": zod.int(),
+  "language": zod.union([zod.literal('en'),zod.literal('tr'),zod.literal(null)]).nullable(),
+  "interfaceColors": zod.union([zod.object({
+  "background": zod.string().regex(getUserPreferencesResponseInterfaceColorsOneBackgroundRegExp),
+  "surface": zod.string().regex(getUserPreferencesResponseInterfaceColorsOneSurfaceRegExp),
+  "primary": zod.string().regex(getUserPreferencesResponseInterfaceColorsOnePrimaryRegExp),
+  "accent": zod.string().regex(getUserPreferencesResponseInterfaceColorsOneAccentRegExp)
+}),zod.null()]),
+  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullable(),
+  "ambientIntensity": zod.number().min(getUserPreferencesResponseAmbientIntensityMin).max(getUserPreferencesResponseAmbientIntensityMax).nullable(),
+  "readNotificationIds": zod.array(zod.int().min(1)).max(getUserPreferencesResponseReadNotificationIdsMax),
+  "dashboardGoalIds": zod.record(zod.string(), zod.int().min(1)),
+  "continueStudying": zod.record(zod.string(), zod.array(zod.int().min(1)).max(getUserPreferencesResponseContinueStudyingMaxOne)),
+  "pendingCheckIns": zod.record(zod.string(), zod.object({
+  "concept": zod.string().min(1).max(getUserPreferencesResponsePendingCheckInsConceptMax),
+  "prompt": zod.string().min(1).max(getUserPreferencesResponsePendingCheckInsPromptMax)
+})),
+  "searchHistory": zod.array(zod.object({
+  "query": zod.string().min(1).max(getUserPreferencesResponseSearchHistoryItemQueryMax),
+  "searchedAt": zod.string().min(1)
+})).max(getUserPreferencesResponseSearchHistoryMax),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullable(),
+  "allowMessageRequests": zod.boolean(),
+  "tutorialSeen": zod.boolean(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Merge synchronized interface preferences for the current account
+ */
+export const updateUserPreferencesBodyInterfaceColorsOneBackgroundRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const updateUserPreferencesBodyInterfaceColorsOneSurfaceRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const updateUserPreferencesBodyInterfaceColorsOnePrimaryRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const updateUserPreferencesBodyInterfaceColorsOneAccentRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const updateUserPreferencesBodyAmbientIntensityMin = 0.5;
+export const updateUserPreferencesBodyAmbientIntensityMax = 2;
+
+
+export const updateUserPreferencesBodyReadNotificationIdsMax = 500;
+
+
+
+export const updateUserPreferencesBodyContinueStudyingMaxOne = 6;
+
+export const updateUserPreferencesBodyPendingCheckInsConceptMax = 300;
+
+export const updateUserPreferencesBodyPendingCheckInsPromptMax = 600;
+
+export const updateUserPreferencesBodySearchHistoryItemQueryMax = 300;
+
+
+export const updateUserPreferencesBodySearchHistoryMax = 12;
+
+
+
+export const UpdateUserPreferencesBody = zod.object({
+  "language": zod.enum(['en', 'tr']).optional(),
+  "interfaceColors": zod.union([zod.object({
+  "background": zod.string().regex(updateUserPreferencesBodyInterfaceColorsOneBackgroundRegExp),
+  "surface": zod.string().regex(updateUserPreferencesBodyInterfaceColorsOneSurfaceRegExp),
+  "primary": zod.string().regex(updateUserPreferencesBodyInterfaceColorsOnePrimaryRegExp),
+  "accent": zod.string().regex(updateUserPreferencesBodyInterfaceColorsOneAccentRegExp)
+}),zod.null()]).optional(),
+  "ambientStyle": zod.enum(['off', 'net', 'globe', 'halo', 'cells', 'rings', 'topology']).optional(),
+  "ambientIntensity": zod.number().min(updateUserPreferencesBodyAmbientIntensityMin).max(updateUserPreferencesBodyAmbientIntensityMax).optional(),
+  "readNotificationIds": zod.array(zod.int().min(1)).max(updateUserPreferencesBodyReadNotificationIdsMax).optional(),
+  "dashboardGoalIds": zod.record(zod.string(), zod.int().min(1)).optional(),
+  "continueStudying": zod.record(zod.string(), zod.array(zod.int().min(1)).max(updateUserPreferencesBodyContinueStudyingMaxOne)).optional(),
+  "pendingCheckIns": zod.record(zod.string(), zod.object({
+  "concept": zod.string().min(1).max(updateUserPreferencesBodyPendingCheckInsConceptMax),
+  "prompt": zod.string().min(1).max(updateUserPreferencesBodyPendingCheckInsPromptMax)
+})).optional(),
+  "searchHistory": zod.array(zod.object({
+  "query": zod.string().min(1).max(updateUserPreferencesBodySearchHistoryItemQueryMax),
+  "searchedAt": zod.string().min(1)
+})).max(updateUserPreferencesBodySearchHistoryMax).optional(),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullish(),
+  "allowMessageRequests": zod.boolean().optional(),
+  "tutorialSeen": zod.boolean().optional()
+})
+
+export const updateUserPreferencesResponseInterfaceColorsOneBackgroundRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const updateUserPreferencesResponseInterfaceColorsOneSurfaceRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const updateUserPreferencesResponseInterfaceColorsOnePrimaryRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const updateUserPreferencesResponseInterfaceColorsOneAccentRegExp = new RegExp('^#[0-9a-fA-F]{6}$');
+export const updateUserPreferencesResponseAmbientIntensityMin = 0.5;
+export const updateUserPreferencesResponseAmbientIntensityMax = 2;
+
+
+export const updateUserPreferencesResponseReadNotificationIdsMax = 500;
+
+
+
+export const updateUserPreferencesResponseContinueStudyingMaxOne = 6;
+
+export const updateUserPreferencesResponsePendingCheckInsConceptMax = 300;
+
+export const updateUserPreferencesResponsePendingCheckInsPromptMax = 600;
+
+export const updateUserPreferencesResponseSearchHistoryItemQueryMax = 300;
+
+
+export const updateUserPreferencesResponseSearchHistoryMax = 12;
+
+
+
+export const UpdateUserPreferencesResponse = zod.object({
+  "userId": zod.int(),
+  "language": zod.union([zod.literal('en'),zod.literal('tr'),zod.literal(null)]).nullable(),
+  "interfaceColors": zod.union([zod.object({
+  "background": zod.string().regex(updateUserPreferencesResponseInterfaceColorsOneBackgroundRegExp),
+  "surface": zod.string().regex(updateUserPreferencesResponseInterfaceColorsOneSurfaceRegExp),
+  "primary": zod.string().regex(updateUserPreferencesResponseInterfaceColorsOnePrimaryRegExp),
+  "accent": zod.string().regex(updateUserPreferencesResponseInterfaceColorsOneAccentRegExp)
+}),zod.null()]),
+  "ambientStyle": zod.union([zod.literal('off'),zod.literal('net'),zod.literal('globe'),zod.literal('halo'),zod.literal('cells'),zod.literal('rings'),zod.literal('topology'),zod.literal(null)]).nullable(),
+  "ambientIntensity": zod.number().min(updateUserPreferencesResponseAmbientIntensityMin).max(updateUserPreferencesResponseAmbientIntensityMax).nullable(),
+  "readNotificationIds": zod.array(zod.int().min(1)).max(updateUserPreferencesResponseReadNotificationIdsMax),
+  "dashboardGoalIds": zod.record(zod.string(), zod.int().min(1)),
+  "continueStudying": zod.record(zod.string(), zod.array(zod.int().min(1)).max(updateUserPreferencesResponseContinueStudyingMaxOne)),
+  "pendingCheckIns": zod.record(zod.string(), zod.object({
+  "concept": zod.string().min(1).max(updateUserPreferencesResponsePendingCheckInsConceptMax),
+  "prompt": zod.string().min(1).max(updateUserPreferencesResponsePendingCheckInsPromptMax)
+})),
+  "searchHistory": zod.array(zod.object({
+  "query": zod.string().min(1).max(updateUserPreferencesResponseSearchHistoryItemQueryMax),
+  "searchedAt": zod.string().min(1)
+})).max(updateUserPreferencesResponseSearchHistoryMax),
+  "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullable(),
+  "allowMessageRequests": zod.boolean(),
+  "tutorialSeen": zod.boolean(),
+  "updatedAt": zod.string()
+})
+
+
+/**
  * @summary Get administrator usage and content totals
  */
 export const GetAdminOverviewResponse = zod.object({
   "users": zod.int(),
-  "students": zod.int(),
-  "teachers": zod.int(),
+  "learnerAccounts": zod.int(),
+  "educatorAccounts": zod.int(),
+  "accountsBothLearnAndTeach": zod.int(),
+  "activeClassOwners30d": zod.int(),
+  "classLearners": zod.int(),
   "admins": zod.int(),
   "goals": zod.int(),
   "resources": zod.int(),
@@ -472,8 +705,472 @@ export const GetAdminOverviewResponse = zod.object({
   "teacherApprovalRate": zod.number(),
   "reportsPerThousand": zod.number(),
   "estimatedStoredMb": zod.number()
+}),
+  "activation": zod.object({
+  "registered30d": zod.int(),
+  "firstSearchUsers30d": zod.int(),
+  "sourceCheckUsers30d": zod.int(),
+  "activatedLearners30d": zod.int(),
+  "activatedEducators30d": zod.int(),
+  "registeredToSearchRate": zod.number(),
+  "searchToSourceCheckRate": zod.number(),
+  "sourceCheckToActionRate": zod.number(),
+  "d1ReturnRate": zod.number(),
+  "d7ReturnRate": zod.number(),
+  "classesWithFiveLearners": zod.int(),
+  "searchNoResultRate": zod.number(),
+  "avgPreviewCoverage": zod.number()
+})
+}),
+  "reliability": zod.object({
+  "sampleWindowDays": zod.int(),
+  "measuredUsers30d": zod.int(),
+  "vitalSamples30d": zod.int(),
+  "clientErrors30d": zod.int(),
+  "renderCrashes30d": zod.int(),
+  "errorFreeUsersRate": zod.number(),
+  "lcpP75Ms": zod.number().nullable(),
+  "inpP75Ms": zod.number().nullable(),
+  "clsP75": zod.number().nullable(),
+  "lcpSloMet": zod.boolean().nullable(),
+  "inpSloMet": zod.boolean().nullable(),
+  "clsSloMet": zod.boolean().nullable(),
+  "errorFreeUsersSloMet": zod.boolean().nullable()
 })
 })
+
+
+/**
+ * @summary Search and paginate administrator-visible accounts
+ */
+export const listAdminUsersQueryQMax = 200;
+
+export const listAdminUsersQueryLimitDefault = 25;
+export const listAdminUsersQueryLimitMax = 100;
+
+export const listAdminUsersQueryOffsetDefault = 0;
+export const listAdminUsersQueryOffsetMin = 0;
+
+
+
+export const ListAdminUsersQueryParams = zod.object({
+  "q": zod.coerce.string().max(listAdminUsersQueryQMax).optional(),
+  "role": zod.enum(['student', 'teacher', 'admin']).optional().describe('Filter by platform authority, not the active workspace.'),
+  "status": zod.enum(['active', 'banned']).optional(),
+  "educatorEnabled": zod.coerce.boolean().optional(),
+  "limit": zod.coerce.number().int().min(1).max(listAdminUsersQueryLimitMax).default(listAdminUsersQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(listAdminUsersQueryOffsetMin).default(listAdminUsersQueryOffsetDefault)
+})
+
+
+export const listAdminUsersResponseTotalMin = 0;
+
+export const listAdminUsersResponseLimitMax = 100;
+
+export const listAdminUsersResponseOffsetMin = 0;
+
+
+
+export const ListAdminUsersResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']),
+  "educatorEnabled": zod.boolean(),
+  "teacherVerified": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
+  "websiteUrl": zod.string().nullish(),
+  "plan": zod.enum(['free', 'plus', 'pro']),
+  "planExpiresAt": zod.string().nullish(),
+  "bannedAt": zod.string().nullish(),
+  "bannedReason": zod.string().nullish(),
+  "createdAt": zod.string()
+})),
+  "total": zod.int().min(listAdminUsersResponseTotalMin),
+  "limit": zod.int().min(1).max(listAdminUsersResponseLimitMax),
+  "offset": zod.int().min(listAdminUsersResponseOffsetMin)
+})
+
+
+/**
+ * @summary Update an account profile, authority, or workspace capability
+ */
+
+
+
+export const UpdateAdminUserParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateAdminUserBodyNameMax = 120;
+
+export const updateAdminUserBodyEmailMax = 320;
+
+export const updateAdminUserBodyBioMax = 1000;
+
+export const updateAdminUserBodySubjectsItemMax = 80;
+
+export const updateAdminUserBodySubjectsMax = 30;
+
+export const updateAdminUserBodyGradeOrDeptMax = 160;
+
+export const updateAdminUserBodyTimezoneMax = 100;
+
+export const updateAdminUserBodyWebsiteUrlMax = 1000;
+
+
+
+export const UpdateAdminUserBody = zod.object({
+  "name": zod.string().min(1).max(updateAdminUserBodyNameMax).optional(),
+  "email": zod.email().max(updateAdminUserBodyEmailMax).optional(),
+  "role": zod.enum(['student', 'teacher', 'admin']).optional(),
+  "activeRole": zod.enum(['student', 'teacher']).optional(),
+  "educatorEnabled": zod.boolean().optional(),
+  "bio": zod.string().max(updateAdminUserBodyBioMax).nullish(),
+  "subjects": zod.array(zod.string().min(1).max(updateAdminUserBodySubjectsItemMax)).max(updateAdminUserBodySubjectsMax).nullish(),
+  "gradeOrDept": zod.string().max(updateAdminUserBodyGradeOrDeptMax).nullish(),
+  "timezone": zod.string().max(updateAdminUserBodyTimezoneMax).nullish(),
+  "websiteUrl": zod.string().max(updateAdminUserBodyWebsiteUrlMax).nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']).optional(),
+  "showBio": zod.boolean().optional(),
+  "showSubjects": zod.boolean().optional(),
+  "showGradeOrDept": zod.boolean().optional(),
+  "showWebsite": zod.boolean().optional()
+})
+
+
+
+
+export const UpdateAdminUserResponse = zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']),
+  "educatorEnabled": zod.boolean(),
+  "teacherVerified": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
+  "websiteUrl": zod.string().nullish(),
+  "plan": zod.enum(['free', 'plus', 'pro']),
+  "planExpiresAt": zod.string().nullish(),
+  "bannedAt": zod.string().nullish(),
+  "bannedReason": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Override an account plan and record the administrator's reason
+ */
+
+
+
+export const OverrideAdminUserPlanParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const overrideAdminUserPlanBodyReasonMin = 3;
+export const overrideAdminUserPlanBodyReasonMax = 1000;
+
+
+
+export const OverrideAdminUserPlanBody = zod.object({
+  "plan": zod.enum(['free', 'plus', 'pro']),
+  "expiresAt": zod.string().nullish(),
+  "reason": zod.string().min(overrideAdminUserPlanBodyReasonMin).max(overrideAdminUserPlanBodyReasonMax)
+})
+
+
+
+
+export const OverrideAdminUserPlanResponse = zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']),
+  "educatorEnabled": zod.boolean(),
+  "teacherVerified": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
+  "websiteUrl": zod.string().nullish(),
+  "plan": zod.enum(['free', 'plus', 'pro']),
+  "planExpiresAt": zod.string().nullish(),
+  "bannedAt": zod.string().nullish(),
+  "bannedReason": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Ban an account with a persisted administrator reason
+ */
+
+
+
+export const BanAdminUserParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const banAdminUserBodyReasonMin = 3;
+export const banAdminUserBodyReasonMax = 500;
+
+
+
+export const BanAdminUserBody = zod.object({
+  "reason": zod.string().min(banAdminUserBodyReasonMin).max(banAdminUserBodyReasonMax)
+})
+
+
+
+
+export const BanAdminUserResponse = zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']),
+  "educatorEnabled": zod.boolean(),
+  "teacherVerified": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
+  "websiteUrl": zod.string().nullish(),
+  "plan": zod.enum(['free', 'plus', 'pro']),
+  "planExpiresAt": zod.string().nullish(),
+  "bannedAt": zod.string().nullish(),
+  "bannedReason": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Restore access to a banned account
+ */
+
+
+
+export const UnbanAdminUserParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const UnbanAdminUserResponse = zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']),
+  "educatorEnabled": zod.boolean(),
+  "teacherVerified": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
+  "websiteUrl": zod.string().nullish(),
+  "plan": zod.enum(['free', 'plus', 'pro']),
+  "planExpiresAt": zod.string().nullish(),
+  "bannedAt": zod.string().nullish(),
+  "bannedReason": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update account-level trusted publisher verification
+ */
+
+
+
+export const UpdateAdminPublisherVerificationParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const UpdateAdminPublisherVerificationBody = zod.object({
+  "verified": zod.boolean()
+})
+
+
+
+
+export const UpdateAdminPublisherVerificationResponse = zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string(),
+  "email": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "activeRole": zod.enum(['student', 'teacher']),
+  "educatorEnabled": zod.boolean(),
+  "teacherVerified": zod.boolean(),
+  "avatarUrl": zod.string().nullish(),
+  "bio": zod.string().nullish(),
+  "subjects": zod.array(zod.string()).nullish(),
+  "gradeOrDept": zod.string().nullish(),
+  "timezone": zod.string().nullish(),
+  "profileVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "libraryVisibility": zod.enum(['everyone', 'classmates', 'private']),
+  "showBio": zod.boolean(),
+  "showSubjects": zod.boolean(),
+  "showGradeOrDept": zod.boolean(),
+  "showWebsite": zod.boolean(),
+  "websiteUrl": zod.string().nullish(),
+  "plan": zod.enum(['free', 'plus', 'pro']),
+  "planExpiresAt": zod.string().nullish(),
+  "bannedAt": zod.string().nullish(),
+  "bannedReason": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary List resources in one moderation state, oldest first
+ */
+export const listAdminResourceReviewQueueQueryStatusDefault = `unverified`;
+export const listAdminResourceReviewQueueQueryLimitDefault = 50;
+export const listAdminResourceReviewQueueQueryLimitMax = 100;
+
+export const listAdminResourceReviewQueueQueryOffsetDefault = 0;
+export const listAdminResourceReviewQueueQueryOffsetMin = 0;
+
+
+
+export const ListAdminResourceReviewQueueQueryParams = zod.object({
+  "status": zod.enum(['unverified', 'verified', 'rejected']).default(listAdminResourceReviewQueueQueryStatusDefault),
+  "limit": zod.coerce.number().int().min(1).max(listAdminResourceReviewQueueQueryLimitMax).default(listAdminResourceReviewQueueQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(listAdminResourceReviewQueueQueryOffsetMin).default(listAdminResourceReviewQueueQueryOffsetDefault)
+})
+
+
+
+export const listAdminResourceReviewQueueResponsePendingTotalMin = 0;
+
+
+
+export const ListAdminResourceReviewQueueResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "verificationStatus": zod.enum(['unverified', 'verified', 'rejected']),
+  "verificationSource": zod.union([zod.literal('catalog'),zod.literal('trusted-submitter'),zod.literal('reviewer'),zod.literal('legacy'),zod.literal(null)]).nullish(),
+  "verificationNote": zod.string().nullish(),
+  "submittedById": zod.int().min(1),
+  "submittedByName": zod.string().nullish(),
+  "submittedByEmail": zod.string().nullish(),
+  "submittedByRole": zod.union([zod.literal('student'),zod.literal('teacher'),zod.literal('admin'),zod.literal(null)]).nullish(),
+  "submitterVerified": zod.boolean().nullish()
+})),
+  "pendingTotal": zod.int().min(listAdminResourceReviewQueueResponsePendingTotalMin)
+})
+
+
+/**
+ * @summary Approve, reject, or return a resource to the review queue
+ */
+
+
+
+export const UpdateAdminResourceVerificationParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateAdminResourceVerificationBodyNoteMax = 1000;
+
+
+
+export const UpdateAdminResourceVerificationBody = zod.object({
+  "status": zod.enum(['verified', 'rejected', 'unverified']),
+  "note": zod.string().max(updateAdminResourceVerificationBodyNoteMax).optional()
+})
+
+
+
+
+export const UpdateAdminResourceVerificationResponse = zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "verificationStatus": zod.enum(['unverified', 'verified', 'rejected']),
+  "verificationNote": zod.string().nullish()
+})
+
+
+/**
+ * @summary Apply one moderation decision to a bounded resource batch
+ */
+
+export const bulkUpdateAdminResourceVerificationBodyIdsMax = 100;
+
+export const bulkUpdateAdminResourceVerificationBodyNoteMax = 1000;
+
+
+
+export const BulkUpdateAdminResourceVerificationBody = zod.object({
+  "ids": zod.array(zod.int().min(1)).min(1).max(bulkUpdateAdminResourceVerificationBodyIdsMax),
+  "status": zod.enum(['verified', 'rejected', 'unverified']),
+  "note": zod.string().max(bulkUpdateAdminResourceVerificationBodyNoteMax).optional()
+})
+
+export const bulkUpdateAdminResourceVerificationResponseUpdatedMin = 0;
+export const bulkUpdateAdminResourceVerificationResponseUpdatedMax = 100;
+
+
+
+export const BulkUpdateAdminResourceVerificationResponse = zod.object({
+  "updated": zod.int().min(bulkUpdateAdminResourceVerificationResponseUpdatedMin).max(bulkUpdateAdminResourceVerificationResponseUpdatedMax)
 })
 
 
@@ -491,6 +1188,7 @@ export const listLearningGoalsResponsePathStepsItemQueryMax = 300;
 export const ListLearningGoalsResponseItem = zod.object({
   "id": zod.int(),
   "userId": zod.int(),
+  "sourceListId": zod.int().nullish(),
   "title": zod.string(),
   "subject": zod.string(),
   "description": zod.string().nullish(),
@@ -502,7 +1200,8 @@ export const ListLearningGoalsResponseItem = zod.object({
   "id": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemTitleMax),
   "query": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().optional()
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -544,6 +1243,7 @@ export const createLearningGoalResponsePathStepsItemQueryMax = 300;
 export const CreateLearningGoalResponse = zod.object({
   "id": zod.int(),
   "userId": zod.int(),
+  "sourceListId": zod.int().nullish(),
   "title": zod.string(),
   "subject": zod.string(),
   "description": zod.string().nullish(),
@@ -555,7 +1255,8 @@ export const CreateLearningGoalResponse = zod.object({
   "id": zod.string().min(1).max(createLearningGoalResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(createLearningGoalResponsePathStepsItemTitleMax),
   "query": zod.string().min(1).max(createLearningGoalResponsePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().optional()
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -600,7 +1301,8 @@ export const UpdateLearningGoalBody = zod.object({
   "id": zod.string().min(1).max(updateLearningGoalBodyPathStepsItemIdMax),
   "title": zod.string().min(1).max(updateLearningGoalBodyPathStepsItemTitleMax),
   "query": zod.string().min(1).max(updateLearningGoalBodyPathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().optional()
 })).max(updateLearningGoalBodyPathStepsMax).optional()
 })
 
@@ -615,6 +1317,7 @@ export const updateLearningGoalResponsePathStepsItemQueryMax = 300;
 export const UpdateLearningGoalResponse = zod.object({
   "id": zod.int(),
   "userId": zod.int(),
+  "sourceListId": zod.int().nullish(),
   "title": zod.string(),
   "subject": zod.string(),
   "description": zod.string().nullish(),
@@ -626,7 +1329,8 @@ export const UpdateLearningGoalResponse = zod.object({
   "id": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemTitleMax),
   "query": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().optional()
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -1181,6 +1885,7 @@ export const listClassStudentGoalsResponseOnePathStepsItemQueryMax = 300;
 export const ListClassStudentGoalsResponseItem = zod.object({
   "id": zod.int(),
   "userId": zod.int(),
+  "sourceListId": zod.int().nullish(),
   "title": zod.string(),
   "subject": zod.string(),
   "description": zod.string().nullish(),
@@ -1192,7 +1897,8 @@ export const ListClassStudentGoalsResponseItem = zod.object({
   "id": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemIdMax),
   "title": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemTitleMax),
   "query": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().optional()
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -1242,7 +1948,8 @@ export const UpdateClassStudentGoalBody = zod.object({
   "id": zod.string().min(1).max(updateClassStudentGoalBodyPathStepsItemIdMax),
   "title": zod.string().min(1).max(updateClassStudentGoalBodyPathStepsItemTitleMax),
   "query": zod.string().min(1).max(updateClassStudentGoalBodyPathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().optional()
 })).max(updateClassStudentGoalBodyPathStepsMax).optional()
 })
 
@@ -1257,6 +1964,7 @@ export const updateClassStudentGoalResponseOnePathStepsItemQueryMax = 300;
 export const UpdateClassStudentGoalResponse = zod.object({
   "id": zod.int(),
   "userId": zod.int(),
+  "sourceListId": zod.int().nullish(),
   "title": zod.string(),
   "subject": zod.string(),
   "description": zod.string().nullish(),
@@ -1268,7 +1976,8 @@ export const UpdateClassStudentGoalResponse = zod.object({
   "id": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemIdMax),
   "title": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemTitleMax),
   "query": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().optional()
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -1582,6 +2291,250 @@ export const CreateClassJoinCodeResponse = zod.object({
 
 
 /**
+ * @summary List assignments visible to a class member or teacher
+ */
+
+
+
+export const ListClassAssignmentsParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const ListClassAssignmentsResponseItem = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "title": zod.string(),
+  "instructions": zod.string().nullable(),
+  "resourceId": zod.int().nullable(),
+  "activityId": zod.int().nullable(),
+  "dueAt": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "resourceTitle": zod.string().nullable(),
+  "resourceUrl": zod.string().nullable(),
+  "activityTitle": zod.string().nullable(),
+  "completedAt": zod.string().nullable(),
+  "completed": zod.boolean()
+})
+export const ListClassAssignmentsResponse = zod.array(ListClassAssignmentsResponseItem)
+
+
+/**
+ * Teacher-only. At most one of resourceId and activityId may be set.
+ * @summary Assign a resource, activity, or standalone task to a class
+ */
+
+
+
+export const CreateClassAssignmentParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const createClassAssignmentBodyTitleMin = 2;
+export const createClassAssignmentBodyTitleMax = 180;
+
+export const createClassAssignmentBodyInstructionsMax = 2000;
+
+
+
+
+
+export const CreateClassAssignmentBody = zod.object({
+  "title": zod.string().min(createClassAssignmentBodyTitleMin).max(createClassAssignmentBodyTitleMax),
+  "instructions": zod.string().max(createClassAssignmentBodyInstructionsMax).nullish(),
+  "resourceId": zod.int().min(1).nullish(),
+  "activityId": zod.int().min(1).nullish(),
+  "dueAt": zod.string().nullish()
+})
+
+export const CreateClassAssignmentResponse = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "createdById": zod.int(),
+  "title": zod.string(),
+  "instructions": zod.string().nullable(),
+  "resourceId": zod.int().nullable(),
+  "activityId": zod.int().nullable(),
+  "dueAt": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete an assignment from a class
+ */
+
+
+
+
+export const DeleteClassAssignmentParams = zod.object({
+  "classId": zod.coerce.number().int().min(1),
+  "assignmentId": zod.coerce.number().int().min(1)
+})
+
+export const DeleteClassAssignmentResponse = zod.void()
+
+
+/**
+ * @summary Mark an assignment complete or incomplete for the current learner
+ */
+
+
+
+export const UpdateAssignmentCompletionParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateAssignmentCompletionBodyCompletedDefault = true;
+
+export const UpdateAssignmentCompletionBody = zod.object({
+  "completed": zod.boolean().default(updateAssignmentCompletionBodyCompletedDefault)
+})
+
+export const UpdateAssignmentCompletionResponse = zod.object({
+  "completed": zod.boolean()
+})
+
+
+/**
+ * @summary List the current learner's class assignments ordered by deadline
+ */
+export const ListTodayAssignmentsResponseItem = zod.object({
+  "id": zod.int(),
+  "classId": zod.int(),
+  "className": zod.string(),
+  "title": zod.string(),
+  "instructions": zod.string().nullable(),
+  "resourceId": zod.int().nullable(),
+  "activityId": zod.int().nullable(),
+  "dueAt": zod.string().nullable(),
+  "completedAt": zod.string().nullable(),
+  "completed": zod.boolean()
+})
+export const ListTodayAssignmentsResponse = zod.array(ListTodayAssignmentsResponseItem)
+
+
+/**
+ * @summary Summarize assignment completion for a class
+ */
+
+
+
+export const GetClassAssignmentAnalyticsParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const getClassAssignmentAnalyticsResponseStudentCountMin = 0;
+
+export const getClassAssignmentAnalyticsResponseAssignmentsItemCompletionsMin = 0;
+
+export const getClassAssignmentAnalyticsResponseAssignmentsItemCompletionRateMin = 0;
+export const getClassAssignmentAnalyticsResponseAssignmentsItemCompletionRateMax = 100;
+
+
+
+export const GetClassAssignmentAnalyticsResponse = zod.object({
+  "studentCount": zod.int().min(getClassAssignmentAnalyticsResponseStudentCountMin),
+  "assignments": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "dueAt": zod.string().nullable(),
+  "completions": zod.int().min(getClassAssignmentAnalyticsResponseAssignmentsItemCompletionsMin),
+  "completionRate": zod.int().min(getClassAssignmentAnalyticsResponseAssignmentsItemCompletionRateMin).max(getClassAssignmentAnalyticsResponseAssignmentsItemCompletionRateMax)
+}))
+})
+
+
+/**
+ * Records a daily resource view and derives the next action from saved workflow events.
+ * @summary Get the current user's workflow state for one resource
+ */
+
+
+
+export const GetResourceWorkflowParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const GetResourceWorkflowResponse = zod.object({
+  "resourceId": zod.int(),
+  "steps": zod.object({
+  "reviewed": zod.boolean(),
+  "saved": zod.boolean(),
+  "activityCreated": zod.boolean(),
+  "classShared": zod.boolean(),
+  "assignmentCreated": zod.boolean()
+}),
+  "nextAction": zod.enum(['review', 'save', 'create_activity', 'share_class', 'assign_class', 'complete']),
+  "assignmentRequired": zod.boolean(),
+  "activity": zod.union([zod.object({
+  "id": zod.int(),
+  "title": zod.string()
+}),zod.null()]),
+  "classShare": zod.union([zod.object({
+  "id": zod.int(),
+  "name": zod.string().nullable()
+}),zod.null()]),
+  "assignment": zod.union([zod.object({
+  "id": zod.int(),
+  "title": zod.string()
+}),zod.null()])
+})
+
+
+/**
+ * Returns at most six incomplete journeys that contain at least one completed workflow step.
+ * @summary List resumable learning workflows for the current user
+ */
+export const listContinueWorkflowsResponseCompletedStepsMax = 4;
+
+
+
+export const ListContinueWorkflowsResponseItem = zod.object({
+  "resourceId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "format": zod.string(),
+  "lastEventAt": zod.string(),
+  "steps": zod.object({
+  "reviewed": zod.boolean(),
+  "saved": zod.boolean(),
+  "activityCreated": zod.boolean(),
+  "classShared": zod.boolean(),
+  "assignmentCreated": zod.boolean()
+}),
+  "nextAction": zod.enum(['review', 'save', 'create_activity', 'share_class', 'assign_class']),
+  "completedSteps": zod.int().min(1).max(listContinueWorkflowsResponseCompletedStepsMax),
+  "totalSteps": zod.union([zod.literal(4),zod.literal(5)]),
+  "activity": zod.union([zod.object({
+  "id": zod.int(),
+  "title": zod.string()
+}),zod.null()]),
+  "classShare": zod.union([zod.object({
+  "id": zod.int(),
+  "name": zod.string().nullable()
+}),zod.null()]),
+  "assignment": zod.union([zod.object({
+  "id": zod.int(),
+  "title": zod.string()
+}),zod.null()])
+})
+export const ListContinueWorkflowsResponse = zod.array(ListContinueWorkflowsResponseItem).max(6)
+
+
+/**
+ * @summary Remove a resource journey from the current user's continuation queue
+ */
+
+
+
+export const DismissWorkflowContinuationParams = zod.object({
+  "resourceId": zod.coerce.number().int().min(1)
+})
+
+export const DismissWorkflowContinuationResponse = zod.void()
+
+
+/**
  * @summary Join a class with an 8-character join code
  */
 export const joinClassByCodeBodyCodeRegExp = new RegExp('^[A-Fa-f0-9]{8}$');
@@ -1737,7 +2690,18 @@ export const PrefetchResourceMetadataResponse = zod.object({
   "title": zod.string(),
   "description": zod.string(),
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
-  "thumbnailUrl": zod.string().nullish()
+  "thumbnailUrl": zod.string().nullish(),
+  "previewTitle": zod.string().nullish(),
+  "previewDescription": zod.string().nullish(),
+  "previewImageUrl": zod.string().nullish(),
+  "previewAuthor": zod.string().nullish(),
+  "previewPublisher": zod.string().nullish(),
+  "previewPublishedAt": zod.string().nullish(),
+  "previewUpdatedAt": zod.string().nullish(),
+  "previewFaviconUrl": zod.string().nullish(),
+  "previewSource": zod.enum(['provider_api', 'oembed', 'opengraph', 'extracted', 'none']).optional(),
+  "previewCheckedAt": zod.string().optional(),
+  "previewMeaningful": zod.boolean().optional()
 })
 
 
@@ -1748,6 +2712,8 @@ export const discoverResourcesQueryLanguageDefault = `en`;
 export const discoverResourcesQueryPageDefault = 1;
 
 export const discoverResourcesQueryResultTypeDefault = `content`;
+export const discoverResourcesQueryIntentDefault = `auto`;
+export const discoverResourcesQueryMaterialDefault = `all`;
 
 export const DiscoverResourcesQueryParams = zod.object({
   "q": zod.coerce.string().describe('Search query'),
@@ -1756,7 +2722,9 @@ export const DiscoverResourcesQueryParams = zod.object({
   "gradeLevel": zod.coerce.string().optional(),
   "language": zod.enum(['any', 'en', 'es', 'fr', 'de', 'pt', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Preferred catalog language, or any to avoid restricting language'),
   "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number for paginated results'),
-  "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery')
+  "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery'),
+  "intent": zod.enum(['auto', 'learn', 'practice', 'reference', 'research', 'primary-source']).default(discoverResourcesQueryIntentDefault).describe('Infer learning intent from the query or apply an explicit intent'),
+  "material": zod.enum(['all', 'course', 'book', 'explanation', 'practice', 'interactive', 'video', 'reference', 'paper', 'primary-source', 'repository', 'other']).default(discoverResourcesQueryMaterialDefault).describe('Restrict content discovery to a pedagogical material type')
 })
 
 export const DiscoverResourcesResponseItem = zod.object({
@@ -1765,9 +2733,23 @@ export const DiscoverResourcesResponseItem = zod.object({
   "description": zod.string(),
   "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
   "source": zod.string(),
+  "material": zod.enum(['course', 'book', 'explanation', 'practice', 'interactive', 'video', 'reference', 'paper', 'primary-source', 'repository', 'other']).optional(),
   "thumbnailUrl": zod.string().nullish(),
   "subject": zod.string().nullish(),
   "gradeLevel": zod.string().nullish(),
+  "previewTitle": zod.string().nullish(),
+  "previewDescription": zod.string().nullish(),
+  "previewImageUrl": zod.string().nullish(),
+  "previewAuthor": zod.string().nullish(),
+  "previewPublisher": zod.string().nullish(),
+  "previewPublishedAt": zod.string().nullish(),
+  "previewUpdatedAt": zod.string().nullish(),
+  "previewFaviconUrl": zod.string().nullish(),
+  "previewSource": zod.enum(['provider_api', 'oembed', 'opengraph', 'extracted', 'none']).optional(),
+  "previewCheckedAt": zod.string().optional(),
+  "previewMeaningful": zod.boolean().optional(),
+  "previewLicense": zod.string().nullish(),
+  "previewAccessType": zod.enum(['free', 'unknown']).optional(),
   "provenanceLevel": zod.enum(['institutional', 'established', 'independent', 'unknown']).optional(),
   "provenanceSignals": zod.array(zod.string()).optional(),
   "linkChecked": zod.boolean().optional(),
@@ -2020,6 +3002,26 @@ export const DeleteResourceReviewResponse = zod.void()
 
 
 /**
+ * @summary List the current user's learning lists that contain one resource
+ */
+
+
+
+export const ListResourceListMembershipsParams = zod.object({
+  "resourceId": zod.coerce.number().int().min(1)
+})
+
+export const ListResourceListMembershipsResponseItem = zod.object({
+  "listId": zod.int(),
+  "listName": zod.string(),
+  "listItemId": zod.int(),
+  "note": zod.string().nullish(),
+  "addedAt": zod.string()
+})
+export const ListResourceListMembershipsResponse = zod.array(ListResourceListMembershipsResponseItem)
+
+
+/**
  * @summary List resource lists for the current user
  */
 export const ListResourceListsResponseItem = zod.object({
@@ -2054,6 +3056,77 @@ export const CreateResourceListResponse = zod.object({
   "itemCount": zod.int(),
   "createdAt": zod.string()
 })
+
+
+/**
+ * @summary Open a publicly shared resource list without an account
+ */
+export const getPublicResourceListPathTokenMin = 20;
+export const getPublicResourceListPathTokenMax = 100;
+
+
+
+export const GetPublicResourceListParams = zod.object({
+  "token": zod.coerce.string().min(getPublicResourceListPathTokenMin).max(getPublicResourceListPathTokenMax)
+})
+
+export const GetPublicResourceListResponse = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "itemCount": zod.int(),
+  "createdAt": zod.string(),
+  "items": zod.array(zod.object({
+  "resourceId": zod.int(),
+  "position": zod.int(),
+  "resource": zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string()
+})
+}))
+})
+
+
+/**
+ * @summary Get the current public-share state as the list owner
+ */
+export const GetPublicListShareParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetPublicListShareResponse = zod.object({
+  "shareToken": zod.string().nullable()
+})
+
+
+/**
+ * @summary Create an idempotent public link as the list owner
+ */
+export const CreatePublicListShareParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const CreatePublicListShareResponse = zod.object({
+  "shareToken": zod.string().nullable()
+})
+
+
+/**
+ * @summary Revoke the current public link as the list owner
+ */
+export const RevokePublicListShareParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const RevokePublicListShareResponse = zod.void()
 
 
 /**
@@ -2184,6 +3257,44 @@ export const ReorderListItemsBody = zod.object({
 })
 
 export const ReorderListItemsResponse = zod.void()
+
+
+/**
+ * @summary Turn an ordered resource list into an idempotent learning goal
+ */
+export const CreateLearningGoalFromListParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const createLearningGoalFromListResponsePathStepsItemIdMax = 80;
+
+export const createLearningGoalFromListResponsePathStepsItemTitleMax = 200;
+
+export const createLearningGoalFromListResponsePathStepsItemQueryMax = 300;
+
+
+
+export const CreateLearningGoalFromListResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "sourceListId": zod.int().nullish(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(createLearningGoalFromListResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(createLearningGoalFromListResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(createLearningGoalFromListResponsePathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().optional()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
 
 
 /**
@@ -2661,12 +3772,2122 @@ export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem
 
 
 /**
- * @summary Get Google Calendar connection status and iCal secret
+ * @summary List personal or class-scoped study activities
+ */
+
+
+
+export const ListStudyActivitiesQueryParams = zod.object({
+  "classId": zod.coerce.number().int().min(1).optional()
+})
+
+export const listStudyActivitiesResponseCardsItemIdMax = 80;
+
+export const listStudyActivitiesResponseCardsItemTermMax = 500;
+
+export const listStudyActivitiesResponseCardsItemAnswerMax = 1000;
+
+export const listStudyActivitiesResponseCardsItemChoicesMin = 2;
+export const listStudyActivitiesResponseCardsItemChoicesMax = 6;
+
+export const listStudyActivitiesResponseCardsItemCorrectChoiceIndexMin = 0;
+export const listStudyActivitiesResponseCardsItemCorrectChoiceIndexMax = 5;
+
+
+
+export const ListStudyActivitiesResponseItem = zod.object({
+  "id": zod.int(),
+  "ownerId": zod.int(),
+  "workspaceRole": zod.enum(['student', 'teacher']),
+  "classId": zod.int().nullable(),
+  "title": zod.string(),
+  "subject": zod.string().nullable(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']),
+  "shareToken": zod.string().nullable(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(listStudyActivitiesResponseCardsItemIdMax),
+  "term": zod.string().min(1).max(listStudyActivitiesResponseCardsItemTermMax),
+  "answer": zod.string().min(1).max(listStudyActivitiesResponseCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).min(listStudyActivitiesResponseCardsItemChoicesMin).max(listStudyActivitiesResponseCardsItemChoicesMax).optional(),
+  "correctChoiceIndex": zod.int().min(listStudyActivitiesResponseCardsItemCorrectChoiceIndexMin).max(listStudyActivitiesResponseCardsItemCorrectChoiceIndexMax).optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListStudyActivitiesResponse = zod.array(ListStudyActivitiesResponseItem)
+
+
+/**
+ * @summary Create, copy, remix, or share a study activity
+ */
+export const createStudyActivityBodyOneTitleMin = 2;
+export const createStudyActivityBodyOneTitleMax = 160;
+
+export const createStudyActivityBodyOneSubjectMax = 160;
+
+export const createStudyActivityBodyOneCardsItemIdMax = 80;
+
+export const createStudyActivityBodyOneCardsItemTermMax = 500;
+
+export const createStudyActivityBodyOneCardsItemAnswerMax = 1000;
+
+export const createStudyActivityBodyOneCardsItemChoicesItemMax = 1000;
+
+export const createStudyActivityBodyOneCardsItemChoicesMin = 2;
+export const createStudyActivityBodyOneCardsItemChoicesMax = 6;
+
+export const createStudyActivityBodyOneCardsItemCorrectChoiceIndexMin = 0;
+export const createStudyActivityBodyOneCardsItemCorrectChoiceIndexMax = 5;
+
+export const createStudyActivityBodyOneCardsItemImageDataMax = 200000;
+
+export const createStudyActivityBodyOneCardsItemImageAltMax = 160;
+
+export const createStudyActivityBodyOneCardsMin = 2;
+export const createStudyActivityBodyOneCardsMax = 100;
+
+
+
+
+
+
+
+export const CreateStudyActivityBody = zod.object({
+  "title": zod.string().min(createStudyActivityBodyOneTitleMin).max(createStudyActivityBodyOneTitleMax),
+  "subject": zod.string().max(createStudyActivityBodyOneSubjectMax).nullish(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']).optional(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(createStudyActivityBodyOneCardsItemIdMax).optional(),
+  "term": zod.string().min(1).max(createStudyActivityBodyOneCardsItemTermMax),
+  "answer": zod.string().min(1).max(createStudyActivityBodyOneCardsItemAnswerMax),
+  "choices": zod.array(zod.string().min(1).max(createStudyActivityBodyOneCardsItemChoicesItemMax)).min(createStudyActivityBodyOneCardsItemChoicesMin).max(createStudyActivityBodyOneCardsItemChoicesMax).optional(),
+  "correctChoiceIndex": zod.int().min(createStudyActivityBodyOneCardsItemCorrectChoiceIndexMin).max(createStudyActivityBodyOneCardsItemCorrectChoiceIndexMax).optional(),
+  "imageData": zod.string().max(createStudyActivityBodyOneCardsItemImageDataMax).nullish(),
+  "imageAlt": zod.string().max(createStudyActivityBodyOneCardsItemImageAltMax).nullish()
+})).min(createStudyActivityBodyOneCardsMin).max(createStudyActivityBodyOneCardsMax)
+}).and(zod.object({
+  "classId": zod.int().min(1).nullish(),
+  "sourceResourceId": zod.int().min(1).nullish(),
+  "sourceActivityId": zod.int().min(1).nullish(),
+  "remixedFromActivityId": zod.int().min(1).nullish()
+}))
+
+export const createStudyActivityResponseCardsItemIdMax = 80;
+
+export const createStudyActivityResponseCardsItemTermMax = 500;
+
+export const createStudyActivityResponseCardsItemAnswerMax = 1000;
+
+export const createStudyActivityResponseCardsItemChoicesMin = 2;
+export const createStudyActivityResponseCardsItemChoicesMax = 6;
+
+export const createStudyActivityResponseCardsItemCorrectChoiceIndexMin = 0;
+export const createStudyActivityResponseCardsItemCorrectChoiceIndexMax = 5;
+
+
+
+export const CreateStudyActivityResponse = zod.object({
+  "id": zod.int(),
+  "ownerId": zod.int(),
+  "workspaceRole": zod.enum(['student', 'teacher']),
+  "classId": zod.int().nullable(),
+  "title": zod.string(),
+  "subject": zod.string().nullable(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']),
+  "shareToken": zod.string().nullable(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(createStudyActivityResponseCardsItemIdMax),
+  "term": zod.string().min(1).max(createStudyActivityResponseCardsItemTermMax),
+  "answer": zod.string().min(1).max(createStudyActivityResponseCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).min(createStudyActivityResponseCardsItemChoicesMin).max(createStudyActivityResponseCardsItemChoicesMax).optional(),
+  "correctChoiceIndex": zod.int().min(createStudyActivityResponseCardsItemCorrectChoiceIndexMin).max(createStudyActivityResponseCardsItemCorrectChoiceIndexMax).optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Open a published activity without authentication
+ */
+export const getSharedStudyActivityPathTokenMin = 20;
+export const getSharedStudyActivityPathTokenMax = 100;
+
+
+export const getSharedStudyActivityPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const GetSharedStudyActivityParams = zod.object({
+  "token": zod.coerce.string().min(getSharedStudyActivityPathTokenMin).max(getSharedStudyActivityPathTokenMax).regex(getSharedStudyActivityPathTokenRegExp)
+})
+
+export const getSharedStudyActivityResponseCardsItemIdMax = 80;
+
+export const getSharedStudyActivityResponseCardsItemTermMax = 500;
+
+export const getSharedStudyActivityResponseCardsItemAnswerMax = 1000;
+
+export const getSharedStudyActivityResponseCardsItemChoicesMin = 2;
+export const getSharedStudyActivityResponseCardsItemChoicesMax = 6;
+
+export const getSharedStudyActivityResponseCardsItemCorrectChoiceIndexMin = 0;
+export const getSharedStudyActivityResponseCardsItemCorrectChoiceIndexMax = 5;
+
+
+
+export const GetSharedStudyActivityResponse = zod.object({
+  "id": zod.int(),
+  "classId": zod.null(),
+  "title": zod.string(),
+  "subject": zod.string().nullable(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(getSharedStudyActivityResponseCardsItemIdMax),
+  "term": zod.string().min(1).max(getSharedStudyActivityResponseCardsItemTermMax),
+  "answer": zod.string().min(1).max(getSharedStudyActivityResponseCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).min(getSharedStudyActivityResponseCardsItemChoicesMin).max(getSharedStudyActivityResponseCardsItemChoicesMax).optional(),
+  "correctChoiceIndex": zod.int().min(getSharedStudyActivityResponseCardsItemCorrectChoiceIndexMin).max(getSharedStudyActivityResponseCardsItemCorrectChoiceIndexMax).optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Replace the editable content of an owned or managed activity
+ */
+
+
+
+export const UpdateStudyActivityParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateStudyActivityBodyTitleMin = 2;
+export const updateStudyActivityBodyTitleMax = 160;
+
+export const updateStudyActivityBodySubjectMax = 160;
+
+export const updateStudyActivityBodyCardsItemIdMax = 80;
+
+export const updateStudyActivityBodyCardsItemTermMax = 500;
+
+export const updateStudyActivityBodyCardsItemAnswerMax = 1000;
+
+export const updateStudyActivityBodyCardsItemChoicesItemMax = 1000;
+
+export const updateStudyActivityBodyCardsItemChoicesMin = 2;
+export const updateStudyActivityBodyCardsItemChoicesMax = 6;
+
+export const updateStudyActivityBodyCardsItemCorrectChoiceIndexMin = 0;
+export const updateStudyActivityBodyCardsItemCorrectChoiceIndexMax = 5;
+
+export const updateStudyActivityBodyCardsItemImageDataMax = 200000;
+
+export const updateStudyActivityBodyCardsItemImageAltMax = 160;
+
+export const updateStudyActivityBodyCardsMin = 2;
+export const updateStudyActivityBodyCardsMax = 100;
+
+
+
+export const UpdateStudyActivityBody = zod.object({
+  "title": zod.string().min(updateStudyActivityBodyTitleMin).max(updateStudyActivityBodyTitleMax),
+  "subject": zod.string().max(updateStudyActivityBodySubjectMax).nullish(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']).optional(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(updateStudyActivityBodyCardsItemIdMax).optional(),
+  "term": zod.string().min(1).max(updateStudyActivityBodyCardsItemTermMax),
+  "answer": zod.string().min(1).max(updateStudyActivityBodyCardsItemAnswerMax),
+  "choices": zod.array(zod.string().min(1).max(updateStudyActivityBodyCardsItemChoicesItemMax)).min(updateStudyActivityBodyCardsItemChoicesMin).max(updateStudyActivityBodyCardsItemChoicesMax).optional(),
+  "correctChoiceIndex": zod.int().min(updateStudyActivityBodyCardsItemCorrectChoiceIndexMin).max(updateStudyActivityBodyCardsItemCorrectChoiceIndexMax).optional(),
+  "imageData": zod.string().max(updateStudyActivityBodyCardsItemImageDataMax).nullish(),
+  "imageAlt": zod.string().max(updateStudyActivityBodyCardsItemImageAltMax).nullish()
+})).min(updateStudyActivityBodyCardsMin).max(updateStudyActivityBodyCardsMax)
+})
+
+export const updateStudyActivityResponseCardsItemIdMax = 80;
+
+export const updateStudyActivityResponseCardsItemTermMax = 500;
+
+export const updateStudyActivityResponseCardsItemAnswerMax = 1000;
+
+export const updateStudyActivityResponseCardsItemChoicesMin = 2;
+export const updateStudyActivityResponseCardsItemChoicesMax = 6;
+
+export const updateStudyActivityResponseCardsItemCorrectChoiceIndexMin = 0;
+export const updateStudyActivityResponseCardsItemCorrectChoiceIndexMax = 5;
+
+
+
+export const UpdateStudyActivityResponse = zod.object({
+  "id": zod.int(),
+  "ownerId": zod.int(),
+  "workspaceRole": zod.enum(['student', 'teacher']),
+  "classId": zod.int().nullable(),
+  "title": zod.string(),
+  "subject": zod.string().nullable(),
+  "mode": zod.enum(['all', 'flashcards', 'practice', 'quiz', 'true-false', 'match', 'scramble', 'missing-word', 'random']),
+  "shareToken": zod.string().nullable(),
+  "cards": zod.array(zod.object({
+  "id": zod.string().max(updateStudyActivityResponseCardsItemIdMax),
+  "term": zod.string().min(1).max(updateStudyActivityResponseCardsItemTermMax),
+  "answer": zod.string().min(1).max(updateStudyActivityResponseCardsItemAnswerMax),
+  "choices": zod.array(zod.string()).min(updateStudyActivityResponseCardsItemChoicesMin).max(updateStudyActivityResponseCardsItemChoicesMax).optional(),
+  "correctChoiceIndex": zod.int().min(updateStudyActivityResponseCardsItemCorrectChoiceIndexMin).max(updateStudyActivityResponseCardsItemCorrectChoiceIndexMax).optional(),
+  "imageData": zod.string().nullish(),
+  "imageAlt": zod.string().nullish()
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete an owned or teacher-managed activity
+ */
+
+
+
+export const DeleteStudyActivityParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteStudyActivityResponse = zod.void()
+
+
+/**
+ * @summary Publish an owned activity to the catalog and optionally the forum
+ */
+
+
+
+export const PublishStudyActivityParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const publishStudyActivityBodyDestinationDefault = `catalog`;
+
+export const PublishStudyActivityBody = zod.object({
+  "destination": zod.enum(['catalog', 'forum']).default(publishStudyActivityBodyDestinationDefault)
+})
+
+export const PublishStudyActivityResponse = zod.object({
+  "materialId": zod.int(),
+  "shareToken": zod.string(),
+  "destination": zod.enum(['catalog', 'forum'])
+})
+
+
+/**
+ * @summary List canvases visible to the current account
+ */
+
+
+
+export const listCanvasesResponseOneDocumentNodesItemIdMax = 120;
+
+export const listCanvasesResponseOneDocumentNodesItemDataTitleMax = 240;
+
+export const listCanvasesResponseOneDocumentNodesItemDataTextMax = 10000;
+
+export const listCanvasesResponseOneDocumentNodesItemDataUrlMax = 2000;
+
+
+export const listCanvasesResponseOneDocumentNodesItemDataColorMax = 40;
+
+export const listCanvasesResponseOneDocumentNodesMax = 500;
+
+export const listCanvasesResponseOneDocumentEdgesItemIdMax = 160;
+
+export const listCanvasesResponseOneDocumentEdgesItemSourceMax = 120;
+
+export const listCanvasesResponseOneDocumentEdgesItemTargetMax = 120;
+
+export const listCanvasesResponseOneDocumentEdgesItemLabelMax = 200;
+
+export const listCanvasesResponseOneDocumentEdgesMax = 1000;
+
+export const listCanvasesResponseOneDocumentViewportZoomMin = 0.1;
+export const listCanvasesResponseOneDocumentViewportZoomMax = 4;
+
+
+
+
+export const listCanvasesResponseOneCollaboratorCountMin = 0;
+
+
+
+export const ListCanvasesResponseItem = zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "ownerId": zod.int().min(1),
+  "classId": zod.int().min(1).nullable(),
+  "visibility": zod.enum(['private', 'people', 'class', 'link']),
+  "classAccess": zod.enum(['view', 'edit']),
+  "document": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string().min(1).max(listCanvasesResponseOneDocumentNodesItemIdMax),
+  "type": zod.enum(['study']),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "kind": zod.enum(['note', 'heading', 'link', 'resource']),
+  "title": zod.string().max(listCanvasesResponseOneDocumentNodesItemDataTitleMax),
+  "text": zod.string().max(listCanvasesResponseOneDocumentNodesItemDataTextMax).optional(),
+  "url": zod.url().max(listCanvasesResponseOneDocumentNodesItemDataUrlMax).optional(),
+  "resourceId": zod.int().min(1).optional(),
+  "color": zod.string().max(listCanvasesResponseOneDocumentNodesItemDataColorMax).optional()
+})
+})).max(listCanvasesResponseOneDocumentNodesMax),
+  "edges": zod.array(zod.object({
+  "id": zod.string().min(1).max(listCanvasesResponseOneDocumentEdgesItemIdMax),
+  "source": zod.string().min(1).max(listCanvasesResponseOneDocumentEdgesItemSourceMax),
+  "target": zod.string().min(1).max(listCanvasesResponseOneDocumentEdgesItemTargetMax),
+  "sourceHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "targetHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "direction": zod.enum(['one-way', 'two-way', 'line']).optional(),
+  "label": zod.string().max(listCanvasesResponseOneDocumentEdgesItemLabelMax).optional()
+})).max(listCanvasesResponseOneDocumentEdgesMax),
+  "viewport": zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "zoom": zod.number().min(listCanvasesResponseOneDocumentViewportZoomMin).max(listCanvasesResponseOneDocumentViewportZoomMax)
+}).optional()
+}),
+  "version": zod.int().min(1),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "owner": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "class": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "collaboratorCount": zod.int().min(listCanvasesResponseOneCollaboratorCountMin),
+  "permissions": zod.object({
+  "canView": zod.boolean(),
+  "canEdit": zod.boolean(),
+  "canManage": zod.boolean(),
+  "role": zod.enum(['owner', 'editor', 'viewer', 'class-editor', 'class-viewer'])
+})
+}).and(zod.object({
+  "shareToken": zod.string().nullable()
+}))
+export const ListCanvasesResponse = zod.array(ListCanvasesResponseItem).max(250)
+
+
+/**
+ * @summary Create a personal canvas or a canvas for a class taught by the account
+ */
+export const createCanvasBodyTitleMax = 160;
+
+export const createCanvasBodyDescriptionMax = 1000;
+
+
+export const createCanvasBodyClassAccessDefault = `view`;
+
+export const CreateCanvasBody = zod.object({
+  "title": zod.string().min(1).max(createCanvasBodyTitleMax),
+  "description": zod.string().max(createCanvasBodyDescriptionMax).optional(),
+  "classId": zod.int().min(1).nullish(),
+  "classAccess": zod.enum(['view', 'edit']).default(createCanvasBodyClassAccessDefault)
+})
+
+
+
+
+export const createCanvasResponseOneDocumentNodesItemIdMax = 120;
+
+export const createCanvasResponseOneDocumentNodesItemDataTitleMax = 240;
+
+export const createCanvasResponseOneDocumentNodesItemDataTextMax = 10000;
+
+export const createCanvasResponseOneDocumentNodesItemDataUrlMax = 2000;
+
+
+export const createCanvasResponseOneDocumentNodesItemDataColorMax = 40;
+
+export const createCanvasResponseOneDocumentNodesMax = 500;
+
+export const createCanvasResponseOneDocumentEdgesItemIdMax = 160;
+
+export const createCanvasResponseOneDocumentEdgesItemSourceMax = 120;
+
+export const createCanvasResponseOneDocumentEdgesItemTargetMax = 120;
+
+export const createCanvasResponseOneDocumentEdgesItemLabelMax = 200;
+
+export const createCanvasResponseOneDocumentEdgesMax = 1000;
+
+export const createCanvasResponseOneDocumentViewportZoomMin = 0.1;
+export const createCanvasResponseOneDocumentViewportZoomMax = 4;
+
+
+
+
+export const createCanvasResponseOneCollaboratorCountMin = 0;
+
+
+
+export const CreateCanvasResponse = zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "ownerId": zod.int().min(1),
+  "classId": zod.int().min(1).nullable(),
+  "visibility": zod.enum(['private', 'people', 'class', 'link']),
+  "classAccess": zod.enum(['view', 'edit']),
+  "document": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string().min(1).max(createCanvasResponseOneDocumentNodesItemIdMax),
+  "type": zod.enum(['study']),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "kind": zod.enum(['note', 'heading', 'link', 'resource']),
+  "title": zod.string().max(createCanvasResponseOneDocumentNodesItemDataTitleMax),
+  "text": zod.string().max(createCanvasResponseOneDocumentNodesItemDataTextMax).optional(),
+  "url": zod.url().max(createCanvasResponseOneDocumentNodesItemDataUrlMax).optional(),
+  "resourceId": zod.int().min(1).optional(),
+  "color": zod.string().max(createCanvasResponseOneDocumentNodesItemDataColorMax).optional()
+})
+})).max(createCanvasResponseOneDocumentNodesMax),
+  "edges": zod.array(zod.object({
+  "id": zod.string().min(1).max(createCanvasResponseOneDocumentEdgesItemIdMax),
+  "source": zod.string().min(1).max(createCanvasResponseOneDocumentEdgesItemSourceMax),
+  "target": zod.string().min(1).max(createCanvasResponseOneDocumentEdgesItemTargetMax),
+  "sourceHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "targetHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "direction": zod.enum(['one-way', 'two-way', 'line']).optional(),
+  "label": zod.string().max(createCanvasResponseOneDocumentEdgesItemLabelMax).optional()
+})).max(createCanvasResponseOneDocumentEdgesMax),
+  "viewport": zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "zoom": zod.number().min(createCanvasResponseOneDocumentViewportZoomMin).max(createCanvasResponseOneDocumentViewportZoomMax)
+}).optional()
+}),
+  "version": zod.int().min(1),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "owner": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "class": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "collaboratorCount": zod.int().min(createCanvasResponseOneCollaboratorCountMin),
+  "permissions": zod.object({
+  "canView": zod.boolean(),
+  "canEdit": zod.boolean(),
+  "canManage": zod.boolean(),
+  "role": zod.enum(['owner', 'editor', 'viewer', 'class-editor', 'class-viewer'])
+})
+}).and(zod.object({
+  "shareToken": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Open a link-published canvas without authentication
+ */
+export const getSharedCanvasPathTokenMin = 20;
+export const getSharedCanvasPathTokenMax = 100;
+
+
+export const getSharedCanvasPathTokenRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const GetSharedCanvasParams = zod.object({
+  "token": zod.coerce.string().min(getSharedCanvasPathTokenMin).max(getSharedCanvasPathTokenMax).regex(getSharedCanvasPathTokenRegExp)
+})
+
+
+
+
+export const getSharedCanvasResponseDocumentNodesItemIdMax = 120;
+
+export const getSharedCanvasResponseDocumentNodesItemDataTitleMax = 240;
+
+export const getSharedCanvasResponseDocumentNodesItemDataTextMax = 10000;
+
+export const getSharedCanvasResponseDocumentNodesItemDataUrlMax = 2000;
+
+
+export const getSharedCanvasResponseDocumentNodesItemDataColorMax = 40;
+
+export const getSharedCanvasResponseDocumentNodesMax = 500;
+
+export const getSharedCanvasResponseDocumentEdgesItemIdMax = 160;
+
+export const getSharedCanvasResponseDocumentEdgesItemSourceMax = 120;
+
+export const getSharedCanvasResponseDocumentEdgesItemTargetMax = 120;
+
+export const getSharedCanvasResponseDocumentEdgesItemLabelMax = 200;
+
+export const getSharedCanvasResponseDocumentEdgesMax = 1000;
+
+export const getSharedCanvasResponseDocumentViewportZoomMin = 0.1;
+export const getSharedCanvasResponseDocumentViewportZoomMax = 4;
+
+
+
+
+export const getSharedCanvasResponseCollaboratorCountMin = 0;
+
+
+
+export const GetSharedCanvasResponse = zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "ownerId": zod.int().min(1),
+  "classId": zod.int().min(1).nullable(),
+  "visibility": zod.enum(['private', 'people', 'class', 'link']),
+  "classAccess": zod.enum(['view', 'edit']),
+  "document": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string().min(1).max(getSharedCanvasResponseDocumentNodesItemIdMax),
+  "type": zod.enum(['study']),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "kind": zod.enum(['note', 'heading', 'link', 'resource']),
+  "title": zod.string().max(getSharedCanvasResponseDocumentNodesItemDataTitleMax),
+  "text": zod.string().max(getSharedCanvasResponseDocumentNodesItemDataTextMax).optional(),
+  "url": zod.url().max(getSharedCanvasResponseDocumentNodesItemDataUrlMax).optional(),
+  "resourceId": zod.int().min(1).optional(),
+  "color": zod.string().max(getSharedCanvasResponseDocumentNodesItemDataColorMax).optional()
+})
+})).max(getSharedCanvasResponseDocumentNodesMax),
+  "edges": zod.array(zod.object({
+  "id": zod.string().min(1).max(getSharedCanvasResponseDocumentEdgesItemIdMax),
+  "source": zod.string().min(1).max(getSharedCanvasResponseDocumentEdgesItemSourceMax),
+  "target": zod.string().min(1).max(getSharedCanvasResponseDocumentEdgesItemTargetMax),
+  "sourceHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "targetHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "direction": zod.enum(['one-way', 'two-way', 'line']).optional(),
+  "label": zod.string().max(getSharedCanvasResponseDocumentEdgesItemLabelMax).optional()
+})).max(getSharedCanvasResponseDocumentEdgesMax),
+  "viewport": zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "zoom": zod.number().min(getSharedCanvasResponseDocumentViewportZoomMin).max(getSharedCanvasResponseDocumentViewportZoomMax)
+}).optional()
+}),
+  "version": zod.int().min(1),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "owner": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "class": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "collaboratorCount": zod.int().min(getSharedCanvasResponseCollaboratorCountMin),
+  "permissions": zod.object({
+  "canView": zod.boolean(),
+  "canEdit": zod.boolean(),
+  "canManage": zod.boolean(),
+  "role": zod.enum(['owner', 'editor', 'viewer', 'class-editor', 'class-viewer'])
+})
+})
+
+
+/**
+ * @summary Get a canvas visible to the current account
+ */
+
+
+
+export const GetCanvasParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const getCanvasResponseOneDocumentNodesItemIdMax = 120;
+
+export const getCanvasResponseOneDocumentNodesItemDataTitleMax = 240;
+
+export const getCanvasResponseOneDocumentNodesItemDataTextMax = 10000;
+
+export const getCanvasResponseOneDocumentNodesItemDataUrlMax = 2000;
+
+
+export const getCanvasResponseOneDocumentNodesItemDataColorMax = 40;
+
+export const getCanvasResponseOneDocumentNodesMax = 500;
+
+export const getCanvasResponseOneDocumentEdgesItemIdMax = 160;
+
+export const getCanvasResponseOneDocumentEdgesItemSourceMax = 120;
+
+export const getCanvasResponseOneDocumentEdgesItemTargetMax = 120;
+
+export const getCanvasResponseOneDocumentEdgesItemLabelMax = 200;
+
+export const getCanvasResponseOneDocumentEdgesMax = 1000;
+
+export const getCanvasResponseOneDocumentViewportZoomMin = 0.1;
+export const getCanvasResponseOneDocumentViewportZoomMax = 4;
+
+
+
+
+export const getCanvasResponseOneCollaboratorCountMin = 0;
+
+
+
+export const GetCanvasResponse = zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "ownerId": zod.int().min(1),
+  "classId": zod.int().min(1).nullable(),
+  "visibility": zod.enum(['private', 'people', 'class', 'link']),
+  "classAccess": zod.enum(['view', 'edit']),
+  "document": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string().min(1).max(getCanvasResponseOneDocumentNodesItemIdMax),
+  "type": zod.enum(['study']),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "kind": zod.enum(['note', 'heading', 'link', 'resource']),
+  "title": zod.string().max(getCanvasResponseOneDocumentNodesItemDataTitleMax),
+  "text": zod.string().max(getCanvasResponseOneDocumentNodesItemDataTextMax).optional(),
+  "url": zod.url().max(getCanvasResponseOneDocumentNodesItemDataUrlMax).optional(),
+  "resourceId": zod.int().min(1).optional(),
+  "color": zod.string().max(getCanvasResponseOneDocumentNodesItemDataColorMax).optional()
+})
+})).max(getCanvasResponseOneDocumentNodesMax),
+  "edges": zod.array(zod.object({
+  "id": zod.string().min(1).max(getCanvasResponseOneDocumentEdgesItemIdMax),
+  "source": zod.string().min(1).max(getCanvasResponseOneDocumentEdgesItemSourceMax),
+  "target": zod.string().min(1).max(getCanvasResponseOneDocumentEdgesItemTargetMax),
+  "sourceHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "targetHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "direction": zod.enum(['one-way', 'two-way', 'line']).optional(),
+  "label": zod.string().max(getCanvasResponseOneDocumentEdgesItemLabelMax).optional()
+})).max(getCanvasResponseOneDocumentEdgesMax),
+  "viewport": zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "zoom": zod.number().min(getCanvasResponseOneDocumentViewportZoomMin).max(getCanvasResponseOneDocumentViewportZoomMax)
+}).optional()
+}),
+  "version": zod.int().min(1),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "owner": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "class": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "collaboratorCount": zod.int().min(getCanvasResponseOneCollaboratorCountMin),
+  "permissions": zod.object({
+  "canView": zod.boolean(),
+  "canEdit": zod.boolean(),
+  "canManage": zod.boolean(),
+  "role": zod.enum(['owner', 'editor', 'viewer', 'class-editor', 'class-viewer'])
+})
+}).and(zod.object({
+  "shareToken": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Update canvas content with optimistic concurrency or manage its metadata
+ */
+
+
+
+export const UpdateCanvasParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const updateCanvasBodyTitleMax = 160;
+
+export const updateCanvasBodyDescriptionMax = 1000;
+
+export const updateCanvasBodyDocumentNodesItemIdMax = 120;
+
+export const updateCanvasBodyDocumentNodesItemDataTitleMax = 240;
+
+export const updateCanvasBodyDocumentNodesItemDataTextMax = 10000;
+
+export const updateCanvasBodyDocumentNodesItemDataUrlMax = 2000;
+
+
+export const updateCanvasBodyDocumentNodesItemDataColorMax = 40;
+
+export const updateCanvasBodyDocumentNodesMax = 500;
+
+export const updateCanvasBodyDocumentEdgesItemIdMax = 160;
+
+export const updateCanvasBodyDocumentEdgesItemSourceMax = 120;
+
+export const updateCanvasBodyDocumentEdgesItemTargetMax = 120;
+
+export const updateCanvasBodyDocumentEdgesItemLabelMax = 200;
+
+export const updateCanvasBodyDocumentEdgesMax = 1000;
+
+export const updateCanvasBodyDocumentViewportZoomMin = 0.1;
+export const updateCanvasBodyDocumentViewportZoomMax = 4;
+
+
+
+
+export const UpdateCanvasBody = zod.object({
+  "title": zod.string().min(1).max(updateCanvasBodyTitleMax).optional(),
+  "description": zod.string().max(updateCanvasBodyDescriptionMax).nullish(),
+  "visibility": zod.enum(['private', 'people', 'class', 'link']).optional(),
+  "classAccess": zod.enum(['view', 'edit']).optional(),
+  "document": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateCanvasBodyDocumentNodesItemIdMax),
+  "type": zod.enum(['study']),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "kind": zod.enum(['note', 'heading', 'link', 'resource']),
+  "title": zod.string().max(updateCanvasBodyDocumentNodesItemDataTitleMax),
+  "text": zod.string().max(updateCanvasBodyDocumentNodesItemDataTextMax).optional(),
+  "url": zod.url().max(updateCanvasBodyDocumentNodesItemDataUrlMax).optional(),
+  "resourceId": zod.int().min(1).optional(),
+  "color": zod.string().max(updateCanvasBodyDocumentNodesItemDataColorMax).optional()
+})
+})).max(updateCanvasBodyDocumentNodesMax),
+  "edges": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateCanvasBodyDocumentEdgesItemIdMax),
+  "source": zod.string().min(1).max(updateCanvasBodyDocumentEdgesItemSourceMax),
+  "target": zod.string().min(1).max(updateCanvasBodyDocumentEdgesItemTargetMax),
+  "sourceHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "targetHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "direction": zod.enum(['one-way', 'two-way', 'line']).optional(),
+  "label": zod.string().max(updateCanvasBodyDocumentEdgesItemLabelMax).optional()
+})).max(updateCanvasBodyDocumentEdgesMax),
+  "viewport": zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "zoom": zod.number().min(updateCanvasBodyDocumentViewportZoomMin).max(updateCanvasBodyDocumentViewportZoomMax)
+}).optional()
+}).optional(),
+  "expectedVersion": zod.int().min(1).optional()
+})
+
+
+
+
+export const updateCanvasResponseOneDocumentNodesItemIdMax = 120;
+
+export const updateCanvasResponseOneDocumentNodesItemDataTitleMax = 240;
+
+export const updateCanvasResponseOneDocumentNodesItemDataTextMax = 10000;
+
+export const updateCanvasResponseOneDocumentNodesItemDataUrlMax = 2000;
+
+
+export const updateCanvasResponseOneDocumentNodesItemDataColorMax = 40;
+
+export const updateCanvasResponseOneDocumentNodesMax = 500;
+
+export const updateCanvasResponseOneDocumentEdgesItemIdMax = 160;
+
+export const updateCanvasResponseOneDocumentEdgesItemSourceMax = 120;
+
+export const updateCanvasResponseOneDocumentEdgesItemTargetMax = 120;
+
+export const updateCanvasResponseOneDocumentEdgesItemLabelMax = 200;
+
+export const updateCanvasResponseOneDocumentEdgesMax = 1000;
+
+export const updateCanvasResponseOneDocumentViewportZoomMin = 0.1;
+export const updateCanvasResponseOneDocumentViewportZoomMax = 4;
+
+
+
+
+export const updateCanvasResponseOneCollaboratorCountMin = 0;
+
+
+
+export const UpdateCanvasResponse = zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "ownerId": zod.int().min(1),
+  "classId": zod.int().min(1).nullable(),
+  "visibility": zod.enum(['private', 'people', 'class', 'link']),
+  "classAccess": zod.enum(['view', 'edit']),
+  "document": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateCanvasResponseOneDocumentNodesItemIdMax),
+  "type": zod.enum(['study']),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "kind": zod.enum(['note', 'heading', 'link', 'resource']),
+  "title": zod.string().max(updateCanvasResponseOneDocumentNodesItemDataTitleMax),
+  "text": zod.string().max(updateCanvasResponseOneDocumentNodesItemDataTextMax).optional(),
+  "url": zod.url().max(updateCanvasResponseOneDocumentNodesItemDataUrlMax).optional(),
+  "resourceId": zod.int().min(1).optional(),
+  "color": zod.string().max(updateCanvasResponseOneDocumentNodesItemDataColorMax).optional()
+})
+})).max(updateCanvasResponseOneDocumentNodesMax),
+  "edges": zod.array(zod.object({
+  "id": zod.string().min(1).max(updateCanvasResponseOneDocumentEdgesItemIdMax),
+  "source": zod.string().min(1).max(updateCanvasResponseOneDocumentEdgesItemSourceMax),
+  "target": zod.string().min(1).max(updateCanvasResponseOneDocumentEdgesItemTargetMax),
+  "sourceHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "targetHandle": zod.enum(['top', 'right', 'bottom', 'left']).optional(),
+  "direction": zod.enum(['one-way', 'two-way', 'line']).optional(),
+  "label": zod.string().max(updateCanvasResponseOneDocumentEdgesItemLabelMax).optional()
+})).max(updateCanvasResponseOneDocumentEdgesMax),
+  "viewport": zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "zoom": zod.number().min(updateCanvasResponseOneDocumentViewportZoomMin).max(updateCanvasResponseOneDocumentViewportZoomMax)
+}).optional()
+}),
+  "version": zod.int().min(1),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "owner": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "class": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "name": zod.string()
+}),zod.null()]),
+  "collaboratorCount": zod.int().min(updateCanvasResponseOneCollaboratorCountMin),
+  "permissions": zod.object({
+  "canView": zod.boolean(),
+  "canEdit": zod.boolean(),
+  "canManage": zod.boolean(),
+  "role": zod.enum(['owner', 'editor', 'viewer', 'class-editor', 'class-viewer'])
+})
+}).and(zod.object({
+  "shareToken": zod.string().nullable()
+}))
+
+
+/**
+ * @summary Delete a canvas managed by the current account
+ */
+
+
+
+export const DeleteCanvasParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteCanvasResponse = zod.void()
+
+
+/**
+ * @summary Publish a canvas to the resource catalog and optionally the forum
+ */
+
+
+
+export const PublishCanvasParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const publishCanvasBodyDestinationDefault = `catalog`;
+
+export const PublishCanvasBody = zod.object({
+  "destination": zod.enum(['catalog', 'forum']).default(publishCanvasBodyDestinationDefault)
+})
+
+
+export const publishCanvasResponseShareTokenMin = 20;
+export const publishCanvasResponseShareTokenMax = 100;
+
+
+
+export const PublishCanvasResponse = zod.object({
+  "materialId": zod.int().min(1),
+  "shareToken": zod.string().min(publishCanvasResponseShareTokenMin).max(publishCanvasResponseShareTokenMax),
+  "destination": zod.enum(['catalog', 'forum'])
+})
+
+
+/**
+ * @summary List the named collaborators on a visible canvas
+ */
+
+
+
+export const ListCanvasCollaboratorsParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+
+
+
+export const ListCanvasCollaboratorsResponseItem = zod.object({
+  "userId": zod.int().min(1),
+  "role": zod.enum(['viewer', 'editor']),
+  "createdAt": zod.string(),
+  "name": zod.string(),
+  "email": zod.email(),
+  "avatarUrl": zod.string().nullable()
+})
+export const ListCanvasCollaboratorsResponse = zod.array(ListCanvasCollaboratorsResponseItem)
+
+
+/**
+ * @summary Add a named collaborator or change their role
+ */
+
+
+
+
+export const UpsertCanvasCollaboratorParams = zod.object({
+  "id": zod.coerce.number().int().min(1),
+  "userId": zod.coerce.number().int().min(1)
+})
+
+export const UpsertCanvasCollaboratorBody = zod.object({
+  "role": zod.enum(['viewer', 'editor'])
+})
+
+export const UpsertCanvasCollaboratorResponse = zod.object({
+  "ok": zod.literal(true)
+})
+
+
+/**
+ * @summary Remove a named collaborator
+ */
+
+
+
+
+export const RemoveCanvasCollaboratorParams = zod.object({
+  "id": zod.coerce.number().int().min(1),
+  "userId": zod.coerce.number().int().min(1)
+})
+
+export const RemoveCanvasCollaboratorResponse = zod.void()
+
+
+/**
+ * @summary Get the current account's Forum moderation capabilities
+ */
+export const GetForumAccessResponse = zod.object({
+  "isAdmin": zod.boolean(),
+  "teacherVerified": zod.boolean(),
+  "canApprove": zod.boolean()
+})
+
+
+/**
+ * @summary List visible community learning materials
+ */
+export const listForumMaterialsQueryQMax = 160;
+
+export const listForumMaterialsQueryUnitMax = 100;
+
+export const listForumMaterialsQueryTopicMax = 100;
+
+export const listForumMaterialsQueryUploaderMax = 100;
+
+
+
+export const ListForumMaterialsQueryParams = zod.object({
+  "q": zod.coerce.string().max(listForumMaterialsQueryQMax).optional(),
+  "unit": zod.coerce.string().max(listForumMaterialsQueryUnitMax).optional(),
+  "topic": zod.coerce.string().max(listForumMaterialsQueryTopicMax).optional(),
+  "type": zod.enum(['video', 'infographic', 'article', 'worksheet', 'activity', 'notes']).optional(),
+  "uploader": zod.coerce.string().max(listForumMaterialsQueryUploaderMax).optional(),
+  "date": zod.enum(['day', 'week', 'month', 'year']).optional(),
+  "sort": zod.enum(['newest', 'oldest', 'downloads', 'views']).optional()
+})
+
+
+
+export const listForumMaterialsResponseViewCountMin = 0;
+
+export const listForumMaterialsResponseDownloadCountMin = 0;
+
+export const listForumMaterialsResponseLikeCountMin = 0;
+
+export const listForumMaterialsResponseCommentCountMin = 0;
+
+
+
+
+
+
+export const ListForumMaterialsResponseItem = zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "unit": zod.string(),
+  "topic": zod.string(),
+  "materialType": zod.enum(['video', 'infographic', 'article', 'worksheet', 'activity', 'notes']),
+  "tags": zod.array(zod.string()),
+  "sources": zod.array(zod.string()),
+  "uploaderId": zod.int().min(1).nullable(),
+  "uploaderName": zod.string(),
+  "uploaderRole": zod.enum(['student', 'teacher', 'admin']),
+  "linkUrl": zod.string().nullable(),
+  "fileName": zod.string().nullable(),
+  "mimeType": zod.string().nullable(),
+  "moderationStatus": zod.enum(['approved', 'review', 'hidden']),
+  "moderationNote": zod.string().nullable(),
+  "viewCount": zod.int().min(listForumMaterialsResponseViewCountMin),
+  "downloadCount": zod.int().min(listForumMaterialsResponseDownloadCountMin),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "likeCount": zod.int().min(listForumMaterialsResponseLikeCountMin),
+  "commentCount": zod.int().min(listForumMaterialsResponseCommentCountMin),
+  "likedByMe": zod.boolean(),
+  "approvals": zod.array(zod.object({
+  "id": zod.int().min(1),
+  "materialId": zod.int().min(1),
+  "teacherId": zod.int().min(1).nullable(),
+  "teacherName": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+export const ListForumMaterialsResponse = zod.array(ListForumMaterialsResponseItem).max(100)
+
+
+/**
+ * @summary Publish a linked or uploaded community learning material
+ */
+export const createForumMaterialBodyTitleMax = 180;
+
+export const createForumMaterialBodyDescriptionMax = 2000;
+
+export const createForumMaterialBodyUnitMax = 120;
+
+export const createForumMaterialBodyTopicMax = 120;
+
+export const createForumMaterialBodyLinkUrlMax = 2000;
+
+export const createForumMaterialBodyTagsMax = 6000;
+
+export const createForumMaterialBodySourcesMax = 6000;
+
+
+
+export const CreateForumMaterialBody = zod.object({
+  "title": zod.string().min(1).max(createForumMaterialBodyTitleMax),
+  "description": zod.string().max(createForumMaterialBodyDescriptionMax).optional(),
+  "unit": zod.string().min(1).max(createForumMaterialBodyUnitMax),
+  "topic": zod.string().min(1).max(createForumMaterialBodyTopicMax),
+  "materialType": zod.enum(['video', 'infographic', 'article', 'worksheet', 'activity', 'notes']),
+  "linkUrl": zod.string().max(createForumMaterialBodyLinkUrlMax).optional(),
+  "tags": zod.string().max(createForumMaterialBodyTagsMax).optional(),
+  "sources": zod.string().max(createForumMaterialBodySourcesMax).optional(),
+  "file": zod.instanceof(File).optional()
+})
+
+
+
+export const createForumMaterialResponseViewCountMin = 0;
+
+export const createForumMaterialResponseDownloadCountMin = 0;
+
+export const createForumMaterialResponseLikeCountMin = 0;
+
+export const createForumMaterialResponseCommentCountMin = 0;
+
+
+
+
+
+
+export const CreateForumMaterialResponse = zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "unit": zod.string(),
+  "topic": zod.string(),
+  "materialType": zod.enum(['video', 'infographic', 'article', 'worksheet', 'activity', 'notes']),
+  "tags": zod.array(zod.string()),
+  "sources": zod.array(zod.string()),
+  "uploaderId": zod.int().min(1).nullable(),
+  "uploaderName": zod.string(),
+  "uploaderRole": zod.enum(['student', 'teacher', 'admin']),
+  "linkUrl": zod.string().nullable(),
+  "fileName": zod.string().nullable(),
+  "mimeType": zod.string().nullable(),
+  "moderationStatus": zod.enum(['approved', 'review', 'hidden']),
+  "moderationNote": zod.string().nullable(),
+  "viewCount": zod.int().min(createForumMaterialResponseViewCountMin),
+  "downloadCount": zod.int().min(createForumMaterialResponseDownloadCountMin),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "likeCount": zod.int().min(createForumMaterialResponseLikeCountMin),
+  "commentCount": zod.int().min(createForumMaterialResponseCommentCountMin),
+  "likedByMe": zod.boolean(),
+  "approvals": zod.array(zod.object({
+  "id": zod.int().min(1),
+  "materialId": zod.int().min(1),
+  "teacherId": zod.int().min(1).nullable(),
+  "teacherName": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary Delete an uploaded material as its uploader or an administrator
+ */
+
+
+
+export const DeleteForumMaterialParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteForumMaterialResponse = zod.void()
+
+
+/**
+ * @summary Record that a visible linked material was opened
+ */
+
+
+
+export const RecordForumMaterialViewParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const RecordForumMaterialViewResponse = zod.void()
+
+
+/**
+ * @summary Download the uploaded file for a visible material
+ */
+
+
+
+export const DownloadForumMaterialFileParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DownloadForumMaterialFileResponse = zod.unknown()
+
+
+/**
+ * @summary Add a verified-teacher approval to a student material
+ */
+
+
+
+export const ApproveForumMaterialParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+
+
+export const approveForumMaterialResponseViewCountMin = 0;
+
+export const approveForumMaterialResponseDownloadCountMin = 0;
+
+export const approveForumMaterialResponseLikeCountMin = 0;
+
+export const approveForumMaterialResponseCommentCountMin = 0;
+
+
+
+
+
+
+export const ApproveForumMaterialResponse = zod.object({
+  "id": zod.int().min(1),
+  "title": zod.string(),
+  "description": zod.string().nullable(),
+  "unit": zod.string(),
+  "topic": zod.string(),
+  "materialType": zod.enum(['video', 'infographic', 'article', 'worksheet', 'activity', 'notes']),
+  "tags": zod.array(zod.string()),
+  "sources": zod.array(zod.string()),
+  "uploaderId": zod.int().min(1).nullable(),
+  "uploaderName": zod.string(),
+  "uploaderRole": zod.enum(['student', 'teacher', 'admin']),
+  "linkUrl": zod.string().nullable(),
+  "fileName": zod.string().nullable(),
+  "mimeType": zod.string().nullable(),
+  "moderationStatus": zod.enum(['approved', 'review', 'hidden']),
+  "moderationNote": zod.string().nullable(),
+  "viewCount": zod.int().min(approveForumMaterialResponseViewCountMin),
+  "downloadCount": zod.int().min(approveForumMaterialResponseDownloadCountMin),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "likeCount": zod.int().min(approveForumMaterialResponseLikeCountMin),
+  "commentCount": zod.int().min(approveForumMaterialResponseCommentCountMin),
+  "likedByMe": zod.boolean(),
+  "approvals": zod.array(zod.object({
+  "id": zod.int().min(1),
+  "materialId": zod.int().min(1),
+  "teacherId": zod.int().min(1).nullable(),
+  "teacherName": zod.string(),
+  "createdAt": zod.string()
+}))
+})
+
+
+/**
+ * @summary List visible global or class-scoped Forum posts
+ */
+
+export const listForumPostsQueryQMax = 160;
+
+export const listForumPostsQueryTagMax = 40;
+
+
+
+export const ListForumPostsQueryParams = zod.object({
+  "classId": zod.coerce.number().int().min(1).optional(),
+  "q": zod.coerce.string().max(listForumPostsQueryQMax).optional(),
+  "tag": zod.coerce.string().max(listForumPostsQueryTagMax).optional(),
+  "kind": zod.enum(['post', 'survey']).optional()
+})
+
+
+
+
+export const listForumPostsResponseSurveyOptionsItemIdMax = 80;
+
+export const listForumPostsResponseSurveyOptionsItemTextMax = 300;
+
+
+
+
+export const listForumPostsResponseViewCountMin = 0;
+
+export const listForumPostsResponseLikeCountMin = 0;
+
+export const listForumPostsResponseCommentCountMin = 0;
+
+export const listForumPostsResponseRepostCountMin = 0;
+
+export const listForumPostsResponseVotesItemOptionIdMax = 80;
+
+export const listForumPostsResponseVotesItemCountMin = 0;
+
+
+
+export const ListForumPostsResponseItem = zod.object({
+  "id": zod.int().min(1),
+  "classId": zod.int().min(1).nullable(),
+  "authorId": zod.int().min(1).nullable(),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "kind": zod.enum(['post', 'survey']),
+  "title": zod.string().nullable(),
+  "body": zod.string(),
+  "tags": zod.array(zod.string()),
+  "surveyOptions": zod.array(zod.object({
+  "id": zod.string().min(1).max(listForumPostsResponseSurveyOptionsItemIdMax),
+  "text": zod.string().min(1).max(listForumPostsResponseSurveyOptionsItemTextMax)
+})),
+  "allowMultipleVotes": zod.boolean(),
+  "quotedPostId": zod.int().min(1).nullable(),
+  "quotedPost": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "title": zod.string().nullable(),
+  "body": zod.string(),
+  "tags": zod.array(zod.string()),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "attachmentMaterialId": zod.int().min(1).nullable(),
+  "attachmentFileName": zod.string().nullable(),
+  "attachmentMimeType": zod.string().nullable(),
+  "moderationStatus": zod.enum(['approved', 'review', 'hidden']),
+  "moderationNote": zod.string().nullable(),
+  "viewCount": zod.int().min(listForumPostsResponseViewCountMin),
+  "createdAt": zod.string(),
+  "likeCount": zod.int().min(listForumPostsResponseLikeCountMin),
+  "commentCount": zod.int().min(listForumPostsResponseCommentCountMin),
+  "likedByMe": zod.boolean(),
+  "repostCount": zod.int().min(listForumPostsResponseRepostCountMin),
+  "repostedByMe": zod.boolean(),
+  "votes": zod.array(zod.object({
+  "optionId": zod.string().min(1).max(listForumPostsResponseVotesItemOptionIdMax),
+  "count": zod.int().min(listForumPostsResponseVotesItemCountMin)
+})),
+  "myVote": zod.string().nullable(),
+  "myVotes": zod.array(zod.string())
+})
+export const ListForumPostsResponse = zod.array(ListForumPostsResponseItem).max(100)
+
+
+/**
+ * @summary Publish a moderated post or survey with an optional attachment
+ */
+export const createForumPostBodyClassIdRegExp = new RegExp('^[1-9][0-9]*$');
+export const createForumPostBodyTitleMax = 180;
+
+export const createForumPostBodyBodyMax = 5000;
+
+export const createForumPostBodyTagsMax = 2400;
+
+export const createForumPostBodyQuotedPostIdRegExp = new RegExp('^[1-9][0-9]*$');
+export const createForumPostBodyAttachmentMaterialIdRegExp = new RegExp('^[1-9][0-9]*$');
+export const createForumPostBodySurveyOptionsMax = 3000;
+
+
+
+export const CreateForumPostBody = zod.object({
+  "classId": zod.string().regex(createForumPostBodyClassIdRegExp).optional(),
+  "kind": zod.enum(['post', 'survey']).optional(),
+  "title": zod.string().max(createForumPostBodyTitleMax).optional(),
+  "body": zod.string().min(1).max(createForumPostBodyBodyMax),
+  "tags": zod.string().max(createForumPostBodyTagsMax).optional(),
+  "quotedPostId": zod.string().regex(createForumPostBodyQuotedPostIdRegExp).optional(),
+  "attachmentMaterialId": zod.string().regex(createForumPostBodyAttachmentMaterialIdRegExp).optional(),
+  "surveyOptions": zod.string().max(createForumPostBodySurveyOptionsMax).optional(),
+  "allowMultipleVotes": zod.enum(['true', 'false', '1', '0', 'on', 'off']).optional(),
+  "file": zod.instanceof(File).optional()
+})
+
+
+
+
+export const createForumPostResponseSurveyOptionsItemIdMax = 80;
+
+export const createForumPostResponseSurveyOptionsItemTextMax = 300;
+
+
+
+
+export const createForumPostResponseViewCountMin = 0;
+
+export const createForumPostResponseLikeCountMin = 0;
+
+export const createForumPostResponseCommentCountMin = 0;
+
+export const createForumPostResponseRepostCountMin = 0;
+
+export const createForumPostResponseVotesItemOptionIdMax = 80;
+
+export const createForumPostResponseVotesItemCountMin = 0;
+
+
+
+export const CreateForumPostResponse = zod.object({
+  "id": zod.int().min(1),
+  "classId": zod.int().min(1).nullable(),
+  "authorId": zod.int().min(1).nullable(),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "kind": zod.enum(['post', 'survey']),
+  "title": zod.string().nullable(),
+  "body": zod.string(),
+  "tags": zod.array(zod.string()),
+  "surveyOptions": zod.array(zod.object({
+  "id": zod.string().min(1).max(createForumPostResponseSurveyOptionsItemIdMax),
+  "text": zod.string().min(1).max(createForumPostResponseSurveyOptionsItemTextMax)
+})),
+  "allowMultipleVotes": zod.boolean(),
+  "quotedPostId": zod.int().min(1).nullable(),
+  "quotedPost": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "title": zod.string().nullable(),
+  "body": zod.string(),
+  "tags": zod.array(zod.string()),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "attachmentMaterialId": zod.int().min(1).nullable(),
+  "attachmentFileName": zod.string().nullable(),
+  "attachmentMimeType": zod.string().nullable(),
+  "moderationStatus": zod.enum(['approved', 'review', 'hidden']),
+  "moderationNote": zod.string().nullable(),
+  "viewCount": zod.int().min(createForumPostResponseViewCountMin),
+  "createdAt": zod.string(),
+  "likeCount": zod.int().min(createForumPostResponseLikeCountMin),
+  "commentCount": zod.int().min(createForumPostResponseCommentCountMin),
+  "likedByMe": zod.boolean(),
+  "repostCount": zod.int().min(createForumPostResponseRepostCountMin),
+  "repostedByMe": zod.boolean(),
+  "votes": zod.array(zod.object({
+  "optionId": zod.string().min(1).max(createForumPostResponseVotesItemOptionIdMax),
+  "count": zod.int().min(createForumPostResponseVotesItemCountMin)
+})),
+  "myVote": zod.string().nullable(),
+  "myVotes": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Delete a post as its author or an administrator
+ */
+
+
+
+export const DeleteForumPostParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteForumPostResponse = zod.void()
+
+
+/**
+ * @summary Download the attachment for a visible post
+ */
+
+
+
+export const DownloadForumPostFileParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DownloadForumPostFileResponse = zod.unknown()
+
+
+/**
+ * @summary Toggle the current account's repost for a visible post
+ */
+
+
+
+export const ToggleForumPostRepostParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const toggleForumPostRepostResponseRepostCountMin = 0;
+
+
+
+export const ToggleForumPostRepostResponse = zod.object({
+  "reposted": zod.boolean(),
+  "repostCount": zod.int().min(toggleForumPostRepostResponseRepostCountMin)
+})
+
+
+/**
+ * @summary Cast or replace a vote on a visible survey
+ */
+
+
+
+export const CastForumSurveyVoteParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const castForumSurveyVoteBodyOptionIdMax = 80;
+
+
+
+export const CastForumSurveyVoteBody = zod.object({
+  "optionId": zod.string().min(1).max(castForumSurveyVoteBodyOptionIdMax)
+})
+
+
+
+
+export const castForumSurveyVoteResponseSurveyOptionsItemIdMax = 80;
+
+export const castForumSurveyVoteResponseSurveyOptionsItemTextMax = 300;
+
+
+
+
+export const castForumSurveyVoteResponseViewCountMin = 0;
+
+export const castForumSurveyVoteResponseLikeCountMin = 0;
+
+export const castForumSurveyVoteResponseCommentCountMin = 0;
+
+export const castForumSurveyVoteResponseRepostCountMin = 0;
+
+export const castForumSurveyVoteResponseVotesItemOptionIdMax = 80;
+
+export const castForumSurveyVoteResponseVotesItemCountMin = 0;
+
+
+
+export const CastForumSurveyVoteResponse = zod.object({
+  "id": zod.int().min(1),
+  "classId": zod.int().min(1).nullable(),
+  "authorId": zod.int().min(1).nullable(),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "kind": zod.enum(['post', 'survey']),
+  "title": zod.string().nullable(),
+  "body": zod.string(),
+  "tags": zod.array(zod.string()),
+  "surveyOptions": zod.array(zod.object({
+  "id": zod.string().min(1).max(castForumSurveyVoteResponseSurveyOptionsItemIdMax),
+  "text": zod.string().min(1).max(castForumSurveyVoteResponseSurveyOptionsItemTextMax)
+})),
+  "allowMultipleVotes": zod.boolean(),
+  "quotedPostId": zod.int().min(1).nullable(),
+  "quotedPost": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "title": zod.string().nullable(),
+  "body": zod.string(),
+  "tags": zod.array(zod.string()),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "attachmentMaterialId": zod.int().min(1).nullable(),
+  "attachmentFileName": zod.string().nullable(),
+  "attachmentMimeType": zod.string().nullable(),
+  "moderationStatus": zod.enum(['approved', 'review', 'hidden']),
+  "moderationNote": zod.string().nullable(),
+  "viewCount": zod.int().min(castForumSurveyVoteResponseViewCountMin),
+  "createdAt": zod.string(),
+  "likeCount": zod.int().min(castForumSurveyVoteResponseLikeCountMin),
+  "commentCount": zod.int().min(castForumSurveyVoteResponseCommentCountMin),
+  "likedByMe": zod.boolean(),
+  "repostCount": zod.int().min(castForumSurveyVoteResponseRepostCountMin),
+  "repostedByMe": zod.boolean(),
+  "votes": zod.array(zod.object({
+  "optionId": zod.string().min(1).max(castForumSurveyVoteResponseVotesItemOptionIdMax),
+  "count": zod.int().min(castForumSurveyVoteResponseVotesItemCountMin)
+})),
+  "myVote": zod.string().nullable(),
+  "myVotes": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Remove a vote from a visible survey
+ */
+
+
+
+export const RemoveForumSurveyVoteParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const removeForumSurveyVoteBodyOptionIdMax = 80;
+
+
+
+export const RemoveForumSurveyVoteBody = zod.object({
+  "optionId": zod.string().max(removeForumSurveyVoteBodyOptionIdMax).optional()
+})
+
+
+
+
+export const removeForumSurveyVoteResponseSurveyOptionsItemIdMax = 80;
+
+export const removeForumSurveyVoteResponseSurveyOptionsItemTextMax = 300;
+
+
+
+
+export const removeForumSurveyVoteResponseViewCountMin = 0;
+
+export const removeForumSurveyVoteResponseLikeCountMin = 0;
+
+export const removeForumSurveyVoteResponseCommentCountMin = 0;
+
+export const removeForumSurveyVoteResponseRepostCountMin = 0;
+
+export const removeForumSurveyVoteResponseVotesItemOptionIdMax = 80;
+
+export const removeForumSurveyVoteResponseVotesItemCountMin = 0;
+
+
+
+export const RemoveForumSurveyVoteResponse = zod.object({
+  "id": zod.int().min(1),
+  "classId": zod.int().min(1).nullable(),
+  "authorId": zod.int().min(1).nullable(),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "kind": zod.enum(['post', 'survey']),
+  "title": zod.string().nullable(),
+  "body": zod.string(),
+  "tags": zod.array(zod.string()),
+  "surveyOptions": zod.array(zod.object({
+  "id": zod.string().min(1).max(removeForumSurveyVoteResponseSurveyOptionsItemIdMax),
+  "text": zod.string().min(1).max(removeForumSurveyVoteResponseSurveyOptionsItemTextMax)
+})),
+  "allowMultipleVotes": zod.boolean(),
+  "quotedPostId": zod.int().min(1).nullable(),
+  "quotedPost": zod.union([zod.object({
+  "id": zod.int().min(1),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "title": zod.string().nullable(),
+  "body": zod.string(),
+  "tags": zod.array(zod.string()),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "attachmentMaterialId": zod.int().min(1).nullable(),
+  "attachmentFileName": zod.string().nullable(),
+  "attachmentMimeType": zod.string().nullable(),
+  "moderationStatus": zod.enum(['approved', 'review', 'hidden']),
+  "moderationNote": zod.string().nullable(),
+  "viewCount": zod.int().min(removeForumSurveyVoteResponseViewCountMin),
+  "createdAt": zod.string(),
+  "likeCount": zod.int().min(removeForumSurveyVoteResponseLikeCountMin),
+  "commentCount": zod.int().min(removeForumSurveyVoteResponseCommentCountMin),
+  "likedByMe": zod.boolean(),
+  "repostCount": zod.int().min(removeForumSurveyVoteResponseRepostCountMin),
+  "repostedByMe": zod.boolean(),
+  "votes": zod.array(zod.object({
+  "optionId": zod.string().min(1).max(removeForumSurveyVoteResponseVotesItemOptionIdMax),
+  "count": zod.int().min(removeForumSurveyVoteResponseVotesItemCountMin)
+})),
+  "myVote": zod.string().nullable(),
+  "myVotes": zod.array(zod.string())
+})
+
+
+/**
+ * @summary Toggle a like on a visible post or material
+ */
+
+
+
+export const ToggleForumLikeParams = zod.object({
+  "targetType": zod.enum(['material', 'post']),
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const ToggleForumLikeResponse = zod.object({
+  "liked": zod.boolean()
+})
+
+
+/**
+ * @summary List approved comments on a visible post or material
+ */
+
+
+
+export const ListForumCommentsParams = zod.object({
+  "targetType": zod.enum(['material', 'post']),
+  "id": zod.coerce.number().int().min(1)
+})
+
+
+
+
+
+
+
+export const ListForumCommentsResponseItem = zod.object({
+  "id": zod.int().min(1),
+  "authorId": zod.int().min(1).nullable(),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "targetType": zod.enum(['material', 'post']),
+  "targetId": zod.int().min(1),
+  "parentId": zod.int().min(1).nullable(),
+  "body": zod.string(),
+  "moderationStatus": zod.enum(['approved', 'review', 'hidden']),
+  "moderationNote": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+export const ListForumCommentsResponse = zod.array(ListForumCommentsResponseItem)
+
+
+/**
+ * @summary Publish a moderated comment or reply on a visible target
+ */
+
+
+
+export const CreateForumCommentParams = zod.object({
+  "targetType": zod.enum(['material', 'post']),
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const createForumCommentBodyBodyMax = 2000;
+
+
+
+
+export const CreateForumCommentBody = zod.object({
+  "body": zod.string().min(1).max(createForumCommentBodyBodyMax),
+  "parentId": zod.int().min(1).nullish()
+})
+
+
+
+
+
+
+
+export const CreateForumCommentResponse = zod.object({
+  "id": zod.int().min(1),
+  "authorId": zod.int().min(1).nullable(),
+  "authorName": zod.string(),
+  "authorRole": zod.enum(['student', 'teacher', 'admin']),
+  "targetType": zod.enum(['material', 'post']),
+  "targetId": zod.int().min(1),
+  "parentId": zod.int().min(1).nullable(),
+  "body": zod.string(),
+  "moderationStatus": zod.enum(['approved', 'review', 'hidden']),
+  "moderationNote": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a comment as its author or an administrator
+ */
+
+
+
+export const DeleteForumCommentParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const DeleteForumCommentResponse = zod.void()
+
+
+/**
+ * @summary Report visible Forum content for automated and administrator review
+ */
+
+export const createForumReportBodyReasonMax = 1000;
+
+
+
+export const CreateForumReportBody = zod.object({
+  "targetType": zod.enum(['material', 'post', 'comment']),
+  "targetId": zod.int().min(1),
+  "reason": zod.string().min(1).max(createForumReportBodyReasonMax)
+})
+
+
+
+
+
+
+export const CreateForumReportResponse = zod.object({
+  "id": zod.int().min(1),
+  "reporterId": zod.int().min(1).nullable(),
+  "reporterName": zod.string(),
+  "targetType": zod.enum(['material', 'post', 'comment']),
+  "targetId": zod.int().min(1),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'resolved', 'dismissed']),
+  "aiFlagged": zod.boolean(),
+  "aiAssessment": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "reviewedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary List reports for administrator moderation
+ */
+
+
+
+
+
+export const ListForumReportsResponseItem = zod.object({
+  "id": zod.int().min(1),
+  "reporterId": zod.int().min(1).nullable(),
+  "reporterName": zod.string(),
+  "targetType": zod.enum(['material', 'post', 'comment']),
+  "targetId": zod.int().min(1),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'resolved', 'dismissed']),
+  "aiFlagged": zod.boolean(),
+  "aiAssessment": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "reviewedAt": zod.string().nullable()
+})
+export const ListForumReportsResponse = zod.array(ListForumReportsResponseItem).max(200)
+
+
+/**
+ * @summary Resolve or dismiss a Forum report as an administrator
+ */
+
+
+
+export const UpdateForumReportParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const UpdateForumReportBody = zod.object({
+  "status": zod.enum(['resolved', 'dismissed'])
+})
+
+
+
+
+
+
+export const UpdateForumReportResponse = zod.object({
+  "id": zod.int().min(1),
+  "reporterId": zod.int().min(1).nullable(),
+  "reporterName": zod.string(),
+  "targetType": zod.enum(['material', 'post', 'comment']),
+  "targetId": zod.int().min(1),
+  "reason": zod.string(),
+  "status": zod.enum(['pending', 'resolved', 'dismissed']),
+  "aiFlagged": zod.boolean(),
+  "aiAssessment": zod.string().nullable(),
+  "createdAt": zod.string(),
+  "reviewedAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary List private conversations for the current user
+ */
+export const listDirectConversationsResponseUnreadCountMin = 0;
+
+
+
+export const ListDirectConversationsResponseItem = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "avatarUrl": zod.string().nullable()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.string().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "unreadCount": zod.int().min(listDirectConversationsResponseUnreadCountMin),
+  "incomingRequest": zod.boolean()
+})
+export const ListDirectConversationsResponse = zod.array(ListDirectConversationsResponseItem)
+
+
+/**
+ * @summary Start or reopen a private conversation
+ */
+
+export const createDirectConversationBodyBodyMax = 4000;
+
+
+
+export const CreateDirectConversationBody = zod.object({
+  "userId": zod.int().min(1),
+  "body": zod.string().min(1).max(createDirectConversationBodyBodyMax).optional()
+})
+
+export const createDirectConversationResponseUnreadCountMin = 0;
+
+
+
+export const CreateDirectConversationResponse = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "avatarUrl": zod.string().nullable()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.string().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "unreadCount": zod.int().min(createDirectConversationResponseUnreadCountMin),
+  "incomingRequest": zod.boolean()
+})
+
+
+/**
+ * @summary Get a private conversation and mark received messages read
+ */
+
+
+
+export const GetDirectConversationParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const getDirectConversationResponseOneUnreadCountMin = 0;
+
+
+
+export const GetDirectConversationResponse = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "avatarUrl": zod.string().nullable()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.string().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "unreadCount": zod.int().min(getDirectConversationResponseOneUnreadCountMin),
+  "incomingRequest": zod.boolean()
+}).and(zod.object({
+  "messages": zod.array(zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.string().nullable(),
+  "createdAt": zod.string()
+}))
+}))
+
+
+/**
+ * @summary Send a message in an accepted conversation
+ */
+
+
+
+export const SendDirectMessageParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const sendDirectMessageBodyBodyMax = 4000;
+
+
+
+export const SendDirectMessageBody = zod.object({
+  "body": zod.string().min(1).max(sendDirectMessageBodyBodyMax)
+})
+
+export const SendDirectMessageResponse = zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.string().nullable(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Accept or decline an incoming message request
+ */
+
+
+
+export const RespondToDirectMessageRequestParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const RespondToDirectMessageRequestBody = zod.object({
+  "action": zod.enum(['accept', 'decline'])
+})
+
+export const respondToDirectMessageRequestResponseUnreadCountMin = 0;
+
+
+
+export const RespondToDirectMessageRequestResponse = zod.object({
+  "id": zod.int(),
+  "firstUserId": zod.int(),
+  "secondUserId": zod.int(),
+  "requestedById": zod.int(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string(),
+  "other": zod.object({
+  "id": zod.int(),
+  "name": zod.string(),
+  "role": zod.enum(['student', 'teacher', 'admin']),
+  "avatarUrl": zod.string().nullable()
+}),
+  "lastMessage": zod.union([zod.object({
+  "id": zod.int(),
+  "conversationId": zod.int(),
+  "senderId": zod.int(),
+  "body": zod.string(),
+  "isAdminMessage": zod.boolean(),
+  "readAt": zod.string().nullable(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "unreadCount": zod.int().min(respondToDirectMessageRequestResponseUnreadCountMin),
+  "incomingRequest": zod.boolean()
+})
+
+
+/**
+ * @summary Get truthful Google Calendar connection availability and status
  */
 export const GetCalendarStatusResponse = zod.object({
   "googleConnected": zod.boolean(),
-  "googleConfigured": zod.boolean(),
-  "icalSecret": zod.string()
+  "googleConfigured": zod.boolean()
 })
 
 
@@ -2674,8 +5895,15 @@ export const GetCalendarStatusResponse = zod.object({
  * @summary Get the personal iCal subscription URL
  */
 export const GetCalendarIcalUrlResponse = zod.object({
-  "url": zod.string(),
-  "icalSecret": zod.string()
+  "url": zod.string()
+})
+
+
+/**
+ * @summary Revoke the previous iCal capability URL and issue a new one
+ */
+export const RotateCalendarIcalUrlResponse = zod.object({
+  "url": zod.string()
 })
 
 
@@ -2691,6 +5919,32 @@ export const GetCalendarGoogleConnectUrlResponse = zod.object({
  * @summary Disconnect Google Calendar and remove stored tokens
  */
 export const DisconnectCalendarGoogleResponse = zod.void()
+
+
+/**
+ * @summary Complete the signed Google Calendar OAuth callback
+ */
+
+
+
+
+export const GetCalendarGoogleCallbackQueryParams = zod.object({
+  "code": zod.coerce.string().min(1).optional(),
+  "state": zod.coerce.string().min(1).optional(),
+  "error": zod.coerce.string().optional()
+})
+
+export const GetCalendarGoogleCallbackResponse = zod.void()
+
+
+/**
+ * @summary Read the calendar belonging to an unguessable subscription capability
+ */
+export const DownloadCalendarFeedParams = zod.object({
+  "icalSecret": zod.uuid()
+})
+
+export const DownloadCalendarFeedResponse = zod.unknown()
 
 
 /**
@@ -2716,6 +5970,9 @@ export const ExportStudySessionIcsResponse = zod.unknown()
 /**
  * @summary List comprehension and reflection evidence for the current learner
  */
+export const listLearningEvidenceResponseStudyDurationSecondsMin = 0;
+export const listLearningEvidenceResponseStudyDurationSecondsMax = 28800;
+
 export const listLearningEvidenceResponseConfidenceMax = 3;
 
 export const listLearningEvidenceResponseUnderstandingMin = 0;
@@ -2728,6 +5985,9 @@ export const ListLearningEvidenceResponseItem = zod.object({
   "userId": zod.int(),
   "resourceId": zod.int().nullish(),
   "learningGoalId": zod.int().nullish(),
+  "pathStepId": zod.string().nullish(),
+  "studyDurationSeconds": zod.int().min(listLearningEvidenceResponseStudyDurationSecondsMin).max(listLearningEvidenceResponseStudyDurationSecondsMax).nullish(),
+  "clientSubmissionId": zod.string().nullish(),
   "concept": zod.string(),
   "confidence": zod.int().min(1).max(listLearningEvidenceResponseConfidenceMax),
   "understanding": zod.int().min(listLearningEvidenceResponseUnderstandingMin).max(listLearningEvidenceResponseUnderstandingMax),
@@ -2741,6 +6001,14 @@ export const ListLearningEvidenceResponse = zod.array(ListLearningEvidenceRespon
 /**
  * @summary Record a post-resource comprehension checkpoint
  */
+export const createLearningEvidenceBodyPathStepIdMax = 100;
+
+export const createLearningEvidenceBodyStudyDurationSecondsMin = 0;
+export const createLearningEvidenceBodyStudyDurationSecondsMax = 28800;
+
+export const createLearningEvidenceBodyClientSubmissionIdMin = 12;
+export const createLearningEvidenceBodyClientSubmissionIdMax = 100;
+
 export const createLearningEvidenceBodyConceptMin = 2;
 export const createLearningEvidenceBodyConceptMax = 160;
 
@@ -2758,12 +6026,18 @@ export const createLearningEvidenceBodyMisconceptionMax = 500;
 export const CreateLearningEvidenceBody = zod.object({
   "resourceId": zod.int().nullish(),
   "learningGoalId": zod.int().nullish(),
+  "pathStepId": zod.string().min(1).max(createLearningEvidenceBodyPathStepIdMax).nullish(),
+  "studyDurationSeconds": zod.int().min(createLearningEvidenceBodyStudyDurationSecondsMin).max(createLearningEvidenceBodyStudyDurationSecondsMax).nullish(),
+  "clientSubmissionId": zod.string().min(createLearningEvidenceBodyClientSubmissionIdMin).max(createLearningEvidenceBodyClientSubmissionIdMax).nullish(),
   "concept": zod.string().min(createLearningEvidenceBodyConceptMin).max(createLearningEvidenceBodyConceptMax),
   "confidence": zod.int().min(1).max(createLearningEvidenceBodyConfidenceMax),
   "understanding": zod.int().min(createLearningEvidenceBodyUnderstandingMin).max(createLearningEvidenceBodyUnderstandingMax),
   "reflection": zod.string().max(createLearningEvidenceBodyReflectionMax).nullish(),
   "misconception": zod.string().max(createLearningEvidenceBodyMisconceptionMax).nullish()
 })
+
+export const createLearningEvidenceResponseStudyDurationSecondsMin = 0;
+export const createLearningEvidenceResponseStudyDurationSecondsMax = 28800;
 
 export const createLearningEvidenceResponseConfidenceMax = 3;
 
@@ -2777,6 +6051,9 @@ export const CreateLearningEvidenceResponse = zod.object({
   "userId": zod.int(),
   "resourceId": zod.int().nullish(),
   "learningGoalId": zod.int().nullish(),
+  "pathStepId": zod.string().nullish(),
+  "studyDurationSeconds": zod.int().min(createLearningEvidenceResponseStudyDurationSecondsMin).max(createLearningEvidenceResponseStudyDurationSecondsMax).nullish(),
+  "clientSubmissionId": zod.string().nullish(),
   "concept": zod.string(),
   "confidence": zod.int().min(1).max(createLearningEvidenceResponseConfidenceMax),
   "understanding": zod.int().min(createLearningEvidenceResponseUnderstandingMin).max(createLearningEvidenceResponseUnderstandingMax),

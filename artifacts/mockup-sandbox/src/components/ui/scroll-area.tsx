@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Scroll Area.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 import * as React from "react"
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
 

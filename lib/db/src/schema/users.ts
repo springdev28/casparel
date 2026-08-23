@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Persistence role: defines the Drizzle tables, relations, and indexes for the Users domain.
+ * System connection: re-exported by schema/index.ts, migrated through lib/db/migrations, and queried by API route/domain modules.
+ */
 import { pgTable, serial, text, timestamp, pgEnum, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -12,6 +16,9 @@ export const usersTable = pgTable("users", {
   name: text("name").notNull(),
   role: userRoleEnum("role").notNull().default("student"),
   activeRole: userRoleEnum("active_role").notNull().default("student"),
+  // Capability is durable; activeRole is only the learner/educator UI context.
+  // Class authorization still requires ownership or a contextual teacher role.
+  educatorEnabled: boolean("educator_enabled").notNull().default(false),
   avatarUrl: text("avatar_url"),
   bio: text("bio"),
   subjects: text("subjects").array(),

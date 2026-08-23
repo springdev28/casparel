@@ -1,6 +1,10 @@
+/**
+ * @fileOverview Web screen role: renders the List Detail Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical, Users } from 'lucide-react';
+import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical, Users, Target, Globe2, Link2Off } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
@@ -38,15 +42,23 @@ import {
   useShareToGC,
   useListClasses,
   useShareListWithClass,
+  useCreateLearningGoalFromList,
+  useGetPublicListShare,
+  useCreatePublicListShare,
+  useRevokePublicListShare,
   getGetResourceListQueryKey,
   getListResourceListsQueryKey,
   getGetGCStatusQueryKey,
   getListGCCoursesQueryKey,
   getListClassesQueryKey,
   getListSharedResourceListsQueryKey,
+  getListLearningGoalsQueryKey,
+  getGetPublicListShareQueryKey,
   UserRole,
 } from '@workspace/api-client-react';
 import { StarRating } from '../components/StarRating';
+import { LoadFailure } from '../components/LoadFailure';
+import { publicListUrl } from '../lib/public-list-link';
 
 const FORMAT_COLORS: Record<string, string> = {
   article: 'bg-blue-100 text-blue-700',
@@ -95,12 +107,13 @@ export default function ListDetailPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [gcReconnectNeeded, setGcReconnectNeeded] = useState(false);
 
-  const { data: list, isLoading } = useGetResourceList(listId, {
+  const { data: list, isLoading, isError: listLoadError, error: listError, refetch: refetchList } = useGetResourceList(listId, {
     query: { enabled: !!listId, queryKey: getGetResourceListQueryKey(listId) },
   });
   const { data: me } = useGetMe();
   const removeItem = useRemoveListItem();
   const reorderItems = useReorderListItems();
+  const createGoalFromList = useCreateLearningGoalFromList();
 
   // Sync local order from server whenever the list data changes
   useEffect(() => {
@@ -114,19 +127,33 @@ export default function ListDetailPage() {
   const canShareToGC = isTeacher && isOwner;
   const canShareWithClass = isTeacher && isOwner;
 
-  const { data: classes } = useListClasses({ query: { enabled: !!me, queryKey: getListClassesQueryKey() } });
+  const publicShareQuery = useGetPublicListShare(listId, {
+    query: {
+      enabled: isOwner,
+      queryKey: getGetPublicListShareQueryKey(listId),
+      retry: false,
+    },
+  });
+  const publicShare = publicShareQuery.data;
+  const createPublicShare = useCreatePublicListShare();
+  const revokePublicShare = useRevokePublicListShare();
+
+  const classesQuery = useListClasses({ query: { enabled: !!me, queryKey: getListClassesQueryKey() } });
+  const classes = classesQuery.data;
   const shareWithClass = useShareListWithClass();
 
   const { data: gcStatus } = useGetGCStatus({
     query: { enabled: canShareToGC, queryKey: getGetGCStatusQueryKey() },
   });
-  const { data: gcCourses, isLoading: gcCoursesLoading, error: gcCoursesError } = useListGCCourses({
+  const gcCoursesQuery = useListGCCourses({
     query: {
       enabled: gcDialogOpen && gcStatus?.connected === true,
       queryKey: getListGCCoursesQueryKey(),
       retry: false,
     },
   });
+  const gcCourses = gcCoursesQuery.data;
+  const gcCoursesError = gcCoursesQuery.error;
   const shareToGC = useShareToGC();
 
   useEffect(() => {
@@ -207,6 +234,76 @@ export default function ListDetailPage() {
     }
   }
 
+  async function handleCreateLearningPath() {
+    try {
+      await createGoalFromList.mutateAsync({ id: listId });
+      await queryClient.invalidateQueries({ queryKey: getListLearningGoalsQueryKey() });
+      toast({
+        title: 'Learning path ready',
+        description: 'The ordered resources are now actionable steps in your learning goals.',
+      });
+      setLocation('/goals');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Could not create a learning path';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    }
+  }
+
+  async function copyPublicShare(token: string) {
+    const url = publicListUrl(
+      window.location.origin,
+      import.meta.env.BASE_URL,
+      token,
+    );
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: 'Public list link copied',
+        description: 'Anyone with the link can view verified resources in this list.',
+      });
+    } catch {
+      toast({
+        title: 'Could not copy public link',
+        description: 'Copy the page address manually and try again.',
+        variant: 'destructive',
+      });
+    }
+  }
+
+  async function handleCreatePublicShare() {
+    try {
+      const result = await createPublicShare.mutateAsync({ id: listId });
+      await queryClient.invalidateQueries({
+        queryKey: getGetPublicListShareQueryKey(listId),
+      });
+      if (result.shareToken) await copyPublicShare(result.shareToken);
+    } catch (error) {
+      toast({
+        title: 'Could not create public link',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  }
+
+  async function handleRevokePublicShare() {
+    if (!window.confirm('Stop sharing this list? The current public link will no longer work.')) return;
+    try {
+      await revokePublicShare.mutateAsync({ id: listId });
+      await queryClient.invalidateQueries({
+        queryKey: getGetPublicListShareQueryKey(listId),
+      });
+      toast({ title: 'Public link revoked' });
+    } catch (error) {
+      toast({
+        title: 'Could not revoke public link',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  }
+
   async function handleShareToGC() {
     if (!selectedCourseId) return;
     try {
@@ -273,6 +370,23 @@ export default function ListDetailPage() {
     );
   }
 
+  if (listLoadError && !list) {
+    const notFound = (listError as { status?: number } | null)?.status === 404;
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-64" data-testid="list-load-error">
+        <AlertCircle size={40} className="text-destructive-text mb-3" />
+        <p className="font-semibold text-foreground">{notFound ? 'List not found' : 'List could not be loaded'}</p>
+        <p className="mt-1 text-center text-sm text-muted-foreground">
+          {notFound ? 'This list may have been removed or is no longer shared with you.' : 'This request failed; your list has not been reported as missing.'}
+        </p>
+        <div className="mt-4 flex gap-2">
+          {!notFound && <Button variant="outline" onClick={() => void refetchList()}><RefreshCw size={14} className="mr-1.5" /> Retry</Button>}
+          <Button variant={notFound ? 'outline' : 'ghost'} onClick={() => setLocation('/lists')}>Back to Lists</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!list) {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-64">
@@ -315,6 +429,61 @@ export default function ListDetailPage() {
           <ArrowLeft size={16} className="mr-1.5" /> Lists
         </Button>
 
+        <Button
+          size="sm"
+          onClick={handleCreateLearningPath}
+          disabled={displayItems.length === 0 || createGoalFromList.isPending}
+          data-testid="create-learning-path-button"
+        >
+          <Target size={14} className="mr-1.5" />
+          {createGoalFromList.isPending ? 'Creating path…' : 'Turn into Learning Path'}
+        </Button>
+
+        {isOwner && publicShareQuery.isError && publicShare === undefined ? (
+          <LoadFailure
+            variant="banner"
+            title="Public sharing status could not be loaded"
+            description="The app cannot safely decide whether a share link already exists."
+            onRetry={() => void publicShareQuery.refetch()}
+            retrying={publicShareQuery.isFetching}
+            testId="public-list-share-status-error"
+          />
+        ) : isOwner && !publicShareQuery.isLoading && (
+          publicShare?.shareToken ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void copyPublicShare(publicShare.shareToken!)}
+                data-testid="copy-public-list-link"
+              >
+                <Globe2 size={14} className="mr-1.5" /> Copy Public Link
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleRevokePublicShare()}
+                disabled={revokePublicShare.isPending}
+                data-testid="revoke-public-list-link"
+              >
+                <Link2Off size={14} className="mr-1.5" /> Stop Sharing
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleCreatePublicShare()}
+              disabled={createPublicShare.isPending}
+              title="Only verified resources will appear on the public page"
+              data-testid="create-public-list-link"
+            >
+              <Globe2 size={14} className="mr-1.5" />
+              {createPublicShare.isPending ? 'Creating link…' : 'Create Public Link'}
+            </Button>
+          )
+        )}
+
         {canShareWithClass && (
           <Dialog open={shareWithClassOpen} onOpenChange={setShareWithClassOpen}>
             <DialogTrigger asChild>
@@ -328,7 +497,18 @@ export default function ListDetailPage() {
                 <DialogDescription>Make this list visible to all members of a class.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                {!classes || classes.length === 0 ? (
+                {classesQuery.isLoading && classes === undefined ? (
+                  <p className="text-sm text-muted-foreground">Loading classes…</p>
+                ) : classesQuery.isError && classes === undefined ? (
+                  <LoadFailure
+                    variant="banner"
+                    title="Classes could not be loaded"
+                    description="The app has not confirmed that you belong to no classes."
+                    onRetry={() => void classesQuery.refetch()}
+                    retrying={classesQuery.isFetching}
+                    testId="list-share-class-picker-error"
+                  />
+                ) : !classes || classes.length === 0 ? (
                   <p className="text-sm text-muted-foreground">You're not in any classes yet.</p>
                 ) : (
                   <Select value={shareClassId} onValueChange={setShareClassId}>
@@ -435,7 +615,7 @@ export default function ListDetailPage() {
           </DialogHeader>
 
           <div className="space-y-2 max-h-72 overflow-y-auto py-1">
-            {gcCoursesLoading ? (
+            {gcCoursesQuery.isLoading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="flex gap-3 items-center p-3 rounded-lg border">
                   <Skeleton className="h-5 w-5 shrink-0" />
@@ -445,6 +625,14 @@ export default function ListDetailPage() {
                   </div>
                 </div>
               ))
+            ) : gcCoursesQuery.isError && gcCourses === undefined ? (
+              <LoadFailure
+                title="Google Classroom courses could not be loaded"
+                description="No course list was returned. Retry or reconnect if Google revoked access."
+                onRetry={() => void gcCoursesQuery.refetch()}
+                retrying={gcCoursesQuery.isFetching}
+                testId="list-gc-courses-load-error"
+              />
             ) : !gcCourses || gcCourses.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <BookOpen size={28} className="mx-auto mb-2 opacity-40" />

@@ -1,3 +1,5 @@
+# @fileOverview: Contract role: defines the OpenAPI source of truth used to generate client hooks and runtime Zod schemas.
+# System connection: codegen feeds lib/api-client-react and lib/api-zod; Express handlers must implement the same operations.
 openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
@@ -26,12 +28,26 @@ tags:
     description: Study schedule blocks
   - name: study-sessions
     description: Collaborative study sessions
+  - name: study-activities
+    description: Reusable flashcard, practice, quiz, and classroom learning activities
+  - name: canvases
+    description: Collaborative visual learning canvases and sharing controls
+  - name: forum
+    description: Community posts, surveys, learning materials, comments, reactions, reports, and moderation
+  - name: assignments
+    description: Teacher-assigned class work, learner completion, and progress summaries
+  - name: workflow
+    description: Cross-feature learning journeys and resumable next actions
   - name: dashboard
     description: Dashboard summary and activity
   - name: google-classroom
     description: Google Classroom integration
   - name: calendar
     description: Google Calendar sync and iCal feed
+  - name: analytics
+    description: Privacy-conscious first-party product events
+  - name: direct-messages
+    description: Private conversations and message requests
 paths:
   /healthz:
     get:
@@ -45,6 +61,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /analytics/events:
+    post:
+      operationId: recordProductEvent
+      tags: [analytics]
+      summary: Record an allowlisted first-party product event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductEventInput"
+      responses:
+        "202":
+          description: Event accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductEventAccepted"
+        "400":
+          description: Invalid or non-allowlisted event
+        "401":
+          description: Not authenticated
 
   # ── Auth ──────────────────────────────────────────────────────────────────
   /auth/register:
@@ -290,7 +329,7 @@ paths:
     patch:
       operationId: switchRole
       tags: [auth]
-      summary: Switch the active role for the current user (student ↔ teacher)
+      summary: Switch the learner or educator workspace for the current user
       requestBody:
         required: true
         content:
@@ -299,7 +338,7 @@ paths:
               $ref: "#/components/schemas/RoleSwitchInput"
       responses:
         "200":
-          description: Role updated — returns a fresh auth token and the updated user
+          description: Workspace updated — returns a fresh auth token and the updated user
           content:
             application/json:
               schema:
@@ -322,6 +361,56 @@ paths:
               schema: { $ref: "#/components/schemas/AccountUsage" }
         "401": { description: Not authenticated }
 
+  /users/me/entitlements/reconcile:
+    post:
+      operationId: reconcileMyEntitlements
+      tags: [auth]
+      summary: Reconcile the signed-in account plan from RevenueCat
+      description: >-
+        Fetches the current RevenueCat Customer Info for the authenticated
+        Casparel account and updates only its subscription plan fields. Clients
+        call this after purchase or restore so server-side feature gates do not
+        have to wait for webhook delivery.
+      responses:
+        "200":
+          description: Authoritative subscription state after reconciliation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EntitlementReconciliation" }
+        "401": { description: Not authenticated }
+        "503": { description: RevenueCat is unavailable or not configured }
+
+  /users/me/preferences:
+    get:
+      operationId: getUserPreferences
+      tags: [auth]
+      summary: Get the current account's synchronized interface preferences
+      responses:
+        "200":
+          description: Current preferences or safe defaults for a new account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPreferences" }
+        "401": { description: Not authenticated }
+    patch:
+      operationId: updateUserPreferences
+      tags: [auth]
+      summary: Merge synchronized interface preferences for the current account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UserPreferencesPatch" }
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPreferences" }
+        "400": { description: Invalid or unsupported preference value }
+        "401": { description: Not authenticated }
+        "413": { description: Preferences payload is too large }
+
   /admin/overview:
     get:
       operationId: getAdminOverview
@@ -334,6 +423,236 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminOverview"
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: Search and paginate administrator-visible accounts
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 200 }
+        - name: role
+          in: query
+          description: Filter by platform authority, not the active workspace.
+          schema: { type: string, enum: [student, teacher, admin] }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, banned] }
+        - name: educatorEnabled
+          in: query
+          schema: { type: boolean }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Matching account page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUsersPage" }
+        "400": { description: Invalid filter or pagination value }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+
+  /admin/users/{id}:
+    patch:
+      operationId: updateAdminUser
+      tags: [admin]
+      summary: Update an account profile, authority, or workspace capability
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminUserPatch" }
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "400": { description: Invalid update or protected self-demotion }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+        "404": { description: Account not found }
+        "409": { description: Email address already in use }
+
+  /admin/users/{id}/plan:
+    patch:
+      operationId: overrideAdminUserPlan
+      tags: [admin]
+      summary: Override an account plan and record the administrator's reason
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminPlanOverride" }
+      responses:
+        "200":
+          description: Account with the effective plan override
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "400": { description: "Invalid plan, expiry, or missing audit reason" }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+        "404": { description: Account not found }
+
+  /admin/users/{id}/ban:
+    patch:
+      operationId: banAdminUser
+      tags: [admin]
+      summary: Ban an account with a persisted administrator reason
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminBanInput" }
+      responses:
+        "200":
+          description: Banned account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "400": { description: Invalid request or protected self-ban }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+        "404": { description: Account not found }
+    delete:
+      operationId: unbanAdminUser
+      tags: [admin]
+      summary: Restore access to a banned account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Restored account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+        "404": { description: Account not found }
+
+  /admin/users/{id}/teacher-verification:
+    patch:
+      operationId: updateAdminPublisherVerification
+      tags: [admin]
+      summary: Update account-level trusted publisher verification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminPublisherVerificationInput" }
+      responses:
+        "200":
+          description: Updated account trust state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminUser" }
+        "400": { description: Invalid request or implicitly trusted administrator }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+        "404": { description: Account not found }
+
+  /admin/resources/review-queue:
+    get:
+      operationId: listAdminResourceReviewQueue
+      tags: [admin]
+      summary: List resources in one moderation state, oldest first
+      parameters:
+        - name: status
+          in: query
+          schema:
+            { type: string, enum: [unverified, verified, rejected], default: unverified }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Resource moderation queue
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminResourceReviewQueue" }
+        "400": { description: Invalid moderation filter or pagination value }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+
+  /admin/resources/{id}/verification:
+    patch:
+      operationId: updateAdminResourceVerification
+      tags: [admin]
+      summary: Approve, reject, or return a resource to the review queue
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminResourceVerificationInput" }
+      responses:
+        "200":
+          description: Updated moderation state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminResourceVerificationResult" }
+        "400": { description: Invalid state or missing rejection reason }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+        "404": { description: Resource not found }
+
+  /admin/resources/verification/bulk:
+    post:
+      operationId: bulkUpdateAdminResourceVerification
+      tags: [admin]
+      summary: Apply one moderation decision to a bounded resource batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AdminResourceVerificationBulkInput" }
+      responses:
+        "200":
+          description: Number of resources updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AdminResourceVerificationBulkResult" }
+        "400": { description: Invalid or oversized batch }
         "401": { description: Not authenticated }
         "403": { description: Administrator role required }
 
@@ -973,6 +1292,177 @@ paths:
               schema: { $ref: "#/components/schemas/ClassJoinCodeIssued" }
         "403": { description: Only the class teacher can create a join code }
 
+  /classes/{id}/assignments:
+    get:
+      operationId: listClassAssignments
+      tags: [assignments]
+      summary: List assignments visible to a class member or teacher
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Class assignments with the current learner's completion state
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ClassAssignment" }
+        "400": { description: Invalid class ID }
+        "403": { description: Class access required }
+    post:
+      operationId: createClassAssignment
+      tags: [assignments]
+      summary: Assign a resource, activity, or standalone task to a class
+      description: Teacher-only. At most one of resourceId and activityId may be set.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateClassAssignmentInput" }
+      responses:
+        "201":
+          description: Assignment created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreatedClassAssignment" }
+        "400": { description: Invalid assignment or linked item }
+        "403": { description: Only the class teacher can assign work }
+
+  /classes/{classId}/assignments/{assignmentId}:
+    delete:
+      operationId: deleteClassAssignment
+      tags: [assignments]
+      summary: Delete an assignment from a class
+      parameters:
+        - name: classId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+        - name: assignmentId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "204": { description: Assignment deleted }
+        "400": { description: Invalid class or assignment ID }
+        "403": { description: Only the class teacher can delete assignments }
+        "404": { description: Assignment not found }
+
+  /assignments/{id}/completion:
+    patch:
+      operationId: updateAssignmentCompletion
+      tags: [assignments]
+      summary: Mark an assignment complete or incomplete for the current learner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignmentCompletionInput" }
+      responses:
+        "200":
+          description: Updated completion state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssignmentCompletionResult" }
+        "400": { description: Invalid assignment ID or completion state }
+        "403": { description: Assignment access required }
+
+  /assignments/today:
+    get:
+      operationId: listTodayAssignments
+      tags: [assignments]
+      summary: List the current learner's class assignments ordered by deadline
+      responses:
+        "200":
+          description: Current learner assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TodayAssignment" }
+
+  /classes/{id}/analytics:
+    get:
+      operationId: getClassAssignmentAnalytics
+      tags: [assignments]
+      summary: Summarize assignment completion for a class
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Assignment completion counts and rates
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClassAssignmentAnalytics" }
+        "400": { description: Invalid class ID }
+        "403": { description: Only the class teacher can view analytics }
+
+  /workflow/resources/{id}:
+    get:
+      operationId: getResourceWorkflow
+      tags: [workflow]
+      summary: Get the current user's workflow state for one resource
+      description: Records a daily resource view and derives the next action from saved workflow events.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Resource workflow state and next action
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResourceWorkflowState" }
+        "400": { description: Invalid resource ID }
+        "404": { description: Resource not found }
+
+  /workflow/continue:
+    get:
+      operationId: listContinueWorkflows
+      tags: [workflow]
+      summary: List resumable learning workflows for the current user
+      description: Returns at most six incomplete journeys that contain at least one completed workflow step.
+      responses:
+        "200":
+          description: Resumable journeys, newest activity first
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 6
+                items: { $ref: "#/components/schemas/ContinueWorkflowItem" }
+
+  /workflow/continue/{resourceId}:
+    delete:
+      operationId: dismissWorkflowContinuation
+      tags: [workflow]
+      summary: Remove a resource journey from the current user's continuation queue
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "204": { description: Current user's workflow events removed }
+        "400": { description: Invalid resource ID }
+
   /classes/join:
     post:
       operationId: joinClassByCode
@@ -1181,6 +1671,34 @@ paths:
             enum: [content, source, people]
             default: content
           description: Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
+        - name: intent
+          in: query
+          schema:
+            type: string
+            enum: [auto, learn, practice, reference, research, primary-source]
+            default: auto
+          description: Infer learning intent from the query or apply an explicit intent
+        - name: material
+          in: query
+          schema:
+            type: string
+            enum:
+              [
+                all,
+                course,
+                book,
+                explanation,
+                practice,
+                interactive,
+                video,
+                reference,
+                paper,
+                primary-source,
+                repository,
+                other,
+              ]
+            default: all
+          description: Restrict content discovery to a pedagogical material type
       responses:
         "200":
           description: Educational resources from the stored catalog
@@ -1387,6 +1905,27 @@ paths:
           description: Deleted
 
   # ── Resource Lists ─────────────────────────────────────────────────────────
+  /resources/{resourceId}/list-memberships:
+    get:
+      operationId: listResourceListMemberships
+      tags: [lists]
+      summary: List the current user's learning lists that contain one resource
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Current live list memberships, newest save first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ResourceListMembership" }
+        "400": { description: Invalid resource ID }
+        "401": { description: Not authenticated }
+
   /lists:
     get:
       operationId: listResourceLists
@@ -1418,6 +1957,83 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResourceList"
+
+  /lists/public/{token}:
+    get:
+      operationId: getPublicResourceList
+      tags: [lists]
+      summary: Open a publicly shared resource list without an account
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string, minLength: 20, maxLength: 100 }
+      responses:
+        "200":
+          description: Public resource list with verified items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicResourceList"
+        "404":
+          description: Share link not found or revoked
+
+  /lists/{id}/public-share:
+    get:
+      operationId: getPublicListShare
+      tags: [lists]
+      summary: Get the current public-share state as the list owner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Current public-share token, or null when private
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicListShare"
+        "403": { description: List owner required }
+        "404": { description: List not found }
+    post:
+      operationId: createPublicListShare
+      tags: [lists]
+      summary: Create an idempotent public link as the list owner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Existing public link
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicListShare"
+        "201":
+          description: Public link created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicListShare"
+        "403": { description: List owner required }
+        "404": { description: List not found }
+    delete:
+      operationId: revokePublicListShare
+      tags: [lists]
+      summary: Revoke the current public link as the list owner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Public link revoked }
+        "403": { description: List owner required }
+        "404": { description: List not found }
 
   /lists/{id}:
     get:
@@ -1494,12 +2110,20 @@ paths:
             schema:
               $ref: "#/components/schemas/ListItemInput"
       responses:
+        "200":
+          description: Resource was already in the list; the existing item is returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListItem"
         "201":
           description: Added
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ListItem"
+        "409":
+          description: The item changed during a concurrent save/delete race; retry is safe
 
   /lists/{id}/items/reorder:
     post:
@@ -1521,6 +2145,35 @@ paths:
       responses:
         "204":
           description: Reordered
+
+  /lists/{id}/learning-goal:
+    post:
+      operationId: createLearningGoalFromList
+      tags: [lists, learning-goals]
+      summary: Turn an ordered resource list into an idempotent learning goal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Existing learning goal for this list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+        "201":
+          description: Learning goal created from the list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+        "400":
+          description: Empty list cannot become a learning path
+        "403":
+          description: List is not readable by the current user
 
   /lists/{id}/items/{itemId}:
     delete:
@@ -2011,12 +2664,887 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityItem"
 
+  # ── Study activities ─────────────────────────────────────────────────────
+  /study-activities:
+    get:
+      operationId: listStudyActivities
+      tags: [study-activities]
+      summary: List personal or class-scoped study activities
+      parameters:
+        - name: classId
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Activities visible in the requested workspace or class
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StudyActivity" }
+        "400": { description: Invalid class ID }
+        "401": { description: Not authenticated }
+        "403": { description: Not a member or teacher of the class }
+    post:
+      operationId: createStudyActivity
+      tags: [study-activities]
+      summary: Create, copy, remix, or share a study activity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateStudyActivityInput" }
+      responses:
+        "201":
+          description: Activity created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudyActivity" }
+        "400": { description: Invalid activity or source resource }
+        "401": { description: Not authenticated }
+        "403": { description: Not allowed to share with the class }
+
+  /study-activities/shared/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 20
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_-]+$"
+    get:
+      operationId: getSharedStudyActivity
+      tags: [study-activities]
+      summary: Open a published activity without authentication
+      responses:
+        "200":
+          description: Privacy-filtered published activity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SharedStudyActivity" }
+        "400": { description: Invalid share token }
+        "404": { description: Shared activity not found }
+
+  /study-activities/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    patch:
+      operationId: updateStudyActivity
+      tags: [study-activities]
+      summary: Replace the editable content of an owned or managed activity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateStudyActivityInput" }
+      responses:
+        "200":
+          description: Activity updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudyActivity" }
+        "400": { description: Invalid activity ID or content }
+        "401": { description: Not authenticated }
+        "404": { description: Activity not found or not manageable }
+    delete:
+      operationId: deleteStudyActivity
+      tags: [study-activities]
+      summary: Delete an owned or teacher-managed activity
+      responses:
+        "204": { description: Activity deleted }
+        "400": { description: Invalid activity ID }
+        "401": { description: Not authenticated }
+        "404": { description: Activity not found or not manageable }
+
+  /study-activities/{id}/publish:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: publishStudyActivity
+      tags: [study-activities]
+      summary: Publish an owned activity to the catalog and optionally the forum
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublishStudyActivityInput" }
+      responses:
+        "201":
+          description: Activity published idempotently
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublishStudyActivityResult" }
+        "400": { description: Invalid activity ID or destination }
+        "401": { description: Not authenticated }
+        "404": { description: Activity not found or not owned }
+
+  # ── Direct messages ──────────────────────────────────────────────────────
+  # ── Collaborative canvases ───────────────────────────────────────────────
+  /canvases:
+    get:
+      operationId: listCanvases
+      tags: [canvases]
+      summary: List canvases visible to the current account
+      responses:
+        "200":
+          description: Personal, shared, and class canvases ordered by recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 250
+                items: { $ref: "#/components/schemas/LearningCanvas" }
+        "401": { description: Not authenticated }
+    post:
+      operationId: createCanvas
+      tags: [canvases]
+      summary: Create a personal canvas or a canvas for a class taught by the account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCanvasInput" }
+      responses:
+        "201":
+          description: Canvas created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningCanvas" }
+        "400": { description: Invalid canvas }
+        "401": { description: Not authenticated }
+        "403": { description: Not the class teacher }
+
+  /canvases/shared/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 20
+          maxLength: 100
+          pattern: "^[A-Za-z0-9_-]+$"
+    get:
+      operationId: getSharedCanvas
+      tags: [canvases]
+      summary: Open a link-published canvas without authentication
+      responses:
+        "200":
+          description: Privacy-filtered published canvas
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SharedLearningCanvas" }
+        "400": { description: Invalid share token }
+        "404": { description: Shared canvas not found }
+
+  /canvases/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getCanvas
+      tags: [canvases]
+      summary: Get a canvas visible to the current account
+      responses:
+        "200":
+          description: Canvas and effective permissions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningCanvas" }
+        "400": { description: Invalid canvas ID }
+        "401": { description: Not authenticated }
+        "403": { description: Canvas is not visible to this account }
+        "404": { description: Canvas not found }
+    patch:
+      operationId: updateCanvas
+      tags: [canvases]
+      summary: Update canvas content with optimistic concurrency or manage its metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCanvasInput" }
+      responses:
+        "200":
+          description: Canvas updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningCanvas" }
+        "400": { description: Invalid canvas ID or update }
+        "401": { description: Not authenticated }
+        "403": { description: Update is not allowed by the effective permissions }
+        "404": { description: Canvas not found }
+        "409":
+          description: The expected canvas version is stale
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CanvasConflictResponse" }
+    delete:
+      operationId: deleteCanvas
+      tags: [canvases]
+      summary: Delete a canvas managed by the current account
+      responses:
+        "204": { description: Canvas deleted }
+        "400": { description: Invalid canvas ID }
+        "401": { description: Not authenticated }
+        "403": { description: Only a canvas manager can delete it }
+        "404": { description: Canvas not found }
+
+  /canvases/{id}/publish:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: publishCanvas
+      tags: [canvases]
+      summary: Publish a canvas to the resource catalog and optionally the forum
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublishCanvasInput" }
+      responses:
+        "201":
+          description: Canvas published idempotently
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublishCanvasResult" }
+        "400": { description: Invalid canvas ID or destination }
+        "401": { description: Not authenticated }
+        "403": { description: Only a canvas manager can publish it }
+        "404": { description: Canvas not found }
+
+  /canvases/{id}/collaborators:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: listCanvasCollaborators
+      tags: [canvases]
+      summary: List the named collaborators on a visible canvas
+      responses:
+        "200":
+          description: Named canvas collaborators
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CanvasCollaborator" }
+        "400": { description: Invalid canvas ID }
+        "401": { description: Not authenticated }
+        "403": { description: Canvas is not visible to this account }
+        "404": { description: Canvas not found }
+
+  /canvases/{id}/collaborators/{userId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+      - name: userId
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    put:
+      operationId: upsertCanvasCollaborator
+      tags: [canvases]
+      summary: Add a named collaborator or change their role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CanvasCollaboratorInput" }
+      responses:
+        "200":
+          description: Collaborator saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CanvasCollaboratorResult" }
+        "400": { description: "Invalid canvas, account, role, or owner target" }
+        "401": { description: Not authenticated }
+        "403": { description: Only a canvas manager can manage collaborators }
+        "404": { description: Canvas or account not found }
+    delete:
+      operationId: removeCanvasCollaborator
+      tags: [canvases]
+      summary: Remove a named collaborator
+      responses:
+        "204": { description: Collaborator removed }
+        "400": { description: Invalid canvas or account ID }
+        "401": { description: Not authenticated }
+        "403": { description: Only a canvas manager can manage collaborators }
+        "404": { description: Canvas not found }
+
+  # ── Forum and community catalog ──────────────────────────────────────
+  /forum/access:
+    get:
+      operationId: getForumAccess
+      tags: [forum]
+      summary: Get the current account's Forum moderation capabilities
+      responses:
+        "200":
+          description: Forum capability flags
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumAccess" }
+        "401": { description: Not authenticated }
+
+  /forum/materials:
+    get:
+      operationId: listForumMaterials
+      tags: [forum]
+      summary: List visible community learning materials
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 160 }
+        - name: unit
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: topic
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: type
+          in: query
+          schema: { $ref: "#/components/schemas/ForumMaterialType" }
+        - name: uploader
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: date
+          in: query
+          schema: { type: string, enum: [day, week, month, year] }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [newest, oldest, downloads, views] }
+      responses:
+        "200":
+          description: Visible materials ordered by the requested sort
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 100
+                items: { $ref: "#/components/schemas/ForumMaterial" }
+        "400": { description: Invalid material filter }
+        "401": { description: Not authenticated }
+    post:
+      operationId: createForumMaterial
+      tags: [forum]
+      summary: Publish a linked or uploaded community learning material
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/CreateForumMaterialForm" }
+      responses:
+        "201":
+          description: Material published
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumMaterial" }
+        "400": { description: Missing or invalid material fields }
+        "401": { description: Not authenticated }
+        "409": { description: Material title already exists }
+        "415": { description: Unsupported uploaded file }
+
+  /forum/materials/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    delete:
+      operationId: deleteForumMaterial
+      tags: [forum]
+      summary: Delete an uploaded material as its uploader or an administrator
+      responses:
+        "204": { description: Material deleted }
+        "400": { description: Invalid material ID }
+        "401": { description: Not authenticated }
+        "403": { description: Not the uploader or an administrator }
+        "404": { description: Material not found }
+
+  /forum/materials/{id}/view:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: recordForumMaterialView
+      tags: [forum]
+      summary: Record that a visible linked material was opened
+      responses:
+        "204": { description: View recorded }
+        "400": { description: Invalid material ID }
+        "401": { description: Not authenticated }
+        "404": { description: Visible material not found }
+
+  /forum/materials/{id}/file:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: downloadForumMaterialFile
+      tags: [forum]
+      summary: Download the uploaded file for a visible material
+      responses:
+        "200":
+          description: Uploaded material file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "400": { description: Invalid material ID }
+        "401": { description: Not authenticated }
+        "404": { description: Visible material file not found }
+
+  /forum/materials/{id}/approve:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: approveForumMaterial
+      tags: [forum]
+      summary: Add a verified-teacher approval to a student material
+      responses:
+        "200":
+          description: Material with its updated approvals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumMaterial" }
+        "400": { description: Invalid material ID or material does not require approval }
+        "401": { description: Not authenticated }
+        "403": { description: Verified teacher or administrator access required }
+        "404": { description: Material not found }
+
+  /forum/posts:
+    get:
+      operationId: listForumPosts
+      tags: [forum]
+      summary: List visible global or class-scoped Forum posts
+      parameters:
+        - name: classId
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 160 }
+        - name: tag
+          in: query
+          schema: { type: string, maxLength: 40 }
+        - name: kind
+          in: query
+          schema: { $ref: "#/components/schemas/ForumPostKind" }
+      responses:
+        "200":
+          description: Visible posts ordered newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 100
+                items: { $ref: "#/components/schemas/ForumPost" }
+        "400": { description: Invalid post filter }
+        "401": { description: Not authenticated }
+        "403": { description: Class membership required }
+    post:
+      operationId: createForumPost
+      tags: [forum]
+      summary: Publish a moderated post or survey with an optional attachment
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: "#/components/schemas/CreateForumPostForm" }
+      responses:
+        "201":
+          description: Post published
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumPost" }
+        "400": { description: "Invalid post, survey, quote, class, or material attachment" }
+        "401": { description: Not authenticated }
+        "403": { description: Class membership required }
+        "415": { description: Unsupported uploaded file }
+        "422": { description: Moderation requires content changes }
+
+  /forum/posts/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    delete:
+      operationId: deleteForumPost
+      tags: [forum]
+      summary: Delete a post as its author or an administrator
+      responses:
+        "204": { description: Post deleted }
+        "400": { description: Invalid post ID }
+        "401": { description: Not authenticated }
+        "403": { description: Not the author or an administrator }
+        "404": { description: Post not found }
+
+  /forum/posts/{id}/file:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: downloadForumPostFile
+      tags: [forum]
+      summary: Download the attachment for a visible post
+      responses:
+        "200":
+          description: Post attachment
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "400": { description: Invalid post ID }
+        "401": { description: Not authenticated }
+        "404": { description: Visible post attachment not found }
+
+  /forum/posts/{id}/repost:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: toggleForumPostRepost
+      tags: [forum]
+      summary: Toggle the current account's repost for a visible post
+      responses:
+        "200":
+          description: Confirmed repost state and count
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumRepostResult" }
+        "400": { description: Invalid post ID }
+        "401": { description: Not authenticated }
+        "404": { description: Visible post not found }
+
+  /forum/posts/{id}/vote:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: castForumSurveyVote
+      tags: [forum]
+      summary: Cast or replace a vote on a visible survey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForumSurveyVoteInput" }
+      responses:
+        "200":
+          description: Updated survey post
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumPost" }
+        "400": { description: Invalid post ID or survey option }
+        "401": { description: Not authenticated }
+        "404": { description: Visible post not found }
+    delete:
+      operationId: removeForumSurveyVote
+      tags: [forum]
+      summary: Remove a vote from a visible survey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RemoveForumSurveyVoteInput" }
+      responses:
+        "200":
+          description: Updated survey post
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumPost" }
+        "400": { description: "Invalid post ID, survey, or survey option" }
+        "401": { description: Not authenticated }
+        "404": { description: Visible post not found }
+
+  /forum/{targetType}/{id}/like:
+    parameters:
+      - name: targetType
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ForumTargetType" }
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: toggleForumLike
+      tags: [forum]
+      summary: Toggle a like on a visible post or material
+      responses:
+        "200":
+          description: Confirmed like state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumLikeResult" }
+        "400": { description: Invalid like target }
+        "401": { description: Not authenticated }
+        "404": { description: Visible target not found }
+
+  /forum/{targetType}/{id}/comments:
+    parameters:
+      - name: targetType
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/ForumTargetType" }
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: listForumComments
+      tags: [forum]
+      summary: List approved comments on a visible post or material
+      responses:
+        "200":
+          description: Approved comments ordered oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ForumComment" }
+        "400": { description: Invalid comment target }
+        "401": { description: Not authenticated }
+        "404": { description: Visible target not found }
+    post:
+      operationId: createForumComment
+      tags: [forum]
+      summary: Publish a moderated comment or reply on a visible target
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateForumCommentInput" }
+      responses:
+        "201":
+          description: Comment published
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumComment" }
+        "400": { description: Invalid target or blank comment }
+        "401": { description: Not authenticated }
+        "404": { description: Visible target or account not found }
+        "422": { description: Moderation requires content changes }
+
+  /forum/comments/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    delete:
+      operationId: deleteForumComment
+      tags: [forum]
+      summary: Delete a comment as its author or an administrator
+      responses:
+        "204": { description: Comment deleted }
+        "400": { description: Invalid comment ID }
+        "401": { description: Not authenticated }
+        "403": { description: Not the author or an administrator }
+        "404": { description: Comment not found }
+
+  /forum/reports:
+    post:
+      operationId: createForumReport
+      tags: [forum]
+      summary: Report visible Forum content for automated and administrator review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateForumReportInput" }
+      responses:
+        "201":
+          description: Report created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumReport" }
+        "400": { description: Invalid report }
+        "401": { description: Not authenticated }
+        "404": { description: Visible reported content or account not found }
+    get:
+      operationId: listForumReports
+      tags: [forum]
+      summary: List reports for administrator moderation
+      responses:
+        "200":
+          description: Reports ordered newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 200
+                items: { $ref: "#/components/schemas/ForumReport" }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator access required }
+
+  /forum/reports/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    patch:
+      operationId: updateForumReport
+      tags: [forum]
+      summary: Resolve or dismiss a Forum report as an administrator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateForumReportInput" }
+      responses:
+        "200":
+          description: Updated report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ForumReport" }
+        "400": { description: Invalid report ID or status }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator access required }
+        "404": { description: Report not found }
+
+  /direct-messages/conversations:
+    get:
+      operationId: listDirectConversations
+      tags: [direct-messages]
+      summary: List private conversations for the current user
+      responses:
+        "200":
+          description: Conversations ordered by most recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/DirectConversation" }
+        "401": { description: Not authenticated }
+    post:
+      operationId: createDirectConversation
+      tags: [direct-messages]
+      summary: Start or reopen a private conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateDirectConversationInput" }
+      responses:
+        "201":
+          description: Conversation created or returned
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DirectConversation" }
+        "400": { description: Invalid target account }
+        "401": { description: Not authenticated }
+        "403": { description: Messaging is blocked or requests are disabled }
+        "404": { description: Target account not found }
+
+  /direct-messages/conversations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      operationId: getDirectConversation
+      tags: [direct-messages]
+      summary: Get a private conversation and mark received messages read
+      responses:
+        "200":
+          description: Conversation with messages
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DirectConversationDetails" }
+        "400": { description: Invalid conversation ID }
+        "401": { description: Not authenticated }
+        "404": { description: Conversation not found }
+
+  /direct-messages/conversations/{id}/messages:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    post:
+      operationId: sendDirectMessage
+      tags: [direct-messages]
+      summary: Send a message in an accepted conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendDirectMessageInput" }
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DirectMessage" }
+        "400": { description: Invalid message }
+        "401": { description: Not authenticated }
+        "403": { description: Conversation is blocked or awaiting acceptance }
+        "404": { description: Conversation not found }
+
+  /direct-messages/conversations/{id}/request:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, minimum: 1 }
+    patch:
+      operationId: respondToDirectMessageRequest
+      tags: [direct-messages]
+      summary: Accept or decline an incoming message request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RespondDirectMessageRequestInput" }
+      responses:
+        "200":
+          description: Updated conversation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DirectConversation" }
+        "400": { description: Invalid conversation ID or response action }
+        "401": { description: Not authenticated }
+        "404": { description: Incoming request not found }
+
   # ── Calendar ──────────────────────────────────────────────────────────────
   /calendar/status:
     get:
       operationId: getCalendarStatus
       tags: [calendar]
-      summary: Get Google Calendar connection status and iCal secret
+      summary: Get truthful Google Calendar connection availability and status
       responses:
         "200":
           description: Calendar status
@@ -2035,6 +3563,21 @@ paths:
       responses:
         "200":
           description: iCal feed URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarIcalUrl"
+        "401":
+          description: Not authenticated
+
+  /calendar/ical-url/rotate:
+    post:
+      operationId: rotateCalendarIcalUrl
+      tags: [calendar]
+      summary: Revoke the previous iCal capability URL and issue a new one
+      responses:
+        "200":
+          description: Rotated personal iCal feed URL
           content:
             application/json:
               schema:
@@ -2067,6 +3610,38 @@ paths:
           description: Disconnected
         "401":
           description: Not authenticated
+
+  /calendar/google/callback:
+    get:
+      operationId: getCalendarGoogleCallback
+      tags: [calendar]
+      summary: Complete the signed Google Calendar OAuth callback
+      parameters:
+        - { name: code, in: query, schema: { type: string, minLength: 1 } }
+        - { name: state, in: query, schema: { type: string, minLength: 1 } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        "302": { description: Redirect to the profile or an OAuth error state }
+
+  /calendar/{icalSecret}/feed.ics:
+    get:
+      operationId: downloadCalendarFeed
+      tags: [calendar]
+      summary: Read the calendar belonging to an unguessable subscription capability
+      security: []
+      parameters:
+        - name: icalSecret
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Personal calendar subscription
+          content:
+            text/calendar:
+              schema: { type: string }
+        "400": { description: Invalid capability format }
+        "404": { description: Capability revoked or not found }
 
   /schedule/{id}/export.ics:
     get:
@@ -2137,11 +3712,20 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/LearningEvidenceInput" }
       responses:
+        "200":
+          description: Existing evidence returned for an idempotent retry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningEvidence" }
         "201":
           description: Recorded learning evidence
           content:
             application/json:
               schema: { $ref: "#/components/schemas/LearningEvidence" }
+        "403":
+          description: Referenced learning goal is not owned by the current user
+        "409":
+          description: A concurrent submission could not be reconciled and may be retried
 
   /learning-signals:
     get:
@@ -2158,6 +3742,66 @@ paths:
 
 components:
   schemas:
+    ProductEventInput:
+      type: object
+      additionalProperties: false
+      required: [event]
+      properties:
+        event:
+          type: string
+          enum:
+            [
+              onboarding_started,
+              onboarding_completed,
+              search_result_opened,
+              paywall_viewed,
+              purchase_started,
+              web_vital_measured,
+              client_error_observed,
+            ]
+        resourceId: { type: integer, minimum: 1 }
+        context:
+          type: object
+          additionalProperties: false
+          properties:
+            surface: { type: string, maxLength: 48 }
+            resultType: { type: string, maxLength: 32 }
+            material: { type: string, maxLength: 32 }
+            position: { type: integer, minimum: 1, maximum: 100 }
+            milestone: { type: string, maxLength: 48 }
+            plan: { type: string, maxLength: 24 }
+            workspaceRole: { type: string, enum: [student, teacher] }
+            routeGroup: { type: string, maxLength: 32 }
+            metric: { type: string, enum: [LCP, INP, CLS, TTFB] }
+            value: { type: number, minimum: 0, maximum: 10000000 }
+            rating:
+              { type: string, enum: [good, needs-improvement, poor] }
+            source:
+              {
+                type: string,
+                enum: [react_boundary, window_error, unhandled_rejection],
+              }
+            errorKind:
+              {
+                type: string,
+                enum:
+                  [
+                    chunk_load,
+                    type_error,
+                    reference_error,
+                    range_error,
+                    syntax_error,
+                    network_error,
+                    unknown,
+                  ],
+              }
+
+    ProductEventAccepted:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: { type: boolean }
+
     HealthStatus:
       type: object
       required: [status]
@@ -2187,6 +3831,7 @@ components:
         name: { type: string }
         role: { type: string, enum: [student, teacher, admin] }
         activeRole: { type: string, enum: [student, teacher] }
+        educatorEnabled: { type: boolean }
         avatarUrl: { type: ["string", "null"] }
         bio: { type: ["string", "null"] }
         subjects: { type: array, items: { type: string }, nullable: true }
@@ -2255,6 +3900,135 @@ components:
         gradeOrDept: { type: ["string", "null"] }
         timezone: { type: ["string", "null"] }
         websiteUrl: { type: ["string", "null"] }
+
+    InterfaceColorsPreference:
+      type: object
+      additionalProperties: false
+      required: [background, surface, primary, accent]
+      properties:
+        background: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        surface: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        primary: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+        accent: { type: string, pattern: "^#[0-9a-fA-F]{6}$" }
+
+    UserPreferencesPendingCheckIn:
+      type: object
+      additionalProperties: false
+      required: [concept, prompt]
+      properties:
+        concept: { type: string, minLength: 1, maxLength: 300 }
+        prompt: { type: string, minLength: 1, maxLength: 600 }
+
+    UserPreferencesSearchHistoryItem:
+      type: object
+      additionalProperties: false
+      required: [query, searchedAt]
+      properties:
+        query: { type: string, minLength: 1, maxLength: 300 }
+        searchedAt: { type: string, minLength: 1 }
+
+    UserPreferences:
+      type: object
+      required:
+        [
+          userId,
+          language,
+          interfaceColors,
+          ambientStyle,
+          ambientIntensity,
+          readNotificationIds,
+          dashboardGoalIds,
+          continueStudying,
+          pendingCheckIns,
+          searchHistory,
+          resourceSearchState,
+          allowMessageRequests,
+          tutorialSeen,
+          updatedAt,
+        ]
+      properties:
+        userId: { type: integer }
+        language: { type: ["string", "null"], enum: [en, tr, null] }
+        interfaceColors:
+          oneOf:
+            - { $ref: "#/components/schemas/InterfaceColorsPreference" }
+            - { type: "null" }
+        ambientStyle:
+          {
+            type: ["string", "null"],
+            enum: [off, net, globe, halo, cells, rings, topology, null],
+          }
+        ambientIntensity:
+          { type: ["number", "null"], minimum: 0.5, maximum: 2 }
+        readNotificationIds:
+          type: array
+          maxItems: 500
+          items: { type: integer, minimum: 1 }
+        dashboardGoalIds:
+          type: object
+          additionalProperties: { type: integer, minimum: 1 }
+        continueStudying:
+          type: object
+          additionalProperties:
+            type: array
+            maxItems: 6
+            items: { type: integer, minimum: 1 }
+        pendingCheckIns:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/UserPreferencesPendingCheckIn"
+        searchHistory:
+          type: array
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/UserPreferencesSearchHistoryItem"
+        resourceSearchState:
+          type: ["object", "null"]
+          additionalProperties: true
+        allowMessageRequests: { type: boolean }
+        tutorialSeen: { type: boolean }
+        updatedAt: { type: string }
+
+    UserPreferencesPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        language: { type: string, enum: [en, tr] }
+        interfaceColors:
+          oneOf:
+            - { $ref: "#/components/schemas/InterfaceColorsPreference" }
+            - { type: "null" }
+        ambientStyle:
+          { type: string, enum: [off, net, globe, halo, cells, rings, topology] }
+        ambientIntensity: { type: number, minimum: 0.5, maximum: 2 }
+        readNotificationIds:
+          type: array
+          maxItems: 500
+          items: { type: integer, minimum: 1 }
+        dashboardGoalIds:
+          type: object
+          additionalProperties: { type: integer, minimum: 1 }
+        continueStudying:
+          type: object
+          additionalProperties:
+            type: array
+            maxItems: 6
+            items: { type: integer, minimum: 1 }
+        pendingCheckIns:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/UserPreferencesPendingCheckIn"
+        searchHistory:
+          type: array
+          maxItems: 12
+          items:
+            $ref: "#/components/schemas/UserPreferencesSearchHistoryItem"
+        resourceSearchState:
+          type: ["object", "null"]
+          additionalProperties: true
+        allowMessageRequests: { type: boolean }
+        tutorialSeen: { type: boolean }
 
     UserLibrary:
       type: object
@@ -2339,6 +4113,194 @@ components:
             limit: { type: ["integer", "null"] }
             window: { type: string, enum: [day] }
 
+    EntitlementReconciliation:
+      type: object
+      additionalProperties: false
+      required: [plan, planExpiresAt]
+      properties:
+        plan: { type: string, enum: [free, plus, pro] }
+        planExpiresAt: { type: ["string", "null"], format: date-time }
+
+    AdminUser:
+      type: object
+      additionalProperties: false
+      required:
+        [id, name, email, role, activeRole, educatorEnabled, teacherVerified, profileVisibility, libraryVisibility, showBio, showSubjects, showGradeOrDept, showWebsite, plan, createdAt]
+      properties:
+        id: { type: integer, minimum: 1 }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [student, teacher, admin] }
+        activeRole: { type: string, enum: [student, teacher] }
+        educatorEnabled: { type: boolean }
+        teacherVerified: { type: boolean }
+        avatarUrl: { type: ["string", "null"] }
+        bio: { type: ["string", "null"] }
+        subjects:
+          type: ["array", "null"]
+          items: { type: string }
+        gradeOrDept: { type: ["string", "null"] }
+        timezone: { type: ["string", "null"] }
+        profileVisibility:
+          { type: string, enum: [everyone, classmates, private] }
+        libraryVisibility:
+          { type: string, enum: [everyone, classmates, private] }
+        showBio: { type: boolean }
+        showSubjects: { type: boolean }
+        showGradeOrDept: { type: boolean }
+        showWebsite: { type: boolean }
+        websiteUrl: { type: ["string", "null"] }
+        plan: { type: string, enum: [free, plus, pro] }
+        planExpiresAt: { type: ["string", "null"] }
+        bannedAt: { type: ["string", "null"] }
+        bannedReason: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    AdminUsersPage:
+      type: object
+      additionalProperties: false
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminUser" }
+        total: { type: integer, minimum: 0 }
+        limit: { type: integer, minimum: 1, maximum: 100 }
+        offset: { type: integer, minimum: 0 }
+
+    AdminUserPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 320 }
+        role: { type: string, enum: [student, teacher, admin] }
+        activeRole: { type: string, enum: [student, teacher] }
+        educatorEnabled: { type: boolean }
+        bio: { type: ["string", "null"], maxLength: 1000 }
+        subjects:
+          type: ["array", "null"]
+          maxItems: 30
+          items: { type: string, minLength: 1, maxLength: 80 }
+        gradeOrDept: { type: ["string", "null"], maxLength: 160 }
+        timezone: { type: ["string", "null"], maxLength: 100 }
+        websiteUrl: { type: ["string", "null"], maxLength: 1000 }
+        profileVisibility:
+          { type: string, enum: [everyone, classmates, private] }
+        libraryVisibility:
+          { type: string, enum: [everyone, classmates, private] }
+        showBio: { type: boolean }
+        showSubjects: { type: boolean }
+        showGradeOrDept: { type: boolean }
+        showWebsite: { type: boolean }
+
+    AdminPlanOverride:
+      type: object
+      additionalProperties: false
+      required: [plan, reason]
+      properties:
+        plan: { type: string, enum: [free, plus, pro] }
+        expiresAt: { type: ["string", "null"] }
+        reason: { type: string, minLength: 3, maxLength: 1000 }
+
+    AdminBanInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 500 }
+
+    AdminPublisherVerificationInput:
+      type: object
+      additionalProperties: false
+      required: [verified]
+      properties:
+        verified: { type: boolean }
+
+    AdminResourceReviewQueueItem:
+      type: object
+      additionalProperties: false
+      required:
+        [id, title, url, format, subject, gradeLevel, createdAt, verificationStatus, submittedById]
+      properties:
+        id: { type: integer, minimum: 1 }
+        title: { type: string }
+        url: { type: string }
+        description: { type: ["string", "null"] }
+        format:
+          { type: string, enum: [article, video, pdf, podcast, interactive, other] }
+        subject: { type: string }
+        gradeLevel: { type: string }
+        thumbnailUrl: { type: ["string", "null"] }
+        createdAt: { type: string }
+        verificationStatus:
+          { type: string, enum: [unverified, verified, rejected] }
+        verificationSource:
+          {
+            type: ["string", "null"],
+            enum: [catalog, trusted-submitter, reviewer, legacy, null],
+          }
+        verificationNote: { type: ["string", "null"] }
+        submittedById: { type: integer, minimum: 1 }
+        submittedByName: { type: ["string", "null"] }
+        submittedByEmail: { type: ["string", "null"] }
+        submittedByRole:
+          {
+            type: ["string", "null"],
+            enum: [student, teacher, admin, null],
+          }
+        submitterVerified: { type: ["boolean", "null"] }
+
+    AdminResourceReviewQueue:
+      type: object
+      additionalProperties: false
+      required: [items, pendingTotal]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AdminResourceReviewQueueItem" }
+        pendingTotal: { type: integer, minimum: 0 }
+
+    AdminResourceVerificationInput:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [verified, rejected, unverified] }
+        note: { type: string, maxLength: 1000 }
+
+    AdminResourceVerificationBulkInput:
+      type: object
+      additionalProperties: false
+      required: [ids, status]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { type: integer, minimum: 1 }
+        status: { type: string, enum: [verified, rejected, unverified] }
+        note: { type: string, maxLength: 1000 }
+
+    AdminResourceVerificationResult:
+      type: object
+      additionalProperties: false
+      required: [id, title, verificationStatus]
+      properties:
+        id: { type: integer, minimum: 1 }
+        title: { type: string }
+        verificationStatus:
+          { type: string, enum: [unverified, verified, rejected] }
+        verificationNote: { type: ["string", "null"] }
+
+    AdminResourceVerificationBulkResult:
+      type: object
+      additionalProperties: false
+      required: [updated]
+      properties:
+        updated: { type: integer, minimum: 0, maximum: 100 }
+
     AdminAiFeatureUsage:
       type: object
       required: [total, month, estimatedCostUsd]
@@ -2377,8 +4339,11 @@ components:
       required:
         [
           users,
-          students,
-          teachers,
+          learnerAccounts,
+          educatorAccounts,
+          accountsBothLearnAndTeach,
+          activeClassOwners30d,
+          classLearners,
           admins,
           goals,
           resources,
@@ -2386,11 +4351,15 @@ components:
           plan,
           usage,
           workflow,
+          reliability,
         ]
       properties:
         users: { type: integer }
-        students: { type: integer }
-        teachers: { type: integer }
+        learnerAccounts: { type: integer }
+        educatorAccounts: { type: integer }
+        accountsBothLearnAndTeach: { type: integer }
+        activeClassOwners30d: { type: integer }
+        classLearners: { type: integer }
         admins: { type: integer }
         goals: { type: integer }
         resources: { type: integer }
@@ -2434,7 +4403,7 @@ components:
               items: { $ref: "#/components/schemas/AdminUserAiUsage" }
         workflow:
           type: object
-          required: [funnel, engagement]
+          required: [funnel, engagement, activation]
           properties:
             funnel:
               type: object
@@ -2492,6 +4461,70 @@ components:
                 teacherApprovalRate: { type: number }
                 reportsPerThousand: { type: number }
                 estimatedStoredMb: { type: number }
+            activation:
+              type: object
+              required:
+                [
+                  registered30d,
+                  firstSearchUsers30d,
+                  sourceCheckUsers30d,
+                  activatedLearners30d,
+                  activatedEducators30d,
+                  registeredToSearchRate,
+                  searchToSourceCheckRate,
+                  sourceCheckToActionRate,
+                  d1ReturnRate,
+                  d7ReturnRate,
+                  classesWithFiveLearners,
+                  searchNoResultRate,
+                  avgPreviewCoverage,
+                ]
+              properties:
+                registered30d: { type: integer }
+                firstSearchUsers30d: { type: integer }
+                sourceCheckUsers30d: { type: integer }
+                activatedLearners30d: { type: integer }
+                activatedEducators30d: { type: integer }
+                registeredToSearchRate: { type: number }
+                searchToSourceCheckRate: { type: number }
+                sourceCheckToActionRate: { type: number }
+                d1ReturnRate: { type: number }
+                d7ReturnRate: { type: number }
+                classesWithFiveLearners: { type: integer }
+                searchNoResultRate: { type: number }
+                avgPreviewCoverage: { type: number }
+        reliability:
+          type: object
+          required:
+            [
+              sampleWindowDays,
+              measuredUsers30d,
+              vitalSamples30d,
+              clientErrors30d,
+              renderCrashes30d,
+              errorFreeUsersRate,
+              lcpP75Ms,
+              inpP75Ms,
+              clsP75,
+              lcpSloMet,
+              inpSloMet,
+              clsSloMet,
+              errorFreeUsersSloMet,
+            ]
+          properties:
+            sampleWindowDays: { type: integer }
+            measuredUsers30d: { type: integer }
+            vitalSamples30d: { type: integer }
+            clientErrors30d: { type: integer }
+            renderCrashes30d: { type: integer }
+            errorFreeUsersRate: { type: number }
+            lcpP75Ms: { type: ["number", "null"] }
+            inpP75Ms: { type: ["number", "null"] }
+            clsP75: { type: ["number", "null"] }
+            lcpSloMet: { type: ["boolean", "null"] }
+            inpSloMet: { type: ["boolean", "null"] }
+            clsSloMet: { type: ["boolean", "null"] }
+            errorFreeUsersSloMet: { type: ["boolean", "null"] }
 
     LearningGoal:
       type: object
@@ -2510,6 +4543,7 @@ components:
       properties:
         id: { type: integer }
         userId: { type: integer }
+        sourceListId: { type: ["integer", "null"] }
         title: { type: string }
         subject: { type: string }
         description: { type: ["string", "null"] }
@@ -2586,6 +4620,7 @@ components:
         title: { type: string, minLength: 1, maxLength: 200 }
         query: { type: string, minLength: 1, maxLength: 300 }
         completed: { type: boolean }
+        resourceId: { type: integer }
 
     # ── Classes ─────────────────────────────────────────────────────────────
     Class:
@@ -2814,6 +4849,21 @@ components:
             enum: [article, video, pdf, podcast, interactive, other],
           }
         thumbnailUrl: { type: ["string", "null"] }
+        previewTitle: { type: ["string", "null"] }
+        previewDescription: { type: ["string", "null"] }
+        previewImageUrl: { type: ["string", "null"] }
+        previewAuthor: { type: ["string", "null"] }
+        previewPublisher: { type: ["string", "null"] }
+        previewPublishedAt: { type: ["string", "null"] }
+        previewUpdatedAt: { type: ["string", "null"] }
+        previewFaviconUrl: { type: ["string", "null"] }
+        previewSource:
+          {
+            type: string,
+            enum: [provider_api, oembed, opengraph, extracted, none],
+          }
+        previewCheckedAt: { type: string }
+        previewMeaningful: { type: boolean }
 
     Resource:
       type: object
@@ -2897,9 +4947,44 @@ components:
             enum: [article, video, pdf, podcast, interactive, other],
           }
         source: { type: string }
+        material:
+          {
+            type: string,
+            enum:
+              [
+                course,
+                book,
+                explanation,
+                practice,
+                interactive,
+                video,
+                reference,
+                paper,
+                primary-source,
+                repository,
+                other,
+              ],
+          }
         thumbnailUrl: { type: ["string", "null"] }
         subject: { type: ["string", "null"] }
         gradeLevel: { type: ["string", "null"] }
+        previewTitle: { type: ["string", "null"] }
+        previewDescription: { type: ["string", "null"] }
+        previewImageUrl: { type: ["string", "null"] }
+        previewAuthor: { type: ["string", "null"] }
+        previewPublisher: { type: ["string", "null"] }
+        previewPublishedAt: { type: ["string", "null"] }
+        previewUpdatedAt: { type: ["string", "null"] }
+        previewFaviconUrl: { type: ["string", "null"] }
+        previewSource:
+          {
+            type: string,
+            enum: [provider_api, oembed, opengraph, extracted, none],
+          }
+        previewCheckedAt: { type: string }
+        previewMeaningful: { type: boolean }
+        previewLicense: { type: ["string", "null"] }
+        previewAccessType: { type: string, enum: [free, unknown] }
 
         provenanceLevel:
           {
@@ -3028,6 +5113,59 @@ components:
           items:
             $ref: "#/components/schemas/ListItem"
 
+    PublicListShare:
+      type: object
+      additionalProperties: false
+      required: [shareToken]
+      properties:
+        shareToken: { type: ["string", "null"] }
+
+    PublicResourceList:
+      type: object
+      additionalProperties: false
+      required: [name, itemCount, createdAt, items]
+      properties:
+        name: { type: string }
+        description: { type: ["string", "null"] }
+        itemCount: { type: integer }
+        createdAt: { type: string }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicResourceListItem"
+
+    PublicResourceListItem:
+      type: object
+      additionalProperties: false
+      required: [resourceId, position, resource]
+      properties:
+        resourceId: { type: integer }
+        position: { type: integer }
+        resource:
+          $ref: "#/components/schemas/PublicResource"
+
+    PublicResource:
+      type: object
+      additionalProperties: false
+      required:
+        [id, title, url, format, subject, gradeLevel, avgRating, reviewCount, createdAt]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        url: { type: string }
+        description: { type: ["string", "null"] }
+        format:
+          {
+            type: string,
+            enum: [article, video, pdf, podcast, interactive, other],
+          }
+        subject: { type: string }
+        gradeLevel: { type: string }
+        thumbnailUrl: { type: ["string", "null"] }
+        avgRating: { type: number }
+        reviewCount: { type: integer }
+        createdAt: { type: string }
+
     ResourceListInput:
       type: object
       required: [name]
@@ -3053,6 +5191,16 @@ components:
         position: { type: integer }
         resource: { $ref: "#/components/schemas/Resource" }
 
+    ResourceListMembership:
+      type: object
+      required: [listId, listName, listItemId, addedAt]
+      properties:
+        listId: { type: integer }
+        listName: { type: string }
+        listItemId: { type: integer }
+        note: { type: ["string", "null"] }
+        addedAt: { type: string }
+
     ListItemInput:
       type: object
       required: [resourceId]
@@ -3074,6 +5222,93 @@ components:
       required: [classId]
       properties:
         classId: { type: integer }
+
+    # ── Direct messages ─────────────────────────────────────────────────────
+    DirectMessage:
+      type: object
+      required:
+        [id, conversationId, senderId, body, isAdminMessage, readAt, createdAt]
+      properties:
+        id: { type: integer }
+        conversationId: { type: integer }
+        senderId: { type: integer }
+        body: { type: string }
+        isAdminMessage: { type: boolean }
+        readAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    DirectConversationUser:
+      type: object
+      required: [id, name, role, avatarUrl]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        role: { type: string, enum: [student, teacher, admin] }
+        avatarUrl: { type: ["string", "null"] }
+
+    DirectConversation:
+      type: object
+      required:
+        [
+          id,
+          firstUserId,
+          secondUserId,
+          requestedById,
+          status,
+          createdAt,
+          updatedAt,
+          other,
+          lastMessage,
+          unreadCount,
+          incomingRequest,
+        ]
+      properties:
+        id: { type: integer }
+        firstUserId: { type: integer }
+        secondUserId: { type: integer }
+        requestedById: { type: integer }
+        status: { type: string, enum: [pending, accepted, declined] }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        other: { $ref: "#/components/schemas/DirectConversationUser" }
+        lastMessage:
+          oneOf:
+            - { $ref: "#/components/schemas/DirectMessage" }
+            - { type: "null" }
+        unreadCount: { type: integer, minimum: 0 }
+        incomingRequest: { type: boolean }
+
+    DirectConversationDetails:
+      allOf:
+        - { $ref: "#/components/schemas/DirectConversation" }
+        - type: object
+          required: [messages]
+          properties:
+            messages:
+              type: array
+              items: { $ref: "#/components/schemas/DirectMessage" }
+
+    CreateDirectConversationInput:
+      type: object
+      additionalProperties: false
+      required: [userId]
+      properties:
+        userId: { type: integer, minimum: 1 }
+        body: { type: string, minLength: 1, maxLength: 4000 }
+
+    SendDirectMessageInput:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 4000 }
+
+    RespondDirectMessageRequestInput:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action: { type: string, enum: [accept, decline] }
 
     # ── Study Sessions ───────────────────────────────────────────────────────
     StudySessionParticipant:
@@ -3320,6 +5555,492 @@ components:
         listId: { type: ["integer", "null"] }
 
     # ── Dashboard ───────────────────────────────────────────────────────────
+    # ── Collaborative canvases ──────────────────────────────────────────────
+    # ── Forum and community catalog ──────────────────────────────────────
+    ForumAccountRole:
+      type: string
+      enum: [student, teacher, admin]
+
+    ForumModerationStatus:
+      type: string
+      enum: [approved, review, hidden]
+
+    ForumTargetType:
+      type: string
+      enum: [material, post]
+
+    ForumReportTargetType:
+      type: string
+      enum: [material, post, comment]
+
+    ForumMaterialType:
+      type: string
+      enum: [video, infographic, article, worksheet, activity, notes]
+
+    ForumPostKind:
+      type: string
+      enum: [post, survey]
+
+    ForumAccess:
+      type: object
+      additionalProperties: false
+      required: [isAdmin, teacherVerified, canApprove]
+      properties:
+        isAdmin: { type: boolean }
+        teacherVerified: { type: boolean }
+        canApprove: { type: boolean }
+
+    ForumMaterialApproval:
+      type: object
+      additionalProperties: false
+      required: [id, materialId, teacherId, teacherName, createdAt]
+      properties:
+        id: { type: integer, minimum: 1 }
+        materialId: { type: integer, minimum: 1 }
+        teacherId: { type: ["integer", "null"], minimum: 1 }
+        teacherName: { type: string }
+        createdAt: { type: string }
+
+    ForumMaterial:
+      type: object
+      additionalProperties: false
+      required:
+        [id, title, description, unit, topic, materialType, tags, sources, uploaderId, uploaderName, uploaderRole, linkUrl, fileName, mimeType, moderationStatus, moderationNote, viewCount, downloadCount, createdAt, updatedAt, likeCount, commentCount, likedByMe, approvals]
+      properties:
+        id: { type: integer, minimum: 1 }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        unit: { type: string }
+        topic: { type: string }
+        materialType: { $ref: "#/components/schemas/ForumMaterialType" }
+        tags:
+          type: array
+          items: { type: string }
+        sources:
+          type: array
+          items: { type: string }
+        uploaderId: { type: ["integer", "null"], minimum: 1 }
+        uploaderName: { type: string }
+        uploaderRole: { $ref: "#/components/schemas/ForumAccountRole" }
+        linkUrl: { type: ["string", "null"] }
+        fileName: { type: ["string", "null"] }
+        mimeType: { type: ["string", "null"] }
+        moderationStatus: { $ref: "#/components/schemas/ForumModerationStatus" }
+        moderationNote: { type: ["string", "null"] }
+        viewCount: { type: integer, minimum: 0 }
+        downloadCount: { type: integer, minimum: 0 }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        likeCount: { type: integer, minimum: 0 }
+        commentCount: { type: integer, minimum: 0 }
+        likedByMe: { type: boolean }
+        approvals:
+          type: array
+          items: { $ref: "#/components/schemas/ForumMaterialApproval" }
+
+    CreateForumMaterialForm:
+      type: object
+      additionalProperties: false
+      required: [title, unit, topic, materialType]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 180 }
+        description: { type: string, maxLength: 2000 }
+        unit: { type: string, minLength: 1, maxLength: 120 }
+        topic: { type: string, minLength: 1, maxLength: 120 }
+        materialType: { $ref: "#/components/schemas/ForumMaterialType" }
+        linkUrl: { type: string, maxLength: 2000 }
+        tags: { type: string, maxLength: 6000 }
+        sources: { type: string, maxLength: 6000 }
+        file: { type: string, format: binary }
+
+    ForumSurveyOption:
+      type: object
+      additionalProperties: false
+      required: [id, text]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 80 }
+        text: { type: string, minLength: 1, maxLength: 300 }
+
+    ForumSurveyVoteCount:
+      type: object
+      additionalProperties: false
+      required: [optionId, count]
+      properties:
+        optionId: { type: string, minLength: 1, maxLength: 80 }
+        count: { type: integer, minimum: 0 }
+
+    ForumQuotedPost:
+      type: object
+      additionalProperties: false
+      required: [id, authorName, authorRole, title, body, tags, createdAt]
+      properties:
+        id: { type: integer, minimum: 1 }
+        authorName: { type: string }
+        authorRole: { $ref: "#/components/schemas/ForumAccountRole" }
+        title: { type: ["string", "null"] }
+        body: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        createdAt: { type: string }
+
+    ForumPost:
+      type: object
+      additionalProperties: false
+      required:
+        [id, classId, authorId, authorName, authorRole, kind, title, body, tags, surveyOptions, allowMultipleVotes, quotedPostId, quotedPost, attachmentMaterialId, attachmentFileName, attachmentMimeType, moderationStatus, moderationNote, viewCount, createdAt, likeCount, commentCount, likedByMe, repostCount, repostedByMe, votes, myVote, myVotes]
+      properties:
+        id: { type: integer, minimum: 1 }
+        classId: { type: ["integer", "null"], minimum: 1 }
+        authorId: { type: ["integer", "null"], minimum: 1 }
+        authorName: { type: string }
+        authorRole: { $ref: "#/components/schemas/ForumAccountRole" }
+        kind: { $ref: "#/components/schemas/ForumPostKind" }
+        title: { type: ["string", "null"] }
+        body: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        surveyOptions:
+          type: array
+          items: { $ref: "#/components/schemas/ForumSurveyOption" }
+        allowMultipleVotes: { type: boolean }
+        quotedPostId: { type: ["integer", "null"], minimum: 1 }
+        quotedPost:
+          oneOf:
+            - { $ref: "#/components/schemas/ForumQuotedPost" }
+            - { type: "null" }
+        attachmentMaterialId: { type: ["integer", "null"], minimum: 1 }
+        attachmentFileName: { type: ["string", "null"] }
+        attachmentMimeType: { type: ["string", "null"] }
+        moderationStatus: { $ref: "#/components/schemas/ForumModerationStatus" }
+        moderationNote: { type: ["string", "null"] }
+        viewCount: { type: integer, minimum: 0 }
+        createdAt: { type: string }
+        likeCount: { type: integer, minimum: 0 }
+        commentCount: { type: integer, minimum: 0 }
+        likedByMe: { type: boolean }
+        repostCount: { type: integer, minimum: 0 }
+        repostedByMe: { type: boolean }
+        votes:
+          type: array
+          items: { $ref: "#/components/schemas/ForumSurveyVoteCount" }
+        myVote: { type: ["string", "null"] }
+        myVotes:
+          type: array
+          items: { type: string }
+
+    CreateForumPostForm:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        classId: { type: string, pattern: "^[1-9][0-9]*$" }
+        kind: { $ref: "#/components/schemas/ForumPostKind" }
+        title: { type: string, maxLength: 180 }
+        body: { type: string, minLength: 1, maxLength: 5000 }
+        tags: { type: string, maxLength: 2400 }
+        quotedPostId: { type: string, pattern: "^[1-9][0-9]*$" }
+        attachmentMaterialId: { type: string, pattern: "^[1-9][0-9]*$" }
+        surveyOptions: { type: string, maxLength: 3000 }
+        allowMultipleVotes:
+          type: string
+          enum: ["true", "false", "1", "0", "on", "off"]
+        file: { type: string, format: binary }
+
+    ForumRepostResult:
+      type: object
+      additionalProperties: false
+      required: [reposted, repostCount]
+      properties:
+        reposted: { type: boolean }
+        repostCount: { type: integer, minimum: 0 }
+
+    ForumSurveyVoteInput:
+      type: object
+      additionalProperties: false
+      required: [optionId]
+      properties:
+        optionId: { type: string, minLength: 1, maxLength: 80 }
+
+    RemoveForumSurveyVoteInput:
+      type: object
+      additionalProperties: false
+      properties:
+        optionId: { type: string, maxLength: 80 }
+
+    ForumLikeResult:
+      type: object
+      additionalProperties: false
+      required: [liked]
+      properties:
+        liked: { type: boolean }
+
+    ForumComment:
+      type: object
+      additionalProperties: false
+      required:
+        [id, authorId, authorName, authorRole, targetType, targetId, parentId, body, moderationStatus, moderationNote, createdAt]
+      properties:
+        id: { type: integer, minimum: 1 }
+        authorId: { type: ["integer", "null"], minimum: 1 }
+        authorName: { type: string }
+        authorRole: { $ref: "#/components/schemas/ForumAccountRole" }
+        targetType: { $ref: "#/components/schemas/ForumTargetType" }
+        targetId: { type: integer, minimum: 1 }
+        parentId: { type: ["integer", "null"], minimum: 1 }
+        body: { type: string }
+        moderationStatus: { $ref: "#/components/schemas/ForumModerationStatus" }
+        moderationNote: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    CreateForumCommentInput:
+      type: object
+      additionalProperties: false
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        parentId: { type: ["integer", "null"], minimum: 1 }
+
+    ForumReport:
+      type: object
+      additionalProperties: false
+      required:
+        [id, reporterId, reporterName, targetType, targetId, reason, status, aiFlagged, aiAssessment, createdAt, reviewedAt]
+      properties:
+        id: { type: integer, minimum: 1 }
+        reporterId: { type: ["integer", "null"], minimum: 1 }
+        reporterName: { type: string }
+        targetType: { $ref: "#/components/schemas/ForumReportTargetType" }
+        targetId: { type: integer, minimum: 1 }
+        reason: { type: string }
+        status: { type: string, enum: [pending, resolved, dismissed] }
+        aiFlagged: { type: boolean }
+        aiAssessment: { type: ["string", "null"] }
+        createdAt: { type: string }
+        reviewedAt: { type: ["string", "null"] }
+
+    CreateForumReportInput:
+      type: object
+      additionalProperties: false
+      required: [targetType, targetId, reason]
+      properties:
+        targetType: { $ref: "#/components/schemas/ForumReportTargetType" }
+        targetId: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    UpdateForumReportInput:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [resolved, dismissed] }
+
+    CanvasNodeData:
+      type: object
+      additionalProperties: false
+      required: [kind, title]
+      properties:
+        kind: { type: string, enum: [note, heading, link, resource] }
+        title: { type: string, maxLength: 240 }
+        text: { type: string, maxLength: 10000 }
+        url: { type: string, format: uri, maxLength: 2000 }
+        resourceId: { type: integer, minimum: 1 }
+        color: { type: string, maxLength: 40 }
+
+    CanvasNode:
+      type: object
+      additionalProperties: false
+      required: [id, type, position, data]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 120 }
+        type: { type: string, enum: [study] }
+        position:
+          type: object
+          additionalProperties: false
+          required: [x, y]
+          properties:
+            x: { type: number }
+            y: { type: number }
+        data: { $ref: "#/components/schemas/CanvasNodeData" }
+
+    CanvasEdge:
+      type: object
+      additionalProperties: false
+      required: [id, source, target]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 160 }
+        source: { type: string, minLength: 1, maxLength: 120 }
+        target: { type: string, minLength: 1, maxLength: 120 }
+        sourceHandle: { type: string, enum: [top, right, bottom, left] }
+        targetHandle: { type: string, enum: [top, right, bottom, left] }
+        direction: { type: string, enum: [one-way, two-way, line] }
+        label: { type: string, maxLength: 200 }
+
+    CanvasDocument:
+      type: object
+      additionalProperties: false
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          maxItems: 500
+          items: { $ref: "#/components/schemas/CanvasNode" }
+        edges:
+          type: array
+          maxItems: 1000
+          items: { $ref: "#/components/schemas/CanvasEdge" }
+        viewport:
+          type: object
+          additionalProperties: false
+          required: [x, y, zoom]
+          properties:
+            x: { type: number }
+            y: { type: number }
+            zoom: { type: number, minimum: 0.1, maximum: 4 }
+
+    CanvasPermissions:
+      type: object
+      additionalProperties: false
+      required: [canView, canEdit, canManage, role]
+      properties:
+        canView: { type: boolean }
+        canEdit: { type: boolean }
+        canManage: { type: boolean }
+        role:
+          type: string
+          enum: [owner, editor, viewer, class-editor, class-viewer]
+
+    CanvasOwnerReference:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: integer, minimum: 1 }
+        name: { type: string }
+
+    CanvasClassReference:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: integer, minimum: 1 }
+        name: { type: string }
+
+    CanvasView:
+      type: object
+      required:
+        [id, title, description, ownerId, classId, visibility, classAccess, document, version, createdAt, updatedAt, owner, class, collaboratorCount, permissions]
+      properties:
+        id: { type: integer, minimum: 1 }
+        title: { type: string }
+        description: { type: ["string", "null"] }
+        ownerId: { type: integer, minimum: 1 }
+        classId: { type: ["integer", "null"], minimum: 1 }
+        visibility: { type: string, enum: [private, people, class, link] }
+        classAccess: { type: string, enum: [view, edit] }
+        document: { $ref: "#/components/schemas/CanvasDocument" }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        owner:
+          oneOf:
+            - { $ref: "#/components/schemas/CanvasOwnerReference" }
+            - { type: "null" }
+        class:
+          oneOf:
+            - { $ref: "#/components/schemas/CanvasClassReference" }
+            - { type: "null" }
+        collaboratorCount: { type: integer, minimum: 0 }
+        permissions: { $ref: "#/components/schemas/CanvasPermissions" }
+
+    LearningCanvas:
+      allOf:
+        - { $ref: "#/components/schemas/CanvasView" }
+        - type: object
+          required: [shareToken]
+          properties:
+            shareToken: { type: ["string", "null"] }
+
+    SharedLearningCanvas:
+      $ref: "#/components/schemas/CanvasView"
+
+    CreateCanvasInput:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, maxLength: 1000 }
+        classId: { type: ["integer", "null"], minimum: 1 }
+        classAccess: { type: string, enum: [view, edit], default: view }
+
+    UpdateCanvasInput:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: ["string", "null"], maxLength: 1000 }
+        visibility: { type: string, enum: [private, people, class, link] }
+        classAccess: { type: string, enum: [view, edit] }
+        document: { $ref: "#/components/schemas/CanvasDocument" }
+        expectedVersion: { type: integer, minimum: 1 }
+
+    PublishCanvasInput:
+      type: object
+      additionalProperties: false
+      properties:
+        destination:
+          type: string
+          enum: [catalog, forum]
+          default: catalog
+
+    PublishCanvasResult:
+      type: object
+      additionalProperties: false
+      required: [materialId, shareToken, destination]
+      properties:
+        materialId: { type: integer, minimum: 1 }
+        shareToken: { type: string, minLength: 20, maxLength: 100 }
+        destination: { type: string, enum: [catalog, forum] }
+
+    CanvasCollaborator:
+      type: object
+      additionalProperties: false
+      required: [userId, role, createdAt, name, email, avatarUrl]
+      properties:
+        userId: { type: integer, minimum: 1 }
+        role: { type: string, enum: [viewer, editor] }
+        createdAt: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        avatarUrl: { type: ["string", "null"] }
+
+    CanvasCollaboratorInput:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role: { type: string, enum: [viewer, editor] }
+
+    CanvasCollaboratorResult:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok: { type: boolean, enum: [true] }
+
+    CanvasConflictResponse:
+      type: object
+      additionalProperties: false
+      required: [error, current]
+      properties:
+        error: { type: string }
+        current:
+          oneOf:
+            - { $ref: "#/components/schemas/LearningCanvas" }
+            - { type: "null" }
+
     DashboardSummary:
       type: object
       required:
@@ -3349,6 +6070,303 @@ components:
         createdAt: { type: string }
         userId: { type: ["integer", "null"] }
         userName: { type: ["string", "null"] }
+
+    # ── Learning workflow ──────────────────────────────────────────────────
+    ResourceWorkflowAction:
+      type: string
+      enum: [review, save, create_activity, share_class, assign_class, complete]
+
+    ContinueWorkflowAction:
+      type: string
+      enum: [review, save, create_activity, share_class, assign_class]
+
+    ResourceWorkflowSteps:
+      type: object
+      additionalProperties: false
+      required: [reviewed, saved, activityCreated, classShared, assignmentCreated]
+      properties:
+        reviewed: { type: boolean }
+        saved: { type: boolean }
+        activityCreated: { type: boolean }
+        classShared: { type: boolean }
+        assignmentCreated: { type: boolean }
+
+    WorkflowItemReference:
+      type: object
+      additionalProperties: false
+      required: [id, title]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+
+    WorkflowClassReference:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: ["string", "null"] }
+
+    ResourceWorkflowState:
+      type: object
+      additionalProperties: false
+      required:
+        [resourceId, steps, nextAction, assignmentRequired, activity, classShare, assignment]
+      properties:
+        resourceId: { type: integer }
+        steps: { $ref: "#/components/schemas/ResourceWorkflowSteps" }
+        nextAction: { $ref: "#/components/schemas/ResourceWorkflowAction" }
+        assignmentRequired: { type: boolean }
+        activity:
+          oneOf:
+            - { $ref: "#/components/schemas/WorkflowItemReference" }
+            - { type: "null" }
+        classShare:
+          oneOf:
+            - { $ref: "#/components/schemas/WorkflowClassReference" }
+            - { type: "null" }
+        assignment:
+          oneOf:
+            - { $ref: "#/components/schemas/WorkflowItemReference" }
+            - { type: "null" }
+
+    ContinueWorkflowItem:
+      type: object
+      additionalProperties: false
+      required:
+        [resourceId, title, subject, format, lastEventAt, steps, nextAction, completedSteps, totalSteps, activity, classShare, assignment]
+      properties:
+        resourceId: { type: integer }
+        title: { type: string }
+        subject: { type: string }
+        format: { type: string }
+        lastEventAt: { type: string }
+        steps: { $ref: "#/components/schemas/ResourceWorkflowSteps" }
+        nextAction: { $ref: "#/components/schemas/ContinueWorkflowAction" }
+        completedSteps: { type: integer, minimum: 1, maximum: 4 }
+        totalSteps: { type: integer, enum: [4, 5] }
+        activity:
+          oneOf:
+            - { $ref: "#/components/schemas/WorkflowItemReference" }
+            - { type: "null" }
+        classShare:
+          oneOf:
+            - { $ref: "#/components/schemas/WorkflowClassReference" }
+            - { type: "null" }
+        assignment:
+          oneOf:
+            - { $ref: "#/components/schemas/WorkflowItemReference" }
+            - { type: "null" }
+
+    # ── Class assignments ──────────────────────────────────────────────────
+    CreateClassAssignmentInput:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 180 }
+        instructions: { type: ["string", "null"], maxLength: 2000 }
+        resourceId: { type: ["integer", "null"], minimum: 1 }
+        activityId: { type: ["integer", "null"], minimum: 1 }
+        dueAt: { type: ["string", "null"] }
+
+    CreatedClassAssignment:
+      type: object
+      required:
+        [id, classId, createdById, title, instructions, resourceId, activityId, dueAt, createdAt]
+      properties:
+        id: { type: integer }
+        classId: { type: integer }
+        createdById: { type: integer }
+        title: { type: string }
+        instructions: { type: ["string", "null"] }
+        resourceId: { type: ["integer", "null"] }
+        activityId: { type: ["integer", "null"] }
+        dueAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    ClassAssignment:
+      type: object
+      required:
+        [id, classId, title, instructions, resourceId, activityId, dueAt, createdAt, resourceTitle, resourceUrl, activityTitle, completedAt, completed]
+      properties:
+        id: { type: integer }
+        classId: { type: integer }
+        title: { type: string }
+        instructions: { type: ["string", "null"] }
+        resourceId: { type: ["integer", "null"] }
+        activityId: { type: ["integer", "null"] }
+        dueAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+        resourceTitle: { type: ["string", "null"] }
+        resourceUrl: { type: ["string", "null"] }
+        activityTitle: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"] }
+        completed: { type: boolean }
+
+    AssignmentCompletionInput:
+      type: object
+      additionalProperties: false
+      properties:
+        completed: { type: boolean, default: true }
+
+    AssignmentCompletionResult:
+      type: object
+      additionalProperties: false
+      required: [completed]
+      properties:
+        completed: { type: boolean }
+
+    TodayAssignment:
+      type: object
+      required:
+        [id, classId, className, title, instructions, resourceId, activityId, dueAt, completedAt, completed]
+      properties:
+        id: { type: integer }
+        classId: { type: integer }
+        className: { type: string }
+        title: { type: string }
+        instructions: { type: ["string", "null"] }
+        resourceId: { type: ["integer", "null"] }
+        activityId: { type: ["integer", "null"] }
+        dueAt: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"] }
+        completed: { type: boolean }
+
+    ClassAssignmentAnalyticsItem:
+      type: object
+      additionalProperties: false
+      required: [id, title, dueAt, completions, completionRate]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        dueAt: { type: ["string", "null"] }
+        completions: { type: integer, minimum: 0 }
+        completionRate: { type: integer, minimum: 0, maximum: 100 }
+
+    ClassAssignmentAnalytics:
+      type: object
+      additionalProperties: false
+      required: [studentCount, assignments]
+      properties:
+        studentCount: { type: integer, minimum: 0 }
+        assignments:
+          type: array
+          items: { $ref: "#/components/schemas/ClassAssignmentAnalyticsItem" }
+
+    # ── Study activities ───────────────────────────────────────────────────
+    StudyActivityMode:
+      type: string
+      enum:
+        [all, flashcards, practice, quiz, true-false, match, scramble, missing-word, random]
+
+    StudyActivityCardInput:
+      type: object
+      required: [term, answer]
+      properties:
+        id: { type: string, maxLength: 80 }
+        term: { type: string, minLength: 1, maxLength: 500 }
+        answer: { type: string, minLength: 1, maxLength: 1000 }
+        choices:
+          type: array
+          minItems: 2
+          maxItems: 6
+          items: { type: string, minLength: 1, maxLength: 1000 }
+        correctChoiceIndex: { type: integer, minimum: 0, maximum: 5 }
+        imageData: { type: ["string", "null"], maxLength: 200000 }
+        imageAlt: { type: ["string", "null"], maxLength: 160 }
+
+    StudyActivityCard:
+      type: object
+      required: [id, term, answer]
+      properties:
+        id: { type: string, maxLength: 80 }
+        term: { type: string, minLength: 1, maxLength: 500 }
+        answer: { type: string, minLength: 1, maxLength: 1000 }
+        choices:
+          type: array
+          minItems: 2
+          maxItems: 6
+          items: { type: string }
+        correctChoiceIndex: { type: integer, minimum: 0, maximum: 5 }
+        imageData: { type: ["string", "null"] }
+        imageAlt: { type: ["string", "null"] }
+
+    StudyActivityContentInput:
+      type: object
+      required: [title, cards]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 160 }
+        subject: { type: ["string", "null"], maxLength: 160 }
+        mode: { $ref: "#/components/schemas/StudyActivityMode" }
+        cards:
+          type: array
+          minItems: 2
+          maxItems: 100
+          items: { $ref: "#/components/schemas/StudyActivityCardInput" }
+
+    CreateStudyActivityInput:
+      allOf:
+        - $ref: "#/components/schemas/StudyActivityContentInput"
+        - type: object
+          properties:
+            classId: { type: ["integer", "null"], minimum: 1 }
+            sourceResourceId: { type: ["integer", "null"], minimum: 1 }
+            sourceActivityId: { type: ["integer", "null"], minimum: 1 }
+            remixedFromActivityId: { type: ["integer", "null"], minimum: 1 }
+
+    UpdateStudyActivityInput:
+      $ref: "#/components/schemas/StudyActivityContentInput"
+
+    StudyActivity:
+      type: object
+      required:
+        [id, ownerId, workspaceRole, classId, title, subject, mode, shareToken, cards, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        ownerId: { type: integer }
+        workspaceRole: { type: string, enum: [student, teacher] }
+        classId: { type: ["integer", "null"] }
+        title: { type: string }
+        subject: { type: ["string", "null"] }
+        mode: { $ref: "#/components/schemas/StudyActivityMode" }
+        shareToken: { type: ["string", "null"] }
+        cards:
+          type: array
+          items: { $ref: "#/components/schemas/StudyActivityCard" }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    SharedStudyActivity:
+      type: object
+      required: [id, classId, title, subject, mode, cards, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        classId: { type: "null" }
+        title: { type: string }
+        subject: { type: ["string", "null"] }
+        mode: { $ref: "#/components/schemas/StudyActivityMode" }
+        cards:
+          type: array
+          items: { $ref: "#/components/schemas/StudyActivityCard" }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    PublishStudyActivityInput:
+      type: object
+      properties:
+        destination:
+          type: string
+          enum: [catalog, forum]
+          default: catalog
+
+    PublishStudyActivityResult:
+      type: object
+      required: [materialId, shareToken, destination]
+      properties:
+        materialId: { type: integer }
+        shareToken: { type: string }
+        destination: { type: string, enum: [catalog, forum] }
 
     # ── Google Classroom ─────────────────────────────────────────────────────
     GCAuthUrl:
@@ -3432,11 +6450,10 @@ components:
     # ── Calendar ─────────────────────────────────────────────────────────────
     CalendarStatus:
       type: object
-      required: [googleConnected, googleConfigured, icalSecret]
+      required: [googleConnected, googleConfigured]
       properties:
         googleConnected: { type: boolean }
         googleConfigured: { type: boolean }
-        icalSecret: { type: string }
 
     CalendarConnectUrl:
       type: object
@@ -3446,10 +6463,9 @@ components:
 
     CalendarIcalUrl:
       type: object
-      required: [url, icalSecret]
+      required: [url]
       properties:
         url: { type: string }
-        icalSecret: { type: string }
     LearningEvidence:
       type: object
       required: [id, userId, concept, confidence, understanding, createdAt]
@@ -3458,6 +6474,9 @@ components:
         userId: { type: integer }
         resourceId: { type: ["integer", "null"] }
         learningGoalId: { type: ["integer", "null"] }
+        pathStepId: { type: ["string", "null"] }
+        studyDurationSeconds: { type: ["integer", "null"], minimum: 0, maximum: 28800 }
+        clientSubmissionId: { type: ["string", "null"] }
         concept: { type: string }
         confidence: { type: integer, minimum: 1, maximum: 3 }
         understanding: { type: integer, minimum: 0, maximum: 4 }
@@ -3471,6 +6490,9 @@ components:
       properties:
         resourceId: { type: ["integer", "null"] }
         learningGoalId: { type: ["integer", "null"] }
+        pathStepId: { type: ["string", "null"], minLength: 1, maxLength: 100 }
+        studyDurationSeconds: { type: ["integer", "null"], minimum: 0, maximum: 28800 }
+        clientSubmissionId: { type: ["string", "null"], minLength: 12, maxLength: 100 }
         concept: { type: string, minLength: 2, maxLength: 160 }
         confidence: { type: integer, minimum: 1, maximum: 3 }
         understanding: { type: integer, minimum: 0, maximum: 4 }

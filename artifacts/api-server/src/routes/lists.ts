@@ -1,9 +1,16 @@
+/**
+ * @fileOverview API role: implements the Lists HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
+import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { eq, sql, and, max, asc, inArray, or } from "drizzle-orm";
-import { db, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, classMembersTable } from "@workspace/db";
+import { eq, sql, and, max, asc, desc, inArray, or } from "drizzle-orm";
+import { db, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, classMembersTable, learningGoalsTable } from "@workspace/db";
 import { publicResourceColumns } from "../lib/resourceColumns";
 import {
   ListResourceListsResponse,
+  ListResourceListMembershipsParams,
+  ListResourceListMembershipsResponse,
   CreateResourceListBody,
   CreateResourceListResponse,
   GetResourceListParams,
@@ -20,6 +27,15 @@ import {
   ReorderListItemsBody,
   ShareListWithClassParams,
   ShareListWithClassBody,
+  CreateLearningGoalFromListParams,
+  CreateLearningGoalFromListResponse,
+  GetPublicResourceListParams,
+  GetPublicResourceListResponse,
+  GetPublicListShareParams,
+  GetPublicListShareResponse,
+  CreatePublicListShareParams,
+  CreatePublicListShareResponse,
+  RevokePublicListShareParams,
 } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
@@ -27,6 +43,45 @@ import { isListOwner, canReadList, isListItemOwner, isClassTeacher } from "../li
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 
 const router: IRouter = Router();
+
+// This is current membership truth, not the historical workflow "saved" flag.
+// Removing the item or list makes it disappear from this result immediately.
+router.get(
+  "/resources/:resourceId/list-memberships",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = ListResourceListMembershipsParams.safeParse({
+      resourceId: Number(req.params.resourceId),
+    });
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid resource ID" });
+      return;
+    }
+    const rows = await db
+      .select({
+        listId: resourceListsTable.id,
+        listName: resourceListsTable.name,
+        listItemId: listItemsTable.id,
+        note: listItemsTable.note,
+        addedAt: listItemsTable.addedAt,
+      })
+      .from(listItemsTable)
+      .innerJoin(resourceListsTable, eq(resourceListsTable.id, listItemsTable.listId))
+      .where(
+        and(
+          eq(listItemsTable.resourceId, params.data.resourceId),
+          eq(resourceListsTable.ownerId, userId),
+          or(
+            eq(resourceListsTable.workspaceRole, userRole as "student" | "teacher"),
+            eq(resourceListsTable.workspaceRole, "shared"),
+          )!,
+        ),
+      )
+      .orderBy(desc(listItemsTable.addedAt));
+    res.json(ListResourceListMembershipsResponse.parse(rows));
+  },
+);
 
 async function resourceWithRating(id: number) {
   const [r] = await db
@@ -54,6 +109,72 @@ async function listWithCount(id: number) {
   return { ...list, itemCount: count };
 }
 
+async function publicListByToken(token: string) {
+  const [list] = await db
+    .select({
+      id: resourceListsTable.id,
+      name: resourceListsTable.name,
+      description: resourceListsTable.description,
+      createdAt: resourceListsTable.createdAt,
+    })
+    .from(resourceListsTable)
+    .where(eq(resourceListsTable.shareToken, token));
+  if (!list) return null;
+
+  // Public shares intentionally omit list-item notes, owner identity, and all
+  // moderation fields. A private or rejected submission in an owner's list
+  // must not become public merely because the list itself was shared.
+  const rows = await db
+    .select({
+      resourceId: listItemsTable.resourceId,
+      position: listItemsTable.position,
+      id: resourcesTable.id,
+      title: resourcesTable.title,
+      url: resourcesTable.url,
+      description: resourcesTable.description,
+      format: resourcesTable.format,
+      subject: resourcesTable.subject,
+      gradeLevel: resourcesTable.gradeLevel,
+      thumbnailUrl: resourcesTable.thumbnailUrl,
+      createdAt: resourcesTable.createdAt,
+      avgRating: sql<number>`round(coalesce((select avg(${reviewsTable.rating}) from ${reviewsTable} where ${reviewsTable.resourceId} = ${resourcesTable.id}), 0)::numeric, 1)::float`,
+      reviewCount: sql<number>`cast((select count(*) from ${reviewsTable} where ${reviewsTable.resourceId} = ${resourcesTable.id}) as int)`,
+    })
+    .from(listItemsTable)
+    .innerJoin(resourcesTable, eq(resourcesTable.id, listItemsTable.resourceId))
+    .where(
+      and(
+        eq(listItemsTable.listId, list.id),
+        eq(resourcesTable.verificationStatus, "verified"),
+      ),
+    )
+    .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
+
+  return {
+    name: list.name,
+    description: list.description,
+    itemCount: rows.length,
+    createdAt: list.createdAt,
+    items: rows.map((row) => ({
+      resourceId: row.resourceId,
+      position: row.position,
+      resource: {
+        id: row.id,
+        title: row.title,
+        url: row.url,
+        description: row.description,
+        format: row.format,
+        subject: row.subject,
+        gradeLevel: row.gradeLevel,
+        thumbnailUrl: row.thumbnailUrl,
+        avgRating: row.avgRating,
+        reviewCount: row.reviewCount,
+        createdAt: row.createdAt,
+      },
+    })),
+  };
+}
+
 // GET /lists/shared, lists shared with classes the user is a member of
 router.get("/lists/shared", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
@@ -70,6 +191,123 @@ router.get("/lists/shared", requireAuth, async (req, res): Promise<void> => {
   const lists = await Promise.all(rows.map((l) => listWithCount(l.id)));
   res.json(ListResourceListsResponse.parse(lists.filter(Boolean)));
 });
+
+// GET /lists/public/:token, intentionally public and capability-token gated.
+router.get("/lists/public/:token", async (req, res): Promise<void> => {
+  const params = GetPublicResourceListParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(404).json({ error: "Shared list not found" });
+    return;
+  }
+  const list = await publicListByToken(params.data.token);
+  if (!list) {
+    res.status(404).json({ error: "Shared list not found" });
+    return;
+  }
+  res.json(GetPublicResourceListResponse.parse(list));
+});
+
+// GET /lists/:id/public-share, owner-only status. The token is never included
+// in ordinary list responses, including class-shared list responses.
+router.get(
+  "/lists/:id/public-share",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = GetPublicListShareParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const [list] = await db
+      .select({ id: resourceListsTable.id, shareToken: resourceListsTable.shareToken })
+      .from(resourceListsTable)
+      .where(eq(resourceListsTable.id, params.data.id));
+    if (!list) {
+      res.status(404).json({ error: "List not found" });
+      return;
+    }
+    if (!(await isListOwner(params.data.id, userId, userRole))) {
+      res.status(403).json({ error: "Only the list owner can manage its public link" });
+      return;
+    }
+    res.json(GetPublicListShareResponse.parse({ shareToken: list.shareToken }));
+  },
+);
+
+// POST is idempotent: repeated clicks return the same live URL rather than
+// invalidating links that a teacher may already have distributed.
+router.post(
+  "/lists/:id/public-share",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = CreatePublicListShareParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const [list] = await db
+      .select({ id: resourceListsTable.id, shareToken: resourceListsTable.shareToken })
+      .from(resourceListsTable)
+      .where(eq(resourceListsTable.id, params.data.id));
+    if (!list) {
+      res.status(404).json({ error: "List not found" });
+      return;
+    }
+    if (!(await isListOwner(params.data.id, userId, userRole))) {
+      res.status(403).json({ error: "Only the list owner can create a public link" });
+      return;
+    }
+    if (list.shareToken) {
+      res.json(
+        CreatePublicListShareResponse.parse({ shareToken: list.shareToken }),
+      );
+      return;
+    }
+
+    const shareToken = randomUUID();
+    const [updated] = await db
+      .update(resourceListsTable)
+      .set({ shareToken })
+      .where(eq(resourceListsTable.id, params.data.id))
+      .returning({ shareToken: resourceListsTable.shareToken });
+    res
+      .status(201)
+      .json(CreatePublicListShareResponse.parse(updated ?? { shareToken }));
+  },
+);
+
+router.delete(
+  "/lists/:id/public-share",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = RevokePublicListShareParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+    const [list] = await db
+      .select({ id: resourceListsTable.id })
+      .from(resourceListsTable)
+      .where(eq(resourceListsTable.id, params.data.id));
+    if (!list) {
+      res.status(404).json({ error: "List not found" });
+      return;
+    }
+    if (!(await isListOwner(params.data.id, userId, userRole))) {
+      res.status(403).json({ error: "Only the list owner can revoke a public link" });
+      return;
+    }
+    await db
+      .update(resourceListsTable)
+      .set({ shareToken: null })
+      .where(eq(resourceListsTable.id, params.data.id));
+    res.sendStatus(204);
+  },
+);
 
 // GET /lists, only the current user's own lists
 router.get("/lists", requireAuth, async (req, res): Promise<void> => {
@@ -208,18 +446,52 @@ router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): P
     .from(listItemsTable)
     .where(eq(listItemsTable.listId, params.data.id));
   const nextPosition = (maxResult?.maxPos ?? -1) + 1;
-  const [item] = await db
+  // The unique (list_id, resource_id) index makes this race-safe. A retry may
+  // arrive after the first request committed, or two devices may save at once;
+  // onConflictDoNothing lets both requests converge on the same durable row.
+  const [insertedItem] = await db
     .insert(listItemsTable)
     .values({ listId: params.data.id, position: nextPosition, ...parsed.data })
+    .onConflictDoNothing({
+      target: [listItemsTable.listId, listItemsTable.resourceId],
+    })
     .returning();
-  await recordWorkflowEvent({
-    userId,
-    event: "resource_saved",
-    resourceId: item.resourceId,
-    context: { listId: params.data.id },
-  });
+  const [existingItem] = insertedItem
+    ? [insertedItem]
+    : await db
+        .select()
+        .from(listItemsTable)
+        .where(
+          and(
+            eq(listItemsTable.listId, params.data.id),
+            eq(listItemsTable.resourceId, parsed.data.resourceId),
+          ),
+        );
+  const item = insertedItem ?? existingItem;
+  if (!item) {
+    // This can only happen if a concurrent delete wins immediately after the
+    // conflict. A retry is safe and is clearer than returning a false success.
+    res.status(409).json({ error: "The resource changed while it was being saved. Please retry." });
+    return;
+  }
+  if (insertedItem) {
+    await Promise.all([
+      recordWorkflowEvent({
+        userId,
+        event: "resource_saved",
+        resourceId: item.resourceId,
+        context: { listId: params.data.id },
+      }),
+      recordWorkflowEvent({
+        userId,
+        event: "resource_added_to_list",
+        resourceId: item.resourceId,
+        context: { listId: params.data.id },
+      }),
+    ]);
+  }
   const resource = await resourceWithRating(item.resourceId);
-  res.status(201).json(AddListItemResponse.parse({ ...item, resource }));
+  res.status(insertedItem ? 201 : 200).json(AddListItemResponse.parse({ ...item, resource }));
 });
 
 // POST /lists/:id/items/reorder, list owner only
@@ -270,6 +542,136 @@ router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<v
     ),
   );
   res.sendStatus(204);
+});
+
+// POST /lists/:id/learning-goal, turn the list's saved order into a path.
+// The source-list uniqueness constraint makes repeat and concurrent requests
+// idempotent for each user and workspace.
+router.post("/lists/:id/learning-goal", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId, userRole } = req as AuthenticatedRequest;
+  const params = CreateLearningGoalFromListParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+  if (!(await canReadList(params.data.id, userId, userRole))) {
+    res.status(403).json({ error: "You do not have access to this list" });
+    return;
+  }
+
+  const list = await listWithCount(params.data.id);
+  if (!list) {
+    res.status(404).json({ error: "List not found" });
+    return;
+  }
+  const workspaceRole = userRole === "teacher" ? "teacher" : "student";
+  const [existingGoal] = await db
+    .select()
+    .from(learningGoalsTable)
+    .where(
+      and(
+        eq(learningGoalsTable.userId, userId),
+        eq(learningGoalsTable.workspaceRole, workspaceRole),
+        eq(learningGoalsTable.sourceListId, list.id),
+      ),
+    );
+  if (existingGoal) {
+    res.json(CreateLearningGoalFromListResponse.parse(existingGoal));
+    return;
+  }
+
+  const itemRows = await db
+    .select({
+      resourceId: listItemsTable.resourceId,
+      title: resourcesTable.title,
+      subject: resourcesTable.subject,
+      format: resourcesTable.format,
+    })
+    .from(listItemsTable)
+    .innerJoin(resourcesTable, eq(resourcesTable.id, listItemsTable.resourceId))
+    .where(eq(listItemsTable.listId, list.id))
+    .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
+  if (!itemRows.length) {
+    res.status(400).json({ error: "Add at least one resource before creating a learning path" });
+    return;
+  }
+
+  const pathItems = itemRows.slice(0, 20);
+  const subjectCounts = new Map<string, number>();
+  for (const item of pathItems)
+    subjectCounts.set(item.subject, (subjectCounts.get(item.subject) ?? 0) + 1);
+  const subject = [...subjectCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Interdisciplinary";
+  const preferredFormats = [...new Set(pathItems.map((item) => item.format))].slice(0, 6);
+  const [created] = await db
+    .insert(learningGoalsTable)
+    .values({
+      userId,
+      workspaceRole,
+      sourceListId: list.id,
+      title: list.name,
+      subject,
+      description:
+        itemRows.length > 20
+          ? `Learning path created from the first 20 of ${itemRows.length} resources in “${list.name}”.`
+          : `Learning path created from the ordered resource list “${list.name}”.`,
+      level: "beginner",
+      preferredFormats,
+      pathSteps: pathItems.map((item) => ({
+        id: randomUUID(),
+        title: item.title,
+        query: `${item.subject} ${item.title}`,
+        completed: false,
+        resourceId: item.resourceId,
+      })),
+    })
+    .onConflictDoNothing({
+      target: [
+        learningGoalsTable.userId,
+        learningGoalsTable.workspaceRole,
+        learningGoalsTable.sourceListId,
+      ],
+    })
+    .returning();
+  if (created) {
+    await Promise.all([
+      recordWorkflowEvent({
+        userId,
+        event: "goal_created",
+        context: {
+          source: "resource_list",
+          resourceCount: pathItems.length,
+          workspaceRole,
+        },
+      }),
+      recordWorkflowEvent({
+        userId,
+        event: "resource_added_to_goal",
+        resourceId: pathItems[0]?.resourceId,
+        context: {
+          resourceCount: pathItems.length,
+          workspaceRole,
+        },
+      }),
+    ]);
+    res.status(201).json(CreateLearningGoalFromListResponse.parse(created));
+    return;
+  }
+
+  const [concurrentGoal] = await db
+    .select()
+    .from(learningGoalsTable)
+    .where(
+      and(
+        eq(learningGoalsTable.userId, userId),
+        eq(learningGoalsTable.workspaceRole, workspaceRole),
+        eq(learningGoalsTable.sourceListId, list.id),
+      ),
+    );
+  if (!concurrentGoal) {
+    res.status(409).json({ error: "Learning path creation is already in progress" });
+    return;
+  }
+  res.json(CreateLearningGoalFromListResponse.parse(concurrentGoal));
 });
 
 // DELETE /lists/:id/items/:itemId, list owner only

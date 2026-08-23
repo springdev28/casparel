@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PrefetchResourceResponseFormat } from './prefetchResourceResponseFormat';
+import type { PrefetchResourceResponsePreviewSource } from './prefetchResourceResponsePreviewSource';
 
 export interface PrefetchResourceResponse {
   title: string;
@@ -13,4 +14,23 @@ export interface PrefetchResourceResponse {
   format: PrefetchResourceResponseFormat;
   /** @nullable */
   thumbnailUrl?: string | null;
+  /** @nullable */
+  previewTitle?: string | null;
+  /** @nullable */
+  previewDescription?: string | null;
+  /** @nullable */
+  previewImageUrl?: string | null;
+  /** @nullable */
+  previewAuthor?: string | null;
+  /** @nullable */
+  previewPublisher?: string | null;
+  /** @nullable */
+  previewPublishedAt?: string | null;
+  /** @nullable */
+  previewUpdatedAt?: string | null;
+  /** @nullable */
+  previewFaviconUrl?: string | null;
+  previewSource?: PrefetchResourceResponsePreviewSource;
+  previewCheckedAt?: string;
+  previewMeaningful?: boolean;
 }

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system primitive role: implements the reusable Input Otp UI primitive.
+ * System connection: exported through @workspace/edu-ds and composed by product-specific web components and pages.
+ */
 import * as React from "react"
 import { OTPInput, OTPInputContext } from "input-otp"
 import { Minus } from "lucide-react"

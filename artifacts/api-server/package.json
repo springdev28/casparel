@@ -8,7 +8,10 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "benchmark:search": "node ./scripts/benchmark-search.mjs",
+    "benchmark:search:validate": "node ./scripts/benchmark-search.mjs --validate",
+    "benchmark:search:review": "node ./scripts/benchmark-search.mjs --review"
   },
   "dependencies": {
     "@types/multer": "^2.2.0",

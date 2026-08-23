@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Scroll Area in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { ScrollArea, ScrollBar } from '../../components/ui/scroll-area';
 
 export function ScrollAreaDemo() {

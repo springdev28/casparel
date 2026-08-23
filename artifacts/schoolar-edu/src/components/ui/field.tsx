@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system primitive role: implements the reusable Field UI primitive.
+ * System connection: exported through @workspace/edu-ds and composed by product-specific web components and pages.
+ */
 "use client"
 
 import { useMemo } from "react"

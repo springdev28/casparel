@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Persistence role: defines the Drizzle tables, relations, and indexes for the Index domain.
+ * System connection: re-exported by schema/index.ts, migrated through lib/db/migrations, and queried by API route/domain modules.
+ */
 export * from "./users";
 export * from "./classes";
 export * from "./classMembers";
@@ -15,6 +19,7 @@ export * from "./learningGoals";
 export * from "./userSafety";
 export * from "./learningEvidence";
 export * from "./sourceReviewCache";
+export * from "./resourcePreviewCache";
 export * from "./classResourceRecommendations";
 export * from "./forum";
 export * from "./assignments";
@@ -22,3 +27,5 @@ export * from "./catalogResources";
 export * from "./canvases";
 export * from "./directMessages";
 export * from "./workflowEvents";
+export * from "./revenuecatWebhookEvents";
+export * from "./adminAuditLogs";

@@ -5,10 +5,12 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminOverviewWorkflowActivation } from './adminOverviewWorkflowActivation';
 import type { AdminOverviewWorkflowEngagement } from './adminOverviewWorkflowEngagement';
 import type { AdminOverviewWorkflowFunnel } from './adminOverviewWorkflowFunnel';
 
 export type AdminOverviewWorkflow = {
   funnel: AdminOverviewWorkflowFunnel;
   engagement: AdminOverviewWorkflowEngagement;
+  activation: AdminOverviewWorkflowActivation;
 };

@@ -1,6 +1,20 @@
+/**
+ * @fileOverview Web screen role: renders the Messages Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useSearch } from "wouter";
-import { useGetMe } from "@workspace/api-client-react";
+import {
+  createDirectConversation,
+  getDirectConversation,
+  listDirectConversations,
+  respondToDirectMessageRequest,
+  sendDirectMessage,
+  useGetMe,
+  type DirectConversation,
+  type DirectConversationDetails,
+  type DirectMessage,
+} from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
@@ -10,55 +24,14 @@ import { Check, Loader2, MessageCircle, Send, ShieldCheck, X } from "lucide-reac
 import { useUpdateUserPreferences, useUserPreferences } from "../lib/user-preferences";
 import { useDocumentVisibility } from "../lib/use-document-visibility";
 
-type Message = {
-  id: number;
-  conversationId: number;
-  senderId: number;
-  body: string;
-  isAdminMessage: boolean;
-  readAt: string | null;
-  createdAt: string;
-};
-type Conversation = {
-  id: number;
-  firstUserId: number;
-  secondUserId: number;
-  requestedById: number;
-  status: "pending" | "accepted" | "declined";
-  updatedAt: string;
-  other: { id: number; name: string; role: string; avatarUrl: string | null };
-  lastMessage: Message | null;
-  unreadCount: number;
-  incomingRequest: boolean;
-};
-type ConversationDetails = Conversation & { messages: Message[] };
-
-function apiUrl(path: string) {
-  return import.meta.env.BASE_URL.replace(/\/$/, "") + "/api" + path;
-}
-
-async function messageRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(apiUrl(path), {
-    ...init,
-    headers: {
-      Authorization: "Bearer " + localStorage.getItem("schoolar_token"),
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error((payload as { error?: string }).error || "Messaging failed");
-  return payload as T;
-}
-
 export default function MessagesPage() {
   const search = useSearch();
   const targetUserId = Number(new URLSearchParams(search).get("userId"));
   const { data: me } = useGetMe();
   const preferences = useUserPreferences(Boolean(me));
   const updatePreferences = useUpdateUserPreferences();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [active, setActive] = useState<ConversationDetails | null>(null);
+  const [conversations, setConversations] = useState<DirectConversation[]>([]);
+  const [active, setActive] = useState<DirectConversationDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const documentVisible = useDocumentVisibility();
@@ -66,7 +39,7 @@ export default function MessagesPage() {
   async function loadConversations(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const rows = await messageRequest<Conversation[]>("/direct-messages/conversations");
+      const rows = await listDirectConversations();
       setConversations(rows);
       if (active) {
         const updated = rows.find((item) => item.id === active.id);
@@ -78,8 +51,8 @@ export default function MessagesPage() {
     }
   }
 
-  async function openConversation(conversation: Conversation) {
-    const details = await messageRequest<ConversationDetails>(`/direct-messages/conversations/${conversation.id}`);
+  async function openConversation(conversation: DirectConversation) {
+    const details = await getDirectConversation(conversation.id);
     setActive(details);
     setConversations((current) => current.map((item) => item.id === details.id ? { ...item, unreadCount: 0 } : item));
   }
@@ -93,10 +66,7 @@ export default function MessagesPage() {
         : rows[0];
       if (!selected && Number.isInteger(targetUserId) && targetUserId > 0) {
         try {
-          selected = await messageRequest<Conversation>("/direct-messages/conversations", {
-            method: "POST",
-            body: JSON.stringify({ userId: targetUserId }),
-          });
+          selected = await createDirectConversation({ userId: targetUserId });
           setConversations((current) => [selected!, ...current]);
         } catch (error) {
           toast({ title: "Cannot start this conversation", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
@@ -123,7 +93,7 @@ export default function MessagesPage() {
     const data = new FormData(form);
     const body = String(data.get("body") ?? "").trim();
     if (!body) return;
-    const optimistic: Message = {
+    const optimistic: DirectMessage = {
       id: -Date.now(), conversationId: active.id, senderId: me.id, body,
       isAdminMessage: me.role === "admin", readAt: null, createdAt: new Date().toISOString(),
     };
@@ -131,7 +101,7 @@ export default function MessagesPage() {
     setActive((current) => current ? { ...current, messages: [...current.messages, optimistic] } : current);
     setSending(true);
     try {
-      const created = await messageRequest<Message>(`/direct-messages/conversations/${active.id}/messages`, { method: "POST", body: JSON.stringify({ body }) });
+      const created = await sendDirectMessage(active.id, { body });
       setActive((current) => current ? { ...current, messages: current.messages.map((item) => item.id === optimistic.id ? created : item) } : current);
       setConversations((current) => current.map((item) => item.id === active.id ? { ...item, lastMessage: created, updatedAt: created.createdAt } : item));
     } catch (error) {
@@ -142,7 +112,7 @@ export default function MessagesPage() {
 
   async function respond(action: "accept" | "decline") {
     if (!active) return;
-    const updated = await messageRequest<Conversation>(`/direct-messages/conversations/${active.id}/request`, { method: "PATCH", body: JSON.stringify({ action }) });
+    const updated = await respondToDirectMessageRequest(active.id, { action });
     if (action === "decline") setActive(null);
     setConversations((current) => action === "decline" ? current.filter((item) => item.id !== active.id) : current.map((item) => item.id === updated.id ? updated : item));
     if (action === "accept") setActive((current) => current ? { ...current, status: "accepted", incomingRequest: false } : current);

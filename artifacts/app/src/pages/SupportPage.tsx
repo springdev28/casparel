@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Support Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect } from "react";
 import { BookOpen, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { Link } from "wouter";

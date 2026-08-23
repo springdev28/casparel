@@ -12,6 +12,24 @@ export interface LearningEvidenceInput {
   /** @nullable */
   learningGoalId?: number | null;
   /**
+     * @minLength 1
+     * @maxLength 100
+     * @nullable
+     */
+  pathStepId?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 28800
+     * @nullable
+     */
+  studyDurationSeconds?: number | null;
+  /**
+     * @minLength 12
+     * @maxLength 100
+     * @nullable
+     */
+  clientSubmissionId?: string | null;
+  /**
      * @minLength 2
      * @maxLength 160
      */

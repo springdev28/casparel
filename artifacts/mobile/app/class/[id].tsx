@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile screen role: defines the Expo Router Id screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
 import React from 'react';
 import {
   FlatList,
@@ -13,9 +17,10 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
-import { useGetClass } from '@workspace/api-client-react';
+import { getGetClassQueryKey, useGetClass } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { ClassMember } from '@workspace/api-client-react';
+import { ErrorState } from '@/components/ErrorState';
 
 function MemberRow({ member }: { member: ClassMember }) {
   const colors = useColors();
@@ -80,13 +85,35 @@ export default function ClassDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const classId = parseInt(id, 10);
+  const classId = Number(id);
+  const hasValidClassId = Number.isSafeInteger(classId) && classId > 0;
 
-  const { data: cls, isLoading } = useGetClass(classId);
+  const classQuery = useGetClass(classId, {
+    query: {
+      enabled: hasValidClassId,
+      queryKey: getGetClassQueryKey(classId),
+    },
+  });
+  const cls = classQuery.data;
+  const failed = classQuery.isError && cls === undefined;
 
   const webBottomPad = Platform.OS === 'web' ? 34 : 0;
 
-  if (isLoading) {
+  // Reject partial numeric route values such as "12abc" before they can call
+  // a different class endpoint than the link actually names.
+  if (!hasValidClassId) {
+    return (
+      <View style={[styles.centeredState, { backgroundColor: colors.background }]}>
+        <Empty
+          icon="alert-circle"
+          title="Invalid class link"
+          description="Open this class again from the Classes tab."
+        />
+      </View>
+    );
+  }
+
+  if (classQuery.isLoading) {
     return (
       <ScrollView
         style={[styles.flex, { backgroundColor: colors.background }]}
@@ -99,8 +126,28 @@ export default function ClassDetailScreen() {
     );
   }
 
+  // A transport or server failure is retryable and is not evidence that the
+  // class does not exist.
+  if (failed) {
+    return (
+      <View style={[styles.centeredState, { backgroundColor: colors.background }]}>
+        <ErrorState
+          error={classQuery.error}
+          retrying={classQuery.isFetching}
+          onRetry={() => {
+            void classQuery.refetch();
+          }}
+        />
+      </View>
+    );
+  }
+
   if (!cls) {
-    return <Empty icon="alert-circle" title="Class not found" />;
+    return (
+      <View style={[styles.centeredState, { backgroundColor: colors.background }]}>
+        <Empty icon="alert-circle" title="Class not found" />
+      </View>
+    );
   }
 
   const teachers = cls.members.filter((m) => m.role === 'teacher');
@@ -254,6 +301,7 @@ export default function ClassDetailScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  centeredState: { flex: 1, justifyContent: 'center' },
   content: { padding: 16, gap: 12 },
   hero: { overflow: 'hidden' },
   heroInner: { padding: 20, gap: 10 },

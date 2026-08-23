@@ -1,10 +1,13 @@
 /**
- * Tests for class-mutation authorization after a role downgrade.
+ * @fileOverview Verification role: exercises Classes.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
+ * Tests for durable educator capability and contextual class authorization.
  *
- * Key contract: `isClassTeacher` checks the live DB role before checking class
- * ownership.  A user who has switched to Student mode must not be able to
- * modify, delete, or manage members of classes they previously owned as teacher
- *, even when presenting a structurally valid but stale teacher JWT.
+ * Key contract: `isClassTeacher` checks live educator capability plus class
+ * ownership or teacher membership. The selected learner/educator workspace is
+ * presentation state and does not grant or remove authorization.
  *
  * Covered routes:
  *  • PATCH  /api/classes/:id              , teacher-only update
@@ -22,6 +25,9 @@ import request from "supertest";
 
 /** Role the users-table mock returns for the acting user */
 let mockActorRole: "student" | "teacher" = "teacher";
+let mockActorEducatorEnabled = true;
+let mockRequestEducatorEnabled = true;
+let mockRequestAccountRole: "student" | "teacher" | "admin" = "teacher";
 
 vi.mock("@workspace/db", () => {
   const stub = (name: string) => ({ _name: name });
@@ -50,12 +56,13 @@ vi.mock("@workspace/db", () => {
 });
 
 // Authentication has its own middleware tests. Keep these route tests focused on
-// the live-role and ownership checks performed by isClassTeacher.
+// the live capability and class-context checks performed by isClassTeacher.
 vi.mock("../middlewares/requireAuth", () => ({
-  requireAuth: (req: { userId?: number; userRole?: string; accountRole?: string }, _res: unknown, next: () => void) => {
+  requireAuth: (req: { userId?: number; userRole?: string; accountRole?: string; educatorEnabled?: boolean }, _res: unknown, next: () => void) => {
     req.userId = 10;
     req.userRole = "teacher";
-    req.accountRole = "teacher";
+    req.accountRole = mockRequestAccountRole;
+    req.educatorEnabled = mockRequestEducatorEnabled;
     next();
   },
 }));
@@ -119,11 +126,11 @@ function makeSelectChain() {
     where: vi.fn().mockImplementation(() => {
       switch (tableName) {
         case "users":
-          // isClassTeacher live-role lookup OR member lookup by email (same table)
+          // isClassTeacher capability lookup OR member lookup by email (same table)
           return Promise.resolve([
             tableName === "users" && mockActorRole === "teacher"
-              ? { id: TEACHER_ID, role: "teacher", email: "teacher@example.com", name: "Teacher", createdAt: new Date().toISOString() }
-              : { id: TEACHER_ID, role: "student", email: "teacher@example.com", name: "Teacher", createdAt: new Date().toISOString() },
+              ? { id: TEACHER_ID, role: "teacher", educatorEnabled: mockActorEducatorEnabled, email: "teacher@example.com", name: "Teacher", createdAt: new Date().toISOString() }
+              : { id: TEACHER_ID, role: "student", educatorEnabled: mockActorEducatorEnabled, email: "teacher@example.com", name: "Teacher", createdAt: new Date().toISOString() },
           ]);
         case "classes":
           return Promise.resolve([CLASS_ROW]);
@@ -157,10 +164,10 @@ function makeSelectChainForMemberInvite() {
       }),
       where: vi.fn().mockImplementation(() => {
         if (tableName === "users") {
-          // Call 0: isClassTeacher role check (actor's own row)
+          // Call 0: isClassTeacher capability check (actor's own row)
           // Call 2: member lookup by email
           if (callIdx === 0) {
-            return Promise.resolve([{ id: TEACHER_ID, role: mockActorRole }]);
+            return Promise.resolve([{ id: TEACHER_ID, role: mockActorRole, educatorEnabled: mockActorEducatorEnabled }]);
           }
           // Email-based lookup → invited user
           return Promise.resolve([INVITED_USER_ROW]);
@@ -182,6 +189,9 @@ function makeSelectChainForMemberInvite() {
 beforeEach(() => {
   vi.clearAllMocks();
   mockActorRole = "teacher";
+  mockActorEducatorEnabled = true;
+  mockRequestEducatorEnabled = true;
+  mockRequestAccountRole = "teacher";
 
   vi.mocked(db.select).mockImplementation(makeSelectChain as unknown as () => ReturnType<typeof db.select>);
   vi.mocked(db.transaction).mockImplementation(async (callback) =>
@@ -217,6 +227,22 @@ beforeEach(() => {
   });
 });
 
+describe("POST /api/classes, educator capability", () => {
+  it("rejects an account that has not enabled educator tools", async () => {
+    mockRequestEducatorEnabled = false;
+    mockRequestAccountRole = "student";
+
+    const res = await request(buildApp())
+      .post("/api/classes")
+      .set("Authorization", tokenFor("student"))
+      .send({ name: "Math", subject: "Math", gradeLevel: "Grade 5" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/educator capability/i);
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // PATCH /api/classes/:id
 // ══════════════════════════════════════════════════════════════════════════════
@@ -227,10 +253,10 @@ describe("PATCH /api/classes/:id, teacher-only", () => {
     // Wire them separately so they don't collide with isClassTeacher's selects.
     vi.mocked(db.select)
       .mockImplementationOnce(() => {
-        // isClassTeacher: usersTable role check
+        // isClassTeacher: usersTable capability check
         const chain = {
           from: vi.fn().mockReturnThis(),
-          where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "teacher" }]),
+          where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "teacher", educatorEnabled: true }]),
         };
         return chain as unknown as ReturnType<typeof db.select>;
       })
@@ -267,14 +293,14 @@ describe("PATCH /api/classes/:id, teacher-only", () => {
     expect(res.status).toBe(200);
   });
 
-  it("returns 403 when caller's current DB role is student (fresh student token)", async () => {
+  it("returns 403 when educator capability is disabled (fresh student token)", async () => {
     mockActorRole = "student";
 
-    // Only the role check fires; route short-circuits to 403 before any write.
+    // Only the capability check fires; the route short-circuits before any write.
     vi.mocked(db.select).mockImplementationOnce(() => {
       const chain = {
         from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student" }]),
+        where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student", educatorEnabled: false }]),
       };
       return chain as unknown as ReturnType<typeof db.select>;
     });
@@ -287,14 +313,14 @@ describe("PATCH /api/classes/:id, teacher-only", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 403 when caller presents a stale teacher JWT but DB role is now student", async () => {
+  it("returns 403 with a stale teacher token when educator capability is disabled", async () => {
     mockActorRole = "student";
 
     // Stale token: structurally valid teacher JWT, but DB says student.
     vi.mocked(db.select).mockImplementationOnce(() => {
       const chain = {
         from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student" }]),
+        where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student", educatorEnabled: false }]),
       };
       return chain as unknown as ReturnType<typeof db.select>;
     });
@@ -316,7 +342,7 @@ describe("DELETE /api/classes/:id, teacher-only", () => {
   it("returns 204 when caller is teacher and owns the class", async () => {
     vi.mocked(db.select)
       .mockImplementationOnce(() => {
-        const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "teacher" }]) };
+        const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "teacher", educatorEnabled: true }]) };
         return chain as unknown as ReturnType<typeof db.select>;
       })
       .mockImplementationOnce(() => {
@@ -331,9 +357,9 @@ describe("DELETE /api/classes/:id, teacher-only", () => {
     expect(res.status).toBe(204);
   });
 
-  it("returns 403 after role downgrade (fresh student token)", async () => {
+  it("returns 403 when educator capability is disabled (fresh student token)", async () => {
     vi.mocked(db.select).mockImplementationOnce(() => {
-      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student" }]) };
+      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student", educatorEnabled: false }]) };
       return chain as unknown as ReturnType<typeof db.select>;
     });
 
@@ -344,9 +370,9 @@ describe("DELETE /api/classes/:id, teacher-only", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 403 when presenting a stale teacher JWT but DB role is now student", async () => {
+  it("returns 403 with a stale teacher token when educator capability is disabled", async () => {
     vi.mocked(db.select).mockImplementationOnce(() => {
-      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student" }]) };
+      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student", educatorEnabled: false }]) };
       return chain as unknown as ReturnType<typeof db.select>;
     });
 
@@ -387,9 +413,9 @@ describe("POST /api/classes/:id/members is gone, invites need consent", () => {
 // the live database role, not the role baked into the token. They used to run
 // against the force-add route; the invitation route carries the same guard.
 describe("POST /api/classes/:id/invitations, teacher-only", () => {
-  it("returns 403 after role downgrade (fresh student token)", async () => {
+  it("returns 403 when educator capability is disabled (fresh student token)", async () => {
     vi.mocked(db.select).mockImplementationOnce(() => {
-      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student" }]) };
+      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student", educatorEnabled: false }]) };
       return chain as unknown as ReturnType<typeof db.select>;
     });
 
@@ -401,9 +427,9 @@ describe("POST /api/classes/:id/invitations, teacher-only", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 403 when presenting a stale teacher JWT but DB role is now student", async () => {
+  it("returns 403 with a stale teacher token when educator capability is disabled", async () => {
     vi.mocked(db.select).mockImplementationOnce(() => {
-      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student" }]) };
+      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student", educatorEnabled: false }]) };
       return chain as unknown as ReturnType<typeof db.select>;
     });
 
@@ -424,7 +450,7 @@ describe("DELETE /api/classes/:id/members/:userId, teacher-only", () => {
   it("returns 204 when caller is teacher and owns the class", async () => {
     vi.mocked(db.select)
       .mockImplementationOnce(() => {
-        const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "teacher" }]) };
+        const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "teacher", educatorEnabled: true }]) };
         return chain as unknown as ReturnType<typeof db.select>;
       })
       .mockImplementationOnce(() => {
@@ -439,9 +465,9 @@ describe("DELETE /api/classes/:id/members/:userId, teacher-only", () => {
     expect(res.status).toBe(204);
   });
 
-  it("returns 403 after role downgrade (fresh student token)", async () => {
+  it("returns 403 when educator capability is disabled (fresh student token)", async () => {
     vi.mocked(db.select).mockImplementationOnce(() => {
-      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student" }]) };
+      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student", educatorEnabled: false }]) };
       return chain as unknown as ReturnType<typeof db.select>;
     });
 
@@ -452,9 +478,9 @@ describe("DELETE /api/classes/:id/members/:userId, teacher-only", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 403 when presenting a stale teacher JWT but DB role is now student", async () => {
+  it("returns 403 with a stale teacher token when educator capability is disabled", async () => {
     vi.mocked(db.select).mockImplementationOnce(() => {
-      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student" }]) };
+      const chain = { from: vi.fn().mockReturnThis(), where: vi.fn().mockResolvedValue([{ id: TEACHER_ID, role: "student", educatorEnabled: false }]) };
       return chain as unknown as ReturnType<typeof db.select>;
     });
 
@@ -467,63 +493,50 @@ describe("DELETE /api/classes/:id/members/:userId, teacher-only", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Active-role downgrade regression, teacher account switched to student mode
-// isClassTeacher must deny access even when role="teacher" but activeRole="student"
+// Workspace switching is presentation state, not authorization truth.
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("isClassTeacher active-role downgrade, role=teacher, activeRole=student", () => {
-  /** Returns a users-table stub where the account role is "teacher" but the
-   *  active role is "student" (i.e. the user has switched to student mode). */
-  function stubbedTeacherInStudentMode() {
-    const chain = {
-      from: vi.fn().mockReturnThis(),
-      where: vi.fn().mockResolvedValue([
-        { id: TEACHER_ID, role: "teacher", activeRole: "student", email: "teacher@example.com", name: "Teacher", createdAt: new Date().toISOString() },
-      ]),
-    };
-    return chain as unknown as ReturnType<typeof db.select>;
-  }
+describe("isClassTeacher durable educator capability", () => {
+  it("keeps owner authorization while the educator uses the learner workspace", async () => {
+    vi.mocked(db.select)
+      .mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([{
+          id: TEACHER_ID,
+          role: "teacher",
+          activeRole: "student",
+          educatorEnabled: true,
+        }]),
+      }) as unknown as ReturnType<typeof db.select>)
+      .mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([CLASS_ROW]),
+      }) as unknown as ReturnType<typeof db.select>);
 
-  it("PATCH /classes/:id returns 403 when teacher is in student mode", async () => {
-    vi.mocked(db.select).mockImplementationOnce(() => stubbedTeacherInStudentMode());
-
-    const res = await request(buildApp())
-      .patch(`/api/classes/${CLASS_ID}`)
-      .set("Authorization", tokenFor("teacher"))
-      .send({ name: "Should be blocked" });
-
-    expect(res.status).toBe(403);
+    await expect(isClassTeacher(CLASS_ID, TEACHER_ID)).resolves.toBe(true);
   });
 
-  it("DELETE /classes/:id returns 403 when teacher is in student mode", async () => {
-    vi.mocked(db.select).mockImplementationOnce(() => stubbedTeacherInStudentMode());
+  it("allows an educator who is a contextual teacher member", async () => {
+    vi.mocked(db.select)
+      .mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([{
+          id: TEACHER_ID,
+          role: "student",
+          activeRole: "student",
+          educatorEnabled: true,
+        }]),
+      }) as unknown as ReturnType<typeof db.select>)
+      .mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([{ ...CLASS_ROW, teacherId: 77 }]),
+      }) as unknown as ReturnType<typeof db.select>)
+      .mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockResolvedValue([{ role: "teacher" }]),
+      }) as unknown as ReturnType<typeof db.select>);
 
-    const res = await request(buildApp())
-      .delete(`/api/classes/${CLASS_ID}`)
-      .set("Authorization", tokenFor("teacher"));
-
-    expect(res.status).toBe(403);
-  });
-
-  it("POST /classes/:id/invitations returns 403 when teacher is in student mode", async () => {
-    vi.mocked(db.select).mockImplementationOnce(() => stubbedTeacherInStudentMode());
-
-    const res = await request(buildApp())
-      .post(`/api/classes/${CLASS_ID}/invitations`)
-      .set("Authorization", tokenFor("teacher"))
-      .send({ email: "member@example.com" });
-
-    expect(res.status).toBe(403);
-  });
-
-  it("DELETE /classes/:id/members/:userId returns 403 when teacher is in student mode", async () => {
-    vi.mocked(db.select).mockImplementationOnce(() => stubbedTeacherInStudentMode());
-
-    const res = await request(buildApp())
-      .delete(`/api/classes/${CLASS_ID}/members/${MEMBER_ID}`)
-      .set("Authorization", tokenFor("teacher"));
-
-    expect(res.status).toBe(403);
+    await expect(isClassTeacher(CLASS_ID, TEACHER_ID)).resolves.toBe(true);
   });
 });
 
@@ -532,7 +545,7 @@ describe("isClassTeacher administrator workspace switching", () => {
     const chain = {
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockResolvedValue([
-        { id: TEACHER_ID, role: "admin", activeRole: "teacher" },
+        { id: TEACHER_ID, role: "admin", activeRole: "teacher", educatorEnabled: false },
       ]),
     };
     vi.mocked(db.select).mockImplementationOnce(

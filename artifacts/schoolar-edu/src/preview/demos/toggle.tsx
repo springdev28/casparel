@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Toggle in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { Bold, Italic, Underline } from 'lucide-react';
 import { Toggle } from '../../components/ui/toggle';
 import { Row } from '../parts';

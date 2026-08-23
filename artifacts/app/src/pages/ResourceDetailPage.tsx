@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Resource Detail Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useCallback, useEffect, useState } from "react";
 import {
   useParams,
@@ -24,6 +28,9 @@ import {
   CheckCircle2,
   WandSparkles,
   ClipboardList,
+  Share2,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -58,6 +65,7 @@ import {
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
+import { LoadFailure } from "../components/LoadFailure";
 import {
   useGetResource,
   useListResourceReviews,
@@ -81,11 +89,20 @@ import {
   getGetDashboardSummaryQueryKey,
   getGetClassResourcesListQueryKey,
   getListClassesQueryKey,
+  getResourceWorkflow,
   UserRole,
+  type ResourceWorkflowState,
 } from "@workspace/api-client-react";
 import type { SourceReview } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
+import { authRouteWithNext } from "../lib/auth-redirect";
+import {
+  requestsQuickReview,
+  requestsSaveAfterAuth,
+  resourceQuickReviewUrl,
+  resourceSaveIntentPath,
+} from "../lib/resource-share-link";
 import { usePlan } from "../lib/use-plan";
 
 // ── Media helpers ────────────────────────────────────────────────────────────
@@ -310,15 +327,25 @@ const TRUST_META: Record<
 function SourceReviewPanel({
   resourceId,
   isLoggedIn,
+  openQuickReview,
   onReviewed,
 }: {
   resourceId: number;
   isLoggedIn: boolean;
+  openQuickReview: boolean;
   onReviewed?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"quick" | "deep" | null>(null);
+  const [open, setOpen] = useState(openQuickReview);
+  const [mode, setMode] = useState<"quick" | "deep" | null>(
+    openQuickReview ? "quick" : null,
+  );
   const plan = usePlan(isLoggedIn);
+
+  useEffect(() => {
+    if (!openQuickReview) return;
+    setOpen(true);
+    setMode("quick");
+  }, [openQuickReview, resourceId]);
 
   const {
     data: quickData,
@@ -386,6 +413,28 @@ function SourceReviewPanel({
       return;
     }
     setMode(selected);
+  }
+
+  async function copyPublicReviewLink() {
+    const url = resourceQuickReviewUrl(
+      window.location.origin,
+      import.meta.env.BASE_URL,
+      resourceId,
+    );
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: "Public review link copied",
+        description: "Anyone with the link can open the quick source check.",
+      });
+    } catch {
+      toast({
+        title: "Could not copy review link",
+        description: "Copy the page address manually and try again.",
+        variant: "destructive",
+      });
+    }
   }
 
   const trust = data ? TRUST_META[data.trustLevel] : null;
@@ -705,6 +754,16 @@ function SourceReviewPanel({
                 : "This quick review uses a brief live lookup; verify important details on the resource page."}
             </p>
 
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void copyPublicReviewLink()}
+              data-testid="copy-public-review-link"
+            >
+              <Share2 size={14} className="mr-1.5" /> Copy public review link
+            </Button>
+
             {/* Switch mode */}
             <button
               onClick={() => setMode(null)}
@@ -733,28 +792,6 @@ type RecommendationPerson = {
   bio: string | null;
 };
 
-type ResourceWorkflow = {
-  resourceId: number;
-  steps: {
-    reviewed: boolean;
-    saved: boolean;
-    activityCreated: boolean;
-    classShared: boolean;
-    assignmentCreated: boolean;
-  };
-  assignmentRequired: boolean;
-  nextAction:
-    | "review"
-    | "save"
-    | "create_activity"
-    | "share_class"
-    | "assign_class"
-    | "complete";
-  activity: { id: number; title: string } | null;
-  classShare: { id: number; name: string | null } | null;
-  assignment: { id: number; title: string } | null;
-};
-
 function apiUrl(path: string) {
   return import.meta.env.BASE_URL.replace(/\/$/, "") + "/api" + path;
 }
@@ -781,6 +818,9 @@ export default function ResourceDetailPage() {
   const routeSearch = useRouteSearch();
   const queryClient = useQueryClient();
   const resourceId = Number(id);
+  const hasSession = Boolean(localStorage.getItem("schoolar_token"));
+  const quickReviewRequested = requestsQuickReview(routeSearch);
+  const saveAfterAuthRequested = requestsSaveAfterAuth(routeSearch);
   const returnToResources =
     new URLSearchParams(routeSearch).get("from") === "library"
       ? "/resources?view=library"
@@ -798,11 +838,19 @@ export default function ResourceDetailPage() {
   const [selectedRecipientId, setSelectedRecipientId] = useState<number | null>(null);
   const [personRecommendNote, setPersonRecommendNote] = useState("");
   const [peopleLoading, setPeopleLoading] = useState(false);
+  const [peopleLoadError, setPeopleLoadError] = useState<string | null>(null);
+  const [peopleHasSearched, setPeopleHasSearched] = useState(false);
   const [personSending, setPersonSending] = useState(false);
-  const [workflow, setWorkflow] = useState<ResourceWorkflow | null>(null);
+  const [workflow, setWorkflow] = useState<ResourceWorkflowState | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(false);
 
-  const { data: resource, isLoading: resourceLoading } = useGetResource(
+  const {
+    data: resource,
+    isLoading: resourceLoading,
+    isError: resourceLoadError,
+    error: resourceError,
+    refetch: refetchResource,
+  } = useGetResource(
     resourceId,
     {
       query: {
@@ -811,7 +859,12 @@ export default function ResourceDetailPage() {
       },
     },
   );
-  const { data: reviews, isLoading: reviewsLoading } = useListResourceReviews(
+  const {
+    data: reviews,
+    isLoading: reviewsLoading,
+    isError: reviewsError,
+    refetch: refetchReviews,
+  } = useListResourceReviews(
     resourceId,
     {
       query: {
@@ -821,11 +874,16 @@ export default function ResourceDetailPage() {
     },
   );
   const { data: me } = useGetMe({
-    query: { retry: false, queryKey: getGetMeQueryKey() },
+    query: {
+      enabled: hasSession,
+      retry: false,
+      queryKey: getGetMeQueryKey(),
+    },
   });
-  const { data: lists } = useListResourceLists({
+  const listsQuery = useListResourceLists({
     query: { enabled: !!me, queryKey: getListResourceListsQueryKey() },
   });
+  const lists = listsQuery.data;
   const createReview = useCreateResourceReview();
   const addListItem = useAddListItem();
   const deleteResource = useDeleteResource();
@@ -833,15 +891,23 @@ export default function ResourceDetailPage() {
   const isLoggedIn = !!me;
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
 
+  useEffect(() => {
+    if (!isLoggedIn || !saveAfterAuthRequested) return;
+    setAddToListOpen(true);
+    const params = new URLSearchParams(routeSearch);
+    params.delete("intent");
+    const remainingSearch = params.toString();
+    setLocation(
+      `/resources/${resourceId}${remainingSearch ? `?${remainingSearch}` : ""}`,
+      { replace: true },
+    );
+  }, [isLoggedIn, resourceId, routeSearch, saveAfterAuthRequested, setLocation]);
+
   const loadWorkflow = useCallback(async () => {
     if (!isLoggedIn || !resourceId) return;
     setWorkflowLoading(true);
     try {
-      setWorkflow(
-        (await authenticatedRequest(
-          `/workflow/resources/${resourceId}`,
-        )) as ResourceWorkflow,
-      );
+      setWorkflow(await getResourceWorkflow(resourceId));
     } catch {
       // The resource remains usable if analytics are temporarily unavailable.
     } finally {
@@ -854,9 +920,10 @@ export default function ResourceDetailPage() {
   }, [loadWorkflow]);
 
   // Assign to class
-  const { data: classes } = useListClasses({
+  const classesQuery = useListClasses({
     query: { enabled: isLoggedIn, queryKey: getListClassesQueryKey() },
   });
+  const classes = classesQuery.data;
   const assignResource = useAssignResourceToClass();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignClassId, setAssignClassId] = useState("");
@@ -909,10 +976,14 @@ export default function ResourceDetailPage() {
     if (!query) {
       setRecommendationPeople([]);
       setSelectedRecipientId(null);
+      setPeopleHasSearched(false);
+      setPeopleLoadError(null);
       return;
     }
 
     setPeopleLoading(true);
+    setPeopleHasSearched(true);
+    setPeopleLoadError(null);
     try {
       const params = new URLSearchParams({
         scope: "all",
@@ -925,11 +996,9 @@ export default function ResourceDetailPage() {
         setSelectedRecipientId(null);
       }
     } catch (error) {
-      toast({
-        title: "Could not load people",
-        description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      });
+      // Keep the failure in the dialog. A disappearing toast followed by an
+      // empty result would incorrectly claim that no matching account exists.
+      setPeopleLoadError(error instanceof Error ? error.message : "Please try again.");
     } finally {
       setPeopleLoading(false);
     }
@@ -1054,6 +1123,33 @@ export default function ResourceDetailPage() {
     );
   }
 
+  if (resourceLoadError && !resource) {
+    const notFound = (resourceError as { status?: number } | null)?.status === 404;
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-64" data-testid="resource-load-error">
+        <AlertTriangle size={40} className="text-destructive-text mb-3" />
+        <p className="font-semibold text-foreground">
+          {notFound ? "Resource not found" : "Resource could not be loaded"}
+        </p>
+        <p className="mt-1 text-center text-sm text-muted-foreground">
+          {notFound
+            ? "This resource may have been removed or is not public."
+            : "This request failed; the resource has not been reported as missing."}
+        </p>
+        <div className="mt-4 flex gap-2">
+          {!notFound ? (
+            <Button variant="outline" onClick={() => void refetchResource()}>
+              <RotateCcw size={14} className="mr-1.5" /> Retry
+            </Button>
+          ) : null}
+          <Button variant={notFound ? "outline" : "ghost"} onClick={() => setLocation(returnToResources)}>
+            Back to Resources
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!resource) {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-64">
@@ -1101,6 +1197,7 @@ export default function ResourceDetailPage() {
               <SourceReviewPanel
                 resourceId={resourceId}
                 isLoggedIn={!!me}
+                openQuickReview={quickReviewRequested}
                 onReviewed={loadWorkflow}
               />
 
@@ -1126,7 +1223,18 @@ export default function ResourceDetailPage() {
                     <form onSubmit={handleAddToList} className="space-y-4">
                       <div className="space-y-1.5">
                         <Label htmlFor="list-select">List</Label>
-                        {lists && lists.length > 0 ? (
+                        {listsQuery.isLoading && lists === undefined ? (
+                          <p className="text-sm text-muted-foreground">Loading lists…</p>
+                        ) : listsQuery.isError && lists === undefined ? (
+                          <LoadFailure
+                            variant="banner"
+                            title="Lists could not be loaded"
+                            description="The app has not confirmed that you have no lists."
+                            onRetry={() => void listsQuery.refetch()}
+                            retrying={listsQuery.isFetching}
+                            testId="resource-list-picker-load-error"
+                          />
+                        ) : lists && lists.length > 0 ? (
                           <Select
                             value={selectedListId}
                             onValueChange={setSelectedListId}
@@ -1187,7 +1295,12 @@ export default function ResourceDetailPage() {
                   asChild
                   data-testid="sign-in-to-save"
                 >
-                  <Link href="/auth/login">
+                  <Link
+                    href={authRouteWithNext(
+                      "/auth/login",
+                      resourceSaveIntentPath(resourceId),
+                    )}
+                  >
                     <Plus size={14} className="mr-1" /> Save to List
                   </Link>
                 </Button>
@@ -1220,7 +1333,18 @@ export default function ResourceDetailPage() {
                     <div className="space-y-4">
                       <div className="space-y-1.5">
                         <Label>Class</Label>
-                        {!classes || classes.length === 0 ? (
+                        {classesQuery.isLoading && classes === undefined ? (
+                          <p className="text-sm text-muted-foreground">Loading classes…</p>
+                        ) : classesQuery.isError && classes === undefined ? (
+                          <LoadFailure
+                            variant="banner"
+                            title="Classes could not be loaded"
+                            description="The app has not confirmed that you have no classes."
+                            onRetry={() => void classesQuery.refetch()}
+                            retrying={classesQuery.isFetching}
+                            testId="resource-class-picker-load-error"
+                          />
+                        ) : !classes || classes.length === 0 ? (
                           <p className="text-sm text-muted-foreground">
                             No classes found. Create a class first.
                           </p>
@@ -1316,6 +1440,14 @@ export default function ResourceDetailPage() {
                       <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border p-2">
                         {peopleLoading ? (
                           <p className="p-3 text-sm text-muted-foreground">Loading people...</p>
+                        ) : peopleLoadError ? (
+                          <LoadFailure
+                            variant="banner"
+                            title="People could not be loaded"
+                            description={peopleLoadError}
+                            onRetry={() => void searchRecommendationPeople()}
+                            testId="resource-people-search-load-error"
+                          />
                         ) : recommendationPeople.length ? (
                           recommendationPeople.map((person) => (
                             <button
@@ -1328,8 +1460,10 @@ export default function ResourceDetailPage() {
                               {selectedRecipientId === person.id && <span className="text-xs font-medium">Selected</span>}
                             </button>
                           ))
-                        ) : (
+                        ) : peopleHasSearched ? (
                           <p className="p-3 text-sm text-muted-foreground">No matching accounts.</p>
+                        ) : (
+                          <p className="p-3 text-sm text-muted-foreground">Search for a person to recommend this resource.</p>
                         )}
                       </div>
                       <div className="space-y-1.5">
@@ -1461,7 +1595,7 @@ export default function ResourceDetailPage() {
                     : []),
                 ].map(([key, number, label]) => {
                   const complete = Boolean(
-                    workflow?.steps[key as keyof ResourceWorkflow["steps"]],
+                    workflow?.steps[key as keyof ResourceWorkflowState["steps"]],
                   );
                   return (
                     <div
@@ -1611,7 +1745,12 @@ export default function ResourceDetailPage() {
                 Sign in to write a review and help others find great resources.
               </p>
               <Button size="sm" asChild data-testid="sign-in-to-review">
-                <Link href="/auth/login">
+                <Link
+                  href={authRouteWithNext(
+                    "/auth/login",
+                    `/resources/${resourceId}`,
+                  )}
+                >
                   <LogIn size={14} className="mr-1.5" /> Sign in
                 </Link>
               </Button>
@@ -1634,6 +1773,17 @@ export default function ResourceDetailPage() {
               </Card>
             ))}
           </div>
+        ) : reviewsError && reviews === undefined ? (
+          <Card className="border-destructive/30" data-testid="reviews-load-error">
+            <CardContent className="py-8 text-center">
+              <AlertTriangle className="mx-auto mb-2 size-7 text-destructive-text" />
+              <p className="font-medium">Reviews could not be loaded</p>
+              <p className="mt-1 text-sm text-muted-foreground">This resource has not been reported as having no reviews.</p>
+              <Button className="mt-3" size="sm" variant="outline" onClick={() => void refetchReviews()}>
+                <RotateCcw className="mr-2 size-4" /> Retry
+              </Button>
+            </CardContent>
+          </Card>
         ) : !reviews || reviews.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             No reviews yet. Be the first!

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes With Timeout logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Turn a hang into an error.
  *
  * Startup awaits several things that can stop making progress without ever

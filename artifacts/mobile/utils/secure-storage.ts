@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Secure Storage for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * Platform-safe storage: SecureStore on native, localStorage on web.
  * expo-secure-store v15+ is native-only and throws on web.
  */

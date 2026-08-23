@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Landing Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { Link } from "wouter";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {

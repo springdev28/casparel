@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Revenuecat for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * RevenueCat configuration + a platform-safe loader for `react-native-purchases`.
  *
  * The native module only exists in a real dev/release build (not Expo Go, not web),
@@ -14,6 +18,7 @@ export const PLUS_ENTITLEMENT = 'plus';
 export const PRO_ENTITLEMENT = 'pro';
 export const PREMIUM_ENTITLEMENT = 'premium';
 export type SubscriptionTier = 'free' | 'plus' | 'pro';
+export type PaidSubscriptionTier = Exclude<SubscriptionTier, 'free'>;
 
 /**
  * Public RevenueCat SDK keys. These are *publishable* keys and are safe to ship
@@ -124,8 +129,16 @@ export function hasPremium(info: RCCustomerInfo | null | undefined): boolean {
   return subscriptionTier(info) !== 'free';
 }
 
-/** RevenueCat products must contain `plus` or `pro`; legacy products map Pro. */
-export function tierForPackage(pkg: RCPackage): Exclude<SubscriptionTier, 'free'> {
+/**
+ * Map only recognised products into Casparel's public plan model.
+ *
+ * RevenueCat offerings are remote configuration. Returning null for a new or
+ * mistyped product keeps the paywall from accidentally advertising it as Pro,
+ * which was the unsafe result of treating every non-Plus identifier as Pro.
+ */
+export function tierForPackage(pkg: RCPackage): PaidSubscriptionTier | null {
   const identity = `${pkg.identifier} ${pkg.product.identifier} ${pkg.product.title}`.toLowerCase();
-  return identity.includes('plus') ? 'plus' : 'pro';
+  if (identity.includes('plus')) return 'plus';
+  if (identity.includes('pro') || identity.includes('premium')) return 'pro';
+  return null;
 }

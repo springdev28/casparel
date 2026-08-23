@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Registry in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import type { ComponentType } from 'react';
 import { AccordionDemo } from './demos/accordion';
 import { AlertDemo } from './demos/alert';

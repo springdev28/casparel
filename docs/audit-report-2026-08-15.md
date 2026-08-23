@@ -50,7 +50,7 @@ No real account was created, no purchase was made, no external message was sent,
 | Production smoke, five iterations     |                  Pass | 20/20 HTTP checks, 0% failures                      |
 | Live landing console/runtime          |                  Pass | no observed console warnings or errors              |
 | Live public Resources API             |                  Pass | six resources returned by top-rated query           |
-| Desktop compile and real-window smoke |                  Pass | four navigation/failure/deep-link cases             |
+| Desktop compile and real-window smoke |                  Pass | six navigation/failure/deep-link/protocol cases      |
 | Production dependency audit           |               Partial | 3 high fixed; 2 `image-size` findings remain        |
 | Native device build and store install |          Not verified | EAS/store credentials and binaries required         |
 | Moderated usability                   |               Not run | participant research required                       |
@@ -140,7 +140,7 @@ Risks: no verified native build/store install; reduced feature parity; purchase 
 
 Strengths: meaningful automated suite, authorization middleware, rate/cost controls, typed core contract, migration-on-startup safeguards, visibility/verification logic, health diagnostics.
 
-Risks: newer domains bypass the OpenAPI source of truth; deep limits have both day and 30-day windows and need clearer product analytics; no verified persistent webhook idempotency/transfer reconciliation; runtime health under concurrency is unknown.
+Risks: newer domains bypass the OpenAPI source of truth; deep limits have both day and 30-day windows and need clearer product analytics; RevenueCat's real sandbox/store lifecycle is not externally verified; runtime health under concurrency is unknown. Persistent webhook receipts, duplicate rejection and transfer reconciliation are implemented in the repository.
 
 ### Desktop
 
@@ -172,6 +172,57 @@ Risks: no connected product analytics/error-monitoring evidence was found; old S
 14. Added a public Support page and corrected the mobile production Router origin.
 15. Added a repository README, full product handbook, dated audit, and separate competition review.
 16. Raised transitive PostCSS and nanoid security floors, clearing three high-severity advisories.
+17. Preserved supported native deep-link intent through login/onboarding and added plural shared-link aliases.
+18. Made native session restoration atomic and centralized protected-request 401 cleanup.
+19. Added a bounded stale-web-chunk recovery path that cannot trap a tab in a reload loop.
+20. Hardened the Electron origin/protocol/offline boundary and expanded its real-window smoke suite to six cases.
+21. Added durable RevenueCat event idempotency and authoritative source/destination reconciliation for transfers.
+22. Replaced passive web/mobile onboarding slides with resumable real-task handoffs; Skip/replay are explicit and activation completes only after a server-confirmed resource save.
+
+## Platform-shell continuation — 22 August 2026
+
+This continuation applies section 6.18 of the full beta audit specification. “Pass” below means the named repository behavior was executed here; it does not convert a simulator or automated check into a physical-device/store claim.
+
+| ID | Result | Evidence and remaining boundary |
+| --- | --- | --- |
+| PLAT-001 | Automated coverage present | The core activation suite includes a fresh learner at 390 px plus horizontal-overflow assertions. Its safety/configuration validation and the current production build pass; a fixture-backed browser execution remains the stronger pre-release check. |
+| PLAT-002 | Code-hardened; device gate open | Clean launch accepts only a matching secure token/profile pair, rolls back partial writes, and clears private query state on protected 401s. A signed clean install and login on physical iOS/Android are still required. |
+| PLAT-003 | Pass for stated native scope | Native screens provide dashboard, resources/details/source review, classes/details, schedule, profile and billing. Goals, canvases, lists, messaging, forum, activities, admin and open-catalog AI remain explicitly web-only. |
+| PLAT-004 | Pass | Unsupported lists/discovery/priority claims were removed from onboarding/paywall copy; product documentation names the narrower native scope. |
+| PLAT-005 | Pass | Three navigation-intent tests cover allowlisted native routes, plural resource/class aliases, and rejection of auth/web-only/external-looking paths. The root layout resumes valid intent after login/onboarding. |
+| PLAT-006 | Pass | Three unit tests prove one stale Vite chunk reload, no second reload loop, and safe fallback when session storage is unavailable; the production web build passes. |
+| PLAT-007 | Pass | The real Electron window opens an approved HTTPS link through the browser handoff and blocks `file:`; same-origin pinning, credential rejection, disabled webviews and frame-origin permissions remain in the main process. |
+| PLAT-008 | Pass | Real-window smoke distinguishes embedded failure (app stays intact) from main-frame outage (truthful local error page). The offline page escapes error text and applies a restrictive CSP. |
+| PLAT-009 | Not verified | Automated labels/roles and typechecks cannot prove VoiceOver, TalkBack, Dynamic Type/font scaling, reduced motion or switch/keyboard usability. Record physical-device passes before any store accessibility claim. |
+
+## Search-quality benchmark continuation — 22 August 2026
+
+Section 7 is now executable and auditable, but its current product verdict is **BLOCKED-EXTERNAL**, not pass. This worktree has no local/staging API process or database configuration, and the attempted 36-query run produced only connection failures. The runner now distinguishes that condition from `FAIL-CONFIRMED`; no search-quality claim or ranking change was made from missing evidence.
+
+Repository evidence completed in this continuation:
+
+- all 36 specified starting queries live in one tested corpus with expected intent and critical-query markers;
+- objective top-10 gates measure result count, intent, provider diversity/concentration, learn-intent reference concentration, critical archive results and 70% meaningful-preview coverage;
+- aggregate evidence records same-provider top-5/top-10 maxima, archive/container top-5 count, no-result rate, median provider diversity and mean preview coverage;
+- the generated CSV is spreadsheet-formula-safe and retains the four human rubric dimensions for every result;
+- the offline evaluator rejects missing, duplicate, unknown or out-of-range rows, calculates useful Precision@5, requires at least 0.80, and rejects obviously irrelevant critical top-three results;
+- 9 focused benchmark-tool tests pass without a network or database; the full API regression suite passes 43 files / 318 tests.
+
+Required next evidence: run the harness against a seeded staging or production-snapshot API, preserve the JSON/Markdown/CSV artifacts, have reviewers score all 360 results, run the offline evaluator, and add unseen holdout queries before the final release freeze. Production should not be used casually because normal discovery can populate remote-catalog caches or invoke an enabled AI fallback.
+
+```text
+Issue: SEARCH-003 / SEARCH-022 / section-7 release gate
+Before: the runner emitted an unvalidated blank review sheet and treated unavailable infrastructure as a ranking failure.
+Code change: benchmark-search.mjs plus search-benchmark-lib.mjs centralize the corpus, objective metrics, statuses, CSV validation and human gate.
+Automated regression: search-benchmark-lib.test.mjs (9 passing tests).
+Browser verification: BLOCKED-EXTERNAL (no configured local/staging API).
+Persistence after reload: NA
+Wrong-user authorization: NA
+Mobile-width verification: NA
+Console errors: 0
+Unexpected API errors: 0; 36 expected connection failures from the deliberately unconfigured target.
+Benchmark delta: NA until a complete captured baseline and human review exist.
+```
 
 ## Remaining findings and priorities
 
@@ -179,7 +230,6 @@ Risks: no connected product analytics/error-monitoring evidence was found; old S
 | -------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | P0       | No verified iOS/Android release candidate in stores            | Configure EAS/store credentials, build, install on physical devices, complete store review               |
 | P0       | RevenueCat products/offerings/webhook not proven in production | Test sandbox purchase, renewal, restore, cancellation, expiry and account mapping                        |
-| P1       | RevenueCat transfer events are not reconciled authoritatively  | Use event ID idempotency and subscriber-state reconciliation for source/destination aliases              |
 | P1       | Expo/Metro resolves vulnerable `image-size`                    | Upgrade when patched 2.0.3+ is published; avoid untrusted ICNS/JXL/HEIF build input meanwhile             |
 | P1       | Newer API routes are outside OpenAPI                           | Add paths/schemas in bounded domain batches, regenerate clients, remove duplicate manual types           |
 | P1       | No moderated student/teacher evidence                          | Run the research plan and fix top failures before demo recording                                         |

@@ -7,6 +7,9 @@
     "dev": "sh -c 'lsof -ti :\"${PORT:-23863}\" 2>/dev/null | xargs kill -9 2>/dev/null; true' && vite --config vite.config.ts --host 0.0.0.0",
     "build": "node scripts/generate-seo.mjs && vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
+    "beta:core": "node ./scripts/beta-core-flows.mjs",
+    "beta:core:validate": "node ./scripts/beta-core-flows.mjs --validate",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
@@ -75,6 +78,7 @@
     "tw-animate-css": "^1.4.0",
     "vaul": "^1.1.2",
     "vite": "catalog:",
+    "vitest": "^4.1.10",
     "wouter": "^3.3.5",
     "zod": "catalog:"
   },
@@ -85,6 +89,7 @@
     "@xyflow/react": "^12.11.2",
     "p5": "^2.3.2",
     "three": "^0.137.0",
-    "vanta": "^0.5.24"
+    "vanta": "^0.5.24",
+    "web-vitals": "^6.1.1"
   }
 }

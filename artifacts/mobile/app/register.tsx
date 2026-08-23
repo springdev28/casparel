@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile screen role: defines the Expo Router Register screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -55,7 +59,9 @@ export default function RegisterScreen() {
       { data: { name: name.trim(), email: email.trim(), password } },
       {
         onSuccess: (data) => {
-          login(data.token, data.user);
+          void login(data.token, data.user).catch(() => {
+            setErrorMsg('Your account was created, but the session could not be saved securely. Please sign in.');
+          });
         },
         onError: (error) => {
           // Say what actually went wrong. The generated client builds a

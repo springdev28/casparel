@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Client integration role: implements Use Voice Recorder for browser/React access to OpenAI-backed capabilities.
+ * System connection: exposes reusable client hooks/utilities while keeping provider-specific behavior outside product pages.
+ */
+/**
  * React hook for voice recording using MediaRecorder API.
  * Negotiates a supported MIME type across browsers (Chrome, Firefox, Safari).
  */

@@ -1,9 +1,13 @@
 /**
+ * @fileOverview Verification role: exercises Auth.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for auth routes:
  *  • POST /api/auth/register , role defaults to "student" when omitted
  *  • POST /api/auth/login    , returns a valid token with the persisted role
- *  • PATCH /api/users/me/role, switches role, re-issues token; stale teacher
- *                               token is rejected after the user is downgraded
+ *  • PATCH /api/users/me/role, switches workspace without rewriting account
+ *                               identity and re-issues the token
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -127,6 +131,7 @@ beforeEach(() => {
         lastInserted = vals;
         return chain;
       }),
+      onConflictDoUpdate: vi.fn().mockReturnThis(),
       returning: vi.fn().mockImplementation(() =>
         Promise.resolve(withPrivacyDefaults(mockUserRow) ? [withPrivacyDefaults(mockUserRow)!] : []),
       ),
@@ -147,6 +152,61 @@ beforeEach(() => {
       ),
     };
     return chain as unknown as ReturnType<typeof db.update>;
+  });
+});
+
+const preferenceFixture = (language: "en" | "tr" | "es" | null = "en") => ({
+  userId: 1,
+  language,
+  interfaceColors: null,
+  ambientStyle: null,
+  ambientIntensity: null,
+  readNotificationIds: [],
+  dashboardGoalIds: {},
+  continueStudying: {},
+  pendingCheckIns: {},
+  searchHistory: [],
+  resourceSearchState: null,
+  allowMessageRequests: true,
+  tutorialSeen: true,
+  updatedAt: "2026-08-22T10:00:00.000Z",
+});
+
+describe("account preference contract", () => {
+  const authorization = () => `Bearer ${issueToken(1, "student")}`;
+
+  it("maps a legacy unsupported interface locale to unset", async () => {
+    mockExistingUser = preferenceFixture("es");
+
+    const response = await request(buildApp())
+      .get("/api/users/me/preferences")
+      .set("Authorization", authorization());
+
+    expect(response.status).toBe(200);
+    expect(response.body.language).toBeNull();
+  });
+
+  it("rejects an interface locale that is not supported product-wide", async () => {
+    const response = await request(buildApp())
+      .patch("/api/users/me/preferences")
+      .set("Authorization", authorization())
+      .send({ language: "fr" });
+
+    expect(response.status).toBe(400);
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("persists a supported locale through the generated contract", async () => {
+    mockUserRow = preferenceFixture("tr");
+
+    const response = await request(buildApp())
+      .patch("/api/users/me/preferences")
+      .set("Authorization", authorization())
+      .send({ language: "tr" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.language).toBe("tr");
+    expect(lastInserted).toMatchObject({ userId: 1, language: "tr" });
   });
 });
 
@@ -242,13 +302,14 @@ describe("POST /api/auth/login", () => {
 describe("PATCH /api/users/me/role", () => {
   const USER_ID = 10;
 
-  it("switches a teacher to student and re-issues a fresh token", async () => {
-    // User starts as teacher; after the update they are student
+  it("switches a teacher account to the learner workspace and re-issues a fresh token", async () => {
     mockUserRow = {
       id: USER_ID,
       email: "carol@example.com",
       name: "Carol",
-      role: "student",          // the value RETURNED after update
+      role: "teacher",
+      activeRole: "student",
+      educatorEnabled: true,
       createdAt: new Date().toISOString(),
     };
 
@@ -260,20 +321,21 @@ describe("PATCH /api/users/me/role", () => {
       .send({ role: "student" });
 
     expect(res.status).toBe(200);
-    // DB must have been called to persist the new role
-    expect(lastUpdated).toMatchObject({ role: "student" });
-    // Returned token must now encode "student"
+    expect(lastUpdated).toEqual({ activeRole: "student" });
     const decoded = decodeToken(res.body.token);
     expect(decoded?.role).toBe("student");
-    expect(res.body.user.role).toBe("student");
+    expect(decoded?.accountRole).toBe("teacher");
+    expect(res.body.user.role).toBe("teacher");
   });
 
-  it("switches a student to teacher and re-issues a fresh token", async () => {
+  it("opens the educator workspace without changing student account identity", async () => {
     mockUserRow = {
       id: USER_ID,
       email: "dave@example.com",
       name: "Dave",
-      role: "teacher",          // value RETURNED after update
+      role: "student",
+      activeRole: "teacher",
+      educatorEnabled: true,
       createdAt: new Date().toISOString(),
     };
 
@@ -285,20 +347,22 @@ describe("PATCH /api/users/me/role", () => {
       .send({ role: "teacher" });
 
     expect(res.status).toBe(200);
-    expect(lastUpdated).toMatchObject({ role: "teacher" });
+    expect(lastUpdated).toEqual({ activeRole: "teacher", educatorEnabled: true });
     const decoded = decodeToken(res.body.token);
     expect(decoded?.role).toBe("teacher");
+    expect(decoded?.accountRole).toBe("student");
+    expect(res.body.user.role).toBe("student");
   });
 
-  it("clears account verification on a self-service role switch", async () => {
-    // Verification lets a submitter's resources publish without review, so it
-    // must not survive a self-chosen role change, otherwise anyone could
-    // self-promote to teacher, get verified, switch back, and keep the trust.
+  it("does not clear publishing verification when changing workspace", async () => {
     mockUserRow = {
       id: USER_ID,
       email: "mallory@example.com",
       name: "Mallory",
-      role: "student",
+      role: "teacher",
+      activeRole: "student",
+      educatorEnabled: true,
+      teacherVerified: true,
       createdAt: new Date().toISOString(),
     };
 
@@ -308,12 +372,8 @@ describe("PATCH /api/users/me/role", () => {
       .send({ role: "student" });
 
     expect(res.status).toBe(200);
-    expect(lastUpdated).toMatchObject({
-      role: "student",
-      teacherVerified: false,
-      verifiedAt: null,
-      verifiedById: null,
-    });
+    expect(lastUpdated).toEqual({ activeRole: "student" });
+    expect(lastUpdated).not.toHaveProperty("teacherVerified");
   });
 
   it("returns 400 for an invalid role value", async () => {
@@ -335,21 +395,19 @@ describe("PATCH /api/users/me/role", () => {
     expect(res.status).toBe(401);
   });
 
-  it("role-switch always re-issues a token encoding the NEW DB role, not the caller's JWT role", async () => {
-    // A user may call PATCH /me/role while holding a stale teacher JWT (e.g.
-    // token issued before a prior downgrade).  The endpoint must persist the
-    // requested role to DB and return a fresh token encoding THAT role , 
-    // it must not blindly re-encode the role claim from the incoming JWT.
-    // This tests the token-issuance contract.  The complementary test that a
-    // stale teacher JWT is rejected on protected class-mutation routes lives in
-    // classes.test.ts (PATCH/DELETE /classes/:id) which exercises isClassTeacher.
+  it("role-switch re-issues a token from live account identity and the selected workspace", async () => {
+    // A user may call PATCH /me/role while holding a stale teacher-workspace
+    // token. The endpoint must issue from the updated DB row instead of
+    // trusting the incoming workspace or account-role claims.
     const staleTeacherToken = issueToken(USER_ID, "teacher");
 
     mockUserRow = {
       id: USER_ID,
       email: "eve@example.com",
       name: "Eve",
-      role: "student",          // DB already shows student
+      role: "student",
+      activeRole: "student",
+      educatorEnabled: true,
       createdAt: new Date().toISOString(),
     };
 
@@ -359,9 +417,9 @@ describe("PATCH /api/users/me/role", () => {
       .send({ role: "student" });
 
     expect(res.status).toBe(200);
-    // Fresh token must encode the DB role ("student"), not the JWT role ("teacher")
     const freshDecoded = decodeToken(res.body.token);
     expect(freshDecoded?.role).toBe("student");
+    expect(freshDecoded?.accountRole).toBe("student");
     expect(res.body.token).not.toBe(staleTeacherToken);
   });
 });

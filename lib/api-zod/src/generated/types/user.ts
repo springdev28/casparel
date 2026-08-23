@@ -16,6 +16,7 @@ export interface User {
   name: string;
   role: UserRole;
   activeRole?: UserActiveRole;
+  educatorEnabled?: boolean;
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */

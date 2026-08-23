@@ -1,101 +1,24 @@
-export type StudyNodeData = {
-  kind: "note" | "heading" | "link" | "resource";
-  title: string;
-  text?: string;
-  url?: string;
-  resourceId?: number;
-  color?: string;
-};
+/**
+ * @fileOverview Web domain role: gives Canvas graph concepts concise names while reusing the generated API contract types.
+ * System connection: CanvasPage consumes these aliases for React Flow state; network operations come directly from @workspace/api-client-react.
+ */
+import type {
+  CanvasCollaborator as GeneratedCanvasCollaborator,
+  CanvasDocument as GeneratedCanvasDocument,
+  CanvasEdge as GeneratedCanvasEdge,
+  CanvasNode as GeneratedCanvasNode,
+  CanvasNodeData,
+  CanvasView,
+} from "@workspace/api-client-react";
 
-export type StoredCanvasNode = {
-  id: string;
-  type: "study";
-  position: { x: number; y: number };
-  data: StudyNodeData;
-};
+export type StudyNodeData = CanvasNodeData & Record<string, unknown>;
+export type StoredCanvasNode = GeneratedCanvasNode;
+export type StoredCanvasEdge = GeneratedCanvasEdge;
+export type CanvasDocument = GeneratedCanvasDocument;
+export type CanvasCollaborator = GeneratedCanvasCollaborator;
 
-export type StoredCanvasEdge = {
-  id: string;
-  source: string;
-  target: string;
-  sourceHandle?: "top" | "right" | "bottom" | "left";
-  targetHandle?: "top" | "right" | "bottom" | "left";
-  direction?: "one-way" | "two-way" | "line";
-  label?: string;
-};
-
-export type CanvasDocument = {
-  nodes: StoredCanvasNode[];
-  edges: StoredCanvasEdge[];
-  viewport?: { x: number; y: number; zoom: number };
-};
-
-export type CanvasPermissions = {
-  canView: boolean;
-  canEdit: boolean;
-  canManage: boolean;
-  role: "owner" | "editor" | "viewer" | "class-editor" | "class-viewer";
-};
-
-export type SchoolarCanvas = {
-  id: number;
-  title: string;
-  description: string | null;
-  ownerId: number;
-  classId: number | null;
-  visibility: "private" | "people" | "class" | "link";
-  classAccess: "view" | "edit";
-  shareToken: string | null;
-  document: CanvasDocument;
-  version: number;
-  createdAt: string;
-  updatedAt: string;
-  owner: { id: number; name: string } | null;
-  class: { id: number; name: string } | null;
-  collaboratorCount: number;
-  permissions: CanvasPermissions;
-};
-
-export type CanvasCollaborator = {
-  userId: number;
-  role: "viewer" | "editor";
-  createdAt: string;
-  name: string;
-  email: string;
-  avatarUrl: string | null;
-};
-
-export type CanvasConflict = Error & { current?: SchoolarCanvas };
-
-function canvasApiUrl(path: string) {
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  return `${base}/api${path}`;
-}
-
-export async function canvasRequest<T>(
-  path: string,
-  init: RequestInit = {},
-  authenticated = true,
-): Promise<T> {
-  const response = await fetch(canvasApiUrl(path), {
-    ...init,
-    headers: {
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...(authenticated
-        ? { Authorization: `Bearer ${localStorage.getItem("schoolar_token")}` }
-        : {}),
-      ...init.headers,
-    },
-  });
-  if (response.status === 204) return undefined as T;
-  const payload = (await response.json().catch(() => ({}))) as {
-    error?: string;
-    current?: SchoolarCanvas;
-  };
-  if (!response.ok) {
-    const error = new Error(payload.error ?? "Canvas request failed") as CanvasConflict;
-    error.current = payload.current;
-    throw error;
-  }
-  return payload as T;
-}
+/**
+ * Both authenticated and public Canvas responses share this shape. Public links
+ * intentionally omit the secret token, so callers must treat it as optional.
+ */
+export type SchoolarCanvas = CanvasView & { shareToken?: string | null };

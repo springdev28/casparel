@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Hover Card in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { Avatar, AvatarFallback } from '../../components/ui/avatar';
 import {
   HoverCard,

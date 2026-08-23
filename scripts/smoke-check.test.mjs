@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @fileOverview Verification role: exercises Smoke Check.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Drives the real smoke-check against fake origins.
  *
  * The check has to make a judgement no other test covers: telling a broken

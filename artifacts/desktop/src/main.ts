@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Desktop runtime role: implements the thin Electron shell around the canonical Casparel web client.
+ * System connection: controls navigation/deep links and loads the configured web origin; it does not duplicate server data or business logic.
+ */
 import {
   app,
   BrowserWindow,
@@ -24,9 +28,27 @@ import { join } from "node:path";
  * the system browser instead of being loaded inside the app frame.
  */
 
+/** Validate the configured remote app before it becomes a trusted origin. */
+function configuredAppUrl(rawUrl: string): URL {
+  const target = new URL(rawUrl);
+  if (
+    (target.protocol !== "https:" && target.protocol !== "http:") ||
+    target.username ||
+    target.password
+  ) {
+    throw new Error(
+      "CASPAREL_URL must be an HTTP(S) URL without embedded credentials",
+    );
+  }
+  return target;
+}
+
 /** Where the shell points. Override with CASPAREL_URL for staging or local dev. */
-const APP_URL = process.env.CASPAREL_URL ?? "https://casparel.com";
-const APP_ORIGIN = new URL(APP_URL).origin;
+const APP_TARGET = configuredAppUrl(
+  process.env.CASPAREL_URL ?? "https://casparel.com",
+);
+const APP_URL = APP_TARGET.toString();
+const APP_ORIGIN = APP_TARGET.origin;
 
 /** Custom scheme used for deep links, e.g. casparel://resources/123. */
 const PROTOCOL = "casparel";
@@ -111,7 +133,10 @@ function resolveUrl(rawUrl: string): UrlTarget {
   if (target.protocol === `${PROTOCOL}:`) {
     // casparel://resources/123 -> https://casparel.com/resources/123
     const path = `${target.hostname}${target.pathname}`.replace(/^\/+/, "");
-    return { kind: "in-app", url: `${APP_ORIGIN}/${path}${target.search}` };
+    return {
+      kind: "in-app",
+      url: `${APP_ORIGIN}/${path}${target.search}${target.hash}`,
+    };
   }
 
   if (target.origin === APP_ORIGIN) {
@@ -127,13 +152,29 @@ function resolveUrl(rawUrl: string): UrlTarget {
   return { kind: "ignore" };
 }
 
+/** Open only normal web URLs in the system browser. */
+function openExternalHttp(rawUrl: string): void {
+  try {
+    const target = new URL(rawUrl);
+    if (
+      (target.protocol === "https:" || target.protocol === "http:") &&
+      !target.username &&
+      !target.password
+    ) {
+      void shell.openExternal(target.toString());
+    }
+  } catch {
+    // Invalid/non-web protocols are deliberately inert.
+  }
+}
+
 /** Route a URL to the app window when it is ours, and to the browser when not. */
 function openUrl(rawUrl: string): void {
   const target = resolveUrl(rawUrl);
   if (target.kind === "ignore") return;
 
   if (target.kind === "external") {
-    void shell.openExternal(target.url);
+    openExternalHttp(target.url);
     return;
   }
 
@@ -183,6 +224,21 @@ function originOf(url: string | undefined): string {
   }
 }
 
+/** Escape untrusted Chromium error text before placing it in the offline page. */
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character]!,
+  );
+}
+
 function installPermissionPolicy(): void {
   const target = session.defaultSession;
 
@@ -219,6 +275,44 @@ function reportSmokeResult(win: BrowserWindow, firstUrl: string): void {
   if (mode === "deeplink") {
     win.webContents.once("did-finish-load", () => {
       say(new URL(win.webContents.getURL()).pathname);
+    });
+    return;
+  }
+
+  if (mode === "external") {
+    // Prevent a real browser launch during the test and report exactly what
+    // the shell would have handed off.
+    Object.defineProperty(shell, "openExternal", {
+      configurable: true,
+      value: async (url: string) => say(url),
+    });
+    win.webContents.once("did-finish-load", () => {
+      void win.webContents.executeJavaScript(
+        `window.open("https://example.com/approved", "_blank")`,
+      );
+    });
+    return;
+  }
+
+  if (mode === "unsafe") {
+    let escaped = false;
+    Object.defineProperty(shell, "openExternal", {
+      configurable: true,
+      value: async () => {
+        escaped = true;
+      },
+    });
+    win.webContents.once("did-finish-load", () => {
+      void win.webContents.executeJavaScript(
+        `window.open("file:///etc/passwd", "_blank")`,
+      );
+      setTimeout(() => {
+        say(
+          !escaped && originOf(win.webContents.getURL()) === APP_ORIGIN
+            ? "blocked"
+            : "escaped",
+        );
+      }, 750);
     });
     return;
   }
@@ -272,7 +366,7 @@ function buildMenu(): void {
           label: "Open in Browser",
           click: () => {
             const current = mainWindow?.webContents.getURL();
-            if (current) void shell.openExternal(current);
+            if (current) openExternalHttp(current);
           },
         },
         { type: "separator" },
@@ -315,7 +409,7 @@ function buildMenu(): void {
       submenu: [
         {
           label: "Casparel on the Web",
-          click: () => void shell.openExternal(APP_URL),
+          click: () => openExternalHttp(APP_URL),
         },
       ],
     },
@@ -343,6 +437,9 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: true,
+      safeDialogs: true,
+      webviewTag: false,
+      navigateOnDragDrop: false,
     },
   });
 
@@ -410,10 +507,10 @@ function createWindow(): void {
       void mainWindow?.loadURL(
         "data:text/html;charset=utf-8," +
           encodeURIComponent(
-            `<html><body style="margin:0;display:grid;place-items:center;height:100vh;background:#0b0f16;color:#e8eef8;font:16px system-ui,sans-serif;text-align:center">
+            `<html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"></head><body style="margin:0;display:grid;place-items:center;height:100vh;background:#0b0f16;color:#e8eef8;font:16px system-ui,sans-serif;text-align:center">
              <div><h1 style="font-size:20px;margin:0 0 8px">Cannot reach Casparel</h1>
-             <p style="margin:0 0 16px;opacity:.7">${description || "Check your connection and try again."}</p>
-             <a href="${APP_URL}" style="display:inline-block;padding:8px 16px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none">Try again</a></div>
+             <p style="margin:0 0 16px;opacity:.7">${escapeHtml(description || "Check your connection and try again.")}</p>
+             <a href="${escapeHtml(APP_URL)}" style="display:inline-block;padding:8px 16px;border-radius:8px;background:#2563eb;color:#fff;text-decoration:none">Try again</a></div>
            </body></html>`,
           ),
       );

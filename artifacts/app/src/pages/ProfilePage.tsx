@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Profile Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'wouter';
 import {
@@ -44,8 +48,11 @@ import {
   useSetPresetAvatar,
   PresetAvatarInputAvatarId,
   useGetCalendarStatus,
+  useGetCalendarIcalUrl,
   useDisconnectCalendarGoogle,
+  useRotateCalendarIcalUrl,
   getGetCalendarStatusQueryKey,
+  getGetCalendarIcalUrlQueryKey,
   getCalendarGoogleConnectUrl,
   getGetMeQueryKey,
   getGetResourceRecommendationsQueryKey,
@@ -290,8 +297,20 @@ export default function ProfilePage() {
 
   /** Calendar section component */
   function CalendarSection() {
-    const { data: calStatus, isLoading: calLoading } = useGetCalendarStatus();
+    const {
+      data: calStatus,
+      isLoading: calLoading,
+      isError: calError,
+      refetch: refetchCalStatus,
+    } = useGetCalendarStatus();
+    const {
+      data: icalFeed,
+      isLoading: icalLoading,
+      isError: icalError,
+      refetch: refetchIcalFeed,
+    } = useGetCalendarIcalUrl();
     const disconnectGoogle = useDisconnectCalendarGoogle();
+    const rotateIcal = useRotateCalendarIcalUrl();
     const [copied, setCopied] = useState(false);
     const [connecting, setConnecting] = useState(false);
 
@@ -317,23 +336,60 @@ export default function ProfilePage() {
       }
     }
 
-    function buildIcalUrl(secret: string): string {
-      return `${window.location.origin}/api/calendar/${secret}/feed.ics`;
-    }
-
     async function handleCopyIcal() {
-      if (!calStatus?.icalSecret) return;
-      await navigator.clipboard.writeText(buildIcalUrl(calStatus.icalSecret));
+      if (!icalFeed?.url) return;
+      await navigator.clipboard.writeText(icalFeed.url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
 
-    if (calLoading) {
+    async function handleRotateIcal() {
+      if (!confirm('Rotate this calendar URL? The previous subscription link will stop working immediately.')) return;
+      try {
+        const next = await rotateIcal.mutateAsync();
+        queryClient.setQueryData(getGetCalendarIcalUrlQueryKey(), next);
+        setCopied(false);
+        toast({ title: 'Calendar subscription URL rotated' });
+      } catch {
+        toast({ title: 'Could not rotate calendar URL', variant: 'destructive' });
+      }
+    }
+
+    if (calLoading || icalLoading) {
       return (
         <Card>
           <CardContent className="pt-4 pb-3 space-y-2">
             <Skeleton className="h-5 w-40" />
             <Skeleton className="h-9 w-full" />
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (calError || icalError) {
+      return (
+        <Card role="alert">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Calendar size={15} className="text-muted-foreground" />
+              Calendar Integration
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Calendar status could not be verified. No connection state has
+              been assumed.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void refetchCalStatus();
+                void refetchIcalFeed();
+              }}
+            >
+              Try again
+            </Button>
           </CardContent>
         </Card>
       );
@@ -411,12 +467,12 @@ export default function ProfilePage() {
             <p className="text-xs text-muted-foreground">
               Subscribe to your schedule in Apple Calendar, Outlook, or any calendar app. The feed updates automatically.
             </p>
-            {calStatus?.icalSecret && (
+            {icalFeed?.url && (
               <div className="flex gap-2">
                 <Input
                   id="ical-feed-url"
                   readOnly
-                  value={buildIcalUrl(calStatus.icalSecret)}
+                  value={icalFeed.url}
                   className="text-xs font-mono flex-1 truncate"
                   onClick={(e) => (e.target as HTMLInputElement).select()}
                 />
@@ -428,6 +484,19 @@ export default function ProfilePage() {
                 >
                   {copied ? <CheckIcon size={13} className="text-green-600" /> : <Copy size={13} />}
                   {copied ? 'Copied!' : 'Copy'}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRotateIcal}
+                  disabled={rotateIcal.isPending}
+                  aria-label="Rotate calendar subscription URL"
+                  title="Revoke the previous link and issue a new one"
+                >
+                  <RefreshCw
+                    size={13}
+                    className={rotateIcal.isPending ? 'animate-spin' : undefined}
+                  />
                 </Button>
               </div>
             )}

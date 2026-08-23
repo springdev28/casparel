@@ -6,13 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AdminOverviewPlan } from './adminOverviewPlan';
+import type { AdminOverviewReliability } from './adminOverviewReliability';
 import type { AdminOverviewUsage } from './adminOverviewUsage';
 import type { AdminOverviewWorkflow } from './adminOverviewWorkflow';
 
 export interface AdminOverview {
   users: number;
-  students: number;
-  teachers: number;
+  learnerAccounts: number;
+  educatorAccounts: number;
+  accountsBothLearnAndTeach: number;
+  activeClassOwners30d: number;
+  classLearners: number;
   admins: number;
   goals: number;
   resources: number;
@@ -20,4 +24,5 @@ export interface AdminOverview {
   plan: AdminOverviewPlan;
   usage: AdminOverviewUsage;
   workflow: AdminOverviewWorkflow;
+  reliability: AdminOverviewReliability;
 }

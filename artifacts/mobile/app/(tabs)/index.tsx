@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile screen role: defines the Expo Router Index screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
 import React from 'react';
 import {
   FlatList,
@@ -16,10 +20,17 @@ import {
   useGetDashboardSummary,
   useGetMe,
   useGetRecentActivity,
+  useListLearningGoals,
 } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { Button } from '@workspace/edu-ds/components/native/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { ErrorState } from '@/components/ErrorState';
+import { AnimatedPressable } from '@/components/AnimatedPressable';
+import { ProgressTransition } from '@/components/ProgressTransition';
+import { nextIncompleteStep, selectResumableGoal } from '@/utils/learning-path';
+import { progressPercent } from '@/utils/progress';
 import type { ActivityItem } from '@workspace/api-client-react';
 
 function StatCard({
@@ -150,6 +161,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 export default function DashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user: authUser } = useAuth();
 
   const { data: me } = useGetMe();
@@ -169,12 +181,16 @@ export default function DashboardScreen() {
     isFetching: activityFetching,
     refetch: refetchActivity,
   } = useGetRecentActivity();
+  const goalsQuery = useListLearningGoals();
 
   // A query that failed with nothing cached must not keep rendering skeletons
   // (stats) or an "empty" state (activity) — both read as "you have no data"
   // rather than "we could not load your data".
   const summaryFailed = summaryIsError && summary === undefined;
   const activityFailed = activityIsError && activity === undefined;
+  const goalsFailed = goalsQuery.isError && goalsQuery.data === undefined;
+  const resumableGoal = selectResumableGoal(goalsQuery.data ?? []);
+  const nextStep = resumableGoal ? nextIncompleteStep(resumableGoal) : null;
 
   const displayUser = me ?? authUser;
   const isTeacher = displayUser?.role === 'teacher';
@@ -182,7 +198,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchSummary(), refetchActivity()]);
+    await Promise.all([refetchSummary(), refetchActivity(), goalsQuery.refetch()]);
     setRefreshing(false);
   };
 
@@ -226,6 +242,118 @@ export default function DashboardScreen() {
           </Text>
         </View>
       </View>
+
+      {/* The dashboard begins the canonical resource-to-learning journey. These
+          actions point to persistent screens rather than one-off local state. */}
+      <View
+        style={[
+          styles.workflowCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderRadius: colors.radius,
+          },
+        ]}
+      >
+        <View style={styles.workflowHeading}>
+          <View
+            style={[
+              styles.workflowIcon,
+              { backgroundColor: colors.primary + '14', borderRadius: colors.radius },
+            ]}
+          >
+            <Feather name="compass" color={colors.primary} size={20} />
+          </View>
+          <View style={styles.workflowText}>
+            <Text
+              style={{ color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }}
+            >
+              Build your next learning path
+            </Text>
+            <Text
+              style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}
+            >
+              Find a source, check it, then save it in a focused list.
+            </Text>
+          </View>
+        </View>
+        <View style={styles.workflowActions}>
+          <View style={styles.workflowAction}>
+            <Button onPress={() => router.push('/resources')} size="sm">
+              Find resources
+            </Button>
+          </View>
+          <View style={styles.workflowAction}>
+            <Button onPress={() => router.push('/lists')} size="sm" variant="outline">
+              Learning lists
+            </Button>
+          </View>
+          <View style={styles.workflowAction}>
+            <Button onPress={() => router.push('/goals')} size="sm" variant="outline">
+              Learning paths
+            </Button>
+          </View>
+        </View>
+      </View>
+
+      {/* The persistent goal collection closes the loop back to Home. Only a
+          goal with unfinished work receives this high-value resume slot. */}
+      {goalsQuery.isLoading ? (
+        <Skeleton width="100%" height={126} borderRadius={8} />
+      ) : goalsFailed ? (
+        <ErrorState
+          variant="banner"
+          error={goalsQuery.error}
+          retrying={goalsQuery.isFetching}
+          onRetry={() => {
+            void goalsQuery.refetch();
+          }}
+        />
+      ) : resumableGoal && nextStep ? (
+        <AnimatedPressable
+          accessibilityLabel={`Resume ${resumableGoal.title}. Next step: ${nextStep.title}`}
+          haptic="selection"
+          onPress={() => router.push(`/goals/${resumableGoal.id}`)}
+          style={[
+            styles.continuationCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.primary,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <View style={styles.continuationHeading}>
+            <View style={styles.continuationText}>
+              <Text style={{ color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold }}>
+                Continue learning
+              </Text>
+              <Text
+                numberOfLines={2}
+                style={[styles.continuationTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansBold }]}
+              >
+                {resumableGoal.title}
+              </Text>
+            </View>
+            <Feather name="arrow-right" color={colors.primary} size={21} />
+          </View>
+          <Text style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
+            Next: {nextStep.title}
+          </Text>
+          <ProgressTransition
+            value={
+              resumableGoal.pathSteps.filter((step) => step.completed).length /
+              resumableGoal.pathSteps.length
+            }
+          />
+          <Text style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}>
+            {progressPercent(
+              resumableGoal.pathSteps.filter((step) => step.completed).length /
+                resumableGoal.pathSteps.length,
+            )}% complete
+          </Text>
+        </AnimatedPressable>
+      ) : null}
 
       {/* Stat Cards */}
       {summaryFailed ? (
@@ -338,6 +466,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   headerLeft: { flex: 1, gap: 2 },
+  workflowCard: { borderWidth: 1, gap: 14, marginVertical: 8, padding: 14 },
+  workflowHeading: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  workflowIcon: { alignItems: 'center', height: 42, justifyContent: 'center', width: 42 },
+  workflowText: { flex: 1, gap: 3 },
+  workflowActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  workflowAction: { flexBasis: '47%', flexGrow: 1 },
+  continuationCard: { borderWidth: 1, gap: 10, marginVertical: 8, padding: 14 },
+  continuationHeading: { alignItems: 'center', flexDirection: 'row', gap: 12 },
+  continuationText: { flex: 1, gap: 3 },
+  continuationTitle: { fontSize: 18, lineHeight: 23 },
   greeting: { fontSize: 26, letterSpacing: -0.5 },
   greetingSub: { fontSize: 13 },
   statsGrid: {

@@ -1,3 +1,5 @@
+# @fileOverview: Desktop support role: configures or verifies Electron Builder for the Electron distribution.
+# System connection: participates in packaging, installer metadata, or controlled-window smoke validation.
 # Packaging for the Casparel desktop shell.
 #
 # The shell loads the hosted web app, so the payload is only the compiled main

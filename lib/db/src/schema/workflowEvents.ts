@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Persistence role: defines the Drizzle tables, relations, and indexes for the Workflow Events domain.
+ * System connection: re-exported by schema/index.ts, migrated through lib/db/migrations, and queried by API route/domain modules.
+ */
 import {
   index,
   integer,
@@ -14,14 +18,38 @@ import { studyActivitiesTable } from "./studySessions";
 import { usersTable } from "./users";
 
 export type WorkflowEventType =
+  | "account_registered"
+  | "onboarding_started"
+  | "onboarding_completed"
+  | "search_submitted"
+  | "search_result_opened"
+  | "source_quick_check_started"
+  | "source_quick_check_completed"
+  | "source_deep_research_started"
+  | "source_deep_research_completed"
   | "resource_viewed"
   | "resource_reviewed"
   | "resource_saved"
+  | "resource_added_to_goal"
+  | "resource_added_to_list"
+  | "goal_created"
+  | "goal_step_completed"
   | "activity_created"
+  | "activity_completed"
   | "activity_remixed"
+  | "class_created"
+  | "class_joined"
   | "class_shared"
   | "assignment_created"
-  | "assignment_completed";
+  | "assignment_completed"
+  | "teacher_first_class_activated"
+  | "invite_shared"
+  | "shared_resource_opened"
+  | "paywall_viewed"
+  | "purchase_started"
+  | "purchase_completed"
+  | "web_vital_measured"
+  | "client_error_observed";
 
 export const workflowEventsTable = pgTable(
   "workflow_events",

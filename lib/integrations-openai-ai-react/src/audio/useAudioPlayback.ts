@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Client integration role: implements Use Audio Playback for browser/React access to OpenAI-backed capabilities.
+ * System connection: exposes reusable client hooks/utilities while keeping provider-specific behavior outside product pages.
+ */
+/**
  * React hook for streaming audio playback using AudioWorklet.
  * Supports real-time PCM16 audio streaming from SSE responses.
  * Includes sequence buffer for reordering out-of-order chunks.

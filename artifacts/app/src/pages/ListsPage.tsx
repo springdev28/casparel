@@ -1,6 +1,10 @@
+/**
+ * @fileOverview Web screen role: renders the Lists Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { Plus, List, Trash2, Users } from 'lucide-react';
+import { Plus, List, Trash2, Users, AlertTriangle, RotateCcw } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Input } from '@workspace/edu-ds/components/ui/input';
 import { Label } from '@workspace/edu-ds/components/ui/label';
@@ -20,6 +24,7 @@ import {
   useListSharedResourceLists,
   getListResourceListsQueryKey,
 } from '@workspace/api-client-react';
+import { getCollectionLoadState } from '../lib/collection-load-state';
 
 export default function ListsPage() {
   const [, setLocation] = useLocation();
@@ -32,10 +37,16 @@ export default function ListsPage() {
   // Delete confirmation state
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
 
-  const { data: lists, isLoading } = useListResourceLists();
-  const { data: sharedLists, isLoading: sharedLoading } = useListSharedResourceLists();
+  const { data: lists, isLoading, isError, refetch } = useListResourceLists();
+  const {
+    data: sharedLists,
+    isLoading: sharedLoading,
+    isError: sharedError,
+    refetch: refetchShared,
+  } = useListSharedResourceLists();
   const createList = useCreateResourceList();
   const deleteList = useDeleteResourceList();
+  const listLoadState = getCollectionLoadState({ data: lists, isLoading, isError });
 
   function resetForm() {
     setNewName('');
@@ -117,7 +128,19 @@ export default function ListsPage() {
         </Dialog>
       </div>
 
-      {isLoading ? (
+      {isError && lists !== undefined && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
+          <span className="flex items-center gap-2">
+            <AlertTriangle size={16} className="text-amber-700 dark:text-amber-400" />
+            Your saved lists are shown, but the latest update could not be loaded.
+          </span>
+          <Button variant="outline" size="sm" onClick={() => void refetch()}>
+            <RotateCcw size={14} className="mr-1.5" /> Retry
+          </Button>
+        </div>
+      )}
+
+      {listLoadState === 'loading' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}>
@@ -131,7 +154,18 @@ export default function ListsPage() {
             </Card>
           ))}
         </div>
-      ) : !lists || lists.length === 0 ? (
+      ) : listLoadState === 'error' ? (
+        <Card className="border-destructive/30">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertTriangle size={36} className="mb-4 text-destructive-text" />
+            <h3 className="font-semibold text-foreground">Your lists could not be loaded.</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Your data has not been reported as empty. Try the request again.</p>
+            <Button className="mt-4" variant="outline" onClick={() => void refetch()}>
+              <RotateCcw size={14} className="mr-1.5" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : listLoadState === 'empty' ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <List size={40} className="text-muted-foreground mb-4" />
           <h3 className="font-semibold text-foreground">No lists yet</h3>
@@ -139,7 +173,7 @@ export default function ListsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {lists.map((list) => (
+          {lists!.map((list) => (
             <Card
               key={list.id}
               className="cursor-pointer hover:shadow-md transition-shadow"
@@ -178,14 +212,25 @@ export default function ListsPage() {
       )}
 
       {/* Shared with me */}
-      {((sharedLists && sharedLists.length > 0) || sharedLoading) && (
+      {((sharedLists && sharedLists.length > 0) || sharedLoading || sharedError) && (
         <>
           <Separator />
           <div>
             <h2 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-4">
               <Users size={18} /> Shared with me
             </h2>
-            {sharedLoading ? (
+            {sharedError && sharedLists !== undefined && (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-amber-700 dark:text-amber-400" />
+                  Shared lists are shown, but the latest update could not be loaded.
+                </span>
+                <Button variant="outline" size="sm" onClick={() => void refetchShared()}>
+                  <RotateCcw size={14} className="mr-1.5" /> Retry
+                </Button>
+              </div>
+            )}
+            {sharedLoading && sharedLists === undefined ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <Card key={i}>
@@ -194,6 +239,18 @@ export default function ListsPage() {
                   </Card>
                 ))}
               </div>
+            ) : sharedError && sharedLists === undefined ? (
+              <Card className="border-destructive/30">
+                <CardContent className="flex items-center justify-between gap-3 py-4">
+                  <span className="flex items-center gap-2 text-sm text-foreground">
+                    <AlertTriangle size={16} className="text-destructive-text" />
+                    Lists shared with you could not be loaded.
+                  </span>
+                  <Button variant="outline" size="sm" onClick={() => void refetchShared()}>
+                    <RotateCcw size={14} className="mr-1.5" /> Retry
+                  </Button>
+                </CardContent>
+              </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {sharedLists!.map((list) => (

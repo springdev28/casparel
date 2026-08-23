@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web domain role: centralizes Use Document Visibility state, transformation, navigation, telemetry, or API-adapter behavior.
+ * System connection: imported by pages/components so business rules are testable without rendering an entire route.
+ */
 import { useEffect, useState } from "react";
 
 export function useDocumentVisibility() {

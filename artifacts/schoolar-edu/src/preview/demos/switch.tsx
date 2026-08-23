@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Switch in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { Label } from '../../components/ui/label';
 import { Switch } from '../../components/ui/switch';
 import { Stack } from '../parts';

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes Source Provenance logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 type KnownSource = {
   name: string;
   type: string;

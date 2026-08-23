@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Citation Dialog component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { Check, Clipboard, Quote } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -25,7 +29,13 @@ import {
   type CitationStyle,
 } from "../lib/citations";
 
-export type CitationResource = { title: string; url: string };
+export type CitationResource = {
+  title: string;
+  url: string;
+  previewAuthor?: string | null;
+  previewPublisher?: string | null;
+  previewPublishedAt?: string | null;
+};
 
 export function CitationDialog({
   open,
@@ -50,9 +60,9 @@ export function CitationDialog({
     if (!open) return;
     setTitle(resource?.title ?? "");
     setUrl(resource?.url ?? "");
-    setAuthor("");
-    setPublisher("");
-    setPublishedAt("");
+    setAuthor(resource?.previewAuthor ?? "");
+    setPublisher(resource?.previewPublisher ?? "");
+    setPublishedAt(resource?.previewPublishedAt?.slice(0, 10) ?? "");
     setCopied(null);
   }, [open, resource]);
 
@@ -155,6 +165,10 @@ export function CitationDialog({
               />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Available source metadata is prefilled. Missing fields stay blank;
+            verify the page before using the citation in assessed work.
+          </p>
           <div className="space-y-1.5">
             <Label htmlFor="citation-output">Bibliography citation</Label>
             <Textarea

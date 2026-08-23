@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Theme Template in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 /* GENERATED FROM tokens.json BY scripts/build-tokens.mjs -- DO NOT EDIT.
  * Edit tokens.json instead; the dev server regenerates this file on change. */
 @import "tailwindcss";

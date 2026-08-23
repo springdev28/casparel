@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Audit Fixtures behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * A signed-in session for the page audit, without a server.
  *
  * The audit serves a static build, so authenticated pages had no way to render

@@ -8,5 +8,4 @@
 
 export interface CalendarIcalUrl {
   url: string;
-  icalSecret: string;
 }

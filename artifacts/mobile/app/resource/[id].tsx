@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile screen role: defines the Expo Router Id screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
 import React from 'react';
 import {
   FlatList,
@@ -10,16 +14,28 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
-import { useGetResource, useListResourceReviews } from '@workspace/api-client-react';
+import {
+  getGetResourceQueryKey,
+  getListResourceListMembershipsQueryKey,
+  getListResourceReviewsQueryKey,
+  useGetResource,
+  useListResourceListMemberships,
+  useListResourceReviews,
+} from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { Review } from '@workspace/api-client-react';
 import { SourceReviewSection } from '@/components/SourceReviewSection';
+import { ErrorState } from '@/components/ErrorState';
+import {
+  SaveResourceSheet,
+  type SavedListTarget,
+} from '@/components/SaveResourceSheet';
 
 function StarRow({ rating }: { rating: number }) {
   const colors = useColors();
@@ -107,13 +123,75 @@ function ReviewCard({ item }: { item: Review }) {
 export default function ResourceDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const resourceId = parseInt(id, 10);
+  const resourceId = Number(id);
+  const hasValidResourceId = Number.isInteger(resourceId) && resourceId > 0;
 
-  const { data: resource, isLoading } = useGetResource(resourceId);
-  const { data: reviews, isLoading: reviewsLoading } = useListResourceReviews(resourceId);
+  const {
+    data: resource,
+    error: resourceError,
+    isError: resourceIsError,
+    isFetching: resourceIsFetching,
+    isLoading,
+    refetch: refetchResource,
+  } = useGetResource(resourceId, {
+    query: {
+      enabled: hasValidResourceId,
+      queryKey: getGetResourceQueryKey(resourceId),
+    },
+  });
+  const {
+    data: reviews,
+    error: reviewsError,
+    isError: reviewsIsError,
+    isFetching: reviewsIsFetching,
+    isLoading: reviewsLoading,
+    refetch: refetchReviews,
+  } = useListResourceReviews(resourceId, {
+    query: {
+      enabled: hasValidResourceId,
+      queryKey: getListResourceReviewsQueryKey(resourceId),
+    },
+  });
+  const resourceFailed = resourceIsError && resource === undefined;
+  const reviewsFailed = reviewsIsError && reviews === undefined;
+  const membershipsQuery = useListResourceListMemberships(resourceId, {
+    query: {
+      enabled: hasValidResourceId,
+      queryKey: getListResourceListMembershipsQueryKey(resourceId),
+      refetchOnMount: 'always',
+      staleTime: 0,
+    },
+  });
+  const [saveSheetVisible, setSaveSheetVisible] = React.useState(false);
+  const [savedList, setSavedList] = React.useState<SavedListTarget | null>(null);
+
+  const savedTargets = React.useMemo(() => {
+    const targets: SavedListTarget[] = savedList ? [savedList] : [];
+    for (const membership of membershipsQuery.data ?? []) {
+      if (!targets.some((target) => target.id === membership.listId)) {
+        targets.push({ id: membership.listId, name: membership.listName });
+      }
+    }
+    return targets;
+  }, [membershipsQuery.data, savedList]);
+  const primarySavedTarget = savedTargets[0] ?? null;
+  const membershipsFailed = membershipsQuery.isError && membershipsQuery.data === undefined;
 
   const webBottomPad = Platform.OS === 'web' ? 34 : 0;
+
+  if (!hasValidResourceId) {
+    return (
+      <View style={[styles.centeredState, { backgroundColor: colors.background }]}>
+        <Empty
+          icon="alert-circle"
+          title="Invalid resource link"
+          description="Open this resource again from Search."
+        />
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -125,6 +203,20 @@ export default function ResourceDetailScreen() {
         <Skeleton width="50%" height={18} style={{ marginTop: 10 }} />
         <Skeleton width="100%" height={100} borderRadius={12} style={{ marginTop: 20 }} />
       </ScrollView>
+    );
+  }
+
+  if (resourceFailed) {
+    return (
+      <View style={[styles.centeredState, { backgroundColor: colors.background }]}>
+        <ErrorState
+          error={resourceError}
+          retrying={resourceIsFetching}
+          onRetry={() => {
+            void refetchResource();
+          }}
+        />
+      </View>
     );
   }
 
@@ -259,10 +351,65 @@ export default function ResourceDetailScreen() {
         </View>
       ) : null}
 
+      {/* Save is the workflow action; opening the source remains available but
+          does not falsely imply that the resource was persisted. */}
+      <Button onPress={() => setSaveSheetVisible(true)} size="lg">
+        {savedTargets.length ? 'Save to another learning list' : 'Save to a learning list'}
+      </Button>
+      {membershipsQuery.isLoading && !savedList ? (
+        <Skeleton width="100%" height={70} borderRadius={8} />
+      ) : membershipsFailed && !savedList ? (
+        <ErrorState
+          variant="banner"
+          error={membershipsQuery.error}
+          retrying={membershipsQuery.isFetching}
+          onRetry={() => {
+            void membershipsQuery.refetch();
+          }}
+        />
+      ) : primarySavedTarget ? (
+        <View
+          accessibilityRole="alert"
+          style={[
+            styles.savedBanner,
+            {
+              backgroundColor: colors.primary + '12',
+              borderColor: colors.primary,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <Feather name="check-circle" size={18} color={colors.primary} />
+          <View style={styles.savedText}>
+            <Text
+              style={{ color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }}
+            >
+              {savedTargets.length === 1
+                ? `Saved to ${primarySavedTarget.name}`
+                : `Saved in ${savedTargets.length} learning lists`}
+            </Text>
+            <Text
+              numberOfLines={2}
+              style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}
+            >
+              {savedTargets.map((target) => target.name).join(', ')}
+            </Text>
+          </View>
+          <Button
+            onPress={() => router.push(`/lists/${primarySavedTarget.id}`)}
+            size="sm"
+            variant="outline"
+          >
+            View
+          </Button>
+        </View>
+      ) : null}
+
       {/* Open Button */}
       <Button
         onPress={() => Linking.openURL(resource.url)}
         size="lg"
+        variant="outline"
         style={{ marginTop: 4 }}
       >
         Open Resource
@@ -288,6 +435,15 @@ export default function ResourceDetailScreen() {
               <Skeleton key={i} width="100%" height={70} borderRadius={8} />
             ))}
           </View>
+        ) : reviewsFailed ? (
+          <ErrorState
+            variant="banner"
+            error={reviewsError}
+            retrying={reviewsIsFetching}
+            onRetry={() => {
+              void refetchReviews();
+            }}
+          />
         ) : !reviews?.length ? (
           <Empty icon="star" title="No reviews yet" description="Be the first to review this resource" />
         ) : (
@@ -303,12 +459,24 @@ export default function ResourceDetailScreen() {
           </View>
         )}
       </View>
+
+      <SaveResourceSheet
+        onClose={() => setSaveSheetVisible(false)}
+        onSaved={(list) => {
+          setSavedList(list);
+          setSaveSheetVisible(false);
+        }}
+        resourceId={resourceId}
+        resourceTitle={resource.title}
+        visible={saveSheetVisible}
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  centeredState: { flex: 1, justifyContent: 'center' },
   content: { padding: 16, gap: 12 },
   hero: {
     overflow: 'hidden',
@@ -340,6 +508,14 @@ const styles = StyleSheet.create({
   section: { gap: 10 },
   sectionTitle: { fontSize: 16 },
   description: { fontSize: 14, lineHeight: 22 },
+  savedBanner: {
+    alignItems: 'center',
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 12,
+  },
+  savedText: { flex: 1, gap: 2 },
   reviewsList: {
     borderWidth: 1,
     overflow: 'hidden',

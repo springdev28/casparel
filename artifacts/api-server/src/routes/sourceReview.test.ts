@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Source Review.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Unit tests for GET /resources/:id/source-review
  *
  * The OpenAI client and DB are fully mocked. Tests assert:

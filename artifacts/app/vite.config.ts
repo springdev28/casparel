@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web support role: configures or validates the Vite.Config part of the Vite/React application.
+ * System connection: participates in browser development, build, quality checks, or deployment.
+ */
 import path from 'path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';

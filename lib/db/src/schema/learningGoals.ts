@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Persistence role: defines the Drizzle tables, relations, and indexes for the Learning Goals domain.
+ * System connection: re-exported by schema/index.ts, migrated through lib/db/migrations, and queried by API route/domain modules.
+ */
 import {
   pgEnum,
   pgTable,
@@ -7,8 +11,10 @@ import {
   date,
   timestamp,
   jsonb,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
+import { resourceListsTable } from "./resourceLists";
 
 export const learningGoalStatusEnum = pgEnum("learning_goal_status", [
   "active",
@@ -21,37 +27,51 @@ export const learningGoalLevelEnum = pgEnum("learning_goal_level", [
   "advanced",
 ]);
 
-export const learningGoalsTable = pgTable("learning_goals", {
-  id: serial("id").primaryKey(),
-  workspaceRole: text("workspace_role").$type<"student" | "teacher">().notNull().default("student"),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  subject: text("subject").notNull(),
-  description: text("description"),
-  level: learningGoalLevelEnum("level").notNull().default("beginner"),
-  preferredFormats: text("preferred_formats").array(),
-  targetDate: date("target_date", { mode: "string" }),
-  status: learningGoalStatusEnum("status").notNull().default("active"),
-  pathSteps: jsonb("path_steps")
-    .$type<
-      Array<{
-        id: string;
-        title: string;
-        query: string;
-        completed: boolean;
-      }>
-    >()
-    .notNull()
-    .default([]),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-    .notNull()
-    .defaultNow(),
-});
+export const learningGoalsTable = pgTable(
+  "learning_goals",
+  {
+    id: serial("id").primaryKey(),
+    workspaceRole: text("workspace_role").$type<"student" | "teacher">().notNull().default("student"),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    sourceListId: integer("source_list_id").references(() => resourceListsTable.id, {
+      onDelete: "set null",
+    }),
+    title: text("title").notNull(),
+    subject: text("subject").notNull(),
+    description: text("description"),
+    level: learningGoalLevelEnum("level").notNull().default("beginner"),
+    preferredFormats: text("preferred_formats").array(),
+    targetDate: date("target_date", { mode: "string" }),
+    status: learningGoalStatusEnum("status").notNull().default("active"),
+    pathSteps: jsonb("path_steps")
+      .$type<
+        Array<{
+          id: string;
+          title: string;
+          query: string;
+          completed: boolean;
+          resourceId?: number;
+        }>
+      >()
+      .notNull()
+      .default([]),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("learning_goals_user_workspace_source_list_unique").on(
+      table.userId,
+      table.workspaceRole,
+      table.sourceListId,
+    ),
+  ],
+);
 
 export type LearningGoal = typeof learningGoalsTable.$inferSelect;
 
@@ -73,6 +93,7 @@ export const goalPathTemplatesTable = pgTable("goal_path_templates", {
         title: string;
         query: string;
         completed: boolean;
+        resourceId?: number;
       }>
     >()
     .notNull()

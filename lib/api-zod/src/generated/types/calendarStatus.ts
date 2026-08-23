@@ -9,5 +9,4 @@
 export interface CalendarStatus {
   googleConnected: boolean;
   googleConfigured: boolean;
-  icalSecret: string;
 }

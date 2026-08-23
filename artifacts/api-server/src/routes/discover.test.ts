@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Discover.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for GET /resources/discover, dead-link filtering
  *
  * Mocked:
@@ -154,8 +158,11 @@ function fakeAIResponse(items: unknown[]) {
 
 /** A minimal valid resource item matching the DiscoverResourcesResponse schema. */
 function makeItem(overrides: { url?: string; title?: string } = {}) {
+  const urlSuffix = overrides.url?.split("/").filter(Boolean).at(-1);
   return {
-    title: overrides.title ?? "Khan Academy, Algebra",
+    title:
+      overrides.title ??
+      `Khan Academy, Algebra${urlSuffix ? ` ${urlSuffix}` : ""}`,
     url: overrides.url ?? "https://www.khanacademy.org/math/algebra",
     description: "A free algebra course.",
     format: "video" as const,
@@ -226,24 +233,50 @@ describe("GET /api/resources/discover, filtering", () => {
     const academicResults = [
       {
         ...makeItem(),
+        previewAuthor: "Professor Example",
+        previewPublisher: "Example University",
+        previewPublishedAt: "2025-01-02T00:00:00.000Z",
+        previewUpdatedAt: "2026-08-01T00:00:00.000Z",
+        previewLicense: "CC BY 4.0",
+        previewAccessType: "free" as const,
+        previewSource: "provider_api" as const,
         sourceCredibility: "academic" as const,
+        material: "interactive" as const,
       },
     ];
     vi.mocked(searchCatalog)
       .mockResolvedValueOnce(academicResults)
       .mockResolvedValueOnce(academicResults);
 
-    const res = await request(buildApp())
-      .get("/api/resources/discover")
-      .query({ q: "calculus", sourceQuality: "academic" });
+    const res = await request(buildApp()).get("/api/resources/discover").query({
+      q: "calculus practice problems",
+      sourceQuality: "academic",
+      intent: "practice",
+      material: "interactive",
+    });
 
     expect(res.status).toBe(200);
     expect(searchCatalog).toHaveBeenCalledWith(
-      expect.objectContaining({ sourceQuality: "academic" }),
+      expect.objectContaining({
+        sourceQuality: "academic",
+        intent: "practice",
+        material: "interactive",
+      }),
     );
+    expect(res.headers["x-search-intent"]).toBe("practice");
     expect(res.body[0].provenanceSignals).toContain(
       "Academic, scholarly, or editorially reviewed source",
     );
+    expect(res.body[0]).toMatchObject({
+      previewAuthor: "Professor Example",
+      previewPublisher: "Example University",
+      previewPublishedAt: "2025-01-02T00:00:00.000Z",
+      previewLicense: "CC BY 4.0",
+      previewAccessType: "free",
+      previewSource: "provider_api",
+      previewMeaningful: true,
+    });
+    expect(res.headers["x-preview-coverage"]).toBe("100");
   });
 
   it("returns all results when every URL is reachable", async () => {

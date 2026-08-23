@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Continue Workflows component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useEffect, useState } from "react";
 import {
   ArrowRight,
@@ -10,33 +14,19 @@ import {
   X,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import {
+  dismissWorkflowContinuation,
+  listContinueWorkflows,
+  type ContinueWorkflowAction,
+  type ContinueWorkflowItem,
+} from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Card, CardContent } from "@workspace/edu-ds/components/ui/card";
 import { Progress } from "@workspace/edu-ds/components/ui/progress";
 
-type WorkflowAction =
-  | "review"
-  | "save"
-  | "create_activity"
-  | "share_class"
-  | "assign_class";
-
-type ContinueWorkflow = {
-  resourceId: number;
-  title: string;
-  subject: string;
-  format: string;
-  lastEventAt: string;
-  nextAction: WorkflowAction;
-  completedSteps: number;
-  totalSteps: number;
-  activity: { id: number; title: string } | null;
-  classShare: { id: number; name: string | null } | null;
-};
-
 const actionDetails: Record<
-  WorkflowAction,
+  ContinueWorkflowAction,
   { label: string; description: string; icon: typeof BookOpen }
 > = {
   review: {
@@ -88,7 +78,7 @@ function writeDismissed(ids: number[]) {
   }
 }
 
-function workflowHref(item: ContinueWorkflow) {
+function workflowHref(item: ContinueWorkflowItem) {
   if (item.nextAction === "create_activity") {
     return `/activities?fromResource=${item.resourceId}`;
   }
@@ -104,29 +94,15 @@ function workflowHref(item: ContinueWorkflow) {
 
 export function ContinueWorkflows() {
   const [, setLocation] = useLocation();
-  const [items, setItems] = useState<ContinueWorkflow[]>([]);
+  const [items, setItems] = useState<ContinueWorkflowItem[]>([]);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/workflow/continue", {
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("schoolar_token")}`,
-      },
-    })
-      .then((response) => (response.ok ? response.json() : []))
+    listContinueWorkflows({ signal: controller.signal })
       .then((rows) => {
         const dismissed = new Set(readDismissed());
         setItems(
-          Array.isArray(rows)
-            ? (rows as ContinueWorkflow[]).filter(
-                (row) =>
-                  // A row without a resourceId cannot be linked or dismissed,
-                  // and every accessor below assumes it is there.
-                  typeof row?.resourceId === "number" &&
-                  !dismissed.has(row.resourceId),
-              )
-            : [],
+          rows.filter((row) => !dismissed.has(row.resourceId)),
         );
       })
       .catch((error) => {
@@ -143,12 +119,7 @@ export function ContinueWorkflows() {
     writeDismissed(Array.from(new Set([...readDismissed(), resourceId])));
     // Best-effort server-side delete so it also clears on other devices; the
     // local removal above already hides it immediately either way.
-    void fetch(`/api/workflow/continue/${resourceId}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("schoolar_token")}`,
-      },
-    }).catch(() => undefined);
+    void dismissWorkflowContinuation(resourceId).catch(() => undefined);
   }
 
   if (!items.length) return null;

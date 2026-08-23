@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Vite.Config.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";

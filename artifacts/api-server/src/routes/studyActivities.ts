@@ -1,6 +1,25 @@
+/**
+ * @fileOverview API role: implements the Study Activities HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { randomBytes, randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { and, desc, eq, ilike, isNull } from "drizzle-orm";
+import {
+  CreateStudyActivityBody,
+  CreateStudyActivityResponse,
+  DeleteStudyActivityParams,
+  GetSharedStudyActivityParams,
+  GetSharedStudyActivityResponse,
+  ListStudyActivitiesQueryParams,
+  ListStudyActivitiesResponse,
+  PublishStudyActivityBody,
+  PublishStudyActivityParams,
+  PublishStudyActivityResponse,
+  UpdateStudyActivityBody,
+  UpdateStudyActivityParams,
+  UpdateStudyActivityResponse,
+} from "@workspace/api-zod";
 import {
   db,
   forumMaterialsTable,
@@ -40,11 +59,6 @@ function parseImageData(value: unknown) {
 
 function activeWorkspaceRole(userRole: string) {
   return userRole === "teacher" ? "teacher" : "student";
-}
-
-function positiveId(value: unknown) {
-  const id = Number(value);
-  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
 async function resourceForSourceActivity(activityId: number | null) {
@@ -149,8 +163,13 @@ function parseActivityInput(value: unknown) {
 
 router.get("/study-activities", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
-  const classId = Number(req.query.classId);
-  const hasClassId = Number.isInteger(classId) && classId > 0;
+  const query = ListStudyActivitiesQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.message });
+    return;
+  }
+  const classId = query.data.classId;
+  const hasClassId = classId !== undefined;
   if (
     hasClassId &&
     !(await isClassMember(classId, userId)) &&
@@ -172,10 +191,15 @@ router.get("/study-activities", requireAuth, async (req, res): Promise<void> => 
           ),
     )
     .orderBy(desc(studyActivitiesTable.updatedAt));
-  res.json(activities);
+  res.json(ListStudyActivitiesResponse.parse(activities));
 });
 
 router.get("/study-activities/shared/:token", async (req, res): Promise<void> => {
+  const params = GetSharedStudyActivityParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
   const [activity] = await db
     .select({
       id: studyActivitiesTable.id,
@@ -187,12 +211,12 @@ router.get("/study-activities/shared/:token", async (req, res): Promise<void> =>
       updatedAt: studyActivitiesTable.updatedAt,
     })
     .from(studyActivitiesTable)
-    .where(eq(studyActivitiesTable.shareToken, req.params.token));
+    .where(eq(studyActivitiesTable.shareToken, params.data.token));
   if (!activity) {
     res.status(404).json({ error: "Shared activity not found" });
     return;
   }
-  res.json({ ...activity, classId: null });
+  res.json(GetSharedStudyActivityResponse.parse({ ...activity, classId: null }));
 });
 
 router.post(
@@ -201,11 +225,20 @@ router.post(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId, userRole } = req as AuthenticatedRequest;
-    const classId = Number(req.body?.classId);
-    const hasClassId = Number.isInteger(classId) && classId > 0;
-    const requestedResourceId = positiveId(req.body?.sourceResourceId);
-    const sourceActivityId = positiveId(req.body?.sourceActivityId);
-    const remixedFromActivityId = positiveId(req.body?.remixedFromActivityId);
+    const body = CreateStudyActivityBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({
+        error: "Add a title and at least two complete cards. Images must be PNG, JPEG, or WebP and within the upload limits.",
+      });
+      return;
+    }
+    const {
+      classId = null,
+      sourceResourceId: requestedResourceId = null,
+      sourceActivityId = null,
+      remixedFromActivityId = null,
+    } = body.data;
+    const hasClassId = classId !== null;
     if (
       hasClassId &&
       !(await isClassMember(classId, userId)) &&
@@ -216,7 +249,7 @@ router.post(
       });
       return;
     }
-    const input = parseActivityInput(req.body);
+    const input = parseActivityInput(body.data);
     if (!input) {
       res.status(400).json({
         error: "Add a title and at least two complete cards. Images must be PNG, JPEG, or WebP and within the upload limits.",
@@ -276,7 +309,7 @@ router.post(
         context: sourceActivityId ? { sourceActivityId } : {},
       });
     }
-    res.status(201).json(activity);
+    res.status(201).json(CreateStudyActivityResponse.parse(activity));
   },
 );
 
@@ -286,8 +319,14 @@ router.post(
   requireAuth,
   async (req, res): Promise<void> => {
     const auth = req as AuthenticatedRequest;
-    const id = Number(req.params.id);
-    const destination = req.body?.destination === "forum" ? "forum" : "catalog";
+    const params = PublishStudyActivityParams.safeParse(req.params);
+    const body = PublishStudyActivityBody.safeParse(req.body ?? {});
+    if (!params.success || !body.success) {
+      res.status(400).json({ error: "Invalid publish request" });
+      return;
+    }
+    const { id } = params.data;
+    const { destination } = body.data;
     const [activity] = await db
       .select()
       .from(studyActivitiesTable)
@@ -353,7 +392,9 @@ router.post(
         });
       }
     }
-    res.status(201).json({ materialId, shareToken, destination });
+    res.status(201).json(
+      PublishStudyActivityResponse.parse({ materialId, shareToken, destination }),
+    );
   },
 );
 
@@ -363,12 +404,14 @@ router.patch(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId, userRole } = req as AuthenticatedRequest;
-    const id = Number(req.params.id);
-    const input = parseActivityInput(req.body);
-    if (!Number.isInteger(id) || id <= 0 || !input) {
+    const params = UpdateStudyActivityParams.safeParse(req.params);
+    const body = UpdateStudyActivityBody.safeParse(req.body);
+    const input = body.success ? parseActivityInput(body.data) : null;
+    if (!params.success || !input) {
       res.status(400).json({ error: "Invalid study activity" });
       return;
     }
+    const { id } = params.data;
     const [existing] = await db
       .select()
       .from(studyActivitiesTable)
@@ -392,7 +435,7 @@ router.patch(
       res.status(404).json({ error: "Study activity not found" });
       return;
     }
-    res.json(activity);
+    res.json(UpdateStudyActivityResponse.parse(activity));
   },
 );
 
@@ -401,11 +444,12 @@ router.delete(
   requireAuth,
   async (req, res): Promise<void> => {
     const { userId, userRole } = req as AuthenticatedRequest;
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const params = DeleteStudyActivityParams.safeParse(req.params);
+    if (!params.success) {
       res.status(400).json({ error: "Invalid study activity" });
       return;
     }
+    const { id } = params.data;
     const [existing] = await db
       .select()
       .from(studyActivitiesTable)

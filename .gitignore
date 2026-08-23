@@ -59,6 +59,8 @@ Thumbs.db
 
 # Electron installers
 artifacts/desktop/release
+artifacts/app/test-results/
+artifacts/api-server/test-results/
 
 # Claude Code local preferences (permission allowlist, etc.)
 .claude/settings.local.json

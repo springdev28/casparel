@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Forum Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import {
   useEffect,
   useMemo,
@@ -30,7 +34,37 @@ import {
   Upload,
   GraduationCap,
 } from "lucide-react";
-import { useGetMe, useListClasses } from "@workspace/api-client-react";
+import {
+  approveForumMaterial,
+  castForumSurveyVote,
+  createForumComment,
+  createForumMaterial,
+  createForumPost,
+  createForumReport,
+  deleteForumComment,
+  deleteForumMaterial,
+  deleteForumPost,
+  downloadForumMaterialFile,
+  downloadForumPostFile,
+  getForumAccess,
+  listForumComments,
+  listForumMaterials,
+  listForumPosts,
+  listForumReports,
+  recordForumMaterialView,
+  removeForumSurveyVote,
+  toggleForumLike,
+  toggleForumPostRepost,
+  updateForumReport,
+  useGetMe,
+  useListClasses,
+  type ForumAccess as GeneratedForumAccess,
+  type ForumComment as GeneratedForumComment,
+  type ForumMaterial,
+  type ForumPost as GeneratedForumPost,
+  type ForumQuotedPost,
+  type ForumReport,
+} from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -66,97 +100,14 @@ import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { Switch } from "@workspace/edu-ds/components/ui/switch";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 
-type Approval = { id: number; teacherName: string; createdAt: string };
-type Material = {
-  id: number;
-  title: string;
-  description: string | null;
-  unit: string;
-  topic: string;
-  materialType: string;
-  tags: string[];
-  sources: string[];
-  uploaderId: number | null;
-  uploaderName: string;
-  uploaderRole: string;
-  linkUrl: string | null;
-  fileName: string | null;
-  mimeType: string | null;
-  moderationStatus: string;
-  moderationNote: string | null;
-  viewCount: number;
-  downloadCount: number;
-  likeCount: number;
-  commentCount: number;
-  likedByMe: boolean;
-  createdAt: string;
-  approvals: Approval[];
-};
-type SurveyOption = { id: string; text: string };
-type QuotedPost = {
-  id: number;
-  authorName: string;
-  authorRole: string;
-  title: string | null;
-  body: string;
-  tags: string[];
-  createdAt: string;
-};
-type ForumPost = {
-  id: number;
-  authorId: number | null;
-  authorName: string;
-  authorRole: string;
-  kind: "post" | "survey";
-  title: string | null;
-  body: string;
-  tags: string[];
-  surveyOptions: SurveyOption[];
-  allowMultipleVotes: boolean;
-  quotedPostId: number | null;
-  quotedPost: QuotedPost | null;
-  attachmentMaterialId: number | null;
-  attachmentFileName: string | null;
-  attachmentMimeType: string | null;
-  classId: number | null;
-  moderationStatus: string;
-  moderationNote: string | null;
-  viewCount: number;
-  likeCount: number;
-  commentCount: number;
-  likedByMe: boolean;
-  repostCount: number;
-  repostedByMe: boolean;
-  createdAt: string;
-  votes: Array<{ optionId: string; count: number }>;
-  myVote?: string | null;
-  myVotes?: string[];
-};
-type ForumComment = {
-  id: number;
-  authorId: number | null;
-  authorName: string;
-  authorRole: string;
-  parentId: number | null;
-  body: string;
-  createdAt: string;
-};
-type Report = {
-  id: number;
-  reporterName: string;
-  targetType: "material" | "post" | "comment";
-  targetId: number;
-  reason: string;
-  status: string;
-  aiFlagged: boolean;
-  aiAssessment: string | null;
-  createdAt: string;
-};
-type ForumAccess = {
-  isAdmin: boolean;
-  teacherVerified: boolean;
-  canApprove: boolean;
-};
+// Local aliases keep the rendering code readable while the actual contract
+// remains generated from openapi.yaml rather than duplicated in this screen.
+type Material = ForumMaterial;
+type ForumPost = GeneratedForumPost;
+type QuotedPost = ForumQuotedPost;
+type ForumComment = GeneratedForumComment;
+type Report = ForumReport;
+type ForumAccess = GeneratedForumAccess;
 
 const MATERIAL_TYPES = [
   ["video", "Video / lecture / problem solving"],
@@ -180,33 +131,6 @@ const POST_TAGS = [
   "question",
   "discussion",
 ];
-
-function apiUrl(path: string) {
-  return import.meta.env.BASE_URL.replace(/\/$/, "") + "/api" + path;
-}
-
-async function forumRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const form = init?.body instanceof FormData;
-  const response = await fetch(apiUrl(path), {
-    ...init,
-    headers: {
-      Authorization: "Bearer " + localStorage.getItem("schoolar_token"),
-      ...(!form && init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as {
-      error?: string;
-      moderation?: string;
-    } | null;
-    throw new Error(
-      [body?.error, body?.moderation].filter(Boolean).join(": ") ||
-        "Forum request failed",
-    );
-  }
-  return response.status === 204 ? (undefined as T) : response.json();
-}
 
 function roleLabel(role: string) {
   return role === "teacher"
@@ -281,6 +205,8 @@ function inlineMarkdown(text: string, keyPrefix: string) {
   });
 }
 
+// Build a deliberately small React tree instead of injecting HTML. React escapes
+// every text node, so user-authored Markdown cannot turn into executable markup.
 function MarkdownText({ value }: { value: string }) {
   const lines = value.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
@@ -392,7 +318,11 @@ function MarkdownText({ value }: { value: string }) {
     );
   }
   return (
-    <div className="space-y-3 break-words text-[15px] leading-relaxed">
+    <div
+      className="space-y-3 break-words text-[15px] leading-relaxed"
+      data-user-content
+      translate="no"
+    >
       {blocks}
     </div>
   );
@@ -427,6 +357,8 @@ export default function ForumPage({
   const [reports, setReports] = useState<Report[]>([]);
   const [loadingMaterials, setLoadingMaterials] = useState(true);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [materialLoadFailed, setMaterialLoadFailed] = useState(false);
+  const [postLoadFailed, setPostLoadFailed] = useState(false);
   const [materialDialog, setMaterialDialog] = useState(false);
   const [postDialog, setPostDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -447,28 +379,41 @@ export default function ForumPage({
   const [repostingIds, setRepostingIds] = useState<number[]>([]);
 
   async function loadAccess() {
-    const value = await forumRequest<ForumAccess>("/forum/access");
+    const value = await getForumAccess();
     setAccess(value);
     if (value.isAdmin) {
-      setReports(await forumRequest<Report[]>("/forum/reports"));
+      setReports(await listForumReports());
     }
   }
 
   async function loadMaterials() {
     setLoadingMaterials(true);
+    setMaterialLoadFailed(false);
     try {
-      const params = new URLSearchParams();
-      if (materialQuery.trim()) params.set("q", materialQuery.trim());
-      if (unit.trim()) params.set("unit", unit.trim());
-      if (topic.trim()) params.set("topic", topic.trim());
-      if (materialType !== "all") params.set("type", materialType);
-      if (uploader.trim()) params.set("uploader", uploader.trim());
-      if (materialDate !== "all") params.set("date", materialDate);
-      if (materialSort !== "newest") params.set("sort", materialSort);
+      // Generated clients keep the query shape and response type synchronized
+      // with openapi.yaml; this page only owns filters and presentation state.
       setMaterials(
-        await forumRequest<Material[]>("/forum/materials?" + params),
+        await listForumMaterials({
+          q: materialQuery.trim() || undefined,
+          unit: unit.trim() || undefined,
+          topic: topic.trim() || undefined,
+          type:
+            materialType === "all"
+              ? undefined
+              : (materialType as Material["materialType"]),
+          uploader: uploader.trim() || undefined,
+          date:
+            materialDate === "all"
+              ? undefined
+              : (materialDate as "day" | "week" | "month" | "year"),
+          sort:
+            materialSort === "newest"
+              ? undefined
+              : (materialSort as "oldest" | "downloads" | "views"),
+        }),
       );
     } catch (error) {
+      setMaterialLoadFailed(true);
       toast({
         title: "Could not load materials",
         description:
@@ -482,14 +427,21 @@ export default function ForumPage({
 
   async function loadPosts() {
     setLoadingPosts(true);
+    setPostLoadFailed(false);
     try {
-      const params = new URLSearchParams();
-      if (postQuery.trim()) params.set("q", postQuery.trim());
-      if (postKind !== "all") params.set("kind", postKind);
-      if (postTag !== "all") params.set("tag", postTag);
-      if (classId) params.set("classId", String(classId));
-      setPosts(await forumRequest<ForumPost[]>("/forum/posts?" + params));
+      setPosts(
+        await listForumPosts({
+          q: postQuery.trim() || undefined,
+          kind:
+            postKind === "all"
+              ? undefined
+              : (postKind as ForumPost["kind"]),
+          tag: postTag === "all" ? undefined : postTag,
+          classId: classId ?? undefined,
+        }),
+      );
     } catch (error) {
+      setPostLoadFailed(true);
       toast({
         title: "Could not load posts",
         description:
@@ -512,30 +464,19 @@ export default function ForumPage({
     setSubmitting(true);
     try {
       const data = new FormData(event.currentTarget);
-      const payload = new FormData();
-      for (const key of [
-        "title",
-        "description",
-        "unit",
-        "topic",
-        "materialType",
-        "linkUrl",
-      ]) {
-        const value = data.get(key);
-        if (value) payload.set(key, value);
-      }
-      payload.set(
-        "tags",
-        JSON.stringify(csv(data.get("tags")))
-          .slice(1, -1)
-          .replaceAll('"', ""),
-      );
-      payload.set("sources", csv(data.get("sources")).join("\n"));
       const file = data.get("file");
-      if (file instanceof File && file.size) payload.set("file", file);
-      await forumRequest<Material>("/forum/materials", {
-        method: "POST",
-        body: payload,
+      await createForumMaterial({
+        title: String(data.get("title") ?? ""),
+        description: String(data.get("description") ?? "") || undefined,
+        unit: String(data.get("unit") ?? ""),
+        topic: String(data.get("topic") ?? ""),
+        materialType: String(
+          data.get("materialType") ?? "notes",
+        ) as Material["materialType"],
+        linkUrl: String(data.get("linkUrl") ?? "") || undefined,
+        tags: csv(data.get("tags")).join(","),
+        sources: csv(data.get("sources")).join("\n"),
+        file: file instanceof File && file.size ? file : undefined,
       });
       event.currentTarget.reset();
       setMaterialDialog(false);
@@ -559,30 +500,25 @@ export default function ForumPage({
     setSubmitting(true);
     try {
       const values = new FormData(form);
-      const payload = new FormData();
-      payload.set("kind", postMode);
-      payload.set("title", String(values.get("title") ?? ""));
-      payload.set("body", String(values.get("body") ?? ""));
-      payload.set("tags", csv(values.get("tags")).join("\n"));
-      if (quoteTarget) payload.set("quotedPostId", String(quoteTarget.id));
-      payload.set(
-        "surveyOptions",
-        postMode === "survey"
-          ? surveyOptions.filter((item) => item.trim()).join("\n")
-          : "",
-      );
-      payload.set("allowMultipleVotes", String(surveyAllowMultiple));
       const materialId = values.get("attachmentMaterialId");
-      if (materialId && materialId !== "none") {
-        payload.set("attachmentMaterialId", String(materialId));
-      }
       const file = values.get("file");
-      if (file instanceof File && file.size > 0) payload.set("file", file);
-      if (classId) payload.set("classId", String(classId));
-
-      const created = await forumRequest<ForumPost>("/forum/posts", {
-        method: "POST",
-        body: payload,
+      const created = await createForumPost({
+        kind: postMode,
+        title: String(values.get("title") ?? ""),
+        body: String(values.get("body") ?? ""),
+        tags: csv(values.get("tags")).join("\n"),
+        quotedPostId: quoteTarget ? String(quoteTarget.id) : undefined,
+        surveyOptions:
+          postMode === "survey"
+            ? surveyOptions.filter((item) => item.trim()).join("\n")
+            : undefined,
+        allowMultipleVotes: String(surveyAllowMultiple) as "true" | "false",
+        attachmentMaterialId:
+          materialId && materialId !== "none"
+            ? String(materialId)
+            : undefined,
+        file: file instanceof File && file.size > 0 ? file : undefined,
+        classId: classId ? String(classId) : undefined,
       });
       form.reset();
       setSurveyOptions(["", ""]);
@@ -614,7 +550,7 @@ export default function ForumPage({
     if (type === "material") setMaterials((current) => current.map((item) => item.id === id ? optimistic as Material : item));
     else setPosts((current) => current.map((item) => item.id === id ? optimistic as ForumPost : item));
     try {
-      const result = await forumRequest<{ liked: boolean }>("/forum/" + type + "/" + id + "/like", { method: "POST" });
+      const result = await toggleForumLike(type, id);
       const confirmed = { ...optimistic, likedByMe: result.liked, likeCount: result.liked === optimistic.likedByMe ? optimistic.likeCount : Math.max(0, optimistic.likeCount + (result.liked ? 1 : -1)) };
       if (type === "material") setMaterials((current) => current.map((item) => item.id === id ? confirmed as Material : item));
       else setPosts((current) => current.map((item) => item.id === id ? confirmed as ForumPost : item));
@@ -625,6 +561,8 @@ export default function ForumPage({
     }
   }
 
+  // Reposts and survey votes update optimistically for an immediate response,
+  // then reconcile with the server result or restore the previous post on error.
   async function toggleRepost(post: ForumPost) {
     if (repostingIds.includes(post.id)) return;
     const previous = post;
@@ -636,10 +574,7 @@ export default function ForumPage({
     setRepostingIds((current) => [...current, post.id]);
     setPosts((current) => current.map((item) => item.id === post.id ? optimistic : item));
     try {
-      const result = await forumRequest<{ reposted: boolean; repostCount: number }>(
-        "/forum/posts/" + post.id + "/repost",
-        { method: "POST" },
-      );
+      const result = await toggleForumPostRepost(post.id);
       setPosts((current) => current.map((item) => item.id === post.id ? {
         ...item,
         repostedByMe: result.reposted,
@@ -663,16 +598,13 @@ export default function ForumPage({
     );
     if (!reason?.trim()) return;
     try {
-      await forumRequest("/forum/reports", {
-        method: "POST",
-        body: JSON.stringify({ targetType: type, targetId: id, reason }),
-      });
+      await createForumReport({ targetType: type, targetId: id, reason });
       toast({
         title: "Report submitted",
         description: "The content was checked and sent to administrators.",
       });
       if (access.isAdmin)
-        setReports(await forumRequest<Report[]>("/forum/reports"));
+        setReports(await listForumReports());
     } catch (error) {
       toast({
         title: "Could not report content",
@@ -685,36 +617,29 @@ export default function ForumPage({
 
   async function remove(type: "material" | "post" | "comment", id: number) {
     if (!window.confirm("Delete this " + type + "?")) return;
-    await forumRequest(
-      "/forum/" + (type === "comment" ? "comments" : type + "s") + "/" + id,
-      { method: "DELETE" },
-    );
+    if (type === "material") await deleteForumMaterial(id);
+    if (type === "post") await deleteForumPost(id);
+    if (type === "comment") await deleteForumComment(id);
     if (type === "material") await loadMaterials();
     if (type === "post") setPosts((current) => current.filter((post) => post.id !== id));
   }
 
   async function downloadMaterial(material: Material) {
     if (material.linkUrl && !material.fileName) {
-      await forumRequest("/forum/materials/" + material.id + "/view", {
-        method: "POST",
-      });
+      await recordForumMaterialView(material.id);
       window.open(material.linkUrl, "_blank", "noopener,noreferrer");
       await loadMaterials();
       return;
     }
-    const response = await fetch(
-      apiUrl("/forum/materials/" + material.id + "/file"),
-      {
-        headers: {
-          Authorization: "Bearer " + localStorage.getItem("schoolar_token"),
-        },
-      },
-    );
-    if (!response.ok) {
+    let blob: Blob;
+    try {
+      blob = await downloadForumMaterialFile(material.id);
+    } catch {
       toast({ title: "Download failed", variant: "destructive" });
       return;
     }
-    const blob = await response.blob();
+    // Generated download operations return Blobs. A short-lived object URL lets
+    // the browser save them without bypassing the authenticated API boundary.
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = href;
@@ -725,16 +650,13 @@ export default function ForumPage({
   }
 
   async function downloadPostFile(post: ForumPost) {
-    const response = await fetch(apiUrl("/forum/posts/" + post.id + "/file"), {
-      headers: {
-        Authorization: "Bearer " + localStorage.getItem("schoolar_token"),
-      },
-    });
-    if (!response.ok) {
+    let blob: Blob;
+    try {
+      blob = await downloadForumPostFile(post.id);
+    } catch {
       toast({ title: "Download failed", variant: "destructive" });
       return;
     }
-    const blob = await response.blob();
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = href;
@@ -745,9 +667,7 @@ export default function ForumPage({
 
   async function approve(material: Material) {
     try {
-      await forumRequest("/forum/materials/" + material.id + "/approve", {
-        method: "POST",
-      });
+      await approveForumMaterial(material.id);
       await loadMaterials();
       toast({
         title: "Material approved",
@@ -784,9 +704,9 @@ export default function ForumPage({
     const optimistic = { ...post, myVotes: [...nextVotes], votes: post.surveyOptions.map((option) => ({ optionId: option.id, count: counts.get(option.id) ?? 0 })) };
     setPosts((current) => current.map((item) => item.id === post.id ? optimistic : item));
     try {
-      const updated = await forumRequest<ForumPost>("/forum/posts/" + post.id + "/vote", removingVote
-        ? { method: "DELETE", body: JSON.stringify({ optionId }) }
-        : { method: "POST", body: JSON.stringify({ optionId }) });
+      const updated = removingVote
+        ? await removeForumSurveyVote(post.id, { optionId })
+        : await castForumSurveyVote(post.id, { optionId });
       setPosts((current) => current.map((item) => item.id === updated.id ? updated : item));
     } catch (error) {
       setPosts((current) => current.map((item) => item.id === post.id ? previous : item));
@@ -798,11 +718,8 @@ export default function ForumPage({
     reportId: number,
     status: "resolved" | "dismissed",
   ) {
-    await forumRequest("/forum/reports/" + reportId, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    });
-    setReports(await forumRequest<Report[]>("/forum/reports"));
+    await updateForumReport(reportId, { status });
+    setReports(await listForumReports());
   }
 
   const materialById = useMemo(
@@ -1096,6 +1013,16 @@ export default function ForumPage({
               <Loader2 className="mx-auto mb-2 size-5 animate-spin" />
               Loading materials...
             </div>
+          ) : materialLoadFailed ? (
+            <div
+              className="space-y-3 py-12 text-center text-muted-foreground"
+              role="alert"
+            >
+              <p>Materials could not be loaded.</p>
+              <Button variant="outline" onClick={loadMaterials}>
+                Try again
+              </Button>
+            </div>
           ) : materials.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
               No materials match these filters.
@@ -1107,10 +1034,10 @@ export default function ForumPage({
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <CardTitle className="text-base">
+                        <CardTitle className="text-base" data-user-content translate="no">
                           {material.title}
                         </CardTitle>
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p className="mt-1 text-xs text-muted-foreground" data-user-content translate="no">
                           {material.unit} · {material.topic} ·{" "}
                           {new Date(material.createdAt).toLocaleDateString()}
                         </p>
@@ -1136,7 +1063,7 @@ export default function ForumPage({
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {material.description && (
-                      <p className="text-sm">{material.description}</p>
+                      <p className="text-sm" data-user-content translate="no">{material.description}</p>
                     )}
                     <div className="flex flex-wrap gap-1">
                       {material.tags.map((tag) => (
@@ -1447,7 +1374,7 @@ export default function ForumPage({
                                 key={material.id}
                                 value={String(material.id)}
                               >
-                                {material.title}
+                                <span data-user-content translate="no">{material.title}</span>
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1519,6 +1446,16 @@ export default function ForumPage({
                 <div className="py-12 text-center text-muted-foreground">
                   <Loader2 className="mx-auto mb-2 size-5 animate-spin" />
                   Loading posts...
+                </div>
+              ) : postLoadFailed ? (
+                <div
+                  className="space-y-3 border-y py-12 text-center text-muted-foreground"
+                  role="alert"
+                >
+                  <p>Posts could not be loaded.</p>
+                  <Button variant="outline" onClick={loadPosts}>
+                    Try again
+                  </Button>
                 </div>
               ) : posts.length === 0 ? (
                 <div className="border-y py-12 text-center text-muted-foreground">
@@ -1602,7 +1539,7 @@ export default function ForumPage({
                         </CardHeader>
                         <CardContent className="space-y-3 p-3 pt-0">
                           {post.title && (
-                            <h2 className="text-base font-bold leading-snug">
+                            <h2 className="text-base font-bold leading-snug" data-user-content translate="no">
                               {post.title}
                             </h2>
                           )}
@@ -1913,8 +1850,8 @@ function QuotedPostPreview({ post }: { post: QuotedPost | ForumPost | null }) {
         <span className="font-semibold text-foreground">{profileHandle(post.authorName)}</span>
         <span>{new Date(post.createdAt).toLocaleString()}</span>
       </div>
-      {post.title && <p className="mt-1.5 line-clamp-1 text-sm font-semibold">{post.title}</p>}
-      <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">{post.body}</p>
+      {post.title && <p className="mt-1.5 line-clamp-1 text-sm font-semibold" data-user-content translate="no">{post.title}</p>}
+      <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground" data-user-content translate="no">{post.body}</p>
     </div>
   );
 }
@@ -1928,12 +1865,7 @@ function PostMediaPreview({ post }: { post: ForumPost }) {
     if (!previewable) return;
     let active = true;
     let objectUrl: string | null = null;
-    void fetch(apiUrl("/forum/posts/" + post.id + "/file"), {
-      headers: { Authorization: "Bearer " + localStorage.getItem("schoolar_token") },
-    }).then((response) => {
-      if (!response.ok) throw new Error("Preview unavailable");
-      return response.blob();
-    }).then((blob) => {
+    void downloadForumPostFile(post.id).then((blob) => {
       if (!active) return;
       objectUrl = URL.createObjectURL(blob);
       setSource(objectUrl);
@@ -1985,11 +1917,7 @@ function Discussion({
   const [sending, setSending] = useState(false);
 
   async function load() {
-    setComments(
-      await forumRequest<ForumComment[]>(
-        "/forum/" + targetType + "/" + targetId + "/comments",
-      ),
-    );
+    setComments(await listForumComments(targetType, targetId));
   }
   async function toggle() {
     const next = !open;
@@ -2000,13 +1928,10 @@ function Discussion({
     if (!body.trim()) return;
     setSending(true);
     try {
-      const created = await forumRequest<ForumComment>(
-        "/forum/" + targetType + "/" + targetId + "/comments",
-        {
-          method: "POST",
-          body: JSON.stringify({ body, parentId: replyTo?.id ?? null }),
-        },
-      );
+      const created = await createForumComment(targetType, targetId, {
+        body,
+        parentId: replyTo?.id ?? null,
+      });
       setBody("");
       setReplyTo(null);
       setComments((current) => [...current, created]);
@@ -2143,13 +2068,13 @@ function CommentRow({
   return (
     <div className="text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">{comment.authorName}</span>
+        <span className="font-medium" data-user-content translate="no">{comment.authorName}</span>
         <Badge variant="outline">{roleLabel(comment.authorRole)}</Badge>
         <span className="text-xs text-muted-foreground">
           {new Date(comment.createdAt).toLocaleString()}
         </span>
       </div>
-      <p className="mt-1 whitespace-pre-wrap">{comment.body}</p>
+      <p className="mt-1 whitespace-pre-wrap" data-user-content translate="no">{comment.body}</p>
       <div className="mt-1 flex gap-1">
         <Button size="sm" variant="ghost" onClick={() => onReply(comment)}>
           Reply

@@ -1,5 +1,10 @@
+/**
+ * @fileOverview Web UI role: provides the reusable App Error Boundary component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
+import { trackClientError } from '../lib/client-telemetry';
 
 type Props = { children: ReactNode };
 type State = { error: Error | null };
@@ -13,6 +18,7 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Casparel render error', error, info);
+    trackClientError('react_boundary', error);
   }
 
   render() {

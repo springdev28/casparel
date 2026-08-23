@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Public Shell component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { ReactNode } from "react";
 import { Link } from "wouter";
 import BrandIcon from "./BrandIcon";

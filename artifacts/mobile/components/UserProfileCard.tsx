@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile UI role: provides the reusable User Profile Card component.
+ * System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required.
+ */
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';

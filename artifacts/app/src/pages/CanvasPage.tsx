@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Canvas Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import {
   createContext,
   useCallback,
@@ -60,6 +64,14 @@ import {
   X,
 } from "lucide-react";
 import {
+  deleteCanvas as deleteCanvasApi,
+  getCanvas,
+  getSharedCanvas,
+  listCanvasCollaborators,
+  publishCanvas as publishCanvasApi,
+  removeCanvasCollaborator as removeCanvasCollaboratorApi,
+  updateCanvas as updateCanvasApi,
+  upsertCanvasCollaborator,
   useListResources,
   useSearchUsers,
   type Resource,
@@ -92,7 +104,6 @@ import {
 } from "@workspace/edu-ds/components/ui/select";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import {
-  canvasRequest,
   type CanvasCollaborator,
   type CanvasDocument,
   type SchoolarCanvas,
@@ -104,6 +115,7 @@ type EdgeDirection = "one-way" | "two-way" | "line";
 type HandleSide = "top" | "right" | "bottom" | "left";
 type StudyFlowEdge = Edge<{ direction: EdgeDirection }, "study">;
 
+// Contexts let custom React Flow cards and edges mutate the page-owned graph.
 type NodeActions = {
   editable: boolean;
   update: (id: string, changes: Partial<StudyNodeData>) => void;
@@ -353,6 +365,7 @@ function flowEdges(document: CanvasDocument): StudyFlowEdge[] {
   });
 }
 
+/** Strip React Flow's transient rendering state before saving the API document. */
 function cleanDocument(nodes: StudyFlowNode[], edges: StudyFlowEdge[], viewport: Viewport): CanvasDocument {
   return {
     nodes: nodes.map(({ id, position, data }) => ({ id, type: "study", position, data })),
@@ -370,7 +383,11 @@ function cleanDocument(nodes: StudyFlowNode[], edges: StudyFlowEdge[], viewport:
 }
 
 function flowNodes(document: CanvasDocument): StudyFlowNode[] {
-  return document.nodes.map((node) => ({ ...node, type: "study" }));
+  return document.nodes.map((node) => ({
+    ...node,
+    type: "study",
+    data: node.data as StudyNodeData,
+  }));
 }
 
 function saveLabel(status: "saved" | "saving" | "unsaved" | "conflict") {
@@ -429,6 +446,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   );
 
   const applyCanvas = useCallback((next: SchoolarCanvas) => {
+    // One application point keeps server version, graph state, and autosave baseline aligned.
     setCanvas(next);
     setNewTitle(next.title);
     setNewDescription(next.description ?? "");
@@ -457,8 +475,18 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
 
   const loadCanvas = useCallback(async () => {
     try {
-      const path = shared ? `/canvases/shared/${params.token}` : `/canvases/${params.id}`;
-      const next = await canvasRequest<SchoolarCanvas>(path, {}, !shared);
+      const id = Number(params.id);
+      const next = shared
+        ? params.token
+          ? await getSharedCanvas(params.token)
+          : (() => {
+              throw new Error("Shared canvas link is incomplete");
+            })()
+        : Number.isInteger(id) && id > 0
+          ? await getCanvas(id)
+          : (() => {
+              throw new Error("Canvas ID is invalid");
+            })();
       applyCanvas(next);
       setLoadError("");
     } catch (error) {
@@ -485,16 +513,20 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
     savingRef.current = true;
     setStatus("saving");
     try {
-      const updated = await canvasRequest<SchoolarCanvas>(`/canvases/${canvas.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ document, expectedVersion: versionRef.current }),
+      // expectedVersion prevents two collaborators from silently overwriting each other.
+      const updated = await updateCanvasApi(canvas.id, {
+        document,
+        expectedVersion: versionRef.current,
       });
       versionRef.current = updated.version;
       lastSavedRef.current = serialized;
       setCanvas(updated);
       setStatus(JSON.stringify(cleanDocument(nodesRef.current, edgesRef.current, viewportRef.current)) === serialized ? "saved" : "unsaved");
     } catch (error) {
-      const current = (error as Error & { current?: SchoolarCanvas }).current;
+      // The generated transport keeps the typed 409 payload on ApiError.data.
+      const current = (
+        error as { data?: { current?: SchoolarCanvas | null } }
+      ).data?.current;
       if (current) {
         applyCanvas(current);
         setStatus("conflict");
@@ -527,9 +559,10 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
 
   useEffect(() => {
     if (shared || !canvas || !documentVisible) return;
+    // Poll only while visible; autosave conflicts remain the final consistency guard.
     const interval = window.setInterval(() => {
       if (savingRef.current || status === "unsaved") return;
-      void canvasRequest<SchoolarCanvas>(`/canvases/${canvas.id}`).then((remote) => {
+      void getCanvas(canvas.id).then((remote) => {
         if (remote.version > versionRef.current) applyCanvas(remote);
       }).catch(() => undefined);
     }, 5_000);
@@ -610,7 +643,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   async function patchCanvas(changes: Partial<Pick<SchoolarCanvas, "title" | "description" | "visibility" | "classAccess">>) {
     if (!canvas) return;
     await saveNow();
-    const updated = await canvasRequest<SchoolarCanvas>(`/canvases/${canvas.id}`, { method: "PATCH", body: JSON.stringify(changes) });
+    const updated = await updateCanvasApi(canvas.id, changes);
     versionRef.current = updated.version;
     setCanvas(updated);
     setNewTitle(updated.title);
@@ -622,10 +655,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
     if (!canvas) return;
     setPublishing(destination);
     try {
-      await canvasRequest(`/canvases/${canvas.id}/publish`, {
-        method: "POST",
-        body: JSON.stringify({ destination }),
-      });
+      await publishCanvasApi(canvas.id, { destination });
       await loadCanvas();
       toast({ title: destination === "forum" ? "Posted to forum and catalog" : "Added to catalog" });
     } catch (error) {
@@ -642,31 +672,31 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   async function openSharing() {
     setShareOpen(true);
     if (!canvas?.permissions.canView || shared) return;
-    try { setCollaborators(await canvasRequest<CanvasCollaborator[]>(`/canvases/${canvas.id}/collaborators`)); } catch { setCollaborators([]); }
+    try { setCollaborators(await listCanvasCollaborators(canvas.id)); } catch { setCollaborators([]); }
   }
 
   async function addCollaborator(userId: number) {
     if (!canvas) return;
-    await canvasRequest(`/canvases/${canvas.id}/collaborators/${userId}`, { method: "PUT", body: JSON.stringify({ role: "editor" }) });
-    setCollaborators(await canvasRequest<CanvasCollaborator[]>(`/canvases/${canvas.id}/collaborators`));
+    await upsertCanvasCollaborator(canvas.id, userId, { role: "editor" });
+    setCollaborators(await listCanvasCollaborators(canvas.id));
     setPersonQuery("");
   }
 
   async function changeCollaborator(userId: number, role: "viewer" | "editor") {
     if (!canvas) return;
-    await canvasRequest(`/canvases/${canvas.id}/collaborators/${userId}`, { method: "PUT", body: JSON.stringify({ role }) });
+    await upsertCanvasCollaborator(canvas.id, userId, { role });
     setCollaborators((current) => current.map((item) => item.userId === userId ? { ...item, role } : item));
   }
 
   async function removeCollaborator(userId: number) {
     if (!canvas) return;
-    await canvasRequest(`/canvases/${canvas.id}/collaborators/${userId}`, { method: "DELETE" });
+    await removeCanvasCollaboratorApi(canvas.id, userId);
     setCollaborators((current) => current.filter((item) => item.userId !== userId));
   }
 
   async function deleteCanvas() {
     if (!canvas || !window.confirm(`Delete “${canvas.title}”? This cannot be undone.`)) return;
-    await canvasRequest(`/canvases/${canvas.id}`, { method: "DELETE" });
+    await deleteCanvasApi(canvas.id);
     setLocation("/canvases");
   }
 

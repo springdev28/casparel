@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile UI role: provides the reusable Error Boundary component.
+ * System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required.
+ */
 import React, { Component, ComponentType, PropsWithChildren } from 'react';
 import { ErrorFallback, ErrorFallbackProps } from '@/components/ErrorFallback';
 

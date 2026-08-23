@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Persistence role: defines the Drizzle tables, relations, and indexes for the Class Resource Recommendations domain.
+ * System connection: re-exported by schema/index.ts, migrated through lib/db/migrations, and queried by API route/domain modules.
+ */
 import { pgEnum, pgTable, serial, integer, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { classesTable } from "./classes";
 import { resourcesTable } from "./resources";

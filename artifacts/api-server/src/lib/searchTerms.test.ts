@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Verification role: exercises Search Terms.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
 import { describe, expect, it } from "vitest";
 import { meaningfulSearchTerms } from "./searchTerms";
 

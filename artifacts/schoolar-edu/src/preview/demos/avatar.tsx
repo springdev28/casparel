@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Avatar in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
 import { Row } from '../parts';
 

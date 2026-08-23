@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Repository role: implements or configures Custom Fetch.
+ * System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
+ */
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
 };
@@ -7,6 +11,7 @@ export type ErrorType<T = unknown> = ApiError<T>;
 export type BodyType<T> = T;
 
 export type AuthTokenGetter = () => Promise<string | null> | string | null;
+export type UnauthorizedHandler = () => Promise<void> | void;
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
@@ -17,6 +22,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _unauthorizedHandler: UnauthorizedHandler | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +48,17 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Register a runtime-specific session cleanup callback. Native clients cannot
+ * observe localStorage events like the browser shell does, so a trusted 401
+ * must be able to clear secure credentials and cached account data centrally.
+ */
+export function setUnauthorizedHandler(
+  handler: UnauthorizedHandler | null,
+): void {
+  _unauthorizedHandler = handler;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -162,9 +179,12 @@ function buildErrorMessage(response: Response, data: unknown): string {
     getStringField(data, "message") ??
     getStringField(data, "error_description") ??
     getStringField(data, "error");
+  const moderation = getStringField(data, "moderation");
 
   if (title && detail) return `${prefix}: ${title} — ${detail}`;
   if (detail) return `${prefix}: ${detail}`;
+  // Moderated publishing responses explain both what failed and what to revise.
+  if (message && moderation) return `${prefix}: ${message}: ${moderation}`;
   if (message) return `${prefix}: ${message}`;
   if (title) return `${prefix}: ${title}`;
 
@@ -364,7 +384,24 @@ export async function customFetch<T = unknown>(
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
-    throw new ApiError(response, errorData, requestInfo);
+    const error = new ApiError(response, errorData, requestInfo);
+    const isCredentialRequest = /\/api\/auth\/(login|register)(?:\?|$)/.test(
+      requestInfo.url,
+    );
+    if (
+      response.status === 401 &&
+      headers.has("authorization") &&
+      !isCredentialRequest &&
+      _unauthorizedHandler
+    ) {
+      try {
+        await _unauthorizedHandler();
+      } catch {
+        // Session cleanup is best-effort; preserve the original API error so
+        // the query/mutation still reaches its normal error boundary.
+      }
+    }
+    throw error;
   }
 
   return (await parseSuccessBody(response, responseType, requestInfo)) as T;

@@ -23,4 +23,5 @@ export interface LearningPathStep {
      */
   query: string;
   completed: boolean;
+  resourceId?: number;
 }

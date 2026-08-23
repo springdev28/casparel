@@ -1,15 +1,27 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+/**
+ * @fileOverview Mobile state role: owns the app-wide Onboarding Context context and lifecycle.
+ * System connection: installed by app/_layout.tsx and consumed by screens/components that need shared account state.
+ */
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { storage } from '@/utils/secure-storage';
+import type { MobileOnboardingSearchDestination } from '@/utils/onboarding-state';
 
 const ONBOARDED_KEY = 'casparel_onboarded';
+export type OnboardingDestination = MobileOnboardingSearchDestination;
 
 interface OnboardingContextValue {
   /** The stored flag has been read (or definitively failed). */
   ready: boolean;
   /** The user has not yet completed first-run onboarding. */
   needsOnboarding: boolean;
-  /** Mark onboarding complete (updates shared state + persists). */
-  complete: () => Promise<void>;
+  /** True when an experienced user deliberately reopens the guide. */
+  replaying: boolean;
+  /** Mark onboarding complete and optionally request a one-time real-task handoff. */
+  complete: (destination?: OnboardingDestination) => Promise<void>;
+  /** Reopen onboarding from Profile without treating that screen as a deferred deep link. */
+  restart: () => Promise<void>;
+  /** Root navigation consumes this once after onboarding releases the router. */
+  takeCompletionDestination: () => OnboardingDestination | null;
 }
 
 const OnboardingContext = createContext<OnboardingContextValue | null>(null);
@@ -17,6 +29,8 @@ const OnboardingContext = createContext<OnboardingContextValue | null>(null);
 export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [replaying, setReplaying] = useState(false);
+  const completionDestinationRef = useRef<OnboardingDestination | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -36,7 +50,11 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
-  const complete = useCallback(async () => {
+  const complete = useCallback(async (destination?: OnboardingDestination) => {
+    // A ref preserves the requested route across the state change without
+    // causing an intermediate render that could redirect too early.
+    completionDestinationRef.current = destination ?? null;
+    setReplaying(false);
     setNeedsOnboarding(false);
     try {
       await storage.setItemAsync(ONBOARDED_KEY, 'true');
@@ -45,8 +63,34 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     }
   }, []);
 
+  const restart = useCallback(async () => {
+    completionDestinationRef.current = null;
+    setReplaying(true);
+    setNeedsOnboarding(true);
+    try {
+      await storage.deleteItemAsync(ONBOARDED_KEY);
+    } catch {
+      // The in-memory replay still works; persistence can be retried on completion.
+    }
+  }, []);
+
+  const takeCompletionDestination = useCallback(() => {
+    const destination = completionDestinationRef.current;
+    completionDestinationRef.current = null;
+    return destination;
+  }, []);
+
   return (
-    <OnboardingContext.Provider value={{ ready, needsOnboarding, complete }}>
+    <OnboardingContext.Provider
+      value={{
+        ready,
+        needsOnboarding,
+        replaying,
+        complete,
+        restart,
+        takeCompletionDestination,
+      }}
+    >
       {children}
     </OnboardingContext.Provider>
   );

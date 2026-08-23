@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Google Classroom.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Integration tests for Google Classroom routes.
  *
  * All Google API calls and DB access are fully mocked, no real network or
@@ -25,8 +29,9 @@ let mockListItems: Array<{ resource: { title: string; url: string } }> = [];
 // Track last db.update call args for assertion
 let lastUpdateSet: Record<string, unknown> | null = null;
 let tokenDeleted = false;
-// Role returned by the users table mock, default "teacher" so all GC routes pass requireTeacher
+// Account row returned by the live authentication lookup.
 let mockUserRole: "student" | "teacher" = "teacher";
+let mockEducatorEnabled = true;
 let mockAuthenticatedUserId = 42;
 
 // Minimal chainable Drizzle mock.
@@ -105,6 +110,7 @@ beforeEach(() => {
   lastUpdateSet = null;
   tokenDeleted = false;
   mockUserRole = "teacher";
+  mockEducatorEnabled = true;
   mockAuthenticatedUserId = 42;
 
   // Default select: return empty arrays
@@ -129,11 +135,12 @@ beforeEach(() => {
           return Promise.resolve(mockListItems);
         }
         if (tableName === "users") {
-          // requireTeacher checks the live DB role; use mockUserRole to control per-test
+          // requireAuth reads durable capability from the live account row.
           return Promise.resolve([{
             id: mockAuthenticatedUserId,
             role: mockUserRole,
             activeRole: mockUserRole,
+            educatorEnabled: mockEducatorEnabled,
             bannedAt: null,
           }]);
         }
@@ -183,6 +190,32 @@ beforeEach(() => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("GET /api/google-classroom/courses", () => {
+  it("keeps access when an educator is using the learner workspace", async () => {
+    mockUserRole = "student";
+    mockEducatorEnabled = true;
+    mockTokenRow = {
+      id: 1,
+      userId: 42,
+      accessToken: "valid-access-token",
+      refreshToken: "refresh-token",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ courses: [] }),
+      }),
+    );
+
+    const res = await request(buildApp())
+      .get("/api/google-classroom/courses")
+      .set("Authorization", teacherToken(42));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
   it("returns course list when the stored access token is still valid", async () => {
     // Token expires 1 hour from now, no refresh needed.
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
@@ -339,8 +372,9 @@ describe("GET /api/google-classroom/courses", () => {
     expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 
-  it("returns 403 when the caller is not a teacher", async () => {
+  it("returns 403 when the caller has not enabled educator tools", async () => {
     mockUserRole = "student";
+    mockEducatorEnabled = false;
     const studentToken = `Bearer ${issueToken(7, "student")}`;
     const res = await request(buildApp())
       .get("/api/google-classroom/courses")

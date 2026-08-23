@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Activities Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -24,9 +28,23 @@ import {
   X,
   FileUp,
   BookCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { useParams, useSearch } from "wouter";
-import { getListClassesQueryKey, useListClasses } from "@workspace/api-client-react";
+import {
+  createStudyActivity,
+  deleteStudyActivity,
+  getListClassesQueryKey,
+  getSharedStudyActivity,
+  listStudyActivities,
+  publishStudyActivity,
+  updateStudyActivity,
+  useListClasses,
+  type SharedStudyActivity,
+  type StudyActivity,
+  type StudyActivityCard,
+  type StudyActivityMode,
+} from "@workspace/api-client-react";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -50,43 +68,15 @@ import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 
-type ActivityCard = {
-  id: string;
-  term: string;
-  answer: string;
-  choices?: string[];
-  correctChoiceIndex?: number;
-  imageData?: string | null;
-  imageAlt?: string | null;
-};
-
-type StudyActivity = {
-  id: number;
-  classId: number | null;
-  title: string;
-  subject: string | null;
-  mode: ActivityMode;
-  cards: ActivityCard[];
-  createdAt: string;
-  updatedAt: string;
-};
+type ActivityCard = StudyActivityCard;
+type ActivityMode = StudyActivityMode;
+type ActivityView = StudyActivity | SharedStudyActivity;
 
 type WorkflowSource = {
   id: number;
   title: string;
   subject: string;
 };
-
-type ActivityMode =
-  | "all"
-  | "flashcards"
-  | "practice"
-  | "quiz"
-  | "true-false"
-  | "match"
-  | "scramble"
-  | "missing-word"
-  | "random";
 
 type MatchItem = {
   key: string;
@@ -275,8 +265,9 @@ export default function ActivitiesPage({
   const viewOnly = readOnly || shared;
   const importRef = useRef<HTMLInputElement>(null);
   const handledWorkflowSource = useRef<number | null>(null);
-  const [activities, setActivities] = useState<StudyActivity[]>([]);
+  const [activities, setActivities] = useState<ActivityView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [mode, setMode] = useState<ActivityMode>("flashcards");
   const [editorOpen, setEditorOpen] = useState(false);
@@ -351,12 +342,16 @@ export default function ActivitiesPage({
 
   async function loadActivities() {
     setLoading(true);
+    setLoadFailed(false);
     try {
-      const result = shared
-        ? [await activityRequest(`/study-activities/shared/${params.token}`) as unknown as StudyActivity]
-        : (await activityRequest(
-            `/study-activities${classIdOverride ? `?classId=${classIdOverride}` : ""}`,
-          )) as unknown as StudyActivity[];
+      if (shared && !params.token) {
+        throw new Error("The shared activity link is incomplete.");
+      }
+      const result: ActivityView[] = shared
+        ? [await getSharedStudyActivity(params.token!)]
+        : await listStudyActivities(
+            classIdOverride ? { classId: classIdOverride } : undefined,
+          );
       setActivities(result);
       setSelectedId((current) =>
         result.some((activity) => activity.id === current)
@@ -364,6 +359,7 @@ export default function ActivitiesPage({
           : (result[0]?.id ?? null),
       );
     } catch (error) {
+      setLoadFailed(true);
       toast({
         title: "Could not load activities",
         description:
@@ -421,7 +417,7 @@ export default function ActivitiesPage({
       });
   }, [classIdOverride, routeSearch, shared]);
 
-  function resetStudy(activity: StudyActivity | undefined) {
+  function resetStudy(activity: ActivityView | undefined) {
     const cards = activity?.cards ?? [];
     setMode(activity?.mode === "all" ? "flashcards" : activity?.mode ?? "flashcards");
     setCardOrder(cards);
@@ -516,7 +512,7 @@ export default function ActivitiesPage({
     setEditorOpen(true);
   }
 
-  function openEditSet(activity: StudyActivity) {
+  function openEditSet(activity: ActivityView) {
     setEditingId(activity.id);
     setFormTitle(activity.title);
     setFormSubject(activity.subject ?? "");
@@ -658,20 +654,19 @@ export default function ActivitiesPage({
     }
     setSaving(true);
     try {
-      const activity = (await activityRequest(
-        editingId ? `/study-activities/${editingId}` : "/study-activities",
-        {
-          method: editingId ? "PATCH" : "POST",
-          body: JSON.stringify({
-            title: formTitle,
-            subject: formSubject,
-            mode: formMode,
-            cards: completeCards,
+      const content = {
+        title: formTitle,
+        subject: formSubject,
+        mode: formMode,
+        cards: completeCards,
+      };
+      const activity = editingId
+        ? await updateStudyActivity(editingId, content)
+        : await createStudyActivity({
+            ...content,
             classId: classIdOverride ?? null,
             sourceResourceId: formSourceResourceId,
-          }),
-        },
-      )) as unknown as StudyActivity;
+          });
       await loadActivities();
       setSelectedId(activity.id);
       if (!editingId && formSourceResourceId) {
@@ -691,12 +686,10 @@ export default function ActivitiesPage({
     }
   }
 
-  async function deleteSet(activity: StudyActivity) {
+  async function deleteSet(activity: ActivityView) {
     if (!window.confirm(`Delete “${activity.title}”?`)) return;
     try {
-      await activityRequest(`/study-activities/${activity.id}`, {
-        method: "DELETE",
-      });
+      await deleteStudyActivity(activity.id);
       await loadActivities();
       toast({ title: "Activity deleted" });
     } catch (error) {
@@ -718,22 +711,16 @@ export default function ActivitiesPage({
     setSharing(true);
     try {
       if (destination === "class") {
-        await activityRequest("/study-activities", {
-          method: "POST",
-          body: JSON.stringify({
-            title: selected.title,
-            subject: selected.subject,
-            mode: selected.mode,
-            cards: selected.cards,
-            classId: Number(shareClassId),
-            sourceActivityId: selected.id,
-          }),
+        await createStudyActivity({
+          title: selected.title,
+          subject: selected.subject,
+          mode: selected.mode,
+          cards: selected.cards,
+          classId: Number(shareClassId),
+          sourceActivityId: selected.id,
         });
       } else {
-        await activityRequest(`/study-activities/${selected.id}/publish`, {
-          method: "POST",
-          body: JSON.stringify({ destination }),
-        });
+        await publishStudyActivity(selected.id, { destination });
       }
       setShareOpen(false);
       if (destination === "class" && selected.id === workflowActivityId) {
@@ -757,9 +744,9 @@ export default function ActivitiesPage({
     }
   }
 
-  async function duplicateSet(activity: StudyActivity) {
+  async function duplicateSet(activity: ActivityView) {
     try {
-      const copy = (await activityRequest("/study-activities", { method: "POST", body: JSON.stringify({ title: `${activity.title} (copy)`, subject: activity.subject ?? "", mode: activity.mode, cards: activity.cards.map((card) => ({ ...card, id: crypto.randomUUID() })), classId: classIdOverride ?? null, remixedFromActivityId: activity.id }) })) as unknown as StudyActivity;
+      const copy = await createStudyActivity({ title: `${activity.title} (copy)`, subject: activity.subject ?? "", mode: activity.mode, cards: activity.cards.map((card) => ({ ...card, id: crypto.randomUUID() })), classId: classIdOverride ?? null, remixedFromActivityId: activity.id });
       await loadActivities();
       setSelectedId(copy.id);
       toast({ title: "Activity duplicated", description: "The copy is ready to edit or assign." });
@@ -1101,11 +1088,33 @@ export default function ActivitiesPage({
         </Card>
       ) : null}
 
+      {loadFailed && activities.length > 0 ? (
+        <Card className="border-amber-500/30 bg-amber-500/5" data-testid="activities-refresh-error">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+            <span>Your saved activities are shown, but the latest update failed.</span>
+            <Button size="sm" variant="outline" onClick={() => void loadActivities()}>
+              <RotateCcw className="mr-2 size-4" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {loading ? (
         <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
           <Skeleton className="h-96" />
           <Skeleton className="h-96" />
         </div>
+      ) : loadFailed && activities.length === 0 ? (
+        <Card className="border-destructive/30" data-testid="activities-load-error">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <AlertTriangle className="mb-3 size-9 text-destructive-text" />
+            <p className="font-semibold">Activities could not be loaded</p>
+            <p className="mt-1 text-sm text-muted-foreground">Your activity collection has not been reported as empty.</p>
+            <Button className="mt-4" variant="outline" onClick={() => void loadActivities()}>
+              <RotateCcw className="mr-2 size-4" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
       ) : !activities.length ? (
         <div className="border-y py-16 text-center">
           <Layers3 className="mx-auto mb-3 size-10 text-muted-foreground" />

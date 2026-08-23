@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system primitive role: implements the reusable Button Group UI primitive.
+ * System connection: exported through @workspace/edu-ds and composed by product-specific web components and pages.
+ */
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 

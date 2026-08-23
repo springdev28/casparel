@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Aspect Ratio in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 import { AspectRatio } from '../../components/ui/aspect-ratio';
 
 export function AspectRatioDemo() {

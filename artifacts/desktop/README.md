@@ -19,8 +19,15 @@ The main process is the only privileged code, and it is deliberately small:
 - No preload bridge. The page has no channel into the OS, so a compromise of
   the web app cannot reach the file system through the shell.
 - Navigation is pinned to the Casparel origin. `target="_blank"`, `window.open`
-  and `will-navigate` to any other origin are handed to the system browser
-  instead of loading inside a window the user trusts as "Casparel".
+  and `will-navigate` to any other HTTP(S) origin are handed to the system
+  browser instead of loading inside a window the user trusts as "Casparel".
+  Unsafe protocols and credential-bearing URLs are ignored.
+- Webviews and drag/drop navigation are disabled. Permission decisions use the
+  requesting frame's origin, so a third-party embed cannot inherit Casparel's
+  limited notification or clipboard access.
+- An embedded-resource failure leaves the main app visible. A main-frame
+  outage shows a local, CSP-constrained “Cannot reach Casparel” page with
+  escaped error text; this shell does not claim offline product functionality.
 - The shell identifies itself with a `CasparelDesktop/<version>` user-agent
   suffix. That is one-way: the web app reads it to stop advertising a download
   to someone already running the app, and nothing more.
@@ -36,6 +43,15 @@ Point it somewhere other than production with `CASPAREL_URL`:
 ```sh
 CASPAREL_URL=http://localhost:5173 pnpm --filter @workspace/desktop dev
 ```
+
+The real-window smoke suite exercises the security and outage boundary:
+
+```sh
+pnpm --filter @workspace/desktop run smoke
+```
+
+It checks embedded and main-frame failures, cross-origin redirects, cold-start
+deep links, approved system-browser handoff, and unsafe-protocol blocking.
 
 ## Building installers
 

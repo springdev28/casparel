@@ -1,3 +1,5 @@
+# @fileOverview: Repository role: implements or configures Deploy Frontend.
+# System connection: see docs/codebase-guide.md and docs/source-file-index.md for its package boundary and consumers.
 name: Deploy to Hostinger
 
 # On this host a single Passenger-managed Node app serves BOTH /api and the

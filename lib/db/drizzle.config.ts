@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Persistence support role: provides Drizzle.Config database connection or migration behavior.
+ * System connection: consumed by the API before handlers query the shared Drizzle schema.
+ */
 import { defineConfig } from "drizzle-kit";
 
 if (!process.env.DATABASE_URL) {

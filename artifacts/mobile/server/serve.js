@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Mobile support role: configures or implements Serve for the Expo application.
+ * System connection: supports native build/runtime behavior and communication with the same API used by web and desktop.
+ */
+/**
  * Standalone production server for Expo static builds.
  *
  * Serves the output of build.js (static-build/) with two special routes:

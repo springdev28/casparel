@@ -1,10 +1,15 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Auth Language Select component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { Languages } from 'lucide-react';
 import { AUTH_LANGUAGES, type AuthLanguage } from '../lib/auth-locale';
 
-export function AuthLanguageSelect({ language, label, onChange }: {
+export function AuthLanguageSelect({ language, label, onChange, languages = AUTH_LANGUAGES }: {
   language: AuthLanguage;
   label: string;
   onChange: (language: AuthLanguage) => void;
+  languages?: readonly { code: AuthLanguage; label: string }[];
 }) {
   return (
     <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
@@ -17,7 +22,7 @@ export function AuthLanguageSelect({ language, label, onChange }: {
         data-testid="language-select"
         className="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        {AUTH_LANGUAGES.map((option) => (
+        {languages.map((option) => (
           <option key={option.code} value={option.code}>{option.label}</option>
         ))}
       </select>

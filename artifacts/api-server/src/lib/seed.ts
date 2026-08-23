@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Backend domain role: centralizes Seed logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
+/**
  * Seed script, run once to populate dev data.
  * Usage: pnpm --filter @workspace/api-server tsx src/lib/seed.ts
  */

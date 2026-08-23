@@ -1,4 +1,8 @@
 /**
+ * @fileOverview Verification role: exercises Entitlements.Test behavior and guards its user-visible or system invariant.
+ * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
+ */
+/**
  * Tests for entitlement helpers:
  *  • isPlanActive , pure predicate over (plan, expiresAt)
  *  • isPremiumAccount, reads the account row and applies isPlanActive

@@ -1,4 +1,8 @@
 /**
+ * @fileOverview API role: implements the Calendar HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
+/**
  * Calendar integration routes.
  *
  * Google Calendar OAuth:
@@ -25,6 +29,14 @@ import {
   studySessionParticipantsTable,
   usersTable,
 } from "@workspace/db";
+import {
+  DownloadCalendarFeedParams,
+  GetCalendarGoogleCallbackQueryParams,
+  GetCalendarGoogleConnectUrlResponse,
+  GetCalendarIcalUrlResponse,
+  GetCalendarStatusResponse,
+  RotateCalendarIcalUrlResponse,
+} from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
@@ -452,24 +464,21 @@ export async function deleteSessionFromGCal(
   }
 }
 
-// ── GET /calendar/status, connection status + iCal secret ────────────────────
+// ── GET /calendar/status, truthful Google connection state ──────────────────
 
 router.get("/calendar/status", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
-  const icalSecret = await ensureCalendarTokenRow(userId);
-
-  const [row] = await db
-    .select({
-      googleAccessToken: calendarTokensTable.googleAccessToken,
-    })
-    .from(calendarTokensTable)
-    .where(eq(calendarTokensTable.userId, userId));
-
-  res.json({
-    googleConnected: Boolean(row?.googleAccessToken),
-    googleConfigured: CAL_CONFIGURED,
-    icalSecret,
-  });
+  // Refreshing here prevents expired or revoked credentials from being shown
+  // as connected merely because an old access-token string still exists.
+  const googleConnected = CAL_CONFIGURED &&
+    Boolean(await getValidCalToken(userId));
+  res.setHeader("Cache-Control", "no-store");
+  res.json(
+    GetCalendarStatusResponse.parse({
+      googleConnected,
+      googleConfigured: CAL_CONFIGURED,
+    }),
+  );
 });
 
 // ── GET /calendar/google/connect, return OAuth URL ──────────────────────────
@@ -496,13 +505,23 @@ router.get("/calendar/google/connect", requireAuth, (req, res): void => {
     state,
   });
 
-  res.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` });
+  res.setHeader("Cache-Control", "no-store");
+  res.json(
+    GetCalendarGoogleConnectUrlResponse.parse({
+      url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+    }),
+  );
 });
 
 // ── GET /calendar/google/callback, handle OAuth callback ────────────────────
 
 router.get("/calendar/google/callback", async (req, res): Promise<void> => {
-  const { code, state, error } = req.query as Record<string, string>;
+  const parsed = GetCalendarGoogleCallbackQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.redirect("/?cal_error=invalid_request");
+    return;
+  }
+  const { code, state, error } = parsed.data;
 
   if (error || !code || !state) {
     res.redirect("/?cal_error=1");
@@ -596,7 +615,12 @@ router.delete("/calendar/google/disconnect", requireAuth, async (req, res): Prom
 // ── GET /calendar/:icalSecret/feed.ics, iCal subscription feed ──────────────
 
 router.get("/calendar/:icalSecret/feed.ics", async (req, res): Promise<void> => {
-  const { icalSecret } = req.params;
+  const parsed = DownloadCalendarFeedParams.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).send("Invalid calendar capability");
+    return;
+  }
+  const { icalSecret } = parsed.data;
 
   const [row] = await db
     .select({ userId: calendarTokensTable.userId })
@@ -675,6 +699,8 @@ router.get("/calendar/:icalSecret/feed.ics", async (req, res): Promise<void> => 
 
   res.setHeader("Content-Type", "text/calendar; charset=utf-8");
   res.setHeader("Content-Disposition", 'attachment; filename="schooler.ics"');
+  res.setHeader("Cache-Control", "private, no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
   res.send(icsContent);
 });
 
@@ -786,7 +812,31 @@ router.get("/calendar/ical-url", requireAuth, async (req, res): Promise<void> =>
 
   // Use host from request to build URL
   const baseUrl = `${req.protocol}://${req.get("host")}/api/calendar/${icalSecret}/feed.ics`;
-  res.json({ url: baseUrl, icalSecret });
+  res.setHeader("Cache-Control", "no-store");
+  res.json(GetCalendarIcalUrlResponse.parse({ url: baseUrl }));
 });
+
+// ── POST /calendar/ical-url/rotate, revoke and replace feed capability ─────
+
+router.post(
+  "/calendar/ical-url/rotate",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const icalSecret = crypto.randomUUID();
+    // The unique userId constraint makes this one atomic upsert. Once it
+    // commits, the previous capability URL immediately returns 404.
+    await db
+      .insert(calendarTokensTable)
+      .values({ userId, icalSecret })
+      .onConflictDoUpdate({
+        target: calendarTokensTable.userId,
+        set: { icalSecret, updatedAt: new Date().toISOString() },
+      });
+    const url = `${req.protocol}://${req.get("host")}/api/calendar/${icalSecret}/feed.ics`;
+    res.setHeader("Cache-Control", "no-store");
+    res.json(RotateCalendarIcalUrlResponse.parse({ url }));
+  },
+);
 
 export default router;

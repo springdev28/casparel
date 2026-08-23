@@ -1,4 +1,8 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+/**
+ * @fileOverview Web UI role: provides the reusable Vanta Background component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 export type VantaStyle = "off" | "net" | "globe" | "halo" | "cells" | "rings" | "topology";
 
@@ -60,9 +64,24 @@ function applyIntensity(instance: VantaInstance, style: VantaStyle, intensity: n
 export default function VantaBackground({ style, intensity }: { style: VantaStyle; intensity: number }) {
   const elementRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<VantaInstance | undefined>(undefined);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
-    if (style === "off" || !elementRef.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduceMotion(media.matches);
+    update();
+    if (media.addEventListener) media.addEventListener("change", update);
+    else media.addListener(update);
+    return () => {
+      if (media.removeEventListener) media.removeEventListener("change", update);
+      else media.removeListener(update);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Re-running this effect on an operating-system preference change destroys
+    // an active animation immediately and can restore it if motion is enabled.
+    if (style === "off" || reduceMotion || !elementRef.current) return;
     let disposed = false;
     let instance: VantaInstance | undefined;
     const initialize = () => {
@@ -108,7 +127,7 @@ export default function VantaBackground({ style, intensity }: { style: VantaStyl
       }
       if (instanceRef.current === instance) instanceRef.current = undefined;
     };
-  }, [style]);
+  }, [style, reduceMotion]);
 
   useEffect(() => {
     if (instanceRef.current) applyIntensity(instanceRef.current, style, intensity);

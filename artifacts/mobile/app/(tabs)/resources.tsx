@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile screen role: defines the Expo Router Resources screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
 import React, { useState } from 'react';
 import {
   FlatList,
@@ -11,15 +15,32 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
-import { useListResources } from '@workspace/api-client-react';
+import {
+  getGetUserPreferencesQueryKey,
+  getListResourcesQueryKey,
+  useGetUserPreferences,
+  useListResources,
+  useUpdateUserPreferences,
+  type UserPreferences,
+} from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { Resource } from '@workspace/api-client-react';
+import { AnimatedPressable } from '@/components/AnimatedPressable';
+import { ErrorState } from '@/components/ErrorState';
+import { storage } from '@/utils/secure-storage';
+import {
+  MOBILE_RESOURCE_SEARCH_STORAGE_KEY,
+  mergeMobileResourceQuery,
+  mobileResourceQuery,
+  storedMobileResourceQuery,
+} from '@/utils/resource-search-state';
+import { mobileOnboardingLearningNeed } from '@/utils/onboarding-state';
 
 function getYouTubeId(url: string): string | null {
   try {
@@ -105,15 +126,15 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
   const showThumb = !!thumb && thumb !== failedThumb;
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
-      style={({ pressed }) => [
+      haptic="selection"
+      style={[
         styles.card,
         {
           backgroundColor: colors.card,
           borderColor: colors.border,
           borderRadius: colors.radius,
-          opacity: pressed ? 0.85 : 1,
         },
       ]}
     >
@@ -185,7 +206,7 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
           </Text>
         </View>
       </View>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -213,9 +234,104 @@ export default function ResourcesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const routeParams = useLocalSearchParams<{ onboarding?: string; goal?: string }>();
+  const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchHydration, setSearchHydration] = useState<'checking-local' | 'waiting-server' | 'ready'>('checking-local');
+  const [syncError, setSyncError] = useState('');
+  const preferencesQuery = useGetUserPreferences();
+  const updatePreferences = useUpdateUserPreferences();
+  const preferencesRef = React.useRef<UserPreferences | null>(null);
+  const syncInFlightRef = React.useRef(false);
+  const pendingSyncRef = React.useRef<string | null>(null);
+  const onboardingGoal = mobileOnboardingLearningNeed(
+    routeParams.onboarding === '1' ? routeParams.goal : null,
+  );
+
+  React.useEffect(() => {
+    if (!onboardingGoal) return;
+    // Tabs may stay mounted while onboarding temporarily owns the root route.
+    // The explicit route intent makes the handoff update in-memory Search as
+    // well as the device snapshot written before navigation.
+    setSearch(onboardingGoal);
+    setDebouncedSearch(onboardingGoal);
+    setSearchHydration('ready');
+  }, [onboardingGoal]);
+
+  React.useEffect(() => {
+    if (!preferencesQuery.data) return;
+    preferencesRef.current = preferencesQuery.data;
+    if (pendingSyncRef.current !== null) void flushPreferenceSync();
+  }, [preferencesQuery.data]);
+
+  React.useEffect(() => {
+    let active = true;
+    void storage.getItemAsync(MOBILE_RESOURCE_SEARCH_STORAGE_KEY).then((value) => {
+      if (!active) return;
+      const restored = storedMobileResourceQuery(value);
+      if (restored !== null) {
+        setSearch(restored);
+        setDebouncedSearch(restored);
+        setSearchHydration('ready');
+      } else {
+        setSearchHydration('waiting-server');
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (searchHydration !== 'waiting-server' || preferencesQuery.isLoading) return;
+    const restored = mobileResourceQuery(preferencesQuery.data?.resourceSearchState) ?? '';
+    setSearch(restored);
+    setDebouncedSearch(restored);
+    setSearchHydration('ready');
+  }, [preferencesQuery.data, preferencesQuery.isLoading, searchHydration]);
+
+  async function flushPreferenceSync() {
+    if (syncInFlightRef.current) return;
+    syncInFlightRef.current = true;
+    try {
+      while (pendingSyncRef.current !== null) {
+        const query = pendingSyncRef.current;
+        pendingSyncRef.current = null;
+        const updated = await updatePreferences.mutateAsync({
+          data: {
+            resourceSearchState: mergeMobileResourceQuery(
+              preferencesRef.current?.resourceSearchState,
+              query,
+            ),
+          },
+        });
+        preferencesRef.current = updated;
+        queryClient.setQueryData(getGetUserPreferencesQueryKey(), updated);
+      }
+      setSyncError('');
+    } catch {
+      // Retain the latest desired value so the visible Retry action can safely
+      // continue the serialized queue without losing local restoration.
+      if (pendingSyncRef.current === null) pendingSyncRef.current = debouncedSearch;
+      setSyncError('Search is saved on this device, but account sync failed.');
+    } finally {
+      syncInFlightRef.current = false;
+    }
+  }
+
+  async function retryPreferenceSync() {
+    if (!preferencesRef.current) {
+      const refreshed = await preferencesQuery.refetch();
+      if (!refreshed.data) {
+        setSyncError('Search is saved on this device, but account sync failed.');
+        return;
+      }
+      preferencesRef.current = refreshed.data;
+    }
+    await flushPreferenceSync();
+  }
 
   const debounceRef = React.useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleSearch = (text: string) => {
@@ -224,9 +340,40 @@ export default function ResourcesScreen() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(text), 400);
   };
 
-  const { data, isLoading, refetch } = useListResources({
-    q: debouncedSearch || undefined,
-  });
+  React.useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+  React.useEffect(() => {
+    if (searchHydration !== 'ready') return;
+    const nextState = mergeMobileResourceQuery(null, debouncedSearch);
+    void storage.setItemAsync(MOBILE_RESOURCE_SEARCH_STORAGE_KEY, JSON.stringify(nextState));
+    pendingSyncRef.current = debouncedSearch;
+    if (preferencesRef.current) {
+      void flushPreferenceSync();
+    } else if (preferencesQuery.isError) {
+      setSyncError('Search is saved on this device, but account sync failed.');
+    }
+  }, [debouncedSearch, preferencesQuery.isError, searchHydration]);
+
+  const resourceParams = { q: debouncedSearch || undefined };
+  const {
+    data,
+    error,
+    isError,
+    isFetching,
+    isLoading,
+    refetch,
+  } = useListResources(
+    resourceParams,
+    {
+      query: {
+        enabled: searchHydration === 'ready',
+        queryKey: getListResourcesQueryKey(resourceParams),
+      },
+    },
+  );
+  // A failed first request has no collection to describe. Keeping this state
+  // separate prevents network/server failures from becoming "No results".
+  const failed = isError && data === undefined;
 
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = async () => {
@@ -262,6 +409,7 @@ export default function ResourcesScreen() {
         >
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
+            editable={searchHydration === 'ready'}
             value={search}
             onChangeText={handleSearch}
             placeholder="Search resources…"
@@ -274,7 +422,12 @@ export default function ResourcesScreen() {
             returnKeyType="search"
           />
           {search.length > 0 && (
-            <Pressable onPress={() => { setSearch(''); setDebouncedSearch(''); }}>
+            <Pressable
+              accessibilityLabel="Clear resource search"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => { setSearch(''); setDebouncedSearch(''); }}
+            >
               <Feather name="x" size={15} color={colors.mutedForeground} />
             </Pressable>
           )}
@@ -287,15 +440,45 @@ export default function ResourcesScreen() {
         >
           Resources
         </Text>
+        {syncError ? (
+          <View
+            accessibilityRole="alert"
+            style={[
+              styles.syncError,
+              { backgroundColor: colors.destructive + '10', borderColor: colors.destructive, borderRadius: colors.radius },
+            ]}
+          >
+            <Text style={{ color: colors.destructiveText, flex: 1, fontFamily: colors.fontFamily.sans }}>
+              {syncError}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                void retryPreferenceSync();
+              }}
+            >
+              <Text style={{ color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold }}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
-      {isLoading ? (
+      {searchHydration !== 'ready' || isLoading ? (
         <FlatList
           data={[1, 2, 3, 4, 5]}
           keyExtractor={(item) => String(item)}
           renderItem={() => <ResourceSkeleton />}
           contentContainerStyle={styles.listContent}
           scrollEnabled={false}
+        />
+      ) : failed ? (
+        <ErrorState
+          error={error}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetch();
+          }}
+          style={styles.errorState}
         />
       ) : (
         <FlatList
@@ -354,6 +537,8 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
+  errorState: { flex: 1 },
+  syncError: { alignItems: 'center', borderWidth: 1, flexDirection: 'row', gap: 10, padding: 10 },
   card: {
     borderWidth: 1,
     padding: 14,

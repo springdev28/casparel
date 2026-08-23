@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Ui Translation Bridge component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useEffect } from "react";
 import { AUTH_LANGUAGE_KEY, type AuthLanguage } from "../lib/auth-locale";
 
@@ -331,6 +335,8 @@ const TR: Record<string, string> = {
   "Learning goal created": "Öğrenme hedefi oluşturuldu",
   "Learning goals": "Öğrenme hedefleri",
   "Learning path": "Öğrenme yolu",
+  "Learning path ready": "Öğrenme yolu hazır",
+  "Creating path…": "Öğrenme yolu oluşturuluyor…",
   "Learning signals": "Öğrenme sinyalleri",
   "LinkedIn": "LinkedIn",
   "List": "Liste",
@@ -443,6 +449,7 @@ const TR: Record<string, string> = {
   "Resource removed from library.": "Kaynak kütüphaneden kaldırıldı.",
   "Resource submitted!": "Kaynak gönderildi!",
   "Resources": "Kaynaklar",
+  "Lists shared with you could not be loaded.": "Sizinle paylaşılan listeler yüklenemedi.",
   "Resume a goal to show its path.": "Yolunu göstermek için bir hedefi sürdürün.",
   "Retry": "Tekrar dene",
   "Review": "Değerlendir",
@@ -459,6 +466,7 @@ const TR: Record<string, string> = {
   "Saved to library!": "Kütüphaneye kaydedildi!",
   "Saving the layout is still required.": "Düzenin ayrıca kaydedilmesi gerekir.",
   "Schedule": "Program",
+  "Shared lists are shown, but the latest update could not be loaded.": "Paylaşılan listeler gösteriliyor ancak son güncelleme yüklenemedi.",
   "Schedule a collaborative session with classmates or people you follow": "Sınıf arkadaşlarınızla veya takip ettiğiniz kişilerle ortak çalışma oturumu planlayın",
   "Casparel accounts": "Casparel hesapları",
   "Casparel could not load": "Casparel yüklenemedi",
@@ -504,6 +512,7 @@ const TR: Record<string, string> = {
   "Student recommendations": "Öğrenci önerileri",
   "Students": "Öğrenciler",
   "Students can now see this list on the class page.": "Öğrenciler artık bu listeyi sınıf sayfasında görebilir.",
+  "The ordered resources are now actionable steps in your learning goals.": "Sıralanmış kaynaklar artık öğrenme hedeflerinizde uygulanabilir adımlar olarak yer alıyor.",
   "Study session created!": "Çalışma oturumu oluşturuldu!",
   "Subject": "Konu",
   "Subject or interest…": "Konu veya ilgi alanı…",
@@ -573,30 +582,112 @@ const TR: Record<string, string> = {
   "You left the class": "Sınıftan ayrıldınız",
   "You will lose access to class resources. Class owners must have another teacher available for ownership transfer.": "Sınıf kaynaklarına erişiminizi kaybedeceksiniz. Sınıf sahiplerinin devri alabilecek başka bir öğretmeni olmalıdır.",
   "You're not in any classes yet.": "Henüz hiçbir sınıfta değilsiniz.",
+  "Enter a real topic, question, or skill. Casparel will help you find a useful starting point.": "Gerçek bir konu, soru veya beceri girin. Casparel yararlı bir başlangıç noktası bulmanıza yardımcı olur.",
+  "Try “learn derivatives from scratch”…": "“Türevleri sıfırdan öğren” yazmayı deneyin…",
+  "What do you genuinely need to learn?": "Gerçekten ne öğrenmeniz gerekiyor?",
   "Your checklist is ready.": "Kontrol listeniz hazır.",
+  "Your data has not been reported as empty. Try the request again.": "Verileriniz boş olarak gösterilmedi. İsteği yeniden deneyin.",
   "Your expressive avatar is now your profile picture.": "Seçtiğiniz avatar artık profil resminiz.",
+  "Your first useful step": "İlk yararlı adımınız",
   "Your Google Classroom connection has expired or been revoked. Reconnect to continue importing courses.": "Google Classroom bağlantınızın süresi doldu veya bağlantı iptal edildi. Dersleri içe aktarmaya devam etmek için yeniden bağlanın.",
   "Your Google Classroom connection has expired or been revoked. Reconnect to share resource lists.": "Google Classroom bağlantınızın süresi doldu veya bağlantı iptal edildi. Kaynak listelerini paylaşmak için yeniden bağlanın.",
   "YOUR LEARNING JOURNEY": "ÖĞRENME YOLCULUĞUNUZ",
   "Your name": "Adınız",
+  "Your lists could not be loaded.": "Listeleriniz yüklenemedi.",
   "Your path": "Yolunuz",
   "Your path adapted after yesterday's reflection. Here's the best next step.": "Yolunuz dünkü değerlendirmenize göre uyarlandı. İşte en iyi sonraki adım.",
   "Your path is empty": "Yolunuz boş",
   "Your rating": "Puanınız",
+  "Your saved lists are shown, but the latest update could not be loaded.": "Kaydedilmiş listeleriniz gösteriliyor ancak son güncelleme yüklenemedi.",
   "Your teacher must approve this suggestion before it appears in class resources.": "Bu önerinin sınıf kaynaklarında görünmesi için öğretmeninizin onaylaması gerekir.",
   "Your teacher was notified and can approve it.": "Öğretmeninize bildirim gönderildi ve öneriyi onaylayabilir.",
+  "Turn into Learning Path": "Öğrenme yoluna dönüştür",
+  "Your learning dashboard could not be loaded.": "Öğrenme ana sayfanız yüklenemedi.",
+  "Class learning evidence could not be loaded.": "Sınıf öğrenme kanıtları yüklenemedi.",
+  "Your account workspace could not be loaded.": "Hesap çalışma alanınız yüklenemedi.",
+  "The server did not return dashboard data.": "Sunucu ana sayfa verilerini döndürmedi.",
+  "Saved dashboard data is shown, but the latest update could not be loaded.": "Kaydedilmiş ana sayfa verileri gösteriliyor ancak son güncelleme yüklenemedi.",
+  "Saved class evidence is shown, but the latest update could not be loaded.": "Kaydedilmiş sınıf kanıtları gösteriliyor ancak son güncelleme yüklenemedi.",
+  "Your selected resources could not be loaded": "Seçtiğiniz kaynaklar yüklenemedi",
+  "Study resources could not be loaded.": "Çalışma kaynakları yüklenemedi.",
+  "Your resource selection has not been reported as empty.": "Kaynak seçiminiz boş olarak gösterilmedi.",
+  "Saved study resources are shown, but the latest update could not be loaded.": "Kaydedilmiş çalışma kaynakları gösteriliyor ancak son güncelleme yüklenemedi.",
+  "Your latest check-in and active goal shape what appears next.": "En son kontrolünüz ve etkin hedefiniz sırada neyin görüneceğini belirler.",
+  "Choose a goal and complete a check-in to start building learning evidence.": "Öğrenme kanıtı oluşturmaya başlamak için bir hedef seçin ve kontrolü tamamlayın.",
+  "Review the learning signals collected from your classes.": "Sınıflarınızdan toplanan öğrenme sinyallerini inceleyin.",
+  "Learning signals will appear after learners complete check-ins.": "Öğrenciler kontrolleri tamamladıktan sonra öğrenme sinyalleri görünecek.",
+  "No learning signals yet": "Henüz öğrenme sinyali yok",
+  "This is a real empty state. Signals appear when learners in your classes submit check-ins.": "Bu gerçek bir boş durumdur. Sınıflarınızdaki öğrenciler kontrollerini gönderdiğinde sinyaller görünür.",
+  "No recommendation yet": "Henüz öneri yok",
+  "Casparel will suggest a next move after real learner evidence is available.": "Gerçek öğrenci kanıtları mevcut olduğunda Casparel bir sonraki adımı önerecek.",
+  "Review class evidence": "Sınıf kanıtlarını incele",
+  "Open classes": "Sınıfları aç",
+  "Could not update the learning path": "Öğrenme yolu güncellenemedi",
+  "Learners": "Öğrenciler",
+  "Average": "Ortalama",
+  "Stalled": "Takılan",
+  "Accounts with learner activity": "Öğrenme etkinliği olan hesaplar",
+  "Accounts with educator capability": "Eğitimci yetkisi olan hesaplar",
+  "Accounts that learn and teach": "Hem öğrenen hem öğreten hesaplar",
+  "Active class owners · 30d": "Etkin sınıf sahipleri · 30 gün",
+  "Learners enrolled in classes": "Sınıflara kayıtlı öğrenciler",
+  "Capabilities": "Yetkinlikler",
+  "Learner": "Öğrenci",
+  "Educator": "Eğitimci",
+  "Platform authority": "Platform yetkisi",
+  "Active workspace": "Etkin çalışma alanı",
+  "Educator capability": "Eğitimci yetkisi",
+  "Allows teaching tools independently of the active workspace.": "Etkin çalışma alanından bağımsız olarak öğretim araçlarına izin verir.",
+  "Standard account": "Standart hesap",
+  "Legacy educator account": "Eski eğitimci hesabı",
+  "Publishing verification": "Yayınlama doğrulaması",
+  "Implicitly trusted": "Doğal olarak güvenilir",
+  "Verify publisher": "Yayıncıyı doğrula",
+  "Books & textbooks": "Kitaplar ve ders kitapları",
+  "Courses": "Kurslar",
+  "Explanations": "Konu anlatımları",
+  "Interactives": "Etkileşimli içerikler",
+  "Learning material": "Öğrenme materyali",
+  "Material: all": "Materyal: tümü",
+  "Primary sources": "Birincil kaynaklar",
+  "Reference": "Başvuru kaynakları",
+  "Research papers": "Araştırma makaleleri",
+  "Videos & audio": "Video ve ses",
   "Zoom": "Yakınlaştır",
   "active": "etkin",
   "admin": "yönetici",
+  "book": "kitap",
   "completed": "tamamlandı",
+  "course": "kurs",
+  "explanation": "konu anlatımı",
+  "interactive": "etkileşimli",
+  "other": "diğer",
+  "paper": "makale",
   "paused": "duraklatıldı",
+  "practice": "alıştırma",
+  "primary source": "birincil kaynak",
+  "reference": "başvuru",
+  "repository": "arşiv",
   "student": "öğrenci",
   "teacher": "öğretmen",
+  "video": "video",
 };
 
 const TEXT_ORIGINALS = new WeakMap<Text, string>();
 const ATTRIBUTE_ORIGINALS = new WeakMap<Element, Map<string, string>>();
 const TRANSLATED_ATTRIBUTES = ["aria-label", "placeholder", "title", "alt"] as const;
+const TRANSLATION_EXCLUSION =
+  "script, style, textarea, [contenteditable='true'], [translate='no'], [data-user-content], [data-no-translate]";
+
+/**
+ * User-authored and external text must retain its source language. Components
+ * mark those leaves with one of the exclusion attributes; descendants inherit
+ * the protection so rich content can opt out with a single wrapper.
+ */
+function isTranslationExcluded(node: Node) {
+  const element = node instanceof Element ? node : node.parentElement;
+  return Boolean(element?.closest(TRANSLATION_EXCLUSION));
+}
 
 function currentLanguage(): AuthLanguage {
   try {
@@ -620,6 +711,9 @@ function translateValue(value: string, language: AuthLanguage): string {
     [/^(\d+) views$/, (count) => `${count} görüntülenme`],
     [/^(\d+) likes$/, (count) => `${count} beğeni`],
     [/^(\d+) comments$/, (count) => `${count} yorum`],
+    [/^(\d+) learners? · (.+)$/, (count, concept) => `${count} öğrenci · ${concept}`],
+    [/^Review (.+)$/, (concept) => `${concept} konusunu inceleyin`],
+    [/^(\d+) library resources? selected for this goal$/, (count) => `Bu hedef için ${count} kütüphane kaynağı seçildi`],
   ];
   for (const [pattern, replacement] of patterns) {
     const match = pattern.exec(key);
@@ -629,6 +723,7 @@ function translateValue(value: string, language: AuthLanguage): string {
 }
 
 function translateText(node: Text, language: AuthLanguage) {
+  if (isTranslationExcluded(node)) return;
   let source = TEXT_ORIGINALS.get(node);
   if (source === undefined) {
     source = node.data;
@@ -645,6 +740,7 @@ function translateText(node: Text, language: AuthLanguage) {
 }
 
 function translateAttributes(element: Element, language: AuthLanguage) {
+  if (isTranslationExcluded(element)) return;
   let originals = ATTRIBUTE_ORIGINALS.get(element);
   if (!originals) {
     originals = new Map();
@@ -670,20 +766,20 @@ function translateAttributes(element: Element, language: AuthLanguage) {
 }
 
 function translateSubtree(root: Node, language: AuthLanguage) {
+  if (isTranslationExcluded(root)) return;
   if (root instanceof Text) {
     translateText(root, language);
     return;
   }
   if (!(root instanceof Element)) return;
   translateAttributes(root, language);
-  if (root.matches("script, style, textarea, [contenteditable='true']")) return;
   const walker = document.createTreeWalker(
     root,
     NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
   );
   let node = walker.nextNode();
   while (node) {
-    if (node instanceof Text && !(node.parentElement?.matches("script, style, textarea, [contenteditable='true']"))) translateText(node, language);
+    if (node instanceof Text) translateText(node, language);
     else if (node instanceof Element) translateAttributes(node, language);
     node = walker.nextNode();
   }

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Server integration role: implements Client for trusted backend access to OpenAI-backed capabilities.
+ * System connection: used behind API boundaries so credentials and provider operations never move into browser code.
+ */
 import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
 import { spawn } from "child_process";

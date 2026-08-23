@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile UI role: provides the reusable Source Review Section component.
+ * System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required.
+ */
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';

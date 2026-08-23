@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Goals Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import {
@@ -17,6 +21,8 @@ import {
   Target,
   Trash2,
   Users,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
@@ -118,15 +124,38 @@ export default function GoalsPage() {
   const updateAccountPreferences = useUpdateUserPreferences();
   const [dashboardGoalId, setDashboardGoal] = useState<number | null>(null);
   const isTeacher = workspaceRole === UserRole.teacher;
-  const { data: classes } = useListClasses({ query: { enabled: isTeacher, queryKey: getListClassesQueryKey() } });
-  const teacherClasses = (classes ?? []).filter((item) => item.teacherId === me?.id);
+  const { data: classes } = useListClasses({
+    query: { enabled: isTeacher, queryKey: getListClassesQueryKey() },
+  });
+  const teacherClasses = (classes ?? []).filter(
+    (item) => item.teacherId === me?.id,
+  );
   const [managedClassId, setManagedClassId] = useState(0);
-  useEffect(() => { if (!managedClassId && teacherClasses[0]) setManagedClassId(teacherClasses[0].id); }, [managedClassId, teacherClasses]);
-  const { data: studentGoals, isLoading: studentGoalsLoading } = useListClassStudentGoals(managedClassId, { query: { enabled: isTeacher && managedClassId > 0, queryKey: getListClassStudentGoalsQueryKey(managedClassId) } });
+  useEffect(() => {
+    if (!managedClassId && teacherClasses[0])
+      setManagedClassId(teacherClasses[0].id);
+  }, [managedClassId, teacherClasses]);
+  const {
+    data: studentGoals,
+    isLoading: studentGoalsLoading,
+    isError: studentGoalsError,
+    refetch: refetchStudentGoals,
+  } =
+    useListClassStudentGoals(managedClassId, {
+      query: {
+        enabled: isTeacher && managedClassId > 0,
+        queryKey: getListClassStudentGoalsQueryKey(managedClassId),
+      },
+    });
   const updateStudentGoal = useUpdateClassStudentGoal();
-  async function manageStudentGoal(goalId: number, data: { status?: LearningGoalStatus; targetDate?: string | null }) {
+  async function manageStudentGoal(
+    goalId: number,
+    data: { status?: LearningGoalStatus; targetDate?: string | null },
+  ) {
     await updateStudentGoal.mutateAsync({ id: managedClassId, goalId, data });
-    await client.invalidateQueries({ queryKey: getListClassStudentGoalsQueryKey(managedClassId) });
+    await client.invalidateQueries({
+      queryKey: getListClassStudentGoalsQueryKey(managedClassId),
+    });
     toast({ title: "Student goal updated" });
   }
   useEffect(() => {
@@ -143,11 +172,12 @@ export default function GoalsPage() {
         },
       });
   }, [accountPreferences, me?.id, workspaceRole]);
-  const { data: goals, isLoading } = useListLearningGoals({
+  const { data: goals, isLoading, isError: goalsError, refetch: refetchGoals } = useListLearningGoals({
     query: { queryKey: getListLearningGoalsQueryKey() },
   });
   const [communityPaths, setCommunityPaths] = useState<CommunityPath[]>([]);
   const [communityPathsLoading, setCommunityPathsLoading] = useState(false);
+  const [communityPathsError, setCommunityPathsError] = useState(false);
   const [sharingGoalId, setSharingGoalId] = useState<number | null>(null);
   const [cloningPathId, setCloningPathId] = useState<number | null>(null);
   const libraryParams = { limit: 50, offset: 0 };
@@ -165,11 +195,13 @@ export default function GoalsPage() {
   async function refreshCommunityPaths() {
     if (!me?.id) return;
     setCommunityPathsLoading(true);
+    setCommunityPathsError(false);
     try {
       const response = await fetch("/api/learning-goal-templates");
       if (!response.ok) throw new Error("Could not load community paths");
       setCommunityPaths((await response.json()) as CommunityPath[]);
     } catch (error) {
+      setCommunityPathsError(true);
       toast({
         title: "Could not load community paths",
         description:
@@ -184,7 +216,9 @@ export default function GoalsPage() {
   useEffect(() => {
     if (me?.id) void refreshCommunityPaths();
   }, [me?.id]);
-  const [newStepTitles, setNewStepTitles] = useState<Record<number, string>>({});
+  const [newStepTitles, setNewStepTitles] = useState<Record<number, string>>(
+    {},
+  );
   const [form, setForm] = useState({
     title: "",
     subject: "",
@@ -275,7 +309,10 @@ export default function GoalsPage() {
     } catch (error) {
       toast({
         title: "Could not update goal",
-        description: error instanceof Error ? error.message : "Please check the form and try again.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Please check the form and try again.",
         variant: "destructive",
       });
     }
@@ -298,22 +335,42 @@ export default function GoalsPage() {
   async function renameStep(goal: LearningGoal, stepId: string, title: string) {
     const cleanTitle = title.trim();
     if (!cleanTitle) return;
-    await patch(goal.id, { pathSteps: goal.pathSteps.map((step) => step.id === stepId ? { ...step, title: cleanTitle, query: cleanTitle } : step) });
+    await patch(goal.id, {
+      pathSteps: goal.pathSteps.map((step) =>
+        step.id === stepId
+          ? { ...step, title: cleanTitle, query: cleanTitle }
+          : step,
+      ),
+    });
   }
   async function addStep(goal: LearningGoal) {
     const title = newStepTitles[goal.id]?.trim();
     if (!title) return;
-    await patch(goal.id, { pathSteps: [...goal.pathSteps, { id: crypto.randomUUID(), title, query: title, completed: false }] });
+    await patch(goal.id, {
+      pathSteps: [
+        ...goal.pathSteps,
+        { id: crypto.randomUUID(), title, query: title, completed: false },
+      ],
+    });
     setNewStepTitles((current) => ({ ...current, [goal.id]: "" }));
   }
   async function deleteStep(goal: LearningGoal, stepId: string) {
-    await patch(goal.id, { pathSteps: goal.pathSteps.filter((step) => step.id !== stepId) });
+    await patch(goal.id, {
+      pathSteps: goal.pathSteps.filter((step) => step.id !== stepId),
+    });
   }
-  async function moveStep(goal: LearningGoal, index: number, direction: -1 | 1) {
+  async function moveStep(
+    goal: LearningGoal,
+    index: number,
+    direction: -1 | 1,
+  ) {
     const target = index + direction;
     if (target < 0 || target >= goal.pathSteps.length) return;
     const pathSteps = [...goal.pathSteps];
-    [pathSteps[index], pathSteps[target]] = [pathSteps[target], pathSteps[index]];
+    [pathSteps[index], pathSteps[target]] = [
+      pathSteps[target],
+      pathSteps[index],
+    ];
     await patch(goal.id, { pathSteps });
   }
   async function remove(id: number) {
@@ -425,8 +482,10 @@ export default function GoalsPage() {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download =
-      goal.title.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") +
-      "-study-pack.html";
+      goal.title
+        .toLocaleLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") + "-study-pack.html";
     anchor.click();
     URL.revokeObjectURL(url);
     toast({
@@ -444,7 +503,8 @@ export default function GoalsPage() {
             Learning goals
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Each goal builds a path you can complete, or undo, one step at a time.
+            Each goal builds a path you can complete, or undo, one step at a
+            time.
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
@@ -561,82 +621,234 @@ export default function GoalsPage() {
         </Dialog>
       </div>
 
-      <Dialog open={Boolean(editingGoal)} onOpenChange={(next) => { if (!next) setEditingGoal(null); }}>
+      <Dialog
+        open={Boolean(editingGoal)}
+        onOpenChange={(next) => {
+          if (!next) setEditingGoal(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit learning goal</DialogTitle>
-            <DialogDescription>Update the outcome, subject, level, date, or context.</DialogDescription>
+            <DialogDescription>
+              Update the outcome, subject, level, date, or context.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitEdit} className="space-y-4">
             <div>
               <Label htmlFor="edit-goal-title">Outcome</Label>
-              <Input id="edit-goal-title" value={editForm.title} onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} minLength={2} maxLength={160} required />
+              <Input
+                id="edit-goal-title"
+                value={editForm.title}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                minLength={2}
+                maxLength={160}
+                required
+              />
             </div>
             <div>
               <Label htmlFor="edit-goal-subject">Subject</Label>
-              <Input id="edit-goal-subject" value={editForm.subject} onChange={(event) => setEditForm((current) => ({ ...current, subject: event.target.value }))} required />
+              <Input
+                id="edit-goal-subject"
+                value={editForm.subject}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    subject: event.target.value,
+                  }))
+                }
+                required
+              />
             </div>
             <div>
               <Label>Current level</Label>
-              <Select value={editForm.level} onValueChange={(level) => setEditForm((current) => ({ ...current, level: level as LearningGoalInputLevel }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={editForm.level}
+                onValueChange={(level) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    level: level as LearningGoalInputLevel,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={LearningGoalInputLevel.beginner}>Beginner</SelectItem>
-                  <SelectItem value={LearningGoalInputLevel.intermediate}>Intermediate</SelectItem>
-                  <SelectItem value={LearningGoalInputLevel.advanced}>Advanced</SelectItem>
+                  <SelectItem value={LearningGoalInputLevel.beginner}>
+                    Beginner
+                  </SelectItem>
+                  <SelectItem value={LearningGoalInputLevel.intermediate}>
+                    Intermediate
+                  </SelectItem>
+                  <SelectItem value={LearningGoalInputLevel.advanced}>
+                    Advanced
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label htmlFor="edit-goal-date">Target date <span className="text-muted-foreground">(optional)</span></Label>
-              <Input id="edit-goal-date" type="date" value={editForm.targetDate} onChange={(event) => setEditForm((current) => ({ ...current, targetDate: event.target.value }))} />
+              <Label htmlFor="edit-goal-date">
+                Target date{" "}
+                <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="edit-goal-date"
+                type="date"
+                value={editForm.targetDate}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    targetDate: event.target.value,
+                  }))
+                }
+              />
             </div>
             <div>
-              <Label htmlFor="edit-goal-description">Context <span className="text-muted-foreground">(optional)</span></Label>
-              <Textarea id="edit-goal-description" value={editForm.description} onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))} maxLength={1000} />
+              <Label htmlFor="edit-goal-description">
+                Context{" "}
+                <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Textarea
+                id="edit-goal-description"
+                value={editForm.description}
+                onChange={(event) =>
+                  setEditForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                maxLength={1000}
+              />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditingGoal(null)}>Cancel</Button>
-              <Button type="submit" disabled={updateGoal.isPending}>{updateGoal.isPending ? "Saving…" : "Save changes"}</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingGoal(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateGoal.isPending}>
+                {updateGoal.isPending ? "Saving…" : "Save changes"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
       {isTeacher && (
-        <section className="rounded-xl border bg-card p-4" data-testid="manage-student-goals">
+        <section
+          className="rounded-xl border bg-card p-4"
+          data-testid="manage-student-goals"
+        >
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="flex items-center gap-2 font-semibold"><Users className="size-4 text-primary-text" /> Manage students&apos; goals</h2>
-              <p className="text-xs text-muted-foreground">Review and update goals for students in your classes.</p>
+              <h2 className="flex items-center gap-2 font-semibold">
+                <Users className="size-4 text-primary-text" /> Manage
+                students&apos; goals
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Review and update goals for students in your classes.
+              </p>
             </div>
-            <Select value={managedClassId ? String(managedClassId) : ""} onValueChange={(value) => setManagedClassId(Number(value))}>
-              <SelectTrigger className="w-56"><SelectValue placeholder="Select a class" /></SelectTrigger>
-              <SelectContent>{teacherClasses.map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>)}</SelectContent>
+            <Select
+              value={managedClassId ? String(managedClassId) : ""}
+              onValueChange={(value) => setManagedClassId(Number(value))}
+            >
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Select a class" />
+              </SelectTrigger>
+              <SelectContent>
+                {teacherClasses.map((item) => (
+                  <SelectItem key={item.id} value={String(item.id)}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
-          {studentGoalsLoading ? <Skeleton className="h-24 w-full" /> : !(studentGoals as StudentLearningGoal[] | undefined)?.length ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No student goals in this class yet.</p>
+          {studentGoalsLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : studentGoalsError && studentGoals === undefined ? (
+            <div className="rounded-lg border border-destructive/30 p-6 text-center" data-testid="student-goals-load-error">
+              <AlertTriangle className="mx-auto mb-2 size-7 text-destructive-text" />
+              <p className="font-medium">Student goals could not be loaded</p>
+              <Button className="mt-3" size="sm" variant="outline" onClick={() => void refetchStudentGoals()}>
+                <RotateCcw className="mr-2 size-4" /> Retry
+              </Button>
+            </div>
+          ) : !(studentGoals as StudentLearningGoal[] | undefined)?.length ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No student goals in this class yet.
+            </p>
           ) : (
-            <div className="space-y-2">{(studentGoals as StudentLearningGoal[]).map((goal) => (
-              <div key={goal.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-                <div><p className="text-sm font-medium">{goal.title}</p><p className="text-xs text-muted-foreground">{goal.studentName} · {goal.subject}</p></div>
-                <div className="flex items-center gap-2">
-                  <Select value={goal.status} onValueChange={(status) => manageStudentGoal(goal.id, { status: status as LearningGoalStatus })}>
-                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value={LearningGoalStatus.active}>Active</SelectItem><SelectItem value={LearningGoalStatus.paused}>Paused</SelectItem><SelectItem value={LearningGoalStatus.completed}>Completed</SelectItem></SelectContent>
-                  </Select>
-                  <Input className="w-36" type="date" value={goal.targetDate ?? ""} onChange={(event) => manageStudentGoal(goal.id, { targetDate: event.target.value || null })} />
+            <div className="space-y-2">
+              {(studentGoals as StudentLearningGoal[]).map((goal) => (
+                <div
+                  key={goal.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{goal.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {goal.studentName} · {goal.subject}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={goal.status}
+                      onValueChange={(status) =>
+                        manageStudentGoal(goal.id, {
+                          status: status as LearningGoalStatus,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={LearningGoalStatus.active}>
+                          Active
+                        </SelectItem>
+                        <SelectItem value={LearningGoalStatus.paused}>
+                          Paused
+                        </SelectItem>
+                        <SelectItem value={LearningGoalStatus.completed}>
+                          Completed
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      className="w-36"
+                      type="date"
+                      value={goal.targetDate ?? ""}
+                      onChange={(event) =>
+                        manageStudentGoal(goal.id, {
+                          targetDate: event.target.value || null,
+                        })
+                      }
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}</div>
+              ))}
+            </div>
           )}
         </section>
       )}
-      <section className="space-y-4 border-y py-5" data-testid="community-study-paths">
+      <section
+        className="space-y-4 border-y py-5"
+        data-testid="community-study-paths"
+      >
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Share2 className="size-5 text-primary-text" /> Community study paths
+            <Share2 className="size-5 text-primary-text" /> Community study
+            paths
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Reuse checklists shared by students and teachers, then personalize
@@ -648,6 +860,15 @@ export default function GoalsPage() {
             {[1, 2, 3].map((item) => (
               <Skeleton key={item} className="h-48" />
             ))}
+          </div>
+        ) : communityPathsError ? (
+          <div className="border-y py-8 text-center" data-testid="community-paths-load-error">
+            <AlertTriangle className="mx-auto mb-2 size-7 text-destructive-text" />
+            <p className="font-medium">Community paths could not be loaded</p>
+            <p className="mt-1 text-sm text-muted-foreground">This request failed; the community library has not been reported as empty.</p>
+            <Button className="mt-3" size="sm" variant="outline" onClick={() => void refreshCommunityPaths()}>
+              <RotateCcw className="mr-2 size-4" /> Retry
+            </Button>
           </div>
         ) : communityPaths.length ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -674,7 +895,9 @@ export default function GoalsPage() {
                   <ol className="space-y-1 text-sm">
                     {path.pathSteps.slice(0, 4).map((step, index) => (
                       <li key={step.id} className="flex gap-2">
-                        <span className="text-muted-foreground">{index + 1}.</span>
+                        <span className="text-muted-foreground">
+                          {index + 1}.
+                        </span>
                         <span className="line-clamp-1">{step.title}</span>
                       </li>
                     ))}
@@ -708,6 +931,15 @@ export default function GoalsPage() {
             <Skeleton key={item} className="h-80 rounded-xl" />
           ))}
         </div>
+      ) : goalsError && goals === undefined ? (
+        <div className="rounded-xl border border-destructive/30 py-12 text-center" data-testid="goals-load-error">
+          <AlertTriangle className="mx-auto mb-3 size-9 text-destructive-text" />
+          <p className="font-semibold">Your learning goals could not be loaded</p>
+          <p className="mt-1 text-sm text-muted-foreground">Your path has not been reported as empty.</p>
+          <Button className="mt-4" variant="outline" onClick={() => void refetchGoals()}>
+            <RotateCcw className="mr-2 size-4" /> Retry
+          </Button>
+        </div>
       ) : !goals?.length ? (
         <div className="rounded-xl border border-dashed py-16 text-center">
           <Target className="mx-auto mb-3 size-10 text-muted-foreground/40" />
@@ -726,6 +958,7 @@ export default function GoalsPage() {
             return (
               <Card
                 key={goal.id}
+                data-testid="goal-card"
                 className={
                   goal.status === LearningGoalStatus.completed
                     ? "opacity-70"
@@ -768,8 +1001,41 @@ export default function GoalsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant={dashboardGoalId === goal.id ? "default" : "outline"} onClick={() => { if (!me?.id || !workspaceRole) return; setDashboardGoalId(me.id, workspaceRole, goal.id); setDashboardGoal(goal.id); updateAccountPreferences.mutate({ dashboardGoalIds: { ...(accountPreferences?.dashboardGoalIds ?? {}), [workspaceRole]: goal.id } }); toast({ title: "Dashboard goal updated", description: goal.title + " will drive your dashboard and check-ins." }); }}><LayoutDashboard className="mr-2 size-4" />{dashboardGoalId === goal.id ? "Displayed on dashboard" : "Display on dashboard"}</Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => downloadStudyPack(goal)}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        dashboardGoalId === goal.id ? "default" : "outline"
+                      }
+                      onClick={() => {
+                        if (!me?.id || !workspaceRole) return;
+                        setDashboardGoalId(me.id, workspaceRole, goal.id);
+                        setDashboardGoal(goal.id);
+                        updateAccountPreferences.mutate({
+                          dashboardGoalIds: {
+                            ...(accountPreferences?.dashboardGoalIds ?? {}),
+                            [workspaceRole]: goal.id,
+                          },
+                        });
+                        toast({
+                          title: "Dashboard goal updated",
+                          description:
+                            goal.title +
+                            " will drive your dashboard and check-ins.",
+                        });
+                      }}
+                    >
+                      <LayoutDashboard className="mr-2 size-4" />
+                      {dashboardGoalId === goal.id
+                        ? "Displayed on dashboard"
+                        : "Display on dashboard"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadStudyPack(goal)}
+                    >
                       <Download className="mr-2 size-4" /> Download study pack
                     </Button>
                     <Button
@@ -805,19 +1071,117 @@ export default function GoalsPage() {
                     </div>
                     <div className="space-y-1">
                       {goal.pathSteps.map((step, index) => (
-                        <div key={step.id} className="flex items-center gap-1.5">
-                          <button type="button" aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`} onClick={() => toggleStep(goal, step.id)} className={cn("flex size-7 shrink-0 items-center justify-center rounded border", step.completed && "bg-emerald-600 text-white")}>
+                        <div
+                          key={step.id}
+                          className="flex items-center gap-1.5"
+                        >
+                          <button
+                            type="button"
+                            aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`}
+                            onClick={() => toggleStep(goal, step.id)}
+                            className={cn(
+                              "flex size-7 shrink-0 items-center justify-center rounded border",
+                              step.completed && "bg-emerald-600 text-white",
+                            )}
+                            data-testid="goal-step-toggle"
+                          >
                             {step.completed && <Check size={14} />}
                           </button>
-                          <Input defaultValue={step.title} key={`${step.id}:${step.title}`} aria-label={`Rename ${step.title}`} className={cn("h-8 min-w-0 flex-1 text-sm", step.completed && "text-muted-foreground line-through")} onBlur={(event) => { if (event.currentTarget.value.trim() !== step.title) void renameStep(goal, step.id, event.currentTarget.value); }} />
-                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === 0} onClick={() => moveStep(goal, index, -1)} aria-label={`Move ${step.title} up`}><ArrowUp size={14} /></Button>
-                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === goal.pathSteps.length - 1} onClick={() => moveStep(goal, index, 1)} aria-label={`Move ${step.title} down`}><ArrowDown size={14} /></Button>
-                          <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive-text" onClick={() => deleteStep(goal, step.id)} aria-label={`Delete ${step.title}`}><Trash2 size={14} /></Button>
+                          <Input
+                            defaultValue={step.title}
+                            key={`${step.id}:${step.title}`}
+                            aria-label={`Rename ${step.title}`}
+                            className={cn(
+                              "h-8 min-w-0 flex-1 text-sm",
+                              step.completed &&
+                                "text-muted-foreground line-through",
+                            )}
+                            onBlur={(event) => {
+                              if (
+                                event.currentTarget.value.trim() !== step.title
+                              )
+                                void renameStep(
+                                  goal,
+                                  step.id,
+                                  event.currentTarget.value,
+                                );
+                            }}
+                          />
+                          {step.resourceId && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              asChild
+                            >
+                              <Link
+                                href={`/resources/${step.resourceId}`}
+                                aria-label={`Open ${step.title}`}
+                              >
+                                <BookOpen size={14} />
+                              </Link>
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            disabled={index === 0}
+                            onClick={() => moveStep(goal, index, -1)}
+                            aria-label={`Move ${step.title} up`}
+                          >
+                            <ArrowUp size={14} />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            disabled={index === goal.pathSteps.length - 1}
+                            onClick={() => moveStep(goal, index, 1)}
+                            aria-label={`Move ${step.title} down`}
+                          >
+                            <ArrowDown size={14} />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-destructive-text"
+                            onClick={() => deleteStep(goal, step.id)}
+                            aria-label={`Delete ${step.title}`}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
                         </div>
                       ))}
-                      <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); void addStep(goal); }}>
-                        <Input value={newStepTitles[goal.id] ?? ""} onChange={(event) => setNewStepTitles((current) => ({ ...current, [goal.id]: event.target.value }))} placeholder="Add a path step…" aria-label={`Add step to ${goal.title}`} />
-                        <Button type="submit" size="sm" disabled={!newStepTitles[goal.id]?.trim()}><Plus className="mr-1 size-4" /> Add</Button>
+                      <form
+                        className="mt-2 flex gap-2"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void addStep(goal);
+                        }}
+                      >
+                        <Input
+                          value={newStepTitles[goal.id] ?? ""}
+                          onChange={(event) =>
+                            setNewStepTitles((current) => ({
+                              ...current,
+                              [goal.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="Add a path step…"
+                          aria-label={`Add step to ${goal.title}`}
+                        />
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={!newStepTitles[goal.id]?.trim()}
+                        >
+                          <Plus className="mr-1 size-4" /> Add
+                        </Button>
                       </form>
                     </div>
                   </div>

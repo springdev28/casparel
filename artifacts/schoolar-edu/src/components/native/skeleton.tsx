@@ -1,7 +1,13 @@
+/**
+ * @fileOverview Design-system role: implements or demonstrates Skeleton in the shared component/token package.
+ * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
+ */
 // @ts-nocheck
 // react-native / reanimated only available in Expo context
 import React, { useEffect } from "react";
 import Animated, {
+  cancelAnimation,
+  useReducedMotion,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -20,8 +26,14 @@ interface SkeletonProps {
 export function Skeleton({ width, height = 16, borderRadius, style }: SkeletonProps) {
   const colors = useColors();
   const opacity = useSharedValue(1);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    cancelAnimation(opacity);
+    if (reduceMotion) {
+      opacity.value = 1;
+      return;
+    }
     opacity.value = withRepeat(
       withSequence(
         withTiming(0.35, { duration: 700 }),
@@ -30,7 +42,8 @@ export function Skeleton({ width, height = 16, borderRadius, style }: SkeletonPr
       -1,
       false
     );
-  }, [opacity]);
+    return () => cancelAnimation(opacity);
+  }, [opacity, reduceMotion]);
 
   const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 

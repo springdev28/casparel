@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web support role: configures or validates the Chromium part of the Vite/React application.
+ * System connection: participates in browser development, build, quality checks, or deployment.
+ */
 import fs from "node:fs";
 
 /**

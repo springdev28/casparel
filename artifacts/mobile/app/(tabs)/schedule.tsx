@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Mobile screen role: defines the Expo Router Schedule screen or route layout.
+ * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
+ */
 import React, { useState, useRef } from 'react';
 import {
   Animated,
@@ -19,6 +23,7 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { useQueryClient } from '@tanstack/react-query';
+import { ErrorState } from '@/components/ErrorState';
 import {
   useListScheduleBlocks,
   useListStudySessions,
@@ -379,20 +384,27 @@ function CreateStudySessionModal({
   const [inviteeQuery, setInviteeQuery] = useState('');
   const [selectedInvitees, setSelectedInvitees] = useState<PublicUser[]>([]);
   const debouncedQuery = useDebounce(inviteeQuery, 300);
-  const { data: searchResults } = useSearchUsers(
+  const inviteeSearch = useSearchUsers(
     { q: debouncedQuery || undefined },
     { query: { enabled: debouncedQuery.length >= 1, queryKey: ['mobileSearchUsers', debouncedQuery] as const } },
   );
+  const searchResults = inviteeSearch.data;
 
   // Resource selection state
   const [resourceQuery, setResourceQuery] = useState('');
   const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   const debouncedResourceQuery = useDebounce(resourceQuery, 300);
   const resourceParams = { q: debouncedResourceQuery || undefined };
-  const { data: resources } = useListResources(
+  const resourceSearch = useListResources(
     resourceParams,
-    { query: { enabled: resourceQuery.length >= 1, queryKey: ['mobileListResources', resourceParams] as const } },
+    {
+      query: {
+        enabled: debouncedResourceQuery.length >= 1,
+        queryKey: ['mobileListResources', resourceParams] as const,
+      },
+    },
   );
+  const resources = resourceSearch.data;
 
   function reset() {
     setTitle(''); setDate(''); setStartTime('14:00'); setDuration('60');
@@ -583,7 +595,7 @@ function CreateStudySessionModal({
               placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
             />
-            {filteredResults.length > 0 && (
+            {filteredResults.length > 0 && !inviteeSearch.isError && (
               <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, overflow: 'hidden' }}>
                 {filteredResults.slice(0, 5).map((user, idx) => (
                   <Pressable
@@ -600,7 +612,23 @@ function CreateStudySessionModal({
                 ))}
               </View>
             )}
-            {debouncedQuery.length >= 1 && filteredResults.length === 0 && (
+            {/* Search failures must not masquerade as a valid zero-result search. */}
+            {debouncedQuery.length >= 1 && inviteeSearch.isError && inviteeSearch.data === undefined ? (
+              <ErrorState
+                variant="banner"
+                error={inviteeSearch.error}
+                retrying={inviteeSearch.isFetching}
+                onRetry={() => {
+                  void inviteeSearch.refetch();
+                }}
+              />
+            ) : null}
+            {debouncedQuery.length >= 1 && inviteeSearch.isFetching && inviteeSearch.data === undefined ? (
+              <Text style={{ color: colors.mutedForeground, fontSize: 12, fontFamily: colors.fontFamily.sans }}>
+                Searching classmates…
+              </Text>
+            ) : null}
+            {debouncedQuery.length >= 1 && !inviteeSearch.isFetching && !inviteeSearch.isError && filteredResults.length === 0 && (
               <Text style={{ color: colors.mutedForeground, fontSize: 12, fontFamily: colors.fontFamily.sans }}>
                 No classmates found for "{debouncedQuery}"
               </Text>
@@ -636,7 +664,7 @@ function CreateStudySessionModal({
                   placeholderTextColor={colors.mutedForeground}
                   autoCapitalize="none"
                 />
-                {(resources ?? []).length > 0 && (
+                {(resources ?? []).length > 0 && !resourceSearch.isError && (
                   <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: colors.radius, overflow: 'hidden' }}>
                     {(resources ?? []).slice(0, 5).map((r, idx) => (
                       <Pressable
@@ -655,6 +683,27 @@ function CreateStudySessionModal({
                     ))}
                   </View>
                 )}
+                {/* Resource lookup has its own retry path so the rest of the form remains usable. */}
+                {debouncedResourceQuery.length >= 1 && resourceSearch.isError && resourceSearch.data === undefined ? (
+                  <ErrorState
+                    variant="banner"
+                    error={resourceSearch.error}
+                    retrying={resourceSearch.isFetching}
+                    onRetry={() => {
+                      void resourceSearch.refetch();
+                    }}
+                  />
+                ) : null}
+                {debouncedResourceQuery.length >= 1 && resourceSearch.isFetching && resourceSearch.data === undefined ? (
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12, fontFamily: colors.fontFamily.sans }}>
+                    Searching resources…
+                  </Text>
+                ) : null}
+                {debouncedResourceQuery.length >= 1 && !resourceSearch.isFetching && !resourceSearch.isError && (resources ?? []).length === 0 ? (
+                  <Text style={{ color: colors.mutedForeground, fontSize: 12, fontFamily: colors.fontFamily.sans }}>
+                    No resources found for "{debouncedResourceQuery}"
+                  </Text>
+                ) : null}
               </>
             )}
           </View>
@@ -696,8 +745,10 @@ export default function ScheduleScreen() {
   const [selectedSession, setSelectedSession] = useState<StudySessionWithParticipants | null>(null);
   const [createModalVisible, setCreateModalVisible] = useState(false);
 
-  const { data: blocksData, isLoading: blocksLoading, refetch: refetchBlocks } = useListScheduleBlocks({ weekStart });
-  const { data: sessionsData, isLoading: sessionsLoading, refetch: refetchSessions } = useListStudySessions();
+  const blocksQuery = useListScheduleBlocks({ weekStart });
+  const sessionsQuery = useListStudySessions();
+  const blocksData = blocksQuery.data;
+  const sessionsData = sessionsQuery.data;
   const rsvp = useRsvpStudySession();
   const queryClient = useQueryClient();
 
@@ -730,12 +781,32 @@ export default function ScheduleScreen() {
   // Pending sessions (not filtered by day)
   const pendingSessions = sessionsData?.filter((s) => s.myStatus === 'pending') ?? [];
 
-  const isLoading = blocksLoading || sessionsLoading;
+  const isLoading = blocksQuery.isLoading || sessionsQuery.isLoading;
+
+  // Schedule is composed from two endpoints. Missing one source means an empty
+  // day cannot be trusted, while a day with results can keep rendering the
+  // available source alongside a compact retry banner.
+  const blocksUnavailable = blocksQuery.isError && blocksData === undefined;
+  const sessionsUnavailable = sessionsQuery.isError && sessionsData === undefined;
+  const hasUnavailableSource = blocksUnavailable || sessionsUnavailable;
+  const blockingFailure = hasUnavailableSource && listItems.length === 0;
+  const partialFailure = hasUnavailableSource && listItems.length > 0;
+  const unavailableError = blocksUnavailable ? blocksQuery.error : sessionsQuery.error;
+  const retryingUnavailableSource =
+    (blocksUnavailable && blocksQuery.isFetching) ||
+    (sessionsUnavailable && sessionsQuery.isFetching);
+
+  async function retryUnavailableSources() {
+    await Promise.all([
+      blocksUnavailable ? blocksQuery.refetch() : Promise.resolve(),
+      sessionsUnavailable ? sessionsQuery.refetch() : Promise.resolve(),
+    ]);
+  }
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchBlocks(), refetchSessions()]);
+    await Promise.all([blocksQuery.refetch(), sessionsQuery.refetch()]);
     setRefreshing(false);
   };
 
@@ -847,6 +918,14 @@ export default function ScheduleScreen() {
             <Skeleton key={i} width="100%" height={80} borderRadius={8} style={{ marginBottom: 10 }} />
           ))}
         </View>
+      ) : blockingFailure ? (
+        <ErrorState
+          error={unavailableError}
+          retrying={retryingUnavailableSource}
+          onRetry={() => {
+            void retryUnavailableSources();
+          }}
+        />
       ) : (
         <FlatList
           data={listItems}
@@ -863,6 +942,16 @@ export default function ScheduleScreen() {
             );
           }}
           contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 80 }]}
+          ListHeaderComponent={partialFailure ? (
+            <ErrorState
+              variant="banner"
+              error={unavailableError}
+              retrying={retryingUnavailableSource}
+              onRetry={() => {
+                void retryUnavailableSources();
+              }}
+            />
+          ) : null}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
           }

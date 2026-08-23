@@ -5,6 +5,109 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+export type ProductEventInputEvent = typeof ProductEventInputEvent[keyof typeof ProductEventInputEvent];
+
+
+export const ProductEventInputEvent = {
+  onboarding_started: 'onboarding_started',
+  onboarding_completed: 'onboarding_completed',
+  search_result_opened: 'search_result_opened',
+  paywall_viewed: 'paywall_viewed',
+  purchase_started: 'purchase_started',
+  web_vital_measured: 'web_vital_measured',
+  client_error_observed: 'client_error_observed',
+} as const;
+
+export type ProductEventInputContextWorkspaceRole = typeof ProductEventInputContextWorkspaceRole[keyof typeof ProductEventInputContextWorkspaceRole];
+
+
+export const ProductEventInputContextWorkspaceRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;
+
+export type ProductEventInputContextMetric = typeof ProductEventInputContextMetric[keyof typeof ProductEventInputContextMetric];
+
+
+export const ProductEventInputContextMetric = {
+  LCP: 'LCP',
+  INP: 'INP',
+  CLS: 'CLS',
+  TTFB: 'TTFB',
+} as const;
+
+export type ProductEventInputContextRating = typeof ProductEventInputContextRating[keyof typeof ProductEventInputContextRating];
+
+
+export const ProductEventInputContextRating = {
+  good: 'good',
+  'needs-improvement': 'needs-improvement',
+  poor: 'poor',
+} as const;
+
+export type ProductEventInputContextSource = typeof ProductEventInputContextSource[keyof typeof ProductEventInputContextSource];
+
+
+export const ProductEventInputContextSource = {
+  react_boundary: 'react_boundary',
+  window_error: 'window_error',
+  unhandled_rejection: 'unhandled_rejection',
+} as const;
+
+export type ProductEventInputContextErrorKind = typeof ProductEventInputContextErrorKind[keyof typeof ProductEventInputContextErrorKind];
+
+
+export const ProductEventInputContextErrorKind = {
+  chunk_load: 'chunk_load',
+  type_error: 'type_error',
+  reference_error: 'reference_error',
+  range_error: 'range_error',
+  syntax_error: 'syntax_error',
+  network_error: 'network_error',
+  unknown: 'unknown',
+} as const;
+
+export type ProductEventInputContext = {
+  /** @maxLength 48 */
+  surface?: string;
+  /** @maxLength 32 */
+  resultType?: string;
+  /** @maxLength 32 */
+  material?: string;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  position?: number;
+  /** @maxLength 48 */
+  milestone?: string;
+  /** @maxLength 24 */
+  plan?: string;
+  workspaceRole?: ProductEventInputContextWorkspaceRole;
+  /** @maxLength 32 */
+  routeGroup?: string;
+  metric?: ProductEventInputContextMetric;
+  /**
+     * @minimum 0
+     * @maximum 10000000
+     */
+  value?: number;
+  rating?: ProductEventInputContextRating;
+  source?: ProductEventInputContextSource;
+  errorKind?: ProductEventInputContextErrorKind;
+};
+
+export interface ProductEventInput {
+  event: ProductEventInputEvent;
+  /** @minimum 1 */
+  resourceId?: number;
+  context?: ProductEventInputContext;
+}
+
+export interface ProductEventAccepted {
+  accepted: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -50,6 +153,7 @@ export interface User {
   name: string;
   role: UserRole;
   activeRole?: UserActiveRole;
+  educatorEnabled?: boolean;
   /** @nullable */
   avatarUrl?: string | null;
   /** @nullable */
@@ -151,6 +255,165 @@ export interface UserUpdate {
   timezone?: string | null;
   /** @nullable */
   websiteUrl?: string | null;
+}
+
+export interface InterfaceColorsPreference {
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  background: string;
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  surface: string;
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  primary: string;
+  /** @pattern ^#[0-9a-fA-F]{6}$ */
+  accent: string;
+}
+
+export interface UserPreferencesPendingCheckIn {
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  concept: string;
+  /**
+     * @minLength 1
+     * @maxLength 600
+     */
+  prompt: string;
+}
+
+export interface UserPreferencesSearchHistoryItem {
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  query: string;
+  /** @minLength 1 */
+  searchedAt: string;
+}
+
+/**
+ * @nullable
+ */
+export type UserPreferencesLanguage = typeof UserPreferencesLanguage[keyof typeof UserPreferencesLanguage] | null;
+
+
+export const UserPreferencesLanguage = {
+  en: 'en',
+  tr: 'tr',
+} as const;
+
+/**
+ * @nullable
+ */
+export type UserPreferencesAmbientStyle = typeof UserPreferencesAmbientStyle[keyof typeof UserPreferencesAmbientStyle] | null;
+
+
+export const UserPreferencesAmbientStyle = {
+  off: 'off',
+  net: 'net',
+  globe: 'globe',
+  halo: 'halo',
+  cells: 'cells',
+  rings: 'rings',
+  topology: 'topology',
+} as const;
+
+export type UserPreferencesDashboardGoalIds = {[key: string]: number};
+
+export type UserPreferencesContinueStudying = {[key: string]: number[]};
+
+export type UserPreferencesPendingCheckIns = {[key: string]: UserPreferencesPendingCheckIn};
+
+/**
+ * @nullable
+ */
+export type UserPreferencesResourceSearchState = { [key: string]: unknown } | null;
+
+export interface UserPreferences {
+  userId: number;
+  /** @nullable */
+  language: UserPreferencesLanguage;
+  interfaceColors: InterfaceColorsPreference | null;
+  /** @nullable */
+  ambientStyle: UserPreferencesAmbientStyle;
+  /**
+     * @minimum 0.5
+     * @maximum 2
+     * @nullable
+     */
+  ambientIntensity: number | null;
+  /**
+     * @maxItems 500
+     * @items.minimum 1
+     */
+  readNotificationIds: number[];
+  dashboardGoalIds: UserPreferencesDashboardGoalIds;
+  continueStudying: UserPreferencesContinueStudying;
+  pendingCheckIns: UserPreferencesPendingCheckIns;
+  /** @maxItems 12 */
+  searchHistory: UserPreferencesSearchHistoryItem[];
+  /** @nullable */
+  resourceSearchState: UserPreferencesResourceSearchState;
+  allowMessageRequests: boolean;
+  tutorialSeen: boolean;
+  updatedAt: string;
+}
+
+export type UserPreferencesPatchLanguage = typeof UserPreferencesPatchLanguage[keyof typeof UserPreferencesPatchLanguage];
+
+
+export const UserPreferencesPatchLanguage = {
+  en: 'en',
+  tr: 'tr',
+} as const;
+
+export type UserPreferencesPatchAmbientStyle = typeof UserPreferencesPatchAmbientStyle[keyof typeof UserPreferencesPatchAmbientStyle];
+
+
+export const UserPreferencesPatchAmbientStyle = {
+  off: 'off',
+  net: 'net',
+  globe: 'globe',
+  halo: 'halo',
+  cells: 'cells',
+  rings: 'rings',
+  topology: 'topology',
+} as const;
+
+export type UserPreferencesPatchDashboardGoalIds = {[key: string]: number};
+
+export type UserPreferencesPatchContinueStudying = {[key: string]: number[]};
+
+export type UserPreferencesPatchPendingCheckIns = {[key: string]: UserPreferencesPendingCheckIn};
+
+/**
+ * @nullable
+ */
+export type UserPreferencesPatchResourceSearchState = { [key: string]: unknown } | null;
+
+export interface UserPreferencesPatch {
+  language?: UserPreferencesPatchLanguage;
+  interfaceColors?: InterfaceColorsPreference | null;
+  ambientStyle?: UserPreferencesPatchAmbientStyle;
+  /**
+     * @minimum 0.5
+     * @maximum 2
+     */
+  ambientIntensity?: number;
+  /**
+     * @maxItems 500
+     * @items.minimum 1
+     */
+  readNotificationIds?: number[];
+  dashboardGoalIds?: UserPreferencesPatchDashboardGoalIds;
+  continueStudying?: UserPreferencesPatchContinueStudying;
+  pendingCheckIns?: UserPreferencesPatchPendingCheckIns;
+  /** @maxItems 12 */
+  searchHistory?: UserPreferencesSearchHistoryItem[];
+  /** @nullable */
+  resourceSearchState?: UserPreferencesPatchResourceSearchState;
+  allowMessageRequests?: boolean;
+  tutorialSeen?: boolean;
 }
 
 export type ResourceFormat = typeof ResourceFormat[keyof typeof ResourceFormat];
@@ -308,6 +571,372 @@ export interface AccountUsage {
   deepResearch: AccountUsageDeepResearch;
 }
 
+export type EntitlementReconciliationPlan = typeof EntitlementReconciliationPlan[keyof typeof EntitlementReconciliationPlan];
+
+
+export const EntitlementReconciliationPlan = {
+  free: 'free',
+  plus: 'plus',
+  pro: 'pro',
+} as const;
+
+export interface EntitlementReconciliation {
+  plan: EntitlementReconciliationPlan;
+  /** @nullable */
+  planExpiresAt: string | null;
+}
+
+export type AdminUserRole = typeof AdminUserRole[keyof typeof AdminUserRole];
+
+
+export const AdminUserRole = {
+  student: 'student',
+  teacher: 'teacher',
+  admin: 'admin',
+} as const;
+
+export type AdminUserActiveRole = typeof AdminUserActiveRole[keyof typeof AdminUserActiveRole];
+
+
+export const AdminUserActiveRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;
+
+export type AdminUserProfileVisibility = typeof AdminUserProfileVisibility[keyof typeof AdminUserProfileVisibility];
+
+
+export const AdminUserProfileVisibility = {
+  everyone: 'everyone',
+  classmates: 'classmates',
+  private: 'private',
+} as const;
+
+export type AdminUserLibraryVisibility = typeof AdminUserLibraryVisibility[keyof typeof AdminUserLibraryVisibility];
+
+
+export const AdminUserLibraryVisibility = {
+  everyone: 'everyone',
+  classmates: 'classmates',
+  private: 'private',
+} as const;
+
+export type AdminUserPlan = typeof AdminUserPlan[keyof typeof AdminUserPlan];
+
+
+export const AdminUserPlan = {
+  free: 'free',
+  plus: 'plus',
+  pro: 'pro',
+} as const;
+
+export interface AdminUser {
+  /** @minimum 1 */
+  id: number;
+  name: string;
+  email: string;
+  role: AdminUserRole;
+  activeRole: AdminUserActiveRole;
+  educatorEnabled: boolean;
+  teacherVerified: boolean;
+  /** @nullable */
+  avatarUrl?: string | null;
+  /** @nullable */
+  bio?: string | null;
+  /** @nullable */
+  subjects?: string[] | null;
+  /** @nullable */
+  gradeOrDept?: string | null;
+  /** @nullable */
+  timezone?: string | null;
+  profileVisibility: AdminUserProfileVisibility;
+  libraryVisibility: AdminUserLibraryVisibility;
+  showBio: boolean;
+  showSubjects: boolean;
+  showGradeOrDept: boolean;
+  showWebsite: boolean;
+  /** @nullable */
+  websiteUrl?: string | null;
+  plan: AdminUserPlan;
+  /** @nullable */
+  planExpiresAt?: string | null;
+  /** @nullable */
+  bannedAt?: string | null;
+  /** @nullable */
+  bannedReason?: string | null;
+  createdAt: string;
+}
+
+export interface AdminUsersPage {
+  items: AdminUser[];
+  /** @minimum 0 */
+  total: number;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  limit: number;
+  /** @minimum 0 */
+  offset: number;
+}
+
+export type AdminUserPatchRole = typeof AdminUserPatchRole[keyof typeof AdminUserPatchRole];
+
+
+export const AdminUserPatchRole = {
+  student: 'student',
+  teacher: 'teacher',
+  admin: 'admin',
+} as const;
+
+export type AdminUserPatchActiveRole = typeof AdminUserPatchActiveRole[keyof typeof AdminUserPatchActiveRole];
+
+
+export const AdminUserPatchActiveRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;
+
+export type AdminUserPatchProfileVisibility = typeof AdminUserPatchProfileVisibility[keyof typeof AdminUserPatchProfileVisibility];
+
+
+export const AdminUserPatchProfileVisibility = {
+  everyone: 'everyone',
+  classmates: 'classmates',
+  private: 'private',
+} as const;
+
+export type AdminUserPatchLibraryVisibility = typeof AdminUserPatchLibraryVisibility[keyof typeof AdminUserPatchLibraryVisibility];
+
+
+export const AdminUserPatchLibraryVisibility = {
+  everyone: 'everyone',
+  classmates: 'classmates',
+  private: 'private',
+} as const;
+
+export interface AdminUserPatch {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name?: string;
+  /** @maxLength 320 */
+  email?: string;
+  role?: AdminUserPatchRole;
+  activeRole?: AdminUserPatchActiveRole;
+  educatorEnabled?: boolean;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  bio?: string | null;
+  /**
+     * @maxItems 30
+     * @nullable
+     * @items.minLength 1
+     * @items.maxLength 80
+     */
+  subjects?: string[] | null;
+  /**
+     * @maxLength 160
+     * @nullable
+     */
+  gradeOrDept?: string | null;
+  /**
+     * @maxLength 100
+     * @nullable
+     */
+  timezone?: string | null;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  websiteUrl?: string | null;
+  profileVisibility?: AdminUserPatchProfileVisibility;
+  libraryVisibility?: AdminUserPatchLibraryVisibility;
+  showBio?: boolean;
+  showSubjects?: boolean;
+  showGradeOrDept?: boolean;
+  showWebsite?: boolean;
+}
+
+export type AdminPlanOverridePlan = typeof AdminPlanOverridePlan[keyof typeof AdminPlanOverridePlan];
+
+
+export const AdminPlanOverridePlan = {
+  free: 'free',
+  plus: 'plus',
+  pro: 'pro',
+} as const;
+
+export interface AdminPlanOverride {
+  plan: AdminPlanOverridePlan;
+  /** @nullable */
+  expiresAt?: string | null;
+  /**
+     * @minLength 3
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export interface AdminBanInput {
+  /**
+     * @minLength 3
+     * @maxLength 500
+     */
+  reason: string;
+}
+
+export interface AdminPublisherVerificationInput {
+  verified: boolean;
+}
+
+export type AdminResourceReviewQueueItemFormat = typeof AdminResourceReviewQueueItemFormat[keyof typeof AdminResourceReviewQueueItemFormat];
+
+
+export const AdminResourceReviewQueueItemFormat = {
+  article: 'article',
+  video: 'video',
+  pdf: 'pdf',
+  podcast: 'podcast',
+  interactive: 'interactive',
+  other: 'other',
+} as const;
+
+export type AdminResourceReviewQueueItemVerificationStatus = typeof AdminResourceReviewQueueItemVerificationStatus[keyof typeof AdminResourceReviewQueueItemVerificationStatus];
+
+
+export const AdminResourceReviewQueueItemVerificationStatus = {
+  unverified: 'unverified',
+  verified: 'verified',
+  rejected: 'rejected',
+} as const;
+
+/**
+ * @nullable
+ */
+export type AdminResourceReviewQueueItemVerificationSource = typeof AdminResourceReviewQueueItemVerificationSource[keyof typeof AdminResourceReviewQueueItemVerificationSource] | null;
+
+
+export const AdminResourceReviewQueueItemVerificationSource = {
+  catalog: 'catalog',
+  'trusted-submitter': 'trusted-submitter',
+  reviewer: 'reviewer',
+  legacy: 'legacy',
+} as const;
+
+/**
+ * @nullable
+ */
+export type AdminResourceReviewQueueItemSubmittedByRole = typeof AdminResourceReviewQueueItemSubmittedByRole[keyof typeof AdminResourceReviewQueueItemSubmittedByRole] | null;
+
+
+export const AdminResourceReviewQueueItemSubmittedByRole = {
+  student: 'student',
+  teacher: 'teacher',
+  admin: 'admin',
+} as const;
+
+export interface AdminResourceReviewQueueItem {
+  /** @minimum 1 */
+  id: number;
+  title: string;
+  url: string;
+  /** @nullable */
+  description?: string | null;
+  format: AdminResourceReviewQueueItemFormat;
+  subject: string;
+  gradeLevel: string;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  createdAt: string;
+  verificationStatus: AdminResourceReviewQueueItemVerificationStatus;
+  /** @nullable */
+  verificationSource?: AdminResourceReviewQueueItemVerificationSource;
+  /** @nullable */
+  verificationNote?: string | null;
+  /** @minimum 1 */
+  submittedById: number;
+  /** @nullable */
+  submittedByName?: string | null;
+  /** @nullable */
+  submittedByEmail?: string | null;
+  /** @nullable */
+  submittedByRole?: AdminResourceReviewQueueItemSubmittedByRole;
+  /** @nullable */
+  submitterVerified?: boolean | null;
+}
+
+export interface AdminResourceReviewQueue {
+  items: AdminResourceReviewQueueItem[];
+  /** @minimum 0 */
+  pendingTotal: number;
+}
+
+export type AdminResourceVerificationInputStatus = typeof AdminResourceVerificationInputStatus[keyof typeof AdminResourceVerificationInputStatus];
+
+
+export const AdminResourceVerificationInputStatus = {
+  verified: 'verified',
+  rejected: 'rejected',
+  unverified: 'unverified',
+} as const;
+
+export interface AdminResourceVerificationInput {
+  status: AdminResourceVerificationInputStatus;
+  /** @maxLength 1000 */
+  note?: string;
+}
+
+export type AdminResourceVerificationBulkInputStatus = typeof AdminResourceVerificationBulkInputStatus[keyof typeof AdminResourceVerificationBulkInputStatus];
+
+
+export const AdminResourceVerificationBulkInputStatus = {
+  verified: 'verified',
+  rejected: 'rejected',
+  unverified: 'unverified',
+} as const;
+
+export interface AdminResourceVerificationBulkInput {
+  /**
+     * @minItems 1
+     * @maxItems 100
+     * @items.minimum 1
+     */
+  ids: number[];
+  status: AdminResourceVerificationBulkInputStatus;
+  /** @maxLength 1000 */
+  note?: string;
+}
+
+export type AdminResourceVerificationResultVerificationStatus = typeof AdminResourceVerificationResultVerificationStatus[keyof typeof AdminResourceVerificationResultVerificationStatus];
+
+
+export const AdminResourceVerificationResultVerificationStatus = {
+  unverified: 'unverified',
+  verified: 'verified',
+  rejected: 'rejected',
+} as const;
+
+export interface AdminResourceVerificationResult {
+  /** @minimum 1 */
+  id: number;
+  title: string;
+  verificationStatus: AdminResourceVerificationResultVerificationStatus;
+  /** @nullable */
+  verificationNote?: string | null;
+}
+
+export interface AdminResourceVerificationBulkResult {
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  updated: number;
+}
+
 export interface AdminAiFeatureUsage {
   total: number;
   month: number;
@@ -386,15 +1015,58 @@ export type AdminOverviewWorkflowEngagement = {
   estimatedStoredMb: number;
 };
 
+export type AdminOverviewWorkflowActivation = {
+  registered30d: number;
+  firstSearchUsers30d: number;
+  sourceCheckUsers30d: number;
+  activatedLearners30d: number;
+  activatedEducators30d: number;
+  registeredToSearchRate: number;
+  searchToSourceCheckRate: number;
+  sourceCheckToActionRate: number;
+  d1ReturnRate: number;
+  d7ReturnRate: number;
+  classesWithFiveLearners: number;
+  searchNoResultRate: number;
+  avgPreviewCoverage: number;
+};
+
 export type AdminOverviewWorkflow = {
   funnel: AdminOverviewWorkflowFunnel;
   engagement: AdminOverviewWorkflowEngagement;
+  activation: AdminOverviewWorkflowActivation;
+};
+
+export type AdminOverviewReliability = {
+  sampleWindowDays: number;
+  measuredUsers30d: number;
+  vitalSamples30d: number;
+  clientErrors30d: number;
+  renderCrashes30d: number;
+  errorFreeUsersRate: number;
+  /** @nullable */
+  lcpP75Ms: number | null;
+  /** @nullable */
+  inpP75Ms: number | null;
+  /** @nullable */
+  clsP75: number | null;
+  /** @nullable */
+  lcpSloMet: boolean | null;
+  /** @nullable */
+  inpSloMet: boolean | null;
+  /** @nullable */
+  clsSloMet: boolean | null;
+  /** @nullable */
+  errorFreeUsersSloMet: boolean | null;
 };
 
 export interface AdminOverview {
   users: number;
-  students: number;
-  teachers: number;
+  learnerAccounts: number;
+  educatorAccounts: number;
+  accountsBothLearnAndTeach: number;
+  activeClassOwners30d: number;
+  classLearners: number;
   admins: number;
   goals: number;
   resources: number;
@@ -402,6 +1074,7 @@ export interface AdminOverview {
   plan: AdminOverviewPlan;
   usage: AdminOverviewUsage;
   workflow: AdminOverviewWorkflow;
+  reliability: AdminOverviewReliability;
 }
 
 export type LearningGoalLevel = typeof LearningGoalLevel[keyof typeof LearningGoalLevel];
@@ -451,11 +1124,14 @@ export interface LearningPathStep {
      */
   query: string;
   completed: boolean;
+  resourceId?: number;
 }
 
 export interface LearningGoal {
   id: number;
   userId: number;
+  /** @nullable */
+  sourceListId?: number | null;
   title: string;
   subject: string;
   /** @nullable */
@@ -893,12 +1569,42 @@ export const PrefetchResourceResponseFormat = {
   other: 'other',
 } as const;
 
+export type PrefetchResourceResponsePreviewSource = typeof PrefetchResourceResponsePreviewSource[keyof typeof PrefetchResourceResponsePreviewSource];
+
+
+export const PrefetchResourceResponsePreviewSource = {
+  provider_api: 'provider_api',
+  oembed: 'oembed',
+  opengraph: 'opengraph',
+  extracted: 'extracted',
+  none: 'none',
+} as const;
+
 export interface PrefetchResourceResponse {
   title: string;
   description: string;
   format: PrefetchResourceResponseFormat;
   /** @nullable */
   thumbnailUrl?: string | null;
+  /** @nullable */
+  previewTitle?: string | null;
+  /** @nullable */
+  previewDescription?: string | null;
+  /** @nullable */
+  previewImageUrl?: string | null;
+  /** @nullable */
+  previewAuthor?: string | null;
+  /** @nullable */
+  previewPublisher?: string | null;
+  /** @nullable */
+  previewPublishedAt?: string | null;
+  /** @nullable */
+  previewUpdatedAt?: string | null;
+  /** @nullable */
+  previewFaviconUrl?: string | null;
+  previewSource?: PrefetchResourceResponsePreviewSource;
+  previewCheckedAt?: string;
+  previewMeaningful?: boolean;
 }
 
 export type ResourceInputFormat = typeof ResourceInputFormat[keyof typeof ResourceInputFormat];
@@ -961,6 +1667,42 @@ export const DiscoveredResourceFormat = {
   other: 'other',
 } as const;
 
+export type DiscoveredResourceMaterial = typeof DiscoveredResourceMaterial[keyof typeof DiscoveredResourceMaterial];
+
+
+export const DiscoveredResourceMaterial = {
+  course: 'course',
+  book: 'book',
+  explanation: 'explanation',
+  practice: 'practice',
+  interactive: 'interactive',
+  video: 'video',
+  reference: 'reference',
+  paper: 'paper',
+  'primary-source': 'primary-source',
+  repository: 'repository',
+  other: 'other',
+} as const;
+
+export type DiscoveredResourcePreviewSource = typeof DiscoveredResourcePreviewSource[keyof typeof DiscoveredResourcePreviewSource];
+
+
+export const DiscoveredResourcePreviewSource = {
+  provider_api: 'provider_api',
+  oembed: 'oembed',
+  opengraph: 'opengraph',
+  extracted: 'extracted',
+  none: 'none',
+} as const;
+
+export type DiscoveredResourcePreviewAccessType = typeof DiscoveredResourcePreviewAccessType[keyof typeof DiscoveredResourcePreviewAccessType];
+
+
+export const DiscoveredResourcePreviewAccessType = {
+  free: 'free',
+  unknown: 'unknown',
+} as const;
+
 export type DiscoveredResourceProvenanceLevel = typeof DiscoveredResourceProvenanceLevel[keyof typeof DiscoveredResourceProvenanceLevel];
 
 
@@ -977,12 +1719,35 @@ export interface DiscoveredResource {
   description: string;
   format: DiscoveredResourceFormat;
   source: string;
+  material?: DiscoveredResourceMaterial;
   /** @nullable */
   thumbnailUrl?: string | null;
   /** @nullable */
   subject?: string | null;
   /** @nullable */
   gradeLevel?: string | null;
+  /** @nullable */
+  previewTitle?: string | null;
+  /** @nullable */
+  previewDescription?: string | null;
+  /** @nullable */
+  previewImageUrl?: string | null;
+  /** @nullable */
+  previewAuthor?: string | null;
+  /** @nullable */
+  previewPublisher?: string | null;
+  /** @nullable */
+  previewPublishedAt?: string | null;
+  /** @nullable */
+  previewUpdatedAt?: string | null;
+  /** @nullable */
+  previewFaviconUrl?: string | null;
+  previewSource?: DiscoveredResourcePreviewSource;
+  previewCheckedAt?: string;
+  previewMeaningful?: boolean;
+  /** @nullable */
+  previewLicense?: string | null;
+  previewAccessType?: DiscoveredResourcePreviewAccessType;
   provenanceLevel?: DiscoveredResourceProvenanceLevel;
   provenanceSignals?: string[];
   linkChecked?: boolean;
@@ -1129,6 +1894,54 @@ export interface ResourceListWithItems {
   items: ListItem[];
 }
 
+export interface PublicListShare {
+  /** @nullable */
+  shareToken: string | null;
+}
+
+export type PublicResourceFormat = typeof PublicResourceFormat[keyof typeof PublicResourceFormat];
+
+
+export const PublicResourceFormat = {
+  article: 'article',
+  video: 'video',
+  pdf: 'pdf',
+  podcast: 'podcast',
+  interactive: 'interactive',
+  other: 'other',
+} as const;
+
+export interface PublicResource {
+  id: number;
+  title: string;
+  url: string;
+  /** @nullable */
+  description?: string | null;
+  format: PublicResourceFormat;
+  subject: string;
+  gradeLevel: string;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  avgRating: number;
+  reviewCount: number;
+  createdAt: string;
+}
+
+export interface PublicResourceListItem {
+  resourceId: number;
+  position: number;
+  resource: PublicResource;
+}
+
+export interface PublicResourceList {
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  itemCount: number;
+  createdAt: string;
+  items: PublicResourceListItem[];
+}
+
 export interface ResourceListInput {
   /** @minLength 1 */
   name: string;
@@ -1139,6 +1952,15 @@ export interface ResourceListPatch {
   /** @minLength 1 */
   name?: string;
   description?: string;
+}
+
+export interface ResourceListMembership {
+  listId: number;
+  listName: string;
+  listItemId: number;
+  /** @nullable */
+  note?: string | null;
+  addedAt: string;
 }
 
 export interface ListItemInput {
@@ -1153,6 +1975,92 @@ export interface ReorderListItemsInput {
 
 export interface ShareListInput {
   classId: number;
+}
+
+export interface DirectMessage {
+  id: number;
+  conversationId: number;
+  senderId: number;
+  body: string;
+  isAdminMessage: boolean;
+  /** @nullable */
+  readAt: string | null;
+  createdAt: string;
+}
+
+export type DirectConversationUserRole = typeof DirectConversationUserRole[keyof typeof DirectConversationUserRole];
+
+
+export const DirectConversationUserRole = {
+  student: 'student',
+  teacher: 'teacher',
+  admin: 'admin',
+} as const;
+
+export interface DirectConversationUser {
+  id: number;
+  name: string;
+  role: DirectConversationUserRole;
+  /** @nullable */
+  avatarUrl: string | null;
+}
+
+export type DirectConversationStatus = typeof DirectConversationStatus[keyof typeof DirectConversationStatus];
+
+
+export const DirectConversationStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export interface DirectConversation {
+  id: number;
+  firstUserId: number;
+  secondUserId: number;
+  requestedById: number;
+  status: DirectConversationStatus;
+  createdAt: string;
+  updatedAt: string;
+  other: DirectConversationUser;
+  lastMessage: DirectMessage | null;
+  /** @minimum 0 */
+  unreadCount: number;
+  incomingRequest: boolean;
+}
+
+export type DirectConversationDetails = DirectConversation & {
+  messages: DirectMessage[];
+};
+
+export interface CreateDirectConversationInput {
+  /** @minimum 1 */
+  userId: number;
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body?: string;
+}
+
+export interface SendDirectMessageInput {
+  /**
+     * @minLength 1
+     * @maxLength 4000
+     */
+  body: string;
+}
+
+export type RespondDirectMessageRequestInputAction = typeof RespondDirectMessageRequestInputAction[keyof typeof RespondDirectMessageRequestInputAction];
+
+
+export const RespondDirectMessageRequestInputAction = {
+  accept: 'accept',
+  decline: 'decline',
+} as const;
+
+export interface RespondDirectMessageRequestInput {
+  action: RespondDirectMessageRequestInputAction;
 }
 
 export type StudySessionParticipantStatus = typeof StudySessionParticipantStatus[keyof typeof StudySessionParticipantStatus];
@@ -1416,6 +2324,722 @@ export interface ScheduleBlockPatch {
   listId?: number | null;
 }
 
+export type ForumAccountRole = typeof ForumAccountRole[keyof typeof ForumAccountRole];
+
+
+export const ForumAccountRole = {
+  student: 'student',
+  teacher: 'teacher',
+  admin: 'admin',
+} as const;
+
+export type ForumModerationStatus = typeof ForumModerationStatus[keyof typeof ForumModerationStatus];
+
+
+export const ForumModerationStatus = {
+  approved: 'approved',
+  review: 'review',
+  hidden: 'hidden',
+} as const;
+
+export type ForumTargetType = typeof ForumTargetType[keyof typeof ForumTargetType];
+
+
+export const ForumTargetType = {
+  material: 'material',
+  post: 'post',
+} as const;
+
+export type ForumReportTargetType = typeof ForumReportTargetType[keyof typeof ForumReportTargetType];
+
+
+export const ForumReportTargetType = {
+  material: 'material',
+  post: 'post',
+  comment: 'comment',
+} as const;
+
+export type ForumMaterialType = typeof ForumMaterialType[keyof typeof ForumMaterialType];
+
+
+export const ForumMaterialType = {
+  video: 'video',
+  infographic: 'infographic',
+  article: 'article',
+  worksheet: 'worksheet',
+  activity: 'activity',
+  notes: 'notes',
+} as const;
+
+export type ForumPostKind = typeof ForumPostKind[keyof typeof ForumPostKind];
+
+
+export const ForumPostKind = {
+  post: 'post',
+  survey: 'survey',
+} as const;
+
+export interface ForumAccess {
+  isAdmin: boolean;
+  teacherVerified: boolean;
+  canApprove: boolean;
+}
+
+export interface ForumMaterialApproval {
+  /** @minimum 1 */
+  id: number;
+  /** @minimum 1 */
+  materialId: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  teacherId: number | null;
+  teacherName: string;
+  createdAt: string;
+}
+
+export interface ForumMaterial {
+  /** @minimum 1 */
+  id: number;
+  title: string;
+  /** @nullable */
+  description: string | null;
+  unit: string;
+  topic: string;
+  materialType: ForumMaterialType;
+  tags: string[];
+  sources: string[];
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  uploaderId: number | null;
+  uploaderName: string;
+  uploaderRole: ForumAccountRole;
+  /** @nullable */
+  linkUrl: string | null;
+  /** @nullable */
+  fileName: string | null;
+  /** @nullable */
+  mimeType: string | null;
+  moderationStatus: ForumModerationStatus;
+  /** @nullable */
+  moderationNote: string | null;
+  /** @minimum 0 */
+  viewCount: number;
+  /** @minimum 0 */
+  downloadCount: number;
+  createdAt: string;
+  updatedAt: string;
+  /** @minimum 0 */
+  likeCount: number;
+  /** @minimum 0 */
+  commentCount: number;
+  likedByMe: boolean;
+  approvals: ForumMaterialApproval[];
+}
+
+export interface CreateForumMaterialForm {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  title: string;
+  /** @maxLength 2000 */
+  description?: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  unit: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  topic: string;
+  materialType: ForumMaterialType;
+  /** @maxLength 2000 */
+  linkUrl?: string;
+  /** @maxLength 6000 */
+  tags?: string;
+  /** @maxLength 6000 */
+  sources?: string;
+  file?: Blob;
+}
+
+export interface ForumSurveyOption {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
+  text: string;
+}
+
+export interface ForumSurveyVoteCount {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  optionId: string;
+  /** @minimum 0 */
+  count: number;
+}
+
+export interface ForumQuotedPost {
+  /** @minimum 1 */
+  id: number;
+  authorName: string;
+  authorRole: ForumAccountRole;
+  /** @nullable */
+  title: string | null;
+  body: string;
+  tags: string[];
+  createdAt: string;
+}
+
+export interface ForumPost {
+  /** @minimum 1 */
+  id: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  classId: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  authorId: number | null;
+  authorName: string;
+  authorRole: ForumAccountRole;
+  kind: ForumPostKind;
+  /** @nullable */
+  title: string | null;
+  body: string;
+  tags: string[];
+  surveyOptions: ForumSurveyOption[];
+  allowMultipleVotes: boolean;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  quotedPostId: number | null;
+  quotedPost: ForumQuotedPost | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  attachmentMaterialId: number | null;
+  /** @nullable */
+  attachmentFileName: string | null;
+  /** @nullable */
+  attachmentMimeType: string | null;
+  moderationStatus: ForumModerationStatus;
+  /** @nullable */
+  moderationNote: string | null;
+  /** @minimum 0 */
+  viewCount: number;
+  createdAt: string;
+  /** @minimum 0 */
+  likeCount: number;
+  /** @minimum 0 */
+  commentCount: number;
+  likedByMe: boolean;
+  /** @minimum 0 */
+  repostCount: number;
+  repostedByMe: boolean;
+  votes: ForumSurveyVoteCount[];
+  /** @nullable */
+  myVote: string | null;
+  myVotes: string[];
+}
+
+export type CreateForumPostFormAllowMultipleVotes = typeof CreateForumPostFormAllowMultipleVotes[keyof typeof CreateForumPostFormAllowMultipleVotes];
+
+
+export const CreateForumPostFormAllowMultipleVotes = {
+  true: 'true',
+  false: 'false',
+  NUMBER_1: '1',
+  NUMBER_0: '0',
+  on: 'on',
+  off: 'off',
+} as const;
+
+export interface CreateForumPostForm {
+  /** @pattern ^[1-9][0-9]*$ */
+  classId?: string;
+  kind?: ForumPostKind;
+  /** @maxLength 180 */
+  title?: string;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  body: string;
+  /** @maxLength 2400 */
+  tags?: string;
+  /** @pattern ^[1-9][0-9]*$ */
+  quotedPostId?: string;
+  /** @pattern ^[1-9][0-9]*$ */
+  attachmentMaterialId?: string;
+  /** @maxLength 3000 */
+  surveyOptions?: string;
+  allowMultipleVotes?: CreateForumPostFormAllowMultipleVotes;
+  file?: Blob;
+}
+
+export interface ForumRepostResult {
+  reposted: boolean;
+  /** @minimum 0 */
+  repostCount: number;
+}
+
+export interface ForumSurveyVoteInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  optionId: string;
+}
+
+export interface RemoveForumSurveyVoteInput {
+  /** @maxLength 80 */
+  optionId?: string;
+}
+
+export interface ForumLikeResult {
+  liked: boolean;
+}
+
+export interface ForumComment {
+  /** @minimum 1 */
+  id: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  authorId: number | null;
+  authorName: string;
+  authorRole: ForumAccountRole;
+  targetType: ForumTargetType;
+  /** @minimum 1 */
+  targetId: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  parentId: number | null;
+  body: string;
+  moderationStatus: ForumModerationStatus;
+  /** @nullable */
+  moderationNote: string | null;
+  createdAt: string;
+}
+
+export interface CreateForumCommentInput {
+  /**
+     * @minLength 1
+     * @maxLength 2000
+     */
+  body: string;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  parentId?: number | null;
+}
+
+export type ForumReportStatus = typeof ForumReportStatus[keyof typeof ForumReportStatus];
+
+
+export const ForumReportStatus = {
+  pending: 'pending',
+  resolved: 'resolved',
+  dismissed: 'dismissed',
+} as const;
+
+export interface ForumReport {
+  /** @minimum 1 */
+  id: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  reporterId: number | null;
+  reporterName: string;
+  targetType: ForumReportTargetType;
+  /** @minimum 1 */
+  targetId: number;
+  reason: string;
+  status: ForumReportStatus;
+  aiFlagged: boolean;
+  /** @nullable */
+  aiAssessment: string | null;
+  createdAt: string;
+  /** @nullable */
+  reviewedAt: string | null;
+}
+
+export interface CreateForumReportInput {
+  targetType: ForumReportTargetType;
+  /** @minimum 1 */
+  targetId: number;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  reason: string;
+}
+
+export type UpdateForumReportInputStatus = typeof UpdateForumReportInputStatus[keyof typeof UpdateForumReportInputStatus];
+
+
+export const UpdateForumReportInputStatus = {
+  resolved: 'resolved',
+  dismissed: 'dismissed',
+} as const;
+
+export interface UpdateForumReportInput {
+  status: UpdateForumReportInputStatus;
+}
+
+export type CanvasNodeDataKind = typeof CanvasNodeDataKind[keyof typeof CanvasNodeDataKind];
+
+
+export const CanvasNodeDataKind = {
+  note: 'note',
+  heading: 'heading',
+  link: 'link',
+  resource: 'resource',
+} as const;
+
+export interface CanvasNodeData {
+  kind: CanvasNodeDataKind;
+  /** @maxLength 240 */
+  title: string;
+  /** @maxLength 10000 */
+  text?: string;
+  /** @maxLength 2000 */
+  url?: string;
+  /** @minimum 1 */
+  resourceId?: number;
+  /** @maxLength 40 */
+  color?: string;
+}
+
+export type CanvasNodeType = typeof CanvasNodeType[keyof typeof CanvasNodeType];
+
+
+export const CanvasNodeType = {
+  study: 'study',
+} as const;
+
+export type CanvasNodePosition = {
+  x: number;
+  y: number;
+};
+
+export interface CanvasNode {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  id: string;
+  type: CanvasNodeType;
+  position: CanvasNodePosition;
+  data: CanvasNodeData;
+}
+
+export type CanvasEdgeSourceHandle = typeof CanvasEdgeSourceHandle[keyof typeof CanvasEdgeSourceHandle];
+
+
+export const CanvasEdgeSourceHandle = {
+  top: 'top',
+  right: 'right',
+  bottom: 'bottom',
+  left: 'left',
+} as const;
+
+export type CanvasEdgeTargetHandle = typeof CanvasEdgeTargetHandle[keyof typeof CanvasEdgeTargetHandle];
+
+
+export const CanvasEdgeTargetHandle = {
+  top: 'top',
+  right: 'right',
+  bottom: 'bottom',
+  left: 'left',
+} as const;
+
+export type CanvasEdgeDirection = typeof CanvasEdgeDirection[keyof typeof CanvasEdgeDirection];
+
+
+export const CanvasEdgeDirection = {
+  'one-way': 'one-way',
+  'two-way': 'two-way',
+  line: 'line',
+} as const;
+
+export interface CanvasEdge {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  source: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  target: string;
+  sourceHandle?: CanvasEdgeSourceHandle;
+  targetHandle?: CanvasEdgeTargetHandle;
+  direction?: CanvasEdgeDirection;
+  /** @maxLength 200 */
+  label?: string;
+}
+
+export type CanvasDocumentViewport = {
+  x: number;
+  y: number;
+  /**
+     * @minimum 0.1
+     * @maximum 4
+     */
+  zoom: number;
+};
+
+export interface CanvasDocument {
+  /** @maxItems 500 */
+  nodes: CanvasNode[];
+  /** @maxItems 1000 */
+  edges: CanvasEdge[];
+  viewport?: CanvasDocumentViewport;
+}
+
+export type CanvasPermissionsRole = typeof CanvasPermissionsRole[keyof typeof CanvasPermissionsRole];
+
+
+export const CanvasPermissionsRole = {
+  owner: 'owner',
+  editor: 'editor',
+  viewer: 'viewer',
+  'class-editor': 'class-editor',
+  'class-viewer': 'class-viewer',
+} as const;
+
+export interface CanvasPermissions {
+  canView: boolean;
+  canEdit: boolean;
+  canManage: boolean;
+  role: CanvasPermissionsRole;
+}
+
+export interface CanvasOwnerReference {
+  /** @minimum 1 */
+  id: number;
+  name: string;
+}
+
+export interface CanvasClassReference {
+  /** @minimum 1 */
+  id: number;
+  name: string;
+}
+
+export type CanvasViewVisibility = typeof CanvasViewVisibility[keyof typeof CanvasViewVisibility];
+
+
+export const CanvasViewVisibility = {
+  private: 'private',
+  people: 'people',
+  class: 'class',
+  link: 'link',
+} as const;
+
+export type CanvasViewClassAccess = typeof CanvasViewClassAccess[keyof typeof CanvasViewClassAccess];
+
+
+export const CanvasViewClassAccess = {
+  view: 'view',
+  edit: 'edit',
+} as const;
+
+export interface CanvasView {
+  /** @minimum 1 */
+  id: number;
+  title: string;
+  /** @nullable */
+  description: string | null;
+  /** @minimum 1 */
+  ownerId: number;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  classId: number | null;
+  visibility: CanvasViewVisibility;
+  classAccess: CanvasViewClassAccess;
+  document: CanvasDocument;
+  /** @minimum 1 */
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  owner: CanvasOwnerReference | null;
+  class: CanvasClassReference | null;
+  /** @minimum 0 */
+  collaboratorCount: number;
+  permissions: CanvasPermissions;
+}
+
+export type LearningCanvas = CanvasView & ({
+  /** @nullable */
+  shareToken: string | null;
+});
+
+export type SharedLearningCanvas = CanvasView;
+
+export type CreateCanvasInputClassAccess = typeof CreateCanvasInputClassAccess[keyof typeof CreateCanvasInputClassAccess];
+
+
+export const CreateCanvasInputClassAccess = {
+  view: 'view',
+  edit: 'edit',
+} as const;
+
+export interface CreateCanvasInput {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title: string;
+  /** @maxLength 1000 */
+  description?: string;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  classId?: number | null;
+  classAccess?: CreateCanvasInputClassAccess;
+}
+
+export type UpdateCanvasInputVisibility = typeof UpdateCanvasInputVisibility[keyof typeof UpdateCanvasInputVisibility];
+
+
+export const UpdateCanvasInputVisibility = {
+  private: 'private',
+  people: 'people',
+  class: 'class',
+  link: 'link',
+} as const;
+
+export type UpdateCanvasInputClassAccess = typeof UpdateCanvasInputClassAccess[keyof typeof UpdateCanvasInputClassAccess];
+
+
+export const UpdateCanvasInputClassAccess = {
+  view: 'view',
+  edit: 'edit',
+} as const;
+
+export interface UpdateCanvasInput {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title?: string;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  description?: string | null;
+  visibility?: UpdateCanvasInputVisibility;
+  classAccess?: UpdateCanvasInputClassAccess;
+  document?: CanvasDocument;
+  /** @minimum 1 */
+  expectedVersion?: number;
+}
+
+export type PublishCanvasInputDestination = typeof PublishCanvasInputDestination[keyof typeof PublishCanvasInputDestination];
+
+
+export const PublishCanvasInputDestination = {
+  catalog: 'catalog',
+  forum: 'forum',
+} as const;
+
+export interface PublishCanvasInput {
+  destination?: PublishCanvasInputDestination;
+}
+
+export type PublishCanvasResultDestination = typeof PublishCanvasResultDestination[keyof typeof PublishCanvasResultDestination];
+
+
+export const PublishCanvasResultDestination = {
+  catalog: 'catalog',
+  forum: 'forum',
+} as const;
+
+export interface PublishCanvasResult {
+  /** @minimum 1 */
+  materialId: number;
+  /**
+     * @minLength 20
+     * @maxLength 100
+     */
+  shareToken: string;
+  destination: PublishCanvasResultDestination;
+}
+
+export type CanvasCollaboratorRole = typeof CanvasCollaboratorRole[keyof typeof CanvasCollaboratorRole];
+
+
+export const CanvasCollaboratorRole = {
+  viewer: 'viewer',
+  editor: 'editor',
+} as const;
+
+export interface CanvasCollaborator {
+  /** @minimum 1 */
+  userId: number;
+  role: CanvasCollaboratorRole;
+  createdAt: string;
+  name: string;
+  email: string;
+  /** @nullable */
+  avatarUrl: string | null;
+}
+
+export type CanvasCollaboratorInputRole = typeof CanvasCollaboratorInputRole[keyof typeof CanvasCollaboratorInputRole];
+
+
+export const CanvasCollaboratorInputRole = {
+  viewer: 'viewer',
+  editor: 'editor',
+} as const;
+
+export interface CanvasCollaboratorInput {
+  role: CanvasCollaboratorInputRole;
+}
+
+export interface CanvasCollaboratorResult {
+  ok: true;
+}
+
+export interface CanvasConflictResponse {
+  error: string;
+  current: LearningCanvas | null;
+}
+
 export interface DashboardSummary {
   classCount: number;
   resourceCount: number;
@@ -1445,6 +3069,385 @@ export interface ActivityItem {
   userId?: number | null;
   /** @nullable */
   userName?: string | null;
+}
+
+export type ResourceWorkflowAction = typeof ResourceWorkflowAction[keyof typeof ResourceWorkflowAction];
+
+
+export const ResourceWorkflowAction = {
+  review: 'review',
+  save: 'save',
+  create_activity: 'create_activity',
+  share_class: 'share_class',
+  assign_class: 'assign_class',
+  complete: 'complete',
+} as const;
+
+export type ContinueWorkflowAction = typeof ContinueWorkflowAction[keyof typeof ContinueWorkflowAction];
+
+
+export const ContinueWorkflowAction = {
+  review: 'review',
+  save: 'save',
+  create_activity: 'create_activity',
+  share_class: 'share_class',
+  assign_class: 'assign_class',
+} as const;
+
+export interface ResourceWorkflowSteps {
+  reviewed: boolean;
+  saved: boolean;
+  activityCreated: boolean;
+  classShared: boolean;
+  assignmentCreated: boolean;
+}
+
+export interface WorkflowItemReference {
+  id: number;
+  title: string;
+}
+
+export interface WorkflowClassReference {
+  id: number;
+  /** @nullable */
+  name: string | null;
+}
+
+export interface ResourceWorkflowState {
+  resourceId: number;
+  steps: ResourceWorkflowSteps;
+  nextAction: ResourceWorkflowAction;
+  assignmentRequired: boolean;
+  activity: WorkflowItemReference | null;
+  classShare: WorkflowClassReference | null;
+  assignment: WorkflowItemReference | null;
+}
+
+export type ContinueWorkflowItemTotalSteps = typeof ContinueWorkflowItemTotalSteps[keyof typeof ContinueWorkflowItemTotalSteps];
+
+
+export const ContinueWorkflowItemTotalSteps = {
+  NUMBER_4: 4,
+  NUMBER_5: 5,
+} as const;
+
+export interface ContinueWorkflowItem {
+  resourceId: number;
+  title: string;
+  subject: string;
+  format: string;
+  lastEventAt: string;
+  steps: ResourceWorkflowSteps;
+  nextAction: ContinueWorkflowAction;
+  /**
+     * @minimum 1
+     * @maximum 4
+     */
+  completedSteps: number;
+  totalSteps: ContinueWorkflowItemTotalSteps;
+  activity: WorkflowItemReference | null;
+  classShare: WorkflowClassReference | null;
+  assignment: WorkflowItemReference | null;
+}
+
+export interface CreateClassAssignmentInput {
+  /**
+     * @minLength 2
+     * @maxLength 180
+     */
+  title: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  instructions?: string | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  resourceId?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  activityId?: number | null;
+  /** @nullable */
+  dueAt?: string | null;
+}
+
+export interface CreatedClassAssignment {
+  id: number;
+  classId: number;
+  createdById: number;
+  title: string;
+  /** @nullable */
+  instructions: string | null;
+  /** @nullable */
+  resourceId: number | null;
+  /** @nullable */
+  activityId: number | null;
+  /** @nullable */
+  dueAt: string | null;
+  createdAt: string;
+}
+
+export interface ClassAssignment {
+  id: number;
+  classId: number;
+  title: string;
+  /** @nullable */
+  instructions: string | null;
+  /** @nullable */
+  resourceId: number | null;
+  /** @nullable */
+  activityId: number | null;
+  /** @nullable */
+  dueAt: string | null;
+  createdAt: string;
+  /** @nullable */
+  resourceTitle: string | null;
+  /** @nullable */
+  resourceUrl: string | null;
+  /** @nullable */
+  activityTitle: string | null;
+  /** @nullable */
+  completedAt: string | null;
+  completed: boolean;
+}
+
+export interface AssignmentCompletionInput {
+  completed?: boolean;
+}
+
+export interface AssignmentCompletionResult {
+  completed: boolean;
+}
+
+export interface TodayAssignment {
+  id: number;
+  classId: number;
+  className: string;
+  title: string;
+  /** @nullable */
+  instructions: string | null;
+  /** @nullable */
+  resourceId: number | null;
+  /** @nullable */
+  activityId: number | null;
+  /** @nullable */
+  dueAt: string | null;
+  /** @nullable */
+  completedAt: string | null;
+  completed: boolean;
+}
+
+export interface ClassAssignmentAnalyticsItem {
+  id: number;
+  title: string;
+  /** @nullable */
+  dueAt: string | null;
+  /** @minimum 0 */
+  completions: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  completionRate: number;
+}
+
+export interface ClassAssignmentAnalytics {
+  /** @minimum 0 */
+  studentCount: number;
+  assignments: ClassAssignmentAnalyticsItem[];
+}
+
+export type StudyActivityMode = typeof StudyActivityMode[keyof typeof StudyActivityMode];
+
+
+export const StudyActivityMode = {
+  all: 'all',
+  flashcards: 'flashcards',
+  practice: 'practice',
+  quiz: 'quiz',
+  'true-false': 'true-false',
+  match: 'match',
+  scramble: 'scramble',
+  'missing-word': 'missing-word',
+  random: 'random',
+} as const;
+
+export interface StudyActivityCardInput {
+  /** @maxLength 80 */
+  id?: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  term: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  answer: string;
+  /**
+     * @minItems 2
+     * @maxItems 6
+     * @items.minLength 1
+     * @items.maxLength 1000
+     */
+  choices?: string[];
+  /**
+     * @minimum 0
+     * @maximum 5
+     */
+  correctChoiceIndex?: number;
+  /**
+     * @maxLength 200000
+     * @nullable
+     */
+  imageData?: string | null;
+  /**
+     * @maxLength 160
+     * @nullable
+     */
+  imageAlt?: string | null;
+}
+
+export interface StudyActivityCard {
+  /** @maxLength 80 */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  term: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  answer: string;
+  /**
+     * @minItems 2
+     * @maxItems 6
+     */
+  choices?: string[];
+  /**
+     * @minimum 0
+     * @maximum 5
+     */
+  correctChoiceIndex?: number;
+  /** @nullable */
+  imageData?: string | null;
+  /** @nullable */
+  imageAlt?: string | null;
+}
+
+export interface StudyActivityContentInput {
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  title: string;
+  /**
+     * @maxLength 160
+     * @nullable
+     */
+  subject?: string | null;
+  mode?: StudyActivityMode;
+  /**
+     * @minItems 2
+     * @maxItems 100
+     */
+  cards: StudyActivityCardInput[];
+}
+
+export type CreateStudyActivityInput = StudyActivityContentInput & ({
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  classId?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  sourceResourceId?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  sourceActivityId?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  remixedFromActivityId?: number | null;
+});
+
+export type UpdateStudyActivityInput = StudyActivityContentInput;
+
+export type StudyActivityWorkspaceRole = typeof StudyActivityWorkspaceRole[keyof typeof StudyActivityWorkspaceRole];
+
+
+export const StudyActivityWorkspaceRole = {
+  student: 'student',
+  teacher: 'teacher',
+} as const;
+
+export interface StudyActivity {
+  id: number;
+  ownerId: number;
+  workspaceRole: StudyActivityWorkspaceRole;
+  /** @nullable */
+  classId: number | null;
+  title: string;
+  /** @nullable */
+  subject: string | null;
+  mode: StudyActivityMode;
+  /** @nullable */
+  shareToken: string | null;
+  cards: StudyActivityCard[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SharedStudyActivity {
+  id: number;
+  /** @nullable */
+  classId: null;
+  title: string;
+  /** @nullable */
+  subject: string | null;
+  mode: StudyActivityMode;
+  cards: StudyActivityCard[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PublishStudyActivityInputDestination = typeof PublishStudyActivityInputDestination[keyof typeof PublishStudyActivityInputDestination];
+
+
+export const PublishStudyActivityInputDestination = {
+  catalog: 'catalog',
+  forum: 'forum',
+} as const;
+
+export interface PublishStudyActivityInput {
+  destination?: PublishStudyActivityInputDestination;
+}
+
+export type PublishStudyActivityResultDestination = typeof PublishStudyActivityResultDestination[keyof typeof PublishStudyActivityResultDestination];
+
+
+export const PublishStudyActivityResultDestination = {
+  catalog: 'catalog',
+  forum: 'forum',
+} as const;
+
+export interface PublishStudyActivityResult {
+  materialId: number;
+  shareToken: string;
+  destination: PublishStudyActivityResultDestination;
 }
 
 export interface GCAuthUrl {
@@ -1514,7 +3517,6 @@ export interface BulkInviteResult {
 export interface CalendarStatus {
   googleConnected: boolean;
   googleConfigured: boolean;
-  icalSecret: string;
 }
 
 export interface CalendarConnectUrl {
@@ -1523,7 +3525,6 @@ export interface CalendarConnectUrl {
 
 export interface CalendarIcalUrl {
   url: string;
-  icalSecret: string;
 }
 
 export interface LearningEvidence {
@@ -1533,6 +3534,16 @@ export interface LearningEvidence {
   resourceId?: number | null;
   /** @nullable */
   learningGoalId?: number | null;
+  /** @nullable */
+  pathStepId?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 28800
+     * @nullable
+     */
+  studyDurationSeconds?: number | null;
+  /** @nullable */
+  clientSubmissionId?: string | null;
   concept: string;
   /**
      * @minimum 1
@@ -1556,6 +3567,24 @@ export interface LearningEvidenceInput {
   resourceId?: number | null;
   /** @nullable */
   learningGoalId?: number | null;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     * @nullable
+     */
+  pathStepId?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 28800
+     * @nullable
+     */
+  studyDurationSeconds?: number | null;
+  /**
+     * @minLength 12
+     * @maxLength 100
+     * @nullable
+     */
+  clientSubmissionId?: string | null;
   /**
      * @minLength 2
      * @maxLength 160
@@ -1602,6 +3631,67 @@ export interface LearningSignals {
 export type UploadAvatarBody = {
   file: Blob;
 };
+
+export type ListAdminUsersParams = {
+/**
+ * @maxLength 200
+ */
+q?: string;
+/**
+ * Filter by platform authority, not the active workspace.
+ */
+role?: ListAdminUsersRole;
+status?: ListAdminUsersStatus;
+educatorEnabled?: boolean;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListAdminUsersRole = typeof ListAdminUsersRole[keyof typeof ListAdminUsersRole];
+
+
+export const ListAdminUsersRole = {
+  student: 'student',
+  teacher: 'teacher',
+  admin: 'admin',
+} as const;
+
+export type ListAdminUsersStatus = typeof ListAdminUsersStatus[keyof typeof ListAdminUsersStatus];
+
+
+export const ListAdminUsersStatus = {
+  active: 'active',
+  banned: 'banned',
+} as const;
+
+export type ListAdminResourceReviewQueueParams = {
+status?: ListAdminResourceReviewQueueStatus;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListAdminResourceReviewQueueStatus = typeof ListAdminResourceReviewQueueStatus[keyof typeof ListAdminResourceReviewQueueStatus];
+
+
+export const ListAdminResourceReviewQueueStatus = {
+  unverified: 'unverified',
+  verified: 'verified',
+  rejected: 'rejected',
+} as const;
 
 export type SubmitSeatingSuggestionBody = {
   /**
@@ -1688,6 +3778,14 @@ page?: number;
  * Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery
  */
 resultType?: DiscoverResourcesResultType;
+/**
+ * Infer learning intent from the query or apply an explicit intent
+ */
+intent?: DiscoverResourcesIntent;
+/**
+ * Restrict content discovery to a pedagogical material type
+ */
+material?: DiscoverResourcesMaterial;
 };
 
 export type DiscoverResourcesFormat = typeof DiscoverResourcesFormat[keyof typeof DiscoverResourcesFormat];
@@ -1722,6 +3820,36 @@ export const DiscoverResourcesResultType = {
   content: 'content',
   source: 'source',
   people: 'people',
+} as const;
+
+export type DiscoverResourcesIntent = typeof DiscoverResourcesIntent[keyof typeof DiscoverResourcesIntent];
+
+
+export const DiscoverResourcesIntent = {
+  auto: 'auto',
+  learn: 'learn',
+  practice: 'practice',
+  reference: 'reference',
+  research: 'research',
+  'primary-source': 'primary-source',
+} as const;
+
+export type DiscoverResourcesMaterial = typeof DiscoverResourcesMaterial[keyof typeof DiscoverResourcesMaterial];
+
+
+export const DiscoverResourcesMaterial = {
+  all: 'all',
+  course: 'course',
+  book: 'book',
+  explanation: 'explanation',
+  practice: 'practice',
+  interactive: 'interactive',
+  video: 'video',
+  reference: 'reference',
+  paper: 'paper',
+  'primary-source': 'primary-source',
+  repository: 'repository',
+  other: 'other',
 } as const;
 
 export type GetResourceSourceReviewParams = {
@@ -1795,4 +3923,81 @@ export const SearchUsersRole = {
   student: 'student',
   teacher: 'teacher',
 } as const;
+
+export type ListStudyActivitiesParams = {
+/**
+ * @minimum 1
+ */
+classId?: number;
+};
+
+export type ListForumMaterialsParams = {
+/**
+ * @maxLength 160
+ */
+q?: string;
+/**
+ * @maxLength 100
+ */
+unit?: string;
+/**
+ * @maxLength 100
+ */
+topic?: string;
+type?: ForumMaterialType;
+/**
+ * @maxLength 100
+ */
+uploader?: string;
+date?: ListForumMaterialsDate;
+sort?: ListForumMaterialsSort;
+};
+
+export type ListForumMaterialsDate = typeof ListForumMaterialsDate[keyof typeof ListForumMaterialsDate];
+
+
+export const ListForumMaterialsDate = {
+  day: 'day',
+  week: 'week',
+  month: 'month',
+  year: 'year',
+} as const;
+
+export type ListForumMaterialsSort = typeof ListForumMaterialsSort[keyof typeof ListForumMaterialsSort];
+
+
+export const ListForumMaterialsSort = {
+  newest: 'newest',
+  oldest: 'oldest',
+  downloads: 'downloads',
+  views: 'views',
+} as const;
+
+export type ListForumPostsParams = {
+/**
+ * @minimum 1
+ */
+classId?: number;
+/**
+ * @maxLength 160
+ */
+q?: string;
+/**
+ * @maxLength 40
+ */
+tag?: string;
+kind?: ForumPostKind;
+};
+
+export type GetCalendarGoogleCallbackParams = {
+/**
+ * @minLength 1
+ */
+code?: string;
+/**
+ * @minLength 1
+ */
+state?: string;
+error?: string;
+};
 

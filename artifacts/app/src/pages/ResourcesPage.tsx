@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Resources Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState, useRef, useEffect } from "react";
 import { useLocation, useSearch as useRouteSearch, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -87,6 +91,7 @@ import {
   ResourceInputFormat,
   DiscoverResourcesFormat,
   DiscoverResourcesLanguage,
+  DiscoverResourcesMaterial,
   DiscoverResourcesResultType,
   UserRole,
   type DiscoveredResource,
@@ -111,6 +116,12 @@ import {
   useUserPreferences,
 } from "../lib/user-preferences";
 import { usePlan } from "../lib/use-plan";
+import { isFirstRunResourceSearch } from "../lib/resource-onboarding";
+import {
+  beginOnboardingActivation,
+  completeOnboardingActivation,
+  trackProductEvent,
+} from "../lib/product-analytics";
 
 const FORMAT_OPTIONS = Object.values(ListResourcesFormat);
 const RESOURCE_SEARCH_STATE_KEY = "schoolar_resource_search_state";
@@ -256,6 +267,7 @@ type SubmittedResourceSearch = {
   gradeLevel: string;
   language: SearchLanguage;
   resultType: DiscoverResourcesResultType;
+  material: DiscoverResourcesMaterial;
   sortBy: ListResourcesSortBy | "";
   minRating: number | "";
   exactPhrase: string;
@@ -431,20 +443,77 @@ const FORMAT_PREVIEW_STYLES: Record<string, string> = {
   other: "from-slate-100 via-gray-50 to-white text-slate-700",
 };
 
-function FormatPreview({
+function ResourcePreviewFallback({
   url,
   format,
   title,
+  description,
+  source,
+  author,
+  faviconUrl,
 }: {
   url: string;
   format: string;
   title: string;
+  description?: string | null;
+  source?: string | null;
+  author?: string | null;
+  faviconUrl?: string | null;
 }) {
   let hostname = "Learning resource";
   try {
     hostname = new URL(url).hostname.replace(/^www\./, "");
   } catch {
     /* keep fallback */
+  }
+
+  const publisher = source?.trim() || hostname;
+  const snippet = description?.replace(/\s+/g, " ").trim() || "";
+  const hasMeaningfulFallback = snippet.length >= 16 && publisher.length > 0;
+  const initials = publisher
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+  const [failedFavicon, setFailedFavicon] = useState(false);
+
+  if (hasMeaningfulFallback) {
+    return (
+      <div
+        className={`w-full h-36 bg-gradient-to-br ${FORMAT_PREVIEW_STYLES[format] ?? FORMAT_PREVIEW_STYLES.other} flex flex-col justify-between gap-2 px-4 py-3`}
+        role="img"
+        aria-label={`Text preview for ${title}`}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-current/15 bg-white/70 text-[11px] font-bold">
+            {faviconUrl && !failedFavicon ? (
+              <img
+                src={faviconUrl}
+                alt=""
+                className="size-5 object-contain"
+                loading="lazy"
+                onError={() => setFailedFavicon(true)}
+              />
+            ) : (
+              initials || "LR"
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold">{publisher}</p>
+            <p className="truncate text-[10px] opacity-70">
+              {author ? `By ${author}` : hostname}
+            </p>
+          </div>
+        </div>
+        <p className="line-clamp-3 text-xs leading-relaxed text-current/85">
+          {snippet}
+        </p>
+        <span className="text-[9px] font-semibold uppercase tracking-widest opacity-60">
+          Text preview · {format}
+        </span>
+      </div>
+    );
   }
 
   const iconClass = "size-9";
@@ -539,10 +608,11 @@ function LibraryCard({
         </div>
       )}
       {!showImg && (
-        <FormatPreview
+        <ResourcePreviewFallback
           url={resource.url}
           format={resource.format}
           title={resource.title}
+          description={resource.description}
         />
       )}
       <CardHeader className="pb-2">
@@ -614,6 +684,7 @@ function LibraryCard({
               }}
               className="text-muted-foreground hover:text-primary-text transition-colors"
               title="Assign to class"
+              data-testid="assign-library-resource"
             >
               <GraduationCap size={13} />
             </button>
@@ -687,7 +758,9 @@ function UnsavedSourceResearchDialog({
     }
     if (nextMode === "deep" && !plan.aiEnabled) {
       setMode("deep");
-      setError("Deep AI research requires Casparel Plus or Pro. The quick source check remains available without AI.");
+      setError(
+        "Deep AI research requires Casparel Plus or Pro. The quick source check remains available without AI.",
+      );
       return;
     }
     setMode(nextMode);
@@ -725,7 +798,10 @@ function UnsavedSourceResearchDialog({
   const profile = data?.resourceProfile;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent
+        className="max-h-[90vh] max-w-3xl overflow-y-auto"
+        data-testid="unsaved-source-research-dialog"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Microscope size={18} /> Research this source
@@ -740,6 +816,7 @@ function UnsavedSourceResearchDialog({
               type="button"
               onClick={() => void research("quick")}
               className="border p-4 text-left transition-colors hover:border-primary"
+              data-testid="unsaved-research-quick"
             >
               <p className="font-semibold">Quick research</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -751,6 +828,7 @@ function UnsavedSourceResearchDialog({
               type="button"
               onClick={() => void research("deep")}
               className="border p-4 text-left transition-colors hover:border-primary"
+              data-testid="unsaved-research-deep"
             >
               <p className="font-semibold">Deep research</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -782,7 +860,10 @@ function UnsavedSourceResearchDialog({
           </div>
         )}
         {data && !loading && (
-          <div className="space-y-5">
+          <div
+            className="space-y-5"
+            data-testid="unsaved-source-research-result"
+          >
             <div className="flex flex-wrap items-center gap-2">
               <Badge>
                 {data.mode === "deep" ? "Deep research" : "Quick research"}
@@ -888,12 +969,14 @@ function WebCard({
   adding,
   onCitation,
   onResearch,
+  onOpen,
 }: {
   resource: DiscoveredResource;
   onAdd: (r: DiscoveredResource) => void;
   adding: boolean;
   onCitation: () => void;
   onResearch: () => void;
+  onOpen: () => void;
 }) {
   const [failedThumb, setFailedThumb] = useState<string | null>(null);
   const ytId = getYouTubeId(resource.url);
@@ -902,10 +985,16 @@ function WebCard({
   const { data: oembedThumb } = useOembedThumbnail(resource.url, needsOembed);
   const thumb = ytId
     ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
-    : (oembedThumb ?? resource.thumbnailUrl ?? null);
+    : (oembedThumb ??
+      resource.previewImageUrl ??
+      resource.thumbnailUrl ??
+      null);
   const showImg = !!thumb && thumb !== failedThumb;
   return (
-    <Card className="render-later flex flex-col overflow-hidden">
+    <Card
+      className="render-later flex flex-col overflow-hidden"
+      data-testid="discovered-resource-card"
+    >
       {showImg && (
         <div className="w-full h-36 overflow-hidden bg-black shrink-0">
           <img
@@ -919,21 +1008,39 @@ function WebCard({
         </div>
       )}
       {!showImg && (
-        <FormatPreview
+        <ResourcePreviewFallback
           url={resource.url}
           format={resource.format}
           title={resource.title}
+          description={resource.previewDescription ?? resource.description}
+          source={resource.previewPublisher ?? resource.source}
+          author={resource.previewAuthor}
+          faviconUrl={resource.previewFaviconUrl}
         />
       )}
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base line-clamp-2 leading-snug">
+          <CardTitle
+            className="text-base line-clamp-2 leading-snug"
+            data-testid="discovered-resource-title"
+          >
             {resource.title}
           </CardTitle>
-          <FormatBadge format={resource.format} />
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <FormatBadge format={resource.format} />
+            {resource.material && (
+              <Badge variant="secondary" className="text-[10px] capitalize">
+                {resource.material.replace("-", " ")}
+              </Badge>
+            )}
+          </div>
         </div>
         <CardDescription className="text-xs">
-          {resource.source}
+          {resource.previewPublisher ?? resource.source}
+          {resource.previewAuthor &&
+          resource.previewAuthor !== resource.previewPublisher
+            ? ` · ${resource.previewAuthor}`
+            : ""}
           {resource.subject ? ` · ${resource.subject}` : ""}
           {resource.gradeLevel ? ` · ${resource.gradeLevel}` : ""}
           <ProvenanceBadge resource={resource} />
@@ -946,7 +1053,13 @@ function WebCard({
       </CardContent>
       <CardFooter className="gap-2 pt-2 flex-wrap">
         <Button size="sm" variant="outline" asChild className="flex-1">
-          <a href={resource.url} target="_blank" rel="noopener noreferrer">
+          <a
+            href={resource.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onOpen}
+            data-testid="open-discovered-resource"
+          >
             <ExternalLink size={12} className="mr-1.5" /> Open
           </a>
         </Button>
@@ -955,6 +1068,7 @@ function WebCard({
           className="flex-1"
           disabled={adding}
           onClick={() => onAdd(resource)}
+          data-testid="save-discovered-resource"
         >
           {adding ? (
             <>
@@ -971,6 +1085,7 @@ function WebCard({
           variant="ghost"
           onClick={onCitation}
           title="Get citation"
+          data-testid="cite-discovered-resource"
         >
           <Quote size={12} className="mr-1.5" /> Cite
         </Button>
@@ -979,6 +1094,7 @@ function WebCard({
           variant="ghost"
           onClick={onResearch}
           title="Research without saving"
+          data-testid="research-discovered-resource"
         >
           <Microscope size={12} className="mr-1.5" /> Research
         </Button>
@@ -1109,6 +1225,9 @@ export default function ResourcesPage() {
   const [resourceView, setResourceView] = useState<"search" | "library">(
     initialResourceView,
   );
+  const [showFirstRunPrompt, setShowFirstRunPrompt] = useState(() =>
+    isFirstRunResourceSearch(routeSearch),
+  );
   const [inputValue, setInputValue] = useState(initialSearch.inputValue);
   const [activeQuery, setActiveQuery] = useState(initialSearch.activeQuery);
   const [formatFilter, setFormatFilter] = useState("");
@@ -1118,6 +1237,8 @@ export default function ResourcesPage() {
     useState<SearchLanguage>(interfaceLanguage);
   const [resultTypeFilter, setResultTypeFilter] =
     useState<DiscoverResourcesResultType>(DiscoverResourcesResultType.content);
+  const [materialFilter, setMaterialFilter] =
+    useState<DiscoverResourcesMaterial>(DiscoverResourcesMaterial.all);
   const [sortByFilter, setSortByFilter] = useState<ListResourcesSortBy | "">(
     "",
   );
@@ -1165,6 +1286,18 @@ export default function ResourcesPage() {
   const [researchOpen, setResearchOpen] = useState(false);
   const previousActiveQueryRef = useRef(activeQuery);
   const hydratedAccountSearchRef = useRef(false);
+  const paywallTrackedRef = useRef("");
+
+  useEffect(() => {
+    if (!showFirstRunPrompt) return;
+    inputRef.current?.focus();
+    if (beginOnboardingActivation()) {
+      void trackProductEvent({
+        event: "onboarding_started",
+        context: { surface: "resource_search" },
+      });
+    }
+  }, [showFirstRunPrompt]);
 
   function openCitation(resource?: CitationResource) {
     setCitationResource(resource ?? null);
@@ -1178,6 +1311,9 @@ export default function ResourcesPage() {
 
   useEffect(() => {
     const state = {
+      // Mobile owns mobileQuery inside the synchronized object. Preserve
+      // unknown client-specific fields while web refreshes its richer result cache.
+      ...(accountPreferences?.resourceSearchState ?? {}),
       inputValue,
       activeQuery,
       results: allWebResults.slice(0, 60),
@@ -1292,7 +1428,12 @@ export default function ResourcesPage() {
     limit: libraryLimit,
     offset: 0,
   };
-  const { data: libraryResults, isLoading: libraryLoading } = useListResources(
+  const {
+    data: libraryResults,
+    isLoading: libraryLoading,
+    isError: libraryError,
+    refetch: refetchLibraryResults,
+  } = useListResources(
     libraryParams,
     {
       query: {
@@ -1328,7 +1469,12 @@ export default function ResourcesPage() {
     limit: 50,
     offset: 0,
   };
-  const { data: gatedResults, isLoading: gatedLoading } = useListResources(
+  const {
+    data: gatedResults,
+    isLoading: gatedLoading,
+    isError: gatedError,
+    refetch: refetchGatedResults,
+  } = useListResources(
     gatedParams,
     {
       query: {
@@ -1339,7 +1485,12 @@ export default function ResourcesPage() {
   );
 
   const libraryCatalogParams = { limit: 50, offset: 0 };
-  const { data: libraryCatalog } = useListResources(libraryCatalogParams, {
+  const {
+    data: libraryCatalog,
+    isLoading: libraryCatalogLoading,
+    isError: libraryCatalogError,
+    refetch: refetchLibraryCatalog,
+  } = useListResources(libraryCatalogParams, {
     query: {
       enabled: isLoggedIn,
       queryKey: getListResourcesQueryKey(libraryCatalogParams),
@@ -1463,6 +1614,9 @@ export default function ResourcesPage() {
     page: webPage,
     resultType:
       submittedSearch?.resultType ?? DiscoverResourcesResultType.content,
+    ...(submittedSearch?.resultType === DiscoverResourcesResultType.content
+      ? { material: submittedSearch.material }
+      : {}),
     ...(submittedSearch?.exactPhrase
       ? { exactPhrase: submittedSearch.exactPhrase }
       : {}),
@@ -1538,6 +1692,26 @@ export default function ResourcesPage() {
     webErrorResponse.data?.code === "AI_CREDITS_EXHAUSTED";
   const webSubscriptionRequired = webErrorResponse?.status === 402;
   const webAuthenticationRequired = webErrorResponse?.status === 401;
+
+  useEffect(() => {
+    if (!webSubscriptionRequired || !activeQuery) return;
+    const eventKey = `${activeQuery}:${submittedSearch?.resultType ?? "content"}`;
+    if (paywallTrackedRef.current === eventKey) return;
+    paywallTrackedRef.current = eventKey;
+    void trackProductEvent({
+      event: "paywall_viewed",
+      context: {
+        surface: "resource_search",
+        resultType: submittedSearch?.resultType ?? "content",
+        plan: plan.tier,
+      },
+    });
+  }, [
+    activeQuery,
+    plan.tier,
+    submittedSearch?.resultType,
+    webSubscriptionRequired,
+  ]);
 
   // Reset accumulated results when query changes; append on page increment
   useEffect(() => {
@@ -1733,6 +1907,8 @@ export default function ResourcesPage() {
     e.preventDefault();
     const q = inputValue.trim();
     if (q) {
+      if (showFirstRunPrompt) setLocation("/resources", { replace: true });
+      setShowFirstRunPrompt(false);
       setSubmittedSearch({
         query: q,
         format: formatFilter,
@@ -1740,6 +1916,7 @@ export default function ResourcesPage() {
         gradeLevel: gradeLevelFilter,
         language: searchLanguage,
         resultType: resultTypeFilter,
+        material: materialFilter,
         sortBy: sortByFilter,
         minRating: minRatingFilter,
         exactPhrase: exactPhraseFilter.trim(),
@@ -1846,6 +2023,15 @@ export default function ResourcesPage() {
         title: "Saved to library!",
         description: `"${resource.title}" added.`,
       });
+      if (completeOnboardingActivation()) {
+        void trackProductEvent({
+          event: "onboarding_completed",
+          context: {
+            surface: "resource_search",
+            milestone: "resource_saved",
+          },
+        });
+      }
       return true;
     } catch (err) {
       toast({
@@ -2057,6 +2243,7 @@ export default function ResourcesPage() {
           aria-selected={resourceView === "search"}
           onClick={() => setResourceView("search")}
           className={`flex min-h-9 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium sm:flex-none ${resourceView === "search" ? "bg-primary text-primary-foreground" : "text-card-foreground/70 hover:text-card-foreground"}`}
+          data-testid="resource-search-tab"
         >
           <Search size={15} /> Search
         </button>
@@ -2066,6 +2253,7 @@ export default function ResourcesPage() {
           aria-selected={resourceView === "library"}
           onClick={() => setResourceView("library")}
           className={`flex min-h-9 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium sm:flex-none ${resourceView === "library" ? "bg-primary text-primary-foreground" : "text-card-foreground/70 hover:text-card-foreground"}`}
+          data-testid="resource-library-tab"
         >
           <BookOpen size={15} /> Library
         </button>
@@ -2079,6 +2267,20 @@ export default function ResourcesPage() {
           role="search"
           aria-label="Resource search"
         >
+          {showFirstRunPrompt && (
+            <div className="rounded-lg border border-primary/25 bg-primary/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary-text">
+                Your first useful step
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-foreground">
+                What do you genuinely need to learn?
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Enter a real topic, question, or skill. Casparel will help you
+                find a useful starting point.
+              </p>
+            </div>
+          )}
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search
@@ -2090,7 +2292,9 @@ export default function ResourcesPage() {
                 className="pl-9 pr-9 h-11 text-base"
                 aria-label="Search resources"
                 placeholder={
-                  'Search anything, "photosynthesis", "MIT calculus", "Python for beginners"…'
+                  showFirstRunPrompt
+                    ? "Try “learn derivatives from scratch”…"
+                    : 'Search anything, "photosynthesis", "MIT calculus", "Python for beginners"…'
                 }
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -2139,6 +2343,56 @@ export default function ResourcesPage() {
                 </SelectItem>
               </SelectContent>
             </Select>
+            {!isSourceMode && (
+              <Select
+                value={materialFilter}
+                onValueChange={(value) =>
+                  setMaterialFilter(value as DiscoverResourcesMaterial)
+                }
+              >
+                <SelectTrigger
+                  className="w-40 h-8 text-xs"
+                  data-testid="material-filter"
+                  aria-label="Learning material"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={DiscoverResourcesMaterial.all}>
+                    Material: all
+                  </SelectItem>
+                  <SelectItem value={DiscoverResourcesMaterial.course}>
+                    Courses
+                  </SelectItem>
+                  <SelectItem value={DiscoverResourcesMaterial.book}>
+                    Books & textbooks
+                  </SelectItem>
+                  <SelectItem value={DiscoverResourcesMaterial.explanation}>
+                    Explanations
+                  </SelectItem>
+                  <SelectItem value={DiscoverResourcesMaterial.practice}>
+                    Practice
+                  </SelectItem>
+                  <SelectItem value={DiscoverResourcesMaterial.interactive}>
+                    Interactives
+                  </SelectItem>
+                  <SelectItem value={DiscoverResourcesMaterial.video}>
+                    Videos & audio
+                  </SelectItem>
+                  <SelectItem value={DiscoverResourcesMaterial.reference}>
+                    Reference
+                  </SelectItem>
+                  <SelectItem value={DiscoverResourcesMaterial.paper}>
+                    Research papers
+                  </SelectItem>
+                  <SelectItem
+                    value={DiscoverResourcesMaterial["primary-source"]}
+                  >
+                    Primary sources
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            )}
             <Select
               value={searchLanguage}
               onValueChange={(value) =>
@@ -2922,6 +3176,15 @@ export default function ResourcesPage() {
           {verificationFilter ? (
             gatedLoading ? (
               <CardSkeletons count={3} />
+            ) : gatedError && gatedResults === undefined ? (
+              <div className="border-y py-10 text-center" data-testid="moderation-library-load-error">
+                <ShieldAlert className="mx-auto mb-3 size-7 text-destructive-text" />
+                <p className="font-medium">Review-status resources could not be loaded</p>
+                <p className="mt-1 text-sm text-muted-foreground">This request failed; the filtered library has not been reported as empty.</p>
+                <Button className="mt-4" size="sm" variant="outline" onClick={() => void refetchGatedResults()}>
+                  <RotateCcw size={14} className="mr-1.5" /> Retry
+                </Button>
+              </div>
             ) : !gatedResults?.length ? (
               <div className="border-y py-10 text-center">
                 <ShieldCheck className="mx-auto mb-3 size-7 text-muted-foreground" />
@@ -2955,6 +3218,17 @@ export default function ResourcesPage() {
                 ))}
               </div>
             )
+          ) : libraryCatalogLoading ? (
+            <CardSkeletons count={3} />
+          ) : libraryCatalogError && libraryCatalog === undefined ? (
+            <div className="border-y py-12 text-center" data-testid="resource-library-load-error">
+              <ShieldAlert className="mx-auto mb-3 size-8 text-destructive-text" />
+              <p className="font-medium">Your library could not be loaded</p>
+              <p className="mt-1 text-sm text-muted-foreground">Your resources have not been reported as empty.</p>
+              <Button className="mt-4" size="sm" variant="outline" onClick={() => void refetchLibraryCatalog()}>
+                <RotateCcw size={14} className="mr-1.5" /> Retry
+              </Button>
+            </div>
           ) : !uniqueLibraryCatalog.length ? (
             <div className="border-y py-12 text-center">
               <BookOpen className="mx-auto mb-3 size-8 text-muted-foreground" />
@@ -3011,6 +3285,15 @@ export default function ResourcesPage() {
               </h2>
               {libraryLoading ? (
                 <CardSkeletons count={3} />
+              ) : libraryError && libraryResults === undefined ? (
+                <div className="border-y py-8 text-center" data-testid="catalog-library-search-error">
+                  <ShieldAlert className="mx-auto mb-2 size-6 text-destructive-text" />
+                  <p className="font-medium">Saved resources could not be searched</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Open-catalog results below are separate from this failed request.</p>
+                  <Button className="mt-3" size="sm" variant="outline" onClick={() => void refetchLibraryResults()}>
+                    <RotateCcw size={14} className="mr-1.5" /> Retry
+                  </Button>
+                </div>
               ) : uniqueLibraryResults.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-2">
                   No saved Casparel resources match "{activeQuery}" yet. Results
@@ -3103,34 +3386,44 @@ export default function ResourcesPage() {
                     ? "The stored catalog has no matches. AI discovery requires Casparel Plus or Pro."
                     : webAuthenticationRequired
                       ? "The stored catalog has no matches. Sign in with Plus or Pro to use AI discovery."
-                    : webCreditsExhausted
-                    ? isAdmin
-                      ? "Optional AI fallback is unavailable because the OpenAI project has no credits."
-                      : "Optional AI fallback is temporarily unavailable."
-                    : "Catalog search failed, please try again."}
+                      : webCreditsExhausted
+                        ? isAdmin
+                          ? "Optional AI fallback is unavailable because the OpenAI project has no credits."
+                          : "Optional AI fallback is temporarily unavailable."
+                        : "Catalog search failed, please try again."}
                 </p>
                 {webSubscriptionRequired || webAuthenticationRequired ? (
                   <Button
                     variant="outline"
                     size="sm"
                     className="mt-3"
-                    onClick={() => setLocation(webAuthenticationRequired ? "/auth/login" : "/settings")}
+                    onClick={() =>
+                      setLocation(
+                        webAuthenticationRequired ? "/auth/login" : "/settings",
+                      )
+                    }
                   >
-                    {webAuthenticationRequired ? "Sign in" : plan.tier === "plus" ? "View Pro" : "View plans"}
+                    {webAuthenticationRequired
+                      ? "Sign in"
+                      : plan.tier === "plus"
+                        ? "View Pro"
+                        : "View plans"}
                   </Button>
                 ) : webCreditsExhausted && isAdmin ? (
                   <p className="mt-1 text-xs text-muted-foreground">
                     Add credits in OpenAI billing, then retry this search.
                   </p>
                 ) : null}
-                {!webSubscriptionRequired && !webAuthenticationRequired ? <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => void retryWebSearch()}
-                >
-                  Retry
-                </Button> : null}
+                {!webSubscriptionRequired && !webAuthenticationRequired ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => void retryWebSearch()}
+                  >
+                    Retry
+                  </Button>
+                ) : null}
               </div>
             )}
 
@@ -3165,6 +3458,17 @@ export default function ResourcesPage() {
                         adding={addingUrl === r.url}
                         onCitation={() => openCitation(r)}
                         onResearch={() => openResearch(r)}
+                        onOpen={() =>
+                          void trackProductEvent({
+                            event: "search_result_opened",
+                            context: {
+                              surface: "resource_search",
+                              resultType: "content",
+                              material: r.material ?? "other",
+                              position: i + 1,
+                            },
+                          })
+                        }
                       />
                     ),
                   )}

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API support role: configures or operates the Load Env part of the backend package.
+ * System connection: participates in the API package's development, build, validation, or deployment lifecycle.
+ */
 // Loads a .env file before anything else in the process initializes.
 //
 // The server reads process.env directly and several modules (@workspace/db,

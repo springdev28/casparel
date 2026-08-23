@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Guide Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
@@ -52,7 +56,7 @@ const CHANGELOG: ChangeEntry[] = [
     version: "1.4.0",
     date: "August 2026",
     changes: [
-      "New: this complete guide, plus a replayable product tour, both from Settings.",
+      "New: this complete guide, plus an optional replayable product tour, both from Settings.",
       "Your Library now shows only the resources you added, and Remove appears only on resources you can actually remove.",
       "Faster first load and a self-hosted display font; search filters and the sign-in screens are more screen-reader friendly.",
       "Sign-in and registration now have a show/hide password control, and new passwords need at least 8 characters.",
@@ -86,8 +90,8 @@ const SECTIONS: GuideSection[] = [
       "Create an account, pick how Casparel speaks to you, and find your way around.",
     items: [
       {
-        title: "Accounts & roles",
-        desc: "Register as a student or teacher. Teachers unlock classes, assignments, and Google Classroom import; both roles can discover, save, and organise resources.",
+        title: "Learner & educator workspaces",
+        desc: "Every account starts in the learner workspace and can open the educator workspace when needed. Your workspace changes the tools you see, not your account identity.",
       },
       {
         title: "Browse without an account",
@@ -95,11 +99,11 @@ const SECTIONS: GuideSection[] = [
       },
       {
         title: "Languages",
-        desc: "The interface ships in English, Spanish, French, German, Portuguese, and Turkish. Pick your language on the sign-in screen or in Settings.",
+        desc: "Sign-in and registration support English, Spanish, French, German, Portuguese, and Turkish. The full signed-in interface currently supports English and Turkish.",
       },
       {
         title: "The product tour",
-        desc: "New accounts open a short guided tour of the core workflow. Replay it any time from Settings → Product tour.",
+        desc: "The tour is optional. Open or replay it any time from Settings → Product tour.",
       },
     ],
   },
@@ -233,7 +237,7 @@ const SECTIONS: GuideSection[] = [
     items: [
       {
         title: "Create or join",
-        desc: "Teachers create a class; students join with a class code.",
+        desc: "Educators create a class from the educator workspace; learners join with a class code.",
       },
       {
         title: "Assignments",
@@ -393,7 +397,7 @@ const SECTIONS: GuideSection[] = [
       },
       {
         title: "Six languages",
-        desc: "Use Casparel in English, Spanish, French, German, Portuguese, or Turkish.",
+        desc: "Authentication supports six languages. The complete signed-in interface is currently available in English and Turkish.",
       },
     ],
   },

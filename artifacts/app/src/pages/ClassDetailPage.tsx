@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Class Detail Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useEffect, useState } from 'react';
 import { useParams, useLocation, useSearch as useRouteSearch } from 'wouter';
 import { ArrowLeft, UserPlus, Users, RefreshCw, CheckCircle2, AlertCircle, BookOpen, Trash2, ExternalLink, LogOut, Check, X, MessagesSquare, ShieldCheck, Workflow, Pencil, StickyNote, LayoutDashboard, ClipboardList, LibraryBig, KeyRound } from 'lucide-react';
@@ -15,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { SeatingChartEditor } from '../components/SeatingChartEditor';
 import { ClassAssignments } from '../components/ClassAssignments';
+import { LoadFailure } from '../components/LoadFailure';
 import {
   useGetClass,
   useBulkInviteClassMembers,
@@ -92,7 +97,7 @@ export default function ClassDetailPage() {
   const [pendingInvitations, setPendingInvitations] = useState<ClassInvitation[]>([]);
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
 
-  const { data: cls, isLoading } = useGetClass(classId, {
+  const { data: cls, isLoading, isError: classLoadError, error: classError, refetch: refetchClass } = useGetClass(classId, {
     query: { enabled: !!classId, queryKey: getGetClassQueryKey(classId) },
   });
   const { data: me } = useGetMe();
@@ -103,17 +108,19 @@ export default function ClassDetailPage() {
   const { data: gcStatus } = useGetGCStatus({
     query: { enabled: isTeacherRole, queryKey: getGetGCStatusQueryKey() },
   });
-  const { data: classResList, isLoading: resListLoading } = useGetClassResourcesList(classId, {
+  const classResourcesQuery = useGetClassResourcesList(classId, {
     query: { enabled: !!classId, queryKey: getGetClassResourcesListQueryKey(classId) },
   });
+  const classResList = classResourcesQuery.data;
   const removeClassResource = useRemoveClassResource();
   const deleteClass = useDeleteClass();
   const removeClassMember = useRemoveClassMember();
   const leaveClass = useLeaveClass();
   const reviewRecommendation = useReviewClassResourceRecommendation();
-  const { data: classRecommendations } = useListClassResourceRecommendations(classId, {
+  const recommendationsQuery = useListClassResourceRecommendations(classId, {
     query: { enabled: !!classId, queryKey: getListClassResourceRecommendationsQueryKey(classId) },
   });
+  const classRecommendations = recommendationsQuery.data;
 
   const bulkInvite = useBulkInviteClassMembers();
   const updateClass = useUpdateClass();
@@ -122,18 +129,20 @@ export default function ClassDetailPage() {
   const isTeacher =
     isAdministrator ||
     (isTeacherRole && me?.id != null && cls?.teacherId === me.id);
-  const { data: seatingChart } = useGetSeatingChart(classId, {
+  const seatingQuery = useGetSeatingChart(classId, {
     query: { enabled: isTeacher && !!classId, queryKey: getGetSeatingChartQueryKey(classId) },
   });
+  const seatingChart = seatingQuery.data;
   const updateStudentNote = useUpdateStudentNote();
   const gcConnected = gcStatus?.connected === true;
   const gcConfigured = gcStatus?.configured === true;
 
   const rosterEnabled = syncDialogOpen && !!selectedCourseId && gcConnected;
-  const { data: roster, isLoading: rosterLoading } = useGetGCCourseStudents(
+  const rosterQuery = useGetGCCourseStudents(
     selectedCourseId ?? '',
     { query: { enabled: rosterEnabled, queryKey: ['getGCCourseStudents', selectedCourseId ?? ''] } },
   );
+  const roster = rosterQuery.data;
 
   useEffect(() => {
     if (!cls) return;
@@ -310,6 +319,25 @@ export default function ClassDetailPage() {
     );
   }
 
+  if (classLoadError && !cls) {
+    const status = (classError as { status?: number } | null)?.status;
+    const notFound = status === 404;
+    const forbidden = status === 403;
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-64" data-testid="class-load-error">
+        <AlertCircle size={40} className="text-destructive-text mb-3" />
+        <p className="font-semibold text-foreground">{notFound ? 'Class not found' : forbidden ? 'You do not have access to this class' : 'Class could not be loaded'}</p>
+        <p className="mt-1 text-center text-sm text-muted-foreground">
+          {notFound ? 'This class may have been removed.' : forbidden ? 'Join the class or ask its owner for access.' : 'This request failed; your class has not been reported as missing.'}
+        </p>
+        <div className="mt-4 flex gap-2">
+          {!notFound && !forbidden && <Button variant="outline" onClick={() => void refetchClass()}><RefreshCw size={14} className="mr-1.5" /> Retry</Button>}
+          <Button variant={notFound || forbidden ? 'outline' : 'ghost'} onClick={() => setLocation('/classes')}>Back to Classes</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!cls) {
     return (
       <div className="p-6 flex flex-col items-center justify-center min-h-64">
@@ -376,8 +404,17 @@ export default function ClassDetailPage() {
                       {!selectedCourseId && <SyncCourseIdStep onConfirm={(id) => setSelectedCourseId(id)} />}
                       {selectedCourseId && !rosterConfirmed && (
                         <div className="space-y-4">
-                          {rosterLoading ? (
+                          {rosterQuery.isLoading ? (
                             <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}</div>
+                          ) : rosterQuery.isError && roster === undefined ? (
+                            <LoadFailure
+                              variant="banner"
+                              title="Google Classroom roster could not be loaded"
+                              description="The course has not been reported as having no students."
+                              onRetry={() => void rosterQuery.refetch()}
+                              retrying={rosterQuery.isFetching}
+                              testId="class-roster-load-error"
+                            />
                           ) : !roster || roster.length === 0 ? (
                             <p className="text-sm text-muted-foreground text-center py-6">No students found in this course.</p>
                           ) : (
@@ -509,7 +546,7 @@ export default function ClassDetailPage() {
       <nav className="-mx-3 overflow-x-auto border-y bg-card px-3 py-2 text-card-foreground sm:mx-0 sm:border sm:p-2" aria-label="Class workspace sections" style={{ borderRadius: 8 }}>
         <div className="flex w-max min-w-full gap-1">
           {classTabs.map(({ id: tabId, label, icon: Icon }) => (
-            <button key={tabId} type="button" onClick={() => setActiveTab(tabId)} className={`flex h-10 shrink-0 items-center gap-2 px-3 text-sm font-medium transition-colors ${activeTab === tabId ? 'bg-primary text-primary-foreground' : 'text-card-foreground/80 hover:bg-accent hover:text-card-foreground'}`} style={{ borderRadius: 6 }}>
+            <button key={tabId} type="button" onClick={() => setActiveTab(tabId)} className={`flex h-10 shrink-0 items-center gap-2 px-3 text-sm font-medium transition-colors ${activeTab === tabId ? 'bg-primary text-primary-foreground' : 'text-card-foreground/80 hover:bg-accent hover:text-card-foreground'}`} style={{ borderRadius: 6 }} data-testid={`class-tab-${tabId}`}>
               <Icon size={15} />{label}
             </button>
           ))}
@@ -560,7 +597,21 @@ export default function ClassDetailPage() {
         <DialogContent><DialogHeader><DialogTitle>Remove {memberToRemove?.name}?</DialogTitle><DialogDescription>They will lose access to this class and its shared resources. You can add them again later.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setMemberToRemove(null)}>Cancel</Button><Button variant="destructive" onClick={handleRemoveMember} disabled={removeClassMember.isPending} data-testid="remove-class-member-confirm">{removeClassMember.isPending ? "Removing…" : "Remove Member"}</Button></DialogFooter></DialogContent>
       </Dialog>
 
-      {activeTab === 'notes' && isTeacher && <section className="space-y-4"><div><h2 className="text-lg font-semibold">Member notes</h2><p className="text-sm text-muted-foreground">Private teacher notes for planning support, seating, and follow-up.</p></div><div className="grid gap-3 lg:grid-cols-2">{(seatingChart?.students ?? []).map((student) => <Card key={student.userId}><CardHeader className="pb-2"><CardTitle className="text-sm">{student.name}</CardTitle>{student.gradeOrDept && <CardDescription>{student.gradeOrDept}</CardDescription>}</CardHeader><CardContent className="space-y-3"><Textarea value={noteDrafts[student.userId] ?? ''} onChange={(event) => setNoteDrafts((current) => ({ ...current, [student.userId]: event.target.value }))} rows={5} maxLength={2000} placeholder="Private note about learning needs, collaboration, or classroom placement…" /><div className="flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setLocation(`/profile/${student.userId}?classId=${classId}`)}>Open profile</Button><Button size="sm" onClick={() => void saveMemberNote(student.userId)} disabled={updateStudentNote.isPending}>Save note</Button></div></CardContent></Card>)}</div>{!seatingChart?.students.length && <p className="border-y py-10 text-center text-sm text-muted-foreground">No students are enrolled yet.</p>}</section>}
+      {activeTab === 'notes' && isTeacher && seatingQuery.isLoading ? (
+        <Skeleton className="h-48 w-full rounded-xl" />
+      ) : null}
+
+      {activeTab === 'notes' && isTeacher && seatingQuery.isError && seatingChart === undefined ? (
+        <LoadFailure
+          title="Member notes could not be loaded"
+          description="The class roster has not been reported as having no students."
+          onRetry={() => void seatingQuery.refetch()}
+          retrying={seatingQuery.isFetching}
+          testId="class-member-notes-load-error"
+        />
+      ) : null}
+
+      {activeTab === 'notes' && isTeacher && !seatingQuery.isLoading && !(seatingQuery.isError && seatingChart === undefined) && <section className="space-y-4"><div><h2 className="text-lg font-semibold">Member notes</h2><p className="text-sm text-muted-foreground">Private teacher notes for planning support, seating, and follow-up.</p></div><div className="grid gap-3 lg:grid-cols-2">{(seatingChart?.students ?? []).map((student) => <Card key={student.userId}><CardHeader className="pb-2"><CardTitle className="text-sm">{student.name}</CardTitle>{student.gradeOrDept && <CardDescription>{student.gradeOrDept}</CardDescription>}</CardHeader><CardContent className="space-y-3"><Textarea value={noteDrafts[student.userId] ?? ''} onChange={(event) => setNoteDrafts((current) => ({ ...current, [student.userId]: event.target.value }))} rows={5} maxLength={2000} placeholder="Private note about learning needs, collaboration, or classroom placement…" /><div className="flex flex-wrap justify-end gap-2"><Button size="sm" variant="outline" onClick={() => setLocation(`/profile/${student.userId}?classId=${classId}`)}>Open profile</Button><Button size="sm" onClick={() => void saveMemberNote(student.userId)} disabled={updateStudentNote.isPending}>Save note</Button></div></CardContent></Card>)}</div>{!seatingChart?.students.length && <p className="border-y py-10 text-center text-sm text-muted-foreground">No students are enrolled yet.</p>}</section>}
 
       {activeTab === 'designer' && (isTeacher || ownMembership?.role === "student") && <SeatingChartEditor classId={classId} readOnly={!isTeacher} />}
 
@@ -583,6 +634,17 @@ export default function ClassDetailPage() {
           </div>
         </section>
       )}
+
+      {activeTab === 'resources' && recommendationsQuery.isError && classRecommendations === undefined ? (
+        <LoadFailure
+          variant="banner"
+          title="Student recommendations could not be loaded"
+          description="Pending recommendations have not been reported as empty."
+          onRetry={() => void recommendationsQuery.refetch()}
+          retrying={recommendationsQuery.isFetching}
+          testId="class-recommendations-load-error"
+        />
+      ) : null}
 
       {activeTab === 'assignments' && <ClassAssignments
         classId={classId}
@@ -612,12 +674,20 @@ export default function ClassDetailPage() {
           )}
         </div>
 
-        {resListLoading ? (
+        {classResourcesQuery.isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <Card key={i}><CardContent className="py-4"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2 mt-2" /></CardContent></Card>
             ))}
           </div>
+        ) : classResourcesQuery.isError && classResList === undefined ? (
+          <LoadFailure
+            title="Class resources could not be loaded"
+            description="The class has not been reported as having no assigned resources."
+            onRetry={() => void classResourcesQuery.refetch()}
+            retrying={classResourcesQuery.isFetching}
+            testId="class-resources-load-error"
+          />
         ) : resourceItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/20">
             <BookOpen size={32} className="text-muted-foreground mb-3" />

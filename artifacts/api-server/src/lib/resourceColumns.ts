@@ -1,4 +1,9 @@
+/**
+ * @fileOverview Backend domain role: centralizes Resource Columns logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 import { resourcesTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
 
 /**
  * The resource columns the public API contract returns.
@@ -21,5 +26,23 @@ export const publicResourceColumns = {
   submittedById: resourcesTable.submittedById,
   createdAt: resourcesTable.createdAt,
   verificationStatus: resourcesTable.verificationStatus,
-  verificationNote: resourcesTable.verificationNote,
 } as const;
+
+/**
+ * Moderation feedback is private to the submitter and administrators. Public
+ * catalog/detail responses, classmates, and public list recipients must never
+ * receive it merely because they can read the resource itself.
+ */
+export function resourceColumnsForViewer(
+  viewerId: number | null,
+  isAdmin: boolean,
+) {
+  return {
+    ...publicResourceColumns,
+    verificationNote: isAdmin
+      ? resourcesTable.verificationNote
+      : viewerId === null
+        ? sql<string | null>`null::text`
+        : sql<string | null>`case when ${resourcesTable.submittedById} = ${viewerId} then ${resourcesTable.verificationNote} else null end`,
+  } as const;
+}

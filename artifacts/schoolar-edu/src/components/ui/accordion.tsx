@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Design-system primitive role: implements the reusable Accordion UI primitive.
+ * System connection: exported through @workspace/edu-ds and composed by product-specific web components and pages.
+ */
 import * as React from "react"
 import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { ChevronDown } from "lucide-react"

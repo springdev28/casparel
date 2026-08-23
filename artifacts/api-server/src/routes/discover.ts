@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Discover HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import {
   DiscoverResourcesQueryParams,

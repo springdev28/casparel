@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Backend domain role: centralizes User Columns logic so route handlers share one implementation and invariant.
+ * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
+ */
 import { usersTable } from "@workspace/db";
 
 /**
@@ -16,6 +20,7 @@ export const publicUserColumns = {
   name: usersTable.name,
   role: usersTable.role,
   activeRole: usersTable.activeRole,
+  educatorEnabled: usersTable.educatorEnabled,
   avatarUrl: usersTable.avatarUrl,
   bio: usersTable.bio,
   subjects: usersTable.subjects,

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API role: implements the Dashboard HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
 import { eq, sql, and, or, inArray } from "drizzle-orm"; // `or` used in listCount query
 import {

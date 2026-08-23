@@ -1,5 +1,18 @@
+/**
+ * @fileOverview API role: implements the Admin HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
 import { Router, type IRouter } from "express";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   db,
@@ -21,8 +34,34 @@ import {
   studySessionsTable,
   learningEvidenceTable,
   sourceReviewCacheTable,
+  adminAuditLogsTable,
 } from "@workspace/db";
-import { GetAdminOverviewResponse } from "@workspace/api-zod";
+import {
+  BanAdminUserBody,
+  BanAdminUserParams,
+  BanAdminUserResponse,
+  BulkUpdateAdminResourceVerificationBody,
+  BulkUpdateAdminResourceVerificationResponse,
+  GetAdminOverviewResponse,
+  ListAdminResourceReviewQueueQueryParams,
+  ListAdminResourceReviewQueueResponse,
+  ListAdminUsersQueryParams,
+  ListAdminUsersResponse,
+  OverrideAdminUserPlanBody,
+  OverrideAdminUserPlanParams,
+  OverrideAdminUserPlanResponse,
+  UnbanAdminUserParams,
+  UnbanAdminUserResponse,
+  UpdateAdminPublisherVerificationBody,
+  UpdateAdminPublisherVerificationParams,
+  UpdateAdminPublisherVerificationResponse,
+  UpdateAdminResourceVerificationBody,
+  UpdateAdminResourceVerificationParams,
+  UpdateAdminResourceVerificationResponse,
+  UpdateAdminUserBody,
+  UpdateAdminUserParams,
+  UpdateAdminUserResponse,
+} from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
@@ -74,6 +113,37 @@ const emptyWorkflowAnalytics = {
     reportsPerThousand: 0,
     estimatedStoredMb: 0,
   },
+  activation: {
+    registered30d: 0,
+    firstSearchUsers30d: 0,
+    sourceCheckUsers30d: 0,
+    activatedLearners30d: 0,
+    activatedEducators30d: 0,
+    registeredToSearchRate: 0,
+    searchToSourceCheckRate: 0,
+    sourceCheckToActionRate: 0,
+    d1ReturnRate: 0,
+    d7ReturnRate: 0,
+    classesWithFiveLearners: 0,
+    searchNoResultRate: 0,
+    avgPreviewCoverage: 0,
+  },
+};
+
+const emptyReliabilityAnalytics = {
+  sampleWindowDays: 30,
+  measuredUsers30d: 0,
+  vitalSamples30d: 0,
+  clientErrors30d: 0,
+  renderCrashes30d: 0,
+  errorFreeUsersRate: 0,
+  lcpP75Ms: null,
+  inpP75Ms: null,
+  clsP75: null,
+  lcpSloMet: null,
+  inpSloMet: null,
+  clsSloMet: null,
+  errorFreeUsersSloMet: null,
 };
 
 function percentage(numerator: number, denominator: number) {
@@ -99,6 +169,19 @@ async function readWorkflowAnalytics() {
           weekly_active_classes: number;
           remix_events: number;
           average_minutes: number;
+          registered_30d: number;
+          first_search_users_30d: number;
+          source_check_users_30d: number;
+          activated_learners_30d: number;
+          activated_educators_30d: number;
+          d1_eligible: number;
+          d1_returned: number;
+          d7_eligible: number;
+          d7_returned: number;
+          classes_with_five_learners: number;
+          search_events_30d: number;
+          no_result_searches_30d: number;
+          average_preview_coverage: number;
         }>(`
           WITH journeys AS (
             SELECT user_id, resource_id,
@@ -112,6 +195,57 @@ async function readWorkflowAnalytics() {
             FROM workflow_events
             WHERE resource_id IS NOT NULL
             GROUP BY user_id, resource_id
+          ), registrations AS (
+            SELECT user_id, MIN(created_at) AS registered_at
+            FROM workflow_events
+            WHERE event = 'account_registered'
+            GROUP BY user_id
+          ), first_searches AS (
+            SELECT user_id, MIN(created_at) AS searched_at
+            FROM workflow_events
+            WHERE event = 'search_submitted'
+            GROUP BY user_id
+          ), first_checks AS (
+            SELECT user_id, MIN(created_at) AS checked_at
+            FROM workflow_events
+            WHERE event IN ('source_quick_check_completed', 'source_deep_research_completed')
+            GROUP BY user_id
+          ), eligible_searches AS (
+            SELECT searches.user_id, searches.searched_at
+            FROM first_searches searches
+            JOIN registrations ON registrations.user_id = searches.user_id
+            WHERE registrations.registered_at >= NOW() - INTERVAL '30 days'
+              AND searches.searched_at >= registrations.registered_at
+              AND searches.searched_at <= registrations.registered_at + INTERVAL '24 hours'
+          ), source_check_cohort AS (
+            SELECT checks.user_id, checks.checked_at
+            FROM first_checks checks
+            JOIN eligible_searches searches ON searches.user_id = checks.user_id
+            WHERE checks.checked_at >= searches.searched_at
+              AND checks.checked_at <= searches.searched_at + INTERVAL '24 hours'
+          ), learner_activations AS (
+            SELECT checks.user_id, MIN(actions.created_at) AS activated_at
+            FROM source_check_cohort checks
+            JOIN workflow_events actions ON actions.user_id = checks.user_id
+              AND actions.event IN ('resource_saved', 'resource_added_to_goal', 'activity_created', 'activity_completed', 'assignment_completed')
+              AND actions.created_at >= checks.checked_at
+              AND actions.created_at <= checks.checked_at + INTERVAL '24 hours'
+            GROUP BY checks.user_id
+          ), retention AS (
+            SELECT registrations.user_id, registrations.registered_at,
+              EXISTS (
+                SELECT 1 FROM workflow_events events
+                WHERE events.user_id = registrations.user_id
+                  AND events.created_at >= registrations.registered_at + INTERVAL '1 day'
+                  AND events.created_at < registrations.registered_at + INTERVAL '2 days'
+              ) AS returned_d1,
+              EXISTS (
+                SELECT 1 FROM workflow_events events
+                WHERE events.user_id = registrations.user_id
+                  AND events.created_at >= registrations.registered_at + INTERVAL '7 days'
+                  AND events.created_at < registrations.registered_at + INTERVAL '8 days'
+              ) AS returned_d7
+            FROM registrations
           )
           SELECT
             COUNT(*) FILTER (WHERE viewed_at IS NOT NULL)::int AS viewed,
@@ -125,6 +259,19 @@ async function readWorkflowAnalytics() {
             (SELECT COUNT(DISTINCT user_id)::int FROM workflow_events WHERE created_at >= NOW() - INTERVAL '30 days') AS active_users_30d,
             (SELECT COUNT(DISTINCT class_id)::int FROM workflow_events WHERE class_id IS NOT NULL AND created_at >= NOW() - INTERVAL '7 days') AS weekly_active_classes,
             (SELECT COUNT(*)::int FROM workflow_events WHERE event = 'activity_remixed') AS remix_events,
+            (SELECT COUNT(*)::int FROM registrations WHERE registered_at >= NOW() - INTERVAL '30 days') AS registered_30d,
+            (SELECT COUNT(*)::int FROM eligible_searches) AS first_search_users_30d,
+            (SELECT COUNT(*)::int FROM source_check_cohort) AS source_check_users_30d,
+            (SELECT COUNT(*)::int FROM learner_activations WHERE activated_at >= NOW() - INTERVAL '30 days') AS activated_learners_30d,
+            (SELECT COUNT(DISTINCT user_id)::int FROM workflow_events WHERE event = 'teacher_first_class_activated' AND created_at >= NOW() - INTERVAL '30 days') AS activated_educators_30d,
+            (SELECT COUNT(*)::int FROM retention WHERE registered_at <= NOW() - INTERVAL '1 day') AS d1_eligible,
+            (SELECT COUNT(*)::int FROM retention WHERE registered_at <= NOW() - INTERVAL '1 day' AND returned_d1) AS d1_returned,
+            (SELECT COUNT(*)::int FROM retention WHERE registered_at <= NOW() - INTERVAL '7 days') AS d7_eligible,
+            (SELECT COUNT(*)::int FROM retention WHERE registered_at <= NOW() - INTERVAL '7 days' AND returned_d7) AS d7_returned,
+            (SELECT COUNT(*)::int FROM (SELECT class_id FROM class_members WHERE role = 'student' GROUP BY class_id HAVING COUNT(DISTINCT user_id) >= 5) classes) AS classes_with_five_learners,
+            (SELECT COUNT(*)::int FROM workflow_events WHERE event = 'search_submitted' AND created_at >= NOW() - INTERVAL '30 days') AS search_events_30d,
+            (SELECT COUNT(*)::int FROM workflow_events WHERE event = 'search_submitted' AND created_at >= NOW() - INTERVAL '30 days' AND COALESCE((context->>'resultCount')::int, 0) = 0) AS no_result_searches_30d,
+            (SELECT COALESCE(AVG((context->>'previewCoverage')::float), 0)::float FROM workflow_events WHERE event = 'search_submitted' AND created_at >= NOW() - INTERVAL '30 days' AND context ? 'previewCoverage') AS average_preview_coverage,
             COALESCE(AVG(EXTRACT(EPOCH FROM (activity_at - viewed_at)) / 60) FILTER (WHERE activity_at >= viewed_at), 0)::float AS average_minutes
           FROM journeys
         `),
@@ -207,10 +354,154 @@ async function readWorkflowAnalytics() {
           : 0,
         estimatedStoredMb: Number((Number(storage.bytes) / 1024 / 1024).toFixed(2)),
       },
+      activation: {
+        registered30d: Number(workflow.registered_30d),
+        firstSearchUsers30d: Number(workflow.first_search_users_30d),
+        sourceCheckUsers30d: Number(workflow.source_check_users_30d),
+        activatedLearners30d: Number(workflow.activated_learners_30d),
+        activatedEducators30d: Number(workflow.activated_educators_30d),
+        registeredToSearchRate: percentage(
+          workflow.first_search_users_30d,
+          workflow.registered_30d,
+        ),
+        searchToSourceCheckRate: percentage(
+          workflow.source_check_users_30d,
+          workflow.first_search_users_30d,
+        ),
+        sourceCheckToActionRate: percentage(
+          workflow.activated_learners_30d,
+          workflow.source_check_users_30d,
+        ),
+        d1ReturnRate: percentage(workflow.d1_returned, workflow.d1_eligible),
+        d7ReturnRate: percentage(workflow.d7_returned, workflow.d7_eligible),
+        classesWithFiveLearners: Number(workflow.classes_with_five_learners),
+        searchNoResultRate: percentage(
+          workflow.no_result_searches_30d,
+          workflow.search_events_30d,
+        ),
+        avgPreviewCoverage: Number(
+          Number(workflow.average_preview_coverage).toFixed(1),
+        ),
+      },
     };
   } catch {
     return emptyWorkflowAnalytics;
   }
+}
+
+async function readReliabilityAnalytics() {
+  try {
+    const result = await pool.query<{
+      measured_users: number;
+      error_users: number;
+      vital_samples: number;
+      client_errors: number;
+      render_crashes: number;
+      lcp_p75: number | null;
+      inp_p75: number | null;
+      cls_p75: number | null;
+    }>(`
+      WITH recent_telemetry AS (
+        SELECT user_id, event, context
+        FROM workflow_events
+        WHERE created_at >= NOW() - INTERVAL '30 days'
+          AND event IN ('web_vital_measured', 'client_error_observed')
+      )
+      SELECT
+        COUNT(DISTINCT user_id)::int AS measured_users,
+        COUNT(DISTINCT user_id) FILTER (WHERE event = 'client_error_observed')::int AS error_users,
+        COUNT(*) FILTER (WHERE event = 'web_vital_measured')::int AS vital_samples,
+        COUNT(*) FILTER (WHERE event = 'client_error_observed')::int AS client_errors,
+        COUNT(*) FILTER (
+          WHERE event = 'client_error_observed'
+            AND context->>'source' = 'react_boundary'
+        )::int AS render_crashes,
+        percentile_cont(0.75) WITHIN GROUP (
+          ORDER BY (context->>'value')::double precision
+        ) FILTER (
+          WHERE event = 'web_vital_measured' AND context->>'metric' = 'LCP'
+        ) AS lcp_p75,
+        percentile_cont(0.75) WITHIN GROUP (
+          ORDER BY (context->>'value')::double precision
+        ) FILTER (
+          WHERE event = 'web_vital_measured' AND context->>'metric' = 'INP'
+        ) AS inp_p75,
+        percentile_cont(0.75) WITHIN GROUP (
+          ORDER BY (context->>'value')::double precision
+        ) FILTER (
+          WHERE event = 'web_vital_measured' AND context->>'metric' = 'CLS'
+        ) AS cls_p75
+      FROM recent_telemetry
+    `);
+    const row = result.rows[0];
+    if (!row) return emptyReliabilityAnalytics;
+
+    const measuredUsers = Number(row.measured_users);
+    const errorUsers = Number(row.error_users);
+    const errorFreeUsersRate = measuredUsers
+      ? Number((((measuredUsers - errorUsers) / measuredUsers) * 100).toFixed(1))
+      : 0;
+    const lcpP75Ms = row.lcp_p75 === null ? null : Math.round(Number(row.lcp_p75));
+    const inpP75Ms = row.inp_p75 === null ? null : Math.round(Number(row.inp_p75));
+    const clsP75 = row.cls_p75 === null ? null : Number(Number(row.cls_p75).toFixed(3));
+
+    return {
+      sampleWindowDays: 30,
+      measuredUsers30d: measuredUsers,
+      vitalSamples30d: Number(row.vital_samples),
+      clientErrors30d: Number(row.client_errors),
+      renderCrashes30d: Number(row.render_crashes),
+      errorFreeUsersRate,
+      lcpP75Ms,
+      inpP75Ms,
+      clsP75,
+      lcpSloMet: lcpP75Ms === null ? null : lcpP75Ms <= 2_500,
+      inpSloMet: inpP75Ms === null ? null : inpP75Ms <= 200,
+      clsSloMet: clsP75 === null ? null : clsP75 <= 0.1,
+      errorFreeUsersSloMet:
+        measuredUsers === 0 ? null : errorFreeUsersRate >= 99,
+    };
+  } catch {
+    return emptyReliabilityAnalytics;
+  }
+}
+
+async function readAccountCapabilityMetrics() {
+  const result = await pool.query<{
+    learner_accounts: number;
+    educator_accounts: number;
+    accounts_both_learn_and_teach: number;
+    active_class_owners_30d: number;
+    class_learners: number;
+  }>(`
+      WITH learner_accounts AS (
+        SELECT user_id FROM learning_goals WHERE workspace_role = 'student'
+        UNION
+        SELECT user_id FROM learning_evidence
+        UNION
+        SELECT owner_id AS user_id FROM study_activities WHERE workspace_role = 'student'
+      ), active_class_owners AS (
+        SELECT DISTINCT classes.teacher_id AS user_id
+        FROM workflow_events
+        JOIN classes ON classes.id = workflow_events.class_id
+        WHERE workflow_events.created_at >= NOW() - INTERVAL '30 days'
+      )
+      SELECT
+        (SELECT COUNT(*)::int FROM learner_accounts) AS learner_accounts,
+        (SELECT COUNT(*)::int FROM users WHERE educator_enabled OR role = 'admin') AS educator_accounts,
+        (SELECT COUNT(*)::int FROM learner_accounts JOIN users ON users.id = learner_accounts.user_id WHERE users.educator_enabled OR users.role = 'admin') AS accounts_both_learn_and_teach,
+        (SELECT COUNT(*)::int FROM active_class_owners) AS active_class_owners_30d,
+        (SELECT COUNT(DISTINCT user_id)::int FROM class_members WHERE role = 'student') AS class_learners
+  `);
+  const row = result.rows[0];
+  if (!row) throw new Error("Account capability metrics query returned no row");
+  return {
+    learnerAccounts: Number(row.learner_accounts),
+    educatorAccounts: Number(row.educator_accounts),
+    accountsBothLearnAndTeach: Number(row.accounts_both_learn_and_teach),
+    activeClassOwners30d: Number(row.active_class_owners_30d),
+    classLearners: Number(row.class_learners),
+  };
 }
 
 router.get(
@@ -219,8 +510,6 @@ router.get(
   async (_req, res): Promise<void> => {
     const [
       users,
-      students,
-      teachers,
       admins,
       goals,
       resources,
@@ -229,18 +518,10 @@ router.get(
       allUsageResult,
       userRows,
       workflow,
+      capabilityMetrics,
+      reliability,
     ] = await Promise.all([
       count(usersTable),
-      db
-        .select({ value: sql<number>`cast(count(*) as int)` })
-        .from(usersTable)
-        .where(eq(usersTable.role, "student"))
-        .then(([row]) => row?.value ?? 0),
-      db
-        .select({ value: sql<number>`cast(count(*) as int)` })
-        .from(usersTable)
-        .where(eq(usersTable.role, "teacher"))
-        .then(([row]) => row?.value ?? 0),
       db
         .select({ value: sql<number>`cast(count(*) as int)` })
         .from(usersTable)
@@ -267,6 +548,8 @@ router.get(
         })
         .from(usersTable),
       readWorkflowAnalytics(),
+      readAccountCapabilityMetrics(),
+      readReliabilityAnalytics(),
     ]);
     const usageByKey = new Map(
       usageResult.map((row) => [row.key, Number(row.hits)]),
@@ -343,8 +626,7 @@ router.get(
     res.json(
       GetAdminOverviewResponse.parse({
         users,
-        students,
-        teachers,
+        ...capabilityMetrics,
         admins,
         goals,
         resources,
@@ -365,6 +647,7 @@ router.get(
           byUser: userUsage,
         },
         workflow,
+        reliability,
       }),
     );
   },
@@ -376,6 +659,7 @@ const adminUserSelection = {
   email: usersTable.email,
   role: usersTable.role,
   activeRole: usersTable.activeRole,
+  educatorEnabled: usersTable.educatorEnabled,
   teacherVerified: usersTable.teacherVerified,
   avatarUrl: usersTable.avatarUrl,
   bio: usersTable.bio,
@@ -389,62 +673,188 @@ const adminUserSelection = {
   showGradeOrDept: usersTable.showGradeOrDept,
   showWebsite: usersTable.showWebsite,
   websiteUrl: usersTable.websiteUrl,
+  // RevenueCat once stored `premium` for today's Pro tier. The admin API uses
+  // the same normalized three-tier vocabulary as entitlement enforcement.
+  plan: sql<"free" | "plus" | "pro">`case
+    when ${usersTable.plan} in ('pro', 'premium') then 'pro'
+    when ${usersTable.plan} = 'plus' then 'plus'
+    else 'free'
+  end`,
+  planExpiresAt: usersTable.planExpiresAt,
   bannedAt: usersTable.bannedAt,
   bannedReason: usersTable.bannedReason,
   createdAt: usersTable.createdAt,
 };
 
-router.get("/admin/users", requireAdmin, async (_req, res): Promise<void> => {
-  const users = await db
-    .select(adminUserSelection)
-    .from(usersTable)
-    .orderBy(sql`${usersTable.createdAt} desc`);
-  res.json(users);
+router.get("/admin/users", requireAdmin, async (req, res): Promise<void> => {
+  // Zod's generic boolean coercion treats every non-empty string as true. Do
+  // the HTTP string conversion explicitly so `?educatorEnabled=false` really
+  // filters to accounts without that capability.
+  if (
+    req.query.educatorEnabled !== undefined &&
+    req.query.educatorEnabled !== "true" &&
+    req.query.educatorEnabled !== "false"
+  ) {
+    res.status(400).json({ error: "educatorEnabled must be true or false" });
+    return;
+  }
+  const educatorEnabled =
+    req.query.educatorEnabled === undefined
+      ? undefined
+      : req.query.educatorEnabled === "true";
+  const parsed = ListAdminUsersQueryParams.safeParse({
+    ...req.query,
+    educatorEnabled,
+  });
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const {
+    q = "",
+    role,
+    status,
+    educatorEnabled: educatorFilter,
+    limit,
+    offset,
+  } = parsed.data;
+  const conditions = [];
+  const searchTerm = q.trim().replace(/\s+/g, " ");
+  if (searchTerm) {
+    const pattern = `%${searchTerm}%`;
+    conditions.push(
+      or(
+        ilike(usersTable.name, pattern),
+        ilike(usersTable.email, pattern),
+        ilike(usersTable.bio, pattern),
+        ilike(usersTable.gradeOrDept, pattern),
+        sql`array_to_string(${usersTable.subjects}, ' ') ilike ${pattern}`,
+      )!,
+    );
+  }
+  if (role) conditions.push(eq(usersTable.role, role));
+  if (status === "active") conditions.push(isNull(usersTable.bannedAt));
+  if (status === "banned") conditions.push(isNotNull(usersTable.bannedAt));
+  if (educatorFilter !== undefined) {
+    conditions.push(eq(usersTable.educatorEnabled, educatorFilter));
+  }
+  const where = conditions.length ? and(...conditions) : undefined;
+  const [users, [totalRow]] = await Promise.all([
+    db
+      .select(adminUserSelection)
+      .from(usersTable)
+      .where(where)
+      .orderBy(sql`${usersTable.createdAt} desc`)
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ value: sql<number>`cast(count(*) as int)` })
+      .from(usersTable)
+      .where(where),
+  ]);
+  res.json(
+    ListAdminUsersResponse.parse({
+      items: users,
+      total: totalRow?.value ?? 0,
+      limit,
+      offset,
+    }),
+  );
 });
-
-const adminUserUpdate = z.object({
-  name: z.string().trim().min(1).max(120).optional(),
-  email: z.string().email().max(320).transform((value) => value.toLowerCase()).optional(),
-  role: z.enum(["student", "teacher", "admin"]).optional(),
-  activeRole: z.enum(["student", "teacher", "admin"]).optional(),
-  bio: z.string().trim().max(1000).nullable().optional(),
-  subjects: z.array(z.string().trim().min(1).max(80)).max(30).nullable().optional(),
-  gradeOrDept: z.string().trim().max(160).nullable().optional(),
-  timezone: z.string().trim().max(100).nullable().optional(),
-  websiteUrl: z.union([z.string().url().max(1000), z.literal(""), z.null()]).optional(),
-  profileVisibility: z.enum(["everyone", "classmates", "private"]).optional(),
-  libraryVisibility: z.enum(["everyone", "classmates", "private"]).optional(),
-  showBio: z.boolean().optional(),
-  showSubjects: z.boolean().optional(),
-  showGradeOrDept: z.boolean().optional(),
-  showWebsite: z.boolean().optional(),
-}).strict();
 
 router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> => {
   const adminId = (req as import("../middlewares/requireAuth").AuthenticatedRequest).userId;
-  const targetId = Number(req.params.id);
-  const parsed = adminUserUpdate.safeParse(req.body);
-  if (!targetId || !parsed.success) {
-    res.status(400).json({ error: parsed.success ? "Invalid user ID" : parsed.error.message });
+  const params = UpdateAdminUserParams.safeParse(req.params);
+  const parsed = UpdateAdminUserBody.safeParse(req.body);
+  if (!params.success || !parsed.success || Object.keys(parsed.data).length === 0) {
+    res.status(400).json({
+      error: !params.success
+        ? params.error.message
+        : !parsed.success
+          ? parsed.error.message
+          : "At least one account field is required",
+    });
     return;
   }
+  const targetId = params.data.id;
   if (targetId === adminId && parsed.data.role && parsed.data.role !== "admin") {
     res.status(400).json({ error: "You cannot remove your own administrator access" });
     return;
   }
-  const patch = { ...parsed.data };
-  if (patch.websiteUrl === "") patch.websiteUrl = null;
-  if (patch.role === "student") patch.activeRole = "student";
-  if (patch.role === "teacher" && patch.activeRole === "admin") patch.activeRole = "teacher";
-  if (patch.role === "admin") patch.activeRole = "admin";
+  const [current] = await db
+    .select({
+      role: usersTable.role,
+      activeRole: usersTable.activeRole,
+      educatorEnabled: usersTable.educatorEnabled,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, targetId));
+  if (!current) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const patch = {
+    ...parsed.data,
+    ...(parsed.data.name !== undefined ? { name: parsed.data.name.trim() } : {}),
+    ...(parsed.data.email !== undefined
+      ? { email: parsed.data.email.trim().toLowerCase() }
+      : {}),
+    ...(parsed.data.bio !== undefined
+      ? { bio: parsed.data.bio?.trim() || null }
+      : {}),
+    ...(parsed.data.gradeOrDept !== undefined
+      ? { gradeOrDept: parsed.data.gradeOrDept?.trim() || null }
+      : {}),
+    ...(parsed.data.timezone !== undefined
+      ? { timezone: parsed.data.timezone?.trim() || null }
+      : {}),
+    ...(parsed.data.websiteUrl !== undefined
+      ? { websiteUrl: parsed.data.websiteUrl?.trim() || null }
+      : {}),
+    ...(parsed.data.subjects !== undefined
+      ? {
+          subjects: parsed.data.subjects?.map((subject) => subject.trim()) ?? null,
+        }
+      : {}),
+  };
+  if (!patch.name && parsed.data.name !== undefined) {
+    res.status(400).json({ error: "Name cannot be blank" });
+    return;
+  }
+  if (patch.websiteUrl) {
+    try {
+      new URL(patch.websiteUrl);
+    } catch {
+      res.status(400).json({ error: "Website must be a valid URL" });
+      return;
+    }
+  }
+  const effectiveRole = patch.role ?? current.role;
+  const effectiveEducator =
+    effectiveRole === "teacher" ||
+    effectiveRole === "admin" ||
+    (patch.educatorEnabled ?? current.educatorEnabled);
+  if (effectiveRole === "teacher") patch.educatorEnabled = true;
+  // activeRole controls only the visible learner/educator workspace. It must
+  // never encode administrator authority, and educator selection still needs
+  // an effective educator capability (admins have that capability implicitly).
+  if (
+    patch.activeRole === "teacher" &&
+    !effectiveEducator
+  ) {
+    res.status(400).json({ error: "Educator workspace requires educator capability" });
+    return;
+  }
+  if (patch.educatorEnabled === false && effectiveRole !== "admin") {
+    patch.activeRole = "student";
+  }
+  if (current.activeRole === "admin" && patch.activeRole === undefined) {
+    patch.activeRole = effectiveEducator ? "teacher" : "student";
+  }
   try {
     const [user] = await db.update(usersTable).set(patch)
       .where(eq(usersTable.id, targetId)).returning(adminUserSelection);
-    if (!user) {
-      res.status(404).json({ error: "User not found" });
-      return;
-    }
-    res.json(user);
+    res.json(UpdateAdminUserResponse.parse(user));
   } catch (error) {
     if ((error as { code?: string }).code === "23505") {
       res.status(409).json({ error: "That email address is already in use" });
@@ -452,6 +862,67 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
     }
     throw error;
   }
+});
+
+router.patch("/admin/users/:id/plan", requireAdmin, async (req, res): Promise<void> => {
+  const { userId: adminId } = req as import("../middlewares/requireAuth").AuthenticatedRequest;
+  const params = OverrideAdminUserPlanParams.safeParse(req.params);
+  const body = OverrideAdminUserPlanBody.safeParse(req.body);
+  if (!params.success || !body.success || body.data.reason.trim().length < 3) {
+    res.status(400).json({
+      error: !params.success
+        ? params.error.message
+        : !body.success
+          ? body.error.message
+          : "An audit reason of at least 3 characters is required",
+    });
+    return;
+  }
+  const planExpiresAt = body.data.plan === "free" ? null : body.data.expiresAt ?? null;
+  let normalizedExpiry: string | null = null;
+  if (planExpiresAt) {
+    const expiresAtMs = Date.parse(planExpiresAt);
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+      res.status(400).json({ error: "A plan expiry must be a valid future date" });
+      return;
+    }
+    normalizedExpiry = new Date(expiresAtMs).toISOString();
+  }
+
+  // The entitlement write and its explanation commit atomically: there is no
+  // state in which paid access changed but the audit trail did not.
+  const updated = await db.transaction(async (tx) => {
+    const [before] = await tx
+      .select({ plan: usersTable.plan, planExpiresAt: usersTable.planExpiresAt })
+      .from(usersTable)
+      .where(eq(usersTable.id, params.data.id));
+    if (!before) return null;
+    const [user] = await tx
+      .update(usersTable)
+      .set({ plan: body.data.plan, planExpiresAt: normalizedExpiry })
+      .where(eq(usersTable.id, params.data.id))
+      .returning(adminUserSelection);
+    await tx.insert(adminAuditLogsTable).values({
+      actorUserId: adminId,
+      targetUserId: params.data.id,
+      action: "account_plan_override",
+      reason: body.data.reason.trim(),
+      beforeState: {
+        plan: before.plan,
+        planExpiresAt: before.planExpiresAt,
+      },
+      afterState: {
+        plan: body.data.plan,
+        planExpiresAt: normalizedExpiry,
+      },
+    });
+    return user;
+  });
+  if (!updated) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(OverrideAdminUserPlanResponse.parse(updated));
 });
 
 const affiliationUpdate = z.object({
@@ -826,13 +1297,20 @@ router.get("/admin/users/:id/details", requireAdmin, async (req, res): Promise<v
 
 router.patch("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<void> => {
   const adminId = (req as import("../middlewares/requireAuth").AuthenticatedRequest).userId;
-  const targetId = Number(req.params.id);
-  const reason =
-    typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 500) : "";
-  if (!targetId) {
-    res.status(400).json({ error: "Invalid user ID" });
+  const params = BanAdminUserParams.safeParse(req.params);
+  const body = BanAdminUserBody.safeParse(req.body);
+  const reason = body.success ? body.data.reason.trim() : "";
+  if (!params.success || !body.success || reason.length < 3) {
+    res.status(400).json({
+      error: !params.success
+        ? params.error.message
+        : !body.success
+          ? body.error.message
+          : "A ban reason of at least 3 characters is required",
+    });
     return;
   }
+  const targetId = params.data.id;
   if (targetId === adminId) {
     res.status(400).json({ error: "Administrators cannot ban their own account" });
     return;
@@ -841,7 +1319,7 @@ router.patch("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<voi
     .update(usersTable)
     .set({
       bannedAt: new Date().toISOString(),
-      bannedReason: reason || "Banned by an administrator",
+      bannedReason: reason,
     })
     .where(eq(usersTable.id, targetId))
     .returning(adminUserSelection);
@@ -849,22 +1327,21 @@ router.patch("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<voi
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json(user);
+  res.json(BanAdminUserResponse.parse(user));
 });
 
 router.patch("/admin/users/:id/teacher-verification", requireAdmin, async (req, res): Promise<void> => {
-  const targetId = Number(req.params.id);
-  if (!targetId) {
-    res.status(400).json({ error: "Invalid user ID" });
+  const params = UpdateAdminPublisherVerificationParams.safeParse(req.params);
+  const body = UpdateAdminPublisherVerificationBody.safeParse(req.body);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
     return;
   }
-  // Parse strictly: a malformed body used to be read as `verified === false`,
-  // which silently REMOVED verification instead of rejecting the request.
-  const body = z.object({ verified: z.boolean() }).strict().safeParse(req.body);
   if (!body.success) {
-    res.status(400).json({ error: "Expected { verified: boolean }" });
+    res.status(400).json({ error: body.error.message });
     return;
   }
+  const targetId = params.data.id;
   const { verified } = body.data;
 
   const [target] = await db
@@ -895,15 +1372,16 @@ router.patch("/admin/users/:id/teacher-verification", requireAdmin, async (req, 
     })
     .where(eq(usersTable.id, targetId))
     .returning(adminUserSelection);
-  res.json(user);
+  res.json(UpdateAdminPublisherVerificationResponse.parse(user));
 });
 
 router.delete("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<void> => {
-  const targetId = Number(req.params.id);
-  if (!targetId) {
-    res.status(400).json({ error: "Invalid user ID" });
+  const params = UnbanAdminUserParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
     return;
   }
+  const targetId = params.data.id;
   const [user] = await db
     .update(usersTable)
     .set({ bannedAt: null, bannedReason: null })
@@ -913,20 +1391,12 @@ router.delete("/admin/users/:id/ban", requireAdmin, async (req, res): Promise<vo
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json(user);
+  res.json(UnbanAdminUserResponse.parse(user));
 });
 
 // ── Resource verification review queue ──────────────────────────────────────
-// Admin-only, and intentionally not part of the client OpenAPI surface, the
-// admin page talks to these through its own adminRequest() helper, the same
-// way the rest of /admin/* works.
-
-const resourceVerificationBody = z
-  .object({
-    status: z.enum(["verified", "rejected", "unverified"]),
-    note: z.string().trim().max(1000).optional(),
-  })
-  .strict();
+// These operations are generated from OpenAPI because moderation state is a
+// security boundary: the server and admin UI must agree on every transition.
 
 // GET /admin/resources/review-queue, oldest first, so submissions cannot be
 // starved by newer ones.
@@ -934,13 +1404,12 @@ router.get(
   "/admin/resources/review-queue",
   requireAdmin,
   async (req, res): Promise<void> => {
-    const status =
-      typeof req.query.status === "string" &&
-      ["unverified", "verified", "rejected"].includes(req.query.status)
-        ? (req.query.status as "unverified" | "verified" | "rejected")
-        : "unverified";
-    const limit = Math.min(Number(req.query.limit) || 50, 100);
-    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const query = ListAdminResourceReviewQueueQueryParams.safeParse(req.query);
+    if (!query.success) {
+      res.status(400).json({ error: query.error.message });
+      return;
+    }
+    const { status, limit, offset } = query.data;
 
     const rows = await db
       .select({
@@ -974,7 +1443,12 @@ router.get(
       .from(resourcesTable)
       .where(eq(resourcesTable.verificationStatus, "unverified"));
 
-    res.json({ items: rows, pendingTotal: counts?.pending ?? 0 });
+    res.json(
+      ListAdminResourceReviewQueueResponse.parse({
+        items: rows,
+        pendingTotal: counts?.pending ?? 0,
+      }),
+    );
   },
 );
 
@@ -983,19 +1457,19 @@ router.patch(
   "/admin/resources/:id/verification",
   requireAdmin,
   async (req, res): Promise<void> => {
-    const resourceId = Number(req.params.id);
-    if (!resourceId) {
-      res.status(400).json({ error: "Invalid resource ID" });
+    const params = UpdateAdminResourceVerificationParams.safeParse(req.params);
+    const parsed = UpdateAdminResourceVerificationBody.safeParse(req.body);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
       return;
     }
-    const parsed = resourceVerificationBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({
-        error: "Expected { status: verified | rejected | unverified, note? }",
-      });
+      res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const { status, note } = parsed.data;
+    const resourceId = params.data.id;
+    const { status, note: rawNote } = parsed.data;
+    const note = rawNote?.trim() || undefined;
     // A rejection has to say why, that reason is the only thing the submitter
     // can act on.
     if (status === "rejected" && !note) {
@@ -1021,7 +1495,7 @@ router.patch(
       res.status(404).json({ error: "Resource not found" });
       return;
     }
-    res.json(resource);
+    res.json(UpdateAdminResourceVerificationResponse.parse(resource));
   },
 );
 
@@ -1031,19 +1505,13 @@ router.post(
   "/admin/resources/verification/bulk",
   requireAdmin,
   async (req, res): Promise<void> => {
-    const parsed = z
-      .object({
-        ids: z.array(z.number().int().positive()).min(1).max(100),
-        status: z.enum(["verified", "rejected", "unverified"]),
-        note: z.string().trim().max(1000).optional(),
-      })
-      .strict()
-      .safeParse(req.body);
+    const parsed = BulkUpdateAdminResourceVerificationBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Expected { ids: number[], status, note? }" });
+      res.status(400).json({ error: parsed.error.message });
       return;
     }
-    const { ids, status, note } = parsed.data;
+    const { ids, status, note: rawNote } = parsed.data;
+    const note = rawNote?.trim() || undefined;
     if (status === "rejected" && !note) {
       res.status(400).json({ error: "A note is required when rejecting" });
       return;
@@ -1057,7 +1525,11 @@ router.post(
       })
       .where(inArray(resourcesTable.id, ids))
       .returning({ id: resourcesTable.id });
-    res.json({ updated: updated.length });
+    res.json(
+      BulkUpdateAdminResourceVerificationResponse.parse({
+        updated: updated.length,
+      }),
+    );
   },
 );
 

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Settings Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { Link } from "wouter";
 import { useGetMe } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -15,7 +19,11 @@ import {
 import { AuthLanguageSelect } from "../components/AuthLanguageSelect";
 import ThemeCustomizer from "../components/ThemeCustomizer";
 import { PlanSection } from "../components/PlanSection";
-import { useAuthLanguage } from "../lib/auth-locale";
+import {
+  INTERFACE_LANGUAGES,
+  isInterfaceLanguage,
+  useAuthLanguage,
+} from "../lib/auth-locale";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -28,12 +36,30 @@ export default function SettingsPage() {
   const updatePreferences = useUpdateUserPreferences();
 
   async function changeLanguage(next: typeof language) {
+    if (!isInterfaceLanguage(next)) return;
+    const previous = language;
     setLanguage(next);
     try {
       await updatePreferences.mutateAsync({ language: next });
     } catch (error) {
+      // The account preference is authoritative across devices. Revert the
+      // local preview when synchronization fails instead of implying success.
+      setLanguage(previous);
       toast({
         title: "Could not save language",
+        description:
+          error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function changeMessageRequests(allowMessageRequests: boolean) {
+    try {
+      await updatePreferences.mutateAsync({ allowMessageRequests });
+    } catch (error) {
+      toast({
+        title: "Could not save message request preference",
         description:
           error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
@@ -69,6 +95,7 @@ export default function SettingsPage() {
             language={language}
             label={copy.language}
             onChange={changeLanguage}
+            languages={INTERFACE_LANGUAGES}
           />
         </section>
 
@@ -97,14 +124,26 @@ export default function SettingsPage() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Allow people you have not added to request a conversation.
               </p>
+              {preferences.isError && (
+                <button
+                  type="button"
+                  className="mt-2 text-left text-xs font-medium text-destructive-text underline underline-offset-2"
+                  onClick={() => void preferences.refetch()}
+                  role="alert"
+                >
+                  Preference unavailable. Try again.
+                </button>
+              )}
             </div>
           </div>
           <Switch
-            checked={preferences.data?.allowMessageRequests ?? true}
-            disabled={preferences.isLoading || updatePreferences.isPending}
-            onCheckedChange={(checked) =>
-              updatePreferences.mutate({ allowMessageRequests: checked })
+            checked={preferences.data?.allowMessageRequests ?? false}
+            disabled={
+              preferences.isLoading ||
+              preferences.isError ||
+              updatePreferences.isPending
             }
+            onCheckedChange={changeMessageRequests}
             aria-label="Allow message requests"
           />
         </section>

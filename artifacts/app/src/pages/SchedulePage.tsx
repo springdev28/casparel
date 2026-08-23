@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web screen role: renders the Schedule Page route and coordinates its page-level data and interactions.
+ * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
+ */
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   ChevronLeft,
@@ -16,6 +20,7 @@ import {
   XCircle,
   ChevronDown,
   Download,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
@@ -36,6 +41,7 @@ import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, addDays, startOfWeek, isSameDay, parseISO } from "date-fns";
+import { LoadFailure } from "../components/LoadFailure";
 import {
   useListScheduleBlocks,
   useCreateScheduleBlock,
@@ -57,34 +63,50 @@ import {
 
 /** Download a .ics file for a schedule block using the authenticated API */
 async function downloadBlockIcs(blockId: number): Promise<void> {
-  const token = localStorage.getItem("schoolar_token");
-  const resp = await fetch(`/api/schedule/${blockId}/export.ics`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!resp.ok) return;
-  const blob = await resp.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `block-${blockId}.ics`;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const token = localStorage.getItem("schoolar_token");
+    const resp = await fetch(`/api/schedule/${blockId}/export.ics`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resp.ok) throw new Error(`Calendar export returned HTTP ${resp.status}`);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `block-${blockId}.ics`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    toast({
+      title: "Calendar export failed",
+      description: error instanceof Error ? error.message : "Please try again.",
+      variant: "destructive",
+    });
+  }
 }
 
 /** Download a .ics file for a study session using the authenticated API */
 async function downloadSessionIcs(sessionId: number): Promise<void> {
-  const token = localStorage.getItem("schoolar_token");
-  const resp = await fetch(`/api/study-sessions/${sessionId}/export.ics`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!resp.ok) return;
-  const blob = await resp.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `session-${sessionId}.ics`;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const token = localStorage.getItem("schoolar_token");
+    const resp = await fetch(`/api/study-sessions/${sessionId}/export.ics`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resp.ok) throw new Error(`Calendar export returned HTTP ${resp.status}`);
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `session-${sessionId}.ics`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    toast({
+      title: "Calendar export failed",
+      description: error instanceof Error ? error.message : "Please try again.",
+      variant: "destructive",
+    });
+  }
 }
 
 /** Build a Google Calendar quick-add URL for a study session */
@@ -167,7 +189,8 @@ function ResourceBadge({ resourceId }: { resourceId: number }) {
 
 /** Small badge shown on a block card when a reading list is attached */
 function ListBadge({ listId }: { listId: number }) {
-  const { data: lists } = useListResourceLists();
+  const listsQuery = useListResourceLists();
+  const lists = listsQuery.data;
   const list = lists?.find((l) => l.id === listId);
   if (!list) return null;
   return (
@@ -194,7 +217,8 @@ function ListPicker({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { data: lists } = useListResourceLists();
+  const listsQuery = useListResourceLists();
+  const lists = listsQuery.data;
   const filtered =
     lists?.filter(
       (l) =>
@@ -243,7 +267,24 @@ function ListPicker({
         onFocus={() => setOpen(true)}
         data-testid="list-search-input"
       />
-      {open && filtered.length > 0 && (
+      {open && listsQuery.isError && lists === undefined ? (
+        <div className="absolute z-50 mt-1 w-full bg-popover">
+          <LoadFailure
+            variant="banner"
+            title="Reading lists could not be loaded"
+            description="Retry before choosing an attached list."
+            onRetry={() => void listsQuery.refetch()}
+            retrying={listsQuery.isFetching}
+            testId="schedule-list-picker-load-error"
+          />
+        </div>
+      ) : null}
+      {open && listsQuery.isLoading && lists === undefined ? (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md">
+          Loading reading lists…
+        </div>
+      ) : null}
+      {open && !listsQuery.isError && filtered.length > 0 && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-48 overflow-y-auto">
           {filtered.map((l) => (
             <button
@@ -269,7 +310,7 @@ function ListPicker({
           ))}
         </div>
       )}
-      {open && query && filtered.length === 0 && (
+      {open && query && !listsQuery.isLoading && !listsQuery.isError && filtered.length === 0 && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md px-3 py-2 text-sm text-muted-foreground">
           No reading lists found
         </div>
@@ -297,12 +338,13 @@ function ResourcePicker({
   }, [query]);
 
   const resourceSearchParams = { q: debouncedQuery || undefined, limit: 6 };
-  const { data: results } = useListResources(resourceSearchParams, {
+  const resourceQuery = useListResources(resourceSearchParams, {
     query: {
       enabled: debouncedQuery.length >= 1 && open,
       queryKey: getListResourcesQueryKey(resourceSearchParams),
     },
   });
+  const results = resourceQuery.data;
 
   useEffect(() => {
     function handleMouseDown(e: MouseEvent) {
@@ -345,7 +387,24 @@ function ResourcePicker({
         onFocus={() => setOpen(true)}
         data-testid="resource-search-input"
       />
-      {open && results && results.length > 0 && (
+      {open && debouncedQuery && resourceQuery.isError && results === undefined ? (
+        <div className="absolute z-50 mt-1 w-full bg-popover">
+          <LoadFailure
+            variant="banner"
+            title="Resources could not be searched"
+            description="No result set was returned."
+            onRetry={() => void resourceQuery.refetch()}
+            retrying={resourceQuery.isFetching}
+            testId="schedule-resource-picker-load-error"
+          />
+        </div>
+      ) : null}
+      {open && debouncedQuery && resourceQuery.isFetching && results === undefined ? (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md">
+          Searching resources…
+        </div>
+      ) : null}
+      {open && !resourceQuery.isError && results && results.length > 0 && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
           {results.map((r) => (
             <button
@@ -380,7 +439,7 @@ function ResourcePicker({
           ))}
         </div>
       )}
-      {open && debouncedQuery && (!results || results.length === 0) && (
+      {open && debouncedQuery && !resourceQuery.isFetching && !resourceQuery.isError && (!results || results.length === 0) && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md px-3 py-2 text-sm text-muted-foreground">
           No resources found
         </div>
@@ -410,12 +469,13 @@ function InviteePicker({
   }, [query]);
 
   const searchParams = { q: debouncedQuery || undefined, scope: "all" as const };
-  const { data: results } = useSearchUsers(searchParams, {
+  const peopleQuery = useSearchUsers(searchParams, {
     query: {
       enabled: debouncedQuery.length >= 1 && open,
       queryKey: ["searchUsers", searchParams] as const,
     },
   });
+  const results = peopleQuery.data;
 
   useEffect(() => {
     function handleMouseDown(e: MouseEvent) {
@@ -463,7 +523,24 @@ function InviteePicker({
           onFocus={() => setOpen(true)}
           data-testid="invitee-search-input"
         />
-        {open && results && results.length > 0 && (
+        {open && debouncedQuery && peopleQuery.isError && results === undefined ? (
+          <div className="absolute z-50 mt-1 w-full bg-popover">
+            <LoadFailure
+              variant="banner"
+              title="People could not be searched"
+              description="No result set was returned."
+              onRetry={() => void peopleQuery.refetch()}
+              retrying={peopleQuery.isFetching}
+              testId="schedule-people-picker-load-error"
+            />
+          </div>
+        ) : null}
+        {open && debouncedQuery && peopleQuery.isFetching && results === undefined ? (
+          <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md">
+            Searching people…
+          </div>
+        ) : null}
+        {open && !peopleQuery.isError && results && results.length > 0 && (
           <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-48 overflow-y-auto">
             {results
               .filter((r) => !selectedIds.has(r.id))
@@ -504,6 +581,8 @@ function InviteePicker({
         )}
         {open &&
           debouncedQuery &&
+          !peopleQuery.isFetching &&
+          !peopleQuery.isError &&
           (!results ||
             results.filter((r) => !selectedIds.has(r.id)).length === 0) && (
             <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md px-3 py-2 text-sm text-muted-foreground">
@@ -1146,10 +1225,20 @@ export default function SchedulePage() {
   const weekStartStr = format(currentWeekStart, "yyyy-MM-dd");
 
   const { data: me } = useGetMe();
-  const { data: blocks, isLoading } = useListScheduleBlocks({
+  const {
+    data: blocks,
+    isLoading,
+    isError: blocksError,
+    refetch: refetchBlocks,
+  } = useListScheduleBlocks({
     weekStart: weekStartStr,
   });
-  const { data: studySessions } = useListStudySessions();
+  const {
+    data: studySessions,
+    isLoading: studySessionsLoading,
+    isError: studySessionsError,
+    refetch: refetchStudySessions,
+  } = useListStudySessions();
   const createBlock = useCreateScheduleBlock();
   const deleteBlock = useDeleteScheduleBlock();
 
@@ -1383,6 +1472,24 @@ export default function SchedulePage() {
         />
       )}
 
+      {(blocksError || studySessionsError) && (
+        <Card className="border-destructive/30" data-testid="schedule-load-error">
+          <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">Part of your schedule could not be loaded</p>
+              <p className="text-sm text-muted-foreground">Unavailable blocks or study sessions have not been reported as empty.</p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void Promise.all([refetchBlocks(), refetchStudySessions()])}
+            >
+              <RotateCcw className="mr-2 size-4" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Week navigation */}
       <div className="flex items-center gap-3">
         <Button
@@ -1418,7 +1525,7 @@ export default function SchedulePage() {
       </div>
 
       {/* Weekly Grid */}
-      {isLoading ? (
+      {isLoading || studySessionsLoading ? (
         <div className="grid grid-cols-1 gap-2 rounded-xl border bg-card/90 p-3 text-card-foreground shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-card/80 md:grid-cols-7 [&_.text-muted-foreground]:text-card-foreground/70">
           {Array.from({ length: 7 }).map((_, i) => (
             <div key={i} className="space-y-2">
@@ -1548,7 +1655,7 @@ export default function SchedulePage() {
       )}
 
       {/* Upcoming blocks list (mobile fallback / extra context) */}
-      {!isLoading && blocks && blocks.length > 0 && (
+      {!isLoading && !blocksError && blocks && blocks.length > 0 && (
         <div className="md:hidden space-y-2">
           <h2 className="font-semibold text-foreground text-sm">
             This week&apos;s blocks

@@ -1,3 +1,7 @@
+/**
+ * @fileOverview API boundary role: provides the Require Auth Express middleware used before protected handlers run.
+ * System connection: route modules compose this middleware to establish a trusted request identity or authorization decision.
+ */
 import type { Request, Response, NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
@@ -8,6 +12,7 @@ export interface AuthenticatedRequest extends Request {
   userId: number;
   userRole: string;
   accountRole: string;
+  educatorEnabled: boolean;
 }
 
 function bannedAccountRouteAllowed(req: Request) {
@@ -50,6 +55,7 @@ async function resolveAuthenticatedUser(
       email: usersTable.email,
       role: usersTable.role,
       activeRole: usersTable.activeRole,
+      educatorEnabled: usersTable.educatorEnabled,
       bannedAt: usersTable.bannedAt,
     })
     .from(usersTable)
@@ -84,5 +90,6 @@ async function resolveAuthenticatedUser(
   request.userId = user.id;
   request.userRole = user.activeRole ?? user.role;
   request.accountRole = accountRole;
+  request.educatorEnabled = user.educatorEnabled || accountRole === "admin";
   next();
 }

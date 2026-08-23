@@ -1,7 +1,11 @@
 /**
+ * @fileOverview API role: implements the Google Classroom HTTP domain, including request validation and response shaping.
+ * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
+ */
+/**
  * Google Classroom integration routes.
  *
- * All routes require authentication AND teacher role.
+ * All routes require authentication and durable educator capability.
  *
  * OAuth flow:
  *  1. Teacher clicks "Connect" → GET /api/auth/google (returns auth URL)
@@ -23,7 +27,6 @@ import {
   resourcesTable,
   classesTable,
   classMembersTable,
-  usersTable,
 } from "@workspace/db";
 import {
   GetGCAuthUrlResponse,
@@ -63,17 +66,16 @@ const SCOPES = [
   "https://www.googleapis.com/auth/classroom.announcements",
 ].join(" ");
 
-// ── Middleware: teacher only (verifies live DB role, ignores token role claim) ─
+// ── Middleware: educator capability required ──────────────────────────────────
 
-async function requireTeacher(
+async function requireEducator(
   req: Parameters<typeof requireAuth>[0],
   res: Parameters<typeof requireAuth>[1],
   next: Parameters<typeof requireAuth>[2],
 ): Promise<void> {
-  const { userId } = req as AuthenticatedRequest;
-  const [user] = await db.select({ role: usersTable.role, activeRole: usersTable.activeRole }).from(usersTable).where(eq(usersTable.id, userId));
-  if (!user || !["teacher", "admin"].includes(user.role) || (user.activeRole ?? user.role) !== "teacher") {
-    res.status(403).json({ error: "Only teachers can use Google Classroom integration" });
+  const { educatorEnabled } = req as AuthenticatedRequest;
+  if (!educatorEnabled) {
+    res.status(403).json({ error: "Educator capability is required to use Google Classroom integration" });
     return;
   }
   next();
@@ -179,9 +181,9 @@ async function isTeacherOfCourse(courseId: string, token: string): Promise<boole
   return resp.ok;
 }
 
-// ── GET /auth/google, return OAuth authorization URL (teacher only) ──────────
+// ── GET /auth/google, return OAuth authorization URL (educators) ─────────────
 
-router.get("/auth/google", requireAuth, requireTeacher, (req, res): void => {
+router.get("/auth/google", requireAuth, requireEducator, (req, res): void => {
   if (!GC_CONFIGURED) {
     res.status(503).json({ error: "Google OAuth is not configured on this server" });
     return;
@@ -305,9 +307,9 @@ router.get("/auth/google/callback", async (req, res): Promise<void> => {
   res.redirect(`${frontendBase}/classes?gc_connected=1`);
 });
 
-// ── GET /google-classroom/status (teacher only) ───────────────────────────────
+// ── GET /google-classroom/status (educators) ──────────────────────────────────
 
-router.get("/google-classroom/status", requireAuth, requireTeacher, async (req, res): Promise<void> => {
+router.get("/google-classroom/status", requireAuth, requireEducator, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const configured = GC_CONFIGURED;
   const [row] = await db
@@ -317,9 +319,9 @@ router.get("/google-classroom/status", requireAuth, requireTeacher, async (req, 
   res.json(GetGCStatusResponse.parse({ connected: !!row, configured }));
 });
 
-// ── GET /google-classroom/courses (teacher only) ──────────────────────────────
+// ── GET /google-classroom/courses (educators) ─────────────────────────────────
 
-router.get("/google-classroom/courses", requireAuth, requireTeacher, async (req, res): Promise<void> => {
+router.get("/google-classroom/courses", requireAuth, requireEducator, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const token = await getValidToken(userId);
 
@@ -361,7 +363,7 @@ router.post(
   "/google-classroom/import-course",
   contentLimiter,
   requireAuth,
-  requireTeacher,
+  requireEducator,
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
 
@@ -440,7 +442,7 @@ router.post(
 router.get(
   "/google-classroom/courses/:courseId/students",
   requireAuth,
-  requireTeacher,
+  requireEducator,
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
 
@@ -518,9 +520,9 @@ router.get(
   },
 );
 
-// ── POST /google-classroom/share (teacher only) ───────────────────────────────
+// ── POST /google-classroom/share (educators) ──────────────────────────────────
 
-router.post("/google-classroom/share", contentLimiter, requireAuth, requireTeacher, async (req, res): Promise<void> => {
+router.post("/google-classroom/share", contentLimiter, requireAuth, requireEducator, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
 
   const parsed = ShareToGCBody.safeParse(req.body);
@@ -618,9 +620,9 @@ router.post("/google-classroom/share", contentLimiter, requireAuth, requireTeach
   );
 });
 
-// ── DELETE /auth/google, disconnect (teacher only) ───────────────────────────
+// ── DELETE /auth/google, disconnect (educators) ───────────────────────────────
 
-router.delete("/auth/google", requireAuth, requireTeacher, async (req, res): Promise<void> => {
+router.delete("/auth/google", requireAuth, requireEducator, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
 
   const [row] = await db

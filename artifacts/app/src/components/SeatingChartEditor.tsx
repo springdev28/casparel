@@ -1,3 +1,7 @@
+/**
+ * @fileOverview Web UI role: provides the reusable Seating Chart Editor component or bridge.
+ * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
+ */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Bot, ClipboardPen, Save, UserRound, Users, Sparkles, Loader2, Plus, Trash2, Move, Grid3X3, LayoutDashboard, MessageSquare, Send } from "lucide-react";
@@ -11,6 +15,7 @@ import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { getGetSeatingChartQueryKey, useGetSeatingChart, useUpdateSeatingChart, useUpdateStudentNote, useSuggestSeatingPlan, type ClassroomDesk, type SeatingAssignment, type SeatingPlanSuggestion } from "@workspace/api-client-react";
 import { usePlan } from "@/lib/use-plan";
+import { LoadFailure } from "./LoadFailure";
 
 type LayoutMode = "grid" | "custom";
 type DragState = { id: string; dx: number; dy: number } | null;
@@ -44,7 +49,8 @@ function deskClipPath(desk: ClassroomDesk) {
 export function SeatingChartEditor({ classId, readOnly = false }: { classId: number; readOnly?: boolean }) {
   const client = useQueryClient(), [, setLocation] = useLocation();
   const canvasRef = useRef<HTMLDivElement>(null);
-  const { data: chart, isLoading } = useGetSeatingChart(classId, { query: { queryKey: getGetSeatingChartQueryKey(classId) } });
+  const chartQuery = useGetSeatingChart(classId, { query: { queryKey: getGetSeatingChartQueryKey(classId) } });
+  const chart = chartQuery.data;
   const updateChart = useUpdateSeatingChart(), updateNote = useUpdateStudentNote(), suggestPlan = useSuggestSeatingPlan();
   const plan = usePlan();
   const [rows, setRows] = useState(4), [columns, setColumns] = useState(5);
@@ -121,7 +127,18 @@ export function SeatingChartEditor({ classId, readOnly = false }: { classId: num
     }
   }
 
-  if (isLoading) return <Skeleton className="h-96 w-full rounded-xl" />;
+  if (chartQuery.isLoading) return <Skeleton className="h-96 w-full rounded-xl" />;
+  if (chartQuery.isError && chart === undefined) {
+    return (
+      <LoadFailure
+        title="Classroom seating could not be loaded"
+        description="No editable layout was created from missing data. Retry the saved chart request."
+        onRetry={() => void chartQuery.refetch()}
+        retrying={chartQuery.isFetching}
+        testId="seating-chart-load-error"
+      />
+    );
+  }
   if (!chart) return null;
   return <section className="space-y-4" data-testid="seating-chart-editor">
     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="text-lg font-semibold">{readOnly ? "Classroom seating" : "Classroom Designer"}</h2><p className="text-sm text-muted-foreground">{readOnly ? "View the complete seating plan. Only your teacher can edit it." : "Build the room, place students, and let the assistant reason about proximity and desk-mates."}</p></div>{!readOnly && <div className="flex flex-wrap gap-2"><Button variant={layoutMode === "grid" ? "default" : "outline"} size="sm" onClick={() => setLayoutMode("grid")}><Grid3X3 className="mr-2 size-4" />Simple grid</Button><Button variant={layoutMode === "custom" ? "default" : "outline"} size="sm" onClick={() => setLayoutMode("custom")}><LayoutDashboard className="mr-2 size-4" />Design your own</Button><Button onClick={saveLayout} disabled={updateChart.isPending}><Save className="mr-2 size-4" />Save layout</Button></div>}</div>
