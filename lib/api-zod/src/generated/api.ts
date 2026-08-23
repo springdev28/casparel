@@ -1465,7 +1465,8 @@ export const GetClassResourcesListResponse = zod.object({
   "createdAt": zod.string(),
   "verificationStatus": zod.enum(['unverified', 'verified', 'rejected']).optional(),
   "verificationNote": zod.string().nullish()
-})
+}),
+  "alreadyPresent": zod.boolean().optional().describe('Present on add responses. True means the resource was already in the list and the existing item was returned without changing order.')
 }))
 })
 
@@ -2368,7 +2369,8 @@ export const GetResourceListResponse = zod.object({
   "createdAt": zod.string(),
   "verificationStatus": zod.enum(['unverified', 'verified', 'rejected']).optional(),
   "verificationNote": zod.string().nullish()
-})
+}),
+  "alreadyPresent": zod.boolean().optional().describe('Present on add responses. True means the resource was already in the list and the existing item was returned without changing order.')
 }))
 })
 
@@ -2443,7 +2445,8 @@ export const AddListItemResponse = zod.object({
   "createdAt": zod.string(),
   "verificationStatus": zod.enum(['unverified', 'verified', 'rejected']).optional(),
   "verificationNote": zod.string().nullish()
-})
+}),
+  "alreadyPresent": zod.boolean().optional().describe('Present on add responses. True means the resource was already in the list and the existing item was returned without changing order.')
 })
 
 

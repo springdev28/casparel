@@ -14,17 +14,29 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
-import { useGetResource, useListResourceReviews } from '@workspace/api-client-react';
+import {
+  getGetUserLibraryQueryKey,
+  useCreateResource,
+  useGetMe,
+  useGetResource,
+  useGetUserLibrary,
+  useListResourceReviews,
+} from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
-import type { Review } from '@workspace/api-client-react';
+import type { Resource, Review } from '@workspace/api-client-react';
 import { SourceReviewSection } from '@/components/SourceReviewSection';
+import { SaveToListSheet } from '@/components/SaveToListSheet';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useMotion } from '@/contexts/MotionContext';
+import { describeApiFailure } from '@/utils/api-failure';
+import { findSavedResource } from '@/utils/resource-library';
 import { formatLabel } from '@/utils/labels';
 
 function StarRow({ rating }: { rating: number }) {
@@ -117,12 +129,79 @@ function ReviewCard({ item }: { item: Review }) {
 export default function ResourceDetailScreen() {
   const { t, intlLocale } = useLanguage();
   const colors = useColors();
+  const { selection, success } = useMotion();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const resourceId = parseInt(id, 10);
 
+  const { data: me } = useGetMe();
+  const userId = me?.id ?? 0;
   const { data: resource, isLoading } = useGetResource(resourceId);
   const { data: reviews, isLoading: reviewsLoading } = useListResourceReviews(resourceId);
+  const library = useGetUserLibrary(userId, {
+    query: {
+      queryKey: getGetUserLibraryQueryKey(userId),
+      enabled: userId > 0,
+    },
+  });
+  const saveResource = useCreateResource();
+  const [locallySaved, setLocallySaved] = React.useState<Resource | null>(null);
+  const [saveSheetOpen, setSaveSheetOpen] = React.useState(false);
+  const [saveFailure, setSaveFailure] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setLocallySaved(null);
+    setSaveSheetOpen(false);
+    setSaveFailure(null);
+  }, [resourceId]);
+
+  const savedResource = resource
+    ? locallySaved ??
+      findSavedResource(library.data?.resources, resource.url) ??
+      (resource.submittedById === userId ? resource : null)
+    : null;
+
+  async function handleSave() {
+    if (!resource || !userId || saveResource.isPending) return;
+    if (savedResource) {
+      selection();
+      setSaveSheetOpen(true);
+      return;
+    }
+
+    setSaveFailure(null);
+    try {
+      const saved = await saveResource.mutateAsync({
+        data: {
+          title: resource.title,
+          url: resource.url,
+          description: resource.description ?? undefined,
+          format: resource.format,
+          subject: resource.subject,
+          gradeLevel: resource.gradeLevel,
+          thumbnailUrl: resource.thumbnailUrl ?? undefined,
+        },
+      });
+      // Optimistic-looking, but only after the server confirms: a failed write
+      // never leaves the phone claiming the source is safely in the library.
+      setLocallySaved(saved);
+      await queryClient.invalidateQueries({
+        queryKey: getGetUserLibraryQueryKey(userId),
+      });
+      success();
+      setSaveSheetOpen(true);
+    } catch (error) {
+      setSaveFailure(
+        describeApiFailure(
+          error,
+          t("This resource could not be saved. Try again."),
+          t,
+        ),
+      );
+    }
+  }
 
   const webBottomPad = Platform.OS === 'web' ? 34 : 0;
 
@@ -146,14 +225,15 @@ export default function ResourceDetailScreen() {
   }
 
   return (
-    <ScrollView
-      style={[styles.flex, { backgroundColor: colors.background }]}
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: insets.bottom + webBottomPad + 32 },
-      ]}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={[styles.flex, { backgroundColor: colors.background }]}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: insets.bottom + webBottomPad + 120 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
       {/* Hero */}
       <View
         style={[
@@ -270,15 +350,6 @@ export default function ResourceDetailScreen() {
         </View>
       ) : null}
 
-      {/* Open Button */}
-      <Button
-        onPress={() => Linking.openURL(resource.url)}
-        size="lg"
-        style={{ marginTop: 4 }}
-      >
-        {t('Open Resource')}
-      </Button>
-
       {/* Source review: quick is non-AI; deep AI requires Plus or Pro. */}
       <SourceReviewSection resourceId={resourceId} />
 
@@ -313,8 +384,80 @@ export default function ResourceDetailScreen() {
             ))}
           </View>
         )}
+        </View>
+      </ScrollView>
+
+      {/* Mobile keeps the two decisions that matter beside the learner's
+          thumb: use the source, or keep it and organize the next step. */}
+      <View
+        style={[
+          styles.stickyActions,
+          {
+            paddingBottom: insets.bottom + 10,
+            backgroundColor: colors.card,
+            borderTopColor: colors.border,
+          },
+        ]}
+      >
+        {saveFailure ? (
+          <View accessibilityRole="alert" style={styles.saveFailureRow}>
+            <Feather name="alert-circle" size={15} color={colors.destructiveText} />
+            <Text
+              style={[
+                styles.saveFailureText,
+                { color: colors.foreground, fontFamily: colors.fontFamily.sans },
+              ]}
+            >
+              {saveFailure}
+            </Text>
+            <Pressable onPress={() => void handleSave()}>
+              <Text
+                style={{ color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold }}
+              >
+                {t('Retry')}
+              </Text>
+            </Pressable>
+          </View>
+        ) : savedResource ? (
+          <View style={styles.savedStateRow}>
+            <Feather name="check-circle" size={14} color={colors.primary} />
+            <Text
+              style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }}
+            >
+              {t('Saved in your library')}
+            </Text>
+          </View>
+        ) : null}
+        <View style={styles.actionRow}>
+          <Button
+            variant="outline"
+            onPress={() => void Linking.openURL(resource.url)}
+            style={styles.actionButton}
+          >
+            {t('Open Resource')}
+          </Button>
+          <Button
+            onPress={() => void handleSave()}
+            loading={saveResource.isPending}
+            disabled={!userId}
+            style={styles.actionButton}
+          >
+            {savedResource ? t('Add to list') : t('Save')}
+          </Button>
+        </View>
       </View>
-    </ScrollView>
+
+      <SaveToListSheet
+        visible={saveSheetOpen && Boolean(savedResource)}
+        resource={savedResource}
+        userId={userId}
+        onClose={() => setSaveSheetOpen(false)}
+        onViewGoals={() => {
+          setSaveSheetOpen(false);
+          router.push('/goals');
+        }}
+      />
+    </View>
   );
 }
 
@@ -377,4 +520,19 @@ const styles = StyleSheet.create({
   reviewerName: { fontSize: 14 },
   reviewDate: { fontSize: 11, marginTop: 1 },
   reviewComment: { fontSize: 14, lineHeight: 20 },
+  stickyActions: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  actionRow: { flexDirection: 'row', gap: 10 },
+  actionButton: { flex: 1 },
+  savedStateRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  saveFailureRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  saveFailureText: { flex: 1, fontSize: 12, lineHeight: 16 },
 });

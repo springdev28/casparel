@@ -81,7 +81,10 @@ beforeAll(async () => {
   process.env.FRONTEND_PUBLIC_DIR = publicDir;
   vi.resetModules();
   app = (await import("./app")).default;
-});
+// Loading the full production app graph can legitimately cross Vitest's
+// ten-second default on cold CI machines. Keep the assertion timeout strict,
+// but give this one-time integration setup enough room to finish.
+}, 30_000);
 
 afterAll(() => {
   process.env.NODE_ENV = "test";

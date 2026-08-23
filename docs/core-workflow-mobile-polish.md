@@ -286,6 +286,42 @@ For each vertical slice, test:
 
 Route rendering is not functional validation. Use a real staging/test database and record evidence.
 
+## Current implementation ledger — 2026-08-23
+
+The current vertical increment closes the highest-risk missing part of the phone journey: a learner can save from a search card or resource detail, keep that state after a query refresh, and immediately add the saved resource to an existing or newly created Learning List.
+
+Implemented in this increment:
+
+- shared `MotionProvider`, named duration tokens, safe haptic helpers, and system Reduce Motion state;
+- reduced-motion-aware shared skeleton loading;
+- non-navigating Save actions on mobile result cards;
+- a sticky Open plus Save/Add-to-list action area on mobile resource detail;
+- a compact post-save sheet with list loading, genuine empty, read-failure, create, add, duplicate, retry, success, and close states;
+- Turkish coverage and screen-reader labels for the new learner-facing controls;
+- server-authoritative, transactionally idempotent library saves and Learning List adds;
+- explicit `200` existing versus `201` created API responses and generated client/Zod contracts;
+- one Save analytics milestone per newly created library entry, without duplicate-tap inflation;
+- concurrent double-tap database regression coverage for both writes;
+- a documented cold-CI allowance for the production crawler integration setup.
+
+Verification recorded for this increment:
+
+- workspace library, API, and mobile type-checks passed;
+- 59 mobile tests passed;
+- 705 API assertions passed across 74 test files; environment-gated tests remained skipped;
+- web production build and combined API production build passed;
+- Expo release configuration passed;
+- production Expo exports passed for iOS (1,673 modules) and Android (1,669 modules), each producing an approximately 6.4 MB Hermes bundle;
+- authored-source overview audit and whitespace validation passed.
+
+Still required before declaring the canonical slice complete:
+
+- execute the new double-tap regression against a disposable PostgreSQL database through `VERIFY_DATABASE_URL`;
+- verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
+- implement a real resource-to-goal/path association; the current sheet truthfully offers **View goals** and does not pretend navigation created a link;
+- continue Phase 3 with Learning List roles, accessible reordering, quality review, and editable list-to-path activation;
+- capture second-device persistence and analytics evidence in the release record.
+
 ## Agent prompt
 
 Use this file as the product authority. Inspect the latest implementation, schema, API hooks, tests, and design-system components first. Map the current app against the canonical screen chain. Identify the smallest missing vertical slice. Implement it without duplicating existing systems or introducing parallel models. Use existing mobile animation dependencies. Keep sponsored content outside organic search, credibility, Learning Lists/Paths, adaptive recommendations, and teacher recommendations. Report the workflow gap fixed, transitions added, state and persistence behavior, shared primitives used, files/schema changed, tests, real-device evidence, accessibility, performance, analytics, docs updated, and remaining gaps.

@@ -4,6 +4,7 @@
  */
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Platform,
@@ -16,20 +17,28 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import {
+  getGetUserLibraryQueryKey,
   getOembedThumbnail,
+  useCreateResource,
+  useGetMe,
+  useGetUserLibrary,
   useListResources,
 } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { Resource } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { ErrorState } from '@/components/ErrorState';
+import { SaveToListSheet } from '@/components/SaveToListSheet';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useMotion } from '@/contexts/MotionContext';
+import { describeApiFailure } from '@/utils/api-failure';
+import { findSavedResource } from '@/utils/resource-library';
 import { formatLabel } from '@/utils/labels';
 
 function getYouTubeId(url: string): string | null {
@@ -103,7 +112,23 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }) {
+function ResourceCard({
+  item,
+  onPress,
+  onSave,
+  saved,
+  saving,
+  canSave,
+  saveError,
+}: {
+  item: Resource;
+  onPress: () => void;
+  onSave: () => void;
+  saved: boolean;
+  saving: boolean;
+  canSave: boolean;
+  saveError?: string;
+}) {
   const { t } = useLanguage();
   const colors = useColors();
   const [failedThumb, setFailedThumb] = React.useState<string | null>(null);
@@ -198,6 +223,62 @@ function ResourceCard({ item, onPress }: { item: Resource; onPress: () => void }
           </Text>
         </View>
       </View>
+      {saveError ? (
+        <View accessibilityRole="alert" style={styles.cardSaveError}>
+          <Feather name="alert-circle" size={14} color={colors.destructiveText} />
+          <Text
+            style={[
+              styles.cardSaveErrorText,
+              { color: colors.foreground, fontFamily: colors.fontFamily.sans },
+            ]}
+          >
+            {saveError}
+          </Text>
+        </View>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={saved ? t('Add to list') : t('Save')}
+        disabled={saving || !canSave}
+        accessibilityState={{ disabled: saving || !canSave }}
+        onPress={(event) => {
+          // The Save control lives inside the card's detail-navigation target.
+          // Consuming the event keeps a save from also opening another screen.
+          event.stopPropagation();
+          onSave();
+        }}
+        style={({ pressed }) => [
+          styles.saveButton,
+          {
+            backgroundColor: saved ? colors.primary + '14' : colors.primary,
+            borderColor: colors.primary,
+            borderRadius: colors.radius,
+            opacity: !canSave || saving ? 0.65 : pressed ? 0.8 : 1,
+          },
+        ]}
+      >
+        {saving ? (
+          <ActivityIndicator
+            size="small"
+            color={saved ? colors.primary : colors.primaryForeground}
+          />
+        ) : (
+          <Feather
+            name={saved ? 'check' : 'bookmark'}
+            size={15}
+            color={saved ? colors.primary : colors.primaryForeground}
+          />
+        )}
+        <Text
+          style={{
+            color: saved ? colors.primary : colors.primaryForeground,
+            fontFamily: colors.fontFamily.sansSemiBold,
+            fontSize: 13,
+          }}
+        >
+          {saved ? t('Add to list') : t('Save')}
+        </Text>
+      </Pressable>
     </Pressable>
   );
 }
@@ -225,8 +306,23 @@ function ResourceSkeleton() {
 export default function ResourcesScreen() {
   const { t } = useLanguage();
   const colors = useColors();
+  const { selection, success } = useMotion();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const { data: me } = useGetMe();
+  const userId = me?.id ?? 0;
+  const library = useGetUserLibrary(userId, {
+    query: {
+      queryKey: getGetUserLibraryQueryKey(userId),
+      enabled: userId > 0,
+    },
+  });
+  const saveResource = useCreateResource();
+  const [savingResourceId, setSavingResourceId] = useState<number | null>(null);
+  const [sheetResource, setSheetResource] = useState<Resource | null>(null);
+  const [saveFailures, setSaveFailures] = useState<Record<number, string>>({});
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -241,6 +337,55 @@ export default function ResourcesScreen() {
   const { data, isLoading, isError, error, isFetching, refetch } = useListResources({
     q: debouncedSearch || undefined,
   });
+
+  async function handleSave(item: Resource) {
+    if (!userId || savingResourceId !== null) return;
+    const existing =
+      findSavedResource(library.data?.resources, item.url) ??
+      (sheetResource && findSavedResource([sheetResource], item.url)) ??
+      (item.submittedById === userId ? item : undefined);
+    if (existing) {
+      selection();
+      setSheetResource(existing);
+      return;
+    }
+
+    setSavingResourceId(item.id);
+    setSaveFailures((current) => {
+      const next = { ...current };
+      delete next[item.id];
+      return next;
+    });
+    try {
+      const saved = await saveResource.mutateAsync({
+        data: {
+          title: item.title,
+          url: item.url,
+          description: item.description ?? undefined,
+          format: item.format,
+          subject: item.subject,
+          gradeLevel: item.gradeLevel,
+          thumbnailUrl: item.thumbnailUrl ?? undefined,
+        },
+      });
+      setSheetResource(saved);
+      await queryClient.invalidateQueries({
+        queryKey: getGetUserLibraryQueryKey(userId),
+      });
+      success();
+    } catch (saveError) {
+      setSaveFailures((current) => ({
+        ...current,
+        [item.id]: describeApiFailure(
+          saveError,
+          t('This resource could not be saved. Try again.'),
+          t,
+        ),
+      }));
+    } finally {
+      setSavingResourceId(null);
+    }
+  }
 
   /*
    * A request that failed is not an empty library.
@@ -337,12 +482,24 @@ export default function ResourcesScreen() {
         <FlatList
           data={data ?? []}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <ResourceCard
-              item={item}
-              onPress={() => router.push(`/resource/${item.id}`)}
-            />
-          )}
+          renderItem={({ item }) => {
+            const saved = Boolean(
+              findSavedResource(library.data?.resources, item.url) ??
+                (sheetResource && findSavedResource([sheetResource], item.url)) ??
+                (item.submittedById === userId ? item : undefined),
+            );
+            return (
+              <ResourceCard
+                item={item}
+                onPress={() => router.push(`/resource/${item.id}`)}
+                onSave={() => void handleSave(item)}
+                saved={saved}
+                saving={savingResourceId === item.id}
+                canSave={userId > 0}
+                saveError={saveFailures[item.id]}
+              />
+            );
+          }}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: insets.bottom + TAB_BAR_CLEARANCE },
@@ -364,6 +521,16 @@ export default function ResourcesScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+      <SaveToListSheet
+        visible={Boolean(sheetResource)}
+        resource={sheetResource}
+        userId={userId}
+        onClose={() => setSheetResource(null)}
+        onViewGoals={() => {
+          setSheetResource(null);
+          router.push('/goals');
+        }}
+      />
     </View>
   );
 }
@@ -414,6 +581,16 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 15, lineHeight: 20 },
   badgeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardSaveError: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  cardSaveErrorText: { flex: 1, fontSize: 12, lineHeight: 16 },
+  saveButton: {
+    minHeight: 40,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
   gradeBadge: { fontSize: 12 },
   verifyChip: {
     flexDirection: 'row',

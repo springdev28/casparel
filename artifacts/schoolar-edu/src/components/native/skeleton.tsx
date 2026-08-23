@@ -6,7 +6,9 @@
 // react-native / reanimated only available in Expo context
 import React, { useEffect } from "react";
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withRepeat,
   withSequence,
@@ -23,9 +25,18 @@ interface SkeletonProps {
 
 export function Skeleton({ width, height = 16, borderRadius, style }: SkeletonProps) {
   const colors = useColors();
+  const reduceMotion = useReducedMotion();
   const opacity = useSharedValue(1);
 
   useEffect(() => {
+    // A skeleton still communicates loading with no animation. Stopping the
+    // pulse here makes every existing loading screen respect the phone's
+    // Reduce Motion setting without requiring each caller to remember it.
+    if (reduceMotion) {
+      cancelAnimation(opacity);
+      opacity.value = 1;
+      return;
+    }
     opacity.value = withRepeat(
       withSequence(
         withTiming(0.35, { duration: 700 }),
@@ -34,7 +45,8 @@ export function Skeleton({ width, height = 16, borderRadius, style }: SkeletonPr
       -1,
       false
     );
-  }, [opacity]);
+    return () => cancelAnimation(opacity);
+  }, [opacity, reduceMotion]);
 
   const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 

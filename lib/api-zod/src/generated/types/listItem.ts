@@ -16,4 +16,6 @@ export interface ListItem {
   addedAt: string;
   position: number;
   resource: Resource;
+  /** Present on add responses. True means the resource was already in the list and the existing item was returned without changing order. */
+  alreadyPresent?: boolean;
 }

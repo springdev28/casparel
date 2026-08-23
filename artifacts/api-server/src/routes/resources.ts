@@ -94,6 +94,7 @@ import {
   filterDiscoveryLanguage,
 } from "../lib/discoveryCoverage";
 import { getAccountEntitlements } from "../lib/entitlements";
+import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
@@ -169,9 +170,11 @@ async function resourcesWithRatings(ids: number[]) {
 
 function canonicalResourceUrl(raw: string) {
   try {
-    return canonicalCatalogUrl(raw).toLocaleLowerCase();
+    // URL identity must not change with the server machine's locale (notably
+    // Turkish dotted/dotless I rules), so use the locale-independent form.
+    return canonicalCatalogUrl(raw).toLowerCase();
   } catch {
-    return raw.trim().replace(/\/$/, "").toLocaleLowerCase();
+    return raw.trim().replace(/\/$/, "").toLowerCase();
   }
 }
 
@@ -2116,22 +2119,70 @@ router.post(
     // Verification is always computed server-side, it is absent from
     // CreateResourceBody, so a client can never assert its own status.
     const verification = await classifySubmission(parsed.data.url, userId, accountRole);
-    const [resource] = await db
-      .insert(resourcesTable)
-      .values({
-        ...parsed.data,
-        submittedById: userId,
-        workspaceRole: userRole as "student" | "teacher",
-        ...verification,
-      })
-      .returning();
-    res.status(201).json(
-      CreateResourceResponse.parse({
-        ...resource,
-        avgRating: 0,
-        reviewCount: 0,
-      }),
-    );
+    const canonicalUrl = canonicalResourceUrl(parsed.data.url);
+
+    /*
+     * Saving is one durable action, even when a phone sends it more than once.
+     *
+     * A resource row is also the owner's library entry in the current model.
+     * The old read/insert path had no uniqueness guard, so two quick taps made
+     * two independent rows. A database transaction alone cannot prevent that:
+     * both transactions can read before either inserts. The transaction-level
+     * advisory lock serialises only saves by this account for this canonical
+     * URL, across every API process, and releases automatically on commit or
+     * rollback. Different users and different URLs never wait on one another.
+     *
+     * Existing rows predate canonical storage, so the comparison deliberately
+     * runs through the same URL normaliser instead of relying on raw equality.
+     */
+    const saved = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(${userId}, hashtext(${canonicalUrl}))`,
+      );
+
+      const ownedUrls = await tx
+        .select({ id: resourcesTable.id, url: resourcesTable.url })
+        .from(resourcesTable)
+        .where(eq(resourcesTable.submittedById, userId));
+      const existing = ownedUrls.find(
+        (candidate) => canonicalResourceUrl(candidate.url) === canonicalUrl,
+      );
+      if (existing) return { id: existing.id, created: false };
+
+      const [resource] = await tx
+        .insert(resourcesTable)
+        .values({
+          ...parsed.data,
+          submittedById: userId,
+          workspaceRole: userRole as "student" | "teacher",
+          ...verification,
+        })
+        .returning({ id: resourcesTable.id });
+      return { id: resource.id, created: true };
+    });
+
+    const [resource] = await resourcesWithRatings([saved.id]);
+    // The row was either selected or inserted inside the transaction, so a
+    // missing result would mean an unexpected concurrent destructive action.
+    if (!resource) {
+      res.status(409).json({ error: "The saved resource is no longer available" });
+      return;
+    }
+    // Exactly one request can create this library row while holding the
+    // advisory lock, so only that request records the Save milestone. The
+    // successful duplicate responses cannot inflate the analytics funnel.
+    if (saved.created) {
+      await recordWorkflowEvent({
+        userId,
+        event: "resource_saved",
+        resourceId: resource.id,
+        context: { destination: "library" },
+        oncePerDay: true,
+      });
+    }
+    res
+      .status(saved.created ? 201 : 200)
+      .json(CreateResourceResponse.parse(resource));
   },
 );
 

@@ -19,6 +19,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { PurchasesProvider } from "@/contexts/PurchasesContext";
 import { OnboardingProvider, useOnboarding } from "@/contexts/OnboardingContext";
 import { LanguageProvider, useLanguage } from "@/contexts/LanguageContext";
+import { MotionProvider } from "@/contexts/MotionContext";
 
 // Module-level setup, runs before any component renders
 setBaseUrl(apiOrigin);
@@ -149,17 +150,21 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
-              <AuthProvider>
-                {/* Inside AuthProvider: the account's language is fetched with
-                    the session token, so this needs the token to exist. */}
-                <LanguageProvider>
-                  <OnboardingProvider>
-                    <PurchasesProvider>
-                      <RootLayoutNav />
-                    </PurchasesProvider>
-                  </OnboardingProvider>
-                </LanguageProvider>
-              </AuthProvider>
+              {/* One listener for the phone's Reduce Motion setting and one
+                  safe haptic boundary, shared by every interaction below. */}
+              <MotionProvider>
+                <AuthProvider>
+                  {/* Inside AuthProvider: the account's language is fetched with
+                      the session token, so this needs the token to exist. */}
+                  <LanguageProvider>
+                    <OnboardingProvider>
+                      <PurchasesProvider>
+                        <RootLayoutNav />
+                      </PurchasesProvider>
+                    </OnboardingProvider>
+                  </LanguageProvider>
+                </AuthProvider>
+              </MotionProvider>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>

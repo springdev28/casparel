@@ -219,23 +219,63 @@ router.post("/lists/:id/items", contentLimiter, requireAuth, async (req, res): P
     res.status(400).json({ error: validationMessage(parsed.error) });
     return;
   }
-  const [maxResult] = await db
-    .select({ maxPos: max(listItemsTable.position) })
-    .from(listItemsTable)
-    .where(eq(listItemsTable.listId, params.data.id));
-  const nextPosition = (maxResult?.maxPos ?? -1) + 1;
-  const [item] = await db
-    .insert(listItemsTable)
-    .values({ listId: params.data.id, position: nextPosition, ...parsed.data })
-    .returning();
-  await recordWorkflowEvent({
-    userId,
-    event: "resource_saved",
-    resourceId: item.resourceId,
-    context: { listId: params.data.id },
+
+  /*
+   * One resource occupies one position in a Learning List.
+   *
+   * This is intentionally enforced at the write boundary rather than left to
+   * every client. The lock key is the list's append lane, so two taps on the
+   * same Add button queue, and two different resources cannot claim the same
+   * next position; unrelated lists remain concurrent. The second duplicate
+   * receives the existing item as a successful, explicit "already present"
+   * result instead of creating a duplicate or surfacing a generic error.
+   */
+  const saved = await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(${params.data.id}, 0)`,
+    );
+    const [existing] = await tx
+      .select()
+      .from(listItemsTable)
+      .where(
+        and(
+          eq(listItemsTable.listId, params.data.id),
+          eq(listItemsTable.resourceId, parsed.data.resourceId),
+        ),
+      )
+      .limit(1);
+    if (existing) return { item: existing, alreadyPresent: true };
+
+    const [maxResult] = await tx
+      .select({ maxPos: max(listItemsTable.position) })
+      .from(listItemsTable)
+      .where(eq(listItemsTable.listId, params.data.id));
+    const nextPosition = (maxResult?.maxPos ?? -1) + 1;
+    const [item] = await tx
+      .insert(listItemsTable)
+      .values({ listId: params.data.id, position: nextPosition, ...parsed.data })
+      .returning();
+    return { item, alreadyPresent: false };
   });
-  const resource = await resourceWithRating(item.resourceId);
-  res.status(201).json(AddListItemResponse.parse({ ...item, resource }));
+
+  if (!saved.alreadyPresent) {
+    await recordWorkflowEvent({
+      userId,
+      event: "resource_saved",
+      resourceId: saved.item.resourceId,
+      context: { listId: params.data.id },
+    });
+  }
+  const resource = await resourceWithRating(saved.item.resourceId);
+  res
+    .status(saved.alreadyPresent ? 200 : 201)
+    .json(
+      AddListItemResponse.parse({
+        ...saved.item,
+        resource,
+        alreadyPresent: saved.alreadyPresent,
+      }),
+    );
 });
 
 // POST /lists/:id/items/reorder, list owner only

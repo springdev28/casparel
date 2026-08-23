@@ -1236,6 +1236,12 @@ paths:
             schema:
               $ref: "#/components/schemas/ResourceInput"
       responses:
+        "200":
+          description: The resource was already present in this user's library
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
         "201":
           description: Created
           content:
@@ -1881,6 +1887,12 @@ paths:
             schema:
               $ref: "#/components/schemas/ListItemInput"
       responses:
+        "200":
+          description: The resource was already present in the list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListItem"
         "201":
           description: Added
           content:
@@ -4481,6 +4493,11 @@ components:
         addedAt: { type: string }
         position: { type: integer }
         resource: { $ref: "#/components/schemas/Resource" }
+        alreadyPresent:
+          type: boolean
+          description: >-
+            Present on add responses. True means the resource was already in
+            the list and the existing item was returned without changing order.
 
     ListItemInput:
       type: object
