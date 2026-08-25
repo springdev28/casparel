@@ -311,6 +311,10 @@ export default function ProfileScreen() {
   const webTopPad = Platform.OS === 'web' ? 67 : 0;
   const pct = me ? completeness(me) : 0;
   const isTeacher = me?.role === 'teacher';
+  // Keep the state discriminator away from the Feather name expression. The
+  // icon audit can then inspect the two real glyph literals without mistaking
+  // the action name ("reset") for a glyph.
+  const accountActionIcon = accountAction === 'reset' ? 'rotate-ccw' : 'trash-2';
 
   function startEditing() {
     if (!me) return;
@@ -963,7 +967,7 @@ export default function ProfileScreen() {
         <View style={styles.accountModalBackdrop}>
           <View style={[styles.accountModal, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
             <View style={[styles.rowIcon, { backgroundColor: colors.destructive + '15', borderRadius: colors.radius - 2 }]}>
-              <Feather name={accountAction === 'reset' ? 'rotate-ccw' : 'trash-2'} size={18} color={colors.destructiveText} />
+              <Feather name={accountActionIcon} size={18} color={colors.destructiveText} />
             </View>
             <Text style={{ color: colors.foreground, fontFamily: colors.fontFamily.sansBold, fontSize: 20 }}>
               {accountAction === 'reset' ? t('Confirm account reset') : t('Confirm account deletion')}

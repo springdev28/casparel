@@ -407,6 +407,7 @@ const TR: Record<string, string> = {
   "Enter your current password to continue. Your password is checked securely and is never stored on this device.": "Devam etmek için mevcut parolanı gir. Parolan güvenli biçimde doğrulanır ve bu cihazda asla saklanmaz.",
   "Current password": "Mevcut parola",
   "That password is incorrect. Your account has not been changed.": "Bu parola yanlış. Hesabında hiçbir değişiklik yapılmadı.",
+  "Nothing was removed. Please try again.": "Hiçbir şey kaldırılmadı. Lütfen yeniden dene.",
   "The account could not be changed. Nothing was removed; please try again.": "Hesap değiştirilemedi. Hiçbir şey kaldırılmadı; lütfen yeniden dene.",
   "Account reset": "Hesap sıfırlandı",
   "Your private account data has been reset.": "Özel hesap verilerin sıfırlandı.",
