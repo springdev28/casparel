@@ -705,7 +705,15 @@ async function main() {
   });
   check("a post can be written", posted.status === 201, `HTTP ${posted.status}`);
 
-  const deleted = await call("DELETE", "/api/users/me", { token: carol.token });
+  /*
+   * Deletion is intentionally not authorized by possession of a session
+   * alone. Reauthenticate with the current password and send the explicit
+   * confirmation value that the generated clients use after their warning.
+   */
+  const deleted = await call("DELETE", "/api/users/me", {
+    token: carol.token,
+    body: { password: PASSWORD, confirmation: "DELETE" },
+  });
   check("an account can be deleted", deleted.status === 200 || deleted.status === 204,
     `HTTP ${deleted.status} ${deleted.text.slice(0, 160)}`);
 
