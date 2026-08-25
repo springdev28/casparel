@@ -186,11 +186,11 @@ Prefer the shared design-system/mobile component layer. Avoid one-off animation 
 
 ### Motion tokens
 
-| Token | Duration | Use |
-|---|---:|---|
-| instant | 80 ms | press and release |
-| quick | 160 ms | toggles and small state changes |
-| standard | 240 ms | cards, sheets, ordinary transitions |
+| Token    |      Duration | Use                                      |
+| -------- | ------------: | ---------------------------------------- |
+| instant  |         80 ms | press and release                        |
+| quick    |        160 ms | toggles and small state changes          |
+| standard |        240 ms | cards, sheets, ordinary transitions      |
 | emphasis | 360 to 420 ms | major progress and milestone transitions |
 
 Use springs for direct manipulation, sheet settling, saved-state feedback, and restrained success emphasis. Do not bounce ordinary navigation.
@@ -199,20 +199,20 @@ Animate transform and opacity by default. Avoid JS-thread layout loops, animated
 
 ### Required micro-feedback
 
-| Interaction | Required response |
-|---|---|
-| Tap | brief restrained compression or equivalent press state |
-| Save | icon morph/fill, Saved label, light haptic, brief highlight |
-| Save failure | reverse optimistic visual state, retain context, Retry |
-| Add to list | count update and visual confirmation |
-| Duplicate add | “Already in this list,” not a generic error |
-| Reorder | lifted card, smooth gap movement, release haptic |
-| Path generation | staged messages and path-shaped skeleton |
-| Step completion | pending to confirmed transition, progress update |
-| Loading | final-content-shaped skeleton, never false empty state |
-| Invalid input | local explanation; subtle shake is optional |
-| Network/server error | keep content in place, explain, Retry |
-| Meaningful milestone | brief glow, progress sweep, or restrained particles |
+| Interaction          | Required response                                           |
+| -------------------- | ----------------------------------------------------------- |
+| Tap                  | brief restrained compression or equivalent press state      |
+| Save                 | icon morph/fill, Saved label, light haptic, brief highlight |
+| Save failure         | reverse optimistic visual state, retain context, Retry      |
+| Add to list          | count update and visual confirmation                        |
+| Duplicate add        | “Already in this list,” not a generic error                 |
+| Reorder              | lifted card, smooth gap movement, release haptic            |
+| Path generation      | staged messages and path-shaped skeleton                    |
+| Step completion      | pending to confirmed transition, progress update            |
+| Loading              | final-content-shaped skeleton, never false empty state      |
+| Invalid input        | local explanation; subtle shake is optional                 |
+| Network/server error | keep content in place, explain, Retry                       |
+| Meaningful milestone | brief glow, progress sweep, or restrained particles         |
 
 Do not trigger confetti for ordinary saves or checkboxes.
 
@@ -309,6 +309,7 @@ Verification recorded for this increment:
 - workspace library, API, and mobile type-checks passed;
 - 59 mobile tests passed;
 - 705 API assertions passed across 74 test files; environment-gated tests remained skipped;
+- the eight-tap library-save and Learning-List-add regressions passed against the disposable PostgreSQL service in CI, proving each race leaves exactly one row;
 - web production build and combined API production build passed;
 - Expo release configuration passed;
 - production Expo exports passed for iOS (1,673 modules) and Android (1,669 modules), each producing an approximately 6.4 MB Hermes bundle;
@@ -316,7 +317,6 @@ Verification recorded for this increment:
 
 Still required before declaring the canonical slice complete:
 
-- execute the new double-tap regression against a disposable PostgreSQL database through `VERIFY_DATABASE_URL`;
 - verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
 - implement a real resource-to-goal/path association; the current sheet truthfully offers **View goals** and does not pretend navigation created a link;
 - continue Phase 3 with Learning List roles, accessible reordering, quality review, and editable list-to-path activation;

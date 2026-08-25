@@ -3,12 +3,25 @@
  * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
  */
 import { Router, type IRouter } from "express";
-import { eq, and, or, ilike, inArray, ne, sql, desc } from "drizzle-orm";
+import {
+  eq,
+  and,
+  or,
+  ilike,
+  inArray,
+  isNull,
+  ne,
+  sql,
+  desc,
+} from "drizzle-orm";
 import multer from "multer";
 import { z } from "zod/v4";
 import {
   db,
   pool,
+  activityLogTable,
+  calendarTokensTable,
+  canvasesTable,
   usersTable,
   classMembersTable,
   userBlocksTable,
@@ -16,6 +29,12 @@ import {
   resourcesTable,
   resourceListsTable,
   userPreferencesTable,
+  googleTokensTable,
+  learningEvidenceTable,
+  learningGoalsTable,
+  scheduleBlocksTable,
+  studyActivitiesTable,
+  workflowEventsTable,
   forumPostsTable,
   forumCommentsTable,
   forumMaterialsTable,
@@ -50,6 +69,8 @@ import {
   ReportUserParams,
   ReportUserBody,
   ReportUserResponse,
+  DeleteMeBody,
+  ResetMeBody,
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
@@ -281,34 +302,31 @@ router.patch(
 // limited copy. See authLimiter in lib/limiters.ts.
 
 // POST /auth/register
-router.post(
-  "/auth/register",
-  async (req, res): Promise<void> => {
-    const parsed = RegisterBody.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: validationMessage(parsed.error) });
-      return;
-    }
-    // role is always "student" for new accounts, not client-controlled
-    const { email, password, name } = parsed.data;
-    const role = "student";
-    const existing = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.email, email));
-    if (existing.length > 0) {
-      res.status(400).json({ error: "Email already in use" });
-      return;
-    }
-    const passwordHash = await hashPassword(password);
-    const [user] = await db
-      .insert(usersTable)
-      .values({ email, passwordHash, name, role })
-      .returning(publicUserColumns);
-    const token = issueToken(user.id, user.role, user.activeRole);
-    res.status(201).json(RegisterResponse.parse({ user, token }));
-  },
-);
+router.post("/auth/register", async (req, res): Promise<void> => {
+  const parsed = RegisterBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: validationMessage(parsed.error) });
+    return;
+  }
+  // role is always "student" for new accounts, not client-controlled
+  const { email, password, name } = parsed.data;
+  const role = "student";
+  const existing = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, email));
+  if (existing.length > 0) {
+    res.status(400).json({ error: "Email already in use" });
+    return;
+  }
+  const passwordHash = await hashPassword(password);
+  const [user] = await db
+    .insert(usersTable)
+    .values({ email, passwordHash, name, role })
+    .returning(publicUserColumns);
+  const token = issueToken(user.id, user.role, user.activeRole);
+  res.status(201).json(RegisterResponse.parse({ user, token }));
+});
 
 // POST /auth/login
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -402,72 +420,219 @@ router.get("/users/me/access", requireAuth, async (req, res): Promise<void> => {
 /** One name for a deleted account, used everywhere a copy of it was kept. */
 const DELETED_USER_NAME = "Deleted user";
 
-router.delete("/users/me", requireAuth, async (req, res): Promise<void> => {
-  const { userId } = req as AuthenticatedRequest;
-  const deletedMarker = `deleted-account-${userId}-${Date.now()}`;
-  /**
-   * What the rest of the database calls you.
-   *
-   * Anonymising the users row is not enough on its own. Six tables keep a
-   * denormalised copy of the name taken at the time of writing, so that a post
-   * can be listed without joining users. Deleting an account used to leave
-   * every one of those copies untouched: the row said "Deleted user" while the
-   * forum went on showing the person's real name on every post and comment
-   * they had ever written, to everybody, forever.
-   *
-   * Found by deleting an account and then looking at the database rather than
-   * at the response, which was a clean 204 either way.
-   *
-   * The id columns are deliberately left alone. They are the only way to find
-   * these rows again, they are not identifying by themselves, and their
-   * ON DELETE is set null for the day a row really is deleted.
-   */
-  const NAME_COPIES = [
-    [forumPostsTable, forumPostsTable.authorId, "authorName"],
-    [forumCommentsTable, forumCommentsTable.authorId, "authorName"],
-    [forumMaterialsTable, forumMaterialsTable.uploaderId, "uploaderName"],
-    [forumMaterialApprovalsTable, forumMaterialApprovalsTable.teacherId, "teacherName"],
-    [forumReportsTable, forumReportsTable.reporterId, "reporterName"],
-    [goalPathTemplatesTable, goalPathTemplatesTable.creatorId, "creatorName"],
-  ] as const;
+type AccountTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-  const [user] = await db
-    .update(usersTable)
-    .set({
-      email: deletedMarker + "@invalid.local",
-      passwordHash: deletedMarker,
-      name: DELETED_USER_NAME,
-      role: "student",
-      activeRole: "student",
-      avatarUrl: null,
-      bio: null,
-      subjects: null,
-      gradeOrDept: null,
-      timezone: null,
-      profileVisibility: "private",
-      libraryVisibility: "private",
-      showBio: false,
-      showSubjects: false,
-      showGradeOrDept: false,
-      showWebsite: false,
-      websiteUrl: null,
-      bannedAt: new Date().toISOString(),
-      bannedReason: "Account deleted by user",
+/**
+ * Delete account-private state without touching collaborative records.
+ *
+ * A reset must not silently erase another person's work. Classes, messages,
+ * submitted/verified resources, forum contributions, public path templates,
+ * and class-linked activities/canvases therefore remain. Personal schedules,
+ * goals, evidence, non-class lists/activities, private canvases, device
+ * integrations, preferences, local analytics history, and unpublished
+ * resources can be removed safely because this account is their only owner.
+ *
+ * The caller supplies a transaction and performs the profile update in that
+ * same transaction. A database error therefore leaves the account entirely
+ * unchanged instead of producing a half-reset account.
+ */
+async function clearPrivateAccountData(
+  tx: AccountTransaction,
+  userId: number,
+): Promise<void> {
+  await tx
+    .delete(learningEvidenceTable)
+    .where(eq(learningEvidenceTable.userId, userId));
+  await tx
+    .delete(workflowEventsTable)
+    .where(eq(workflowEventsTable.userId, userId));
+  await tx
+    .delete(scheduleBlocksTable)
+    .where(eq(scheduleBlocksTable.userId, userId));
+  await tx
+    .delete(resourceListsTable)
+    .where(
+      and(
+        eq(resourceListsTable.ownerId, userId),
+        isNull(resourceListsTable.classId),
+      ),
+    );
+  await tx
+    .delete(learningGoalsTable)
+    .where(eq(learningGoalsTable.userId, userId));
+  await tx
+    .delete(studyActivitiesTable)
+    .where(
+      and(
+        eq(studyActivitiesTable.ownerId, userId),
+        isNull(studyActivitiesTable.classId),
+      ),
+    );
+  await tx
+    .delete(canvasesTable)
+    .where(
+      and(
+        eq(canvasesTable.ownerId, userId),
+        eq(canvasesTable.visibility, "private"),
+      ),
+    );
+  await tx
+    .delete(resourcesTable)
+    .where(
+      and(
+        eq(resourcesTable.submittedById, userId),
+        ne(resourcesTable.verificationStatus, "verified"),
+      ),
+    );
+  await tx.delete(activityLogTable).where(eq(activityLogTable.userId, userId));
+  await tx
+    .delete(calendarTokensTable)
+    .where(eq(calendarTokensTable.userId, userId));
+  await tx
+    .delete(googleTokensTable)
+    .where(eq(googleTokensTable.userId, userId));
+  await tx
+    .delete(userPreferencesTable)
+    .where(eq(userPreferencesTable.userId, userId));
+  await tx.delete(userBlocksTable).where(eq(userBlocksTable.blockerId, userId));
+}
+
+async function destructiveActionAccount(userId: number) {
+  const [account] = await db
+    .select({
+      passwordHash: usersTable.passwordHash,
+      role: usersTable.role,
     })
-    .where(eq(usersTable.id, userId))
-    .returning({ id: usersTable.id });
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-  for (const [table, ownerColumn, nameColumn] of NAME_COPIES) {
-    await db
-      .update(table)
-      .set({ [nameColumn]: DELETED_USER_NAME })
-      .where(eq(ownerColumn, userId));
-  }
-  res.sendStatus(204);
-});
+    .from(usersTable)
+    .where(eq(usersTable.id, userId));
+  return account;
+}
+
+router.post(
+  "/users/me/reset",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const parsed = ResetMeBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: validationMessage(parsed.error) });
+      return;
+    }
+    const { userId } = req as AuthenticatedRequest;
+    const account = await destructiveActionAccount(userId);
+    if (
+      !account ||
+      !(await verifyPassword(parsed.data.password, account.passwordHash))
+    ) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      await clearPrivateAccountData(tx, userId);
+      await tx
+        .update(usersTable)
+        .set({
+          activeRole: account.role,
+          avatarUrl: null,
+          bio: null,
+          subjects: null,
+          gradeOrDept: null,
+          timezone: null,
+          profileVisibility: "classmates",
+          libraryVisibility: "classmates",
+          showBio: true,
+          showSubjects: true,
+          showGradeOrDept: true,
+          showWebsite: true,
+          websiteUrl: null,
+        })
+        .where(eq(usersTable.id, userId));
+    });
+    res.sendStatus(204);
+  },
+);
+
+router.delete(
+  "/users/me",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    /**
+     * What the rest of the database calls a deleted account.
+     *
+     * Kept inside the handler so unit tests with deliberately partial table
+     * mocks can still import the router. deletionAnonymises.test.ts reads this
+     * map and fails when a new copied person-name column is not included.
+     */
+    const NAME_COPIES = [
+      [forumPostsTable, forumPostsTable.authorId, "authorName"],
+      [forumCommentsTable, forumCommentsTable.authorId, "authorName"],
+      [forumMaterialsTable, forumMaterialsTable.uploaderId, "uploaderName"],
+      [
+        forumMaterialApprovalsTable,
+        forumMaterialApprovalsTable.teacherId,
+        "teacherName",
+      ],
+      [forumReportsTable, forumReportsTable.reporterId, "reporterName"],
+      [goalPathTemplatesTable, goalPathTemplatesTable.creatorId, "creatorName"],
+    ] as const;
+
+    const parsed = DeleteMeBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: validationMessage(parsed.error) });
+      return;
+    }
+    const { userId } = req as AuthenticatedRequest;
+    const account = await destructiveActionAccount(userId);
+    if (
+      !account ||
+      !(await verifyPassword(parsed.data.password, account.passwordHash))
+    ) {
+      res.status(401).json({ error: "Current password is incorrect" });
+      return;
+    }
+
+    const deletedMarker = `deleted-account-${userId}-${Date.now()}`;
+    await db.transaction(async (tx) => {
+      await clearPrivateAccountData(tx, userId);
+      const [user] = await tx
+        .update(usersTable)
+        .set({
+          email: deletedMarker + "@invalid.local",
+          passwordHash: deletedMarker,
+          name: DELETED_USER_NAME,
+          role: "student",
+          activeRole: "student",
+          avatarUrl: null,
+          bio: null,
+          subjects: null,
+          gradeOrDept: null,
+          timezone: null,
+          profileVisibility: "private",
+          libraryVisibility: "private",
+          showBio: false,
+          showSubjects: false,
+          showGradeOrDept: false,
+          showWebsite: false,
+          websiteUrl: null,
+          bannedAt: new Date().toISOString(),
+          bannedReason: "Account deleted by user",
+        })
+        .where(eq(usersTable.id, userId))
+        .returning({ id: usersTable.id });
+      if (!user) throw new Error("User not found during account deletion");
+
+      for (const [table, ownerColumn, nameColumn] of NAME_COPIES) {
+        await tx
+          .update(table)
+          .set({ [nameColumn]: DELETED_USER_NAME })
+          .where(eq(ownerColumn, userId));
+      }
+    });
+    res.sendStatus(204);
+  },
+);
 
 // GET /users/me/usage
 router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {

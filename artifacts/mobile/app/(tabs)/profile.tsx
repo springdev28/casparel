@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  Modal,
   Platform,
   ScrollView,
   Share,
@@ -28,6 +29,7 @@ import {
   useUpdateMe,
   useUploadAvatar,
   useDeleteMe,
+  useResetMe,
   useSwitchRole,
   RoleSwitchInputRole,
   useGetCalendarStatus,
@@ -35,6 +37,8 @@ import {
   useDisconnectCalendarGoogle,
   getGetCalendarStatusQueryKey,
   getGetMeQueryKey,
+  DeleteAccountInputConfirmation,
+  ResetAccountInputConfirmation,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -45,6 +49,7 @@ import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { ErrorState } from '@/components/ErrorState';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LANGUAGES } from '@/lib/i18n';
+import { storage } from '@/utils/secure-storage';
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History',
@@ -208,36 +213,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { logout, updateToken } = useAuth();
   const deleteAccount = useDeleteMe();
-
-  function confirmDeleteAccount() {
-    Alert.alert(t('Delete account'), t('This permanently deletes your Casparel account and the content tied to it. This cannot be undone.'),
-      [
-        { text: t('Cancel'), style: 'cancel' },
-        {
-          text: t('Delete'),
-          style: 'destructive',
-          onPress: () => {
-            // Second confirmation: the first tap is easy to hit by accident on
-            // a row that sits under "Sign out".
-            Alert.alert(t('Are you sure?'), t('There is no way to recover the account afterwards.'), [
-              { text: t('Keep my account'), style: 'cancel' },
-              {
-                text: t('Delete permanently'),
-                style: 'destructive',
-                onPress: () =>
-                  deleteAccount.mutate(undefined, {
-                    onSuccess: () => logout(),
-                    onError: () =>
-                      Alert.alert(t('Could not delete your account'), t('Something went wrong. Please try again, or email support@casparel.com.'),
-                      ),
-                  }),
-              },
-            ]);
-          },
-        },
-      ],
-    );
-  }
+  const resetAccount = useResetMe();
   const queryClient = useQueryClient();
 
   const { data: me, isLoading, isError, error, isFetching, refetch } = useGetMe();
@@ -256,6 +232,81 @@ export default function ProfileScreen() {
   });
   const [subjectInput, setSubjectInput] = useState('');
   const [switching, setSwitching] = useState(false);
+  const [accountAction, setAccountAction] = useState<'reset' | 'delete' | null>(null);
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountError, setAccountError] = useState<string | null>(null);
+
+  /**
+   * The warning is separate from password entry, so an accidental row tap is
+   * harmless. A native Modal supplies secure password entry on both platforms;
+   * Alert.prompt would leave Android without the required reauthentication.
+   */
+  function warnBeforeAccountAction(action: 'reset' | 'delete') {
+    const reset = action === 'reset';
+    Alert.alert(
+      reset ? t('Reset account data') : t('Delete account'),
+      reset
+        ? t('This removes your private learning data, profile details, preferences, and connected calendar data. Your login, subscription, classes, messages, submitted resources, and public contributions remain.')
+        : t('This permanently closes your account, removes private workspace data, and anonymizes shared contributions. This cannot be undone.'),
+      [
+        { text: t('Keep my account'), style: 'cancel' },
+        {
+          text: reset ? t('Continue to password') : t('Continue to deletion'),
+          style: 'destructive',
+          onPress: () => {
+            setAccountPassword('');
+            setAccountError(null);
+            setAccountAction(action);
+          },
+        },
+      ],
+    );
+  }
+
+  async function submitAccountAction() {
+    if (!accountAction || !accountPassword) return;
+    setAccountError(null);
+    try {
+      if (accountAction === 'reset') {
+        await resetAccount.mutateAsync({
+          data: {
+            password: accountPassword,
+            confirmation: ResetAccountInputConfirmation.RESET,
+          },
+        });
+        // SecureStore keeps these caches outside React Query. Preserve only
+        // the auth token so reset leaves the account signed in.
+        await Promise.all([
+          storage.deleteItemAsync('casparel_onboarded'),
+          storage.deleteItemAsync('casparel_language'),
+          storage.deleteItemAsync('casparel_user'),
+          storage.deleteItemAsync('schooler_user'),
+        ]);
+        setAccountAction(null);
+        setAccountPassword('');
+        await queryClient.resetQueries();
+        Alert.alert(t('Account reset'), t('Your private account data has been reset.'));
+        return;
+      }
+
+      await deleteAccount.mutateAsync({
+        data: {
+          password: accountPassword,
+          confirmation: DeleteAccountInputConfirmation.DELETE,
+        },
+      });
+      setAccountAction(null);
+      setAccountPassword('');
+      await logout();
+    } catch (cause) {
+      const status = (cause as { status?: unknown } | null)?.status;
+      setAccountError(
+        status === 401
+          ? t('That password is incorrect. Your account has not been changed.')
+          : describeApiFailure(cause, t('Nothing was removed. Please try again.'), t),
+      );
+    }
+  }
 
   const webTopPad = Platform.OS === 'web' ? 67 : 0;
   const pct = me ? completeness(me) : 0;
@@ -851,24 +902,37 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/*
-        Deleting your account has to be possible from inside the app. App Store
-        guideline 5.1.1(v) requires it of anything that lets you create an
-        account, and until now the only way was the web app - the server route
-        existed but was missing from the API spec, so no generated client could
-        reach it. Two steps on purpose: this is irreversible.
-      */}
-      {/* Not a second "ACCOUNT": there is already one above, and two
-          identical headings on one screen tell you nothing about which is
-          which. */}
+      {/* Reset and deletion are intentionally isolated in a danger zone. Both
+          warn first, then require the current password in the modal below. */}
       <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
         {t('CLOSING YOUR ACCOUNT')}
       </Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <TouchableOpacity
+          style={[styles.row, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+          disabled={resetAccount.isPending || deleteAccount.isPending}
+          onPress={() => warnBeforeAccountAction('reset')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.destructive + '15', borderRadius: colors.radius - 2 }]}>
+              <Feather name="rotate-ccw" size={18} color={colors.destructiveText} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: colors.destructiveText, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                {resetAccount.isPending ? t('Resetting account…') : t('Reset account data')}
+              </Text>
+              <Text style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans, fontSize: 12, marginTop: 2 }}>
+                {t('Clear private data while keeping your login and shared work')}
+              </Text>
+            </View>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+        <TouchableOpacity
           style={styles.row}
-          disabled={deleteAccount.isPending}
-          onPress={confirmDeleteAccount}
+          disabled={resetAccount.isPending || deleteAccount.isPending}
+          onPress={() => warnBeforeAccountAction('delete')}
           activeOpacity={0.7}
         >
           <View style={styles.rowLeft}>
@@ -887,6 +951,77 @@ export default function ProfileScreen() {
           <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={accountAction !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!resetAccount.isPending && !deleteAccount.isPending) setAccountAction(null);
+        }}
+      >
+        <View style={styles.accountModalBackdrop}>
+          <View style={[styles.accountModal, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.destructive + '15', borderRadius: colors.radius - 2 }]}>
+              <Feather name={accountAction === 'reset' ? 'rotate-ccw' : 'trash-2'} size={18} color={colors.destructiveText} />
+            </View>
+            <Text style={{ color: colors.foreground, fontFamily: colors.fontFamily.sansBold, fontSize: 20 }}>
+              {accountAction === 'reset' ? t('Confirm account reset') : t('Confirm account deletion')}
+            </Text>
+            <Text style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sans, fontSize: 14, lineHeight: 20 }}>
+              {t('Enter your current password to continue. Your password is checked securely and is never stored on this device.')}
+            </Text>
+            <TextInput
+              value={accountPassword}
+              onChangeText={setAccountPassword}
+              secureTextEntry
+              autoComplete="current-password"
+              placeholder={t('Current password')}
+              placeholderTextColor={colors.mutedForeground}
+              editable={!resetAccount.isPending && !deleteAccount.isPending}
+              maxLength={256}
+              style={[styles.input, {
+                color: colors.foreground,
+                borderColor: accountError ? colors.destructive : colors.border,
+                backgroundColor: colors.background,
+                borderRadius: colors.radius,
+                fontFamily: colors.fontFamily.sans,
+              }]}
+              accessibilityLabel={t('Current password')}
+            />
+            {accountError ? (
+              <Text accessibilityRole="alert" style={{ color: colors.destructiveText, fontFamily: colors.fontFamily.sans, fontSize: 13 }}>
+                {accountError}
+              </Text>
+            ) : null}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={[styles.accountModalButton, { borderColor: colors.border, borderWidth: 1, borderRadius: colors.radius }]}
+                disabled={resetAccount.isPending || deleteAccount.isPending}
+                onPress={() => setAccountAction(null)}
+              >
+                <Text style={{ color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }}>{t('Keep my account')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.accountModalButton, {
+                  backgroundColor: colors.destructive,
+                  borderRadius: colors.radius,
+                  opacity: accountPassword ? 1 : 0.5,
+                }]}
+                disabled={!accountPassword || resetAccount.isPending || deleteAccount.isPending}
+                onPress={submitAccountAction}
+              >
+                {resetAccount.isPending || deleteAccount.isPending ? (
+                  <ActivityIndicator size="small" color={colors.destructiveForeground} />
+                ) : null}
+                <Text style={{ color: colors.destructiveForeground, fontFamily: colors.fontFamily.sansSemiBold }}>
+                  {accountAction === 'reset' ? t('Reset account data') : t('Delete permanently')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -961,4 +1096,27 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth, marginHorizontal: -16 },
   teacherBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
   teacherBadge: { fontSize: 12 },
+  accountModalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    padding: 20,
+  },
+  accountModal: {
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    borderWidth: 1,
+    padding: 20,
+    gap: 14,
+  },
+  accountModalButton: {
+    minHeight: 44,
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+  },
 });

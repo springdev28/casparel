@@ -1234,7 +1234,7 @@ const TR: Record<string, string> = {
   "Manage how Casparel looks, communicates, and guides your work.": "Casparel’in görünümünü, iletişimini ve çalışmanı nasıl yönlendirdiğini yönet.",
   "Replay the guided first-run walkthrough of Casparel’s core workflow at any time.": "Casparel’in temel akışını tanıtan ilk kullanım turunu istediğin an yeniden izle.",
   "A full reference to every feature, kept up to date with each release, including what’s new.": "Her sürümde güncellenen, yeniliklerle birlikte tüm özelliklerin eksiksiz başvuru kaynağı.",
-  "In Google Calendar: \"Other calendars → From URL\". In Apple Calendar: \"File → New Calendar Subscription\".": "Google Takvim’de: “Diğer takvimler → URL’den”. Apple Takvim’de: “Dosya → Yeni Takvim Aboneliği”.",
+  'In Google Calendar: "Other calendars → From URL". In Apple Calendar: "File → New Calendar Subscription".': "Google Takvim’de: “Diğer takvimler → URL’den”. Apple Takvim’de: “Dosya → Yeni Takvim Aboneliği”.",
   "Class rosters are uncapped on this account.": "Bu hesapta sınıf listelerinde üst sınır yok.",
   "AI discovery and deep research are active with plan allowances.": "Yapay zekâ araması ve derin araştırma, planındaki haklarla etkin.",
   "Terms of Service": "Hizmet koşulları",
@@ -1450,7 +1450,7 @@ const TR: Record<string, string> = {
   "Previous week": "Önceki hafta",
   "Resource search": "Kaynak araması",
   "Resource views": "Kaynak görünümleri",
-  "Search anything, \"photosynthesis\", \"MIT calculus\", \"Python for beginners\"…": "Ne olursa ara: “fotosentez”, “MIT kalkülüs”, “yeni başlayanlar için Python”…",
+  'Search anything, "photosynthesis", "MIT calculus", "Python for beginners"…': "Ne olursa ara: “fotosentez”, “MIT kalkülüs”, “yeni başlayanlar için Python”…",
   "Search language": "Arama dili",
   "Search materials": "Materyalleri ara",
   "Search resources": "Kaynakları ara",
@@ -1468,6 +1468,54 @@ const TR: Record<string, string> = {
   "grades": "sınıf düzeyleri",
   "Topic": "Konu",
   "For schools": "Okullar için",
+
+  // Account lifecycle copy must preserve every consequence and recovery
+  // boundary. A partial translation here would make the Turkish confirmation
+  // materially less informed than the English one.
+  "Danger zone": "Tehlikeli işlemler",
+  "These actions remove account data. Review the warning and confirm your current password before continuing.": "Bu işlemler hesap verilerini kaldırır. Devam etmeden önce uyarıyı incele ve mevcut parolanı doğrula.",
+  "Reset account data": "Hesap verilerini sıfırla",
+  "Return your private workspace, profile, and preferences to a fresh state while keeping your login and shared work.": "Girişini ve paylaşılan çalışmalarını koruyarak özel çalışma alanını, profilini ve tercihlerini yeni hesap durumuna döndür.",
+  "Reset account": "Hesabı sıfırla",
+  "Delete account": "Hesabı sil",
+  "Permanently close the account, remove its private workspace, and anonymize contributions that must remain for collaborators.": "Hesabı kalıcı olarak kapat, özel çalışma alanını kaldır ve ortak çalışanlar için kalması gereken katkıları anonimleştir.",
+  "Reset account data?": "Hesap verileri sıfırlansın mı?",
+  "Delete account permanently?": "Hesap kalıcı olarak silinsin mi?",
+  "This cannot be undone. Your login, name, subscription, classes, messages, submitted resources, and public contributions will remain.": "Bu işlem geri alınamaz. Girişin, adın, aboneliğin, sınıfların, mesajların, gönderdiğin kaynaklar ve herkese açık katkıların korunur.",
+  "This cannot be undone. You will be signed out and will not be able to recover this account.": "Bu işlem geri alınamaz. Oturumun kapatılır ve bu hesabı kurtaramazsın.",
+  "Reset removes:": "Sıfırlama şunları kaldırır:",
+  "Profile details, appearance, preferences, and tutorial state": "Profil ayrıntıları, görünüm, tercihler ve öğretici durumu",
+  "Personal goals, evidence, schedules, lists, activities, and private canvases": "Kişisel hedefler, kanıtlar, programlar, listeler, etkinlikler ve özel tuvaller",
+  "Unpublished resources and connected Google or calendar data": "Yayımlanmamış kaynaklar ve bağlı Google ya da takvim verileri",
+  "Deletion closes the account permanently.": "Silme işlemi hesabı kalıcı olarak kapatır.",
+  "Private workspace data is removed. Shared contributions that must remain for other people are anonymized as “Deleted user”.": "Özel çalışma alanı verileri kaldırılır. Başkaları için kalması gereken paylaşılan katkılar “Silinmiş kullanıcı” olarak anonimleştirilir.",
+  "Enter your current password to continue": "Devam etmek için mevcut parolanı gir",
+  "That password is incorrect. Your account has not been changed.": "Bu parola yanlış. Hesabında hiçbir değişiklik yapılmadı.",
+  "Casparel could not be reached. Check your connection and try again.": "Casparel'e ulaşılamadı. Bağlantını kontrol edip yeniden dene.",
+  "The account could not be changed. Nothing was removed; please try again.": "Hesap değiştirilemedi. Hiçbir şey kaldırılmadı; lütfen yeniden dene.",
+  "Keep my account": "Hesabımı koru",
+  "Resetting…": "Sıfırlanıyor…",
+  "Deleting…": "Siliniyor…",
+  "Delete account permanently": "Hesabı kalıcı olarak sil",
+
+  // The guided first task launches real Search work rather than writing fake
+  // progress, so its instructions and accessible step labels need complete
+  // Turkish coverage too.
+  "Guided first task": "Yönlendirmeli ilk görev",
+  "Step": "Adım",
+  "of": "/",
+  "Begin with something real": "Gerçek bir ihtiyaçla başla",
+  "What do you need to learn or teach right now?": "Şu anda ne öğrenmen ya da öğretmen gerekiyor?",
+  "Use a genuine topic, question, or skill. Casparel will carry it into Search; this tutorial will not create sample progress or fake data.": "Gerçek bir konu, soru veya beceri kullan. Casparel bunu Arama'ya taşıyacak; bu öğretici örnek ilerleme ya da sahte veri oluşturmayacak.",
+  "Learning need": "Öğrenme ihtiyacı",
+  "Saved only as a local tutorial draft until you launch Search.": "Aramayı başlatana kadar yalnızca yerel bir öğretici taslağı olarak kaydedilir.",
+  "Continue": "Devam et",
+  "Skip now and replay this from": "Şimdi atla ve daha sonra şuradan yeniden başlat:",
+  ", or open the": "veya şunu aç:",
+  "complete guide": "eksiksiz rehber",
+  "Skip the tutorial": "Öğreticiyi atla",
+  "Tutorial progress": "Öğretici ilerlemesi",
+  "For example: understand derivatives from scratch": "Örneğin: türevleri en baştan anla",
 };
 
 export default TR;

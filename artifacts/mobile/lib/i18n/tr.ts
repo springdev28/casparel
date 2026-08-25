@@ -391,6 +391,25 @@ const TR: Record<string, string> = {
   "more": "daha",
   "steps done": "adım yapıldı",
   "unread messages": "okunmamış mesaj",
+
+  // Account reset and deletion are intentionally verbose: these translations
+  // carry the same consequences and password requirement as the English
+  // warning, so Turkish readers never confirm a weaker version of the action.
+  "Reset account data": "Hesap verilerini sıfırla",
+  "This removes your private learning data, profile details, preferences, and connected calendar data. Your login, subscription, classes, messages, submitted resources, and public contributions remain.": "Bu işlem özel öğrenme verilerini, profil ayrıntılarını, tercihleri ve bağlı takvim verilerini kaldırır. Girişin, aboneliğin, sınıfların, mesajların, gönderdiğin kaynaklar ve herkese açık katkıların korunur.",
+  "This permanently closes your account, removes private workspace data, and anonymizes shared contributions. This cannot be undone.": "Bu işlem hesabını kalıcı olarak kapatır, özel çalışma alanı verilerini kaldırır ve paylaşılan katkıları anonimleştirir. Geri alınamaz.",
+  "Continue to password": "Parola adımına devam et",
+  "Continue to deletion": "Silme adımına devam et",
+  "Resetting account…": "Hesap sıfırlanıyor…",
+  "Clear private data while keeping your login and shared work": "Girişini ve paylaşılan çalışmalarını koruyarak özel verileri temizle",
+  "Confirm account reset": "Hesap sıfırlamayı onayla",
+  "Confirm account deletion": "Hesap silmeyi onayla",
+  "Enter your current password to continue. Your password is checked securely and is never stored on this device.": "Devam etmek için mevcut parolanı gir. Parolan güvenli biçimde doğrulanır ve bu cihazda asla saklanmaz.",
+  "Current password": "Mevcut parola",
+  "That password is incorrect. Your account has not been changed.": "Bu parola yanlış. Hesabında hiçbir değişiklik yapılmadı.",
+  "The account could not be changed. Nothing was removed; please try again.": "Hesap değiştirilemedi. Hiçbir şey kaldırılmadı; lütfen yeniden dene.",
+  "Account reset": "Hesap sıfırlandı",
+  "Your private account data has been reset.": "Özel hesap verilerin sıfırlandı.",
 };
 
 export default TR;

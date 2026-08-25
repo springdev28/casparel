@@ -2,6 +2,7 @@
  * @fileOverview Web screen role: renders the Settings Page route and coordinates its page-level data and interactions.
  * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
  */
+import { useState } from "react";
 import { Link } from "wouter";
 import { useGetMe } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -14,8 +15,15 @@ import {
   Languages,
   MessageCircle,
   Palette,
+  RotateCcw,
+  ShieldAlert,
+  Trash2,
   UserRound,
 } from "lucide-react";
+import {
+  AccountActionDialog,
+  type AccountAction,
+} from "../components/AccountActionDialog";
 import { AuthLanguageSelect } from "../components/AuthLanguageSelect";
 import ThemeCustomizer from "../components/ThemeCustomizer";
 import { PlanSection } from "../components/PlanSection";
@@ -30,6 +38,9 @@ export default function SettingsPage() {
   const { language, setLanguage, copy } = useAuthLanguage();
   const preferences = useUserPreferences(Boolean(me));
   const updatePreferences = useUpdateUserPreferences();
+  const [accountAction, setAccountAction] = useState<AccountAction | null>(
+    null,
+  );
 
   async function changeLanguage(next: typeof language) {
     setLanguage(next);
@@ -166,6 +177,73 @@ export default function SettingsPage() {
           </Button>
         </section>
       </div>
+
+      {/*
+       * Destructive account controls live in their own visually separated
+       * region. They are not ordinary preferences: both open a consequence
+       * warning, and neither request can be sent until the current password is
+       * entered in AccountActionDialog.
+       */}
+      <section className="mt-6 overflow-hidden rounded-lg border border-destructive/35 bg-card text-card-foreground shadow-sm">
+        <header className="flex gap-3 border-b border-destructive/20 p-4 sm:p-5">
+          <ShieldAlert className="mt-0.5 size-5 shrink-0 text-destructive-text" />
+          <div>
+            <h2 className="font-semibold">Danger zone</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              These actions remove account data. Review the warning and confirm
+              your current password before continuing.
+            </p>
+          </div>
+        </header>
+
+        <div className="flex flex-col gap-4 border-b border-destructive/20 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div>
+            <h3 className="font-medium">Reset account data</h3>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Return your private workspace, profile, and preferences to a fresh
+              state while keeping your login and shared work.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="shrink-0 gap-2 border-destructive/40 text-destructive-text hover:bg-destructive/10"
+            onClick={() => setAccountAction("reset")}
+          >
+            <RotateCcw className="size-4" /> Reset account
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div>
+            <h3 className="font-medium text-destructive-text">
+              Delete account
+            </h3>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Permanently close the account, remove its private workspace, and
+              anonymize contributions that must remain for collaborators.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="destructive"
+            className="shrink-0 gap-2"
+            onClick={() => setAccountAction("delete")}
+          >
+            <Trash2 className="size-4" /> Delete account
+          </Button>
+        </div>
+      </section>
+
+      {accountAction ? (
+        <AccountActionDialog
+          action={accountAction}
+          open
+          onOpenChange={(open) => {
+            if (!open) setAccountAction(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

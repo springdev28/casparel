@@ -472,6 +472,38 @@ export interface LoginInput {
   password: string;
 }
 
+export type ResetAccountInputConfirmation = typeof ResetAccountInputConfirmation[keyof typeof ResetAccountInputConfirmation];
+
+
+export const ResetAccountInputConfirmation = {
+  RESET: 'RESET',
+} as const;
+
+export interface ResetAccountInput {
+  /**
+     * @minLength 1
+     * @maxLength 256
+     */
+  password: string;
+  confirmation: ResetAccountInputConfirmation;
+}
+
+export type DeleteAccountInputConfirmation = typeof DeleteAccountInputConfirmation[keyof typeof DeleteAccountInputConfirmation];
+
+
+export const DeleteAccountInputConfirmation = {
+  DELETE: 'DELETE',
+} as const;
+
+export interface DeleteAccountInput {
+  /**
+     * @minLength 1
+     * @maxLength 256
+     */
+  password: string;
+  confirmation: DeleteAccountInputConfirmation;
+}
+
 export interface AuthResponse {
   user: User;
   token: string;

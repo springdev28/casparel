@@ -51,6 +51,7 @@ import type {
   ConversationRequestAnswer,
   ConversationThread,
   DashboardSummary,
+  DeleteAccountInput,
   DirectMessage,
   DiscoverResourcesParams,
   DiscoveredResource,
@@ -97,6 +98,7 @@ import type {
   ReorderListItemsInput,
   ReportUserInput,
   ReportUserResponse,
+  ResetAccountInput,
   Resource,
   ResourceInput,
   ResourceList,
@@ -695,17 +697,17 @@ export const getDeleteMeUrl = () => {
 }
 
 /**
- * Anonymises the account and ends the session. Implemented on the server since launch but absent from this document, so no generated client existed and the mobile app had no way to offer deletion - which App Store guideline 5.1.1(v) requires of any app that lets you create an account.
+ * Verifies the current password, clears private workspace data, anonymises shared contributions, and permanently disables the account.
  * @summary Permanently delete the authenticated account
  */
-export const deleteMe = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const deleteMe = async (deleteAccountInput: DeleteAccountInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
   return customFetch<void>(getDeleteMeUrl(),
   {
     ...options,
-    method: 'DELETE'
-
-
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deleteAccountInput)
   }
 );}
 
@@ -714,8 +716,8 @@ export const deleteMe = async ( options?: Parameters<typeof customFetch>[1]): Pr
 
 
 export const getDeleteMeMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMe>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteMe>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMe>>, TError,{data: BodyType<DeleteAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMe>>, TError,{data: BodyType<DeleteAccountInput>}, TContext> => {
 
 const mutationKey = ['deleteMe'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -727,10 +729,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMe>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMe>>, {data: BodyType<DeleteAccountInput>}> = (props) => {
+          const {data} = props ?? {};
 
-
-          return  deleteMe(requestOptions)
+          return  deleteMe(data,requestOptions)
         }
 
 
@@ -741,21 +743,93 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type DeleteMeMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMe>>>
-
+    export type DeleteMeMutationBody = BodyType<DeleteAccountInput>
     export type DeleteMeMutationError = ErrorType<void>
 
     /**
  * @summary Permanently delete the authenticated account
  */
 export const useDeleteMe = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMe>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMe>>, TError,{data: BodyType<DeleteAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteMe>>,
         TError,
-        void,
+        {data: BodyType<DeleteAccountInput>},
         TContext
       > => {
       return useMutation(getDeleteMeMutationOptions(options));
+    }
+
+export const getResetMeUrl = () => {
+
+
+
+
+  return `/api/users/me/reset`
+}
+
+/**
+ * Verifies the current password, deletes private learning data and saved preferences, and restores profile defaults. The login, subscription, classes, messages, submitted resources, and public contributions remain.
+ * @summary Reset the authenticated account's private workspace
+ */
+export const resetMe = async (resetAccountInput: ResetAccountInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getResetMeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resetAccountInput)
+  }
+);}
+
+
+
+
+
+export const getResetMeMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetMe>>, TError,{data: BodyType<ResetAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetMe>>, TError,{data: BodyType<ResetAccountInput>}, TContext> => {
+
+const mutationKey = ['resetMe'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetMe>>, {data: BodyType<ResetAccountInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resetMe(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetMeMutationResult = NonNullable<Awaited<ReturnType<typeof resetMe>>>
+    export type ResetMeMutationBody = BodyType<ResetAccountInput>
+    export type ResetMeMutationError = ErrorType<void>
+
+    /**
+ * @summary Reset the authenticated account's private workspace
+ */
+export const useResetMe = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetMe>>, TError,{data: BodyType<ResetAccountInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetMe>>,
+        TError,
+        {data: BodyType<ResetAccountInput>},
+        TContext
+      > => {
+      return useMutation(getResetMeMutationOptions(options));
     }
 
 export const getUploadAvatarUrl = () => {
