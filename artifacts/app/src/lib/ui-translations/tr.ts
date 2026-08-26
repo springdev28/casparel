@@ -1461,6 +1461,8 @@ const TR: Record<string, string> = {
   "Sort order": "Sıralama",
   "Source type": "Kaynak türü",
   "Support topics": "Yardım konuları",
+  "Support": "Destek",
+  "Legal and support": "Yasal bilgiler ve destek",
   "Unit": "Ünite",
   "Uploader": "Yükleyen",
   "Write a private message…": "Özel bir mesaj yaz…",

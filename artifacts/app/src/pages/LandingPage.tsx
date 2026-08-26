@@ -628,6 +628,31 @@ export default function LandingPage() {
             <ShieldCheck className="size-4 text-primary-text" />
             The library is free. Plus and Pro add optional AI tools, not access.
           </p>
+          {/* Legal pages must be reachable before sign-in: app-store reviewers
+              and visitors deciding whether to register both start here. */}
+          <nav
+            aria-label="Legal and support"
+            className="flex flex-wrap items-center gap-x-4 gap-y-2"
+          >
+            <Link
+              href="/privacy"
+              className="font-medium text-primary-text hover:underline"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              href="/terms"
+              className="font-medium text-primary-text hover:underline"
+            >
+              Terms of Service
+            </Link>
+            <Link
+              href="/support"
+              className="font-medium text-primary-text hover:underline"
+            >
+              Support
+            </Link>
+          </nav>
           <p>© {new Date().getFullYear()} Casparel</p>
         </div>
       </footer>
