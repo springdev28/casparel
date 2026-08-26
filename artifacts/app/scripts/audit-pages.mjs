@@ -426,6 +426,24 @@ async function audit(pathname, colorScheme, width, options = {}) {
           );
         })
       : false;
+  // The product plan includes a free-mobile sponsored placement. The privacy
+  // page once made the opposite absolute promise ("no advertising SDKs"), so
+  // verify the rendered policy names both processors and the privacy mode.
+  // This is intentionally a content invariant rather than a source grep: store
+  // reviewers and users only benefit if the disclosure reaches the live page.
+  const missingPrivacyAdvertisingDisclosure =
+    pathname === "/privacy" && !signedIn
+      ? await page.evaluate(() => {
+          const copy = document.body.textContent?.replace(/\s+/g, " ") ?? "";
+          return ![
+            "Google AdMob",
+            "RevenueCat Ads",
+            "non-personalized ads",
+            "Paid plans are ad-free",
+            "sponsored placement",
+          ].every((required) => copy.includes(required));
+        })
+      : false;
   const findings = {
     lowContrast: await page.evaluate(CONTRAST),
     dashes: await page.evaluate(DASHES),
@@ -446,6 +464,7 @@ async function audit(pathname, colorScheme, width, options = {}) {
     unfixtured: [...unfixtured],
     guideNavigation,
     missingHomePrivacyLink,
+    missingPrivacyAdvertisingDisclosure,
   };
   await ctx.close();
   return { pathname, colorScheme, width, signedIn, palette, findings };
@@ -485,6 +504,7 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
             unfixtured: [],
             guideNavigation: null,
             missingHomePrivacyLink: false,
+            missingPrivacyAdvertisingDisclosure: false,
           },
         }),
       RENDER_TIMEOUT_MS,
@@ -597,6 +617,9 @@ for (const {
       : []),
     ...(findings.missingHomePrivacyLink
       ? ["homepage footer has no visible Privacy Policy link"]
+      : []),
+    ...(findings.missingPrivacyAdvertisingDisclosure
+      ? ["privacy policy is missing the mobile advertising disclosure"]
       : []),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind
