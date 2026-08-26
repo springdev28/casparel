@@ -12,16 +12,18 @@
  * nothing - a guaranteed review rejection and a broken promise to anyone who
  * tapped them before paying.
  *
- * The content describes what the code actually does. Anything asserted here is
- * checkable against the repository: the columns in lib/db/src/schema/users.ts,
- * the third parties in artifacts/api-server/src/routes, the deletion route at
- * routes/auth.ts, and the absence of any analytics or tracking SDK.
+ * The content describes both what the code does and the externally configured
+ * services a shipped client may enable. Anything asserted here is checkable
+ * against the repository, release configuration, or the named provider's own
+ * documentation. Keep this page in step with monetization changes: an absolute
+ * claim such as "no advertising SDK" becomes false as soon as a mobile build
+ * includes an optional ad integration, even when production ads remain off.
  */
 import { Link } from "wouter";
 
 const SUPPORT_EMAIL = "support@casparel.com";
 /** Kept in sync by hand; shown so readers can tell how current this is. */
-const LAST_UPDATED = "15 August 2026";
+const LAST_UPDATED = "26 August 2026";
 
 function Section({
   title,
@@ -179,11 +181,11 @@ export function TermsPage() {
 
       <Section title="Ending your account">
         <p>
-          You can delete your account at any time from your profile settings.
-          This destroys your credentials and clears your profile; contributions
-          to shared spaces stay, unlinked from you. See the Privacy Policy for
-          exactly what is removed. We may suspend an account that breaks these
-          terms, and will explain why when we do.
+          You can delete your account at any time from Settings after confirming
+          your password. This destroys your credentials and clears your profile;
+          contributions to shared spaces stay, unlinked from you. See the
+          Privacy Policy for exactly what is removed. We may suspend an account
+          that breaks these terms, and will explain why when we do.
         </p>
       </Section>
     </LegalLayout>
@@ -218,13 +220,29 @@ export function PrivacyPage() {
           searches and deep research runs you have used, so free-tier limits can
           be applied.
         </p>
+        <p>
+          <strong className="text-foreground">Advertising events, when mobile
+          advertising is enabled.</strong> Ad load, display or impression,
+          click or open, failure, and impression-revenue events, together with
+          technical fields such as the ad unit, placement, format, advertising
+          network or mediator, impression identifier, currency, and revenue
+          precision where available. These events measure the sponsored
+          placement; they do not rank learning resources.
+        </p>
       </Section>
 
       <Section title="What we do not do">
         <p>
-          Casparel contains no analytics, advertising or tracking SDKs. We do not
-          sell your data, we do not build advertising profiles, and we do not
-          share your content with third parties except as described below.
+          Casparel does not sell your personal data or use your profile,
+          searches, study content, messages, classes, or credibility activity
+          to build advertising profiles. A sponsored placement is kept separate
+          from Casparel&apos;s organic search rankings, credibility reviews,
+          Learning Lists and Paths, adaptive suggestions, and teacher
+          recommendations.
+        </p>
+        <p>
+          Paid plans are ad-free. The web and desktop clients do not currently
+          show third-party advertising.
         </p>
       </Section>
 
@@ -244,6 +262,13 @@ export function PrivacyPage() {
           processor, never to us; we never receive or store them.
         </p>
         <p>
+          <strong className="text-foreground">Google AdMob and RevenueCat
+          Ads.</strong> When the free mobile sponsored placement is enabled,
+          AdMob supplies the advertisement and RevenueCat records the supported
+          advertising events described below. Neither service is allowed to
+          turn a paid placement into a Casparel recommendation or trust signal.
+        </p>
+        <p>
           <strong className="text-foreground">Google Calendar and Google
           Classroom.</strong> Optional. If you connect them, we store an access
           token so we can sync on your behalf, and nothing else from your Google
@@ -253,6 +278,72 @@ export function PrivacyPage() {
           <strong className="text-foreground">Hosting.</strong> Data is stored in
           a managed PostgreSQL database in the EU and served from our
           application host.
+        </p>
+      </Section>
+
+      <Section title="Advertising on the free mobile app">
+        <p>
+          When mobile advertising is enabled, a free-tier Android user may see
+          one native sponsored learning-resource card near the top of the
+          dashboard. It is labelled Sponsored and AD. If the advertising
+          service is unavailable or not configured, Casparel shows no sponsored
+          card.
+        </p>
+        <p>
+          Google AdMob supplies the advertisement. Casparel requests
+          non-personalized ads and may provide the current app or education
+          context, but does not send your Casparel profile, study content,
+          searches, messages, class work, or credibility activity for ad
+          targeting. Non-personalized ads are not selected from your past
+          behaviour. Google may still process information such as your IP
+          address, device information, mobile advertising identifiers, coarse
+          location, app context, and ad interactions to deliver ads, cap
+          frequency, detect fraud, and produce aggregated reports.
+        </p>
+        <p>
+          RevenueCat Ads receives supported ad lifecycle and impression-revenue
+          events, including load, display or impression, click or open, failure,
+          ad placement, unit, format, network or mediator, impression
+          identifier, and revenue, currency, and precision where available.
+          RevenueCat combines this with subscription reporting so Casparel can
+          understand advertising and subscription revenue together.
+        </p>
+        <p>
+          Where law or platform policy requires it, the mobile app must present
+          the applicable advertising privacy and consent choices before using
+          mobile identifiers or local storage. Production advertising must
+          remain disabled until those consent controls, conservative content
+          rating and category controls, and the applicable store disclosures
+          are configured.
+        </p>
+        <p>
+          Read more about{" "}
+          <a
+            className="text-primary-text hover:underline"
+            href="https://policies.google.com/technologies/partner-sites"
+          >
+            how Google uses information from apps that use its services
+          </a>{" "}
+          and the{" "}
+          <a
+            className="text-primary-text hover:underline"
+            href="https://www.revenuecat.com/privacy/"
+          >
+            RevenueCat privacy policy
+          </a>
+          .
+        </p>
+      </Section>
+
+      <Section title="Students and younger users">
+        <p>
+          Casparel is intended for people old enough to consent to the service
+          where they live, or people using it with authorization from a school,
+          parent, or guardian. We do not use a learner&apos;s age, school, class
+          membership, or educational content to personalize advertising.
+          Production advertising must remain disabled for an audience that
+          requires child-directed or under-age-of-consent treatment until that
+          treatment and any required authorization are correctly configured.
         </p>
       </Section>
 
@@ -273,7 +364,9 @@ export function PrivacyPage() {
       <Section title="Keeping and deleting data">
         <p>
           We keep your data while your account exists. You can delete your
-          account at any time from your profile settings.
+          account at any time from Settings. Resetting or deleting an account
+          requires your password so another person using an unlocked device
+          cannot activate either action without confirming your identity.
         </p>
         <p>
           Deleting removes your personal details: your email address and
@@ -284,6 +377,13 @@ export function PrivacyPage() {
           other people's lists and classes do not break. If you want particular
           contributions removed as well, or a copy of your data first, email{" "}
           {SUPPORT_EMAIL} and we will do it by hand.
+        </p>
+        <p>
+          Third-party providers keep information under their own retention
+          rules and legal obligations. Deleting your Casparel account does not
+          automatically control copies held independently by Apple, Google,
+          payment processors, AI providers, or RevenueCat. Email {SUPPORT_EMAIL}
+          if you need help routing a related privacy request.
         </p>
       </Section>
 
