@@ -86,6 +86,12 @@ reset request, so let EAS hold it rather than a laptop.
   `EXPO_PUBLIC_RC_IOS_KEY` / `EXPO_PUBLIC_RC_ANDROID_KEY` are set as EAS
   environment variables. Without them the paywall degrades to "purchases
   unavailable"; the app still runs, but it cannot sell anything.
+- Production Android advertising has a real AdMob application ID and native
+  dashboard ad-unit ID set in the EAS `production` environment. AdMob Privacy &
+  messaging, blocked categories, impression-level ad revenue, and RevenueCat
+  Ads are enabled. The dynamic Expo config rejects a production build that
+  would otherwise ship Google's test identifiers. Preview APKs intentionally
+  use official test inventory.
 - The API is reachable at `casparel.com`. `utils/api-host.ts` defaults there, so
   a build never points at nothing, but a build pointed at a dead host installs
   and then fails on every screen.
@@ -123,7 +129,9 @@ receives: both wait for a human to complete the listing and submit for review.
   at `artifacts/mobile/assets/images/icon.png`.
 - Privacy answers: Apple's nutrition labels and Play's Data safety form. Both
   ask what is collected and why; the app collects an account email, profile
-  content the user creates, and purchase state via RevenueCat.
+  content the user creates, and purchase state via RevenueCat. Play must also
+  declare that the Android app contains ads and accurately describe AdMob and
+  RevenueCat Ads data, the target audience, and the Families-policy decision.
 - A reviewer account. Both stores review signed in, and a reviewer who cannot
   get past the login screen rejects the build. Leave demo credentials in the
   review notes.
