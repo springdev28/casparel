@@ -120,6 +120,16 @@ function RootLayoutNav() {
         options={{ title: t('Goal'), headerBackTitle: t("Back") }}
       />
       <Stack.Screen
+        name="lists/index"
+        options={{ title: t('Learning lists'), headerBackTitle: t("Back") }}
+      />
+      <Stack.Screen
+        /* Same as the goal: the list's name is the learner's words and belongs
+           on the screen, not squeezed into a header. */
+        name="lists/[id]"
+        options={{ title: t('Learning list'), headerBackTitle: t("Back") }}
+      />
+      <Stack.Screen
         /* The title becomes the other person's name once the conversation
            loads; this is what shows for the moment before it does. */
         name="messages/[id]"

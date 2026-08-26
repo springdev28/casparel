@@ -315,10 +315,10 @@ Verification recorded for this increment:
 - production Expo exports passed for iOS (1,673 modules) and Android (1,669 modules), each producing an approximately 6.4 MB Hermes bundle;
 - authored-source overview audit and whitespace validation passed.
 
-Still required after this increment:
+Still required after these increments:
 
 - verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
-- continue Phase 3 with Learning List roles, accessible reordering, quality review, and editable list-to-path activation;
+- continue Phase 3 with Learning List item roles, quality review, and editable list-to-path activation;
 - capture second-device persistence and analytics evidence in the release record.
 
 ## Current implementation ledger — 2026-08-26
@@ -360,3 +360,30 @@ Use this file as the product authority. Inspect the latest implementation, schem
 ## Definition of done
 
 A screen is not complete because it renders or animates. It is complete when the learner understands the next action, taps receive immediate feedback, loading cannot be confused with emptiness, errors preserve context, successful writes persist, navigation maintains the product chain, animation remains smooth, reduced motion works, and light and dark modes feel intentionally designed.
+
+## Current implementation ledger — 2026-08-26 (second increment)
+
+The save sheet could create a Learning List on the phone, and the phone had
+nowhere to show one. This increment gives Learning Lists a surface on the
+device people study on, and makes the order that surface writes safe to write.
+
+Implemented in this increment:
+
+- a Learning Lists screen and a list screen on the phone, reached from the resources tab;
+- accessible reordering: move up and move down per item, named for a screen reader, with no drag required;
+- remove an item, and open the resource a row is about;
+- optimistic order and removal with the previous state restored and explained when a write fails;
+- loading skeletons, genuine empty states, read-failure retry, and a not-found state that does not pretend a list was deleted;
+- `POST /lists/{id}/items/reorder` made atomic: the permutation is checked and every position written inside one transaction, in one statement;
+- an empty list can be reordered, which previously would have been a SQL syntax error had anything asked;
+- one shared `moveItem` helper behind the reorder controls, which never mutates the order it was given — the screen needs the old one to put back;
+- Turkish coverage for the eleven new strings.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 758 API assertions passed across 86 test files against a real PostgreSQL instance;
+- 67 mobile tests passed;
+- the new order is read back in the order asked for, with positions 0..n rather than rows that merely sort correctly; a short order, a duplicate, and an item belonging to another list are each refused and leave the stored order untouched;
+- 69 end-to-end flow checks passed against a real server and database, including add, reorder, read back, and a refused partial order that changed nothing;
+- both new screens render in English and Turkish with every control carrying a screen-reader name.

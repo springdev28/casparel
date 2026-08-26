@@ -125,6 +125,16 @@ const SCREENS = [
    */
   { path: "/goals", session: "in" },
   { path: "/goals/11", session: "in" },
+  /*
+   * Learning Lists, reached from the resources tab.
+   *
+   * Both, for the same reason as goals: the index carries the count and the
+   * empty state, and the detail carries the position, the reorder controls and
+   * the two things a screen reader has to be able to name -- move up and move
+   * down, which exist nowhere else in the app.
+   */
+  { path: "/lists", session: "in" },
+  { path: "/lists/11", session: "in" },
 ];
 
 const MIME = {
@@ -225,6 +235,80 @@ function stubbedBody(pathname) {
         ],
         createdAt: "2026-03-02T09:00:00.000Z",
         updatedAt: "2026-03-02T09:00:00.000Z",
+      },
+    ];
+  }
+  /*
+   * One Learning List, with three resources in it, because the detail screen
+   * is about order: the first row cannot move up, the last cannot move down,
+   * and only a middle row renders both controls enabled.
+   */
+  if (/\/lists\/\d+$/.test(pathname)) {
+    const resource = (id, title, format) => ({
+      id,
+      title,
+      url: `https://example.org/${id}`,
+      description: null,
+      format,
+      subject: "Mathematics",
+      gradeLevel: "Undergraduate",
+      thumbnailUrl: null,
+      submittedById: 1,
+      avgRating: 4.5,
+      reviewCount: 3,
+      createdAt: "2026-03-02T09:00:00.000Z",
+      verificationStatus: "verified",
+      verificationNote: null,
+    });
+    return {
+      id: 11,
+      name: "Audit list",
+      description: "Standing in for a real Learning List.",
+      ownerId: 1,
+      classId: null,
+      itemCount: 3,
+      createdAt: "2026-03-02T09:00:00.000Z",
+      items: [
+        {
+          id: 1,
+          listId: 11,
+          resourceId: 101,
+          note: null,
+          addedAt: "2026-03-02T09:00:00.000Z",
+          position: 0,
+          resource: resource(101, "Linear Algebra Done Right", "pdf"),
+        },
+        {
+          id: 2,
+          listId: 11,
+          resourceId: 102,
+          note: null,
+          addedAt: "2026-03-03T09:00:00.000Z",
+          position: 1,
+          resource: resource(102, "Essence of Linear Algebra", "video"),
+        },
+        {
+          id: 3,
+          listId: 11,
+          resourceId: 103,
+          note: null,
+          addedAt: "2026-03-04T09:00:00.000Z",
+          position: 2,
+          resource: resource(103, "Practice problems", "article"),
+        },
+      ],
+    };
+  }
+  if (pathname.endsWith("/lists")) {
+    return [
+      {
+        id: 11,
+        name: "Audit list",
+        description: "Standing in for a real Learning List.",
+        ownerId: 1,
+        classId: null,
+        itemCount: 3,
+        createdAt: "2026-03-02T09:00:00.000Z",
       },
     ];
   }

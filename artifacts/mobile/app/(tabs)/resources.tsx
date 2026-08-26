@@ -451,14 +451,38 @@ export default function ResourcesScreen() {
             </Pressable>
           )}
         </View>
-        <Text
-          style={[
-            styles.sectionTitle,
-            { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
-          ]}
-        >
-          {t('Resources')}
-        </Text>
+        <View style={styles.sectionHead}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
+            ]}
+          >
+            {t('Resources')}
+          </Text>
+          {/*
+            The way into the lists a save can create. Without it the sheet
+            could make a Learning List that the phone then had nowhere to
+            show, which is where somebody's organising went to die.
+          */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Learning lists')}
+            hitSlop={8}
+            onPress={() => router.push('/lists')}
+            style={({ pressed }) => [styles.listsLink, { opacity: pressed ? 0.6 : 1 }]}
+          >
+            <Feather name="bookmark" size={15} color={colors.primary} />
+            <Text
+              style={[
+                styles.listsLinkText,
+                { color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold },
+              ]}
+            >
+              {t('Learning lists')}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {isLoading ? (
@@ -552,6 +576,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchInput: { flex: 1, fontSize: 15, padding: 0 },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  listsLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  listsLinkText: { fontSize: 13 },
   sectionTitle: { fontSize: 22, letterSpacing: -0.3 },
   listContent: {
     padding: 16,

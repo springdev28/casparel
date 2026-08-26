@@ -298,33 +298,66 @@ router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<v
     return;
   }
 
-  // Validate: submitted IDs must exactly match the current items in this list
-  const existing = await db
-    .select({ id: listItemsTable.id })
-    .from(listItemsTable)
-    .where(eq(listItemsTable.listId, params.data.id));
-  const existingIds = new Set(existing.map((r) => r.id));
   const submittedIds = parsed.data.itemIds;
   const submittedSet = new Set(submittedIds);
 
-  if (
-    submittedIds.length !== existingIds.size ||
-    submittedIds.some((id) => !existingIds.has(id)) ||
-    submittedIds.length !== submittedSet.size // no duplicates
-  ) {
+  /*
+   * Read the items and write their positions in one transaction.
+   *
+   * The check and the writes were separate statements with nothing holding
+   * them together, and the writes were a Promise.all of one UPDATE per item.
+   * A failure part-way through -- a dropped connection, a pool timeout --
+   * left the list in an order nobody chose: some items renumbered, some not,
+   * two of them sharing a position and the tie broken by insertion time. That
+   * is not a state the app can see or repair, and it is the order the learner
+   * then studies in.
+   *
+   * It also could not see a concurrent change. The check read the item ids,
+   * and by the time the updates ran an item removed on another device was
+   * gone -- so the reorder wrote positions for a list that no longer matched
+   * what was validated. Reading inside the transaction is what makes the
+   * permutation check a statement about the rows actually being written.
+   */
+  const reordered = await db.transaction(async (tx) => {
+    const existing = await tx
+      .select({ id: listItemsTable.id })
+      .from(listItemsTable)
+      .where(eq(listItemsTable.listId, params.data.id));
+    const existingIds = new Set(existing.map((r) => r.id));
+
+    if (
+      submittedIds.length !== existingIds.size ||
+      submittedIds.some((id) => !existingIds.has(id)) ||
+      submittedIds.length !== submittedSet.size // no duplicates
+    ) {
+      return false;
+    }
+
+    // An empty list is already in the order it was asked for, and `values ()`
+    // with no rows in it is a syntax error rather than a no-op.
+    if (!submittedIds.length) return true;
+
+    // One statement for every position, so the new order arrives whole or not
+    // at all. `ordered(id, position)` is the submitted array as rows.
+    const values = sql.join(
+      submittedIds.map(
+        (itemId, index) => sql`(${itemId}::int, ${index}::int)`,
+      ),
+      sql`, `,
+    );
+    await tx.execute(sql`
+      update ${listItemsTable} as item
+      set position = ordered.position
+      from (values ${values}) as ordered(id, position)
+      where item.id = ordered.id and item.list_id = ${params.data.id}
+    `);
+    return true;
+  });
+
+  if (!reordered) {
     res.status(400).json({ error: "itemIds must be an exact, duplicate-free permutation of the list's current items" });
     return;
   }
-
-  // Persist positions
-  await Promise.all(
-    submittedIds.map((itemId: number, index: number) =>
-      db
-        .update(listItemsTable)
-        .set({ position: index })
-        .where(and(eq(listItemsTable.id, itemId), eq(listItemsTable.listId, params.data.id))),
-    ),
-  );
   res.sendStatus(204);
 });
 

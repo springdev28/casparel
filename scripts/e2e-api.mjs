@@ -522,6 +522,86 @@ async function main() {
     );
   }
 
+  /*
+   * ---- a Learning List is an ordered set --------------------------------
+   *
+   * The order is the teaching, so it is the part of a list worth checking
+   * against a real database: the phone's list screen sends the whole order and
+   * puts the old one back if the write fails, which is only safe if the server
+   * either applies all of it or none. Bob does this rather than Alice, whose
+   * write allowance is mostly spent by here.
+   */
+  const bobsList = await call("POST", "/api/lists", {
+    token: bob.token,
+    body: { name: "In the order I will read them" },
+  });
+  check("a second learner can create their own list", bobsList.status === 201,
+    `HTTP ${bobsList.status} ${bobsList.text.slice(0, 160)}`);
+
+  if (bobsList.status === 201) {
+    const added = [];
+    for (const title of ["First read", "Second read"]) {
+      const resource = await call("POST", "/api/resources", {
+        token: bob.token,
+        body: {
+          title: `${title} ${RUN}`,
+          url: `https://example.test/${title.replace(/\W+/g, "-").toLowerCase()}-${RUN}`,
+          format: "article",
+          subject: "Physics",
+          gradeLevel: "Year 12",
+        },
+      });
+      const item = await call("POST", `/api/lists/${bobsList.body.id}/items`, {
+        token: bob.token,
+        body: { resourceId: resource.body?.id },
+      });
+      if (item.status === 201 || item.status === 200) added.push(item.body.id);
+    }
+    check("two resources can be added to a list", added.length === 2,
+      `added ${added.length}`);
+
+    if (added.length === 2) {
+      const flipped = [added[1], added[0]];
+      const reordered = await call(
+        "POST",
+        `/api/lists/${bobsList.body.id}/items/reorder`,
+        { token: bob.token, body: { itemIds: flipped } },
+      );
+      check("a list can be reordered", reordered.status === 204,
+        `HTTP ${reordered.status} ${reordered.text.slice(0, 160)}`);
+
+      const reread = await call("GET", `/api/lists/${bobsList.body.id}`, {
+        token: bob.token,
+      });
+      check(
+        "the new order is what the list is read back in",
+        JSON.stringify((reread.body?.items ?? []).map((item) => item.id)) ===
+          JSON.stringify(flipped),
+        `order: ${JSON.stringify((reread.body?.items ?? []).map((item) => item.id))}`,
+      );
+
+      // Half an order is not an order. The refusal matters because the
+      // alternative is a list renumbered part-way, which nothing can repair.
+      const partial = await call(
+        "POST",
+        `/api/lists/${bobsList.body.id}/items/reorder`,
+        { token: bob.token, body: { itemIds: [added[0]] } },
+      );
+      check("an order missing an item is refused", partial.status === 400,
+        `HTTP ${partial.status}`);
+
+      const stillFlipped = await call("GET", `/api/lists/${bobsList.body.id}`, {
+        token: bob.token,
+      });
+      check(
+        "and the refusal left the order alone",
+        JSON.stringify((stillFlipped.body?.items ?? []).map((item) => item.id)) ===
+          JSON.stringify(flipped),
+        `order: ${JSON.stringify((stillFlipped.body?.items ?? []).map((item) => item.id))}`,
+      );
+    }
+  }
+
   // ---- a saved resource reaches the goal it is for -------------------------
   //
   // The chain the product is built around is save -> organise -> study, and
