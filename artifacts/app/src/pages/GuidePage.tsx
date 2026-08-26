@@ -2,7 +2,7 @@
  * @fileOverview Web screen role: renders the Guide Page route and coordinates its page-level data and interactions.
  * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { Link } from "wouter";
 import {
   Activity,
@@ -43,7 +43,7 @@ import { Input } from "@workspace/edu-ds/components/ui/input";
  * together with the product.
  */
 
-const GUIDE_VERSION = "1.4.0";
+const GUIDE_VERSION = "1.4.1";
 
 type ChangeEntry = {
   version: string;
@@ -52,6 +52,14 @@ type ChangeEntry = {
 };
 
 const CHANGELOG: ChangeEntry[] = [
+  {
+    version: "1.4.1",
+    date: "August 2026",
+    changes: [
+      "Guide contents now slide smoothly between sections and stop cleanly at the end of the page.",
+      "Settings now includes password-protected controls to reset account data or permanently delete an account.",
+    ],
+  },
   {
     version: "1.4.0",
     date: "August 2026",
@@ -367,6 +375,10 @@ const SECTIONS: GuideSection[] = [
         title: "Tour & guide",
         desc: "Replay the product tour or open this guide any time from Settings.",
       },
+      {
+        title: "Reset or delete your account",
+        desc: "The Settings danger zone explains what each action removes, then requires your current password before reset or permanent deletion can begin.",
+      },
     ],
   },
   {
@@ -415,8 +427,52 @@ const SECTIONS: GuideSection[] = [
   },
 ];
 
+const GUIDE_SCROLL_OFFSET = 80;
+
+/**
+ * Scroll the shell's real scroll container instead of relying on native hash
+ * navigation. Native anchors jump immediately and can miscalculate the end of
+ * a page inside the fixed AppShell. Clamping to the container's maximum keeps
+ * the last, short section beside the viewport instead of exposing empty canvas
+ * below it.
+ */
+function scrollToGuideSection(id: string, behavior: ScrollBehavior): boolean {
+  const target = document.getElementById(id);
+  if (!target) return false;
+
+  const scroller = target.closest("main");
+  if (!(scroller instanceof HTMLElement)) {
+    target.scrollIntoView({ behavior, block: "start" });
+    return true;
+  }
+
+  const scrollerBox = scroller.getBoundingClientRect();
+  const targetBox = target.getBoundingClientRect();
+  const requestedTop =
+    scroller.scrollTop + targetBox.top - scrollerBox.top - GUIDE_SCROLL_OFFSET;
+  const maximumTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+
+  scroller.scrollTo({
+    top: Math.min(Math.max(0, requestedTop), maximumTop),
+    behavior,
+  });
+  return true;
+}
+
 export default function GuidePage() {
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id) return;
+
+    // Correct a direct /guide#section visit after the fixed shell has mounted.
+    // Direct visits do not animate; only an intentional contents click does.
+    const frame = window.requestAnimationFrame(() => {
+      scrollToGuideSection(id, "auto");
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -436,6 +492,34 @@ export default function GuidePage() {
     }).filter((section): section is GuideSection => section !== null);
   }, [query]);
 
+  function openSection(event: MouseEvent<HTMLAnchorElement>, id: string) {
+    event.preventDefault();
+
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)")
+      .matches
+      ? "auto"
+      : "smooth";
+    const updateLocation = () => {
+      if (!scrollToGuideSection(id, behavior)) return;
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}#${encodeURIComponent(id)}`,
+      );
+    };
+
+    // The contents remain complete while search results are filtered. Restore
+    // the full guide before navigating if the requested section is hidden.
+    if (!document.getElementById(id) && query) {
+      setQuery("");
+      window.requestAnimationFrame(() =>
+        window.requestAnimationFrame(updateLocation),
+      );
+      return;
+    }
+    updateLocation();
+  }
+
   return (
     <div className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">
       <header className="mb-6">
@@ -450,7 +534,10 @@ export default function GuidePage() {
         <p className="mt-2 max-w-2xl text-sm text-page-contrast-muted">
           A complete reference to every feature in Casparel, kept up to date
           with each release. New here?{" "}
-          <Link href="/tutorial" className="font-medium text-primary-text hover:underline">
+          <Link
+            href="/tutorial"
+            className="font-medium text-primary-text hover:underline"
+          >
             Take the guided tour
           </Link>
           .
@@ -494,7 +581,10 @@ export default function GuidePage() {
                         key={index}
                         className="flex gap-2 text-sm text-muted-foreground"
                       >
-                        <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/60" />
+                        <span
+                          aria-hidden
+                          className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/60"
+                        />
                         <span>{change}</span>
                       </li>
                     ))}
@@ -565,6 +655,7 @@ export default function GuidePage() {
               <li>
                 <a
                   href="#whats-new"
+                  onClick={(event) => openSection(event, "whats-new")}
                   className="block rounded px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   What’s new
@@ -574,6 +665,7 @@ export default function GuidePage() {
                 <li key={section.id}>
                   <a
                     href={`#${section.id}`}
+                    onClick={(event) => openSection(event, section.id)}
                     className="block rounded px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
                     {section.title}
@@ -581,7 +673,12 @@ export default function GuidePage() {
                 </li>
               ))}
             </ul>
-            <Button asChild variant="outline" size="sm" className="mt-3 w-full gap-2">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="mt-3 w-full gap-2"
+            >
               <Link href="/tutorial">
                 <Compass className="size-4" /> Replay the tour
               </Link>

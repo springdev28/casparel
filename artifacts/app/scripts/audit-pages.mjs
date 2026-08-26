@@ -306,6 +306,63 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
 });
 
+/**
+ * The guide lives in AppShell's nested scroll container, so generic document
+ * checks cannot see whether a contents link jumps or overshoots its final
+ * section. Capture the actual scroll request made by React and also verify the
+ * desktop sidebar stretches to the bottom of the viewport.
+ */
+async function auditGuideNavigation(page, pathname, width, signedIn) {
+  if (pathname !== "/guide" || width < 1024 || !signedIn) return null;
+
+  return page.evaluate(async () => {
+    const scroller = document.querySelector("main");
+    const sidebar = document.querySelector("aside.app-nav-surface");
+    const link = document.querySelector(
+      'nav[aria-label="Guide contents"] a[href="#admin"]',
+    );
+    if (!(scroller instanceof HTMLElement) || !(link instanceof HTMLElement)) {
+      return {
+        hashUpdated: false,
+        smoothRequested: false,
+        destinationBounded: false,
+        sidebarCoversViewport: false,
+      };
+    }
+
+    const calls = [];
+    const nativeScrollTo = scroller.scrollTo.bind(scroller);
+    scroller.scrollTo = (...args) => {
+      const options = args[0];
+      if (typeof options === "object" && options) calls.push(options);
+      nativeScrollTo(...args);
+    };
+
+    scroller.scrollTop = 0;
+    link.click();
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const requested = calls.at(-1);
+    const maximumTop = Math.max(
+      0,
+      scroller.scrollHeight - scroller.clientHeight,
+    );
+    const sidebarBox = sidebar?.getBoundingClientRect();
+    return {
+      hashUpdated: window.location.hash === "#admin",
+      smoothRequested: requested?.behavior === "smooth",
+      destinationBounded:
+        Number.isFinite(requested?.top) &&
+        requested.top >= 0 &&
+        requested.top <= maximumTop,
+      sidebarCoversViewport:
+        Boolean(sidebarBox) &&
+        sidebarBox.top <= 0 &&
+        sidebarBox.bottom >= window.innerHeight,
+    };
+  });
+}
+
 async function audit(pathname, colorScheme, width, options = {}) {
   const { signedIn = false, palette } = options;
   const ctx = await browser.newContext({
@@ -323,6 +380,13 @@ async function audit(pathname, colorScheme, width, options = {}) {
     timeout: 30_000,
   });
   await page.waitForTimeout(1500);
+
+  const guideNavigation = await auditGuideNavigation(
+    page,
+    pathname,
+    width,
+    signedIn,
+  );
 
   // Scroll the whole page so reveal-on-scroll content is given its chance,
   // then assert nothing is left invisible. The step count is fixed up front:
@@ -362,6 +426,7 @@ async function audit(pathname, colorScheme, width, options = {}) {
     ),
     pageErrors,
     unfixtured: [...unfixtured],
+    guideNavigation,
   };
   await ctx.close();
   return { pathname, colorScheme, width, signedIn, palette, findings };
@@ -399,6 +464,7 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
             unlabelledFields: [],
             headingSkips: [],
             unfixtured: [],
+            guideNavigation: null,
           },
         }),
       RENDER_TIMEOUT_MS,
@@ -457,8 +523,10 @@ for (const pathname of SIGNED_IN_PAGES) {
   RENDERS.push([pathname, "dark", 390, { signedIn: true, palette: "dark" }]);
 }
 
-const results = await inParallel(RENDERS, ([pathname, scheme, width, options]) =>
-  auditGuarded(pathname, scheme, width, options),
+const results = await inParallel(
+  RENDERS,
+  ([pathname, scheme, width, options]) =>
+    auditGuarded(pathname, scheme, width, options),
 );
 
 await browser.close();
@@ -494,6 +562,19 @@ for (const {
     ...(findings.headingSkips ?? []).map((s) => `heading level skips ${s}`),
     ...(findings.dashes ?? []).map((t) => `em or en dash in copy: "${t}"`),
     ...findings.pageErrors.map((e) => `page error: ${e}`),
+    ...(findings.guideNavigation && !findings.guideNavigation.hashUpdated
+      ? ["guide contents link did not update the section hash"]
+      : []),
+    ...(findings.guideNavigation && !findings.guideNavigation.smoothRequested
+      ? ["guide contents link did not request smooth scrolling"]
+      : []),
+    ...(findings.guideNavigation && !findings.guideNavigation.destinationBounded
+      ? ["guide contents link requested a scroll beyond the page end"]
+      : []),
+    ...(findings.guideNavigation &&
+    !findings.guideNavigation.sidebarCoversViewport
+      ? ["desktop sidebar does not cover the full viewport height"]
+      : []),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind
   // the app, which is worth saying out loud without blocking the build.
