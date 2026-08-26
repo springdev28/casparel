@@ -108,6 +108,46 @@ export function clearSession(): void {
   window.dispatchEvent(new Event(SESSION_EVENT));
 }
 
+/**
+ * Remove browser state owned by one Casparel account.
+ *
+ * Server-side reset is not enough: search drafts, tutorial progress, cached
+ * colors, dismissed workflow cards, and dashboard selections also live in
+ * browser storage. Leaving those behind makes a reset appear not to work and
+ * can show the next account state written by the previous one on a shared
+ * computer. Product keys have always used the schoolar_/casparel_ prefixes;
+ * unrelated data on the same origin is deliberately left untouched.
+ *
+ * Reset keeps the current auth token so the account remains signed in. Delete
+ * does not, and still calls clearSession afterwards to notify React listeners.
+ */
+export function clearLocalAccountData(options?: {
+  preserveSession?: boolean;
+}): void {
+  const preservedToken = options?.preserveSession ? readSessionToken() : null;
+  for (const storage of [localStorage, sessionStorage]) {
+    try {
+      const ownedKeys: string[] = [];
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (key && /^(?:schoolar_|casparel_|eduhub_)/.test(key)) {
+          ownedKeys.push(key);
+        }
+      }
+      for (const key of ownedKeys) storage.removeItem(key);
+    } catch {
+      // Storage can be blocked; the server reset remains authoritative.
+    }
+  }
+  if (preservedToken) {
+    try {
+      localStorage.setItem(TOKEN_KEY, preservedToken);
+    } catch {
+      // The subsequent request will simply behave as signed out.
+    }
+  }
+}
+
 /** Announce a token that was just written (sign-in, token refresh). */
 export function notifySessionChanged(): void {
   window.dispatchEvent(new Event(SESSION_EVENT));

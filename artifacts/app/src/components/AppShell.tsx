@@ -306,7 +306,8 @@ export default function AppShell({ children }: AppShellProps) {
           if (active) {
             setClassInvitations(
               (Array.isArray(rows) ? rows : []).filter(
-                (row) => row?.id != null && row.class?.name && row.inviter?.name,
+                (row) =>
+                  row?.id != null && row.class?.name && row.inviter?.name,
               ),
             );
           }
@@ -589,7 +590,10 @@ export default function AppShell({ children }: AppShellProps) {
           title="Disconnect Google Classroom"
           data-testid="sidebar-gc-disconnect"
         >
-          <CheckCircle2 size={13} className="text-primary-foreground shrink-0" />
+          <CheckCircle2
+            size={13}
+            className="text-primary-foreground shrink-0"
+          />
           <span className="truncate">Google Classroom linked</span>
         </button>
       ) : (
@@ -663,9 +667,9 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <>
-      <div className="fixed inset-0 flex w-full overflow-hidden bg-primary">
+      <div className="app-shell-frame fixed inset-0 flex w-full overflow-hidden">
         {/* Sidebar */}
-        <aside className="sidebar-scrollbar-hidden hidden h-full min-h-0 w-64 shrink-0 flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex app-nav-surface">
+        <aside className="sidebar-scrollbar-hidden hidden min-h-0 w-64 shrink-0 self-stretch flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex app-nav-surface">
           {/* Logo */}
           <Link
             href="/"
@@ -753,7 +757,10 @@ export default function AppShell({ children }: AppShellProps) {
                           called "Practice" or "Canvas" would be silently
                           translated into somebody's own sidebar.
                         */}
-                        <span translate="no" className="min-w-0 flex-1 truncate">
+                        <span
+                          translate="no"
+                          className="min-w-0 flex-1 truncate"
+                        >
                           {goal.title}
                         </span>
                         <span className="text-[10px] text-primary-foreground/60">
@@ -877,7 +884,10 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
                 <div className="min-w-0">
                   {/* A person's name, not copy: never translated. */}
-                  <p translate="no" className="text-sm font-semibold text-primary-foreground truncate group-hover:underline">
+                  <p
+                    translate="no"
+                    className="text-sm font-semibold text-primary-foreground truncate group-hover:underline"
+                  >
                     {me.name}
                   </p>
                 </div>
@@ -1099,7 +1109,10 @@ export default function AppShell({ children }: AppShellProps) {
                           <User size={17} />
                         )}
                       </span>
-                      <span translate="no" className="min-w-0 truncate text-sm font-semibold">
+                      <span
+                        translate="no"
+                        className="min-w-0 truncate text-sm font-semibold"
+                      >
                         {me.name}
                       </span>
                     </Link>

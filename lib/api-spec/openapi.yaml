@@ -175,16 +175,44 @@ paths:
       tags: [auth]
       summary: Permanently delete the authenticated account
       description: >-
-        Anonymises the account and ends the session. Implemented on the server
-        since launch but absent from this document, so no generated client
-        existed and the mobile app had no way to offer deletion - which App
-        Store guideline 5.1.1(v) requires of any app that lets you create an
-        account.
+        Verifies the current password, clears private workspace data,
+        anonymises shared contributions, and permanently disables the account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteAccountInput"
       responses:
         "204":
           description: Account deleted
+        "400":
+          description: Invalid confirmation
         "401":
-          description: Not authenticated
+          description: Not authenticated or current password is incorrect
+
+  /users/me/reset:
+    post:
+      operationId: resetMe
+      tags: [auth]
+      summary: Reset the authenticated account's private workspace
+      description: >-
+        Verifies the current password, deletes private learning data and saved
+        preferences, and restores profile defaults. The login, subscription,
+        classes, messages, submitted resources, and public contributions remain.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetAccountInput"
+      responses:
+        "204":
+          description: Account reset
+        "400":
+          description: Invalid confirmation
+        "401":
+          description: Not authenticated or current password is incorrect
 
   /users/me/avatar:
     post:
@@ -765,7 +793,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/SeatingPlanSuggestion"
         "403": { description: Not the class teacher }
-        "402": { description: "Casparel Teacher Pro (or legacy Pro) subscription required" }
+        "402":
+          {
+            description: "Casparel Teacher Pro (or legacy Pro) subscription required",
+          }
 
   /classes/{id}/student-goals:
     get:
@@ -2847,7 +2878,6 @@ paths:
         "401": { description: Not authenticated }
         "404": { description: "No such request, or it is not yours to answer" }
 
-
   /resources/{id}/recommend:
     post:
       # Not `recommendResource`: there is already a class-level
@@ -2881,7 +2911,10 @@ paths:
                 required: [sent]
                 properties:
                   sent: { type: boolean }
-        "400": { description: "A valid resource and a different recipient are required" }
+        "400":
+          {
+            description: "A valid resource and a different recipient are required",
+          }
         "401": { description: Not authenticated }
         "404": { description: No such resource or recipient }
 
@@ -2910,7 +2943,8 @@ paths:
                 required: [thumbnailUrl]
                 properties:
                   thumbnailUrl: { type: ["string", "null"], format: uri }
-        "400": { description: "The url is missing, unparseable, or not http(s)" }
+        "400":
+          { description: "The url is missing, unparseable, or not http(s)" }
 
   /assignments/today:
     get:
@@ -3093,10 +3127,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserPreferences"
-        "400": { description: "A value was out of range, or a key is not known" }
+        "400":
+          { description: "A value was out of range, or a key is not known" }
         "401": { description: Not authenticated }
         "413": { description: Preferences payload is too large }
-
 
 components:
   schemas:
@@ -3179,7 +3213,8 @@ components:
       type: object
       required: [background, surface, primary, accent]
       properties:
-        background: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+        background:
+          { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
         surface: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
         primary: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
         accent: { type: string, pattern: "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
@@ -3543,6 +3578,22 @@ components:
       properties:
         email: { type: string }
         password: { type: string }
+
+    ResetAccountInput:
+      type: object
+      additionalProperties: false
+      required: [password, confirmation]
+      properties:
+        password: { type: string, minLength: 1, maxLength: 256 }
+        confirmation: { type: string, enum: [RESET] }
+
+    DeleteAccountInput:
+      type: object
+      additionalProperties: false
+      required: [password, confirmation]
+      properties:
+        password: { type: string, minLength: 1, maxLength: 256 }
+        confirmation: { type: string, enum: [DELETE] }
 
     AuthResponse:
       type: object
@@ -4211,7 +4262,8 @@ components:
       description: >-
         One source and what the provenance check says about it. Mirrors the
         registry-based classification used on resource pages; never AI output.
-      required: [id, title, host, provenanceLevel, provenanceSignals, savedCount]
+      required:
+        [id, title, host, provenanceLevel, provenanceSignals, savedCount]
       properties:
         id: { type: integer }
         title: { type: string }
@@ -4234,7 +4286,6 @@ components:
             The source's language as read from its address, or null when the
             address does not say. Null is not "English": it means the language
             was not established, and a client should not claim one.
-
 
     Resource:
       type: object

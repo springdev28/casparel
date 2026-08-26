@@ -69,7 +69,12 @@ describe.skipIf(!url)("provenance showcase against a real database", () => {
   });
 
   it("shows the catalogue when no list holds anything", async () => {
-    const res = await request(app).get("/api/resources/provenance-showcase");
+    // The endpoint deliberately matches the reader's language. Ask for
+    // Turkish when asserting the Turkish Wikibooks fixture; the default
+    // English response correctly contains only the MIT fixture.
+    const res = await request(app).get(
+      "/api/resources/provenance-showcase?language=tr",
+    );
     expect(res.status).toBe(200);
     expect(res.body.personalised).toBe(false);
     // The bug this file exists for: this was [] in production.
@@ -81,14 +86,28 @@ describe.skipIf(!url)("provenance showcase against a real database", () => {
   });
 
   it("gives each entry a real host and verdict", async () => {
-    const res = await request(app).get("/api/resources/provenance-showcase");
+    const [turkish, english] = await Promise.all([
+      request(app).get("/api/resources/provenance-showcase?language=tr"),
+      request(app).get("/api/resources/provenance-showcase?language=en"),
+    ]);
+    type ShowcaseEntry = {
+      title: string;
+      host: string;
+      provenanceLevel: string;
+      savedCount: number;
+      provenanceSignals: unknown[];
+    };
+    const entries = [
+      ...turkish.body.entries,
+      ...english.body.entries,
+    ] as ShowcaseEntry[];
     const byTitle = Object.fromEntries(
-      res.body.entries.map((e: { title: string }) => [e.title, e]),
+      entries.map((entry) => [entry.title, entry]),
     );
     expect(byTitle["Android Programlama"].host).toBe("tr.wikibooks.org");
     expect(byTitle["Linear Algebra"].provenanceLevel).toBe("institutional");
     expect(byTitle["Linear Algebra"].savedCount).toBe(0);
-    for (const entry of res.body.entries) {
+    for (const entry of entries) {
       expect(entry.provenanceSignals.length).toBeGreaterThan(0);
     }
   });

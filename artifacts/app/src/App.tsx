@@ -19,12 +19,7 @@ import {
   CardTitle,
 } from "@workspace/edu-ds/components/ui/card";
 import { Ban, Loader2, Mail, Trash2 } from "lucide-react";
-import {
-  Route,
-  Switch,
-  Router as WouterRouter,
-  Redirect,
-} from "wouter";
+import { Route, Switch, Router as WouterRouter, Redirect } from "wouter";
 import {
   getGetMeQueryKey,
   getMe,
@@ -36,6 +31,7 @@ import {
 import type { GetMyAccess200 } from "@workspace/api-client-react";
 
 import { applyLastSavedColors } from "./components/ThemeCustomizer";
+import { AccountActionDialog } from "./components/AccountActionDialog";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
 import { hasDictionary } from "./lib/translated-languages";
@@ -102,6 +98,12 @@ function isSessionExpiry(error: unknown): boolean {
   const status = (error as { status?: unknown } | null)?.status;
   if (status !== 401) return false;
   if (!readSessionToken()) return false;
+  // Reset and deletion deliberately return 401 for a wrong current password.
+  // That is failed reauthentication, not an expired bearer token; treating it
+  // as expiry would sign somebody out on their first typo and hide the inline
+  // "password is incorrect" correction the safety dialog provides.
+  const body = (error as { data?: { error?: unknown } } | null)?.data;
+  if (body?.error === "Current password is incorrect") return false;
   const url = String((error as { url?: unknown } | null)?.url ?? "");
   return !/\/auth\/(login|register)$/.test(url);
 }
@@ -147,11 +149,6 @@ setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
  */
 type AccountAccess = GetMyAccess200;
 
-function apiUrl(path: string) {
-  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-  return base + "/api" + path;
-}
-
 /**
  * Loads the translation bridge for every language that has a dictionary.
  *
@@ -187,27 +184,7 @@ function UiTranslationRuntime() {
 }
 
 function BannedAccountPage({ access }: { access: AccountAccess }) {
-  const [deleting, setDeleting] = useState(false);
-
-  async function deleteAccount() {
-    if (
-      !window.confirm("Permanently delete your account? This cannot be undone.")
-    )
-      return;
-    setDeleting(true);
-    try {
-      const response = await fetch(apiUrl("/users/me"), {
-        method: "DELETE",
-        headers: { Authorization: "Bearer " + localStorage.getItem(TOKEN_KEY) },
-      });
-      if (!response.ok) throw new Error("Account deletion failed");
-      clearSession();
-      queryClient.clear();
-      window.location.assign(import.meta.env.BASE_URL + "resources");
-    } finally {
-      setDeleting(false);
-    }
-  }
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-background p-4 text-foreground">
@@ -232,18 +209,18 @@ function BannedAccountPage({ access }: { access: AccountAccess }) {
             type="button"
             variant="destructive"
             className="flex-1"
-            onClick={deleteAccount}
-            disabled={deleting}
+            onClick={() => setDeleteOpen(true)}
           >
-            {deleting ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Trash2 className="mr-2 size-4" />
-            )}
+            <Trash2 className="mr-2 size-4" />
             Delete account
           </Button>
         </CardContent>
       </Card>
+      <AccountActionDialog
+        action="delete"
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+      />
     </main>
   );
 }
@@ -372,9 +349,7 @@ function Router() {
       {/* Reachable without an account on purpose: the mobile paywall links
           here, and both app stores require the Terms and Privacy pages to
           resolve for a signed-out reviewer. */}
-      <Route path="/terms">
-        {() => <PublicRoute component={TermsPage} />}
-      </Route>
+      <Route path="/terms">{() => <PublicRoute component={TermsPage} />}</Route>
       <Route path="/privacy">
         {() => <PublicRoute component={PrivacyPage} />}
       </Route>

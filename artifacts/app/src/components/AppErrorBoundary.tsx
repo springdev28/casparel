@@ -2,15 +2,17 @@
  * @fileOverview Web UI role: provides the reusable App Error Boundary component or bridge.
  * System connection: consumed by pages or shells and kept separate to share presentation, accessibility, and interaction behavior.
  */
-import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { Button } from '@workspace/edu-ds/components/ui/button';
-import { isStaleBuildError } from '../lib/stale-build';
+import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Button } from "@workspace/edu-ds/components/ui/button";
+import { isStaleBuildError } from "../lib/stale-build";
+import { getInitialLanguage } from "../lib/auth-locale";
+import { loadDictionary, translateUiString } from "../lib/ui-translations";
 
 type Props = { children: ReactNode };
-type State = { error: Error | null };
+type State = { error: Error | null; translationVersion: number };
 
 /** So one bad load cannot become a reload loop. */
-const RELOADED_KEY = 'schoolar_reloaded_for_stale_build';
+const RELOADED_KEY = "schoolar_reloaded_for_stale_build";
 
 /**
  * How soon a second automatic reload counts as a loop rather than a fix.
@@ -24,14 +26,29 @@ const RELOADED_KEY = 'schoolar_reloaded_for_stale_build';
 const RELOAD_COOLDOWN_MS = 30_000;
 
 export class AppErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  state: State = { error: null, translationVersion: 0 };
 
   static getDerivedStateFromError(error: Error): State {
-    return { error };
+    return { error, translationVersion: 0 };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('Casparel render error', error, info);
+    console.error("Casparel render error", error, info);
+
+    /*
+     * The normal DOM translation bridge is inside this boundary. React
+     * unmounts that subtree when the fallback replaces it, so the fallback
+     * must translate itself. Dictionaries are split browser chunks; redraw
+     * once the selected one arrives, while English remains the safe fallback
+     * when its load fails.
+     */
+    const language = getInitialLanguage();
+    void loadDictionary(language).then(() => {
+      this.setState((current) => ({
+        ...current,
+        translationVersion: current.translationVersion + 1,
+      }));
+    });
 
     /*
      * A stale build is the one error this can fix by itself: the fix is to
@@ -68,19 +85,23 @@ export class AppErrorBoundary extends Component<Props, State> {
     if (!this.state.error) return this.props.children;
 
     const stale = isStaleBuildError(this.state.error);
+    const language = getInitialLanguage();
+    const t = (copy: string) => translateUiString(copy, language);
     return (
       <main className="min-h-[100dvh] grid place-items-center bg-background p-6 text-foreground">
         <div className="max-w-md text-center">
           <h1 className="text-xl font-semibold">
-            {stale ? 'Casparel has been updated' : 'Casparel could not load'}
+            {t(stale ? "Casparel has been updated" : "Casparel could not load")}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {stale
-              ? 'This tab was open while a new version shipped. Reload to pick it up.'
-              : 'A page error occurred. Reload the app to try again.'}
+            {t(
+              stale
+                ? "This tab was open while a new version shipped. Reload to pick it up."
+                : "A page error occurred. Reload the app to try again.",
+            )}
           </p>
           <Button className="mt-5" onClick={() => window.location.reload()}>
-            Reload app
+            {t("Reload app")}
           </Button>
         </div>
       </main>

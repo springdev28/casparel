@@ -16,9 +16,10 @@
   font-weight: 300 700;
   font-display: swap;
   src: url("/fonts/space-grotesk-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
-    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
-    U+2212, U+2215, U+FEFF, U+FFFD;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: "Space Grotesk";
@@ -26,9 +27,10 @@
   font-weight: 300 700;
   font-display: swap;
   src: url("/fonts/space-grotesk-latin-ext.woff2") format("woff2");
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7,
-    U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF,
-    U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 /* Resolve foreground colors at the ambient layer so transparent controls
@@ -66,6 +68,13 @@
 .app-nav-surface {
   --primary: 222 47% 11%;
   --primary-foreground: 0 0% 100%;
+}
+
+/* The fixed shell can show through for a frame while a desktop flex child is
+   measured or resized. Keep that fallback the same neutral navigation colour,
+   not the user's brand colour, so no bright block appears below the sidebar. */
+.app-shell-frame {
+  background-color: hsl(222 47% 11%);
 }
 
 .sidebar-scrollbar-hidden {
@@ -114,9 +123,13 @@
   pointer-events: none;
   opacity: var(--vanta-opacity, 0.5);
 }
-.vanta-background canvas { display: block; }
+.vanta-background canvas {
+  display: block;
+}
 @media (max-width: 767px) {
-  .vanta-background { inset: 0; }
+  .vanta-background {
+    inset: 0;
+  }
 
   input,
   textarea,
@@ -130,12 +143,17 @@
   }
 }
 .vanta-background--topology canvas {
-  animation: topology-canvas-drift var(--vanta-duration, 24s) ease-in-out infinite alternate;
+  animation: topology-canvas-drift var(--vanta-duration, 24s) ease-in-out
+    infinite alternate;
   transform-origin: center;
 }
 @keyframes topology-canvas-drift {
-  from { transform: scale(1.02) translate3d(-0.8%, -0.5%, 0); }
-  to { transform: scale(1.08) translate3d(1.5%, 1%, 0); }
+  from {
+    transform: scale(1.02) translate3d(-0.8%, -0.5%, 0);
+  }
+  to {
+    transform: scale(1.08) translate3d(1.5%, 1%, 0);
+  }
 }
 
 /* ── Landing page motion ──────────────────────────────────────────────────
@@ -143,8 +161,14 @@
    hidden and rise into place; `.reveal` is flipped to `.reveal--in` by a small
    IntersectionObserver as each section scrolls into view. */
 @keyframes casparel-rise {
-  from { opacity: 0; transform: translate3d(0, 14px, 0); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 .rise {
   opacity: 0;

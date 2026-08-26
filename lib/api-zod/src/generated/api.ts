@@ -188,10 +188,35 @@ export const UpdateMeResponse = zod.object({
 
 
 /**
- * Anonymises the account and ends the session. Implemented on the server since launch but absent from this document, so no generated client existed and the mobile app had no way to offer deletion - which App Store guideline 5.1.1(v) requires of any app that lets you create an account.
+ * Verifies the current password, clears private workspace data, anonymises shared contributions, and permanently disables the account.
  * @summary Permanently delete the authenticated account
  */
+export const deleteMeBodyPasswordMax = 256;
+
+
+
+export const DeleteMeBody = zod.object({
+  "password": zod.string().min(1).max(deleteMeBodyPasswordMax),
+  "confirmation": zod.enum(['DELETE'])
+})
+
 export const DeleteMeResponse = zod.void()
+
+
+/**
+ * Verifies the current password, deletes private learning data and saved preferences, and restores profile defaults. The login, subscription, classes, messages, submitted resources, and public contributions remain.
+ * @summary Reset the authenticated account's private workspace
+ */
+export const resetMeBodyPasswordMax = 256;
+
+
+
+export const ResetMeBody = zod.object({
+  "password": zod.string().min(1).max(resetMeBodyPasswordMax),
+  "confirmation": zod.enum(['RESET'])
+})
+
+export const ResetMeResponse = zod.void()
 
 
 /**
