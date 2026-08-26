@@ -36,6 +36,12 @@ The implementation boundaries are:
 
 - Paid subscribers are ad-free. If RevenueCat cannot establish entitlement
   state, the ad is suppressed rather than risking an ad for a paid account.
+- `review@casparel.com` is the dedicated Google Play reviewer seat. The API
+  keeps that exact account on the highest finite `Institutional` tier, and the
+  mobile purchase context mirrors the tier immediately so the reviewer never
+  sees a paywall or sponsored card while RevenueCat loads. This exception does
+  not grant administrator access, and its password belongs only in Play
+  Console's private App access instructions.
 - UMP runs before Google Mobile Ads initializes. If no valid current/cached
   consent state permits a request, the ad is suppressed.
 - Casparel currently has no reliable age/guardian claim, so the Android ad
@@ -97,6 +103,9 @@ clean Android release assembly succeeds.
 4. Enable RevenueCat Ads/Charts and connect AdMob if ad-unit names should sync.
 5. Verify the RevenueCat Android public key, products, packages, current
    offering, and all eight entitlement identifiers.
+   Grant the `institutional` promotional entitlement to the reviewer account's
+   numeric Casparel App User ID as defense in depth; the server remains the
+   authority for the provisioned seat.
 6. In Play Console, declare that the app contains ads and complete Data safety,
    Families/target-audience, content-rating, and subscription declarations.
 7. Test UMP geographies, a free account, every paid entitlement, purchase,

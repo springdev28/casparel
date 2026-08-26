@@ -132,9 +132,15 @@ receives: both wait for a human to complete the listing and submit for review.
   content the user creates, and purchase state via RevenueCat. Play must also
   declare that the Android app contains ads and accurately describe AdMob and
   RevenueCat Ads data, the target audience, and the Families-policy decision.
-- A reviewer account. Both stores review signed in, and a reviewer who cannot
-  get past the login screen rejects the build. Leave demo credentials in the
-  review notes.
+- The Google Play reviewer account is `review@casparel.com`. It is provisioned
+  as a permanent Institutional seat so reviewers can exercise the entire paid
+  product without making a real purchase; it remains a normal student account,
+  never an administrator. Keep its password only in Play Console's App access
+  instructions, never in this repository. Before every submission, test a
+  clean install, sign-in, the Institutional label/allowances, and absence of
+  sponsored cards. Apple may reuse the account when appropriate.
+- The public support mailbox is `support@casparel.com`; confirm it can receive
+  mail before submission because every in-app support and legal link uses it.
 - Age rating, content rating questionnaire, export compliance (already answered
   in `app.json` via `ITSAppUsesNonExemptEncryption: false`, which is correct for
   an app whose only cryptography is HTTPS).
