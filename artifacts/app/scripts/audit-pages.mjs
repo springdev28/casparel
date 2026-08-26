@@ -408,6 +408,24 @@ async function audit(pathname, colorScheme, width, options = {}) {
   await page.waitForTimeout(1200);
 
   const a11y = await page.evaluate(A11Y);
+  // A public privacy route is not discoverable if the homepage never links to
+  // it. Check the rendered footer, not just the router, because that missing
+  // connection is what prevented visitors from opening the policy.
+  const missingHomePrivacyLink =
+    pathname === "/" && !signedIn
+      ? await page.evaluate(() => {
+          const link = document.querySelector('footer a[href="/privacy"]');
+          if (!(link instanceof HTMLElement)) return true;
+          const box = link.getBoundingClientRect();
+          const style = getComputedStyle(link);
+          return (
+            box.width < 2 ||
+            box.height < 2 ||
+            style.visibility === "hidden" ||
+            style.display === "none"
+          );
+        })
+      : false;
   const findings = {
     lowContrast: await page.evaluate(CONTRAST),
     dashes: await page.evaluate(DASHES),
@@ -427,6 +445,7 @@ async function audit(pathname, colorScheme, width, options = {}) {
     pageErrors,
     unfixtured: [...unfixtured],
     guideNavigation,
+    missingHomePrivacyLink,
   };
   await ctx.close();
   return { pathname, colorScheme, width, signedIn, palette, findings };
@@ -465,6 +484,7 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
             headingSkips: [],
             unfixtured: [],
             guideNavigation: null,
+            missingHomePrivacyLink: false,
           },
         }),
       RENDER_TIMEOUT_MS,
@@ -574,6 +594,9 @@ for (const {
     ...(findings.guideNavigation &&
     !findings.guideNavigation.sidebarCoversViewport
       ? ["desktop sidebar does not cover the full viewport height"]
+      : []),
+    ...(findings.missingHomePrivacyLink
+      ? ["homepage footer has no visible Privacy Policy link"]
       : []),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind
