@@ -1469,6 +1469,12 @@ const TR: Record<string, string> = {
   "Topic": "Konu",
   "For schools": "Okullar için",
 
+  // Guide release notes and the matching settings description ship together,
+  // so Turkish readers receive the same navigation fix and safety explanation.
+  "Guide contents now slide smoothly between sections and stop cleanly at the end of the page.": "Rehber içindekiler bağlantıları artık bölümler arasında akıcı biçimde kayar ve sayfanın sonunda düzgünce durur.",
+  "Settings now includes password-protected controls to reset account data or permanently delete an account.": "Ayarlar artık hesap verilerini sıfırlamak veya bir hesabı kalıcı olarak silmek için parola korumalı denetimler içerir.",
+  "Reset or delete your account": "Hesabını sıfırla veya sil",
+  "The Settings danger zone explains what each action removes, then requires your current password before reset or permanent deletion can begin.": "Ayarlar'daki tehlikeli işlemler bölümü, her işlemin neleri kaldırdığını açıklar; ardından sıfırlama veya kalıcı silme başlamadan önce mevcut parolanı ister.",
   // Account lifecycle copy must preserve every consequence and recovery
   // boundary. A partial translation here would make the Turkish confirmation
   // materially less informed than the English one.
