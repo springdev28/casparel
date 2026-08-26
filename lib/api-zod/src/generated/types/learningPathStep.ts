@@ -23,4 +23,9 @@ export interface LearningPathStep {
      */
   query: string;
   completed: boolean;
+  /**
+     * The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.
+     * @nullable
+     */
+  resourceId?: number | null;
 }

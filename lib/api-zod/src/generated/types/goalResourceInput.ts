@@ -6,9 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type CommunityPathPathStepsItem = {
-  id: string;
-  title: string;
-  query: string;
-  completed: boolean;
-};
+export interface GoalResourceInput {
+  resourceId: number;
+}

@@ -198,6 +198,7 @@ const TR: Record<string, string> = {
   "Only you": "Yalnızca sen",
   "Open a resource and click Assign to Class to add it here.": "Bir kaynağı aç ve buraya eklemek için Sınıfa ata'ya tıkla.",
   "Open navigation": "Gezinmeyi aç",
+  "Open saved resource": "Kaydedilen kaynağı aç",
   "Open, cite, assign, remove": "Aç, kaynak göster, ödev ver, kaldır",
   "Organise": "Düzenle",
   "Organise resources into lists for a topic, unit, or project.": "Kaynakları bir konu, ünite ya da proje için listelerde düzenle.",

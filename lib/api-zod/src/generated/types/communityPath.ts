@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CommunityPathLevel } from './communityPathLevel';
-import type { CommunityPathPathStepsItem } from './communityPathPathStepsItem';
+import type { LearningPathStep } from './learningPathStep';
 
 /**
  * A goal somebody published for other people to clone. `creatorName` is stored on the row rather than joined, so a path stays attributed after the account that made it is deleted.
@@ -21,7 +21,7 @@ export interface CommunityPath {
   /** @nullable */
   description: string | null;
   level: CommunityPathLevel;
-  pathSteps: CommunityPathPathStepsItem[];
+  pathSteps: LearningPathStep[];
   useCount: number;
   createdAt: Date;
 }

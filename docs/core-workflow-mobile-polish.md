@@ -315,12 +315,43 @@ Verification recorded for this increment:
 - production Expo exports passed for iOS (1,673 modules) and Android (1,669 modules), each producing an approximately 6.4 MB Hermes bundle;
 - authored-source overview audit and whitespace validation passed.
 
-Still required before declaring the canonical slice complete:
+Still required after this increment:
 
 - verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
-- implement a real resource-to-goal/path association; the current sheet truthfully offers **View goals** and does not pretend navigation created a link;
 - continue Phase 3 with Learning List roles, accessible reordering, quality review, and editable list-to-path activation;
 - capture second-device persistence and analytics evidence in the release record.
+
+## Current implementation ledger — 2026-08-26
+
+This increment closes the association the previous one was honest about not
+having: a saved resource now reaches the goal it is for. A path step can carry
+the resource it is about, so the chain from **Save** to **Learning List** to a
+goal path is a single continuous flow rather than a save followed by a
+navigation that connects nothing.
+
+Implemented in this increment:
+
+- an optional `resourceId` on a learning path step, backwards compatible with every step written before it and carried through the community-path copy and clone;
+- `POST /learning-goals/{id}/resources`, server-authoritative and transactionally idempotent, with `201 created` and `200 already linked` responses that name the step;
+- resource visibility enforced on the attachment, so a submission still in the review queue cannot be read through a write;
+- a real **Connect to a goal** section in the post-save sheet, with loading, genuine empty, read-failure and retry, write-failure and retry, duplicate, and success states;
+- a Retry that remembers which write failed, so a failed goal attachment is never retried as an unrelated list add;
+- a goal path step that carries a resource opens it, on the phone and on the web;
+- one `resource_linked_to_goal` analytics milestone per resource that reaches a path, without duplicate-tap inflation;
+- one shared goal-ordering comparator behind the goals screen and the sheet, replacing the screen's private copy;
+- Turkish coverage for the ten new learner-facing strings on the phone and the one on the web.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 756 API assertions passed across 85 test files against a real PostgreSQL instance; one file and five environment-gated tests remained skipped;
+- 62 mobile tests passed;
+- the eight-tap regression proved the write is idempotent and the path is not lost: two resources attached concurrently both survive, one step each, reported as created once and already-linked seven times. Removing the advisory lock fails it, with seven of eight taps claiming to have created the step;
+- ticking a step off through `PATCH /learning-goals/{id}` keeps the resource on it — measured, because the response schema strips what the contract does not declare and this is exactly how the link would have disappeared silently;
+- 63 end-to-end flow checks passed against a real server and database, including attach, attach again, read the goal back fresh, and a stranger's attempt;
+- 26 authorization probes were refused, including attaching a resource to a goal belonging to another account;
+- the catalogue still describes what the server sends;
+- web production build passed, and the goals page renders and translates a resource-backed step.
 
 ## Agent prompt
 

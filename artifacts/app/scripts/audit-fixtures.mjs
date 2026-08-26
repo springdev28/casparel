@@ -254,6 +254,19 @@ const LEARNING_GOAL = {
   pathSteps: [
     { id: "s1", title: "HTML and CSS", query: "html css fundamentals", completed: true },
     { id: "s2", title: "TypeScript", query: "typescript for beginners", completed: false },
+    /*
+     * A step attached from a save, which is what `resourceId` is: the third
+     * shape a step comes in, and the only one that draws a link to the
+     * resource. Without one in the fixtures the audits render a goals page
+     * that has never seen the control they are meant to be reading.
+     */
+    {
+      id: "s3",
+      title: "Linear Algebra Done Right",
+      query: "Mathematics Linear Algebra Done Right",
+      completed: false,
+      resourceId: 101,
+    },
   ],
   createdAt: "2026-03-02T09:00:00.000Z",
   updatedAt: "2026-04-11T09:00:00.000Z",

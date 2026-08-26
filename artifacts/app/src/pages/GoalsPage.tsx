@@ -12,6 +12,7 @@ import {
   Check,
   CheckCircle2,
   Copy,
+  ExternalLink,
   Pause,
   Pencil,
   LayoutDashboard,
@@ -908,14 +909,29 @@ export default function GoalsPage() {
                     </div>
                     <div className="space-y-1">
                       {goal.pathSteps.map((step, index) => (
-                        <div key={step.id} className="flex items-center gap-1.5">
-                          <button type="button" aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`} translate="no" onClick={() => toggleStep(goal, step.id)} className={cn("flex size-7 shrink-0 items-center justify-center rounded border", step.completed && "bg-emerald-600 text-white")}>
-                            {step.completed && <Check size={14} />}
-                          </button>
-                          <Input defaultValue={step.title} key={`${step.id}:${step.title}`} translate="no" aria-label={`Rename ${step.title}`} className={cn("h-8 min-w-0 flex-1 text-sm", step.completed && "text-muted-foreground line-through")} onBlur={(event) => { if (event.currentTarget.value.trim() !== step.title) void renameStep(goal, step.id, event.currentTarget.value); }} />
-                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === 0} onClick={() => moveStep(goal, index, -1)} aria-label={`Move ${step.title} up`} translate="no"><ArrowUp size={14} /></Button>
-                          <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === goal.pathSteps.length - 1} onClick={() => moveStep(goal, index, 1)} aria-label={`Move ${step.title} down`} translate="no"><ArrowDown size={14} /></Button>
-                          <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive-text" onClick={() => deleteStep(goal, step.id)} aria-label={`Delete ${step.title}`} translate="no"><Trash2 size={14} /></Button>
+                        <div key={step.id} className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <button type="button" aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`} translate="no" onClick={() => toggleStep(goal, step.id)} className={cn("flex size-7 shrink-0 items-center justify-center rounded border", step.completed && "bg-emerald-600 text-white")}>
+                              {step.completed && <Check size={14} />}
+                            </button>
+                            <Input defaultValue={step.title} key={`${step.id}:${step.title}`} translate="no" aria-label={`Rename ${step.title}`} className={cn("h-8 min-w-0 flex-1 text-sm", step.completed && "text-muted-foreground line-through")} onBlur={(event) => { if (event.currentTarget.value.trim() !== step.title) void renameStep(goal, step.id, event.currentTarget.value); }} />
+                            <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === 0} onClick={() => moveStep(goal, index, -1)} aria-label={`Move ${step.title} up`} translate="no"><ArrowUp size={14} /></Button>
+                            <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === goal.pathSteps.length - 1} onClick={() => moveStep(goal, index, 1)} aria-label={`Move ${step.title} down`} translate="no"><ArrowDown size={14} /></Button>
+                            <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive-text" onClick={() => deleteStep(goal, step.id)} aria-label={`Delete ${step.title}`} translate="no"><Trash2 size={14} /></Button>
+                          </div>
+                          {/*
+                            A step attached from a save carries the resource it
+                            is about. On its own line rather than as a sixth
+                            control in the row above: at 375px that row already
+                            leaves the title field about 164px, and the phone is
+                            where these steps are made.
+                          */}
+                          {step.resourceId ? (
+                            <Link href={`/resources/${step.resourceId}`} className="ml-[34px] inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                              <ExternalLink size={12} aria-hidden="true" />
+                              Open saved resource
+                            </Link>
+                          ) : null}
                         </div>
                       ))}
                       {/*

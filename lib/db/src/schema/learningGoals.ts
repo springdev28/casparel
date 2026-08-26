@@ -25,6 +25,23 @@ export const learningGoalLevelEnum = pgEnum("learning_goal_level", [
   "advanced",
 ]);
 
+/**
+ * One step on a learning path.
+ *
+ * `resourceId` is optional and nullable on purpose: every step written before
+ * a learner could attach a resource has no such key, and a step that is only a
+ * search intent still has none. It is not a foreign key -- this is a jsonb
+ * document -- so a reader has to treat the id as a resource that may since have
+ * gone, which is what the screens that open one do.
+ */
+export type LearningPathStepRecord = {
+  id: string;
+  title: string;
+  query: string;
+  completed: boolean;
+  resourceId?: number | null;
+};
+
 export const learningGoalsTable = pgTable("learning_goals", {
   id: serial("id").primaryKey(),
   workspaceRole: text("workspace_role").$type<"student" | "teacher">().notNull().default("student"),
@@ -39,14 +56,7 @@ export const learningGoalsTable = pgTable("learning_goals", {
   targetDate: date("target_date", { mode: "string" }),
   status: learningGoalStatusEnum("status").notNull().default("active"),
   pathSteps: jsonb("path_steps")
-    .$type<
-      Array<{
-        id: string;
-        title: string;
-        query: string;
-        completed: boolean;
-      }>
-    >()
+    .$type<LearningPathStepRecord[]>()
     .notNull()
     .default([]),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
@@ -71,14 +81,7 @@ export const goalPathTemplatesTable = pgTable("goal_path_templates", {
   description: text("description"),
   level: learningGoalLevelEnum("level").notNull().default("beginner"),
   pathSteps: jsonb("path_steps")
-    .$type<
-      Array<{
-        id: string;
-        title: string;
-        query: string;
-        completed: boolean;
-      }>
-    >()
+    .$type<LearningPathStepRecord[]>()
     .notNull()
     .default([]),
   useCount: integer("use_count").notNull().default(0),

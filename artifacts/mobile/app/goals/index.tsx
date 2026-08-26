@@ -39,20 +39,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { GoalProgress, goalProgress } from '@/components/GoalProgress';
 import { goalStatusLabel } from '@/utils/labels';
-
-/** Active before paused before completed; newest movement first inside each. */
-const STATUS_ORDER: Record<string, number> = {
-  active: 0,
-  paused: 1,
-  completed: 2,
-};
-
-function byUrgency(a: LearningGoal, b: LearningGoal) {
-  const byStatus =
-    (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
-  if (byStatus !== 0) return byStatus;
-  return String(b.updatedAt).localeCompare(String(a.updatedAt));
-}
+import { byUrgency } from '@/utils/goals';
 
 function GoalRow({ goal, onPress }: { goal: LearningGoal; onPress: () => void }) {
   const colors = useColors();

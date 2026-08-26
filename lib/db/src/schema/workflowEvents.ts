@@ -21,6 +21,7 @@ export type WorkflowEventType =
   | "resource_viewed"
   | "resource_reviewed"
   | "resource_saved"
+  | "resource_linked_to_goal"
   | "activity_created"
   | "activity_remixed"
   | "class_shared"

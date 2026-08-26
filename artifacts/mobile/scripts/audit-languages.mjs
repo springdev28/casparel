@@ -210,6 +210,18 @@ function stubbedBody(pathname) {
         pathSteps: [
           { id: "s1", title: "Read the chapter", query: "chapter", completed: true },
           { id: "s2", title: "Try the practice set", query: "practice", completed: false },
+          /*
+           * A step attached from a save. It is the only one that draws the
+           * "saved resource" label and the control that opens it, and both
+           * are strings and an accessible name this audit is here to read.
+           */
+          {
+            id: "s3",
+            title: "Linear Algebra Done Right",
+            query: "Mathematics Linear Algebra Done Right",
+            completed: false,
+            resourceId: 101,
+          },
         ],
         createdAt: "2026-03-02T09:00:00.000Z",
         updatedAt: "2026-03-02T09:00:00.000Z",

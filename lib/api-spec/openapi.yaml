@@ -475,6 +475,42 @@ paths:
       responses:
         "204": { description: Goal deleted }
 
+  /learning-goals/{id}/resources:
+    post:
+      operationId: linkGoalResource
+      tags: [learning-goals]
+      summary: Attach a saved resource to a learning goal path
+      description: >-
+        Idempotent. A resource already on the path is reported with 200 and the
+        step that carries it; the path is not changed and no second step is
+        added.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalResourceInput"
+      responses:
+        "200":
+          description: The resource was already on this goal path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalResourceLink"
+        "201":
+          description: The resource is now a step on this goal path
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalResourceLink"
+        "400": { description: Invalid request }
+        "404": { description: Goal or resource not found }
+
   # ── Classes ───────────────────────────────────────────────────────────────
   /classes:
     get:
@@ -3198,14 +3234,7 @@ components:
         level: { type: string, enum: [beginner, intermediate, advanced] }
         pathSteps:
           type: array
-          items:
-            type: object
-            required: [id, title, query, completed]
-            properties:
-              id: { type: string }
-              title: { type: string }
-              query: { type: string }
-              completed: { type: boolean }
+          items: { $ref: "#/components/schemas/LearningPathStep" }
         useCount: { type: integer }
         createdAt: { type: string, format: date-time }
 
@@ -3995,6 +4024,27 @@ components:
           maxItems: 20
           items: { $ref: "#/components/schemas/LearningPathStep" }
 
+    GoalResourceInput:
+      type: object
+      required: [resourceId]
+      properties:
+        resourceId: { type: integer }
+
+    GoalResourceLink:
+      allOf:
+        - $ref: "#/components/schemas/LearningGoal"
+        - type: object
+          required: [stepId, alreadyLinked]
+          properties:
+            stepId:
+              type: string
+              description: The path step that carries the resource.
+            alreadyLinked:
+              type: boolean
+              description: >-
+                True when the resource was already on the path and the existing
+                step was returned unchanged.
+
     LearningPathStep:
       type: object
       required: [id, title, query, completed]
@@ -4003,6 +4053,12 @@ components:
         title: { type: string, minLength: 1, maxLength: 200 }
         query: { type: string, minLength: 1, maxLength: 300 }
         completed: { type: boolean }
+        resourceId:
+          type: ["integer", "null"]
+          description: >-
+            The saved resource this step is about, when the learner attached
+            one. Absent or null means the step is a search intent only, which
+            is what every step created before resources could be attached is.
 
     # ── Classes ─────────────────────────────────────────────────────────────
     Class:

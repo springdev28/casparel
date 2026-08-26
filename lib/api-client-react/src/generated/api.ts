@@ -67,6 +67,8 @@ import type {
   GetOembedThumbnail200,
   GetOembedThumbnailParams,
   GetResourceSourceReviewParams,
+  GoalResourceInput,
+  GoalResourceLink,
   HealthStatus,
   JoinClassInput,
   JoinedClass,
@@ -1935,6 +1937,79 @@ export const useDeleteLearningGoal = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteLearningGoalMutationOptions(options));
+    }
+
+export const getLinkGoalResourceUrl = (id: number,) => {
+
+
+
+
+  return `/api/learning-goals/${id}/resources`
+}
+
+/**
+ * Idempotent. A resource already on the path is reported with 200 and the step that carries it; the path is not changed and no second step is added.
+ * @summary Attach a saved resource to a learning goal path
+ */
+export const linkGoalResource = async (id: number,
+    goalResourceInput: GoalResourceInput, options?: Parameters<typeof customFetch>[1]): Promise<GoalResourceLink> => {
+
+  return customFetch<GoalResourceLink>(getLinkGoalResourceUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(goalResourceInput)
+  }
+);}
+
+
+
+
+
+export const getLinkGoalResourceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkGoalResource>>, TError,{id: number;data: BodyType<GoalResourceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkGoalResource>>, TError,{id: number;data: BodyType<GoalResourceInput>}, TContext> => {
+
+const mutationKey = ['linkGoalResource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkGoalResource>>, {id: number;data: BodyType<GoalResourceInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  linkGoalResource(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkGoalResourceMutationResult = NonNullable<Awaited<ReturnType<typeof linkGoalResource>>>
+    export type LinkGoalResourceMutationBody = BodyType<GoalResourceInput>
+    export type LinkGoalResourceMutationError = ErrorType<void>
+
+    /**
+ * @summary Attach a saved resource to a learning goal path
+ */
+export const useLinkGoalResource = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkGoalResource>>, TError,{id: number;data: BodyType<GoalResourceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkGoalResource>>,
+        TError,
+        {id: number;data: BodyType<GoalResourceInput>},
+        TContext
+      > => {
+      return useMutation(getLinkGoalResourceMutationOptions(options));
     }
 
 export const getListClassesUrl = () => {

@@ -577,7 +577,8 @@ export const ListLearningGoalsResponseItem = zod.object({
   "id": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemTitleMax),
   "query": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -630,7 +631,8 @@ export const CreateLearningGoalResponse = zod.object({
   "id": zod.string().min(1).max(createLearningGoalResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(createLearningGoalResponsePathStepsItemTitleMax),
   "query": zod.string().min(1).max(createLearningGoalResponsePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -675,7 +677,8 @@ export const UpdateLearningGoalBody = zod.object({
   "id": zod.string().min(1).max(updateLearningGoalBodyPathStepsItemIdMax),
   "title": zod.string().min(1).max(updateLearningGoalBodyPathStepsItemTitleMax),
   "query": zod.string().min(1).max(updateLearningGoalBodyPathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })).max(updateLearningGoalBodyPathStepsMax).optional()
 })
 
@@ -701,7 +704,8 @@ export const UpdateLearningGoalResponse = zod.object({
   "id": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemTitleMax),
   "query": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -716,6 +720,51 @@ export const DeleteLearningGoalParams = zod.object({
 })
 
 export const DeleteLearningGoalResponse = zod.void()
+
+
+/**
+ * Idempotent. A resource already on the path is reported with 200 and the step that carries it; the path is not changed and no second step is added.
+ * @summary Attach a saved resource to a learning goal path
+ */
+export const LinkGoalResourceParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const LinkGoalResourceBody = zod.object({
+  "resourceId": zod.int()
+})
+
+export const linkGoalResourceResponseOnePathStepsItemIdMax = 80;
+
+export const linkGoalResourceResponseOnePathStepsItemTitleMax = 200;
+
+export const linkGoalResourceResponseOnePathStepsItemQueryMax = 300;
+
+
+
+export const LinkGoalResourceResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(linkGoalResourceResponseOnePathStepsItemIdMax),
+  "title": zod.string().min(1).max(linkGoalResourceResponseOnePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(linkGoalResourceResponseOnePathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "stepId": zod.string().describe('The path step that carries the resource.'),
+  "alreadyLinked": zod.boolean().describe('True when the resource was already on the path and the existing step was returned unchanged.')
+}))
 
 
 /**
@@ -1367,7 +1416,8 @@ export const ListClassStudentGoalsResponseItem = zod.object({
   "id": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemIdMax),
   "title": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemTitleMax),
   "query": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -1417,7 +1467,8 @@ export const UpdateClassStudentGoalBody = zod.object({
   "id": zod.string().min(1).max(updateClassStudentGoalBodyPathStepsItemIdMax),
   "title": zod.string().min(1).max(updateClassStudentGoalBodyPathStepsItemTitleMax),
   "query": zod.string().min(1).max(updateClassStudentGoalBodyPathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })).max(updateClassStudentGoalBodyPathStepsMax).optional()
 })
 
@@ -1443,7 +1494,8 @@ export const UpdateClassStudentGoalResponse = zod.object({
   "id": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemIdMax),
   "title": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemTitleMax),
   "query": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
@@ -3643,6 +3695,14 @@ export const SetAssignmentCompletionResponse = zod.object({
 /**
  * @summary Paths other people have published, most used first
  */
+export const listCommunityPathsResponsePathStepsItemIdMax = 80;
+
+export const listCommunityPathsResponsePathStepsItemTitleMax = 200;
+
+export const listCommunityPathsResponsePathStepsItemQueryMax = 300;
+
+
+
 export const ListCommunityPathsResponseItem = zod.object({
   "id": zod.int(),
   "creatorId": zod.int(),
@@ -3653,10 +3713,11 @@ export const ListCommunityPathsResponseItem = zod.object({
   "description": zod.string().nullable(),
   "level": zod.enum(['beginner', 'intermediate', 'advanced']),
   "pathSteps": zod.array(zod.object({
-  "id": zod.string(),
-  "title": zod.string(),
-  "query": zod.string(),
-  "completed": zod.boolean()
+  "id": zod.string().min(1).max(listCommunityPathsResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(listCommunityPathsResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(listCommunityPathsResponsePathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })),
   "useCount": zod.int(),
   "createdAt": zod.coerce.date()
@@ -3671,6 +3732,14 @@ export const PublishGoalAsPathBody = zod.object({
   "goalId": zod.int()
 })
 
+export const publishGoalAsPathResponsePathStepsItemIdMax = 80;
+
+export const publishGoalAsPathResponsePathStepsItemTitleMax = 200;
+
+export const publishGoalAsPathResponsePathStepsItemQueryMax = 300;
+
+
+
 export const PublishGoalAsPathResponse = zod.object({
   "id": zod.int(),
   "creatorId": zod.int(),
@@ -3681,10 +3750,11 @@ export const PublishGoalAsPathResponse = zod.object({
   "description": zod.string().nullable(),
   "level": zod.enum(['beginner', 'intermediate', 'advanced']),
   "pathSteps": zod.array(zod.object({
-  "id": zod.string(),
-  "title": zod.string(),
-  "query": zod.string(),
-  "completed": zod.boolean()
+  "id": zod.string().min(1).max(publishGoalAsPathResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(publishGoalAsPathResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(publishGoalAsPathResponsePathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })),
   "useCount": zod.int(),
   "createdAt": zod.coerce.date()
@@ -3720,7 +3790,8 @@ export const CloneCommunityPathResponse = zod.object({
   "id": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemTitleMax),
   "query": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemQueryMax),
-  "completed": zod.boolean()
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
 })),
   "createdAt": zod.string(),
   "updatedAt": zod.string()

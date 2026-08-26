@@ -36,12 +36,29 @@ export const CommunityPathLevel = {
   advanced: 'advanced',
 } as const;
 
-export type CommunityPathPathStepsItem = {
+export interface LearningPathStep {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
   id: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
   title: string;
+  /**
+     * @minLength 1
+     * @maxLength 300
+     */
   query: string;
   completed: boolean;
-};
+  /**
+     * The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.
+     * @nullable
+     */
+  resourceId?: number | null;
+}
 
 /**
  * A goal somebody published for other people to clone. `creatorName` is stored on the row rather than joined, so a path stays attributed after the account that made it is deleted.
@@ -56,7 +73,7 @@ export interface CommunityPath {
   /** @nullable */
   description: string | null;
   level: CommunityPathLevel;
-  pathSteps: CommunityPathPathStepsItem[];
+  pathSteps: LearningPathStep[];
   useCount: number;
   createdAt: string;
 }
@@ -876,25 +893,6 @@ export const LearningGoalStatus = {
   completed: 'completed',
 } as const;
 
-export interface LearningPathStep {
-  /**
-     * @minLength 1
-     * @maxLength 80
-     */
-  id: string;
-  /**
-     * @minLength 1
-     * @maxLength 200
-     */
-  title: string;
-  /**
-     * @minLength 1
-     * @maxLength 300
-     */
-  query: string;
-  completed: boolean;
-}
-
 export interface LearningGoal {
   id: number;
   userId: number;
@@ -1020,6 +1018,17 @@ export interface LearningGoalPatch {
   /** @maxItems 20 */
   pathSteps?: LearningPathStep[];
 }
+
+export interface GoalResourceInput {
+  resourceId: number;
+}
+
+export type GoalResourceLink = LearningGoal & {
+  /** The path step that carries the resource. */
+  stepId: string;
+  /** True when the resource was already on the path and the existing step was returned unchanged. */
+  alreadyLinked: boolean;
+};
 
 export interface Class {
   id: number;

@@ -11,6 +11,13 @@
  * Everything else about a goal -- renaming it, adding steps, changing the
  * target date -- stays on the web, where there is room for it.
  *
+ * A step can carry the resource it is about, attached from the save sheet. That
+ * step gets a second control, because the two things somebody wants from it are
+ * different actions: open what I am meant to study, and say that I have. The id
+ * is a plain number in a jsonb document rather than a foreign key, so the
+ * resource behind it may have gone; the resource screen answers that case, and
+ * this screen does not pretend to know in advance.
+ *
  * The write is optimistic. A checkbox that waits for a round-trip before it
  * moves feels broken on a slow connection, and the failure is recoverable:
  * the tick goes back and the screen says so. The PATCH sends the whole
@@ -28,7 +35,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
@@ -52,62 +59,99 @@ function Step({
   step,
   busy,
   onToggle,
+  onOpenResource,
 }: {
   step: LearningPathStep;
   busy: boolean;
   onToggle: () => void;
+  onOpenResource: () => void;
 }) {
   const colors = useColors();
   const { t } = useLanguage();
   return (
-    <Pressable
-      onPress={onToggle}
-      disabled={busy}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: step.completed, disabled: busy }}
-      // The step's own words are the label; whether it is done is the state,
-      // which is what accessibilityState is for. Saying "Completed: …" in the
-      // label would announce it twice and disagree with itself mid-write.
-      accessibilityLabel={step.title}
-      accessibilityHint={step.completed ? t('Mark as not done') : t('Mark as done')}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.step,
         {
           backgroundColor: colors.card,
           borderColor: step.completed ? colors.successText : colors.border,
           borderRadius: colors.radius,
-          opacity: pressed || busy ? 0.7 : 1,
         },
       ]}
     >
-      <View
-        style={[
-          styles.box,
-          {
-            borderColor: step.completed ? colors.successText : colors.border,
-            backgroundColor: step.completed ? colors.successText : 'transparent',
-            borderRadius: 6,
-          },
-        ]}
+      {/*
+        The tick and the open control are siblings rather than one inside the
+        other. A Pressable is an accessibility container, and a control nested
+        in one is not reliably reachable by VoiceOver -- so the button that
+        opens the resource would have been invisible to exactly the readers who
+        most need it named.
+      */}
+      <Pressable
+        onPress={onToggle}
+        disabled={busy}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: step.completed, disabled: busy }}
+        // The step's own words are the label; whether it is done is the state,
+        // which is what accessibilityState is for. Saying "Completed: …" in the
+        // label would announce it twice and disagree with itself mid-write.
+        accessibilityLabel={step.title}
+        accessibilityHint={step.completed ? t('Mark as not done') : t('Mark as done')}
+        style={({ pressed }) => [styles.stepMain, { opacity: pressed || busy ? 0.7 : 1 }]}
       >
-        {step.completed ? (
-          <Feather name="check" size={14} color={colors.background} />
-        ) : null}
-      </View>
-      <Text
-        style={[
-          styles.stepTitle,
-          {
-            color: step.completed ? colors.mutedForeground : colors.foreground,
-            fontFamily: colors.fontFamily.sans,
-            textDecorationLine: step.completed ? 'line-through' : 'none',
-          },
-        ]}
-      >
-        {step.title}
-      </Text>
+        <View
+          style={[
+            styles.box,
+            {
+              borderColor: step.completed ? colors.successText : colors.border,
+              backgroundColor: step.completed ? colors.successText : 'transparent',
+              borderRadius: 6,
+            },
+          ]}
+        >
+          {step.completed ? (
+            <Feather name="check" size={14} color={colors.background} />
+          ) : null}
+        </View>
+        <View style={styles.stepText}>
+          <Text
+            style={[
+              styles.stepTitle,
+              {
+                color: step.completed ? colors.mutedForeground : colors.foreground,
+                fontFamily: colors.fontFamily.sans,
+                textDecorationLine: step.completed ? 'line-through' : 'none',
+              },
+            ]}
+          >
+            {step.title}
+          </Text>
+          {step.resourceId ? (
+            <Text style={[styles.stepMeta, { color: colors.mutedForeground }]}>
+              {t('Saved resource')}
+            </Text>
+          ) : null}
+        </View>
+      </Pressable>
       {busy ? <ActivityIndicator size="small" color={colors.mutedForeground} /> : null}
-    </Pressable>
+      {step.resourceId ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${t('Open')} ${step.title}`}
+          onPress={onOpenResource}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.openResource,
+            {
+              borderColor: colors.border,
+              backgroundColor: pressed ? colors.muted : 'transparent',
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <Feather name="external-link" size={16} color={colors.primary} />
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -115,6 +159,7 @@ export default function GoalScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id: string }>();
   const goalId = Number(id);
@@ -262,6 +307,9 @@ export default function GoalScreen() {
               onToggle={() => {
                 void toggle(step);
               }}
+              onOpenResource={() => {
+                if (step.resourceId) router.push(`/resource/${step.resourceId}`);
+              }}
             />
           ))}
         </View>
@@ -309,6 +357,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingVertical: 10,
   },
+  stepMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   box: {
     width: 22,
     height: 22,
@@ -316,6 +365,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepTitle: { flex: 1, fontSize: 15, lineHeight: 20 },
+  stepText: { flex: 1, gap: 2 },
+  stepTitle: { fontSize: 15, lineHeight: 20 },
+  stepMeta: { fontSize: 12 },
+  openResource: {
+    // Small beside the step, and still the 44pt both stores ask for once the
+    // hit slop above is counted.
+    width: 32,
+    height: 32,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   note: { fontSize: 13, textAlign: 'center' },
 });

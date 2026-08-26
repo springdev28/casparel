@@ -104,6 +104,30 @@ async function main() {
   /** Everything Ana makes, as [label, createdId, paths to try]. */
   const owned = [];
 
+  /*
+   * One resource of Ben's own, so the goal probe below is unambiguous.
+   * Attaching a resource id Ben cannot see would be refused for the wrong
+   * reason -- "no such resource" rather than "not your goal" -- and would pass
+   * against a handler that never checks whose goal it is.
+   */
+  const bensResource = await call("POST", "/api/resources", {
+    token: ben.token,
+    body: {
+      title: `Ben's own resource ${RUN}`,
+      url: `https://example.test/bens-${RUN}`,
+      format: "article",
+      subject: "Mathematics",
+      gradeLevel: "Year 12",
+    },
+  });
+  const bensResourceId =
+    bensResource.status < 400 ? bensResource.body?.id : undefined;
+  if (!bensResourceId) {
+    console.log(
+      `--   ${"attaching to someone's goal".padEnd(34)} not run: Ben could not save a resource (HTTP ${bensResource.status})`,
+    );
+  }
+
   async function create(label, path, body, paths) {
     const res = await call("POST", path, { token: ana.token, body });
     if (res.status !== 201 && res.status !== 200) {
@@ -125,6 +149,10 @@ async function main() {
     (id) => [
       ["GET", `/api/learning-goals/${id}`],
       ["PATCH", `/api/learning-goals/${id}`, { title: "Ben was here", subject: "Mathematics", level: "beginner" }],
+      // A write that reaches inside somebody's path rather than replacing it.
+      ...(bensResourceId
+        ? [["POST", `/api/learning-goals/${id}/resources`, { resourceId: bensResourceId }]]
+        : []),
       ["DELETE", `/api/learning-goals/${id}`],
     ],
   );

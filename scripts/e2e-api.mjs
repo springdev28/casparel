@@ -522,6 +522,95 @@ async function main() {
     );
   }
 
+  // ---- a saved resource reaches the goal it is for -------------------------
+  //
+  // The chain the product is built around is save -> organise -> study, and
+  // until there was a write for it the middle link was a button that opened
+  // the goals screen. What is asserted here is the part a unit test cannot
+  // see: that the step is on the path when the goal is read back fresh, and
+  // that asking twice does not put the resource on it twice.
+  const goal = await call("POST", "/api/learning-goals", {
+    token: alice.token,
+    body: { title: "Understand electric fields", subject: "Physics", level: "beginner" },
+  });
+  check("a learning goal can be created", goal.status === 201,
+    `HTTP ${goal.status} ${goal.text.slice(0, 160)}`);
+
+  const saved = await call("POST", "/api/resources", {
+    token: alice.token,
+    body: {
+      title: `Fields and potentials ${RUN}`,
+      url: `https://example.test/fields-${RUN}`,
+      format: "article",
+      subject: "Physics",
+      gradeLevel: "Year 12",
+    },
+  });
+  check("a resource can be saved", saved.status === 201 || saved.status === 200,
+    `HTTP ${saved.status} ${saved.text.slice(0, 160)}`);
+
+  if (goal.status === 201 && saved.body?.id) {
+    const stepsBefore = goal.body.pathSteps.length;
+    const linked = await call(
+      `POST`,
+      `/api/learning-goals/${goal.body.id}/resources`,
+      { token: alice.token, body: { resourceId: saved.body.id } },
+    );
+    check(
+      "a saved resource can be attached to a goal path",
+      linked.status === 201 && linked.body?.alreadyLinked === false,
+      `HTTP ${linked.status} ${linked.text.slice(0, 160)}`,
+    );
+
+    const step = (linked.body?.pathSteps ?? []).find(
+      (candidate) => candidate.id === linked.body?.stepId,
+    );
+    check(
+      "the step it added carries the resource",
+      step?.resourceId === saved.body.id,
+      `step: ${JSON.stringify(step)?.slice(0, 160)}`,
+    );
+
+    const twice = await call(
+      "POST",
+      `/api/learning-goals/${goal.body.id}/resources`,
+      { token: alice.token, body: { resourceId: saved.body.id } },
+    );
+    check(
+      "attaching the same resource again says so instead of duplicating it",
+      twice.status === 200 &&
+        twice.body?.alreadyLinked === true &&
+        twice.body?.stepId === linked.body?.stepId &&
+        twice.body?.pathSteps?.length === stepsBefore + 1,
+      `HTTP ${twice.status} ${twice.text.slice(0, 160)}`,
+    );
+
+    // Read back from a fresh request rather than trusting the write's own
+    // answer: this is the half that a screen actually shows on the next visit.
+    const reread = await call("GET", "/api/learning-goals", { token: alice.token });
+    const persisted = (reread.body ?? []).find(
+      (candidate) => candidate.id === goal.body.id,
+    );
+    check(
+      "the attached resource is still there when the goal is read again",
+      (persisted?.pathSteps ?? []).filter(
+        (candidate) => candidate.resourceId === saved.body.id,
+      ).length === 1,
+      `steps: ${JSON.stringify(persisted?.pathSteps)?.slice(0, 200)}`,
+    );
+
+    const strangersGoal = await call(
+      "POST",
+      `/api/learning-goals/${goal.body.id}/resources`,
+      { token: bob.token, body: { resourceId: saved.body.id } },
+    );
+    check(
+      "a stranger cannot attach anything to someone's goal",
+      strangersGoal.status === 403 || strangersGoal.status === 404,
+      `HTTP ${strangersGoal.status}`,
+    );
+  }
+
   // ---- classes: invite, accept, leave -------------------------------------
   const admin = await adminSession();
   if (!admin) {

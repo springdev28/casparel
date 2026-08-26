@@ -5,7 +5,15 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { db, learningGoalsTable, goalPathTemplatesTable, classMembersTable, usersTable, activityLogTable } from "@workspace/db";
+import {
+  db,
+  learningGoalsTable,
+  goalPathTemplatesTable,
+  classMembersTable,
+  resourcesTable,
+  usersTable,
+  activityLogTable,
+} from "@workspace/db";
 import {
   CreateLearningGoalBody,
   CreateLearningGoalResponse,
@@ -17,6 +25,9 @@ import {
   ListClassStudentGoalsResponse,
   UpdateClassStudentGoalBody,
   UpdateClassStudentGoalResponse,
+  LinkGoalResourceParams,
+  LinkGoalResourceBody,
+  LinkGoalResourceResponse,
 } from "@workspace/api-zod";
 import {
   requireAuth,
@@ -26,6 +37,9 @@ import { contentLimiter } from "../lib/limiters";
 import { isClassTeacher } from "../lib/authz";
 import { ensureAccountCapacity } from "../lib/planCapacity";
 import { validationMessage } from "../lib/validationMessage";
+import { recordWorkflowEvent } from "../lib/workflowAnalytics";
+import { resourceVisibilityCondition } from "../lib/resourceVisibility";
+import { isAdminRequest } from "../lib/adminAccess";
 
 const router: IRouter = Router();
 function dateString(
@@ -321,6 +335,139 @@ router.patch(
       return;
     }
     res.json(UpdateLearningGoalResponse.parse(goal));
+  },
+);
+
+/**
+ * Attach a saved resource to a goal's path.
+ *
+ * This is the link the save sheet used to be honest about not having: a
+ * learner could save a resource and then look at their goals, and nothing
+ * connected the two. A step now carries the resource it is about, so the goal
+ * screen can open it and the path stops being four search intents.
+ *
+ * Idempotent, and it has to be. The sheet is a phone sheet, and the second tap
+ * of a double tap arrives while the first is still in flight. Both would read
+ * a path without the resource and both would append a step, leaving the same
+ * resource on the path twice with two ids and no way for the learner to tell
+ * which is which. The advisory lock is the goal's own append lane, so the two
+ * taps queue and the second finds the first one's step and reports it as
+ * already there rather than as an error.
+ *
+ * The lane is (goal id, 1); Learning List appends hold (list id, 0). Goal and
+ * list ids overlap, and the second key is what keeps an unrelated list append
+ * from waiting behind a goal append.
+ */
+router.post(
+  "/learning-goals/:id/resources",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = LinkGoalResourceParams.safeParse(req.params);
+    const body = LinkGoalResourceBody.safeParse(req.body);
+    if (!params.success) {
+      res.status(400).json({ error: validationMessage(params.error) });
+      return;
+    }
+    if (!body.success) {
+      res.status(400).json({ error: validationMessage(body.error) });
+      return;
+    }
+
+    /*
+     * The resource has to be one this account can already see. Without the
+     * visibility condition, attaching would answer with the title of a
+     * submission still in the review queue -- a read of somebody else's
+     * unpublished work through a write endpoint.
+     */
+    const [resource] = await db
+      .select({
+        id: resourcesTable.id,
+        title: resourcesTable.title,
+        subject: resourcesTable.subject,
+      })
+      .from(resourcesTable)
+      .where(
+        and(
+          eq(resourcesTable.id, body.data.resourceId),
+          resourceVisibilityCondition(userId, isAdminRequest(req)),
+        ),
+      );
+    if (!resource) {
+      res.status(404).json({ error: "Resource not found" });
+      return;
+    }
+
+    const linked = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${params.data.id}, 1)`);
+      const [goal] = await tx
+        .select()
+        .from(learningGoalsTable)
+        .where(
+          and(
+            eq(learningGoalsTable.id, params.data.id),
+            eq(learningGoalsTable.userId, userId),
+            eq(
+              learningGoalsTable.workspaceRole,
+              userRole === "teacher" ? "teacher" : "student",
+            ),
+          ),
+        );
+      if (!goal) return null;
+
+      const existing = goal.pathSteps.find(
+        (step) => step.resourceId === resource.id,
+      );
+      if (existing) {
+        return { goal, stepId: existing.id, alreadyLinked: true };
+      }
+
+      // A resource title is not length-bounded the way a step title is, and a
+      // step longer than the contract allows would fail the response parse
+      // after the write had already landed.
+      const title = resource.title.trim().slice(0, 200) || "Saved resource";
+      const step = {
+        id: randomUUID(),
+        title,
+        query: `${resource.subject} ${title}`.trim().slice(0, 300),
+        completed: false,
+        resourceId: resource.id,
+      };
+      const [updated] = await tx
+        .update(learningGoalsTable)
+        .set({
+          pathSteps: [...goal.pathSteps, step],
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(learningGoalsTable.id, goal.id))
+        .returning();
+      return { goal: updated, stepId: step.id, alreadyLinked: false };
+    });
+
+    if (!linked) {
+      res.status(404).json({ error: "Learning goal not found" });
+      return;
+    }
+
+    // One milestone per resource that reached a path, so a second tap cannot
+    // inflate the count of learners who connected a save to a goal.
+    if (!linked.alreadyLinked) {
+      await recordWorkflowEvent({
+        userId,
+        event: "resource_linked_to_goal",
+        resourceId: resource.id,
+        context: { goalId: linked.goal.id, stepId: linked.stepId },
+      });
+    }
+
+    res.status(linked.alreadyLinked ? 200 : 201).json(
+      LinkGoalResourceResponse.parse({
+        ...linked.goal,
+        stepId: linked.stepId,
+        alreadyLinked: linked.alreadyLinked,
+      }),
+    );
   },
 );
 
