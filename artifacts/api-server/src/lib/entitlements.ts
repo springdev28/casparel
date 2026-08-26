@@ -30,6 +30,21 @@ export const PLAN_TEACHER_PRO = "teacher-pro";
 export const PLAN_INSTITUTIONAL = "institutional";
 
 /**
+ * Google Play signs in with this dedicated account while reviewing the app.
+ *
+ * The address is safe to identify publicly; its password remains an external
+ * Play Console secret. This is an entitlement exception, never an admin
+ * allowlist: reviewers need to exercise the paid product, not moderate it.
+ */
+export const GOOGLE_PLAY_REVIEW_EMAIL = "review@casparel.com";
+
+export function isGooglePlayReviewAccount(
+  email: string | null | undefined,
+): boolean {
+  return email?.trim().toLowerCase() === GOOGLE_PLAY_REVIEW_EMAIL;
+}
+
+/**
  * The public tier model.
  *
  * `plus` and `pro` are the original role-agnostic plans and remain valid and
@@ -403,6 +418,7 @@ export async function resolveAccountPlan(
 ): Promise<ResolvedAccountPlan> {
   const [row] = await db
     .select({
+      email: usersTable.email,
       plan: usersTable.plan,
       expiresAt: usersTable.planExpiresAt,
       role: usersTable.role,
@@ -410,10 +426,19 @@ export async function resolveAccountPlan(
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   const accountRole = row?.role ?? null;
+  // The Play review seat is provisioned directly rather than bought through
+  // Google Play. Keep the exact account on the highest finite subscription if
+  // a delayed RevenueCat event temporarily rewrites its stored plan.
+  const effectivePlan = isGooglePlayReviewAccount(row?.email)
+    ? PLAN_INSTITUTIONAL
+    : (row?.plan ?? null);
+  const effectiveExpiry = isGooglePlayReviewAccount(row?.email)
+    ? null
+    : (row?.expiresAt ?? null);
   return {
     entitlements: entitlementsForPlan(
-      row?.plan ?? null,
-      row?.expiresAt ?? null,
+      effectivePlan,
+      effectiveExpiry,
       accountRole,
     ),
     accountRole,

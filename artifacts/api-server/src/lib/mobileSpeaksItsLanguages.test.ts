@@ -213,6 +213,8 @@ describe("the phone app's translations", () => {
       "Institutional",
       "App Store",
       "Google Play",
+      // Ad-network identifier sent to RevenueCat's analytics API, never UI.
+      "AdMob",
       // RevenueCat package types and internal action names, compared against
       // rather than displayed.
       "ANNUAL",

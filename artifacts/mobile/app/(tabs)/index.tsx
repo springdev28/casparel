@@ -28,6 +28,7 @@ import { DueWork } from '@/components/DueWork';
 import { StudySets } from '@/components/StudySets';
 import { GoalsSummary } from '@/components/GoalsSummary';
 import { MessagesButton } from '@/components/MessagesButton';
+import { SponsoredLearningResourceCard } from '@/components/SponsoredLearningResourceCard';
 import type { ActivityItem } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -249,6 +250,11 @@ export default function DashboardScreen() {
         </View>
         <MessagesButton />
       </View>
+
+      {/* Android free tier only. The component owns its consent and entitlement
+          gates and returns nothing everywhere else, so organic content never
+          needs advertising branches. */}
+      <SponsoredLearningResourceCard />
 
       {/* Stat Cards */}
       {summaryFailed ? (

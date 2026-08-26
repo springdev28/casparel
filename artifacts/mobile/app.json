@@ -10,19 +10,14 @@
     "scheme": "casparel",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.casparel.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Casparel needs access to your photos so you can set a profile picture.",
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleLocalizations": [
-          "en",
-          "tr"
-        ]
+        "CFBundleLocalizations": ["en", "tr"]
       }
     },
     "android": {
@@ -70,7 +65,9 @@
             "backgroundColor": "#0b0f16"
           }
         }
-      ]
+      ],
+      "react-native-google-mobile-ads",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,

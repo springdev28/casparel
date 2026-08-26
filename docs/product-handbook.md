@@ -65,7 +65,7 @@ The Expo Router app provides focused native flows:
 - quick and deep source review;
 - profile, usage and the plan paywall.
 
-The native identifiers are `com.casparel.app`; the Expo slug and URL scheme are `casparel`. RevenueCat is loaded behind a platform-safe adapter, resolves the `plus`, `pro` and legacy `premium` entitlements, and logs in with the numeric Casparel user ID so purchases can reconcile to the server account.
+The native identifiers are `com.casparel.app`; the Expo slug and URL scheme are `casparel`. RevenueCat is loaded behind a platform-safe adapter, resolves the paid entitlements, and logs in with the numeric Casparel user ID so purchases can reconcile to the server account. On Android, a free account may receive one clearly labelled native AdMob card on the dashboard. Google UMP gates initialization, requests are non-personalized and use conservative under-age/content treatment, paid or indeterminate entitlements suppress the card, and RevenueCat Ads receives the supported lifecycle and impression-revenue callbacks. iOS and web remain ad-free.
 
 The mobile app is intentionally narrower than the web app. It does not currently provide the full web experiences for goals, canvases, lists, messaging, forum, activities, admin, or AI-assisted open-catalog discovery. Paywall copy must not imply that missing native experiences exist.
 
@@ -285,6 +285,7 @@ Source-review results are cached. Deep mode limits concurrent work for a user/re
 | Google Classroom      | Course import, students and resource sharing           | Google client ID/secret and redirect URI                              |
 | Google Calendar/iCal  | Calendar connection and exported feeds/events          | Google client ID/secret; calendar redirect URI where needed           |
 | RevenueCat            | Native products, offerings and entitlement state       | native public SDK keys; `REVENUECAT_WEBHOOK_AUTH` on server/dashboard |
+| AdMob + RevenueCat Ads | Android native sponsored card and unified ad reporting | AdMob app/unit IDs, UMP message, ILRD and RevenueCat Ads configuration |
 | Hostinger             | Production frontend/API hosting and smoke verification | deployment secrets and `SITE_URL` in GitHub                           |
 
 Secrets belong in host-managed environment variables or a gitignored `.env`, never client source or committed documentation.
@@ -300,7 +301,7 @@ Copy `artifacts/api-server/.env.example` for the authoritative server list. Boot
 
 Optional controls include RevenueCat webhook auth, Google OAuth settings, admin allowlist, CORS origins, catalog remote-fetch controls, AI fallback flags/quotas, logging, and strict database-readiness mode. The server defaults to port 8080 on Replit and 5000 locally. The web dev server defaults to 23863 and reads `API_URL`; never hardcode these values.
 
-Mobile native builds also need the platform RevenueCat public SDK keys expected by `utils/revenuecat.ts`. A key is public client configuration, but it must still point to the correct RevenueCat project and store products.
+Mobile native builds also need the platform RevenueCat public SDK keys expected by `utils/revenuecat.ts`. A key is public client configuration, but it must still point to the correct RevenueCat project and store products. Production Android builds additionally require the AdMob application and dashboard-native ad-unit IDs documented in `.env.example`; preview builds use Google's sample IDs.
 
 ## 9. Development workflow
 

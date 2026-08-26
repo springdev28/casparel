@@ -25,6 +25,9 @@ import {
   CAPACITY_BY_TIER,
   capacityLimitFor,
   entitlementsForPlan,
+  getAccountEntitlements,
+  GOOGLE_PLAY_REVIEW_EMAIL,
+  isGooglePlayReviewAccount,
   isPlanActive,
   isPremiumAccount,
   normalizePlan,
@@ -408,5 +411,28 @@ describe("isPremiumAccount", () => {
       role: "teacher",
     });
     await expect(isPremiumAccount(1)).resolves.toBe(false);
+  });
+
+  it("keeps the exact Google Play reviewer on Institutional", async () => {
+    mockAccountRow({
+      email: `  ${GOOGLE_PLAY_REVIEW_EMAIL.toUpperCase()}  `,
+      plan: "free",
+      expiresAt: null,
+      role: "student",
+    });
+    await expect(getAccountEntitlements(1)).resolves.toMatchObject({
+      tier: "institutional",
+      label: "Institutional",
+    });
+    await expect(isPremiumAccount(1)).resolves.toBe(true);
+  });
+});
+
+describe("Google Play review account", () => {
+  it("matches only the dedicated address, case-insensitively", () => {
+    expect(isGooglePlayReviewAccount("review@casparel.com")).toBe(true);
+    expect(isGooglePlayReviewAccount(" REVIEW@CASPAREL.COM ")).toBe(true);
+    expect(isGooglePlayReviewAccount("reviewer@casparel.com")).toBe(false);
+    expect(isGooglePlayReviewAccount(null)).toBe(false);
   });
 });

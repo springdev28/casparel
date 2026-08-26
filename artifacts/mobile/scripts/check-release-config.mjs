@@ -173,7 +173,13 @@ if (app) {
   const pkg = readJson(path.join(MOBILE, "package.json"));
   // A config plugin that is not listed does nothing, and the symptom is a
   // native permission string or entitlement quietly missing from the build.
-  for (const plugin of ["expo-image-picker", "expo-secure-store", "expo-splash-screen"]) {
+  for (const plugin of [
+    "expo-build-properties",
+    "expo-image-picker",
+    "expo-secure-store",
+    "expo-splash-screen",
+    "react-native-google-mobile-ads",
+  ]) {
     if (pkg?.dependencies?.[plugin] && !plugins.includes(plugin)) {
       fail(
         `app.json: ${plugin} is a dependency but is not in expo.plugins, so its native configuration is not applied to the build.`,
