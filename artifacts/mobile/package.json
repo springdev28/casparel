@@ -45,7 +45,7 @@
     "react-dom": "catalog:",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
-    "react-native-google-mobile-ads": "^16.5.0",
+    "react-native-google-mobile-ads": "16.0.0",
     "react-native-keyboard-controller": "1.18.5",
     "react-native-purchases": "^10.7.1",
     "react-native-reanimated": "~4.1.1",
@@ -64,6 +64,7 @@
     "@types/react": "~19.1.10",
     "@types/react-dom": "~19.1.7",
     "babel-plugin-react-compiler": "^19.0.0-beta-e993439-20250117",
+    "babel-preset-expo": "~54.0.12",
     "typescript": "~5.9.2",
     "vitest": "4.1.10"
   }

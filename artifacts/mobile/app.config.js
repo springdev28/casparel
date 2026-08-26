@@ -73,6 +73,7 @@ module.exports = {
           },
         },
       ],
+      "./plugins/with-worklets-cmake-output",
     ],
   },
 };

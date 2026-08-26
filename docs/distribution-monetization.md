@@ -66,6 +66,27 @@ must nevertheless reference Casparel's real RevenueCat/AdMob projects. Dynamic
 Expo configuration refuses a `production` build without both AdMob IDs so a
 test ID cannot accidentally reach Google Play.
 
+`react-native-google-mobile-ads` is intentionally pinned to `16.0.0`. That
+release uses Google Mobile Ads Android SDK 24.6, whose Kotlin metadata is
+compatible with Expo 54's Kotlin 2.1 toolchain. Version 16.1 and newer move to
+Google SDK 25, and 16.4/16.5 currently resolve SDK 25.4, which is compiled with
+Kotlin 2.3 and fails an Expo 54 native build. Re-test a complete Android release
+assembly before changing this pin; a passing JavaScript bundle cannot detect
+native Kotlin metadata incompatibility.
+
+The mobile package also declares `babel-preset-expo` directly because
+`babel.config.js` names it directly. pnpm does not let Gradle's Metro process
+reach through Expo's transitive dependency tree, even though `expo export`
+can appear to work from the workspace root.
+
+Expo 54 uses Android Gradle Plugin 8.11, which publishes Worklets' compiled
+library under `intermediates/cxx`; Reanimated 4.1 still links the historical
+`intermediates/cmake` path. The local Expo plugin
+`plugins/with-worklets-cmake-output.js` republishes that one generated library
+after Worklets' native task. Keep the workaround until the Expo-54-compatible
+Reanimated line no longer references the old path, then remove it only after a
+clean Android release assembly succeeds.
+
 ## External setup before production ads
 
 1. Create `com.casparel.app` and one native dashboard ad unit in AdMob.
