@@ -40,7 +40,7 @@ const BUDGET = Number(process.env.AUDIT_TRANSLATION_MAX ?? 0);
 
 const PAGES = (
   process.env.AUDIT_PAGES ??
-  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy,/delete-account"
+  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy,/delete-account,/reset-account"
 )
   .split(",")
   .filter(Boolean);

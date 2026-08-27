@@ -43,6 +43,12 @@
       "heading": "Delete your Casparel account",
       "canonical": "https://casparel.com/delete-account"
     },
+    "/reset-account": {
+      "title": "Casparel: Reset your account data",
+      "description": "How to reset private Casparel account data while keeping your login, subscription, classes, shared work, and public contributions.",
+      "heading": "Reset your Casparel account data",
+      "canonical": "https://casparel.com/reset-account"
+    },
     "/auth/login": {
       "title": "Casparel: Sign in",
       "description": "Sign in to Casparel.",

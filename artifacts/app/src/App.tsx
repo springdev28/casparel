@@ -75,6 +75,7 @@ const PrivacyPage = lazy(() =>
 );
 const SupportPage = lazy(() => import("./pages/SupportPage"));
 const DeleteAccountPage = lazy(() => import("./pages/DeleteAccountPage"));
+const ResetAccountPage = lazy(() => import("./pages/ResetAccountPage"));
 const DownloadPage = lazy(() => import("./pages/DownloadPage"));
 const CodeSigningPage = lazy(() => import("./pages/CodeSigningPage"));
 const PlansPage = lazy(() => import("./pages/PlansPage"));
@@ -364,6 +365,9 @@ function Router() {
           resource that works after the app has been uninstalled. */}
       <Route path="/delete-account">
         {() => <PublicRoute component={DeleteAccountPage} />}
+      </Route>
+      <Route path="/reset-account">
+        {() => <PublicRoute component={ResetAccountPage} />}
       </Route>
       {/* Public on purpose: this is where a search for "casparel download"
           and every store/release link should land, signed in or not. */}

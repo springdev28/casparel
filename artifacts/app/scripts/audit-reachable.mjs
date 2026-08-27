@@ -49,7 +49,7 @@ const ROOT = path.resolve(HERE, "../dist/public");
 const PORT = Number(process.env.AUDIT_REACH_PORT ?? 4330);
 
 /** Signed out for the public pages, signed in for the rest. */
-const PUBLIC_PAGES = (process.env.AUDIT_REACH_PUBLIC ?? "/,/resources,/plans,/support,/delete-account")
+const PUBLIC_PAGES = (process.env.AUDIT_REACH_PUBLIC ?? "/,/resources,/plans,/support,/delete-account,/reset-account")
   .split(",")
   .filter(Boolean);
 const SIGNED_IN_PAGES = (

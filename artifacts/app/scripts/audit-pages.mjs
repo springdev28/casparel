@@ -37,12 +37,12 @@ const ROOT = path.resolve(
   "../dist/public",
 );
 const PORT = Number(process.env.AUDIT_PORT ?? 4321);
-// /terms, /privacy, and /delete-account are in the default set because the app stores require
+// /terms, /privacy, /delete-account, and /reset-account are in the default set because the app stores require
 // them to resolve for a signed-out reviewer, so a regression there is a
 // submission blocker rather than a cosmetic issue.
 const PAGES = (
   process.env.AUDIT_PAGES ??
-  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy,/delete-account"
+  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy,/delete-account,/reset-account"
 ).split(",");
 // Signed-in pages, rendered against fixtures rather than a live API. These are
 // where the regressions that reached production actually were, so they matter
@@ -548,6 +548,25 @@ async function audit(pathname, colorScheme, width, options = {}) {
           );
         })
       : false;
+  const missingAccountResetDisclosure =
+    pathname === "/reset-account" && !signedIn
+      ? await page.evaluate(() => {
+          const copy = document.body.textContent?.replace(/\s+/g, " ") ?? "";
+          const settingsLink = document.querySelector('a[href="/settings"]');
+          return (
+            !settingsLink ||
+            ![
+              "Reset your Casparel account data",
+              "Tap Profile",
+              "Reset account data",
+              "Reset removes",
+              "Reset keeps",
+              "Security and account access",
+              "does not delete your Casparel account",
+            ].every((required) => copy.includes(required))
+          );
+        })
+      : false;
   const findings = {
     lowContrast: await page.evaluate(CONTRAST),
     dashes: await page.evaluate(DASHES),
@@ -571,6 +590,7 @@ async function audit(pathname, colorScheme, width, options = {}) {
     missingHomePrivacyLink,
     missingPrivacyAdvertisingDisclosure,
     missingAccountDeletionDisclosure,
+    missingAccountResetDisclosure,
   };
   await ctx.close();
   return { pathname, colorScheme, width, signedIn, palette, findings };
@@ -612,6 +632,7 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
             supportInteractions: null,
             missingHomePrivacyLink: false,
             missingPrivacyAdvertisingDisclosure: false,
+            missingAccountResetDisclosure: false,
           },
         }),
       RENDER_TIMEOUT_MS,
@@ -750,6 +771,9 @@ for (const {
       ? [
           "account deletion page is missing its request path or retention disclosure",
         ]
+      : []),
+    ...(findings.missingAccountResetDisclosure
+      ? ["account reset page is missing its steps or data-retention distinction"]
       : []),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind

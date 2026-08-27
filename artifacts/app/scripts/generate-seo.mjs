@@ -121,6 +121,15 @@ const routes = [
     heading: "Delete your Casparel account",
   },
   {
+    path: "/reset-account",
+    changefreq: "yearly",
+    priority: "0.3",
+    title: "Casparel: Reset your account data",
+    description:
+      "How to reset private Casparel account data while keeping your login, subscription, classes, shared work, and public contributions.",
+    heading: "Reset your Casparel account data",
+  },
+  {
     path: "/auth/login",
     sitemap: false,
     title: "Casparel: Sign in",

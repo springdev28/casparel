@@ -404,6 +404,9 @@ export default function SupportPage() {
                 <Link href="/delete-account" className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-muted">
                   Account deletion <ChevronRight className="size-4" />
                 </Link>
+                <Link href="/reset-account" className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-muted">
+                  Account reset <ChevronRight className="size-4" />
+                </Link>
                 <Link href="/code-signing" className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-muted">
                   Verify a desktop download <ChevronRight className="size-4" />
                 </Link>

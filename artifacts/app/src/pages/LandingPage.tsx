@@ -658,6 +658,12 @@ export default function LandingPage() {
             >
               Delete account
             </Link>
+            <Link
+              href="/reset-account"
+              className="font-medium text-primary-text hover:underline"
+            >
+              Reset account
+            </Link>
           </nav>
           <p>© {new Date().getFullYear()} Casparel</p>
         </div>
