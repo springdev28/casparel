@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -45,6 +46,7 @@ export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const registerMutation = useRegister();
 
@@ -56,6 +58,12 @@ export default function RegisterScreen() {
     }
     if (password.length < MIN_PASSWORD) {
       setErrorMsg(`Choose a password of at least ${MIN_PASSWORD} characters.`);
+      return;
+    }
+    if (!acceptedTerms) {
+      setErrorMsg(
+        t('You must accept the Terms of Service and Privacy Policy to create an account.'),
+      );
       return;
     }
     registerMutation.mutate(
@@ -175,9 +183,46 @@ export default function RegisterScreen() {
             </Text>
           ) : null}
 
+          <View style={styles.consentRow}>
+            <Pressable
+              onPress={() => setAcceptedTerms((accepted) => !accepted)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: acceptedTerms }}
+              accessibilityLabel={t('Accept the Terms of Service and Privacy Policy')}
+              hitSlop={8}
+              style={styles.checkbox}
+            >
+              <Feather
+                name={acceptedTerms ? 'check-square' : 'square'}
+                size={22}
+                color={acceptedTerms ? colors.primary : colors.mutedForeground}
+              />
+            </Pressable>
+            <Text style={[styles.consentText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
+              {t('I agree to the')}{' '}
+              <Text
+                accessibilityRole="link"
+                onPress={() => void Linking.openURL('https://casparel.com/terms')}
+                style={{ color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}
+              >
+                {t('Terms of Service')}
+              </Text>
+              {' '}{t('and')}{' '}
+              <Text
+                accessibilityRole="link"
+                onPress={() => void Linking.openURL('https://casparel.com/privacy')}
+                style={{ color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}
+              >
+                {t('Privacy Policy')}
+              </Text>
+              .
+            </Text>
+          </View>
+
           <Button
             onPress={handleRegister}
             loading={registerMutation.isPending}
+            disabled={!acceptedTerms}
             size="lg"
             style={{ marginTop: 24 }}
           >
@@ -214,6 +259,9 @@ const styles = StyleSheet.create({
   subheading: { fontSize: 15 },
   card: { borderWidth: 1, padding: 20 },
   error: { fontSize: 13, marginTop: 12 },
+  consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 18 },
+  checkbox: { minWidth: 30, minHeight: 30, alignItems: 'center', justifyContent: 'center' },
+  consentText: { flex: 1, fontSize: 13, lineHeight: 20 },
   footerLink: { alignSelf: 'center' },
   footer: { fontSize: 13, textAlign: 'center' },
 });

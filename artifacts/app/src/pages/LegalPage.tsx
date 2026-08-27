@@ -111,8 +111,20 @@ export function TermsPage() {
         </p>
         <p>
           Do not post material you have no right to share, or content that is
-          unlawful, harassing, or designed to mislead other learners. We may
-          remove content and restrict accounts that break this.
+          unlawful, hateful, threatening, harassing, bullying, sexually
+          explicit or pornographic; contains nudity outside a legitimate
+          educational, scientific or medical context; depicts graphic,
+          uncensored real-world violence; exploits or endangers children;
+          gives dangerous instructions; impersonates someone; or is designed
+          to mislead other learners. These rules apply to profiles, public
+          posts and uploads, comments, and direct messages.
+        </p>
+        <p>
+          We may proactively screen content, prevent it from being posted,
+          review private reports, remove or hide content, and restrict accounts
+          that break these rules. You can report or block another user from the
+          relevant profile or conversation. Reports are submitted privately to
+          the moderation team.
         </p>
       </Section>
 

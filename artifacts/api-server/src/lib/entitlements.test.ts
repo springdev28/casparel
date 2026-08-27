@@ -25,12 +25,14 @@ import {
   CAPACITY_BY_TIER,
   capacityLimitFor,
   entitlementsForPlan,
+  hasBuiltInGeneralProAccess,
   isPlanActive,
   isPremiumAccount,
   normalizePlan,
   planForEntitlementIds,
   planLevel,
   planRoleRequirement,
+  resolveAccountPlan,
   upgradeTargetFor,
   type PlanCapacity,
   type SubscriptionTier,
@@ -55,6 +57,27 @@ const CAPACITIES: PlanCapacity[] = [
   "learning-goals",
   "canvases",
 ];
+
+describe("built-in general Pro access", () => {
+  it("belongs only to the review account and is case-insensitive", () => {
+    expect(hasBuiltInGeneralProAccess("review@casparel.com")).toBe(true);
+    expect(hasBuiltInGeneralProAccess(" Review@Casparel.com ")).toBe(true);
+    expect(hasBuiltInGeneralProAccess("support@casparel.com")).toBe(false);
+  });
+
+  it("resolves the review account as role-agnostic Pro even from a free row", async () => {
+    mockAccountRow({
+      email: "review@casparel.com",
+      plan: "free",
+      expiresAt: null,
+      role: "student",
+    });
+    const result = await resolveAccountPlan(1);
+    expect(result.entitlements.tier).toBe("pro");
+    expect(result.entitlements.planRole).toBeNull();
+    expect(result.isAdmin).toBe(false);
+  });
+});
 
 function mockAccountRow(row: Record<string, unknown> | null) {
   vi.mocked(db.select).mockImplementation(

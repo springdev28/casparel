@@ -215,6 +215,32 @@ describe("POST /api/auth/register", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/already in use/i);
   });
+
+  it("registers the review account on the role-agnostic Pro plan", async () => {
+    mockUserRow = {
+      id: 4,
+      email: "review@casparel.com",
+      name: "App Review",
+      role: "student",
+      createdAt: new Date().toISOString(),
+    };
+
+    const res = await request(buildApp())
+      .post("/api/auth/register")
+      .send({
+        email: "review@casparel.com",
+        password: "Password1!",
+        name: "App Review",
+      });
+
+    expect(res.status).toBe(201);
+    expect(lastInserted).toMatchObject({
+      email: "review@casparel.com",
+      role: "student",
+      plan: "pro",
+      planExpiresAt: null,
+    });
+  });
 });
 
 describe("POST /api/auth/login", () => {

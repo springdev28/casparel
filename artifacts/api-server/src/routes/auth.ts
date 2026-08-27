@@ -74,7 +74,11 @@ import {
 } from "@workspace/api-zod";
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
-import { resolveAccountPlan } from "../lib/entitlements";
+import {
+  hasBuiltInGeneralProAccess,
+  PLAN_PRO,
+  resolveAccountPlan,
+} from "../lib/entitlements";
 import { accountCapacityReport } from "../lib/planCapacity";
 import { deepAllowance } from "../lib/deepAllowance";
 import { publicUserColumns } from "../lib/userColumns";
@@ -322,7 +326,15 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   const passwordHash = await hashPassword(password);
   const [user] = await db
     .insert(usersTable)
-    .values({ email, passwordHash, name, role })
+    .values({
+      email,
+      passwordHash,
+      name,
+      role,
+      ...(hasBuiltInGeneralProAccess(email)
+        ? { plan: PLAN_PRO, planExpiresAt: null }
+        : {}),
+    })
     .returning(publicUserColumns);
   const token = issueToken(user.id, user.role, user.activeRole);
   res.status(201).json(RegisterResponse.parse({ user, token }));
@@ -339,7 +351,12 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   // Project explicitly (contract fields + the hash we need to verify against)
   // so a pending migration can never take down login itself.
   const [row] = await db
-    .select({ ...publicUserColumns, passwordHash: usersTable.passwordHash })
+    .select({
+      ...publicUserColumns,
+      passwordHash: usersTable.passwordHash,
+      plan: usersTable.plan,
+      planExpiresAt: usersTable.planExpiresAt,
+    })
     .from(usersTable)
     .where(eq(usersTable.email, email));
   if (!row) {
@@ -351,12 +368,32 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
-  const { passwordHash: _passwordHash, ...user } = row;
+  const {
+    passwordHash: _passwordHash,
+    plan: _plan,
+    planExpiresAt: _planExpiresAt,
+    ...user
+  } = row;
   let loggedInUser = user;
+  const accountUpdates: {
+    role?: "admin";
+    plan?: typeof PLAN_PRO;
+    planExpiresAt?: null;
+  } = {};
   if (user.role !== "admin" && isAllowlistedAdminEmail(user.email)) {
+    accountUpdates.role = "admin";
+  }
+  if (
+    hasBuiltInGeneralProAccess(user.email) &&
+    (row.plan !== PLAN_PRO || row.planExpiresAt !== null)
+  ) {
+    accountUpdates.plan = PLAN_PRO;
+    accountUpdates.planExpiresAt = null;
+  }
+  if (Object.keys(accountUpdates).length > 0) {
     [loggedInUser] = await db
       .update(usersTable)
-      .set({ role: "admin" })
+      .set(accountUpdates)
       .where(eq(usersTable.id, user.id))
       .returning(publicUserColumns);
   }

@@ -7,6 +7,10 @@ import { LoginBody, LoginResponse } from "@workspace/api-zod";
 import { pool, runMigrations } from "@workspace/db";
 import { issueToken, verifyPassword } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
+import {
+  hasBuiltInGeneralProAccess,
+  PLAN_PRO,
+} from "../lib/entitlements";
 import { logger } from "../lib/logger";
 import { validationMessage } from "../lib/validationMessage";
 
@@ -227,6 +231,16 @@ router.post("/auth/login", async (req, res): Promise<void> => {
         [row.id],
       );
       row = { ...row, role: "admin" };
+    }
+
+    if (hasBuiltInGeneralProAccess(row.email)) {
+      await pool.query(
+        `UPDATE public.users
+            SET plan = $1, plan_expires_at = NULL
+          WHERE id = $2
+            AND (plan <> $1 OR plan_expires_at IS NOT NULL)`,
+        [PLAN_PRO, row.id],
+      );
     }
 
     const user = toApiUser(row);

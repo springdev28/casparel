@@ -2799,6 +2799,8 @@ paths:
         "401": { description: Not authenticated }
         "403": { description: This account is not accepting messages }
         "404": { description: No such user }
+        "422": { description: The first message was rejected by proactive safety moderation }
+        "503": { description: Message safety moderation is temporarily unavailable }
 
   /direct-messages/conversations/{id}:
     get:
@@ -2850,6 +2852,8 @@ paths:
         "401": { description: Not authenticated }
         "403": { description: Waiting for this request to be accepted }
         "404": { description: Conversation not found }
+        "422": { description: The message was rejected by proactive safety moderation }
+        "503": { description: Message safety moderation is temporarily unavailable }
 
   /direct-messages/conversations/{id}/request:
     patch:

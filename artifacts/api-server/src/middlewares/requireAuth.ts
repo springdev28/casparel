@@ -7,6 +7,10 @@ import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { decodeToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
+import {
+  hasBuiltInGeneralProAccess,
+  PLAN_PRO,
+} from "../lib/entitlements";
 
 export interface AuthenticatedRequest extends Request {
   userId: number;
@@ -54,6 +58,8 @@ async function resolveAuthenticatedUser(
       email: usersTable.email,
       role: usersTable.role,
       activeRole: usersTable.activeRole,
+      plan: usersTable.plan,
+      planExpiresAt: usersTable.planExpiresAt,
       bannedAt: usersTable.bannedAt,
     })
     .from(usersTable)
@@ -71,17 +77,32 @@ async function resolveAuthenticatedUser(
     return;
   }
 
-  // Keep allowlisted admins promoted on any authenticated request, not just at
-  // login, otherwise a long-lived session keeps its stale non-admin role until
-  // the user happens to sign in again. The write happens at most once.
+  // Keep built-in account grants reconciled on any authenticated request, not
+  // just at login, otherwise a long-lived session can keep stale access until
+  // the user happens to sign in again. The write happens only when needed.
   let accountRole = user.role;
+  const accountUpdates: {
+    role?: "admin";
+    plan?: typeof PLAN_PRO;
+    planExpiresAt?: null;
+  } = {};
   if (accountRole !== "admin" && user.email && isAllowlistedAdminEmail(user.email)) {
-    const [promoted] = await db
+    accountUpdates.role = "admin";
+  }
+  if (
+    user.email &&
+    hasBuiltInGeneralProAccess(user.email) &&
+    (user.plan !== PLAN_PRO || user.planExpiresAt !== null)
+  ) {
+    accountUpdates.plan = PLAN_PRO;
+    accountUpdates.planExpiresAt = null;
+  }
+  if (Object.keys(accountUpdates).length > 0) {
+    await db
       .update(usersTable)
-      .set({ role: "admin" })
-      .where(eq(usersTable.id, user.id))
-      .returning({ role: usersTable.role });
-    if (promoted?.role) accountRole = promoted.role;
+      .set(accountUpdates)
+      .where(eq(usersTable.id, user.id));
+    if (accountUpdates.role) accountRole = accountUpdates.role;
   }
 
   const request = req as AuthenticatedRequest;

@@ -7,6 +7,7 @@
  *  • an allowlisted email on a non-admin row is promoted on any request
  *  • a non-allowlisted email is never promoted
  *  • an already-admin allowlisted account is not written again
+ *  • the review account is reconciled to the role-agnostic Pro plan
  *  • banned accounts are still rejected before any promotion happens
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -30,6 +31,7 @@ import { requireAuth, type AuthenticatedRequest } from "./requireAuth.js";
 import { issueToken } from "../lib/auth.js";
 
 const ALLOWLISTED = "baharyuksel0403@gmail.com";
+const REVIEW_ACCOUNT = "review@casparel.com";
 const OUTSIDER = "someone.else@example.com";
 const USER_ID = 7;
 
@@ -56,6 +58,8 @@ beforeEach(() => {
     email: OUTSIDER,
     role: "student",
     activeRole: "student",
+    plan: "free",
+    planExpiresAt: null,
     bannedAt: null,
   };
 
@@ -95,6 +99,22 @@ describe("requireAuth admin promotion", () => {
     const res = await callWhoami();
     expect(res.status).toBe(200);
     expect(res.body.accountRole).toBe("admin");
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("reconciles the review account to general Pro without making it admin", async () => {
+    mockUserRow = { ...mockUserRow, email: REVIEW_ACCOUNT };
+    const res = await callWhoami();
+    expect(res.status).toBe(200);
+    expect(res.body.accountRole).toBe("student");
+    expect(setMock).toHaveBeenCalledWith({ plan: "pro", planExpiresAt: null });
+  });
+
+  it("does not re-write the review account when general Pro is already active", async () => {
+    mockUserRow = { ...mockUserRow, email: REVIEW_ACCOUNT, plan: "pro" };
+    const res = await callWhoami();
+    expect(res.status).toBe(200);
+    expect(res.body.accountRole).toBe("student");
     expect(db.update).not.toHaveBeenCalled();
   });
 

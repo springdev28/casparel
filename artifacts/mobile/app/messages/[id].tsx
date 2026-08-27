@@ -22,6 +22,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -40,10 +41,16 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import {
   getGetConversationQueryKey,
+  getGetUserSafetyStatusQueryKey,
   getListConversationsQueryKey,
+  ReportUserInputReason,
   useAnswerConversationRequest,
+  useBlockUser,
   useGetConversation,
+  useGetUserSafetyStatus,
+  useReportUser,
   useSendMessage,
+  useUnblockUser,
 } from '@workspace/api-client-react';
 import type { DirectMessage } from '@workspace/api-client-react';
 import { ErrorState } from '@/components/ErrorState';
@@ -137,6 +144,21 @@ export default function ConversationScreen() {
 
   const [draft, setDraft] = React.useState('');
   const [failure, setFailure] = React.useState<string | null>(null);
+  const [reportOpen, setReportOpen] = React.useState(false);
+  const [reportReason, setReportReason] = React.useState<ReportUserInputReason>(
+    ReportUserInputReason.unsafe_content,
+  );
+  const [reportDetails, setReportDetails] = React.useState('');
+  const otherUserId = data?.other.id ?? 0;
+  const safety = useGetUserSafetyStatus(otherUserId, {
+    query: {
+      enabled: otherUserId > 0,
+      queryKey: getGetUserSafetyStatusQueryKey(otherUserId),
+    },
+  });
+  const blockUser = useBlockUser();
+  const unblockUser = useUnblockUser();
+  const reportUser = useReportUser();
 
   const refresh = () => {
     void queryClient.invalidateQueries({
@@ -172,6 +194,73 @@ export default function ConversationScreen() {
         ),
     },
   });
+
+  const refreshSafety = () =>
+    queryClient.invalidateQueries({
+      queryKey: getGetUserSafetyStatusQueryKey(otherUserId),
+    });
+
+  const toggleBlock = () => {
+    if (!otherUserId) return;
+    if (safety.data?.blocked) {
+      void unblockUser.mutateAsync({ id: otherUserId }).then(async () => {
+        await refreshSafety();
+        Alert.alert(t('User unblocked'), t('You can exchange messages with this user again.'));
+      }).catch((blockError) => {
+        Alert.alert(
+          t('Could not unblock user'),
+          describeApiFailure(blockError, t('Please try again.'), t),
+        );
+      });
+      return;
+    }
+    Alert.alert(
+      t('Block this user?'),
+      t('They will no longer be able to message you or collaborate with you.'),
+      [
+        { text: t('Cancel'), style: 'cancel' },
+        {
+          text: t('Block user'),
+          style: 'destructive',
+          onPress: () => {
+            void blockUser.mutateAsync({ id: otherUserId }).then(async () => {
+              await refreshSafety();
+              refresh();
+              Alert.alert(t('User blocked'));
+            }).catch((blockError) => {
+              Alert.alert(
+                t('Could not block user'),
+                describeApiFailure(blockError, t('Please try again.'), t),
+              );
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const submitReport = async () => {
+    if (!otherUserId) return;
+    try {
+      const context = t('Reported from a direct-message conversation.');
+      const details = [context, reportDetails.trim()].filter(Boolean).join(' ').slice(0, 1000);
+      await reportUser.mutateAsync({
+        id: otherUserId,
+        data: { reason: reportReason, details },
+      });
+      setReportDetails('');
+      setReportOpen(false);
+      Alert.alert(
+        t('Report received'),
+        t('Thanks. This was submitted privately for moderation review.'),
+      );
+    } catch (reportError) {
+      Alert.alert(
+        t('Could not submit report'),
+        describeApiFailure(reportError, t('Please try again.'), t),
+      );
+    }
+  };
 
   // The other person's name is the title, which is what a thread is called
   // everywhere else on a phone.
@@ -233,6 +322,91 @@ export default function ConversationScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 96 : 0}
     >
+      <View style={[styles.safetyBar, { borderBottomColor: colors.border }]}>
+        <Pressable
+          onPress={() => setReportOpen((open) => !open)}
+          accessibilityRole="button"
+          accessibilityLabel={t('Report privately')}
+          style={styles.safetyAction}
+        >
+          <Feather name="flag" size={15} color={colors.mutedForeground} />
+          <Text style={[styles.safetyActionText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansMedium }]}>
+            {t('Report privately')}
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={toggleBlock}
+          disabled={blockUser.isPending || unblockUser.isPending || safety.isLoading}
+          accessibilityRole="button"
+          accessibilityLabel={safety.data?.blocked ? t('Unblock user') : t('Block user')}
+          style={styles.safetyAction}
+        >
+          <Feather name={safety.data?.blocked ? 'user-check' : 'user-x'} size={15} color={colors.destructiveText} />
+          <Text style={[styles.safetyActionText, { color: colors.destructiveText, fontFamily: colors.fontFamily.sansMedium }]}>
+            {safety.data?.blocked ? t('Unblock user') : t('Block user')}
+          </Text>
+        </Pressable>
+      </View>
+
+      {reportOpen ? (
+        <View style={[styles.reportPanel, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <Text style={[styles.reportTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+            {t('Why are you reporting this user?')}
+          </Text>
+          <View style={styles.reasonRow}>
+            {([
+              [ReportUserInputReason.spam, t('Spam')],
+              [ReportUserInputReason.harassment, t('Harassment')],
+              [ReportUserInputReason.impersonation, t('Impersonation')],
+              [ReportUserInputReason.unsafe_content, t('Unsafe content')],
+              [ReportUserInputReason.other, t('Other')],
+            ] as const).map(([reason, label]) => (
+              <Pressable
+                key={reason}
+                onPress={() => setReportReason(reason)}
+                style={[
+                  styles.reasonChip,
+                  {
+                    backgroundColor: reportReason === reason ? colors.primary : colors.background,
+                    borderColor: reportReason === reason ? colors.primary : colors.border,
+                    borderRadius: 999,
+                  },
+                ]}
+              >
+                <Text style={{ color: reportReason === reason ? colors.primaryForeground : colors.foreground, fontFamily: colors.fontFamily.sans, fontSize: 12 }}>
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            value={reportDetails}
+            onChangeText={setReportDetails}
+            placeholder={t('Optional details for the moderation team…')}
+            placeholderTextColor={colors.mutedForeground}
+            maxLength={900}
+            multiline
+            style={[styles.reportInput, { color: colors.foreground, borderColor: colors.border, borderRadius: colors.radius, fontFamily: colors.fontFamily.sans }]}
+          />
+          <View style={styles.reportButtons}>
+            <Pressable onPress={() => setReportOpen(false)} style={styles.reportButton}>
+              <Text style={{ color: colors.mutedForeground, fontFamily: colors.fontFamily.sansMedium }}>{t('Cancel')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void submitReport()}
+              disabled={reportUser.isPending}
+              style={[styles.reportButton, { backgroundColor: colors.primary, borderRadius: colors.radius, opacity: reportUser.isPending ? 0.6 : 1 }]}
+            >
+              {reportUser.isPending ? (
+                <ActivityIndicator size="small" color={colors.primaryForeground} />
+              ) : (
+                <Text style={{ color: colors.primaryForeground, fontFamily: colors.fontFamily.sansMedium }}>{t('Submit report')}</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       <FlatList
         style={styles.flex}
         contentContainerStyle={styles.thread}
@@ -273,7 +447,18 @@ export default function ConversationScreen() {
         </Text>
       ) : null}
 
-      {data.incomingRequest ? (
+      {safety.data?.blocked ? (
+        <View
+          style={[
+            styles.footer,
+            { borderTopColor: colors.border, paddingBottom: insets.bottom + 10 },
+          ]}
+        >
+          <Text style={[styles.requestNote, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
+            {t('This user is blocked. Unblock them to send messages.')}
+          </Text>
+        </View>
+      ) : data.incomingRequest ? (
         <View
           style={[
             styles.footer,
@@ -445,6 +630,24 @@ const styles = StyleSheet.create({
   bubbleText: { fontSize: 15, lineHeight: 21 },
   bubbleWhen: { fontSize: 10, alignSelf: 'flex-end' },
   failure: { fontSize: 13, paddingHorizontal: 14, paddingBottom: 6 },
+  safetyBar: {
+    minHeight: 44,
+    borderBottomWidth: 1,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 18,
+  },
+  safetyAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  safetyActionText: { fontSize: 12 },
+  reportPanel: { borderBottomWidth: 1, padding: 14, gap: 10 },
+  reportTitle: { fontSize: 14 },
+  reasonRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  reasonChip: { borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7 },
+  reportInput: { borderWidth: 1, minHeight: 72, padding: 10, fontSize: 13, textAlignVertical: 'top' },
+  reportButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  reportButton: { minHeight: 40, minWidth: 104, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
   footer: { borderTopWidth: 1, paddingHorizontal: 12, paddingTop: 10, gap: 10 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   input: {

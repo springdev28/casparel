@@ -36,9 +36,12 @@ import {
   useGetCalendarIcalUrl,
   useDisconnectCalendarGoogle,
   getGetCalendarStatusQueryKey,
+  getGetMyPreferencesQueryKey,
   getGetMeQueryKey,
   DeleteAccountInputConfirmation,
   ResetAccountInputConfirmation,
+  useGetMyPreferences,
+  useUpdateMyPreferences,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -217,6 +220,8 @@ export default function ProfileScreen() {
   const queryClient = useQueryClient();
 
   const { data: me, isLoading, isError, error, isFetching, refetch } = useGetMe();
+  const preferences = useGetMyPreferences();
+  const updatePreferences = useUpdateMyPreferences();
   const updateMe = useUpdateMe();
   const uploadAvatar = useUploadAvatar();
   const switchRoleMutation = useSwitchRole();
@@ -411,6 +416,22 @@ export default function ProfileScreen() {
       );
     } finally {
       setSwitching(false);
+    }
+  }
+
+  async function handleMessageRequests(value: boolean) {
+    try {
+      await updatePreferences.mutateAsync({
+        data: { allowMessageRequests: value },
+      });
+      await queryClient.invalidateQueries({
+        queryKey: getGetMyPreferencesQueryKey(),
+      });
+    } catch (preferenceError) {
+      Alert.alert(
+        t('Could not save message privacy'),
+        describeApiFailure(preferenceError, t('Please try again.'), t),
+      );
     }
   }
 
@@ -839,6 +860,42 @@ export default function ProfileScreen() {
         {t('CALENDAR')}
       </Text>
       <CalendarSection colors={colors} />
+
+      {/* A phone user can close unsolicited conversation requests without
+          having to find the web settings page. */}
+      <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+        {t('PRIVACY & SAFETY')}
+      </Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+        <View style={styles.row}>
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.primary + '15', borderRadius: colors.radius - 2 }]}>
+              <Feather name="message-circle" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                {t('Message requests')}
+              </Text>
+              <Text style={[styles.rowDescription, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
+                {t('Allow other Casparel users to request a conversation.')}
+              </Text>
+            </View>
+          </View>
+          {preferences.isLoading ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Switch
+              accessibilityLabel={t('Message requests')}
+              accessibilityHint={t('Allow other Casparel users to request a conversation.')}
+              value={preferences.data?.allowMessageRequests ?? true}
+              onValueChange={(value) => void handleMessageRequests(value)}
+              disabled={updatePreferences.isPending}
+              trackColor={{ false: colors.muted, true: colors.primary + 'AA' }}
+              thumbColor={(preferences.data?.allowMessageRequests ?? true) ? colors.primary : colors.mutedForeground}
+            />
+          )}
+        </View>
+      </View>
 
       {/*
         The language, above sign-out because it is a setting somebody changes

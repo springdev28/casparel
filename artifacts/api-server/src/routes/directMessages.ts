@@ -2,7 +2,13 @@
  * @fileOverview API role: implements the Direct Messages HTTP domain, including request validation and response shaping.
  * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
  */
-import { Router, type IRouter } from "express";
+import {
+  Router,
+  type IRouter,
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
@@ -13,10 +19,12 @@ import {
   userPreferencesTable,
   usersTable,
 } from "@workspace/db";
+import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
+import { throughAi } from "../lib/aiHealth";
 import { contentLimiter } from "../lib/limiters";
 
 const router: IRouter = Router();
@@ -25,6 +33,46 @@ const createConversationBody = z.object({
   body: z.string().trim().min(1).max(4000).optional(),
 });
 const sendMessageBody = z.object({ body: z.string().trim().min(1).max(4000) });
+
+/**
+ * Direct messages are user-generated content too. Check every non-empty
+ * message before any conversation or message row is written. Unlike the
+ * public forum, chat fails closed: calling a chat "moderated" is not honest if
+ * a provider outage silently lets unreviewed private messages through.
+ */
+export async function requireSafeDirectMessage(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+  if (!body) {
+    next();
+    return;
+  }
+
+  try {
+    const moderation = await throughAi("direct message moderation", () =>
+      openai.moderations.create({
+        model: "omni-moderation-latest",
+        input: body.slice(0, 4000),
+      }),
+    );
+    if (moderation.results[0]?.flagged) {
+      res.status(422).json({
+        error: "This message cannot be sent because it violates the community safety rules",
+        code: "MESSAGE_UNSAFE",
+      });
+      return;
+    }
+    next();
+  } catch {
+    res.status(503).json({
+      error: "Message safety checks are temporarily unavailable. Try again shortly.",
+      code: "MESSAGE_MODERATION_UNAVAILABLE",
+    });
+  }
+}
 
 function pair(first: number, second: number) {
   return first < second ? [first, second] as const : [second, first] as const;
@@ -107,6 +155,7 @@ router.post(
   "/direct-messages/conversations",
   contentLimiter,
   requireAuth,
+  requireSafeDirectMessage,
   async (req, res): Promise<void> => {
     const auth = req as AuthenticatedRequest;
     const parsed = createConversationBody.safeParse(req.body);
@@ -195,6 +244,7 @@ router.post(
   "/direct-messages/conversations/:id/messages",
   contentLimiter,
   requireAuth,
+  requireSafeDirectMessage,
   async (req, res): Promise<void> => {
     const auth = req as AuthenticatedRequest;
     const parsed = sendMessageBody.safeParse(req.body);

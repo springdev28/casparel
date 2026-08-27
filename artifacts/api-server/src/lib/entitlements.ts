@@ -30,6 +30,17 @@ export const PLAN_TEACHER_PRO = "teacher-pro";
 export const PLAN_INSTITUTIONAL = "institutional";
 
 /**
+ * Product-owned accounts that receive the original, role-agnostic Pro plan
+ * without a store subscription. Keep support@casparel.com out of this list:
+ * it is a public contact mailbox, not a Casparel user account.
+ */
+const BUILT_IN_GENERAL_PRO_EMAILS = new Set(["review@casparel.com"]);
+
+export function hasBuiltInGeneralProAccess(email: string): boolean {
+  return BUILT_IN_GENERAL_PRO_EMAILS.has(email.trim().toLowerCase());
+}
+
+/**
  * The public tier model.
  *
  * `plus` and `pro` are the original role-agnostic plans and remain valid and
@@ -403,6 +414,7 @@ export async function resolveAccountPlan(
 ): Promise<ResolvedAccountPlan> {
   const [row] = await db
     .select({
+      email: usersTable.email,
       plan: usersTable.plan,
       expiresAt: usersTable.planExpiresAt,
       role: usersTable.role,
@@ -410,10 +422,13 @@ export async function resolveAccountPlan(
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   const accountRole = row?.role ?? null;
+  const builtInGeneralPro = Boolean(
+    row?.email && hasBuiltInGeneralProAccess(row.email),
+  );
   return {
     entitlements: entitlementsForPlan(
-      row?.plan ?? null,
-      row?.expiresAt ?? null,
+      builtInGeneralPro ? PLAN_PRO : (row?.plan ?? null),
+      builtInGeneralPro ? null : (row?.expiresAt ?? null),
       accountRole,
     ),
     accountRole,
