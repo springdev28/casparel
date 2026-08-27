@@ -118,7 +118,9 @@
 .vanta-background {
   position: fixed;
   inset: 0 0 0 16rem;
-  z-index: 0;
+  /* The canvas is a sibling of the scrolling main surface. It must sit above
+     that surface's opaque fallback, while page content remains at z-10. */
+  z-index: 1;
   overflow: hidden;
   pointer-events: none;
   opacity: var(--vanta-opacity, 0.5);

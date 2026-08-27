@@ -384,6 +384,7 @@ async function auditSupportInteractions(page, pathname, width, signedIn) {
           hashUpdated: false,
           copyConfirmed: false,
           backgroundCoversScroller: !desktopShell,
+          backgroundLayeredAboveSurface: !desktopShell,
         };
       }
 
@@ -408,6 +409,10 @@ async function auditSupportInteractions(page, pathname, width, signedIn) {
             backgroundBox.top <= Math.max(0, scrollerBox.top) &&
             backgroundBox.bottom >=
               Math.min(window.innerHeight, scrollerBox.bottom)),
+        backgroundLayeredAboveSurface:
+          !desktopShell ||
+          (Boolean(background) &&
+            Number.parseInt(getComputedStyle(background).zIndex, 10) > 0),
         geometry: {
           scroller: scrollerBox
             ? { top: scrollerBox.top, bottom: scrollerBox.bottom }
@@ -730,6 +735,10 @@ for (const {
       ? [
           `support background ends inside the signed-in scroll region (${JSON.stringify(findings.supportInteractions.geometry)})`,
         ]
+      : []),
+    ...(findings.supportInteractions &&
+    !findings.supportInteractions.backgroundLayeredAboveSurface
+      ? ["support background is hidden behind the main page surface"]
       : []),
     ...(findings.missingHomePrivacyLink
       ? ["homepage footer has no visible Privacy Policy link"]
