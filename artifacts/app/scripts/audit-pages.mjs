@@ -57,7 +57,7 @@ const PAGES = (
 // accumulates it.
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
-  "/dashboard,/profile,/resources,/catalog,/settings,/plans,/admin," +
+  "/dashboard,/profile,/resources,/catalog,/settings,/plans,/support,/admin," +
     "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people,/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial," +
     // The detail page. It rendered its error boundary until the workflow
     // fixture existed and `workflow?.steps?.[key]` guarded both levels, which
@@ -363,6 +363,65 @@ async function auditGuideNavigation(page, pathname, width, signedIn) {
   });
 }
 
+/**
+ * The support controls failed specifically in an embedded browser: the
+ * Clipboard API existed but rejected writes, and jumping to the contact form
+ * scrolled a Vanta canvas that had been mounted inside the page scroller.
+ * Exercise both interactions instead of merely checking that the controls
+ * render.
+ */
+async function auditSupportInteractions(page, pathname, width, signedIn) {
+  if (pathname !== "/support") return null;
+
+  return page.evaluate(
+    async ({ desktopShell }) => {
+      const contact = document.querySelector('a[href="#contact-support"]');
+      const copy = [...document.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("Copy address"),
+      );
+      if (!(contact instanceof HTMLElement) || !(copy instanceof HTMLElement)) {
+        return {
+          hashUpdated: false,
+          copyConfirmed: false,
+          backgroundCoversScroller: !desktopShell,
+        };
+      }
+
+      contact.click();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      copy.click();
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const shellScroller = document.querySelector(".app-shell-frame > main");
+      const background = document.querySelector(".vanta-background");
+      const scrollerBox = shellScroller?.getBoundingClientRect();
+      const backgroundBox = background?.getBoundingClientRect();
+      return {
+        hashUpdated: window.location.hash === "#contact-support",
+        copyConfirmed:
+          copy.textContent?.includes("Copied") === true ||
+          document.body.textContent?.includes("Email address copied") === true,
+        backgroundCoversScroller:
+          !desktopShell ||
+          (Boolean(scrollerBox) &&
+            Boolean(backgroundBox) &&
+            backgroundBox.top <= Math.max(0, scrollerBox.top) &&
+            backgroundBox.bottom >=
+              Math.min(window.innerHeight, scrollerBox.bottom)),
+        geometry: {
+          scroller: scrollerBox
+            ? { top: scrollerBox.top, bottom: scrollerBox.bottom }
+            : null,
+          background: backgroundBox
+            ? { top: backgroundBox.top, bottom: backgroundBox.bottom }
+            : null,
+        },
+      };
+    },
+    { desktopShell: signedIn && width >= 1024 },
+  );
+}
+
 async function audit(pathname, colorScheme, width, options = {}) {
   const { signedIn = false, palette } = options;
   const ctx = await browser.newContext({
@@ -370,7 +429,20 @@ async function audit(pathname, colorScheme, width, options = {}) {
     colorScheme,
   });
   const unfixtured = signedIn
-    ? await installSession(ctx, { palette })
+    ? await installSession(ctx, {
+        palette,
+        // Most renders deliberately disable the animated background. This
+        // interaction check is specifically about its viewport coverage, so
+        // enable it only for the desktop support render.
+        ...(pathname === "/support" && width >= 1024
+          ? {
+              transformBody: (body, fixturePath) =>
+                fixturePath === "/api/users/me/preferences"
+                  ? { ...body, ambientStyle: "globe" }
+                  : body,
+            }
+          : {}),
+      })
     : new Set();
   const page = await ctx.newPage();
   const pageErrors = [];
@@ -382,6 +454,12 @@ async function audit(pathname, colorScheme, width, options = {}) {
   await page.waitForTimeout(1500);
 
   const guideNavigation = await auditGuideNavigation(
+    page,
+    pathname,
+    width,
+    signedIn,
+  );
+  const supportInteractions = await auditSupportInteractions(
     page,
     pathname,
     width,
@@ -451,15 +529,18 @@ async function audit(pathname, colorScheme, width, options = {}) {
           const requestLink = document.querySelector(
             'a[href^="mailto:support@casparel.com?subject=Casparel%20account%20deletion%20request"]',
           );
-          return !requestLink || ![
-            "Delete your Casparel account",
-            "Tap Profile",
-            "Delete account",
-            "Deleted or destroyed",
-            "Anonymized shared records",
-            "may be indefinitely",
-            "Legal and security retention",
-          ].every((required) => copy.includes(required));
+          return (
+            !requestLink ||
+            ![
+              "Delete your Casparel account",
+              "Tap Profile",
+              "Delete account",
+              "Deleted or destroyed",
+              "Anonymized shared records",
+              "may be indefinitely",
+              "Legal and security retention",
+            ].every((required) => copy.includes(required))
+          );
         })
       : false;
   const findings = {
@@ -481,6 +562,7 @@ async function audit(pathname, colorScheme, width, options = {}) {
     pageErrors,
     unfixtured: [...unfixtured],
     guideNavigation,
+    supportInteractions,
     missingHomePrivacyLink,
     missingPrivacyAdvertisingDisclosure,
     missingAccountDeletionDisclosure,
@@ -522,6 +604,7 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
             headingSkips: [],
             unfixtured: [],
             guideNavigation: null,
+            supportInteractions: null,
             missingHomePrivacyLink: false,
             missingPrivacyAdvertisingDisclosure: false,
           },
@@ -634,6 +717,20 @@ for (const {
     !findings.guideNavigation.sidebarCoversViewport
       ? ["desktop sidebar does not cover the full viewport height"]
       : []),
+    ...(findings.supportInteractions &&
+    !findings.supportInteractions.hashUpdated
+      ? ["support contact link did not update the section hash"]
+      : []),
+    ...(findings.supportInteractions &&
+    !findings.supportInteractions.copyConfirmed
+      ? ["support email copy did not confirm success"]
+      : []),
+    ...(findings.supportInteractions &&
+    !findings.supportInteractions.backgroundCoversScroller
+      ? [
+          `support background ends inside the signed-in scroll region (${JSON.stringify(findings.supportInteractions.geometry)})`,
+        ]
+      : []),
     ...(findings.missingHomePrivacyLink
       ? ["homepage footer has no visible Privacy Policy link"]
       : []),
@@ -641,7 +738,9 @@ for (const {
       ? ["privacy policy is missing the mobile advertising disclosure"]
       : []),
     ...(findings.missingAccountDeletionDisclosure
-      ? ["account deletion page is missing its request path or retention disclosure"]
+      ? [
+          "account deletion page is missing its request path or retention disclosure",
+        ]
       : []),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind

@@ -1185,19 +1185,20 @@ export default function AppShell({ children }: AppShellProps) {
           </span>
         </div>
 
+        {/* The ambient background is a sibling of the scrolling main region.
+            Keeping it outside the scroller prevents an anchor jump from
+            exposing the end of Vanta's canvas at the bottom of a page. */}
+        {isDesktop && ambientReady && ambientStyle !== "off" ? (
+          <Suspense fallback={null}>
+            <VantaBackground
+              style={ambientStyle}
+              intensity={ambientIntensity}
+            />
+          </Suspense>
+        ) : null}
+
         {/* Main content */}
-        <main className="relative flex-1 min-w-0 bg-background text-foreground overflow-auto md:pt-0 pt-14">
-          {/* The ambient background pulls in three.js (~600KB), so it is kept
-              off the critical path: nothing is requested until the app is
-              idle, and nothing at all when the effect is switched off. */}
-          {isDesktop && ambientReady && ambientStyle !== "off" ? (
-            <Suspense fallback={null}>
-              <VantaBackground
-                style={ambientStyle}
-                intensity={ambientIntensity}
-              />
-            </Suspense>
-          ) : null}
+        <main className="relative min-w-0 flex-1 overflow-auto bg-background pt-14 text-foreground md:pt-0">
           <div
             className="sticky top-0 z-40 flex h-11 items-center justify-end gap-1 border-b bg-background/90 px-2 backdrop-blur md:h-12 md:px-4"
             style={
