@@ -136,6 +136,10 @@ import type {
   StudySessionWithParticipants,
   SubmitSeatingSuggestion201,
   SubmitSeatingSuggestionBody,
+  SupportRequest,
+  SupportRequestInput,
+  SupportRequestReceipt,
+  SupportRequestUpdate,
   UploadAvatarBody,
   User,
   UserLibrary,
@@ -1645,6 +1649,226 @@ export function useGetAdminOverview<TData = Awaited<ReturnType<typeof getAdminOv
 
 
 
+
+export const getCreateSupportRequestUrl = () => {
+
+
+
+
+  return `/api/support/requests`
+}
+
+/**
+ * @summary Submit a customer support request without relying on an email application
+ */
+export const createSupportRequest = async (supportRequestInput: SupportRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<SupportRequestReceipt> => {
+
+  return customFetch<SupportRequestReceipt>(getCreateSupportRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(supportRequestInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSupportRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupportRequest>>, TError,{data: BodyType<SupportRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSupportRequest>>, TError,{data: BodyType<SupportRequestInput>}, TContext> => {
+
+const mutationKey = ['createSupportRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSupportRequest>>, {data: BodyType<SupportRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSupportRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSupportRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createSupportRequest>>>
+    export type CreateSupportRequestMutationBody = BodyType<SupportRequestInput>
+    export type CreateSupportRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a customer support request without relying on an email application
+ */
+export const useCreateSupportRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSupportRequest>>, TError,{data: BodyType<SupportRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSupportRequest>>,
+        TError,
+        {data: BodyType<SupportRequestInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSupportRequestMutationOptions(options));
+    }
+
+export const getGetSupportRequestsUrl = () => {
+
+
+
+
+  return `/api/admin/support-requests`
+}
+
+/**
+ * @summary List recent support requests for administrators
+ */
+export const getSupportRequests = async ( options?: Parameters<typeof customFetch>[1]): Promise<SupportRequest[]> => {
+
+  return customFetch<SupportRequest[]>(getGetSupportRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSupportRequestsQueryKey = () => {
+    return [
+    `/api/admin/support-requests`
+    ] as const;
+    }
+
+
+export const getGetSupportRequestsQueryOptions = <TData = Awaited<ReturnType<typeof getSupportRequests>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSupportRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSupportRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSupportRequests>>> = ({ signal }) => getSupportRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSupportRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSupportRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof getSupportRequests>>>
+export type GetSupportRequestsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List recent support requests for administrators
+ */
+
+export function useGetSupportRequests<TData = Awaited<ReturnType<typeof getSupportRequests>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSupportRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSupportRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateSupportRequestUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/support-requests/${id}`
+}
+
+/**
+ * @summary Update a support request status
+ */
+export const updateSupportRequest = async (id: number,
+    supportRequestUpdate: SupportRequestUpdate, options?: Parameters<typeof customFetch>[1]): Promise<SupportRequest> => {
+
+  return customFetch<SupportRequest>(getUpdateSupportRequestUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(supportRequestUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateSupportRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSupportRequest>>, TError,{id: number;data: BodyType<SupportRequestUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSupportRequest>>, TError,{id: number;data: BodyType<SupportRequestUpdate>}, TContext> => {
+
+const mutationKey = ['updateSupportRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSupportRequest>>, {id: number;data: BodyType<SupportRequestUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateSupportRequest(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSupportRequestMutationResult = NonNullable<Awaited<ReturnType<typeof updateSupportRequest>>>
+    export type UpdateSupportRequestMutationBody = BodyType<SupportRequestUpdate>
+    export type UpdateSupportRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a support request status
+ */
+export const useUpdateSupportRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSupportRequest>>, TError,{id: number;data: BodyType<SupportRequestUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSupportRequest>>,
+        TError,
+        {id: number;data: BodyType<SupportRequestUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateSupportRequestMutationOptions(options));
+    }
 
 export const getListLearningGoalsUrl = () => {
 

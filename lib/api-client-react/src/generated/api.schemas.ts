@@ -5,6 +5,107 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+export type SupportRequestInputCategory = typeof SupportRequestInputCategory[keyof typeof SupportRequestInputCategory];
+
+
+export const SupportRequestInputCategory = {
+  account: 'account',
+  billing: 'billing',
+  resources: 'resources',
+  classes: 'classes',
+  privacy: 'privacy',
+  safety: 'safety',
+  technical: 'technical',
+  other: 'other',
+} as const;
+
+export interface SupportRequestInput {
+  /** @maxLength 320 */
+  email: string;
+  category: SupportRequestInputCategory;
+  /**
+     * @minLength 3
+     * @maxLength 160
+     */
+  subject: string;
+  /**
+     * @minLength 10
+     * @maxLength 5000
+     */
+  message: string;
+  /** @maxLength 300 */
+  device?: string;
+  /**
+     * Invisible anti-spam field that people should leave empty
+     * @maxLength 0
+     */
+  website?: string;
+}
+
+export type SupportRequestReceiptStatus = typeof SupportRequestReceiptStatus[keyof typeof SupportRequestReceiptStatus];
+
+
+export const SupportRequestReceiptStatus = {
+  new: 'new',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+} as const;
+
+export interface SupportRequestReceipt {
+  id: number;
+  status: SupportRequestReceiptStatus;
+  createdAt: string;
+}
+
+export type SupportRequestCategory = typeof SupportRequestCategory[keyof typeof SupportRequestCategory];
+
+
+export const SupportRequestCategory = {
+  account: 'account',
+  billing: 'billing',
+  resources: 'resources',
+  classes: 'classes',
+  privacy: 'privacy',
+  safety: 'safety',
+  technical: 'technical',
+  other: 'other',
+} as const;
+
+export type SupportRequestStatus = typeof SupportRequestStatus[keyof typeof SupportRequestStatus];
+
+
+export const SupportRequestStatus = {
+  new: 'new',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+} as const;
+
+export interface SupportRequest {
+  id: number;
+  email: string;
+  category: SupportRequestCategory;
+  subject: string;
+  message: string;
+  /** @nullable */
+  device: string | null;
+  status: SupportRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SupportRequestUpdateStatus = typeof SupportRequestUpdateStatus[keyof typeof SupportRequestUpdateStatus];
+
+
+export const SupportRequestUpdateStatus = {
+  new: 'new',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+} as const;
+
+export interface SupportRequestUpdate {
+  status: SupportRequestUpdateStatus;
+}
+
 /**
  * One assignment as the person it was set for sees it -- which is why the class is named here rather than left as an id, and why `completed` is this account's answer rather than the class's.
  */

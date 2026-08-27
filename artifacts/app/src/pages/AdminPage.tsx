@@ -4,7 +4,13 @@
  */
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { ResourceReviewQueue } from "../components/ResourceReviewQueue";
-import { useGetAdminOverview, useGetMe } from "@workspace/api-client-react";
+import {
+  useGetAdminOverview,
+  useGetMe,
+  useGetSupportRequests,
+  useUpdateSupportRequest,
+} from "@workspace/api-client-react";
+import type { SupportRequest, SupportRequestUpdateStatus } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
   Card,
@@ -41,6 +47,7 @@ import {
   FileText,
   GraduationCap,
   Layers3,
+  LifeBuoy,
   Loader2,
   Pencil,
   RotateCcw,
@@ -195,6 +202,13 @@ export default function AdminPage() {
   const intlLocale = useIntlLocale();
   const { data, isLoading, isFetching, error, refetch } = useGetAdminOverview();
   const { data: me } = useGetMe();
+  const {
+    data: supportRequests = [],
+    isLoading: supportRequestsLoading,
+    isFetching: supportRequestsFetching,
+    refetch: refetchSupportRequests,
+  } = useGetSupportRequests();
+  const updateSupportRequest = useUpdateSupportRequest();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -205,6 +219,20 @@ export default function AdminPage() {
   const [managedDetailsLoading, setManagedDetailsLoading] = useState(false);
   const [userDraft, setUserDraft] = useState<AdminUser | null>(null);
   const [savingAccount, setSavingAccount] = useState(false);
+
+  async function setSupportRequestStatus(request: SupportRequest, status: SupportRequestUpdateStatus) {
+    try {
+      await updateSupportRequest.mutateAsync({ id: request.id, data: { status } });
+      await refetchSupportRequests();
+      toast({ title: "Support request updated" });
+    } catch (statusError) {
+      toast({
+        title: "Could not update support request",
+        description: statusError instanceof Error ? statusError.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  }
 
   async function loadUsers() {
     setUsersLoading(true);
@@ -539,6 +567,53 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="render-later">
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2"><LifeBuoy className="size-5 text-primary-text" /> Support requests</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">Requests sent from the support page. Personal fields are decrypted only inside this administrator view.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{supportRequests.filter((request) => request.status !== "resolved").length} open</Badge>
+              <Button type="button" variant="outline" size="sm" onClick={() => void refetchSupportRequests()} disabled={supportRequestsFetching}>
+                <RotateCcw className={"mr-2 size-4 " + (supportRequestsFetching ? "animate-spin" : "")} /> Refresh
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {supportRequestsLoading ? <Skeleton className="h-40 w-full" /> : supportRequests.length ? supportRequests.map((request) => (
+            <article key={request.id} className="rounded-lg border p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={request.status === "resolved" ? "secondary" : request.status === "in_progress" ? "outline" : "default"}>{request.status.replace("_", " ")}</Badge>
+                    <span className="text-xs uppercase tracking-wide text-muted-foreground">{request.category}</span>
+                    <span className="text-xs text-muted-foreground">CSP-{request.id} · {new Date(request.createdAt).toLocaleString(intlLocale)}</span>
+                  </div>
+                  <h3 translate="no" className="mt-2 font-semibold">{request.subject}</h3>
+                  <a translate="no" href={`mailto:${request.email}`} className="mt-1 block break-all text-sm text-primary-text underline">{request.email}</a>
+                </div>
+                <select
+                  aria-label={`Status for support request ${request.id}`}
+                  className="h-9 rounded-md border bg-background px-3 text-sm"
+                  value={request.status}
+                  disabled={updateSupportRequest.isPending}
+                  onChange={(event) => void setSupportRequestStatus(request, event.target.value as SupportRequestUpdateStatus)}
+                >
+                  <option value="new">New</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              </div>
+              <p translate="no" className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{request.message}</p>
+              {request.device ? <p className="mt-3 text-xs text-muted-foreground"><span className="font-medium text-foreground">Device:</span> <span translate="no">{request.device}</span></p> : null}
+            </article>
+          )) : <div className="py-10 text-center"><LifeBuoy className="mx-auto size-6 text-muted-foreground" /><p className="mt-3 font-medium">No support requests yet</p></div>}
         </CardContent>
       </Card>
 

@@ -553,6 +553,83 @@ export const GetAdminOverviewResponse = zod.object({
 
 
 /**
+ * @summary Submit a customer support request without relying on an email application
+ */
+export const createSupportRequestBodyEmailMax = 320;
+
+export const createSupportRequestBodySubjectMin = 3;
+export const createSupportRequestBodySubjectMax = 160;
+
+export const createSupportRequestBodyMessageMin = 10;
+export const createSupportRequestBodyMessageMax = 5000;
+
+export const createSupportRequestBodyDeviceMax = 300;
+
+export const createSupportRequestBodyWebsiteMax = 0;
+
+
+
+export const CreateSupportRequestBody = zod.object({
+  "email": zod.email().max(createSupportRequestBodyEmailMax),
+  "category": zod.enum(['account', 'billing', 'resources', 'classes', 'privacy', 'safety', 'technical', 'other']),
+  "subject": zod.string().min(createSupportRequestBodySubjectMin).max(createSupportRequestBodySubjectMax),
+  "message": zod.string().min(createSupportRequestBodyMessageMin).max(createSupportRequestBodyMessageMax),
+  "device": zod.string().max(createSupportRequestBodyDeviceMax).optional(),
+  "website": zod.string().max(createSupportRequestBodyWebsiteMax).optional().describe('Invisible anti-spam field that people should leave empty')
+})
+
+export const CreateSupportRequestResponse = zod.object({
+  "id": zod.int(),
+  "status": zod.enum(['new', 'in_progress', 'resolved']),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List recent support requests for administrators
+ */
+export const GetSupportRequestsResponseItem = zod.object({
+  "id": zod.int(),
+  "email": zod.email(),
+  "category": zod.enum(['account', 'billing', 'resources', 'classes', 'privacy', 'safety', 'technical', 'other']),
+  "subject": zod.string(),
+  "message": zod.string(),
+  "device": zod.string().nullable(),
+  "status": zod.enum(['new', 'in_progress', 'resolved']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const GetSupportRequestsResponse = zod.array(GetSupportRequestsResponseItem)
+
+
+/**
+ * @summary Update a support request status
+ */
+
+
+
+export const UpdateSupportRequestParams = zod.object({
+  "id": zod.coerce.number().int().min(1)
+})
+
+export const UpdateSupportRequestBody = zod.object({
+  "status": zod.enum(['new', 'in_progress', 'resolved'])
+})
+
+export const UpdateSupportRequestResponse = zod.object({
+  "id": zod.int(),
+  "email": zod.email(),
+  "category": zod.enum(['account', 'billing', 'resources', 'classes', 'privacy', 'safety', 'technical', 'other']),
+  "subject": zod.string(),
+  "message": zod.string(),
+  "device": zod.string().nullable(),
+  "status": zod.enum(['new', 'in_progress', 'resolved']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary List the current user learning goals
  */
 export const listLearningGoalsResponsePathStepsItemIdMax = 80;

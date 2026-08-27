@@ -49,6 +49,8 @@ tags:
     description: Google Calendar sync and iCal feed
   - name: direct-messages
     description: One-to-one conversations, and the request that opens one
+  - name: support
+    description: Public support requests and administrator follow-up
 paths:
   /healthz:
     get:
@@ -405,6 +407,67 @@ paths:
                 $ref: "#/components/schemas/AdminOverview"
         "401": { description: Not authenticated }
         "403": { description: Administrator role required }
+
+  /support/requests:
+    post:
+      operationId: createSupportRequest
+      tags: [support]
+      summary: Submit a customer support request without relying on an email application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupportRequestInput" }
+      responses:
+        "201":
+          description: Support request accepted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportRequestReceipt" }
+        "400": { description: Invalid request }
+        "429": { description: Too many requests }
+
+  /admin/support-requests:
+    get:
+      operationId: getSupportRequests
+      tags: [support]
+      summary: List recent support requests for administrators
+      responses:
+        "200":
+          description: Recent support requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SupportRequest" }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+
+  /admin/support-requests/{id}:
+    patch:
+      operationId: updateSupportRequest
+      tags: [support]
+      summary: Update a support request status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SupportRequestUpdate" }
+      responses:
+        "200":
+          description: Updated support request
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SupportRequest" }
+        "400": { description: Invalid request }
+        "401": { description: Not authenticated }
+        "403": { description: Administrator role required }
+        "404": { description: Support request not found }
 
   /learning-goals:
     get:
@@ -3138,6 +3201,52 @@ paths:
 
 components:
   schemas:
+    SupportRequestInput:
+      type: object
+      required: [email, category, subject, message]
+      properties:
+        email: { type: string, format: email, maxLength: 320 }
+        category:
+          type: string
+          enum: [account, billing, resources, classes, privacy, safety, technical, other]
+        subject: { type: string, minLength: 3, maxLength: 160 }
+        message: { type: string, minLength: 10, maxLength: 5000 }
+        device: { type: string, maxLength: 300 }
+        website:
+          type: string
+          maxLength: 0
+          description: Invisible anti-spam field that people should leave empty
+
+    SupportRequestReceipt:
+      type: object
+      required: [id, status, createdAt]
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [new, in_progress, resolved] }
+        createdAt: { type: string, format: date-time }
+
+    SupportRequest:
+      type: object
+      required: [id, email, category, subject, message, device, status, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        category:
+          type: string
+          enum: [account, billing, resources, classes, privacy, safety, technical, other]
+        subject: { type: string }
+        message: { type: string }
+        device: { type: ["string", "null"] }
+        status: { type: string, enum: [new, in_progress, resolved] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SupportRequestUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [new, in_progress, resolved] }
+
     AssignedWork:
       type: object
       description: >-
