@@ -652,6 +652,12 @@ export default function LandingPage() {
             >
               Support
             </Link>
+            <Link
+              href="/delete-account"
+              className="font-medium text-primary-text hover:underline"
+            >
+              Delete account
+            </Link>
           </nav>
           <p>© {new Date().getFullYear()} Casparel</p>
         </div>

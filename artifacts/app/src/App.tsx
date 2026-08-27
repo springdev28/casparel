@@ -74,6 +74,7 @@ const PrivacyPage = lazy(() =>
   import("./pages/LegalPage").then((m) => ({ default: m.PrivacyPage })),
 );
 const SupportPage = lazy(() => import("./pages/SupportPage"));
+const DeleteAccountPage = lazy(() => import("./pages/DeleteAccountPage"));
 const DownloadPage = lazy(() => import("./pages/DownloadPage"));
 const CodeSigningPage = lazy(() => import("./pages/CodeSigningPage"));
 const PlansPage = lazy(() => import("./pages/PlansPage"));
@@ -358,6 +359,11 @@ function Router() {
       <Route path="/plans" component={PlansPage} />
       <Route path="/support">
         {() => <PublicRoute component={SupportPage} />}
+      </Route>
+      {/* Google Play requires both an in-app deletion path and a public web
+          resource that works after the app has been uninstalled. */}
+      <Route path="/delete-account">
+        {() => <PublicRoute component={DeleteAccountPage} />}
       </Route>
       {/* Public on purpose: this is where a search for "casparel download"
           and every store/release link should land, signed in or not. */}

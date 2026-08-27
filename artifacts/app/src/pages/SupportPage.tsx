@@ -93,8 +93,7 @@ export default function SupportPage() {
           <Link href="/privacy" className="text-primary-text underline">
             Privacy Policy
           </Link>
-          . You can delete your account from account settings; if you cannot
-          sign in, email support from the address associated with the account.
+          . Review the public <Link href="/delete-account" className="text-primary-text underline">account deletion instructions</Link>. You can delete your account from account settings; if you cannot sign in, email support from the address associated with the account.
         </p>
       </section>
     </main>

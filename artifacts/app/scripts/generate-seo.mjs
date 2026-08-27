@@ -112,6 +112,15 @@ const routes = [
     heading: "Privacy Policy",
   },
   {
+    path: "/delete-account",
+    changefreq: "yearly",
+    priority: "0.4",
+    title: "Casparel: Delete your account",
+    description:
+      "How to permanently delete a Casparel account, request deletion without the app, and understand what data is removed or retained.",
+    heading: "Delete your Casparel account",
+  },
+  {
     path: "/auth/login",
     sitemap: false,
     title: "Casparel: Sign in",

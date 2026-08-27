@@ -37,6 +37,12 @@
       "heading": "Privacy Policy",
       "canonical": "https://casparel.com/privacy"
     },
+    "/delete-account": {
+      "title": "Casparel: Delete your account",
+      "description": "How to permanently delete a Casparel account, request deletion without the app, and understand what data is removed or retained.",
+      "heading": "Delete your Casparel account",
+      "canonical": "https://casparel.com/delete-account"
+    },
     "/auth/login": {
       "title": "Casparel: Sign in",
       "description": "Sign in to Casparel.",

@@ -38,6 +38,14 @@ describe("mobile user-safety controls", () => {
     expect(registration).toContain("https://casparel.com/privacy");
   });
 
+  it("lets an account created on the phone start permanent deletion on the phone", () => {
+    expect(profile).toContain("warnBeforeAccountAction('delete')");
+    expect(profile).toMatch(/useDeleteMe\(\)/);
+    expect(profile).toMatch(/deleteAccount\.mutateAsync\(/);
+    expect(profile).toContain("Delete permanently");
+    expect(profile).toContain("secureTextEntry");
+  });
+
   it("publishes explicit rules for objectionable content and enforcement", () => {
     expect(terms).toContain("sexually");
     expect(terms).toContain("nudity outside a legitimate");

@@ -37,12 +37,12 @@ const ROOT = path.resolve(
   "../dist/public",
 );
 const PORT = Number(process.env.AUDIT_PORT ?? 4321);
-// /terms and /privacy are in the default set because the app stores require
+// /terms, /privacy, and /delete-account are in the default set because the app stores require
 // them to resolve for a signed-out reviewer, so a regression there is a
 // submission blocker rather than a cosmetic issue.
 const PAGES = (
   process.env.AUDIT_PAGES ??
-  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy"
+  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy,/delete-account"
 ).split(",");
 // Signed-in pages, rendered against fixtures rather than a live API. These are
 // where the regressions that reached production actually were, so they matter
@@ -444,6 +444,24 @@ async function audit(pathname, colorScheme, width, options = {}) {
           ].every((required) => copy.includes(required));
         })
       : false;
+  const missingAccountDeletionDisclosure =
+    pathname === "/delete-account" && !signedIn
+      ? await page.evaluate(() => {
+          const copy = document.body.textContent?.replace(/\s+/g, " ") ?? "";
+          const requestLink = document.querySelector(
+            'a[href^="mailto:support@casparel.com?subject=Casparel%20account%20deletion%20request"]',
+          );
+          return !requestLink || ![
+            "Delete your Casparel account",
+            "Tap Profile",
+            "Delete account",
+            "Deleted or destroyed",
+            "Anonymized shared records",
+            "may be indefinitely",
+            "Legal and security retention",
+          ].every((required) => copy.includes(required));
+        })
+      : false;
   const findings = {
     lowContrast: await page.evaluate(CONTRAST),
     dashes: await page.evaluate(DASHES),
@@ -465,6 +483,7 @@ async function audit(pathname, colorScheme, width, options = {}) {
     guideNavigation,
     missingHomePrivacyLink,
     missingPrivacyAdvertisingDisclosure,
+    missingAccountDeletionDisclosure,
   };
   await ctx.close();
   return { pathname, colorScheme, width, signedIn, palette, findings };
@@ -620,6 +639,9 @@ for (const {
       : []),
     ...(findings.missingPrivacyAdvertisingDisclosure
       ? ["privacy policy is missing the mobile advertising disclosure"]
+      : []),
+    ...(findings.missingAccountDeletionDisclosure
+      ? ["account deletion page is missing its request path or retention disclosure"]
       : []),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind
