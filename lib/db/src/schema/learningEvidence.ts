@@ -43,6 +43,13 @@ export const learningEvidenceTable = pgTable("learning_evidence", {
     table.learningGoalId,
     table.pathStepId,
   ),
+  /*
+   * The learner's own listing, newest first. This table is the one here that
+   * grows without end -- a row per step anybody finishes, uncapped by any plan
+   * -- so its listing is now bounded and its ordering has to come off an index
+   * rather than off a sort of everything the learner has ever recorded.
+   */
+  index("learning_evidence_user_recent_idx").on(table.userId, table.createdAt),
 ]);
 
 export type LearningEvidence = typeof learningEvidenceTable.$inferSelect;

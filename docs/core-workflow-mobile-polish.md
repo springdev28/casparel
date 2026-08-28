@@ -738,3 +738,50 @@ The web dictionary deliberately gets no such check. Its bridge translates
 whatever is in the rendered DOM, including strings a third-party component
 produced — React Flow's own zoom and minimap labels are in there — so a key
 with no match in this repository's source is not evidence of anything.
+
+## Fix — the one listing that grows for as long as somebody studies
+
+Every other listing in this product is bounded by something a person cannot
+exceed: goals, lists, canvases and study sets are all capped by a plan, so
+however long somebody uses Casparel, reading their lists costs what it cost in
+week one. Learning evidence is not. A row is written every time anybody
+finishes a step, forever, and `GET /learning-evidence` returned all of them.
+
+The caller that made it matter was the phone's goal screen, which read every
+check-in a learner had ever recorded — over whatever connection they were on —
+in order to draw "checked in" beside three steps. Its own comment said "one
+request for the goal's own evidence", which is what it needed and not what it
+was doing.
+
+The listing now takes a `goalId` and a `limit`, defaulting to the newest two
+hundred and refusing a limit past five hundred, with an index on
+`(user_id, created_at)` so the ordering comes off an index rather than off a
+sort of everything the learner has written. Both callers were changed rather
+than left on the default: the phone asks for one goal, and the dashboard now
+makes two bounded requests instead of one unbounded one — the recent picture
+for "the latest check-in anywhere", and a goal-filtered read for the panel
+that counts a goal's check-ins and finds the latest one per step. Leaving that
+panel on a client-side filter of the newest two hundred would have quietly
+under-reported for exactly the learners who have used the product longest,
+which is a worse failure than the one being fixed.
+
+The database test writes a year of check-ins across two goals, with the goal
+under test written *first* so its rows are the oldest — under a ceiling with
+no filter, the newest page would not contain them at all.
+
+The sweep that found it also found sixteen other listings with no limit. The
+rest are all bounded in practice by plan capacity or class size, except the
+forum's comments on one thread and the two administration listings, which are
+recorded here rather than changed: each needs a paging story rather than a
+ceiling, and inventing one for a screen nobody is complaining about is not
+this increment's work.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 874 API assertions across 101 test files against a real PostgreSQL instance;
+- one goal's evidence returned in full while the general listing stops at two hundred, newest first, and a limit past the cap is refused — all against a real database;
+- the migration applies to a database that already had the table, and the index exists afterwards;
+- 98 end-to-end flow checks against a real server;
+- 32 phone screen renders across two languages, the goal screen still showing its check-in marks;
+- 180 page renders clean, the web production build passed, and every visible string on it is still translated.

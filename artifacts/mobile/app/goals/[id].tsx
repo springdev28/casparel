@@ -54,6 +54,7 @@ import { Empty } from '@workspace/edu-ds/components/native/empty';
 import {
   getGetGoalListDriftQueryKey,
   getGetStepActivityQueryKey,
+  getListLearningEvidenceQueryKey,
   getListLearningGoalsQueryKey,
   useAddGoalStep,
   useAddStepsFromList,
@@ -325,18 +326,27 @@ export default function GoalScreen() {
   const [writeError, setWriteError] = React.useState<string | null>(null);
   /*
    * Which steps carry a check-in, so a learner coming back sees what they
-   * said rather than only what they ticked. One request for the goal's own
-   * evidence; a failure here leaves the marks off and the screen alone.
+   * said rather than only what they ticked.
+   *
+   * This goal's evidence, asked for by goal. It used to ask for all of it and
+   * filter here, which meant reading every check-in the learner had ever
+   * recorded -- a row per finished step, for as long as they have been using
+   * the app, uncapped by any plan -- in order to mark three steps, over
+   * whatever connection the phone was on. A failure here leaves the marks off
+   * and the screen alone.
    */
-  const evidence = useListLearningEvidence();
+  const evidence = useListLearningEvidence(
+    { goalId },
+    { query: { queryKey: getListLearningEvidenceQueryKey({ goalId }) } },
+  );
   const checkedInSteps = React.useMemo(
     () =>
       new Set(
         (evidence.data ?? [])
-          .filter((row) => row.learningGoalId === goalId && row.pathStepId)
+          .filter((row) => row.pathStepId)
           .map((row) => row.pathStepId as string),
       ),
-    [evidence.data, goalId],
+    [evidence.data],
   );
   /*
    * The step somebody is on: the first one still outstanding, in the path's

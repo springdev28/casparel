@@ -1009,7 +1009,13 @@ async function main() {
         `HTTP ${twice.status} ${twice.text.slice(0, 160)}`,
       );
 
-      const evidence = await call("GET", "/api/learning-evidence", { token: alice.token });
+      // Asked for by goal, which is what the goal screen does: the general
+      // listing grows with every step anybody ever finishes.
+      const evidence = await call(
+        "GET",
+        `/api/learning-evidence?goalId=${goal.body.id}`,
+        { token: alice.token },
+      );
       const forStep = (evidence.body ?? []).filter(
         (row) => row.pathStepId === firstStep.id,
       );
@@ -1017,6 +1023,19 @@ async function main() {
         "the check-in is in the learner's evidence, once",
         forStep.length === 1 && forStep[0].understanding === 4,
         `evidence: ${JSON.stringify(forStep)?.slice(0, 200)}`,
+      );
+      check(
+        "and asking by goal returns that goal's evidence only",
+        (evidence.body ?? []).every((row) => row.learningGoalId === goal.body.id),
+        `evidence: ${JSON.stringify(evidence.body)?.slice(0, 200)}`,
+      );
+      const overTheCap = await call("GET", "/api/learning-evidence?limit=5000", {
+        token: alice.token,
+      });
+      check(
+        "a limit beyond the cap is refused rather than honoured",
+        overTheCap.status === 400,
+        `HTTP ${overTheCap.status} ${overTheCap.text.slice(0, 160)}`,
       );
 
       // What to do with the step somebody is on. The goal's first step has no

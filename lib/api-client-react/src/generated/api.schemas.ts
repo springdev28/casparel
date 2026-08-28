@@ -2965,6 +2965,19 @@ export const SearchUsersRole = {
   teacher: 'teacher',
 } as const;
 
+export type ListLearningEvidenceParams = {
+/**
+ * Only evidence recorded against this learning goal.
+ */
+goalId?: number;
+/**
+ * How many to return, newest first.
+ * @minimum 1
+ * @maximum 500
+ */
+limit?: number;
+};
+
 export type RecommendResourceToPersonBody = {
   recipientId: number;
   /** @maxLength 500 */

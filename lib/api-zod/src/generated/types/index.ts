@@ -141,6 +141,7 @@ export * from './listItemInputRole';
 export * from './listItemPatch';
 export * from './listItemPatchRole';
 export * from './listItemRole';
+export * from './listLearningEvidenceParams';
 export * from './listProvenanceShowcase200';
 export * from './listProvenanceShowcaseParams';
 export * from './listQualityFinding';

@@ -303,7 +303,27 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
       (resource): resource is NonNullable<typeof resource> =>
         resource !== undefined,
     );
-  const goalEvidence = evidence?.filter((item) => item.learningGoalId === activeGoal?.id) ?? [];
+  /*
+   * The active goal's own check-ins, asked for by goal.
+   *
+   * Filtering the general listing here was right while that listing returned
+   * everything, and wrong the moment it was bounded: evidence is written once
+   * per finished step forever, so a learner far enough in would have the newest
+   * two hundred filled with other goals and this panel would under-report their
+   * check-ins and miss the latest one per step. The listing above is still the
+   * recent picture -- the most recent check-in anywhere, and whether there has
+   * been one at all -- which a ceiling serves exactly.
+   */
+  const { data: goalEvidenceData } = useListLearningEvidence(
+    { goalId: activeGoal?.id },
+    {
+      query: {
+        queryKey: getListLearningEvidenceQueryKey({ goalId: activeGoal?.id }),
+        enabled: Boolean(activeGoal?.id),
+      },
+    },
+  );
+  const goalEvidence = goalEvidenceData ?? [];
   const reviewSchedule = useMemo(() => {
     const now = Date.now();
     return path.map((step) => {

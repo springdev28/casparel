@@ -3853,8 +3853,19 @@ export const ExportStudySessionIcsResponse = zod.unknown()
 
 
 /**
+ * Newest first, and bounded. A learner records one of these every time they finish a step, so this is the one listing here that grows without end — it is not capped by a plan the way goals, lists and canvases are. Ask for one goal's evidence when that is what is wanted, rather than reading a year of check-ins to mark three steps.
  * @summary List comprehension and reflection evidence for the current learner
  */
+export const listLearningEvidenceQueryLimitDefault = 200;
+export const listLearningEvidenceQueryLimitMax = 500;
+
+
+
+export const ListLearningEvidenceQueryParams = zod.object({
+  "goalId": zod.coerce.number().int().optional().describe('Only evidence recorded against this learning goal.'),
+  "limit": zod.coerce.number().int().min(1).max(listLearningEvidenceQueryLimitMax).default(listLearningEvidenceQueryLimitDefault).describe('How many to return, newest first.')
+})
+
 export const listLearningEvidenceResponseConfidenceMax = 3;
 
 export const listLearningEvidenceResponseUnderstandingMin = 0;

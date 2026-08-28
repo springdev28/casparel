@@ -3081,6 +3081,23 @@ paths:
       operationId: listLearningEvidence
       tags: [learning-goals]
       summary: List comprehension and reflection evidence for the current learner
+      description: >-
+        Newest first, and bounded. A learner records one of these every time
+        they finish a step, so this is the one listing here that grows without
+        end — it is not capped by a plan the way goals, lists and canvases are.
+        Ask for one goal's evidence when that is what is wanted, rather than
+        reading a year of check-ins to mark three steps.
+      parameters:
+        - name: goalId
+          in: query
+          required: false
+          description: Only evidence recorded against this learning goal.
+          schema: { type: integer }
+        - name: limit
+          in: query
+          required: false
+          description: How many to return, newest first.
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
       responses:
         "200":
           description: Learning evidence, newest first

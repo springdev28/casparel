@@ -3,7 +3,7 @@
  * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
  */
 import { Router, type IRouter } from "express";
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import {
   db,
   classesTable,
@@ -14,6 +14,7 @@ import {
   CreateLearningEvidenceBody,
   CreateLearningEvidenceResponse,
   GetLearningSignalsResponse,
+  ListLearningEvidenceQueryParams,
   ListLearningEvidenceResponse,
 } from "@workspace/api-zod";
 import {
@@ -28,13 +29,40 @@ const router: IRouter = Router();
 router.get(
   "/learning-evidence",
   requireAuth,
+  /**
+   * The learner's own check-ins, newest first, bounded.
+   *
+   * This is the one listing here that grows without end. Goals, lists,
+   * canvases and study sets are all capped by a plan, so their listings are
+   * bounded by something a person cannot exceed; evidence is written once per
+   * step somebody finishes, forever, and nothing was limiting it. The phone's
+   * goal screen read every row a learner had ever recorded in order to draw
+   * "checked in" beside three steps, over whatever connection they were on.
+   *
+   * So: a goal filter for the caller that wants one goal's marks, and a
+   * ceiling for the caller that wants the recent picture. Both defaults keep
+   * the old behaviour for a learner who has not been here a year.
+   */
   async (req, res): Promise<void> => {
     const { userId } = req as AuthenticatedRequest;
+    const query = ListLearningEvidenceQueryParams.safeParse(req.query);
+    if (!query.success) {
+      res.status(400).json({ error: validationMessage(query.error) });
+      return;
+    }
     const evidence = await db
       .select()
       .from(learningEvidenceTable)
-      .where(eq(learningEvidenceTable.userId, userId))
-      .orderBy(desc(learningEvidenceTable.createdAt));
+      .where(
+        and(
+          eq(learningEvidenceTable.userId, userId),
+          ...(query.data.goalId === undefined
+            ? []
+            : [eq(learningEvidenceTable.learningGoalId, query.data.goalId)]),
+        ),
+      )
+      .orderBy(desc(learningEvidenceTable.createdAt))
+      .limit(query.data.limit);
     res.json(ListLearningEvidenceResponse.parse(evidence));
   },
 );

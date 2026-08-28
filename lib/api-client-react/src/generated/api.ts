@@ -84,6 +84,7 @@ import type {
   ListItem,
   ListItemInput,
   ListItemPatch,
+  ListLearningEvidenceParams,
   ListProvenanceShowcase200,
   ListProvenanceShowcaseParams,
   ListQualityReview,
@@ -9438,20 +9439,28 @@ export function useExportStudySessionIcs<TData = Awaited<ReturnType<typeof expor
 
 
 
-export const getListLearningEvidenceUrl = () => {
+export const getListLearningEvidenceUrl = (params?: ListLearningEvidenceParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/learning-evidence`
+  return stringifiedParams.length > 0 ? `/api/learning-evidence?${stringifiedParams}` : `/api/learning-evidence`
 }
 
 /**
+ * Newest first, and bounded. A learner records one of these every time they finish a step, so this is the one listing here that grows without end — it is not capped by a plan the way goals, lists and canvases are. Ask for one goal's evidence when that is what is wanted, rather than reading a year of check-ins to mark three steps.
  * @summary List comprehension and reflection evidence for the current learner
  */
-export const listLearningEvidence = async ( options?: Parameters<typeof customFetch>[1]): Promise<LearningEvidence[]> => {
+export const listLearningEvidence = async (params?: ListLearningEvidenceParams, options?: Parameters<typeof customFetch>[1]): Promise<LearningEvidence[]> => {
 
-  return customFetch<LearningEvidence[]>(getListLearningEvidenceUrl(),
+  return customFetch<LearningEvidence[]>(getListLearningEvidenceUrl(params),
   {
     ...options,
     method: 'GET'
@@ -9464,23 +9473,23 @@ export const listLearningEvidence = async ( options?: Parameters<typeof customFe
 
 
 
-export const getListLearningEvidenceQueryKey = () => {
+export const getListLearningEvidenceQueryKey = (params?: ListLearningEvidenceParams,) => {
     return [
-    `/api/learning-evidence`
+    `/api/learning-evidence`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListLearningEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof listLearningEvidence>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListLearningEvidenceQueryOptions = <TData = Awaited<ReturnType<typeof listLearningEvidence>>, TError = ErrorType<unknown>>(params?: ListLearningEvidenceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListLearningEvidenceQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListLearningEvidenceQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLearningEvidence>>> = ({ signal }) => listLearningEvidence({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listLearningEvidence>>> = ({ signal }) => listLearningEvidence(params, { signal, ...requestOptions });
 
 
 
@@ -9498,11 +9507,11 @@ export type ListLearningEvidenceQueryError = ErrorType<unknown>
  */
 
 export function useListLearningEvidence<TData = Awaited<ReturnType<typeof listLearningEvidence>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListLearningEvidenceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listLearningEvidence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListLearningEvidenceQueryOptions(options)
+  const queryOptions = getListLearningEvidenceQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

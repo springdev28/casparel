@@ -76,6 +76,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `artifacts/api-server/src/deleteLeavesNothingBehind.db.test.ts` | authored source (commented) | Verification role: exercises Delete Leaves Nothing Behind.Db.Test behavior and guards its user-visible or system invariant. System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details. |
 | `artifacts/api-server/src/discoverCapabilities.test.ts` | authored source (commented) | Verification role: exercises Discover Capabilities.Test behavior and guards its user-visible or system invariant. System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details. |
 | `artifacts/api-server/src/doubleTapRaces.db.test.ts` | authored source (commented) | Verification role: exercises Double Tap Races.Db.Test behavior and guards its user-visible or system invariant. System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details. |
+| `artifacts/api-server/src/evidenceListingCost.db.test.ts` | authored source (commented) | Verification role: exercises Evidence Listing Cost.Db.Test behavior and guards its user-visible or system invariant. System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details. |
 | `artifacts/api-server/src/goalResourceLink.db.test.ts` | authored source (commented) | Verification role: exercises Goal Resource Link.Db.Test behavior and guards its user-visible or system invariant. System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details. |
 | `artifacts/api-server/src/index.ts` | authored source (commented) | Runtime role: starts the Express process after environment loading, migrations, and startup checks. System connection: imports app.ts, binds process.env.PORT, and is the production API entry point. |
 | `artifacts/api-server/src/lib/.gitkeep` | configuration or repository metadata | Repository metadata or configuration for . |
@@ -874,6 +875,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/api-zod/src/generated/types/listItemPatch.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listItemPatchRole.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listItemRole.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
+| `lib/api-zod/src/generated/types/listLearningEvidenceParams.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listProvenanceShowcase200.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listProvenanceShowcaseParams.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listQualityFinding.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
@@ -1073,6 +1075,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/db/migrations/0051_goal_source_list.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/0052_list_item_role.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/0053_evidence_path_step.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
+| `lib/db/migrations/0054_evidence_user_recent.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/meta/_journal.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0000_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0001_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
@@ -1100,6 +1103,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/db/migrations/meta/0051_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0052_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0053_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
+| `lib/db/migrations/meta/0054_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/package.json` | manifest or machine-readable config | Machine-readable package, compiler, build, app, or dependency configuration; JSON cannot contain comments. |
 | `lib/db/src/index.ts` | authored source (commented) | Persistence support role: provides Index database connection or migration behavior. System connection: consumed by the API before handlers query the shared Drizzle schema. |
 | `lib/db/src/migrate.ts` | authored source (commented) | Persistence support role: provides Migrate database connection or migration behavior. System connection: consumed by the API before handlers query the shared Drizzle schema. |
