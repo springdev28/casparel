@@ -475,6 +475,35 @@ paths:
       responses:
         "204": { description: Goal deleted }
 
+  /learning-goals/{id}/steps/{stepId}/activity:
+    get:
+      operationId: getStepActivity
+      tags: [learning-goals]
+      summary: What to do with a path step
+      description: >-
+        Decided from three facts the product holds: what the material is, what
+        the learner said it was for in the list the path was built from, and
+        whether they have a study set in the goal's subject. It offers only
+        things that exist here — nothing is generated, and the step is finished
+        by the learner saying so rather than by the resource opening.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stepId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The suggestion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StepActivity"
+        "404": { description: Goal or step not found }
+
   /learning-goals/{id}/steps/{stepId}/completion:
     post:
       operationId: completeGoalStep
@@ -4221,6 +4250,43 @@ components:
               description: >-
                 True when a path had already been built from this list and the
                 goal that exists was returned unchanged.
+
+    StepActivity:
+      type: object
+      required: [kind, because]
+      properties:
+        kind:
+          type: string
+          enum: [watch, listen, practise, read, find]
+        because:
+          type: string
+          enum: [role, format, no_resource]
+          description: >-
+            Which fact decided it: what the learner said the resource was for,
+            what the material is, or that the step has no resource on it.
+        resource:
+          description: The step's resource, when it has one.
+          oneOf:
+            - $ref: "#/components/schemas/Resource"
+            - type: "null"
+        query:
+          type: ["string", "null"]
+          description: What to search for, on a step with no resource.
+        recallActivity:
+          description: >-
+            A study set of the learner's own in this goal's subject, offered
+            alongside rather than instead.
+          oneOf:
+            - $ref: "#/components/schemas/StudyActivitySummary"
+            - type: "null"
+
+    StudyActivitySummary:
+      type: object
+      required: [id, title, mode]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        mode: { type: string }
 
     StepCompletionInput:
       type: object

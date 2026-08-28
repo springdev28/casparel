@@ -865,6 +865,43 @@ async function main() {
         `evidence: ${JSON.stringify(forStep)?.slice(0, 200)}`,
       );
 
+      // What to do with the step somebody is on. The goal's first step has no
+      // resource attached, so the honest answer is to go and find one.
+      const activity = await call(
+        "GET",
+        `/api/learning-goals/${goal.body.id}/steps/${firstStep.id}/activity`,
+        { token: alice.token },
+      );
+      check(
+        "a step with nothing attached says to go and find something",
+        activity.status === 200 &&
+          activity.body?.kind === "find" &&
+          activity.body?.because === "no_resource" &&
+          typeof activity.body?.query === "string",
+        `HTTP ${activity.status} ${activity.text.slice(0, 200)}`,
+      );
+
+      // And the branch that a unit test cannot reach: the answer has to come
+      // from the resource the step is actually joined to. An article, so
+      // reading -- said by the server after a lookup, not by the client from
+      // a field it happened to hold.
+      const attached = (persisted?.pathSteps ?? []).find(
+        (candidate) => candidate.resourceId === saved.body.id,
+      );
+      const forAttached = await call(
+        "GET",
+        `/api/learning-goals/${goal.body.id}/steps/${attached?.id}/activity`,
+        { token: alice.token },
+      );
+      check(
+        "a step with a resource on it says what that resource asks for",
+        forAttached.status === 200 &&
+          forAttached.body?.kind === "read" &&
+          forAttached.body?.because === "format" &&
+          forAttached.body?.resource?.id === saved.body.id,
+        `HTTP ${forAttached.status} ${forAttached.text.slice(0, 200)}`,
+      );
+
       const theirStep = await call(
         "POST",
         `/api/learning-goals/${goal.body.id}/steps/${firstStep.id}/completion`,

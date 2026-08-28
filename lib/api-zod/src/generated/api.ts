@@ -726,6 +726,43 @@ export const DeleteLearningGoalResponse = zod.void()
 
 
 /**
+ * Decided from three facts the product holds: what the material is, what the learner said it was for in the list the path was built from, and whether they have a study set in the goal's subject. It offers only things that exist here — nothing is generated, and the step is finished by the learner saying so rather than by the resource opening.
+ * @summary What to do with a path step
+ */
+export const GetStepActivityParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stepId": zod.coerce.string()
+})
+
+export const GetStepActivityResponse = zod.object({
+  "kind": zod.enum(['watch', 'listen', 'practise', 'read', 'find']),
+  "because": zod.enum(['role', 'format', 'no_resource']).describe('Which fact decided it: what the learner said the resource was for, what the material is, or that the step has no resource on it.'),
+  "resource": zod.union([zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "submittedById": zod.int(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string(),
+  "verificationStatus": zod.enum(['unverified', 'verified', 'rejected']).optional(),
+  "verificationNote": zod.string().nullish()
+}),zod.null()]).optional().describe('The step\'s resource, when it has one.'),
+  "query": zod.string().nullish().describe('What to search for, on a step with no resource.'),
+  "recallActivity": zod.union([zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "mode": zod.string()
+}),zod.null()]).optional().describe('A study set of the learner\'s own in this goal\'s subject, offered alongside rather than instead.')
+})
+
+
+/**
  * Touches one step rather than replacing the whole path, so two devices working on the same goal cannot overwrite each other. A check-in is optional: when one is given, it is recorded as learning evidence against the step, and a step that has already been checked in is not checked in twice. Marking a step not done leaves any evidence in place, because evidence is a record of what happened rather than a state.
  * @summary Mark one path step done or not done, optionally with a check-in
  */

@@ -177,6 +177,33 @@ describe.skipIf(!url)("completing a path step", () => {
     const theirs = await complete("three", { completed: true }, strangerAuth);
     expect(theirs.status).toBe(404);
 
+    // ── and the step says what to do with it ────────────────────────────────
+    //
+    // The step's resource is an article, so reading is the answer; the step
+    // with nothing on it sends the learner to find something.
+    const activity = await request(app)
+      .get(`/api/learning-goals/${goal.id}/steps/one/activity`)
+      .set(auth);
+    expect(activity.status, activity.text.slice(0, 200)).toBe(200);
+    expect(activity.body.kind).toBe("read");
+    expect(activity.body.because).toBe("format");
+    expect(activity.body.resource?.id).toBe(resource.id);
+    expect(activity.body.query).toBeNull();
+
+    const empty = await request(app)
+      .get(`/api/learning-goals/${goal.id}/steps/two/activity`)
+      .set(auth);
+    expect(empty.status).toBe(200);
+    expect(empty.body.kind).toBe("find");
+    expect(empty.body.because).toBe("no_resource");
+    expect(empty.body.query).toBe("problems");
+    expect(empty.body.resource).toBeNull();
+
+    const missing = await request(app)
+      .get(`/api/learning-goals/${goal.id}/steps/nowhere/activity`)
+      .set(auth);
+    expect(missing.status).toBe(404);
+
     // ── two steps finished at once, and neither is lost ──────────────────────
     await db
       .update(learningGoalsTable)

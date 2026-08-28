@@ -51,8 +51,10 @@ import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import {
+  getGetStepActivityQueryKey,
   getListLearningGoalsQueryKey,
   useCompleteGoalStep,
+  useGetStepActivity,
   useListLearningEvidence,
   useListLearningGoals,
 } from '@workspace/api-client-react';
@@ -64,6 +66,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useMotion } from '@/contexts/MotionContext';
 import { GoalProgress, goalProgress } from '@/components/GoalProgress';
 import { goalStatusLabel, levelLabel } from '@/utils/labels';
+import { describeActivity } from '@/utils/step-activity';
 
 function Step({
   step,
@@ -207,6 +210,21 @@ export default function GoalScreen() {
       ),
     [evidence.data, goalId],
   );
+  /*
+   * The step somebody is on: the first one still outstanding, in the path's
+   * own order. Not a recommendation -- just the next one -- and what to do
+   * with it comes from the server, which knows the material's format and the
+   * role the learner gave it.
+   */
+  const nextStep = goal?.pathSteps.find((step) => !step.completed) ?? null;
+  const activity = useGetStepActivity(goalId, nextStep?.id ?? '', {
+    query: {
+      queryKey: getGetStepActivityQueryKey(goalId, nextStep?.id ?? ''),
+      enabled: Boolean(goal && nextStep),
+    },
+  });
+  const suggestion = activity.data ?? null;
+  const described = suggestion ? describeActivity(suggestion, t) : null;
   const [checkingIn, setCheckingIn] = React.useState<LearningPathStep | null>(null);
   const [outcome, setOutcome] = React.useState<StepOutcome | null>(null);
   const [checkInFailure, setCheckInFailure] = React.useState<string | null>(null);
@@ -394,6 +412,80 @@ export default function GoalScreen() {
 
       <GoalProgress goal={goal} />
 
+      {/*
+        The one step somebody is on, and what it asks of them. The
+        specification's study session is a screen of its own; this is the part
+        of it that belongs on the goal -- the next step, what to do with it,
+        and one way in.
+      */}
+      {nextStep ? (
+        <View
+          style={[
+            styles.next,
+            { borderColor: colors.primary, borderRadius: colors.radius },
+          ]}
+        >
+          <Text style={[styles.nextLabel, { color: colors.mutedForeground }]}>
+            {t('Next')}
+          </Text>
+          <Text
+            numberOfLines={2}
+            style={[
+              styles.nextTitle,
+              { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
+            ]}
+          >
+            {nextStep.title}
+          </Text>
+          {described ? (
+            <>
+              <Text style={[styles.nextAction, { color: colors.foreground }]}>
+                {described.action}
+              </Text>
+              {described.note ? (
+                <Text style={[styles.nextNote, { color: colors.mutedForeground }]}>
+                  {described.note}
+                </Text>
+              ) : null}
+              <View style={styles.nextActions}>
+                {/*
+                  Both buttons navigate with the id the payload itself carried.
+                  Reading the resource id off the step instead would let the
+                  button draw from one source and move from another, and a
+                  button that draws and does nothing is worse than no button.
+                */}
+                {suggestion?.resource ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('Open')} ${suggestion.resource.title}`}
+                    onPress={() => router.push(`/resource/${suggestion.resource!.id}`)}
+                    style={({ pressed }) => [styles.nextButton, { opacity: pressed ? 0.6 : 1 }]}
+                  >
+                    <Feather name="external-link" size={15} color={colors.primary} />
+                    <Text style={[styles.nextButtonText, { color: colors.primary }]}>
+                      {t('Open')}
+                    </Text>
+                  </Pressable>
+                ) : null}
+                {suggestion?.recallActivity ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('Revise with')} ${suggestion.recallActivity.title}`}
+                    onPress={() => router.push(`/study/${suggestion.recallActivity!.id}`)}
+                    style={({ pressed }) => [styles.nextButton, { opacity: pressed ? 0.6 : 1 }]}
+                  >
+                    <Feather name="layers" size={15} color={colors.primary} />
+                    <Text style={[styles.nextButtonText, { color: colors.primary }]}>
+                      {t('Revise')}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </>
+          ) : null}
+        </View>
+      ) : null}
+
       {total === 0 ? (
         <Empty
           icon="list"
@@ -471,6 +563,14 @@ const styles = StyleSheet.create({
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   description: { fontSize: 14, lineHeight: 20 },
   provenance: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
+  next: { borderWidth: 1, padding: 14, gap: 4 },
+  nextLabel: { fontSize: 12 },
+  nextTitle: { fontSize: 16, lineHeight: 21 },
+  nextAction: { fontSize: 14, marginTop: 2 },
+  nextNote: { fontSize: 12, lineHeight: 16 },
+  nextActions: { flexDirection: 'row', gap: 16, marginTop: 6 },
+  nextButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40 },
+  nextButtonText: { fontSize: 14, fontWeight: '600' },
   provenanceText: { fontSize: 13 },
   steps: { gap: 8 },
   step: {

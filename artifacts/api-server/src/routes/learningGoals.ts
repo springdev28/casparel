@@ -11,7 +11,9 @@ import {
   goalPathTemplatesTable,
   classMembersTable,
   learningEvidenceTable,
+  listItemsTable,
   resourcesTable,
+  studyActivitiesTable,
   usersTable,
   activityLogTable,
 } from "@workspace/db";
@@ -32,6 +34,8 @@ import {
   CompleteGoalStepParams,
   CompleteGoalStepBody,
   CompleteGoalStepResponse,
+  GetStepActivityParams,
+  GetStepActivityResponse,
 } from "@workspace/api-zod";
 import {
   requireAuth,
@@ -44,6 +48,9 @@ import { validationMessage } from "../lib/validationMessage";
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 import { dateOnly } from "../lib/contractDates";
 import { resourceVisibilityCondition } from "../lib/resourceVisibility";
+import { publicResourceColumns } from "../lib/resourceColumns";
+import { resourceWithRating } from "../lib/resourceRatings";
+import { suggestStepActivity } from "../lib/stepActivity";
 import { isAdminRequest } from "../lib/adminAccess";
 
 const router: IRouter = Router();
@@ -370,6 +377,121 @@ router.patch(
       return;
     }
     res.json(asContract(UpdateLearningGoalResponse.parse(goal)));
+  },
+);
+
+/**
+ * What to do with this step.
+ *
+ * The specification asks the study session to choose an activity according to
+ * the material and the goal. The rules are in lib/stepActivity.ts and rest on
+ * three facts this product actually holds: what the material is, what the
+ * learner said it was for in the list the path came from, and whether they
+ * have a study set in the subject.
+ *
+ * The role is worth the join. A path built from a Learning List carries the
+ * resource ids but not the roles, and the role is the only place the learner
+ * has said anything about what a resource is *for* -- so a video they marked
+ * as the thing to practise on is offered as practice rather than as watching.
+ *
+ * Nothing is generated. Every branch offers something that exists here, and
+ * the step is still finished by the learner saying so.
+ */
+router.get(
+  "/learning-goals/:id/steps/:stepId/activity",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = GetStepActivityParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: validationMessage(params.error) });
+      return;
+    }
+    const workspaceRole = userRole === "teacher" ? "teacher" : "student";
+    const [goal] = await db
+      .select()
+      .from(learningGoalsTable)
+      .where(
+        and(
+          eq(learningGoalsTable.id, params.data.id),
+          eq(learningGoalsTable.userId, userId),
+          eq(learningGoalsTable.workspaceRole, workspaceRole),
+        ),
+      );
+    if (!goal) {
+      res.status(404).json({ error: "Learning goal not found" });
+      return;
+    }
+    const step = goal.pathSteps.find(
+      (candidate) => candidate.id === params.data.stepId,
+    );
+    if (!step) {
+      res.status(404).json({ error: "Step not found" });
+      return;
+    }
+
+    const [resourceRow, roleRow, recall] = await Promise.all([
+      step.resourceId
+        ? db
+            .select(publicResourceColumns)
+            .from(resourcesTable)
+            .where(
+              and(
+                eq(resourcesTable.id, step.resourceId),
+                resourceVisibilityCondition(userId, isAdminRequest(req)),
+              ),
+            )
+        : Promise.resolve([]),
+      // The role the learner gave this resource, in the list this path came
+      // from. Only that list: a role they set somewhere else is about a
+      // different arrangement of the same resource.
+      step.resourceId && goal.sourceListId
+        ? db
+            .select({ role: listItemsTable.role })
+            .from(listItemsTable)
+            .where(
+              and(
+                eq(listItemsTable.listId, goal.sourceListId),
+                eq(listItemsTable.resourceId, step.resourceId),
+              ),
+            )
+            .limit(1)
+        : Promise.resolve([]),
+      db
+        .select({
+          id: studyActivitiesTable.id,
+          title: studyActivitiesTable.title,
+          mode: studyActivitiesTable.mode,
+        })
+        .from(studyActivitiesTable)
+        .where(
+          and(
+            eq(studyActivitiesTable.ownerId, userId),
+            eq(studyActivitiesTable.workspaceRole, workspaceRole),
+            eq(studyActivitiesTable.subject, goal.subject),
+          ),
+        )
+        .orderBy(desc(studyActivitiesTable.id))
+        .limit(1),
+    ]);
+
+    const suggestion = suggestStepActivity({
+      format: resourceRow[0]?.format ?? null,
+      role: roleRow[0]?.role ?? null,
+      recallActivityId: recall[0]?.id ?? null,
+    });
+
+    res.json(
+      GetStepActivityResponse.parse({
+        kind: suggestion.kind,
+        because: suggestion.because,
+        resource: resourceRow[0]
+          ? await resourceWithRating(resourceRow[0].id)
+          : null,
+        query: suggestion.kind === "find" ? step.query : null,
+        recallActivity: recall[0] ?? null,
+      }),
+    );
   },
 );
 

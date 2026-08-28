@@ -1086,6 +1086,50 @@ export type PathFromList = LearningGoal & {
   alreadyBuilt: boolean;
 };
 
+export type StepActivityKind = typeof StepActivityKind[keyof typeof StepActivityKind];
+
+
+export const StepActivityKind = {
+  watch: 'watch',
+  listen: 'listen',
+  practise: 'practise',
+  read: 'read',
+  find: 'find',
+} as const;
+
+/**
+ * Which fact decided it: what the learner said the resource was for, what the material is, or that the step has no resource on it.
+ */
+export type StepActivityBecause = typeof StepActivityBecause[keyof typeof StepActivityBecause];
+
+
+export const StepActivityBecause = {
+  role: 'role',
+  format: 'format',
+  no_resource: 'no_resource',
+} as const;
+
+export interface StudyActivitySummary {
+  id: number;
+  title: string;
+  mode: string;
+}
+
+export interface StepActivity {
+  kind: StepActivityKind;
+  /** Which fact decided it: what the learner said the resource was for, what the material is, or that the step has no resource on it. */
+  because: StepActivityBecause;
+  /** The step's resource, when it has one. */
+  resource?: Resource | null;
+  /**
+     * What to search for, on a step with no resource.
+     * @nullable
+     */
+  query?: string | null;
+  /** A study set of the learner's own in this goal's subject, offered alongside rather than instead. */
+  recallActivity?: StudyActivitySummary | null;
+}
+
 export interface StepCompletionInput {
   completed: boolean;
   /**

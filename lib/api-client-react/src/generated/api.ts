@@ -131,6 +131,7 @@ import type {
   ShareListInput,
   SharedStudyActivity,
   SourceReview,
+  StepActivity,
   StepCompletion,
   StepCompletionInput,
   StudentLearningGoal,
@@ -1944,6 +1945,89 @@ export const useDeleteLearningGoal = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getDeleteLearningGoalMutationOptions(options));
     }
+
+export const getGetStepActivityUrl = (id: number,
+    stepId: string,) => {
+
+
+
+
+  return `/api/learning-goals/${id}/steps/${stepId}/activity`
+}
+
+/**
+ * Decided from three facts the product holds: what the material is, what the learner said it was for in the list the path was built from, and whether they have a study set in the goal's subject. It offers only things that exist here — nothing is generated, and the step is finished by the learner saying so rather than by the resource opening.
+ * @summary What to do with a path step
+ */
+export const getStepActivity = async (id: number,
+    stepId: string, options?: Parameters<typeof customFetch>[1]): Promise<StepActivity> => {
+
+  return customFetch<StepActivity>(getGetStepActivityUrl(id,stepId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStepActivityQueryKey = (id: number,
+    stepId: string,) => {
+    return [
+    `/api/learning-goals/${id}/steps/${stepId}/activity`
+    ] as const;
+    }
+
+
+export const getGetStepActivityQueryOptions = <TData = Awaited<ReturnType<typeof getStepActivity>>, TError = ErrorType<void>>(id: number,
+    stepId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStepActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStepActivityQueryKey(id,stepId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStepActivity>>> = ({ signal }) => getStepActivity(id,stepId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined && stepId !== null && stepId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStepActivity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStepActivityQueryResult = NonNullable<Awaited<ReturnType<typeof getStepActivity>>>
+export type GetStepActivityQueryError = ErrorType<void>
+
+
+/**
+ * @summary What to do with a path step
+ */
+
+export function useGetStepActivity<TData = Awaited<ReturnType<typeof getStepActivity>>, TError = ErrorType<void>>(
+ id: number,
+    stepId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStepActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStepActivityQueryOptions(id,stepId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getCompleteGoalStepUrl = (id: number,
     stepId: string,) => {

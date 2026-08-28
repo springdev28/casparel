@@ -318,7 +318,6 @@ Verification recorded for this increment:
 Still required after these increments:
 
 - verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
-- Phase 4 continues: choose the study activity by material and goal (flashcards, quiz, explain-back, comparison), which is the half of §8 that step completion does not answer;
 - capture second-device persistence and analytics evidence in the release record.
 
 ## Current implementation ledger — 2026-08-26
@@ -492,3 +491,39 @@ Verification recorded for this increment:
 - the check-in written once, kept through an untick, refused when half-given, and two concurrent completions both surviving — all against a real database;
 - 84 end-to-end flow checks against a real server, including the check-in appearing exactly once in the learner's own evidence and a stranger who cannot tick somebody else's step;
 - the phone renders the goal and check-in screens in English and Turkish with every control named for a screen reader.
+
+## Current implementation ledger — 2026-08-28 (Phase 4, choosing the activity)
+
+The other half of §8, and the last one Phase 4 was waiting on: a step now says
+what to *do* with it, not only that it exists. Opening a resource is not
+studying, and a path that hands somebody a link and stops has left the decision
+— read this, or work through it, or go and find something — to the learner
+every single time.
+
+Implemented in this increment:
+
+- `GET /learning-goals/{id}/steps/{stepId}/activity`, which answers with one of five things the product can actually offer: watch, listen, work through, read, or go and find something;
+- a decision made from the three facts this product genuinely holds — what the material is, what the learner said it was for, and whether they have a study set in the subject — rather than from a curriculum it does not have;
+- the learner's own label beating the catalogue's: a resource they marked as **practice** in the list the path came from is something to work through, whatever format the file is;
+- the reason returned alongside the answer, and shown only when it is worth admitting — "you marked this as practice" tells somebody something, "because it is a video" tells them what they can already see;
+- the role read only from the list the path was built from, so a role set on the same resource in a different list does not leak into this arrangement of it;
+- resource visibility enforced on the read, so a step pointing at a submission still in the review queue reports honestly that there is nothing to open rather than describing material the reader cannot see;
+- a **Next** card on the goal screen: the first outstanding step, what it asks for, and one way in — the resource, and the learner's own study set beside it when they have one to revise with;
+- both buttons navigating with the id the payload itself carried, so a card cannot draw from one source and move from another;
+- Turkish coverage for the nine new learner-facing strings.
+
+What it deliberately does not do is worth stating. The specification lists
+eight activity kinds, including explain-back and source comparison. There is no
+branch here for either, because nothing in this product produces them, and a
+screen that tells somebody to do a thing that is not there is worse than a
+screen that says less.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 807 API assertions across 95 test files against a real PostgreSQL instance; one file and nine environment-gated tests remained skipped;
+- 77 mobile tests;
+- 86 end-to-end flow checks against a real server and database, covering both branches that matter: a bare step answering "go and find something", and a step with an article on it answering "read it" with the resource the server looked up;
+- 26 authorization probes refused, and 21 class-access checks passed;
+- the phone renders all fifteen routes in English and Turkish, the goal screen showing the **Next** card with its action, its way in and its revision set in both, and every control named for a screen reader;
+- web production build passed.

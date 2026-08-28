@@ -335,6 +335,35 @@ function stubbedBody(pathname) {
    * A check-in against the audit goal's first step, so the goal screen renders
    * the "checked in" mark as well as the plain step.
    */
+  /*
+   * What to do with the audit goal's next step. An article, so reading, with
+   * the learner's own study set offered beside it -- which renders both
+   * buttons the goal screen can show.
+   */
+  if (/\/steps\/[^/]+\/activity$/.test(pathname)) {
+    return {
+      kind: "read",
+      because: "format",
+      query: null,
+      resource: {
+        id: 101,
+        title: "Linear Algebra Done Right",
+        url: "https://example.org/101",
+        description: null,
+        format: "pdf",
+        subject: "Mathematics",
+        gradeLevel: "Undergraduate",
+        thumbnailUrl: null,
+        submittedById: 1,
+        avgRating: 4.5,
+        reviewCount: 3,
+        createdAt: "2026-03-02T09:00:00.000Z",
+        verificationStatus: "verified",
+        verificationNote: null,
+      },
+      recallActivity: { id: 7, title: "Audit set", mode: "flashcards" },
+    };
+  }
   if (pathname.endsWith("/learning-evidence")) {
     return [
       {
