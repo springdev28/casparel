@@ -1839,6 +1839,15 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
 
 router.post(
   "/resources/prefetch",
+  /*
+   * This reaches a URL somebody typed, from the server, on every call. Without
+   * a limiter the only ceiling was the global hundred a minute, which makes an
+   * account a hundred outbound requests a minute at somebody else's address --
+   * and the save form calls this once, when a link is pasted. `POST /resources`
+   * does the same kind of outbound work and has always been limited; this is
+   * the same endpoint's other half.
+   */
+  contentLimiter,
   requireAuth,
   async (req, res): Promise<void> => {
     const parsed = PrefetchResourceMetadataBody.safeParse(req.body);

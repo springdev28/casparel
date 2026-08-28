@@ -785,3 +785,41 @@ Verification recorded for this increment:
 - 98 end-to-end flow checks against a real server;
 - 32 phone screen renders across two languages, the goal screen still showing its check-in marks;
 - 180 page renders clean, the web production build passed, and every visible string on it is still translated.
+
+## Fix — one account, a hundred outbound requests a minute
+
+Everything under `/api` carries the global limiter: a hundred requests a
+minute. That is a ceiling on this server's own work, and it is not a ceiling
+on what this server does to somebody else's. A handler that fetches a URL the
+caller typed turns one account into a hundred outbound requests a minute,
+aimed wherever that account chooses, which is a different thing from a hundred
+reads of a page here.
+
+`POST /resources/prefetch` is the one route that did that. `fetchPublicText`
+is careful about *where* it will go — it re-checks the address at every
+redirect hop, which is the bypass that catches naive guards — and says nothing
+about how often. `POST /resources` does the same outbound work for the same
+form and has always carried the stricter twenty-a-minute limiter; its other
+half did not. Measured against a real server: twenty succeed, the next five
+are refused.
+
+A sweep of all 117 write routes found 57 without a per-route limiter. Almost
+all are right as they are — sign-in and registration are covered more strictly
+by their own limiters mounted in `app.ts`, and patching or deleting a row you
+own is bounded by how many you own. The eleven that create rows or reach
+outward were each read: reposts, likes and votes create rows but are toggles
+bounded by how many posts exist, and twenty a minute would refuse a reader
+scrolling a feed, so they keep the global ceiling on purpose.
+
+`reachingOutIsLimited.test.ts` holds the rule for the routes that reach an
+arbitrary address. Fetching Google's API with a token the account connected is
+not one of them: it is bounded by having connected an account, and the address
+is not the caller's to choose.
+
+Its first version passed while the limiter was removed. It read the first few
+hundred characters of the registration and looked for the word "limiter", and
+the comment *explaining* why the limiter was there satisfied it. Comments are
+stripped now and only the middleware chain is read — a guard a comment can
+satisfy is a guard that describes the code instead of reading it, and the only
+reason that was caught is that removing the fix and re-running is part of
+adding one here.
