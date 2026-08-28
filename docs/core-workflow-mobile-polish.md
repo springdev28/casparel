@@ -861,3 +861,41 @@ Verification recorded for this increment:
 - 24 live UI checks against a real server serving the built app, up from 17;
 - the rename check fails when the whole-array write is put back and passes when it is not;
 - 180 page renders clean, and every visible string on the web is still translated.
+
+## Current implementation ledger — 2026-08-29 (the phone, when nothing answers)
+
+The verification contract asks for read failure alongside the successful flow,
+and on the phone nothing had ever drawn one. `audit-languages.mjs` renders every
+screen against a stub that always says 200 with a well-formed body — the happy
+half, and the only half. Not one error state, offline state or retry in this
+app had been rendered by a check. They are translated, because the source scan
+reads their strings; they had never been seen.
+
+`audit-failures.mjs` renders the eleven screens that read something, twice: once
+with the request never reaching a server, and once with the server answering
+500. The app distinguishes those and so does a person — no status means the
+connection, a status means our end — so both are asked for.
+
+The rule it holds is the one failure worth this much machinery. A screen that
+treats "the request failed" as "there is nothing here" tells somebody their
+lists are gone. It renders perfectly, it says a true-sounding sentence, and it
+is a lie about the reader's own data. So: when nothing loads, no screen may
+show an empty state, and every screen must say that it could not load. The
+forbidden phrases are the app's own `Empty` titles rather than a list invented
+here, so a new empty state joins the rule by existing.
+
+It runs in Turkish. A failure state falling back to English is the same defect
+as any other string doing so, and this is the only run that renders one.
+
+All sixty-six passed on the first run, which is a claim worth less than the
+check that backs it — so the lists screen's error branch was disabled and the
+run repeated. It reported the screen saying "Henüz öğrenme listesi yok" —
+"no learning lists yet" — while every request behind it was failing, which is
+exactly the sentence this exists to catch.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 66 failure-state checks across eleven screens and two ways of not answering, in Turkish;
+- the audit fails when one screen's error branch is removed, naming the empty state it wrongly showed;
+- 32 screen renders across two languages still clean.
