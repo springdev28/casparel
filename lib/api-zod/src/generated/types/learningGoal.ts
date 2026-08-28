@@ -23,6 +23,11 @@ export interface LearningGoal {
   /** @nullable */
   targetDate?: Date | null;
   status: LearningGoalStatus;
+  /**
+     * The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.
+     * @nullable
+     */
+  sourceListId?: number | null;
   pathSteps: LearningPathStep[];
   createdAt: string;
   updatedAt: string;

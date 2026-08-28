@@ -573,6 +573,7 @@ export const ListLearningGoalsResponseItem = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
   "pathSteps": zod.array(zod.object({
   "id": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(listLearningGoalsResponsePathStepsItemTitleMax),
@@ -627,6 +628,7 @@ export const CreateLearningGoalResponse = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
   "pathSteps": zod.array(zod.object({
   "id": zod.string().min(1).max(createLearningGoalResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(createLearningGoalResponsePathStepsItemTitleMax),
@@ -700,6 +702,7 @@ export const UpdateLearningGoalResponse = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
   "pathSteps": zod.array(zod.object({
   "id": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(updateLearningGoalResponsePathStepsItemTitleMax),
@@ -752,6 +755,7 @@ export const LinkGoalResourceResponse = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
   "pathSteps": zod.array(zod.object({
   "id": zod.string().min(1).max(linkGoalResourceResponseOnePathStepsItemIdMax),
   "title": zod.string().min(1).max(linkGoalResourceResponseOnePathStepsItemTitleMax),
@@ -1412,6 +1416,7 @@ export const ListClassStudentGoalsResponseItem = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
   "pathSteps": zod.array(zod.object({
   "id": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemIdMax),
   "title": zod.string().min(1).max(listClassStudentGoalsResponseOnePathStepsItemTitleMax),
@@ -1490,6 +1495,7 @@ export const UpdateClassStudentGoalResponse = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
   "pathSteps": zod.array(zod.object({
   "id": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemIdMax),
   "title": zod.string().min(1).max(updateClassStudentGoalResponseOnePathStepsItemTitleMax),
@@ -2550,6 +2556,60 @@ export const RemoveListItemParams = zod.object({
 })
 
 export const RemoveListItemResponse = zod.void()
+
+
+/**
+ * Turns the list's resources, in their order, into the steps of a learning goal. Idempotent: a list that has already been built into a path is reported with 200 and the goal that exists, rather than a second one.
+ * @summary Build a learning path from a list
+ */
+export const BuildPathFromListParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const buildPathFromListBodyTitleMin = 2;
+export const buildPathFromListBodyTitleMax = 160;
+
+export const buildPathFromListBodySubjectMax = 100;
+
+
+
+export const BuildPathFromListBody = zod.object({
+  "title": zod.string().min(buildPathFromListBodyTitleMin).max(buildPathFromListBodyTitleMax).optional(),
+  "subject": zod.string().min(1).max(buildPathFromListBodySubjectMax).optional(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']).optional()
+})
+
+export const buildPathFromListResponseOnePathStepsItemIdMax = 80;
+
+export const buildPathFromListResponseOnePathStepsItemTitleMax = 200;
+
+export const buildPathFromListResponseOnePathStepsItemQueryMax = 300;
+
+
+
+export const BuildPathFromListResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(buildPathFromListResponseOnePathStepsItemIdMax),
+  "title": zod.string().min(1).max(buildPathFromListResponseOnePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(buildPathFromListResponseOnePathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).and(zod.object({
+  "alreadyBuilt": zod.boolean().describe('True when a path had already been built from this list and the goal that exists was returned unchanged.')
+}))
 
 
 /**
@@ -3786,6 +3846,7 @@ export const CloneCommunityPathResponse = zod.object({
   "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
   "pathSteps": zod.array(zod.object({
   "id": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemIdMax),
   "title": zod.string().min(1).max(cloneCommunityPathResponsePathStepsItemTitleMax),

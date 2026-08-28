@@ -246,6 +246,7 @@ const LEARNING_GOAL = {
   targetDate: "2026-12-01",
   status: "active",
   progress: 25,
+  sourceListId: null,
   /*
    * `query` and `completed`, which is what the contract says a step is. These
    * read `done`, so the app -- which reads `completed` -- saw two unfinished

@@ -906,6 +906,11 @@ export interface LearningGoal {
   /** @nullable */
   targetDate?: string | null;
   status: LearningGoalStatus;
+  /**
+     * The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.
+     * @nullable
+     */
+  sourceListId?: number | null;
   pathSteps: LearningPathStep[];
   createdAt: string;
   updatedAt: string;
@@ -1018,6 +1023,34 @@ export interface LearningGoalPatch {
   /** @maxItems 20 */
   pathSteps?: LearningPathStep[];
 }
+
+export type PathFromListInputLevel = typeof PathFromListInputLevel[keyof typeof PathFromListInputLevel];
+
+
+export const PathFromListInputLevel = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+} as const;
+
+export interface PathFromListInput {
+  /**
+     * @minLength 2
+     * @maxLength 160
+     */
+  title?: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  subject?: string;
+  level?: PathFromListInputLevel;
+}
+
+export type PathFromList = LearningGoal & {
+  /** True when a path had already been built from this list and the goal that exists was returned unchanged. */
+  alreadyBuilt: boolean;
+};
 
 export interface GoalResourceInput {
   resourceId: number;

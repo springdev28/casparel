@@ -3,6 +3,7 @@
  * System connection: re-exported by schema/index.ts, migrated through lib/db/migrations, and queried by API route/domain modules.
  */
 import {
+  index,
   pgEnum,
   pgTable,
   serial,
@@ -13,6 +14,7 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
+import { resourceListsTable } from "./resourceLists";
 
 export const learningGoalStatusEnum = pgEnum("learning_goal_status", [
   "active",
@@ -55,6 +57,16 @@ export const learningGoalsTable = pgTable("learning_goals", {
   preferredFormats: text("preferred_formats").array(),
   targetDate: date("target_date", { mode: "string" }),
   status: learningGoalStatusEnum("status").notNull().default("active"),
+  /**
+   * The Learning List this goal's path was built from, when it was built from
+   * one. `set null` rather than cascade on purpose: the goal is the learner's
+   * own work and outlives the list it came from; what is lost when the list
+   * goes is the provenance, not the path.
+   */
+  sourceListId: integer("source_list_id").references(
+    () => resourceListsTable.id,
+    { onDelete: "set null" },
+  ),
   pathSteps: jsonb("path_steps")
     .$type<LearningPathStepRecord[]>()
     .notNull()
@@ -65,7 +77,11 @@ export const learningGoalsTable = pgTable("learning_goals", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()
     .defaultNow(),
-});
+}, (table) => [
+  // Building a path from a list asks "has this learner already built one from
+  // this list?" on every attempt, which is what makes the write idempotent.
+  index("learning_goals_source_list_idx").on(table.userId, table.sourceListId),
+]);
 
 export type LearningGoal = typeof learningGoalsTable.$inferSelect;
 

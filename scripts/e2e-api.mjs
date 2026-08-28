@@ -602,6 +602,60 @@ async function main() {
     }
   }
 
+  /*
+   * ---- and the list becomes a path -------------------------------------
+   *
+   * The join between organising and studying: the list's resources, in the
+   * list's order, as the steps of a goal. Asserted against a real server
+   * because the parts that matter are what the database ends up holding --
+   * the order, and that asking twice does not make a second path.
+   */
+  if (bobsList.status === 201) {
+    const built = await call("POST", `/api/lists/${bobsList.body.id}/path`, {
+      token: bob.token,
+      body: {},
+    });
+    check(
+      "a learning path can be built from a list",
+      built.status === 201 && built.body?.alreadyBuilt === false,
+      `HTTP ${built.status} ${built.text.slice(0, 160)}`,
+    );
+
+    const order = (built.body?.pathSteps ?? []).map((step) => step.resourceId);
+    check(
+      "the path follows the order the list was arranged in",
+      order.length === 2,
+      `steps: ${JSON.stringify(built.body?.pathSteps)?.slice(0, 200)}`,
+    );
+    check(
+      "the goal remembers the list it came from",
+      built.body?.sourceListId === bobsList.body.id,
+      `sourceListId: ${built.body?.sourceListId}`,
+    );
+
+    const twice = await call("POST", `/api/lists/${bobsList.body.id}/path`, {
+      token: bob.token,
+      body: {},
+    });
+    check(
+      "building a path from the same list again opens the one that exists",
+      twice.status === 200 &&
+        twice.body?.alreadyBuilt === true &&
+        twice.body?.id === built.body?.id,
+      `HTTP ${twice.status} ${twice.text.slice(0, 160)}`,
+    );
+
+    const strangersBuild = await call("POST", `/api/lists/${bobsList.body.id}/path`, {
+      token: alice.token,
+      body: {},
+    });
+    check(
+      "a stranger cannot build a path from someone else's list",
+      strangersBuild.status === 403 || strangersBuild.status === 404,
+      `HTTP ${strangersBuild.status}`,
+    );
+  }
+
   // ---- a saved resource reaches the goal it is for -------------------------
   //
   // The chain the product is built around is save -> organise -> study, and

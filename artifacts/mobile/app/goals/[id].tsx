@@ -278,6 +278,28 @@ export default function GoalScreen() {
         <Badge variant="outline">{goalStatusLabel(goal.status, t)}</Badge>
       </View>
 
+      {/* Where the path came from, when it came from somewhere. The id is
+          nulled when the list is deleted, so this disappears with it rather
+          than offering a link to nothing. */}
+      {goal.sourceListId ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('Open the list this path came from')}
+          onPress={() => router.push(`/lists/${goal.sourceListId}`)}
+          style={({ pressed }) => [styles.provenance, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Feather name="bookmark" size={14} color={colors.primary} />
+          <Text
+            style={[
+              styles.provenanceText,
+              { color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold },
+            ]}
+          >
+            {t('Built from a learning list')}
+          </Text>
+        </Pressable>
+      ) : null}
+
       {goal.description ? (
         <Text
           style={[
@@ -346,6 +368,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, letterSpacing: -0.3 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   description: { fontSize: 14, lineHeight: 20 },
+  provenance: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
+  provenanceText: { fontSize: 13 },
   steps: { gap: 8 },
   step: {
     borderWidth: 1,

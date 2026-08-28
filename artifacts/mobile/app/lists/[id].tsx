@@ -17,6 +17,12 @@
  * where it was and the screen says what did not save. The reorder sends the
  * whole order, which is what the endpoint takes and what makes it idempotent
  * -- the same order sent twice is the same order.
+ *
+ * The third thing this screen does is turn the list into a goal's path, which
+ * is the join between organising and studying. It is not optimistic: it makes
+ * something new, it takes the learner somewhere else, and the specification
+ * asks for a review first -- so the preview sheet shows the steps and the
+ * write happens when they say so.
  */
 import React from 'react';
 import {
@@ -38,13 +44,16 @@ import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import {
   getGetResourceListQueryKey,
+  getListLearningGoalsQueryKey,
   getListResourceListsQueryKey,
+  useBuildPathFromList,
   useGetResourceList,
   useRemoveListItem,
   useReorderListItems,
 } from '@workspace/api-client-react';
 import type { ListItem, ResourceListWithItems } from '@workspace/api-client-react';
 import { ErrorState } from '@/components/ErrorState';
+import { PathPreviewSheet } from '@/components/PathPreviewSheet';
 import { describeApiFailure } from '@/utils/api-failure';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useMotion } from '@/contexts/MotionContext';
@@ -193,6 +202,9 @@ export default function ListScreen() {
 
   const [pending, setPending] = React.useState<number | null>(null);
   const [writeError, setWriteError] = React.useState<string | null>(null);
+  const [previewing, setPreviewing] = React.useState(false);
+  const [buildFailure, setBuildFailure] = React.useState<string | null>(null);
+  const buildPath = useBuildPathFromList();
 
   const key = getGetResourceListQueryKey(listId);
   const items = data?.items ?? [];
@@ -268,6 +280,34 @@ export default function ListScreen() {
       );
     } finally {
       setPending(null);
+    }
+  }
+
+  /**
+   * Turn this list into a goal path, and go to it.
+   *
+   * The server decides whether this list has been built into a path before, so
+   * a second tap -- or a second visit next week -- opens the path that exists
+   * rather than making another. Either way the learner ends up on the goal,
+   * because that is what they asked for; the sheet only closes on success, so
+   * a failure keeps the steps they were looking at on screen.
+   */
+  async function build() {
+    if (!data || buildPath.isPending) return;
+    setBuildFailure(null);
+    try {
+      const goal = await buildPath.mutateAsync({ id: listId, data: {} });
+      await queryClient.invalidateQueries({
+        queryKey: getListLearningGoalsQueryKey(),
+      });
+      success();
+      setPreviewing(false);
+      router.push(`/goals/${goal.id}`);
+    } catch (failure) {
+      warning();
+      setBuildFailure(
+        describeApiFailure(failure, t('That path could not be built. Try again.'), t),
+      );
     }
   }
 
@@ -392,8 +432,50 @@ export default function ListScreen() {
               </Text>
             </View>
           ) : null}
+
+          {/* The way out of organising and into studying. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Build a learning path')}
+            disabled={pending !== null}
+            onPress={() => {
+              setBuildFailure(null);
+              setPreviewing(true);
+            }}
+            style={({ pressed }) => [
+              styles.buildPath,
+              {
+                borderColor: colors.primary,
+                borderRadius: colors.radius,
+                backgroundColor: pressed ? colors.muted : 'transparent',
+                opacity: pending !== null ? 0.5 : 1,
+              },
+            ]}
+          >
+            <Feather name="target" size={16} color={colors.primary} />
+            <Text
+              style={[
+                styles.buildPathText,
+                { color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold },
+              ]}
+            >
+              {t('Build a learning path')}
+            </Text>
+          </Pressable>
         </View>
       )}
+
+      <PathPreviewSheet
+        visible={previewing}
+        listName={data.name}
+        items={items}
+        building={buildPath.isPending}
+        failure={buildFailure}
+        onClose={() => setPreviewing(false)}
+        onBuild={() => {
+          void build();
+        }}
+      />
     </ScrollView>
   );
 }
@@ -436,4 +518,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   savingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 2 },
+  buildPath: {
+    marginTop: 6,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    paddingHorizontal: 14,
+  },
+  buildPathText: { fontSize: 15 },
 });

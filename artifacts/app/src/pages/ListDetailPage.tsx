@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical, Users } from 'lucide-react';
+import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical, Target, Users } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from '@workspace/edu-ds/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@workspace/edu-ds/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
+import { describeApiError } from '@/lib/api-error';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -33,6 +34,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  useBuildPathFromList,
   useGetResourceList,
   useRemoveListItem,
   useReorderListItems,
@@ -43,6 +45,7 @@ import {
   useListClasses,
   useShareListWithClass,
   getGetResourceListQueryKey,
+  getListLearningGoalsQueryKey,
   getListResourceListsQueryKey,
   getGetGCStatusQueryKey,
   getListGCCoursesQueryKey,
@@ -107,6 +110,7 @@ export default function ListDetailPage() {
   const { data: me } = useGetMe();
   const removeItem = useRemoveListItem();
   const reorderItems = useReorderListItems();
+  const buildPath = useBuildPathFromList();
 
   // Sync local order from server whenever the list data changes
   useEffect(() => {
@@ -114,6 +118,36 @@ export default function ListDetailPage() {
       setOrderedItems(list.items as ListItemData[]);
     }
   }, [list?.items]);
+
+  /**
+   * Turn this list into a goal's path, and go to it.
+   *
+   * The steps are the list, in the list's order, so what the learner is
+   * looking at is the review. The server decides whether a path has already
+   * been built from this list, so a second press opens the one that exists
+   * rather than making another; either way this ends on the goal, because
+   * that is what was asked for.
+   */
+  async function buildLearningPath() {
+    if (!list || buildPath.isPending) return;
+    try {
+      const goal = await buildPath.mutateAsync({ id: listId, data: {} });
+      await queryClient.invalidateQueries({ queryKey: getListLearningGoalsQueryKey() });
+      toast({
+        title: goal.alreadyBuilt ? 'This list already has a path' : 'Learning path built',
+        description: goal.alreadyBuilt
+          ? 'Opening the one you built before.'
+          : `${goal.pathSteps.length} steps, in the order of your list.`,
+      });
+      setLocation('/goals');
+    } catch (error) {
+      toast({
+        title: 'Could not build the path',
+        description: describeApiError(error, 'Please try again.'),
+        variant: 'destructive',
+      });
+    }
+  }
 
   const isTeacher = (me?.activeRole ?? me?.role) === UserRole.teacher;
   const isOwner = me?.id != null && list != null && list.ownerId === me.id;
@@ -359,6 +393,19 @@ export default function ListDetailPage() {
               </div>
             </DialogContent>
           </Dialog>
+        )}
+
+        {isOwner && (list?.items.length ?? 0) > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void buildLearningPath()}
+            disabled={buildPath.isPending}
+            data-testid="build-path-button"
+          >
+            <Target size={15} className="mr-1.5" />
+            Build a learning path
+          </Button>
         )}
 
         {canShareToGC && (

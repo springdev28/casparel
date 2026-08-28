@@ -318,7 +318,7 @@ Verification recorded for this increment:
 Still required after these increments:
 
 - verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
-- continue Phase 3 with Learning List item roles, quality review, and editable list-to-path activation;
+- continue Phase 3 with Learning List item roles and quality review;
 - capture second-device persistence and analytics evidence in the release record.
 
 ## Current implementation ledger — 2026-08-26
@@ -387,3 +387,39 @@ Verification recorded for this increment:
 - the new order is read back in the order asked for, with positions 0..n rather than rows that merely sort correctly; a short order, a duplicate, and an item belonging to another list are each refused and leave the stored order untouched;
 - 69 end-to-end flow checks passed against a real server and database, including add, reorder, read back, and a refused partial order that changed nothing;
 - both new screens render in English and Turkish with every control carrying a screen-reader name.
+
+## Current implementation ledger — 2026-08-28
+
+A Learning List becomes a goal path. This is the join between organising and
+studying, and it closes the **List-to-Path review** section of this document
+for the phone and the web.
+
+Implemented in this increment:
+
+- `POST /lists/{id}/path`: the list's resources, in the list's order, as the steps of a learning goal;
+- nothing generated and nothing invented — no AI call, no estimated durations, no percentage — because the learner already chose these resources and put them in this order;
+- `learning_goals.source_list_id`, which is both the provenance the specification asks for and the idempotency key: a second attempt returns the goal that exists with `alreadyBuilt`, and eight concurrent taps leave one path;
+- the goal outlives the list it came from — deleting the list clears the provenance and keeps the path;
+- an empty list is refused rather than becoming a goal with no steps, and only the list's owner can build from it;
+- a review sheet on the phone: the steps that will be created, drawn from the list already on screen, with Cancel and Build — the specification's "do not immediately activate generated work", honoured without pretending there is generation to preview;
+- the same action on the web list page, and a link on the goal back to the list it came from;
+- one analytics milestone per resource that reached the path, written in one statement rather than one per resource;
+- a plan-capacity check that refuses a *new* goal at the limit but never blocks opening a path built earlier;
+- Turkish coverage for the eight new phone strings and the five new web ones.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 787 API assertions across 92 test files against a real PostgreSQL instance;
+- 67 mobile tests;
+- the order, the idempotency (including eight concurrent taps), the refusal of an empty list, the refusal of somebody else's list, and the path surviving its list's deletion are all asserted against a real database;
+- 74 end-to-end flow checks against a real server, including building, building again, and a stranger's attempt — and the path following the list's *reordered* order, since the same run reorders it first;
+- the phone app renders the list and goal screens in English and Turkish with every new control named for a screen reader;
+- the web production build passed.
+
+A trap worth recording: `drizzle-kit generate` stamps the wall clock, and this
+repository's migration journal carries timestamps weeks ahead of it, so the
+generated entry sorted *behind* the previous one — and Drizzle skips a
+migration whose `when` is not greater than the last applied, reporting success
+while doing it. The column silently did not exist. `migrationsCanApply.test.ts`
+now fails on a journal that is out of order or missing a file.

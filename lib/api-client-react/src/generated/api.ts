@@ -87,6 +87,8 @@ import type {
   ListStudyActivitiesParams,
   LoginInput,
   OpenConversationInput,
+  PathFromList,
+  PathFromListInput,
   PrefetchResourceBody,
   PrefetchResourceResponse,
   PresetAvatarInput,
@@ -5978,6 +5980,79 @@ export const useRemoveListItem = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getRemoveListItemMutationOptions(options));
+    }
+
+export const getBuildPathFromListUrl = (id: number,) => {
+
+
+
+
+  return `/api/lists/${id}/path`
+}
+
+/**
+ * Turns the list's resources, in their order, into the steps of a learning goal. Idempotent: a list that has already been built into a path is reported with 200 and the goal that exists, rather than a second one.
+ * @summary Build a learning path from a list
+ */
+export const buildPathFromList = async (id: number,
+    pathFromListInput?: PathFromListInput, options?: Parameters<typeof customFetch>[1]): Promise<PathFromList> => {
+
+  return customFetch<PathFromList>(getBuildPathFromListUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(pathFromListInput)
+  }
+);}
+
+
+
+
+
+export const getBuildPathFromListMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof buildPathFromList>>, TError,{id: number;data?: BodyType<PathFromListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof buildPathFromList>>, TError,{id: number;data?: BodyType<PathFromListInput>}, TContext> => {
+
+const mutationKey = ['buildPathFromList'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof buildPathFromList>>, {id: number;data?: BodyType<PathFromListInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  buildPathFromList(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BuildPathFromListMutationResult = NonNullable<Awaited<ReturnType<typeof buildPathFromList>>>
+    export type BuildPathFromListMutationBody = BodyType<PathFromListInput> | undefined
+    export type BuildPathFromListMutationError = ErrorType<void>
+
+    /**
+ * @summary Build a learning path from a list
+ */
+export const useBuildPathFromList = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof buildPathFromList>>, TError,{id: number;data?: BodyType<PathFromListInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof buildPathFromList>>,
+        TError,
+        {id: number;data?: BodyType<PathFromListInput>},
+        TContext
+      > => {
+      return useMutation(getBuildPathFromListMutationOptions(options));
     }
 
 export const getShareListWithClassUrl = (id: number,) => {

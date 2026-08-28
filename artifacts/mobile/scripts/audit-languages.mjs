@@ -217,6 +217,9 @@ function stubbedBody(pathname) {
         preferredFormats: null,
         targetDate: null,
         status: "active",
+        // Built from a list, so the provenance link on the goal screen renders
+        // and this audit reads the name it offers a screen reader.
+        sourceListId: 11,
         pathSteps: [
           { id: "s1", title: "Read the chapter", query: "chapter", completed: true },
           { id: "s2", title: "Try the practice set", query: "practice", completed: false },

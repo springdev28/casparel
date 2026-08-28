@@ -2008,6 +2008,44 @@ paths:
         "204":
           description: Removed
 
+  /lists/{id}/path:
+    post:
+      operationId: buildPathFromList
+      tags: [lists]
+      summary: Build a learning path from a list
+      description: >-
+        Turns the list's resources, in their order, into the steps of a learning
+        goal. Idempotent: a list that has already been built into a path is
+        reported with 200 and the goal that exists, rather than a second one.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PathFromListInput"
+      responses:
+        "200":
+          description: A path had already been built from this list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PathFromList"
+        "201":
+          description: The path was built
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PathFromList"
+        "400": { description: The list has nothing in it yet }
+        "402": { description: "Plan capacity reached (PLAN_LIMIT_REACHED)" }
+        "403": { description: Only the list owner can build a path from it }
+        "404": { description: List not found }
+
   /lists/{id}/share:
     post:
       operationId: shareListWithClass
@@ -3969,6 +4007,11 @@ components:
             }
         targetDate: { type: ["string", "null"], format: date }
         status: { type: string, enum: [active, paused, completed] }
+        sourceListId:
+          type: ["integer", "null"]
+          description: >-
+            The Learning List this path was built from, when it was built from
+            one. Absent or null on a goal somebody wrote themselves.
         pathSteps:
           type: array
           items: { $ref: "#/components/schemas/LearningPathStep" }
@@ -4023,6 +4066,25 @@ components:
           type: array
           maxItems: 20
           items: { $ref: "#/components/schemas/LearningPathStep" }
+
+    PathFromListInput:
+      type: object
+      properties:
+        title: { type: string, minLength: 2, maxLength: 160 }
+        subject: { type: string, minLength: 1, maxLength: 100 }
+        level: { type: string, enum: [beginner, intermediate, advanced] }
+
+    PathFromList:
+      allOf:
+        - $ref: "#/components/schemas/LearningGoal"
+        - type: object
+          required: [alreadyBuilt]
+          properties:
+            alreadyBuilt:
+              type: boolean
+              description: >-
+                True when a path had already been built from this list and the
+                goal that exists was returned unchanged.
 
     GoalResourceInput:
       type: object

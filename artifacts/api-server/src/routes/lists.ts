@@ -2,9 +2,17 @@
  * @fileOverview API role: implements the Lists HTTP domain, including request validation and response shaping.
  * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
  */
+import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { eq, sql, and, max, asc, inArray, or } from "drizzle-orm";
-import { db, resourceListsTable, listItemsTable, classMembersTable } from "@workspace/db";
+import {
+  db,
+  resourceListsTable,
+  listItemsTable,
+  classMembersTable,
+  learningGoalsTable,
+  resourcesTable,
+} from "@workspace/db";
 import {
   resourceWithRating,
   resourcesWithRatings,
@@ -22,6 +30,9 @@ import {
   AddListItemParams,
   AddListItemBody,
   AddListItemResponse,
+  BuildPathFromListParams,
+  BuildPathFromListBody,
+  BuildPathFromListResponse,
   RemoveListItemParams,
   ReorderListItemsParams,
   ReorderListItemsBody,
@@ -31,11 +42,25 @@ import {
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { isListOwner, canReadList, isListItemOwner, isClassTeacher } from "../lib/authz";
-import { recordWorkflowEvent } from "../lib/workflowAnalytics";
+import { recordWorkflowEvent, recordWorkflowEvents } from "../lib/workflowAnalytics";
 import { ensureAccountCapacity } from "../lib/planCapacity";
 import { validationMessage } from "../lib/validationMessage";
+import { dateOnly } from "../lib/contractDates";
 
 const router: IRouter = Router();
+
+/** The subject most of a list's resources share, or the first one. */
+function commonestSubject(items: Array<{ subject: string }>) {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    counts.set(item.subject, (counts.get(item.subject) ?? 0) + 1);
+  }
+  let best = items[0].subject;
+  for (const [subject, count] of counts) {
+    if (count > (counts.get(best) ?? 0)) best = subject;
+  }
+  return best.slice(0, 100);
+}
 
 async function listWithCount(id: number) {
   const [list] = await db.select().from(resourceListsTable).where(eq(resourceListsTable.id, id));
@@ -395,6 +420,162 @@ router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise
     .delete(listItemsTable)
     .where(and(eq(listItemsTable.id, params.data.itemId), eq(listItemsTable.listId, params.data.id)));
   res.sendStatus(204);
+});
+
+/**
+ * Turn a Learning List into a goal's path.
+ *
+ * The product's spine is save -> organise -> study, and this is the join
+ * between the second and the third: a Learning List is already an ordered set
+ * of resources, and a goal path is an ordered set of steps, so the conversion
+ * is the list's own order rather than anything generated. Nothing is invented
+ * here -- no AI, no estimated durations, no invented progress -- because there
+ * is nothing to invent: the learner chose these resources and put them in this
+ * order.
+ *
+ * The review the specification asks for happens before this call rather than
+ * inside it. The steps are exactly the list the learner is looking at, so the
+ * screen can show what will be created from what it already holds, and this
+ * endpoint is what Activate does.
+ *
+ * Idempotent through source_list_id. Two taps, or a second visit next week,
+ * find the goal that exists and say so; without that a learner ends up with
+ * two paths through the same list and no way to tell which one they have been
+ * ticking off.
+ */
+router.post("/lists/:id/path", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId, userRole } = req as AuthenticatedRequest;
+  const params = BuildPathFromListParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: validationMessage(params.error) });
+    return;
+  }
+  const body = BuildPathFromListBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: validationMessage(body.error) });
+    return;
+  }
+  const [list] = await db
+    .select()
+    .from(resourceListsTable)
+    .where(eq(resourceListsTable.id, params.data.id));
+  if (!list) {
+    res.status(404).json({ error: "List not found" });
+    return;
+  }
+  if (!(await isListOwner(params.data.id, userId, userRole))) {
+    res.status(403).json({ error: "Only the list owner can build a path from it" });
+    return;
+  }
+
+  const workspaceRole = userRole === "teacher" ? "teacher" : "student";
+  const items = await db
+    .select({
+      resourceId: listItemsTable.resourceId,
+      title: resourcesTable.title,
+      subject: resourcesTable.subject,
+    })
+    .from(listItemsTable)
+    .innerJoin(resourcesTable, eq(resourcesTable.id, listItemsTable.resourceId))
+    .where(eq(listItemsTable.listId, params.data.id))
+    .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
+
+  // An empty list is not a path, and saying so is kinder than creating a goal
+  // with no steps that the learner then has to work out how to fill.
+  if (items.length === 0) {
+    res.status(400).json({
+      error: "Add a resource to this list before building a path from it",
+    });
+    return;
+  }
+
+  const [built] = await db
+    .select({ id: learningGoalsTable.id })
+    .from(learningGoalsTable)
+    .where(
+      and(
+        eq(learningGoalsTable.userId, userId),
+        eq(learningGoalsTable.sourceListId, params.data.id),
+        eq(learningGoalsTable.workspaceRole, workspaceRole),
+      ),
+    )
+    .limit(1);
+  /*
+   * A path that already exists is not a new goal, so it must not be refused
+   * for want of room: a learner at their plan's limit can still open the path
+   * they built last week. The capacity check writes its own 402.
+   */
+  if (!built && !(await ensureAccountCapacity(res, userId, "learning-goals"))) {
+    return;
+  }
+
+  const activated = await db.transaction(async (tx) => {
+    // The list's own lane, so two taps queue rather than both deciding no path
+    // exists yet. Lane 2: list-item appends hold (list id, 0) and goal
+    // attachments hold (goal id, 1).
+    await tx.execute(sql`select pg_advisory_xact_lock(${params.data.id}, 2)`);
+    const [existing] = await tx
+      .select()
+      .from(learningGoalsTable)
+      .where(
+        and(
+          eq(learningGoalsTable.userId, userId),
+          eq(learningGoalsTable.sourceListId, params.data.id),
+          eq(learningGoalsTable.workspaceRole, workspaceRole),
+        ),
+      )
+      .limit(1);
+    if (existing) return { goal: existing, alreadyBuilt: true };
+
+    const pathSteps = items.map((item) => {
+      const title = item.title.trim().slice(0, 200) || "Saved resource";
+      return {
+        id: randomUUID(),
+        title,
+        query: `${item.subject} ${title}`.trim().slice(0, 300),
+        completed: false,
+        resourceId: item.resourceId,
+      };
+    });
+    const [goal] = await tx
+      .insert(learningGoalsTable)
+      .values({
+        userId,
+        workspaceRole,
+        title: body.data.title?.trim() || list.name,
+        // The subject the list leans on rather than a guess: every step
+        // carries a real resource with a real subject on it.
+        subject: body.data.subject?.trim() || commonestSubject(items),
+        description: list.description,
+        level: body.data.level ?? "beginner",
+        preferredFormats: null,
+        sourceListId: list.id,
+        pathSteps,
+      })
+      .returning();
+    return { goal, alreadyBuilt: false };
+  });
+
+  if (!activated.alreadyBuilt) {
+    // One milestone per resource that reached a path -- the same thing an
+    // attachment one at a time records -- in one statement rather than N.
+    await recordWorkflowEvents(
+      items.map((item) => ({
+        userId,
+        event: "resource_linked_to_goal" as const,
+        resourceId: item.resourceId,
+        context: { goalId: activated.goal.id, listId: list.id },
+      })),
+    );
+  }
+
+  res.status(activated.alreadyBuilt ? 200 : 201).json(
+    BuildPathFromListResponse.parse({
+      ...activated.goal,
+      targetDate: dateOnly(activated.goal.targetDate),
+      alreadyBuilt: activated.alreadyBuilt,
+    }),
+  );
 });
 
 // POST /lists/:id/share, list owner + class teacher
