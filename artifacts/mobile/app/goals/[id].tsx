@@ -40,6 +40,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -54,8 +55,12 @@ import {
   getGetGoalListDriftQueryKey,
   getGetStepActivityQueryKey,
   getListLearningGoalsQueryKey,
+  useAddGoalStep,
   useAddStepsFromList,
   useCompleteGoalStep,
+  useDeleteGoalStep,
+  useRenameGoalStep,
+  useReorderGoalSteps,
   useGetGoalListDrift,
   useGetStepActivity,
   useListLearningEvidence,
@@ -70,22 +75,142 @@ import { useMotion } from '@/contexts/MotionContext';
 import { GoalProgress, goalProgress } from '@/components/GoalProgress';
 import { goalStatusLabel, levelLabel } from '@/utils/labels';
 import { describeActivity } from '@/utils/step-activity';
+import { moveItem } from '@/utils/reorder';
 
 function Step({
   step,
+  index,
+  total,
   busy,
   checkedIn,
+  editing,
   onToggle,
   onOpenResource,
+  onRename,
+  onMove,
+  onRemove,
 }: {
   step: LearningPathStep;
+  index: number;
+  total: number;
   busy: boolean;
   checkedIn: boolean;
+  editing: boolean;
   onToggle: () => void;
   onOpenResource: () => void;
+  onRename: (title: string) => void;
+  onMove: (delta: number) => void;
+  onRemove: () => void;
 }) {
   const colors = useColors();
   const { t } = useLanguage();
+
+  /*
+   * Editing is a mode rather than a control on every row. Studying is what
+   * this screen is for, and a tick, an open, a rename field and three
+   * rearranging buttons on every step is a screen somebody has to read past
+   * to find the one thing they came to do.
+   */
+  if (editing) {
+    return (
+      <View
+        style={[
+          styles.step,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            borderRadius: colors.radius,
+            opacity: busy ? 0.6 : 1,
+          },
+        ]}
+      >
+        <TextInput
+          // Keyed on the title so a rename made elsewhere reaches the field:
+          // defaultValue is read once, and without this the box would keep
+          // showing what it was opened with.
+          key={`${step.id}:${step.title}`}
+          defaultValue={step.title}
+          editable={!busy}
+          accessibilityLabel={`${t('Rename')}: ${step.title}`}
+          // onEndEditing rather than onBlur: React Native's blur event carries
+          // no text, and reading the field would mean holding a draft in state
+          // that a rename arriving from another device could not correct.
+          onEndEditing={(event) => {
+            const title = event.nativeEvent.text.trim();
+            if (title && title !== step.title) onRename(title);
+          }}
+          style={[
+            styles.stepInput,
+            {
+              color: colors.foreground,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+              fontFamily: colors.fontFamily.sans,
+            },
+          ]}
+        />
+        <View style={styles.stepControls}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t('Move up')}: ${step.title}`}
+            accessibilityState={{ disabled: busy || index === 0 }}
+            disabled={busy || index === 0}
+            hitSlop={6}
+            onPress={() => onMove(-1)}
+            style={({ pressed }) => [
+              styles.control,
+              {
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+                backgroundColor: pressed ? colors.muted : 'transparent',
+                opacity: index === 0 ? 0.35 : 1,
+              },
+            ]}
+          >
+            <Feather name="arrow-up" size={15} color={colors.foreground} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t('Move down')}: ${step.title}`}
+            accessibilityState={{ disabled: busy || index === total - 1 }}
+            disabled={busy || index === total - 1}
+            hitSlop={6}
+            onPress={() => onMove(1)}
+            style={({ pressed }) => [
+              styles.control,
+              {
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+                backgroundColor: pressed ? colors.muted : 'transparent',
+                opacity: index === total - 1 ? 0.35 : 1,
+              },
+            ]}
+          >
+            <Feather name="arrow-down" size={15} color={colors.foreground} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${t('Remove')}: ${step.title}`}
+            accessibilityState={{ disabled: busy }}
+            disabled={busy}
+            hitSlop={6}
+            onPress={onRemove}
+            style={({ pressed }) => [
+              styles.control,
+              {
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+                backgroundColor: pressed ? colors.muted : 'transparent',
+              },
+            ]}
+          >
+            <Feather name="trash-2" size={15} color={colors.destructiveText} />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View
       style={[
@@ -259,6 +384,45 @@ export default function GoalScreen() {
       setCatchUpFailure(
         describeApiFailure(failure, t('Those steps could not be added.'), t),
       );
+    }
+  }
+
+  /*
+   * Editing the path itself, which the web has had and the phone has not.
+   * Every write names the one step it is about -- the whole path used to be
+   * sent back with one thing changed, which is how a rename here undid a tick
+   * made on the laptop.
+   */
+  const [editingSteps, setEditingSteps] = React.useState(false);
+  const [newStepTitle, setNewStepTitle] = React.useState('');
+  const [editFailure, setEditFailure] = React.useState<string | null>(null);
+  const addStep = useAddGoalStep();
+  const renameStep = useRenameGoalStep();
+  const removeStep = useDeleteGoalStep();
+  const reorderSteps = useReorderGoalSteps();
+
+  /**
+   * Run one path edit and put the screen back in step with the server.
+   *
+   * No optimistic update: unlike a tick, none of these is a control somebody
+   * taps repeatedly, and a refused reorder is exactly the case where guessing
+   * would leave the screen showing an order that was never saved.
+   */
+  async function editPath(stepId: string | null, write: () => Promise<unknown>) {
+    if (!goal || busyStep) return;
+    setBusyStep(stepId ?? 'path');
+    setEditFailure(null);
+    try {
+      await write();
+      await queryClient.invalidateQueries({ queryKey: getListLearningGoalsQueryKey() });
+      selection();
+    } catch (failure) {
+      warning();
+      setEditFailure(
+        describeApiFailure(failure, t('That change could not be saved.'), t),
+      );
+    } finally {
+      setBusyStep(null);
     }
   }
 
@@ -574,30 +738,163 @@ export default function GoalScreen() {
         </View>
       ) : null}
 
-      {total === 0 ? (
+      {/*
+        The path is the learner's own, so it is theirs to arrange. Behind a
+        mode rather than on every row: studying is what this screen is for,
+        and the controls for changing a path are not the controls for working
+        through one.
+      */}
+      <View style={styles.editBar}>
+        <Pressable
+          // Named for the audit, which clicks it: the label it would otherwise
+          // have to find is translated, and there is no other way for a check
+          // that renders screens to reach a mode nobody has tapped into.
+          testID="edit-steps"
+          accessibilityRole="button"
+          accessibilityLabel={editingSteps ? t('Finish editing') : t('Edit steps')}
+          accessibilityState={{ expanded: editingSteps }}
+          onPress={() => {
+            setEditingSteps((current) => !current);
+            setEditFailure(null);
+            selection();
+          }}
+          style={({ pressed }) => [styles.editToggle, { opacity: pressed ? 0.6 : 1 }]}
+        >
+          <Feather
+            name={editingSteps ? 'check' : 'edit-2'}
+            size={14}
+            color={colors.primary}
+          />
+          <Text
+            style={[
+              styles.editToggleText,
+              { color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold },
+            ]}
+          >
+            {editingSteps ? t('Finish editing') : t('Edit steps')}
+          </Text>
+        </Pressable>
+      </View>
+
+      {total === 0 && !editingSteps ? (
         <Empty
           icon="list"
           title={t('This goal has no steps yet')}
-          description={t('Build a path for it on the web and tick the steps off here.')}
+          description={t('Add one below, or build a path from a learning list.')}
         />
       ) : (
         <View style={styles.steps}>
-          {goal.pathSteps.map((step) => (
+          {goal.pathSteps.map((step, index) => (
             <Step
               key={step.id}
               step={step}
-              busy={busyStep === step.id}
+              index={index}
+              total={total}
+              busy={busyStep === step.id || busyStep === 'path'}
               checkedIn={checkedInSteps.has(step.id)}
+              editing={editingSteps}
               onToggle={() => {
                 toggle(step);
               }}
               onOpenResource={() => {
                 if (step.resourceId) router.push(`/resource/${step.resourceId}`);
               }}
+              onRename={(title) => {
+                void editPath(step.id, () =>
+                  renameStep.mutateAsync({ id: goal.id, stepId: step.id, data: { title } }),
+                );
+              }}
+              onMove={(delta) => {
+                /*
+                 * Ids, not steps. Reordering has no business carrying a title
+                 * or a tick, and the server puts a step this screen has not
+                 * seen after the ones it arranged rather than losing it.
+                 */
+                const stepIds = moveItem(
+                  goal.pathSteps.map((one) => one.id),
+                  index,
+                  delta,
+                );
+                void editPath(step.id, () =>
+                  reorderSteps.mutateAsync({ id: goal.id, data: { stepIds } }),
+                );
+              }}
+              onRemove={() => {
+                void editPath(step.id, () =>
+                  removeStep.mutateAsync({ id: goal.id, stepId: step.id }),
+                );
+              }}
             />
           ))}
         </View>
       )}
+
+      {editingSteps ? (
+        <View style={styles.addStep}>
+          <TextInput
+            value={newStepTitle}
+            onChangeText={setNewStepTitle}
+            placeholder={t('Add a step')}
+            placeholderTextColor={colors.mutedForeground}
+            accessibilityLabel={t('Add a step')}
+            editable={busyStep === null}
+            onSubmitEditing={() => {
+              const title = newStepTitle.trim();
+              if (!title) return;
+              void editPath(null, async () => {
+                await addStep.mutateAsync({ id: goal.id, data: { title } });
+                setNewStepTitle('');
+              });
+            }}
+            returnKeyType="done"
+            style={[
+              styles.stepInput,
+              {
+                color: colors.foreground,
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+                fontFamily: colors.fontFamily.sans,
+              },
+            ]}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Add a step')}
+            accessibilityState={{ disabled: !newStepTitle.trim() || busyStep !== null }}
+            disabled={!newStepTitle.trim() || busyStep !== null}
+            onPress={() => {
+              const title = newStepTitle.trim();
+              if (!title) return;
+              void editPath(null, async () => {
+                await addStep.mutateAsync({ id: goal.id, data: { title } });
+                setNewStepTitle('');
+              });
+            }}
+            style={({ pressed }) => [
+              styles.control,
+              {
+                borderColor: colors.border,
+                borderRadius: colors.radius,
+                backgroundColor: pressed ? colors.muted : 'transparent',
+                opacity: newStepTitle.trim() && busyStep === null ? 1 : 0.35,
+              },
+            ]}
+          >
+            <Feather name="plus" size={16} color={colors.primary} />
+          </Pressable>
+        </View>
+      ) : null}
+
+      {editFailure ? (
+        <Text
+          style={[
+            styles.note,
+            { color: colors.destructiveText, fontFamily: colors.fontFamily.sans },
+          ]}
+        >
+          {editFailure}
+        </Text>
+      ) : null}
 
       {done === total && total > 0 ? (
         <Text
@@ -651,6 +948,28 @@ const styles = StyleSheet.create({
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   description: { fontSize: 14, lineHeight: 20 },
   provenance: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
+  stepInput: {
+    flex: 1,
+    borderWidth: 1,
+    fontSize: 14,
+    paddingHorizontal: 10,
+    // Above the 44pt touch target both stores ask for.
+    minHeight: 44,
+    paddingVertical: 8,
+  },
+  stepControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  control: {
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 40,
+    height: 40,
+  },
+  // The count is already on the progress bar above; the bar is the toggle.
+  editBar: { flexDirection: 'row', justifyContent: 'flex-end' },
+  editToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40 },
+  editToggleText: { fontSize: 14 },
+  addStep: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   drift: { borderWidth: 1, padding: 14, gap: 8 },
   driftText: { fontSize: 13, lineHeight: 18 },
   driftButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40 },

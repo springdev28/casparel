@@ -669,3 +669,44 @@ One thing the probes needed to be worth anything: Ana's list now holds a real
 item, and the goal probes name a step that exists. An id that is not there is
 refused for the wrong reason — "no such item" rather than "not your list" —
 and would pass against a handler that never checks whose list it is.
+
+## Current implementation ledger — 2026-08-29 (the phone can arrange its own path)
+
+§7 asks that a learner add, edit, delete and reorder steps. The web could; the
+phone could not, and its empty state said so — "build a path for it on the web
+and tick the steps off here", which is a phone app telling somebody to go and
+find a laptop. The endpoints for all four now exist, so this is the surface
+catching up with them.
+
+Implemented in this increment:
+
+- adding, renaming, removing and reordering steps on the goal screen, each through the endpoint that names one step;
+- behind an **Edit steps** mode rather than on every row: studying is what the screen is for, and a tick, an open, a rename field and three rearranging buttons on every step is a screen somebody reads past to find the one thing they came to do;
+- reordering by two buttons rather than a drag, matching the Learning List screen — a phone has no room for a drag handle a screen reader can also use, and the polish contract asks for a non-drag alternative regardless;
+- reordering sends ids, so what the phone knows about a step's title or tick never travels with a move;
+- no optimistic update on any of the four: unlike a tick, none is a control somebody taps repeatedly, and a refused reorder is exactly the case where guessing would leave the screen showing an order that was never saved;
+- the rename field reads its value from `onEndEditing` rather than holding a draft, because React Native's blur event carries no text and a held draft is one a rename from another device cannot correct;
+- an empty state that no longer sends somebody to a laptop;
+- Turkish for the six new strings, and one orphaned translation removed.
+
+The audit had to grow twice to see any of this, and both changes are worth
+more than the increment that prompted them. A mode nobody has tapped into
+renders none of its controls, so every string and every accessible name behind
+one was unchecked: the audit now clicks into the editing mode by `testID` —
+by id rather than by name, because the name is translated and finding it would
+need the answer the run is checking — and treats the result as its own screen,
+compared against its own English.
+
+And `innerText` stops at the edge of an `<input>`. A screen whose content is a
+column of text boxes read as a column of blank lines, so the editing mode —
+four fields and nothing else — looked empty to a run that was passing it. The
+audit now reads placeholders and field values too, which is words somebody
+reads and a translation can miss, on every form in the app rather than only
+this one.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 871 API assertions across 100 test files against a real PostgreSQL instance;
+- 77 mobile tests;
+- 32 screen renders across two languages, including the goal screen with its editing mode open, every control in it named for a screen reader, the three rename fields carrying their step titles and the add field its translated placeholder.

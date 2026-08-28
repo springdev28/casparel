@@ -126,6 +126,15 @@ const SCREENS = [
   { path: "/goals", session: "in" },
   { path: "/goals/11", session: "in" },
   /*
+   * The same screen with its editing mode open. A mode nobody has tapped into
+   * renders none of its controls, so every string and every accessible name
+   * behind one is unchecked by a run that only loads pages -- and the four
+   * that arrange a path are exactly the sort a screen reader has to be able
+   * to tell apart. Clicked by testID rather than by name, because the name is
+   * translated and finding it would need the answer this is checking.
+   */
+  { path: "/goals/11", session: "in", open: "edit-steps", as: "/goals/11 (editing)" },
+  /*
    * Learning Lists, reached from the resources tab.
    *
    * Both, for the same reason as goals: the index carries the count and the
@@ -468,6 +477,24 @@ const NAMELESS = `(() => {
   return out;
 })()`;
 
+/**
+ * What is on screen, including what is inside the form fields.
+ *
+ * `innerText` alone stops at the edge of an <input>: a screen whose content is
+ * a column of text boxes reads as a column of blank lines, and the goal
+ * screen's editing mode -- four fields and nothing else -- looked empty to a
+ * run that was passing it. A placeholder and a value are both words somebody
+ * reads, and both are things a translation can miss.
+ */
+const VISIBLE_TEXT = `(() => {
+  const parts = [document.body.innerText];
+  for (const field of document.querySelectorAll("input, textarea")) {
+    if (field.placeholder) parts.push(field.placeholder);
+    if (field.value) parts.push(field.value);
+  }
+  return parts.join("\\n");
+})()`;
+
 async function main() {
   if (!fs.existsSync(path.join(EXPORT_DIR, "index.html"))) {
     throw new Inconclusive(
@@ -552,14 +579,19 @@ async function main() {
       const crashes = [];
       page.on("pageerror", (error) => crashes.push(String(error)));
 
-      const where = `${screen.path} [${language}]`;
+      const where = `${screen.as ?? screen.path} [${language}]`;
       try {
         await page.goto(`http://127.0.0.1:${PORT}${screen.path}`, {
           waitUntil: "networkidle",
           timeout: 45000,
         });
         await page.waitForTimeout(600);
-        const text = (await page.evaluate(() => document.body.innerText)).trim();
+        if (screen.open) {
+          const control = page.locator(`[data-testid="${screen.open}"]`);
+          await control.click({ timeout: 10000 });
+          await page.waitForTimeout(400);
+        }
+        const text = (await page.evaluate(VISIBLE_TEXT)).trim();
         rendered += 1;
 
         if (!text) {
@@ -569,16 +601,17 @@ async function main() {
           // wrong place produces.
           failures.push(`${where}: error boundary — ${text.slice(0, 120)}`);
         } else {
-          const byLanguage = seen.get(screen.path) ?? new Map();
+          const key = screen.as ?? screen.path;
+          const byLanguage = seen.get(key) ?? new Map();
           byLanguage.set(language, text);
-          seen.set(screen.path, byLanguage);
+          seen.set(key, byLanguage);
         }
         for (const crash of crashes) failures.push(`${where}: ${crash.slice(0, 160)}`);
         // Once per route, not once per language: a nameless control is the
         // same control in every language, and one copy per language is noise.
         if (language === LANGUAGES[0]) {
           for (const control of await page.evaluate(NAMELESS)) {
-            failures.push(`${screen.path}: no accessible name: ${control}`);
+            failures.push(`${screen.as ?? screen.path}: no accessible name: ${control}`);
           }
         }
         console.log(`  ok   ${where}  (${text.split("\n").length} lines)`);
