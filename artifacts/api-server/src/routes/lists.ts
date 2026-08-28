@@ -4,8 +4,11 @@
  */
 import { Router, type IRouter } from "express";
 import { eq, sql, and, max, asc, inArray, or } from "drizzle-orm";
-import { db, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, classMembersTable } from "@workspace/db";
-import { publicResourceColumns } from "../lib/resourceColumns";
+import { db, resourceListsTable, listItemsTable, classMembersTable } from "@workspace/db";
+import {
+  resourceWithRating,
+  resourcesWithRatings,
+} from "../lib/resourceRatings";
 import {
   ListResourceListsResponse,
   CreateResourceListBody,
@@ -34,22 +37,6 @@ import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
 
-async function resourceWithRating(id: number) {
-  const [r] = await db
-    .select(publicResourceColumns)
-    .from(resourcesTable)
-    .where(eq(resourcesTable.id, id));
-  if (!r) return null;
-  const [stats] = await db
-    .select({
-      avg: sql<number>`coalesce(avg(rating), 0)`,
-      count: sql<number>`cast(count(*) as int)`,
-    })
-    .from(reviewsTable)
-    .where(eq(reviewsTable.resourceId, id));
-  return { ...r, avgRating: Math.round(Number(stats.avg) * 10) / 10, reviewCount: stats.count };
-}
-
 async function listWithCount(id: number) {
   const [list] = await db.select().from(resourceListsTable).where(eq(resourceListsTable.id, id));
   if (!list) return null;
@@ -58,6 +45,31 @@ async function listWithCount(id: number) {
     .from(listItemsTable)
     .where(eq(listItemsTable.listId, id));
   return { ...list, itemCount: count };
+}
+
+/**
+ * Rows the caller already has, with how many resources are in each.
+ *
+ * One grouped query for all of them. The listing routes ran
+ * `Promise.all(rows.map(listWithCount))`, which re-selected each list row the
+ * caller was already holding and then counted its items: two round trips per
+ * list, so a teacher with fifteen lists paid thirty-one. Round trips are what
+ * these endpoints cost, and the pool is ten connections wide, so the fan-out
+ * queued behind itself as well.
+ */
+async function withItemCounts<T extends { id: number }>(rows: T[]) {
+  if (rows.length === 0) return [];
+  const counts = await db
+    .select({
+      listId: listItemsTable.listId,
+      count: sql<number>`cast(count(*) as int)`,
+    })
+    .from(listItemsTable)
+    .where(inArray(listItemsTable.listId, rows.map((row) => row.id)))
+    .groupBy(listItemsTable.listId);
+  const byList = new Map(counts.map((row) => [row.listId, row.count]));
+  // A list nobody has added to has no rows to group, and therefore no entry.
+  return rows.map((row) => ({ ...row, itemCount: byList.get(row.id) ?? 0 }));
 }
 
 // GET /lists/shared, lists shared with classes the user is a member of
@@ -73,8 +85,7 @@ router.get("/lists/shared", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(resourceListsTable)
     .where(inArray(resourceListsTable.classId, classIds));
-  const lists = await Promise.all(rows.map((l) => listWithCount(l.id)));
-  res.json(ListResourceListsResponse.parse(lists.filter(Boolean)));
+  res.json(ListResourceListsResponse.parse(await withItemCounts(rows)));
 });
 
 // GET /lists, only the current user's own lists
@@ -84,8 +95,7 @@ router.get("/lists", requireAuth, async (req, res): Promise<void> => {
     .select()
     .from(resourceListsTable)
     .where(and(eq(resourceListsTable.ownerId, userId), or(eq(resourceListsTable.workspaceRole, userRole as "student" | "teacher"), eq(resourceListsTable.workspaceRole, "shared"))!));
-  const lists = await Promise.all(rows.map((l) => listWithCount(l.id)));
-  res.json(ListResourceListsResponse.parse(lists.filter(Boolean)));
+  res.json(ListResourceListsResponse.parse(await withItemCounts(rows)));
 });
 
 // POST /lists, any authenticated user
@@ -126,12 +136,20 @@ router.get("/lists/:id", requireAuth, async (req, res): Promise<void> => {
     .from(listItemsTable)
     .where(eq(listItemsTable.listId, params.data.id))
     .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
-  const items = await Promise.all(
-    itemRows.map(async (item) => {
-      const resource = await resourceWithRating(item.resourceId);
-      return { ...item, resource };
-    }),
+  /*
+   * Two queries for every resource in the list, however long the list is.
+   * This ran one query for the row and one for its rating summary per item, so
+   * opening a twelve-resource list cost twenty-five round trips -- and the
+   * phone's Learning List screen opens exactly this endpoint.
+   */
+  const resources = await resourcesWithRatings(
+    itemRows.map((item) => item.resourceId),
   );
+  const byId = new Map(resources.map((resource) => [resource.id, resource]));
+  const items = itemRows.map((item) => ({
+    ...item,
+    resource: byId.get(item.resourceId) ?? null,
+  }));
   res.json(GetResourceListResponse.parse({ ...list, items }));
 });
 
