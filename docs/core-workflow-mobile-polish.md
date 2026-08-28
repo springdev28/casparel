@@ -568,3 +568,31 @@ Verification recorded for this increment:
 - 26 authorization probes refused, and 21 class-access checks passed;
 - the phone renders all fifteen routes in English and Turkish, the goal screen showing the drift card and its button in both;
 - the web production build passed and every visible string on it is still translated.
+
+## Fix — a tick that overwrote the path around it
+
+The completion increment built `POST /learning-goals/{id}/steps/{stepId}/completion`
+because a learning path is one JSON column, and a client that flips one
+`completed` flag and writes the whole array back overwrites everything else
+about the path as it was when that client last read it. The phone was moved
+onto it and so was the goals page.
+
+The sidebar and the adaptive dashboard were not, and nothing failed. Two of
+the three places a step can be ticked on the web still sent the path back
+whole, so a tick on the phone and a tick in the sidebar lost one of the two,
+and a tick on the dashboard erased a resource the phone had just attached —
+the exact defect the endpoint exists to remove, in the exact feature that
+removed it.
+
+Both now write through the one-step endpoint, which also means a step
+finished from either of them counts as one, since that write is where the
+`path_step_completed` milestone is recorded. Renaming, adding, deleting and
+reordering steps still send the path whole; those are edits to the path
+rather than to one step, and the goals page is the one screen that makes them.
+
+`tickingTouchesOneStep.test.ts` reads the four client files that draw a
+tickable box and fails on a `pathSteps.map` with a flipped `completed` inside
+it. The distinction it draws is the point: the correct write reads its step
+with `pathSteps.find` and sends one flag, and a looser pattern flags the fix
+as the defect. Measured by restoring the dashboard's old shape, which fails
+it.

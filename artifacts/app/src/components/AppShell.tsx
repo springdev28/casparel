@@ -67,6 +67,7 @@ import {
   getGetRecentActivityQueryKey,
   getListLearningGoalsQueryKey,
   useListLearningGoals,
+  useCompleteGoalStep,
   useUpdateLearningGoal,
   getListClassesQueryKey,
 } from "@workspace/api-client-react";
@@ -363,6 +364,7 @@ export default function AppShell({ children }: AppShellProps) {
     },
   });
   const updateSidebarGoal = useUpdateLearningGoal();
+  const completeSidebarStep = useCompleteGoalStep();
   const [expandedPaths, setExpandedPaths] = useState<number[]>([]);
   const [ambientStyle, setAmbientStyle] = useState<VantaStyle>(() => {
     const saved =
@@ -466,6 +468,28 @@ export default function AppShell({ children }: AppShellProps) {
     localStorage.setItem("schoolar_ambient_style", next);
     sessionStorage.setItem("schoolar_ambient_style", next);
     updateAccountPreferences.mutate({ ambientStyle: next });
+  }
+  /**
+   * Tick one step, through the endpoint that touches one step.
+   *
+   * Renaming still sends the path back whole, because renaming is an edit to
+   * the path itself. Ticking is not: it is the thing two devices do at the
+   * same moment, and a whole-array write means the phone's tick and this one
+   * overwrite each other. It also carries no evidence, which is why it goes
+   * through the same write the phone and the goals page use.
+   */
+  async function toggleSidebarStep(
+    goal: NonNullable<typeof sidebarGoals>[number],
+    step: NonNullable<typeof sidebarGoals>[number]["pathSteps"][number],
+  ) {
+    await completeSidebarStep.mutateAsync({
+      id: goal.id,
+      stepId: step.id,
+      data: { completed: !step.completed },
+    });
+    await queryClient.invalidateQueries({
+      queryKey: getListLearningGoalsQueryKey(),
+    });
   }
   async function updatePath(
     goal: NonNullable<typeof sidebarGoals>[number],
@@ -785,19 +809,7 @@ export default function AppShell({ children }: AppShellProps) {
                                   "flex size-5 shrink-0 items-center justify-center rounded border border-primary-foreground/40",
                                   step.completed && "bg-emerald-500 text-white",
                                 )}
-                                onClick={() =>
-                                  updatePath(
-                                    goal,
-                                    goal.pathSteps.map((item) =>
-                                      item.id === step.id
-                                        ? {
-                                            ...item,
-                                            completed: !item.completed,
-                                          }
-                                        : item,
-                                    ),
-                                  )
-                                }
+                                onClick={() => void toggleSidebarStep(goal, step)}
                               >
                                 {step.completed && <Check size={12} />}
                               </button>

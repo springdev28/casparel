@@ -27,7 +27,7 @@ import {
   useListLearningEvidence,
   useListLearningGoals,
   useListResources,
-  useUpdateLearningGoal,
+  useCompleteGoalStep,
   getListResourcesQueryKey,
   UserRole,
 } from "@workspace/api-client-react";
@@ -152,7 +152,7 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
    * what a reader needs to know is that none of it is their real state.
    */
   const dashboardFailed = goalsFailed && goals === undefined;
-  const updateGoal = useUpdateLearningGoal();
+  const completeStep = useCompleteGoalStep();
   const [selectedGoalId, setSelectedGoalId] = useState(() => getDashboardGoalId(userId, workspaceRole));
   useEffect(() => {
     setSelectedGoalId(
@@ -221,16 +221,26 @@ function StudentView({ name, userId, workspaceRole }: { name?: string; userId?: 
     path.filter((step) => step.completed).map((step) => step.concept),
   );
   const progress = path.length ? (completedSteps.size / path.length) * 100 : 0;
+  /**
+   * Tick one step, through the endpoint that touches one step.
+   *
+   * This used to send the whole `pathSteps` array back with one flag flipped,
+   * which is a lost update wherever two things write a path: a tick here and a
+   * tick on the phone, or a tick here and a resource the phone just added,
+   * meant whichever arrived second erased the other. The goals page was moved
+   * off the whole-array write when the endpoint was built; this and the
+   * sidebar were not, so two of the three places a step can be ticked on the
+   * web still overwrote everything around the box they moved.
+   */
   async function togglePathStep(stepId: string) {
     if (!activeGoal) return;
+    const step = activeGoal.pathSteps.find((candidate) => candidate.id === stepId);
+    if (!step) return;
     try {
-      await updateGoal.mutateAsync({
+      await completeStep.mutateAsync({
         id: activeGoal.id,
-        data: {
-          pathSteps: activeGoal.pathSteps.map((step) =>
-            step.id === stepId ? { ...step, completed: !step.completed } : step,
-          ),
-        },
+        stepId,
+        data: { completed: !step.completed },
       });
       await queryClient.invalidateQueries({
         queryKey: getListLearningGoalsQueryKey(),
