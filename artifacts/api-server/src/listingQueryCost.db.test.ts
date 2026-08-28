@@ -5,9 +5,12 @@
 /**
  * A listing costs the same whether it holds three rows or thirty.
  *
- * Four endpoints had the same defect, and all four are a screen somebody
- * opens: a Learning List, the classes tab, the messages inbox, and the forum's
- * shared materials.
+ * The same defect was in every listing this product has, and each one is a
+ * screen somebody opens: a Learning List, the classes tab, the messages inbox,
+ * the forum's shared materials, and a class's roster, invitations and shared
+ * resources. The roster was the worst of them in the shape it could reach --
+ * the plans sell classes of up to four hundred, and it read one user row per
+ * member.
  *
  * It did not. `GET /lists/:id` ran one query for each item's resource row and
  * another for that resource's rating summary, so a twelve-item list was
@@ -331,5 +334,156 @@ describe.skipIf(!url)("reading the forum's materials", () => {
       `listing ${body.length} materials took ${count} queries; it was two per ` +
         `material before, for up to the hundred the route allows itself`,
     ).toBeLessThanOrEqual(6);
+  });
+});
+
+describe.skipIf(!url)("reading a class", () => {
+  it("reads the roster, invitations and recommendations in a fixed few queries", async () => {
+    process.env.DATABASE_URL = url;
+    const {
+      db,
+      pool,
+      usersTable,
+      classesTable,
+      classMembersTable,
+      classInvitationsTable,
+      classResourceRecommendationsTable,
+      resourcesTable,
+    } = await import("@workspace/db");
+    const { default: classesRouter } = await import("./routes/classes.js");
+    const { issueToken } = await import("./lib/auth.js");
+
+    const stamp = Date.now();
+    const [teacher] = await db
+      .insert(usersTable)
+      .values({
+        email: `roster-${stamp}@example.test`,
+        passwordHash: "x",
+        name: "Roster",
+        role: "teacher",
+        activeRole: "teacher",
+      })
+      .returning();
+    const [cls] = await db
+      .insert(classesTable)
+      .values({
+        name: `Roster ${stamp}`,
+        subject: "Physics",
+        gradeLevel: "Year 12",
+        teacherId: teacher.id,
+      })
+      .returning();
+    await db
+      .insert(classMembersTable)
+      .values({ classId: cls.id, userId: teacher.id, role: "teacher" });
+
+    for (let index = 0; index < 12; index += 1) {
+      const [student] = await db
+        .insert(usersTable)
+        .values({
+          email: `roster-${index}-${stamp}@example.test`,
+          passwordHash: "x",
+          name: `Student ${index}`,
+          role: "student",
+        })
+        .returning();
+      await db
+        .insert(classMembersTable)
+        .values({ classId: cls.id, userId: student.id, role: "student" });
+
+      const [invited] = await db
+        .insert(usersTable)
+        .values({
+          email: `invited-${index}-${stamp}@example.test`,
+          passwordHash: "x",
+          name: `Invited ${index}`,
+          role: "student",
+        })
+        .returning();
+      await db.insert(classInvitationsTable).values({
+        classId: cls.id,
+        userId: invited.id,
+        invitedById: teacher.id,
+        role: "student",
+        status: "pending",
+      });
+
+      const [resource] = await db
+        .insert(resourcesTable)
+        .values({
+          title: `Recommended ${index} ${stamp}`,
+          url: `https://example.test/recommended-${index}-${stamp}`,
+          format: "article",
+          subject: "Physics",
+          gradeLevel: "Year 12",
+          submittedById: teacher.id,
+        })
+        .returning();
+      await db.insert(classResourceRecommendationsTable).values({
+        classId: cls.id,
+        resourceId: resource.id,
+        recommendedById: teacher.id,
+        status: "approved",
+      });
+    }
+
+    const app = express();
+    app.use(express.json());
+    app.use("/api", classesRouter);
+    const auth = {
+      Authorization: `Bearer ${issueToken(teacher.id, teacher.role, teacher.activeRole)}`,
+    };
+
+    const original = pool.query.bind(pool);
+    async function queriesFor(path: string) {
+      let count = 0;
+      (pool as { query: unknown }).query = (...args: unknown[]) => {
+        count += 1;
+        return (original as (...a: unknown[]) => unknown)(...args);
+      };
+      try {
+        const response = await request(app).get(path).set(auth);
+        expect(response.status, response.text.slice(0, 200)).toBe(200);
+        return { count, body: response.body };
+      } finally {
+        (pool as { query: unknown }).query = original;
+      }
+    }
+
+    const roster = await queriesFor(`/api/classes/${cls.id}/members`);
+    expect(roster.body).toHaveLength(13);
+    // The person on each row is what the fan-out was fetching.
+    expect(roster.body.every((member: { user?: { name?: string } }) => member.user?.name)).toBe(true);
+    expect(
+      roster.count,
+      `a 13-member roster took ${roster.count} queries; the plans sell classes ` +
+        `of four hundred`,
+    ).toBeLessThanOrEqual(6);
+
+    const invitations = await queriesFor(`/api/classes/${cls.id}/invitations`);
+    expect(invitations.body).toHaveLength(12);
+    expect(invitations.body[0].class?.name).toContain("Roster");
+    expect(invitations.body[0].inviter?.name).toBe("Roster");
+    expect(invitations.body[0].invitee?.name).toMatch(/^Invited /);
+    // An invitee's address is theirs to see; an inviter's is not sent at all.
+    expect(invitations.body[0].invitee?.email).toBeTruthy();
+    expect(invitations.body[0].inviter?.email).toBeUndefined();
+    expect(
+      invitations.count,
+      `12 pending invitations took ${invitations.count} queries`,
+    ).toBeLessThanOrEqual(8);
+
+    const recommendations = await queriesFor(
+      `/api/classes/${cls.id}/resource-recommendations`,
+    );
+    expect(recommendations.body).toHaveLength(12);
+    expect(recommendations.body[0].recommenderName).toBe("Roster");
+    expect(recommendations.body[0].resource?.avgRating).toBe(0);
+    // Room above the six the handler needs, because the point is that the
+    // number does not follow the row count -- it was 53 for these twelve.
+    expect(
+      recommendations.count,
+      `12 recommendations took ${recommendations.count} queries`,
+    ).toBeLessThanOrEqual(10);
   });
 });

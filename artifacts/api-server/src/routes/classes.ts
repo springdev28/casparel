@@ -5,8 +5,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod/v4";
 import { eq, sql, and, inArray, max, asc, desc } from "drizzle-orm";
-import { db, classesTable, classMembersTable, classInvitationsTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable, studyActivitiesTable, canvasesTable } from "@workspace/db";
-import { publicResourceColumns } from "../lib/resourceColumns";
+import { db, classesTable, classMembersTable, classInvitationsTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable, studyActivitiesTable, canvasesTable } from "@workspace/db";
 import {
   ListClassesResponse,
   CreateClassBody,
@@ -60,19 +59,10 @@ import {
   seatingPreferenceReasons,
 } from "../lib/seatingRules";
 import { validationMessage } from "../lib/validationMessage";
-
-async function resourceWithRating(id: number) {
-  const [r] = await db
-    .select(publicResourceColumns)
-    .from(resourcesTable)
-    .where(eq(resourcesTable.id, id));
-  if (!r) return null;
-  const [stats] = await db
-    .select({ avg: sql<number>`coalesce(avg(rating), 0)`, count: sql<number>`cast(count(*) as int)` })
-    .from(reviewsTable)
-    .where(eq(reviewsTable.resourceId, id));
-  return { ...r, avgRating: Math.round(Number(stats.avg) * 10) / 10, reviewCount: stats.count };
-}
+import {
+  resourceWithRating,
+  resourcesWithRatings,
+} from "../lib/resourceRatings";
 
 /** Find or create the "Class Resources" list for a class. ownerId is used only when creating. */
 async function getOrCreateClassList(classId: number, ownerId: number) {
@@ -104,35 +94,69 @@ const InviteClassMemberBody = z.object({
 
 const router: IRouter = Router();
 
+/**
+ * Invitations with the class and the two people on them, in three queries for
+ * the whole page.
+ *
+ * invitationView is right for one and wrong for a list: it asks for the class,
+ * the inviter and the invitee separately, so a teacher's pending-invitation
+ * screen cost four round trips per invitation.
+ */
+async function invitationViews(
+  invitations: Array<typeof classInvitationsTable.$inferSelect>,
+) {
+  if (invitations.length === 0) return [];
+  const classIds = invitations.map((invitation) => invitation.classId);
+  const peopleIds = invitations.flatMap((invitation) => [
+    invitation.invitedById,
+    invitation.userId,
+  ]);
+
+  const [classes, people] = await Promise.all([
+    db
+      .select({ id: classesTable.id, name: classesTable.name })
+      .from(classesTable)
+      .where(inArray(classesTable.id, classIds)),
+    db
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
+      .from(usersTable)
+      .where(inArray(usersTable.id, peopleIds)),
+  ]);
+  const byClass = new Map(classes.map((cls) => [cls.id, cls]));
+  const byPerson = new Map(people.map((person) => [person.id, person]));
+
+  return invitations.flatMap((invitation) => {
+    const cls = byClass.get(invitation.classId);
+    const inviter = byPerson.get(invitation.invitedById);
+    const invitee = byPerson.get(invitation.userId);
+    if (!cls || !inviter || !invitee) return [];
+    // The inviter's address is not the invitee's to see, and never was: the
+    // single-row view selects it only for the person being invited.
+    return [
+      {
+        ...invitation,
+        class: cls,
+        inviter: { id: inviter.id, name: inviter.name },
+        invitee,
+      },
+    ];
+  });
+}
+
 async function invitationView(id: number) {
   const [invitation] = await db
     .select()
     .from(classInvitationsTable)
     .where(eq(classInvitationsTable.id, id));
   if (!invitation) return null;
-  const [[cls], [inviter], [invitee]] = await Promise.all([
-    db
-      .select({ id: classesTable.id, name: classesTable.name })
-      .from(classesTable)
-      .where(eq(classesTable.id, invitation.classId)),
-    db
-      .select({ id: usersTable.id, name: usersTable.name })
-      .from(usersTable)
-      .where(eq(usersTable.id, invitation.invitedById)),
-    db
-      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
-      .from(usersTable)
-      .where(eq(usersTable.id, invitation.userId)),
-  ]);
-  return cls && inviter && invitee
-    ? { ...invitation, class: cls, inviter, invitee }
-    : null;
+  const [view] = await invitationViews([invitation]);
+  return view ?? null;
 }
 
 router.get("/class-invitations", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const rows = await db
-    .select({ id: classInvitationsTable.id })
+    .select()
     .from(classInvitationsTable)
     .where(
       and(
@@ -141,8 +165,7 @@ router.get("/class-invitations", requireAuth, async (req, res): Promise<void> =>
       ),
     )
     .orderBy(desc(classInvitationsTable.createdAt));
-  const invitations = await Promise.all(rows.map((row) => invitationView(row.id)));
-  res.json(invitations.filter(Boolean));
+  res.json(await invitationViews(rows));
 });
 
 router.patch(
@@ -475,15 +498,23 @@ router.get("/classes/:id/members", requireAuth, async (req, res): Promise<void> 
     .select()
     .from(classMembersTable)
     .where(eq(classMembersTable.classId, params.data.id));
-  const members = await Promise.all(
-    membersRaw.map(async (m) => {
-      const [user] = await db
+  /*
+   * One query for the people, not one per person. This read each member's user
+   * row separately, and the plans sell classes of up to four hundred: opening
+   * a full roster was four hundred and one round trips, on a pool ten
+   * connections wide, and the seating planner opens the same roster.
+   */
+  const people = membersRaw.length
+    ? await db
         .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role, avatarUrl: usersTable.avatarUrl, bio: usersTable.bio, subjects: usersTable.subjects, gradeOrDept: usersTable.gradeOrDept })
         .from(usersTable)
-        .where(eq(usersTable.id, m.userId));
-      return { ...m, user };
-    }),
-  );
+        .where(inArray(usersTable.id, membersRaw.map((member) => member.userId)))
+    : [];
+  const byUser = new Map(people.map((person) => [person.id, person]));
+  const members = membersRaw.map((member) => ({
+    ...member,
+    user: byUser.get(member.userId),
+  }));
   res.json(ListClassMembersResponse.parse(members));
 });
 
@@ -495,7 +526,7 @@ router.get("/classes/:id/invitations", requireAuth, async (req, res): Promise<vo
     return;
   }
   const rows = await db
-    .select({ id: classInvitationsTable.id })
+    .select()
     .from(classInvitationsTable)
     .where(
       and(
@@ -504,8 +535,7 @@ router.get("/classes/:id/invitations", requireAuth, async (req, res): Promise<vo
       ),
     )
     .orderBy(desc(classInvitationsTable.createdAt));
-  const invitations = await Promise.all(rows.map((row) => invitationView(row.id)));
-  res.json(invitations.filter(Boolean));
+  res.json(await invitationViews(rows));
 });
 
 router.post(
@@ -1058,12 +1088,18 @@ router.get("/classes/:id/resources-list", requireAuth, async (req, res): Promise
     .where(eq(listItemsTable.listId, list.id))
     .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
 
-  const items = (await Promise.all(
-    itemRows.map(async (item) => {
-      const resource = await resourceWithRating(item.resourceId);
-      return resource ? { ...item, resource } : null;
-    })
-  )).filter(Boolean);
+  // Two queries for the whole list rather than two per resource in it; the
+  // same defect the learner's own Learning List had.
+  const resources = await resourcesWithRatings(
+    itemRows.map((item) => item.resourceId),
+  );
+  const byResource = new Map(
+    resources.map((resource) => [resource.id, resource]),
+  );
+  const items = itemRows.flatMap((item) => {
+    const resource = byResource.get(item.resourceId);
+    return resource ? [{ ...item, resource }] : [];
+  });
 
   res.json(GetResourceListResponse.parse({ ...list, itemCount: count, items }));
 });
@@ -1182,12 +1218,41 @@ router.delete("/classes/:id/leave", requireAuth, async (req, res): Promise<void>
   res.sendStatus(204);
 });
 
+/**
+ * Recommendations with the recommender and the resource, for a whole class.
+ *
+ * Three queries rather than three per recommendation: the resource row, its
+ * rating summary and the recommender's name were each asked for separately.
+ */
+async function recommendationViews(
+  rows: Array<typeof classResourceRecommendationsTable.$inferSelect>,
+) {
+  if (rows.length === 0) return [];
+  const [people, resources] = await Promise.all([
+    db
+      .select({ id: usersTable.id, name: usersTable.name })
+      .from(usersTable)
+      .where(inArray(usersTable.id, rows.map((row) => row.recommendedById))),
+    resourcesWithRatings(rows.map((row) => row.resourceId)),
+  ]);
+  const byPerson = new Map(people.map((person) => [person.id, person.name]));
+  const byResource = new Map(
+    resources.map((resource) => [resource.id, resource]),
+  );
+
+  return rows.flatMap((row) => {
+    const recommenderName = byPerson.get(row.recommendedById);
+    const resource = byResource.get(row.resourceId);
+    if (!recommenderName || !resource) return [];
+    return [{ ...row, recommenderName, resource }];
+  });
+}
+
 async function recommendationView(id: number) {
   const [row] = await db.select().from(classResourceRecommendationsTable).where(eq(classResourceRecommendationsTable.id, id));
   if (!row) return null;
-  const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, row.recommendedById));
-  const resource = await resourceWithRating(row.resourceId);
-  return resource && user ? { ...row, recommenderName: user.name, resource } : null;
+  const [view] = await recommendationViews([row]);
+  return view ?? null;
 }
 
 router.get("/classes/:id/resource-recommendations", requireAuth, async (req, res): Promise<void> => {
@@ -1197,12 +1262,11 @@ router.get("/classes/:id/resource-recommendations", requireAuth, async (req, res
     res.status(403).json({ error: "Not a member of this class" }); return;
   }
   const teacher = await isClassTeacher(classId, userId);
-  const rows = await db.select({ id: classResourceRecommendationsTable.id })
+  const rows = await db.select()
     .from(classResourceRecommendationsTable)
     .where(teacher ? eq(classResourceRecommendationsTable.classId, classId) : and(eq(classResourceRecommendationsTable.classId, classId), eq(classResourceRecommendationsTable.recommendedById, userId)))
     .orderBy(desc(classResourceRecommendationsTable.createdAt));
-  const items = (await Promise.all(rows.map((row) => recommendationView(row.id)))).filter(Boolean);
-  res.json(ListClassResourceRecommendationsResponse.parse(items));
+  res.json(ListClassResourceRecommendationsResponse.parse(await recommendationViews(rows)));
 });
 
 router.post("/classes/:id/resource-recommendations", contentLimiter, requireAuth, async (req, res): Promise<void> => {
