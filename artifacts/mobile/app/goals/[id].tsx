@@ -51,9 +51,12 @@ import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import {
+  getGetGoalListDriftQueryKey,
   getGetStepActivityQueryKey,
   getListLearningGoalsQueryKey,
+  useAddStepsFromList,
   useCompleteGoalStep,
+  useGetGoalListDrift,
   useGetStepActivity,
   useListLearningEvidence,
   useListLearningGoals,
@@ -225,6 +228,40 @@ export default function GoalScreen() {
   });
   const suggestion = activity.data ?? null;
   const described = suggestion ? describeActivity(suggestion, t) : null;
+  /*
+   * A path is a snapshot of the list it came from, and the list keeps moving.
+   * The server compares the two and reports only what the list has gained, so
+   * this asks once per visit and stays quiet when there is nothing to say.
+   */
+  const drift = useGetGoalListDrift(goalId, {
+    query: {
+      queryKey: getGetGoalListDriftQueryKey(goalId),
+      enabled: Boolean(goal?.sourceListId),
+    },
+  });
+  const behindBy = drift.data?.added.length ?? 0;
+  const catchUp = useAddStepsFromList();
+  const [catchUpFailure, setCatchUpFailure] = React.useState<string | null>(null);
+
+  /** Append the list's new resources to this path, keeping every step it has. */
+  async function bringListForward() {
+    if (!goal || catchUp.isPending) return;
+    setCatchUpFailure(null);
+    try {
+      await catchUp.mutateAsync({ id: goal.id });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getListLearningGoalsQueryKey() }),
+        drift.refetch(),
+      ]);
+      selection();
+    } catch (failure) {
+      warning();
+      setCatchUpFailure(
+        describeApiFailure(failure, t('Those steps could not be added.'), t),
+      );
+    }
+  }
+
   const [checkingIn, setCheckingIn] = React.useState<LearningPathStep | null>(null);
   const [outcome, setOutcome] = React.useState<StepOutcome | null>(null);
   const [checkInFailure, setCheckInFailure] = React.useState<string | null>(null);
@@ -399,6 +436,57 @@ export default function GoalScreen() {
         </Pressable>
       ) : null}
 
+      {/*
+        The list moved on. Shown only when there is something to act on, and
+        it says how many rather than "this path is out of date", because a
+        number is the difference between a warning and an instruction. Adding
+        appends: nothing already on the path changes, so a finished step stays
+        finished.
+      */}
+      {behindBy > 0 ? (
+        <View
+          style={[
+            styles.drift,
+            { borderColor: colors.border, borderRadius: colors.radius },
+          ]}
+        >
+          <Text style={[styles.driftText, { color: colors.foreground }]}>
+            {behindBy === 1
+              ? t('This list has 1 resource that is not on this path.')
+              : t('This list has {count} resources that are not on this path.').replace(
+                  '{count}',
+                  String(behindBy),
+                )}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Add to this path')}
+            accessibilityState={{ disabled: catchUp.isPending }}
+            disabled={catchUp.isPending}
+            onPress={bringListForward}
+            style={({ pressed }) => [
+              styles.driftButton,
+              { opacity: pressed || catchUp.isPending ? 0.6 : 1 },
+            ]}
+          >
+            <Feather name="plus-circle" size={15} color={colors.primary} />
+            <Text
+              style={[
+                styles.driftButtonText,
+                { color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold },
+              ]}
+            >
+              {catchUp.isPending ? t('Adding…') : t('Add to this path')}
+            </Text>
+          </Pressable>
+          {catchUpFailure ? (
+            <Text style={[styles.driftText, { color: colors.destructiveText }]}>
+              {catchUpFailure}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
       {goal.description ? (
         <Text
           style={[
@@ -563,6 +651,10 @@ const styles = StyleSheet.create({
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   description: { fontSize: 14, lineHeight: 20 },
   provenance: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
+  drift: { borderWidth: 1, padding: 14, gap: 8 },
+  driftText: { fontSize: 13, lineHeight: 18 },
+  driftButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40 },
+  driftButtonText: { fontSize: 14 },
   next: { borderWidth: 1, padding: 14, gap: 4 },
   nextLabel: { fontSize: 12 },
   nextTitle: { fontSize: 16, lineHeight: 21 },

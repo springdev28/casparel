@@ -504,6 +504,58 @@ paths:
                 $ref: "#/components/schemas/StepActivity"
         "404": { description: Goal or step not found }
 
+  /learning-goals/{id}/list-drift:
+    get:
+      operationId: getGoalListDrift
+      tags: [learning-goals]
+      summary: What the source list has gained since this path was built
+      description: >-
+        A path is a snapshot of a Learning List, and the list keeps moving. This
+        reports the resources now in the list that no step of the path carries,
+        so a learner is told their path has fallen behind rather than finding
+        out by noticing something missing. It reports only additions: a resource
+        taken out of the list is deliberately not reported, because the step for
+        it may already be finished and evidence is not something to withdraw
+        because a list was tidied.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: What the list has that the path does not
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalListDrift"
+        "404": { description: "Goal not found, or not built from a list" }
+
+  /learning-goals/{id}/steps/from-list:
+    post:
+      operationId: addStepsFromList
+      tags: [learning-goals]
+      summary: Append the source list's new resources to this path
+      description: >-
+        Adds a step for every resource in the source list that no step already
+        carries, in the list's own order, and leaves every existing step exactly
+        as it was — including which are finished. Idempotent: asking twice adds
+        nothing the second time, and two concurrent requests add each resource
+        once.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The goal, with whatever was appended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StepsFromList"
+        "404": { description: "Goal not found, or not built from a list" }
+
   /learning-goals/{id}/steps/{stepId}/completion:
     post:
       operationId: completeGoalStep
@@ -4279,6 +4331,31 @@ components:
           oneOf:
             - $ref: "#/components/schemas/StudyActivitySummary"
             - type: "null"
+
+    GoalListDrift:
+      type: object
+      required: [listId, listName, added]
+      properties:
+        listId: { type: integer }
+        listName: { type: string }
+        added:
+          type: array
+          description: >-
+            Resources in the list that no step of the path carries, in the
+            list's own order. Empty when the path is level with its list.
+          items:
+            $ref: "#/components/schemas/Resource"
+
+    StepsFromList:
+      type: object
+      required: [goal, addedStepIds]
+      properties:
+        goal:
+          $ref: "#/components/schemas/LearningGoal"
+        addedStepIds:
+          type: array
+          description: The steps this request created, empty when there was nothing to add.
+          items: { type: string }
 
     StudyActivitySummary:
       type: object

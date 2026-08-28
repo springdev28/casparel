@@ -730,6 +730,68 @@ async function main() {
       strangersBuild.status === 403 || strangersBuild.status === 404,
       `HTTP ${strangersBuild.status}`,
     );
+
+    /*
+     * ---- and the list moving on afterwards ----------------------------
+     *
+     * The path above was built from two resources and a third has been added
+     * to the list since. That is the ordinary way a path goes out of date --
+     * the learner keeps saving into the list they organised -- and until this
+     * existed nothing said so. Checked here rather than only in a unit test
+     * because what matters is the comparison of two rows in one database: the
+     * path's steps against the list's items as they are now.
+     */
+    const behind = await call(
+      `GET`,
+      `/api/learning-goals/${built.body.id}/list-drift`,
+      { token: bob.token },
+    );
+    check(
+      "a path is told what its list has gained since",
+      behind.status === 200 &&
+        behind.body?.listId === bobsList.body.id &&
+        behind.body?.added?.length === 1 &&
+        behind.body.added[0].id === third.body?.id,
+      `HTTP ${behind.status} ${behind.text.slice(0, 220)}`,
+    );
+
+    const caught = await call(
+      "POST",
+      `/api/learning-goals/${built.body.id}/steps/from-list`,
+      { token: bob.token },
+    );
+    check(
+      "and the path can catch up without losing the steps it has",
+      caught.status === 200 &&
+        caught.body?.addedStepIds?.length === 1 &&
+        caught.body?.goal?.pathSteps?.length === order.length + 1 &&
+        caught.body.goal.pathSteps.at(-1).resourceId === third.body?.id,
+      `HTTP ${caught.status} ${caught.text.slice(0, 220)}`,
+    );
+
+    const settled = await call(
+      "POST",
+      `/api/learning-goals/${built.body.id}/steps/from-list`,
+      { token: bob.token },
+    );
+    check(
+      "catching up twice adds nothing the second time",
+      settled.status === 200 &&
+        settled.body?.addedStepIds?.length === 0 &&
+        settled.body?.goal?.pathSteps?.length === order.length + 1,
+      `HTTP ${settled.status} ${settled.text.slice(0, 220)}`,
+    );
+
+    const strangersDrift = await call(
+      "GET",
+      `/api/learning-goals/${built.body.id}/list-drift`,
+      { token: alice.token },
+    );
+    check(
+      "a stranger is not told what somebody else's path is missing",
+      strangersDrift.status === 404,
+      `HTTP ${strangersDrift.status}`,
+    );
   }
 
   // ---- a saved resource reaches the goal it is for -------------------------

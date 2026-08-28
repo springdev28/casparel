@@ -336,6 +336,34 @@ function stubbedBody(pathname) {
    * the "checked in" mark as well as the plain step.
    */
   /*
+   * The audit goal's list has moved on by one, so the goal screen draws the
+   * card that says so and the button that would bring it forward.
+   */
+  if (pathname.endsWith("/list-drift")) {
+    return {
+      listId: 11,
+      listName: "Audit list",
+      added: [
+        {
+          id: 102,
+          title: "Added after the path was built",
+          url: "https://example.org/102",
+          description: null,
+          format: "article",
+          subject: "Mathematics",
+          gradeLevel: "Undergraduate",
+          thumbnailUrl: null,
+          submittedById: 1,
+          avgRating: 0,
+          reviewCount: 0,
+          createdAt: "2026-03-02T09:00:00.000Z",
+          verificationStatus: "verified",
+          verificationNote: null,
+        },
+      ],
+    };
+  }
+  /*
    * What to do with the audit goal's next step. An article, so reading, with
    * the learner's own study set offered beside it -- which renders both
    * buttons the goal screen can show.

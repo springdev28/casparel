@@ -4,7 +4,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import {
   db,
   learningGoalsTable,
@@ -12,6 +12,7 @@ import {
   classMembersTable,
   learningEvidenceTable,
   listItemsTable,
+  resourceListsTable,
   resourcesTable,
   studyActivitiesTable,
   usersTable,
@@ -36,6 +37,10 @@ import {
   CompleteGoalStepResponse,
   GetStepActivityParams,
   GetStepActivityResponse,
+  GetGoalListDriftParams,
+  GetGoalListDriftResponse,
+  AddStepsFromListParams,
+  AddStepsFromListResponse,
 } from "@workspace/api-zod";
 import {
   requireAuth,
@@ -49,8 +54,12 @@ import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 import { dateOnly } from "../lib/contractDates";
 import { resourceVisibilityCondition } from "../lib/resourceVisibility";
 import { publicResourceColumns } from "../lib/resourceColumns";
-import { resourceWithRating } from "../lib/resourceRatings";
+import { resourceWithRating, resourcesWithRatings } from "../lib/resourceRatings";
 import { suggestStepActivity } from "../lib/stepActivity";
+import {
+  listResourcesMissingFromPath,
+  pathStepForResource,
+} from "../lib/goalPath";
 import { isAdminRequest } from "../lib/adminAccess";
 
 const router: IRouter = Router();
@@ -760,17 +769,7 @@ router.post(
         return { goal, stepId: existing.id, alreadyLinked: true };
       }
 
-      // A resource title is not length-bounded the way a step title is, and a
-      // step longer than the contract allows would fail the response parse
-      // after the write had already landed.
-      const title = resource.title.trim().slice(0, 200) || "Saved resource";
-      const step = {
-        id: randomUUID(),
-        title,
-        query: `${resource.subject} ${title}`.trim().slice(0, 300),
-        completed: false,
-        resourceId: resource.id,
-      };
+      const step = pathStepForResource(resource);
       const [updated] = await tx
         .update(learningGoalsTable)
         .set({
@@ -806,6 +805,204 @@ router.post(
           alreadyLinked: linked.alreadyLinked,
         }),
       ),
+    );
+  },
+);
+
+/**
+ * The resources a list holds, in the list's order, as this reader may see them.
+ *
+ * Shared by the drift read and the catch-up write on purpose: they answer the
+ * same question a moment apart, and a visibility condition or an ordering that
+ * differed between them would have the screen offer resources the write then
+ * silently declined to add, or add them in an order the preview did not show.
+ */
+type GoalTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function listResourcesInOrder(
+  executor: typeof db | GoalTransaction,
+  listId: number,
+  userId: number,
+  isAdmin: boolean,
+) {
+  return executor
+    .select({
+      id: resourcesTable.id,
+      title: resourcesTable.title,
+      subject: resourcesTable.subject,
+    })
+    .from(listItemsTable)
+    .innerJoin(resourcesTable, eq(resourcesTable.id, listItemsTable.resourceId))
+    .where(
+      and(
+        eq(listItemsTable.listId, listId),
+        resourceVisibilityCondition(userId, isAdmin),
+      ),
+    )
+    .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
+}
+
+/**
+ * The list a path came from, and what it has gained since.
+ *
+ * `sourceListId` records where a path came from, which was enough to link back
+ * to the list and no help at all once the list moved on: a learner adds three
+ * resources to their Learning List in October and the path built in September
+ * never mentions them. Nothing was wrong, and nothing said so either.
+ *
+ * Additions only, and computed rather than stored. lib/goalPath.ts has the
+ * reasoning for both.
+ */
+router.get(
+  "/learning-goals/:id/list-drift",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = GetGoalListDriftParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: validationMessage(params.error) });
+      return;
+    }
+    const workspaceRole = userRole === "teacher" ? "teacher" : "student";
+    const [goal] = await db
+      .select()
+      .from(learningGoalsTable)
+      .where(
+        and(
+          eq(learningGoalsTable.id, params.data.id),
+          eq(learningGoalsTable.userId, userId),
+          eq(learningGoalsTable.workspaceRole, workspaceRole),
+        ),
+      );
+    // A goal that was never built from a list, and a goal whose list has since
+    // been deleted, are the same answer: there is nothing to be behind.
+    if (!goal?.sourceListId) {
+      res.status(404).json({ error: "This goal was not built from a list" });
+      return;
+    }
+
+    const [list] = await db
+      .select({ id: resourceListsTable.id, name: resourceListsTable.name })
+      .from(resourceListsTable)
+      .where(eq(resourceListsTable.id, goal.sourceListId));
+    if (!list) {
+      res.status(404).json({ error: "This goal was not built from a list" });
+      return;
+    }
+
+    const inList = await listResourcesInOrder(
+      db,
+      goal.sourceListId,
+      userId,
+      isAdminRequest(req),
+    );
+    const missing = listResourcesMissingFromPath(
+      goal.pathSteps,
+      inList.map((row) => row.id),
+    );
+
+    res.json(
+      GetGoalListDriftResponse.parse({
+        listId: list.id,
+        listName: list.name,
+        added: await resourcesWithRatings(missing),
+      }),
+    );
+  },
+);
+
+/**
+ * Bring the list's new resources onto the path.
+ *
+ * Append only: every existing step is left exactly as it was, which is what
+ * keeps a finished step finished and its check-in attached. Under the goal's
+ * own lane, like every other write that rewrites the path, so two taps cannot
+ * each read a path without the new resources and each append them.
+ */
+router.post(
+  "/learning-goals/:id/steps/from-list",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = AddStepsFromListParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: validationMessage(params.error) });
+      return;
+    }
+    const isAdmin = isAdminRequest(req);
+
+    const done = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(${params.data.id}, 1)`);
+      const [goal] = await tx
+        .select()
+        .from(learningGoalsTable)
+        .where(
+          and(
+            eq(learningGoalsTable.id, params.data.id),
+            eq(learningGoalsTable.userId, userId),
+            eq(
+              learningGoalsTable.workspaceRole,
+              userRole === "teacher" ? "teacher" : "student",
+            ),
+          ),
+        );
+      if (!goal?.sourceListId) return null;
+
+      const rows = await listResourcesInOrder(
+        tx,
+        goal.sourceListId,
+        userId,
+        isAdmin,
+      );
+
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      const missing = listResourcesMissingFromPath(
+        goal.pathSteps,
+        rows.map((row) => row.id),
+      );
+      // Nothing to do is a success with an empty list, not an error: the
+      // second of two taps arrives here and the learner has what they asked
+      // for either way.
+      if (missing.length === 0) return { goal, steps: [] };
+
+      const steps = missing.flatMap((id) => {
+        const row = byId.get(id);
+        return row ? [pathStepForResource(row)] : [];
+      });
+      const [updated] = await tx
+        .update(learningGoalsTable)
+        .set({
+          pathSteps: [...goal.pathSteps, ...steps],
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(learningGoalsTable.id, goal.id))
+        .returning();
+      return { goal: updated, steps };
+    });
+
+    if (!done) {
+      res.status(404).json({ error: "This goal was not built from a list" });
+      return;
+    }
+
+    // The same milestone the single attach writes, once per resource that
+    // actually reached the path, so catching up and attaching by hand count
+    // the same way.
+    for (const step of done.steps) {
+      await recordWorkflowEvent({
+        userId,
+        event: "resource_linked_to_goal",
+        resourceId: step.resourceId,
+        context: { goalId: done.goal.id, stepId: step.id },
+      });
+    }
+
+    res.json(
+      AddStepsFromListResponse.parse({
+        goal: asContract(done.goal),
+        addedStepIds: done.steps.map((step) => step.id),
+      }),
     );
   },
 );

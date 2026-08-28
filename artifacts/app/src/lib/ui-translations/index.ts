@@ -209,6 +209,20 @@ const SHAPE_RULES: Array<{
     },
   },
   {
+    // The button that puts a Learning List's newer resources onto the path
+    // already built from it, and the toast that confirms it did.
+    match: /^Add (\d[\d.,]*) to the path$/,
+    render: {
+      tr: (n) => `${n} tanesini yola ekle`,
+    },
+  },
+  {
+    match: /^(\d[\d.,]*) added, in the order of your list\.$/,
+    render: {
+      tr: (n) => `Listenin sırasıyla ${n} tanesi eklendi.`,
+    },
+  },
+  {
     match: /^(\d[\d.,]*) library resources? selected for this goal$/,
     render: {
       tr: (n) => `bu hedef için ${n} kütüphane kaynağı seçildi`,

@@ -1130,6 +1130,19 @@ export interface StepActivity {
   recallActivity?: StudyActivitySummary | null;
 }
 
+export interface GoalListDrift {
+  listId: number;
+  listName: string;
+  /** Resources in the list that no step of the path carries, in the list's own order. Empty when the path is level with its list. */
+  added: Resource[];
+}
+
+export interface StepsFromList {
+  goal: LearningGoal;
+  /** The steps this request created, empty when there was nothing to add. */
+  addedStepIds: string[];
+}
+
 export interface StepCompletionInput {
   completed: boolean;
   /**

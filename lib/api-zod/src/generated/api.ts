@@ -763,6 +763,78 @@ export const GetStepActivityResponse = zod.object({
 
 
 /**
+ * A path is a snapshot of a Learning List, and the list keeps moving. This reports the resources now in the list that no step of the path carries, so a learner is told their path has fallen behind rather than finding out by noticing something missing. It reports only additions: a resource taken out of the list is deliberately not reported, because the step for it may already be finished and evidence is not something to withdraw because a list was tidied.
+ * @summary What the source list has gained since this path was built
+ */
+export const GetGoalListDriftParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetGoalListDriftResponse = zod.object({
+  "listId": zod.int(),
+  "listName": zod.string(),
+  "added": zod.array(zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "submittedById": zod.int(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string(),
+  "verificationStatus": zod.enum(['unverified', 'verified', 'rejected']).optional(),
+  "verificationNote": zod.string().nullish()
+})).describe('Resources in the list that no step of the path carries, in the list\'s own order. Empty when the path is level with its list.')
+})
+
+
+/**
+ * Adds a step for every resource in the source list that no step already carries, in the list's own order, and leaves every existing step exactly as it was — including which are finished. Idempotent: asking twice adds nothing the second time, and two concurrent requests add each resource once.
+ * @summary Append the source list's new resources to this path
+ */
+export const AddStepsFromListParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const addStepsFromListResponseGoalPathStepsItemIdMax = 80;
+
+export const addStepsFromListResponseGoalPathStepsItemTitleMax = 200;
+
+export const addStepsFromListResponseGoalPathStepsItemQueryMax = 300;
+
+
+
+export const AddStepsFromListResponse = zod.object({
+  "goal": zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(addStepsFromListResponseGoalPathStepsItemIdMax),
+  "title": zod.string().min(1).max(addStepsFromListResponseGoalPathStepsItemTitleMax),
+  "query": zod.string().min(1).max(addStepsFromListResponseGoalPathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}),
+  "addedStepIds": zod.array(zod.string()).describe('The steps this request created, empty when there was nothing to add.')
+})
+
+
+/**
  * Touches one step rather than replacing the whole path, so two devices working on the same goal cannot overwrite each other. A check-in is optional: when one is given, it is recorded as learning evidence against the step, and a step that has already been checked in is not checked in twice. Marking a step not done leaves any evidence in place, because evidence is a record of what happened rather than a state.
  * @summary Mark one path step done or not done, optionally with a check-in
  */

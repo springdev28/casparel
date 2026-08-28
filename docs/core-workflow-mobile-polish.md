@@ -527,3 +527,44 @@ Verification recorded for this increment:
 - 26 authorization probes refused, and 21 class-access checks passed;
 - the phone renders all fifteen routes in English and Turkish, the goal screen showing the **Next** card with its action, its way in and its revision set in both, and every control named for a screen reader;
 - web production build passed.
+
+## Current implementation ledger — 2026-08-28 (Phase 3, a path and the list it came from)
+
+Phase 3 names **provenance and staleness** together, and only the first half
+existed: a goal recorded which list it was built from, which was enough to link
+back and no help at all once the list moved on. A learner keeps saving into the
+list they organised, and the path built from it in September never mentioned
+anything added in October. Nothing was wrong, and nothing said so either.
+
+Implemented in this increment:
+
+- `GET /learning-goals/{id}/list-drift`: the resources now in the source list that no step of the path carries, in the list's own order;
+- `POST /learning-goals/{id}/steps/from-list`: append exactly those, under the goal's own lock, leaving every existing step as it was — so a finished step stays finished and its check-in stays attached;
+- additions only, which is a product decision rather than an omission: a resource taken out of a list still has a step on the path, that step may be finished and carry a check-in a teacher has already read, and withdrawing it because somebody tidied a list would delete the record of work that happened;
+- one definition of how a resource becomes a step, now shared by the single attach and the catch-up, because the 200-character truncation in it is load-bearing — a step over the contract's limit fails the response parse *after* the write has landed, so the learner sees an error and gets the step anyway;
+- one definition of how the source list is read, shared by the report and the write, so the visibility rule and the ordering cannot differ between what a screen offers and what the write then accepts;
+- resource visibility enforced on both, so a submission still in the review queue is neither described nor silently appended;
+- a card on the phone's goal screen when there is something to add, with the count in it, and the same decision on the web's list page — where the drift is actually created — as a button beside **Build a learning path**;
+- Turkish for the four new phone strings, and three dictionary entries plus two shape rules on the web.
+
+Nothing is stored to make this work, and that is deliberate. The specification
+says to record the source list *and version*, and a version integer answers
+only "has the list changed" while costing a bump in every write that touches a
+list — one forgotten bump and the answer is silently wrong. Comparing what is
+actually in each answers "what does the path not have", which is the question a
+learner can act on, and it is right in the two cases a counter gets wrong: a
+resource added to a list and taken out again is not drift, and a resource the
+learner attached to the goal by hand is not missing from it. Both are pinned by
+tests.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 819 API assertions across 97 test files against a real PostgreSQL instance;
+- 77 mobile tests;
+- against a real database: a path level with its list reports nothing, a list that gains two reports both in list order, catching up appends in that order while the finished step and its single piece of evidence are untouched, a second catch-up adds nothing, a resource removed from the list is not reported and its step is not withdrawn, a stranger is refused both, and a goal never built from a list has nothing to be behind;
+- eight simultaneous catch-ups add the new resource once. Removing the advisory lock fails that, with all eight claiming to have added it;
+- 90 end-to-end flow checks against a real server, including a path told what its list gained, catching up, catching up again, and a stranger's attempt;
+- 26 authorization probes refused, and 21 class-access checks passed;
+- the phone renders all fifteen routes in English and Turkish, the goal screen showing the drift card and its button in both;
+- the web production build passed and every visible string on it is still translated.

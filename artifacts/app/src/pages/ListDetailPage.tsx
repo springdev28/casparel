@@ -36,8 +36,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  useAddStepsFromList,
   useBuildPathFromList,
+  useGetGoalListDrift,
   useGetResourceList,
+  useListLearningGoals,
   useReviewListQuality,
   useUpdateListItem,
   useRemoveListItem,
@@ -49,6 +52,7 @@ import {
   useListClasses,
   useShareListWithClass,
   getGetResourceListQueryKey,
+  getGetGoalListDriftQueryKey,
   getListLearningGoalsQueryKey,
   getReviewListQualityQueryKey,
   getListResourceListsQueryKey,
@@ -119,6 +123,23 @@ export default function ListDetailPage() {
   const buildPath = useBuildPathFromList();
   const updateItem = useUpdateListItem();
   /*
+   * A path built from this list is a snapshot, and this page is where the list
+   * moves on: somebody adds three resources here and the path they built last
+   * month still has the old five. The goals are already in the cache -- the
+   * sidebar reads them -- so finding this list's path costs nothing, and the
+   * drift question is asked of one goal rather than of every card on a page.
+   */
+  const goals = useListLearningGoals();
+  const builtGoal = goals.data?.find((goal) => goal.sourceListId === listId) ?? null;
+  const drift = useGetGoalListDrift(builtGoal?.id ?? 0, {
+    query: {
+      queryKey: getGetGoalListDriftQueryKey(builtGoal?.id ?? 0),
+      enabled: Boolean(builtGoal),
+    },
+  });
+  const catchUp = useAddStepsFromList();
+  const driftCount = drift.data?.added.length ?? 0;
+  /*
    * Asked for rather than shown: a list opens to what is in it, and an
    * unrequested verdict on somebody's choices is not what they came for.
    */
@@ -161,6 +182,34 @@ export default function ListDetailPage() {
     } catch (error) {
       toast({
         title: 'Could not build the path',
+        description: describeApiError(error, 'Please try again.'),
+        variant: 'destructive',
+      });
+    }
+  }
+
+  /**
+   * Put this list's newer resources onto the path already built from it.
+   *
+   * Append only: every step already on the path is left as it was, including
+   * which are finished, so bringing a list forward can never withdraw work
+   * somebody has done.
+   */
+  async function catchUpWithList() {
+    if (!builtGoal || catchUp.isPending) return;
+    try {
+      const result = await catchUp.mutateAsync({ id: builtGoal.id });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getListLearningGoalsQueryKey() }),
+        drift.refetch(),
+      ]);
+      toast({
+        title: 'Learning path updated',
+        description: `${result.addedStepIds.length} added, in the order of your list.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not add those steps',
         description: describeApiError(error, 'Please try again.'),
         variant: 'destructive',
       });
@@ -444,7 +493,7 @@ export default function ListDetailPage() {
           </Button>
         )}
 
-        {isOwner && (list?.items.length ?? 0) > 0 && (
+        {isOwner && (list?.items.length ?? 0) > 0 && !builtGoal && (
           <Button
             variant="outline"
             size="sm"
@@ -454,6 +503,28 @@ export default function ListDetailPage() {
           >
             <Target size={15} className="mr-1.5" />
             Build a learning path
+          </Button>
+        )}
+
+        {/*
+          A list this list's path has fallen behind. Shown only when there is
+          something to add, with the number in it: "out of date" is a worry,
+          "2 of these are not on it" is a decision.
+        */}
+        {isOwner && builtGoal && (
+          <Button
+            variant={driftCount > 0 ? "default" : "outline"}
+            size="sm"
+            onClick={() => (driftCount > 0 ? void catchUpWithList() : setLocation("/goals"))}
+            disabled={catchUp.isPending}
+            data-testid="path-drift-button"
+          >
+            <Target size={15} className="mr-1.5" />
+            {catchUp.isPending
+              ? "Adding…"
+              : driftCount > 0
+                ? `Add ${driftCount} to the path`
+                : "Open the learning path"}
           </Button>
         )}
 

@@ -67,6 +67,7 @@ import type {
   GetOembedThumbnail200,
   GetOembedThumbnailParams,
   GetResourceSourceReviewParams,
+  GoalListDrift,
   GoalResourceInput,
   GoalResourceLink,
   HealthStatus,
@@ -134,6 +135,7 @@ import type {
   StepActivity,
   StepCompletion,
   StepCompletionInput,
+  StepsFromList,
   StudentLearningGoal,
   StudentNoteInput,
   StudentRoleInput,
@@ -2028,6 +2030,156 @@ export function useGetStepActivity<TData = Awaited<ReturnType<typeof getStepActi
 
 
 
+
+export const getGetGoalListDriftUrl = (id: number,) => {
+
+
+
+
+  return `/api/learning-goals/${id}/list-drift`
+}
+
+/**
+ * A path is a snapshot of a Learning List, and the list keeps moving. This reports the resources now in the list that no step of the path carries, so a learner is told their path has fallen behind rather than finding out by noticing something missing. It reports only additions: a resource taken out of the list is deliberately not reported, because the step for it may already be finished and evidence is not something to withdraw because a list was tidied.
+ * @summary What the source list has gained since this path was built
+ */
+export const getGoalListDrift = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<GoalListDrift> => {
+
+  return customFetch<GoalListDrift>(getGetGoalListDriftUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGoalListDriftQueryKey = (id: number,) => {
+    return [
+    `/api/learning-goals/${id}/list-drift`
+    ] as const;
+    }
+
+
+export const getGetGoalListDriftQueryOptions = <TData = Awaited<ReturnType<typeof getGoalListDrift>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalListDrift>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGoalListDriftQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGoalListDrift>>> = ({ signal }) => getGoalListDrift(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGoalListDrift>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGoalListDriftQueryResult = NonNullable<Awaited<ReturnType<typeof getGoalListDrift>>>
+export type GetGoalListDriftQueryError = ErrorType<void>
+
+
+/**
+ * @summary What the source list has gained since this path was built
+ */
+
+export function useGetGoalListDrift<TData = Awaited<ReturnType<typeof getGoalListDrift>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoalListDrift>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGoalListDriftQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddStepsFromListUrl = (id: number,) => {
+
+
+
+
+  return `/api/learning-goals/${id}/steps/from-list`
+}
+
+/**
+ * Adds a step for every resource in the source list that no step already carries, in the list's own order, and leaves every existing step exactly as it was — including which are finished. Idempotent: asking twice adds nothing the second time, and two concurrent requests add each resource once.
+ * @summary Append the source list's new resources to this path
+ */
+export const addStepsFromList = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<StepsFromList> => {
+
+  return customFetch<StepsFromList>(getAddStepsFromListUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAddStepsFromListMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addStepsFromList>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addStepsFromList>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['addStepsFromList'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addStepsFromList>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  addStepsFromList(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddStepsFromListMutationResult = NonNullable<Awaited<ReturnType<typeof addStepsFromList>>>
+
+    export type AddStepsFromListMutationError = ErrorType<void>
+
+    /**
+ * @summary Append the source list's new resources to this path
+ */
+export const useAddStepsFromList = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addStepsFromList>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addStepsFromList>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getAddStepsFromListMutationOptions(options));
+    }
 
 export const getCompleteGoalStepUrl = (id: number,
     stepId: string,) => {
