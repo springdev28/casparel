@@ -72,6 +72,7 @@ packages:
   - lib/api-zod
   - lib/db
   - lib/resource-identity
+  - lib/plan-economics
   - lib/integrations-openai-ai-server
   - scripts
 

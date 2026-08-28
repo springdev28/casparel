@@ -29,6 +29,15 @@ import {
 import { GetAdminOverviewResponse } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { validationMessage } from "../lib/validationMessage";
+import { normalizePlan } from "../lib/entitlements";
+import {
+  ECONOMIC_ASSUMPTIONS,
+  PLAN_CATALOG,
+  SERVICE_AI_BUDGETS,
+  deepResearchRawCostUsd,
+  discoveryRawCostUsd,
+  type SubscriptionTier,
+} from "@workspace/plan-economics";
 
 const router: IRouter = Router();
 
@@ -262,13 +271,20 @@ router.get(
       readUsageRows(
         `SELECT key, CASE WHEN reset_time > NOW() THEN hits ELSE 0 END AS hits
          FROM rate_limit_hits
-         WHERE key LIKE 'usage-total:%' OR key LIKE 'usage-month:%' OR key LIKE 'usage-user-total:%'`,
+         WHERE key LIKE 'usage-total:%'
+            OR key LIKE 'usage-month:%'
+            OR key LIKE 'usage-user-month:%'
+            OR key LIKE 'usage-plan-month:%'
+            OR key LIKE 'cache-month:%'`,
       ),
       db
         .select({
           id: usersTable.id,
           name: usersTable.name,
           email: usersTable.email,
+          plan: usersTable.plan,
+          planExpiresAt: usersTable.planExpiresAt,
+          role: usersTable.role,
         })
         .from(usersTable),
       readWorkflowAnalytics(),
@@ -280,10 +296,10 @@ router.get(
       allUsageResult.map((row) => [row.key, Number(row.hits)]),
     );
     const featureCosts = {
-      search: 0.012,
-      "quick-review": 0.001,
-      "deep-research": 0.05,
-      metadata: 0.0005,
+      search: discoveryRawCostUsd(),
+      "quick-review": 0,
+      "deep-research": deepResearchRawCostUsd(),
+      metadata: 0,
     } as const;
     const features = Object.keys(featureCosts) as Array<
       keyof typeof featureCosts
@@ -298,7 +314,7 @@ router.get(
             total,
             month,
             estimatedCostUsd: Number(
-              (total * featureCosts[feature]).toFixed(2),
+              (month * featureCosts[feature]).toFixed(2),
             ),
           },
         ];
@@ -312,7 +328,7 @@ router.get(
         const values = Object.fromEntries(
           features.map((feature) => [
             feature,
-            counters.get(`usage-user-total:${user.id}:${feature}`) ?? 0,
+            counters.get(`usage-user-month:${user.id}:${feature}`) ?? 0,
           ]),
         ) as Record<keyof typeof featureCosts, number>;
         const total = features.reduce(
@@ -327,6 +343,7 @@ router.get(
           userId: user.id,
           name: user.name,
           email: user.email,
+          plan: normalizePlan(user.plan, user.planExpiresAt, user.role),
           searches: values.search,
           quickReviews: values["quick-review"],
           deepResearch: values["deep-research"],
@@ -336,7 +353,7 @@ router.get(
         };
       })
       .filter((user) => user.total > 0)
-      .sort((a, b) => b.total - a.total);
+      .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd);
     const totalAiRequests = features.reduce(
       (sum, feature) => sum + featureUsage[feature].total,
       0,
@@ -345,6 +362,84 @@ router.get(
       (sum, feature) => sum + featureUsage[feature].estimatedCostUsd,
       0,
     );
+    const commercialUsers = userRows
+      .map((user) => normalizePlan(user.plan, user.planExpiresAt, user.role))
+      .filter((tier): tier is Exclude<SubscriptionTier, "free"> => tier !== "free");
+    let institutionalContractCounted = false;
+    const monthlyRevenueUsd = commercialUsers.reduce((sum, tier) => {
+      if (tier === "institutional") {
+        if (institutionalContractCounted) return sum;
+        institutionalContractCounted = true;
+      }
+      const price = PLAN_CATALOG[tier].price;
+      if (!price) return sum;
+      const fee = tier === "institutional"
+        ? ECONOMIC_ASSUMPTIONS.invoicePaymentShare
+        : ECONOMIC_ASSUMPTIONS.playStoreRevenueShare +
+          ECONOMIC_ASSUMPTIONS.revenueCatRevenueShare;
+      return sum + price.monthlyUsd * (1 - fee);
+    }, 0);
+    const byPlan = Object.fromEntries(
+      (Object.keys(PLAN_CATALOG) as SubscriptionTier[]).map((tier) => {
+        const requests = features.reduce(
+          (sum, feature) =>
+            sum + (counters.get(`usage-plan-month:${tier}:${feature}`) ?? 0),
+          0,
+        );
+        const costUsd = features.reduce(
+          (sum, feature) =>
+            sum +
+            (counters.get(`usage-plan-month:${tier}:${feature}`) ?? 0) *
+              featureCosts[feature],
+          0,
+        );
+        return [tier, { requests, costUsd: Number(costUsd.toFixed(2)) }];
+      }),
+    );
+    const searchCacheHits = counters.get("cache-month:search") ?? 0;
+    const deepCacheHits = counters.get("cache-month:deep-research") ?? 0;
+    const cacheHits = searchCacheHits + deepCacheHits;
+    const monthlyAiCalls = features.reduce(
+      (sum, feature) => sum + featureUsage[feature].month,
+      0,
+    );
+    const avoidedCostUsd =
+      searchCacheHits * featureCosts.search +
+      deepCacheHits * featureCosts["deep-research"];
+    const storedBytes = Math.round(
+      (workflow.engagement.estimatedStoredMb ?? 0) * 1024 * 1024,
+    );
+    const storageCostUsd =
+      (storedBytes / (1024 * 1024 * 1024)) *
+      ECONOMIC_ASSUMPTIONS.storageUsdPerGibMonth;
+    let countedInstitutionalOverhead = false;
+    const otherVariableCostUsd = userRows.reduce((sum, user) => {
+      const tier = normalizePlan(user.plan, user.planExpiresAt, user.role);
+      if (tier !== "institutional") {
+        return sum + ECONOMIC_ASSUMPTIONS.otherVariableUsdPerAccountMonth;
+      }
+      if (countedInstitutionalOverhead) return sum;
+      countedInstitutionalOverhead = true;
+      return sum + ECONOMIC_ASSUMPTIONS.institutionalOtherVariableUsdPerMonth;
+    }, 0);
+    const variableCostUsd =
+      estimatedCostUsd + storageCostUsd + otherVariableCostUsd;
+    const grossMargin = monthlyRevenueUsd > 0
+      ? (monthlyRevenueUsd - variableCostUsd) / monthlyRevenueUsd
+      : null;
+    const globalMonthlyBudgetUsd =
+      SERVICE_AI_BUDGETS.discoveryPerMonth * featureCosts.search +
+      SERVICE_AI_BUDGETS.deepPerMonth * featureCosts["deep-research"];
+    const budgetRatio = globalMonthlyBudgetUsd > 0
+      ? estimatedCostUsd / globalMonthlyBudgetUsd
+      : 0;
+    const budgetStatus = budgetRatio >= 0.95
+      ? "emergency"
+      : budgetRatio >= 0.8
+        ? "red"
+      : budgetRatio >= 0.5
+        ? "yellow"
+        : "green";
     res.json(
       GetAdminOverviewResponse.parse({
         users,
@@ -368,6 +463,21 @@ router.get(
           estimatedCostUsd: Number(estimatedCostUsd.toFixed(2)),
           byFeature: featureUsage,
           byUser: userUsage,
+          economics: {
+            monthlyRevenueUsd: Number(monthlyRevenueUsd.toFixed(2)),
+            variableCostUsd: Number(variableCostUsd.toFixed(2)),
+            storageCostUsd: Number(storageCostUsd.toFixed(2)),
+            grossMargin: grossMargin === null ? null : Number(grossMargin.toFixed(4)),
+            byPlan,
+            cacheHits,
+            cacheHitRate: monthlyAiCalls + cacheHits > 0
+              ? Number((cacheHits / (monthlyAiCalls + cacheHits)).toFixed(4))
+              : 0,
+            avoidedCostUsd: Number(avoidedCostUsd.toFixed(2)),
+            storedBytes,
+            budgetStatus,
+            budgetRatio: Number(budgetRatio.toFixed(4)),
+          },
         },
         workflow,
       }),

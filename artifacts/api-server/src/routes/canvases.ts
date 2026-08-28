@@ -24,6 +24,7 @@ import {
 } from "../middlewares/requireAuth";
 import { contentLimiter } from "../lib/limiters";
 import { ensureAccountCapacity } from "../lib/planCapacity";
+import { ensureStorageCapacity } from "../lib/storageCapacity";
 import { validationMessage } from "../lib/validationMessage";
 
 const router: IRouter = Router();
@@ -337,6 +338,11 @@ router.post(
       return;
     }
     if (!(await ensureAccountCapacity(res, userId, "canvases"))) return;
+    if (!(await ensureStorageCapacity(
+      res,
+      userId,
+      Buffer.byteLength(JSON.stringify(source.document), "utf8"),
+    ))) return;
 
     const [copy] = await db
       .insert(canvasesTable)
@@ -392,6 +398,14 @@ router.patch(
       res.status(403).json({ error: "Only the canvas owner can change sharing settings" });
       return;
     }
+    if (
+      parsed.data.document !== undefined &&
+      !(await ensureStorageCapacity(
+        res,
+        canvas.ownerId,
+        Buffer.byteLength(JSON.stringify(parsed.data.document), "utf8"),
+      ))
+    ) return;
     const values: Partial<typeof canvasesTable.$inferInsert> = {
       updatedAt: new Date().toISOString(),
       ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),

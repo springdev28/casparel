@@ -75,6 +75,14 @@ vi.mock("../middlewares/requireAuth", () => ({
   },
 }));
 
+// Storage accounting has its own database-focused tests. These route tests
+// isolate avatar validation and persistence from the aggregate storage query.
+vi.mock("../lib/storageCapacity", () => ({
+  accountStorage: vi.fn().mockResolvedValue({ usedBytes: 0, limitBytes: 1024 }),
+  base64StoredBytes: (bytes: number) => Math.ceil(bytes / 3) * 4,
+  ensureStorageCapacity: vi.fn().mockResolvedValue(true),
+}));
+
 // ── Import subjects AFTER mock declarations ────────────────────────────────────
 import { db } from "@workspace/db";
 import authRouter from "./auth.js";

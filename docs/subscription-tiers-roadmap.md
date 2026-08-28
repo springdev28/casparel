@@ -1,6 +1,16 @@
 # Casparel subscription roadmap
 
-Written: 15 August 2026, revised the same day after the role-specific tiers landed. Shipaton deadline: 30 September 2026.
+Written: 15 August 2026, economically re-baselined 28 August 2026. Shipaton deadline: 30 September 2026.
+
+> **Current commercial authority:** [`docs/plan-economics.md`](plan-economics.md) supersedes every historical price and AI quota recorded below. The live implementation now imports one shared plan catalog across API, web, and mobile; old figures remain in this roadmap only as decision history.
+
+## Revision note (28 August): full-consumption safety
+
+- Every paid plan now clears a machine-tested 70% gross margin even when all monthly allowances are consumed. Annual discounts are 8–10%, not two free months.
+- AI Discovery and Deep Research have explicit model, prompt, output, tool-call, timeout, concurrency, day, month, and service-wide limits. Cached results do not consume allowance.
+- Total stored upload bytes are enforced alongside the existing row limits.
+- Institutional Starter is $970/year for 30 included seats with one shared pool of 300 discovery searches, 60 deep reports, and 10 GB per rolling 30 days. It remains invoiced and absent from store offerings.
+- Stable product IDs now map explicitly to tiers before the legacy name heuristic. Exact Google Play and RevenueCat values are in the economics document.
 
 This roadmap follows two changes: the one that made Casparel's tiers about stored data as well as AI usage, and the one that specialised the tiers by role (Student/Teacher Plus and Pro), gave Free a small AI taste, and made every paid allowance finite — uncapped is now an admin property only. It is deliberately ordered by what blocks revenue, not by what is most interesting to build.
 
@@ -9,8 +19,8 @@ This roadmap follows two changes: the one that made Casparel's tiers about store
 Owner feedback on the live /plans page drove three changes:
 
 - **The original Plus/Pro had become invisible.** The backend kept them, but the page's student/teacher toggle had no tab that showed them — "keep the original plans" means *visibly on sale*, not just honoured in the database. The plans page now gives everyone three tabs (For students / For teachers / For everyone); role accounts land on their own tab, see the other role's tab view-only with an explanation, and can buy the generic plans, which work on any role. Checkout filtering on web and mobile now always includes the generic packages alongside the role-specific ones (previously generic was only a fallback when no role package existed).
-- **`institutional` is the eighth tier** — the school licence this document previously deferred "until a school asks"; the owner asked. Per-seat (public quote range US\$2.50–US\$3.00/seat/month billed annually, 30-seat minimum), invoiced and sales-led: never a store package, fulfilled by granting the `institutional` RevenueCat entitlement (promotional entitlement per licensed account) or setting the plan directly, flowing through the same webhook and read-time rules as every purchase. Any account role may hold it; it sits at or above every tier on every allowance (50 classes / 500 members / 2,500 activities / 500 lists / 800 goals / 250 canvases; 120 discovery/day, 30 deep/day, 300 deep/30 days) and is still finite — uncapped stays admin-only. Capacity 402s on institutional accounts say "contact support", never "upgrade to" a smaller plan. The /plans page renders it as its own section with a mailto contact action.
-- **Every plan now has a price.** USD reference prices in `plan-copy.ts` (annual = 2 months free): Student Plus \$2.99/\$29.99, Student Pro \$6.99/\$69.99, Teacher Plus \$4.99/\$49.99, Teacher Pro \$11.99/\$119.99, Plus \$5.99/\$59.99, Pro \$13.99/\$139.99. The reasoning (deep-research API cost dominates and scales each step; store cuts 15–30% covered; role plans undercut generic, which carries a flexibility premium; storage is a bound, not a priced good) is in the handbook's Pricing section. These are launch hypotheses to be tested in Phase 2 — but they are now *stated* hypotheses the dashboards must be configured to, not blanks.
+- **`institutional` is the eighth tier.** It is now a shared-pool annual contract rather than a huge independent quota on every seat; see the current economics authority above.
+- **Every plan has a maximum-consumption-safe price.** The shared catalog, formulas, assumptions, exact quotas, annual values, and manual store table live in `docs/plan-economics.md`.
 
 ## Revision note (same day)
 
@@ -73,7 +83,7 @@ These are correctness problems in the paid path. Every one of them can take mone
 
 1. ~~Pro is sold as uncapped but is capped.~~ **Resolved** — no plan is sold as uncapped; global budgets raised and documented as operational guards. Remaining follow-up: correct legacy-premium store copy (see revision note).
 2. ~~Paying users can be told they have not paid.~~ **Mostly resolved** — the client no longer pre-blocks any AI feature on plan (every tier has an allowance; the server answers 429 when it is spent), and the tier now arrives as machine-readable data in `/users/me/usage` instead of being parsed from a label. Residual cosmetic issue: sidebar meters read "Not included" for a moment while usage is loading. Watch it; do not let a future gate read those pending zeros.
-3. **Tier is still inferred from product-name substrings** (now role-aware, `pro` beats `plus`, but still a heuristic). Map RevenueCat product identifiers to plans explicitly in the dashboard offering metadata before launch; with seven plans the cost of a wrong guess is now a wrong *product*, not just a wrong size.
+3. ~~Tier is inferred only from product-name substrings.~~ **Resolved in code** — twelve canonical product IDs map explicitly before the compatibility heuristic. Remaining external gate: create/map those IDs in Google Play and RevenueCat, then sandbox-test them.
 4. **Webhook idempotency and `TRANSFER` reconciliation** (open since the August audit). Repeated delivery is normal in RevenueCat, and a store-account transfer can leave the previous Casparel account holding an entitlement it no longer owns. Key on event ID; reconcile subscriber state for both aliases.
 5. **The deletion copy is wrong.** Terms and Privacy say deletion "removes your account and the content tied to it". `DELETE /users/me` anonymises the row and bans it; contributions survive, unlinked. The earlier wording described this accurately and was replaced with something shorter and false. This feeds the App Store privacy and Play Data Safety forms, so it blocks submission independently of anything above.
 
@@ -81,7 +91,7 @@ Exit gate: a sandbox purchase of each product grants exactly the tier it names, 
 
 ### Where users actually see and buy these plans
 
-Plans are now buyable from everywhere, by owner decision (15 August): **mobile** through the RevenueCat native paywall (Apple/Google billing), and **web** by card on `/plans` through RevenueCat Web Billing — the SDK is integrated, role-filters packages like mobile, runs RevenueCat's hosted Stripe-backed checkout, refreshes the account plan via the existing webhook, and shows a Manage billing link for web subscribers. The code path is complete and degrades safely to comparison-plus-instructions when unconfigured. What it still needs to take real money, all dashboard-side: a RevenueCat **Web Billing app** connected to Stripe, web products/offerings for the six checkout plans at the reference prices now set in `plan-copy.ts` (monthly + annual each: Student Plus \$2.99/\$29.99, Student Pro \$6.99/\$69.99, Teacher Plus \$4.99/\$49.99, Teacher Pro \$11.99/\$119.99, Plus \$5.99/\$59.99, Pro \$13.99/\$139.99), an `institutional` entitlement for manually granted school seats (never a product/offering), and `VITE_REVENUECAT_WEB_API_KEY` set at build time. That work joins Phase 1 item 3 (explicit product↔plan mapping) and the sandbox purchase matrix in item 4 — which now must include a web card purchase, cancellation from the customer portal, and a webhook replay. The iOS app deliberately does not link to web checkout (Apple anti-steering); the web page may advertise itself freely.
+Plans are buyable through the RevenueCat native paywall and Web Billing. The code degrades safely when unconfigured. Dashboard setup must use the twelve exact product IDs and prices in `docs/plan-economics.md`; Institutional remains a manually granted entitlement, never a package. Sandbox coverage must include every product, a web purchase, cancellation, restoration, and a webhook replay. The iOS app deliberately does not link to web checkout.
 
 ## Phase 2 — find out whether these numbers are right (23 August – 6 September)
 

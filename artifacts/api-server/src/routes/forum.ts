@@ -31,6 +31,7 @@ import {
   normalizeForumPostTags,
   shouldCatalogForumFile,
 } from "../lib/forum-catalog";
+import { base64StoredBytes, ensureStorageCapacity } from "../lib/storageCapacity";
 
 const router: IRouter = Router();
 const materialUpload = multer({
@@ -180,31 +181,11 @@ async function moderateForumText(
       };
     }
 
-    if (!checkAccuracy) {
-      return { flagged: false, assessment: "AI safety check passed." };
-    }
-
-    const response = await throughAi("forum accuracy check", () =>
-      openai.responses.create({
-      model: "gpt-5-nano",
-      max_output_tokens: 180,
-      reasoning: { effort: "low" },
-      ...(/https?:\/\//i.test(input)
-        ? { tools: [{ type: "web_search" as const, search_context_size: "low" as const }] }
-        : {}),
-      input:
-        'Review this education-forum content. When URLs are present, inspect the linked destination. Flag only clear fabricated factual claims, targeted hate, harassment, sexual content, dangerous instructions, severe misinformation, or an unsafe/inappropriate linked destination. Opinions, criticism, jokes, uncertainty, and ordinary mistakes are allowed. Return JSON only as {"flagged":boolean,"reason":string}.\\n\\nCONTENT:\\n' +
-        input,
-      }),
-    );
-    const raw = response.output_text.trim().replace(/^\`\`\`(?:json)?/i, "").replace(/\`\`\`$/i, "").trim();
-    const parsed = JSON.parse(raw) as { flagged?: unknown; reason?: unknown };
     return {
-      flagged: parsed.flagged === true,
-      assessment:
-        typeof parsed.reason === "string"
-          ? parsed.reason.slice(0, 1000)
-          : "AI content check completed.",
+      flagged: false,
+      assessment: checkAccuracy
+        ? "Safety check passed; factual claims remain community-reportable."
+        : "AI safety check passed.",
     };
   } catch {
     return {
@@ -371,6 +352,14 @@ router.post(
       res.status(415).json({ error: "Accepted files are PDF, DOCX, JPG, JPEG, PNG, MOV, and MP4" });
       return;
     }
+    if (
+      req.file &&
+      !(await ensureStorageCapacity(
+        res,
+        auth.userId,
+        base64StoredBytes(req.file.buffer.byteLength),
+      ))
+    ) return;
     const [created] = await db
       .insert(forumMaterialsTable)
       .values({
@@ -674,6 +663,13 @@ router.post(
         .replace(/[^a-zA-Z0-9._() -]/g, "_")
         .slice(0, 180);
       attachmentFileBase64 = req.file.buffer.toString("base64");
+      // A tagged public file may also be catalogued as a material, so reserve
+      // twice its encoded size. This intentionally over-bounds private posts.
+      if (!(await ensureStorageCapacity(
+        res,
+        auth.userId,
+        base64StoredBytes(req.file.buffer.byteLength) * 2,
+      ))) return;
     }
 
     const moderation = await moderateForumText(

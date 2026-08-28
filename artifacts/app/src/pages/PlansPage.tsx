@@ -199,7 +199,7 @@ function TierColumn({
             </span>{" "}
             / month
             <span className="block text-xs">
-              or {card.price.annual} / year, 2 months free
+              or {card.price.annual} / year, save {card.price.annualSavingsPercent}%
             </span>
           </p>
         ) : (

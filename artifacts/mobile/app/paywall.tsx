@@ -33,6 +33,11 @@ import {
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useLanguage } from '@/contexts/LanguageContext';
+import {
+  PLAN_CATALOG,
+  formatStorage,
+  type SubscriptionTier,
+} from '@workspace/plan-economics';
 
 /**
  * Plan explainers per account role. Student and teacher plans never mix, so a
@@ -51,6 +56,12 @@ import { useLanguage } from '@/contexts/LanguageContext';
  */
 type FeatherName = keyof typeof Feather.glyphMap;
 
+function aiSummary(tier: SubscriptionTier): string {
+  const plan = PLAN_CATALOG[tier];
+  const reportNoun = plan.ai.deepPerMonth === 1 ? 'report' : 'reports';
+  return `${plan.ai.searchPerMonth} AI discovery searches and ${plan.ai.deepPerMonth} cited deep ${reportNoun} per 30 days, with daily safety limits; ${formatStorage(plan.storageBytes)} stored uploads.`;
+}
+
 const BENEFITS: Record<
   'student' | 'teacher' | 'generic',
   { icon: FeatherName; title: string; body: string }[]
@@ -59,51 +70,51 @@ const BENEFITS: Record<
     {
       icon: 'book-open',
       title: 'Free',
-      body: 'The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases — and an AI taste: 2 discovery searches a day, 2 deep reports per 30 days.',
+      body: `The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases — ${aiSummary('free')}`,
     },
     {
       icon: 'zap',
       title: 'Student Plus',
-      body: '400 activities, 150 goals, 75 lists and 40 canvases, with 30 AI discovery searches and 8 cited deep reports a day.',
+      body: `400 activities, 150 goals, 75 lists and 40 canvases — ${aiSummary('student-plus')}`,
     },
     {
       icon: 'award',
       title: 'Student Pro',
-      body: '1,500 activities, 500 goals, 300 lists and 150 canvases, with 90 discovery searches and 25 deep reports a day.',
+      body: `1,500 activities, 500 goals, 300 lists and 150 canvases — ${aiSummary('student-pro')}`,
     },
   ],
   teacher: [
     {
       icon: 'book-open',
       title: 'Free',
-      body: 'One class of up to 30 with manual seating, seating suggestions and private notes — and an AI taste: 2 discovery searches a day, 2 deep reports per 30 days.',
+      body: `One class of up to 30 with manual seating, seating suggestions and private notes — ${aiSummary('free')}`,
     },
     {
       icon: 'zap',
       title: 'Teacher Plus',
-      body: '8 classes of up to 150 members, 250 activities, and 20 AI discovery searches with 5 cited deep reports a day.',
+      body: `8 classes of up to 150 members and 250 activities — ${aiSummary('teacher-plus')}`,
     },
     {
       icon: 'award',
       title: 'Teacher Pro',
-      body: '25 classes of up to 400, the explainable seating planner, and 60 discovery searches with 15 deep reports a day.',
+      body: `25 classes of up to 400 and the explainable seating planner — ${aiSummary('teacher-pro')}`,
     },
   ],
   generic: [
     {
       icon: 'book-open',
       title: 'Free',
-      body: 'One class of 30, 25 activities, 10 goals and 5 lists — and a small taste of AI discovery and deep research.',
+      body: `One class of 30, 25 activities, 10 goals and 5 lists — ${aiSummary('free')}`,
     },
     {
       icon: 'zap',
       title: 'Plus',
-      body: '5 classes of 100, 250 activities, 100 goals and 50 lists, with 20 AI discovery searches and 5 deep reports a day.',
+      body: `5 classes of 100, 250 activities, 100 goals and 50 lists — ${aiSummary('plus')}`,
     },
     {
       icon: 'award',
       title: 'Pro',
-      body: '20 classes of 300, 1,000 activities, the seating planner, and 60 discovery searches with 15 deep reports a day.',
+      body: `20 classes of 300, 1,000 activities and the seating planner — ${aiSummary('pro')}`,
     },
   ],
 };

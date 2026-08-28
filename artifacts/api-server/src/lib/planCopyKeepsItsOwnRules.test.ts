@@ -11,7 +11,7 @@
  *   - Nothing may say "unlimited": only administrator accounts are uncapped,
  *     and none of these cards are for administrators.
  *   - The seating planner is rule-based and must never be described as AI.
- *   - Annual is two months free against twelve times monthly.
+ *   - Annual discounts remain inside the deliberate 8–12% range.
  *   - Role plans undercut the generic plan of the same level, because they are
  *     specialised rather than premium.
  *
@@ -34,6 +34,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PLAN_CATALOG, type SubscriptionTier } from "@workspace/plan-economics";
 
 const source = readFileSync(
   resolve(
@@ -60,11 +61,11 @@ const cards = (() => {
   }));
 })();
 
-/** Monthly and annual, in dollars, for the cards that carry a price. */
-const priced = cards.flatMap(({ tier, text }) => {
-  const match = /monthly:\s*"US\$([\d.]+)",\s*\n?\s*annual:\s*"US\$([\d.]+)"/.exec(text);
-  return match
-    ? [{ tier, monthly: Number(match[1]), annual: Number(match[2]) }]
+/** Monthly and annual prices now come from the canonical shared catalog. */
+const priced = (Object.keys(PLAN_CATALOG) as SubscriptionTier[]).flatMap((tier) => {
+  const price = PLAN_CATALOG[tier].price;
+  return price
+    ? [{ tier, monthly: price.monthlyUsd, annual: price.annualUsd }]
     : [];
 });
 
@@ -75,7 +76,7 @@ describe("plan-copy.ts", () => {
     // Both lists coming back empty is how this file would pass while checking
     // nothing at all.
     expect(cards.length, "no tier cards found").toBeGreaterThanOrEqual(9);
-    expect(priced.length, "no prices found").toBeGreaterThanOrEqual(6);
+    expect(priced.length, "no prices found").toBeGreaterThanOrEqual(7);
   });
 
   it("never says a plan is unlimited", () => {
@@ -114,26 +115,23 @@ describe("plan-copy.ts", () => {
   });
 
   it.each(priced.map((entry) => [entry.tier, entry] as const))(
-    "prices %s at twelve months minus two",
+    "prices %s with an 8–12% annual discount",
     (_tier, entry) => {
       /*
-       * "Two months free against 12× monthly" is the promise. Rounding to a
-       * .99 ending moves it by a cent or two, so the assertion is that the
-       * discount is between 1.9 and 2.1 months rather than exactly 2 -- tight
-       * enough that a year priced at eleven months, or at ten, fails.
+       * The new ladder intentionally keeps annual plans attractive without
+       * giving away two full months and eroding the stress-case margin.
        */
-      const monthsFree = 12 - entry.annual / entry.monthly;
+      const discount = 1 - entry.annual / (entry.monthly * 12);
       expect(
-        monthsFree,
-        `US$${entry.monthly}/mo and US$${entry.annual}/yr is ` +
-          `${monthsFree.toFixed(2)} months free, not two`,
-      ).toBeGreaterThan(1.9);
+        discount,
+        `US$${entry.monthly}/mo and US$${entry.annual}/yr is only ` +
+          `${(discount * 100).toFixed(2)}% off`,
+      ).toBeGreaterThanOrEqual(0.08);
       expect(
-        monthsFree,
+        discount,
         `US$${entry.monthly}/mo and US$${entry.annual}/yr gives away ` +
-          `${monthsFree.toFixed(2)} months, which is more than the two the ` +
-          `ladder is priced on`,
-      ).toBeLessThan(2.1);
+          `${(discount * 100).toFixed(2)}%`,
+      ).toBeLessThanOrEqual(0.12);
     },
   );
 

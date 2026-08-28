@@ -13,13 +13,10 @@
  * larger of the two counters against the *daily* limit. Both clients read that
  * as "used >= limit" and lock the button.
  *
- * On Student Plus -- 8 a day, 80 a month -- one full day of use puts the
- * monthly counter at 8. The next morning the daily counter is 0 and eight
- * reports are genuinely available, but the endpoint reported 8 used against a
- * limit of 8, so the app showed a locked "View paid plans for deep AI
- * research" to a paying customer with their whole day's allowance intact. It
- * stayed locked for the rest of the thirty days, over 90% of what they had
- * bought.
+ * After a full day of use, those runs remain on the monthly counter when the
+ * daily window resets. Reporting the monthly used count against the daily
+ * limit can therefore make a restored daily allowance look spent. The UI must
+ * receive one coherent counter/limit pair from whichever window is tighter.
  *
  * The right answer is the tighter of the two remainders, reported with the
  * window it came from, because that is the number the person can act on and

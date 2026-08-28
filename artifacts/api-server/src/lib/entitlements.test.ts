@@ -20,6 +20,7 @@ vi.mock("@workspace/db", () => {
 });
 
 import { db } from "@workspace/db";
+import { INSTITUTIONAL_STARTER } from "@workspace/plan-economics";
 import {
   AI_RATES_BY_TIER,
   CAPACITY_BY_TIER,
@@ -272,10 +273,10 @@ describe("ladders are monotonic", () => {
         ).toBeGreaterThanOrEqual(capacityLimitFor(tier, capacity) as number);
       }
       const rates = AI_RATES_BY_TIER[tier];
-      const inst = AI_RATES_BY_TIER.institutional;
-      expect(inst.searchPerDay).toBeGreaterThanOrEqual(rates.searchPerDay);
-      expect(inst.deepPerDay).toBeGreaterThanOrEqual(rates.deepPerDay);
-      expect(inst.deepPerMonth).toBeGreaterThanOrEqual(rates.deepPerMonth);
+      expect(INSTITUTIONAL_STARTER.searchPerDay).toBeGreaterThanOrEqual(rates.searchPerDay);
+      expect(INSTITUTIONAL_STARTER.searchPerMonth).toBeGreaterThanOrEqual(rates.searchPerMonth);
+      expect(INSTITUTIONAL_STARTER.deepPerDay).toBeGreaterThanOrEqual(rates.deepPerDay);
+      expect(INSTITUTIONAL_STARTER.deepPerMonth).toBeGreaterThanOrEqual(rates.deepPerMonth);
     }
     // At the top and still finite: the "nothing is uncapped" suite already
     // covers institutional through ALL_TIERS; this pins the seating planner.
@@ -399,7 +400,7 @@ describe("capacity copies", () => {
     entitlements.capacity["classes-owned"] = 999;
     entitlements.ai.searchPerDay = 999;
     expect(CAPACITY_BY_TIER.free["classes-owned"]).toBe(1);
-    expect(AI_RATES_BY_TIER.free.searchPerDay).toBe(2);
+    expect(AI_RATES_BY_TIER.free.searchPerDay).toBe(1);
   });
 });
 

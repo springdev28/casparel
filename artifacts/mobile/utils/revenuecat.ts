@@ -12,6 +12,7 @@
  * module (which ships its own richer types) satisfies this shape at runtime.
  */
 import { Platform } from 'react-native';
+import { tierForStoreProductId } from '@workspace/plan-economics';
 
 /**
  * Entitlement identifiers configured in RevenueCat. `premium` is legacy.
@@ -209,6 +210,8 @@ export function hasPremium(info: RCCustomerInfo | null | undefined): boolean {
  * this is a mapping of last resort, not a naming convention.
  */
 export function tierForPackage(pkg: RCPackage): Exclude<SubscriptionTier, 'free'> {
+  const explicit = tierForStoreProductId(pkg.product.identifier);
+  if (explicit) return explicit;
   const identity = `${pkg.identifier} ${pkg.product.identifier} ${pkg.product.title}`.toLowerCase();
   const level: Exclude<TierLevel, 'free'> = identity.includes('pro') ? 'pro' : 'plus';
   if (identity.includes('teacher')) return `teacher-${level}`;

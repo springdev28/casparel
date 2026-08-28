@@ -23,6 +23,7 @@ import {
 import { isClassMember, isClassTeacher } from "../lib/authz";
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 import { ensureAccountCapacity } from "../lib/planCapacity";
+import { ensureStorageCapacity } from "../lib/storageCapacity";
 
 const router: IRouter = Router();
 const IMAGE_DATA_PATTERN = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
@@ -239,6 +240,11 @@ router.post(
       }
     }
     if (!(await ensureAccountCapacity(res, userId, "study-activities"))) return;
+    if (!(await ensureStorageCapacity(
+      res,
+      userId,
+      Buffer.byteLength(JSON.stringify(input.cards), "utf8"),
+    ))) return;
     const [activity] = await db
       .insert(studyActivitiesTable)
       .values({
@@ -412,6 +418,11 @@ router.post(
       return;
     }
     if (!(await ensureAccountCapacity(res, userId, "study-activities"))) return;
+    if (!(await ensureStorageCapacity(
+      res,
+      userId,
+      Buffer.byteLength(JSON.stringify(source.cards), "utf8"),
+    ))) return;
 
     const [copy] = await db
       .insert(studyActivitiesTable)

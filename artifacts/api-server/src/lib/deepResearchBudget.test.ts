@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { AI_OPERATION_BOUNDS } from "@workspace/plan-economics";
 
 const source = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), "../routes/sourceReview.ts"),
@@ -32,18 +33,17 @@ const MIN_OUTPUT_TOKENS = 4000;
 
 describe("the deep research request can afford its own prompt", () => {
   it("allows enough output for the report the prompt asks for", () => {
-    const match = source.match(/max_output_tokens:\s*(\d+)/);
-    expect(match, "max_output_tokens is gone from the deep request").not.toBeNull();
-    expect(Number(match![1])).toBeGreaterThanOrEqual(MIN_OUTPUT_TOKENS);
+    expect(AI_OPERATION_BOUNDS.deepResearch.maxOutputTokens).toBeGreaterThanOrEqual(
+      MIN_OUTPUT_TOKENS,
+    );
   });
 
   it("does not ask the web search for the smallest possible context", () => {
-    expect(source).not.toContain('search_context_size: "low"');
-    expect(source).toContain("search_context_size");
+    expect(AI_OPERATION_BOUNDS.deepResearch.searchContextSize).not.toBe("low");
   });
 
   it("does not run the reasoning at the lowest effort", () => {
-    expect(source).not.toContain('reasoning: { effort: "low" }');
+    expect(AI_OPERATION_BOUNDS.deepResearch.reasoningEffort).not.toBe("low");
   });
 });
 

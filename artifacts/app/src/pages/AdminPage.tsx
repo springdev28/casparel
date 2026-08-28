@@ -933,12 +933,26 @@ export default function AdminPage() {
         <Card><CardHeader><CardTitle>Last 30 days</CardTitle></CardHeader><CardContent className="space-y-1 text-sm">{data ? Object.entries(data.usage.byFeature).map(([feature, usage]) => <div key={feature} className="flex justify-between"><span className="capitalize">{feature.replaceAll("-", " ")}</span><span className="font-semibold">{usage.month}</span></div>) : <Skeleton className="h-20 w-full" />}</CardContent></Card>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card><CardHeader><CardTitle>Estimated net revenue · 30d</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold">${(data?.usage.economics.monthlyRevenueUsd ?? 0).toFixed(2)}</p></CardContent></Card>
+        <Card><CardHeader><CardTitle>Estimated gross margin</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold">{data?.usage.economics.grossMargin == null ? "—" : `${(data.usage.economics.grossMargin * 100).toFixed(1)}%`}</p><p className="mt-1 text-sm text-muted-foreground">${(data?.usage.economics.variableCostUsd ?? 0).toFixed(2)} variable cost · ${(data?.usage.economics.storageCostUsd ?? 0).toFixed(2)} storage</p></CardContent></Card>
+        <Card><CardHeader><CardTitle>Cache savings · 30d</CardTitle></CardHeader><CardContent><p className="text-3xl font-bold">${(data?.usage.economics.avoidedCostUsd ?? 0).toFixed(2)}</p><p className="mt-1 text-sm text-muted-foreground">{data?.usage.economics.cacheHits ?? 0} hits · {((data?.usage.economics.cacheHitRate ?? 0) * 100).toFixed(1)}%</p></CardContent></Card>
+        <Card><CardHeader><CardTitle>Economic budget</CardTitle></CardHeader><CardContent><Badge className="capitalize" variant={data?.usage.economics.budgetStatus === "red" || data?.usage.economics.budgetStatus === "emergency" ? "destructive" : "secondary"}>{data?.usage.economics.budgetStatus ?? "green"}</Badge><p className="mt-2 text-sm text-muted-foreground">{((data?.usage.economics.budgetRatio ?? 0) * 100).toFixed(1)}% of emergency ceiling · {(data?.usage.economics.storedBytes ?? 0) / 1024 / 1024 < 1024 ? `${((data?.usage.economics.storedBytes ?? 0) / 1024 / 1024).toFixed(1)} MB` : `${((data?.usage.economics.storedBytes ?? 0) / 1024 / 1024 / 1024).toFixed(2)} GB`} stored</p></CardContent></Card>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle>AI cost by plan · last 30 days</CardTitle></CardHeader>
+        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {data ? Object.entries(data.usage.economics.byPlan).map(([plan, value]) => <div key={plan} className="rounded-md border p-3"><p className="font-medium capitalize">{plan.replaceAll("-", " ")}</p><p className="text-sm text-muted-foreground">{value.requests} calls · ${value.costUsd.toFixed(2)}</p></div>) : <Skeleton className="h-24 w-full" />}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader><CardTitle>AI usage by user</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
-            <thead><tr className="border-b text-left text-muted-foreground"><th className="pb-2">User</th><th className="pb-2 text-right">Search</th><th className="pb-2 text-right">Quick</th><th className="pb-2 text-right">Deep</th><th className="pb-2 text-right">Metadata</th><th className="pb-2 text-right">Total</th><th className="pb-2 text-right">Est. cost</th></tr></thead>
-            <tbody>{data?.usage.byUser.map((user) => <tr key={user.userId} className="border-b last:border-0"><td className="py-3"><p className="font-medium">{user.name}</p><p className="text-xs text-muted-foreground">{user.email}</p></td><td className="py-3 text-right">{user.searches}</td><td className="py-3 text-right">{user.quickReviews}</td><td className="py-3 text-right">{user.deepResearch}</td><td className="py-3 text-right">{user.metadata}</td><td className="py-3 text-right font-semibold">{user.total}</td><td className="py-3 text-right">${user.estimatedCostUsd.toFixed(2)}</td></tr>)}</tbody>
+            <thead><tr className="border-b text-left text-muted-foreground"><th className="pb-2">User</th><th className="pb-2">Plan</th><th className="pb-2 text-right">Search</th><th className="pb-2 text-right">Quick</th><th className="pb-2 text-right">Deep</th><th className="pb-2 text-right">Metadata</th><th className="pb-2 text-right">Total</th><th className="pb-2 text-right">Est. cost</th></tr></thead>
+            <tbody>{data?.usage.byUser.map((user) => <tr key={user.userId} className="border-b last:border-0"><td className="py-3"><p className="font-medium">{user.name}</p><p className="text-xs text-muted-foreground">{user.email}</p></td><td className="py-3 capitalize">{user.plan.replaceAll("-", " ")}</td><td className="py-3 text-right">{user.searches}</td><td className="py-3 text-right">{user.quickReviews}</td><td className="py-3 text-right">{user.deepResearch}</td><td className="py-3 text-right">{user.metadata}</td><td className="py-3 text-right font-semibold">{user.total}</td><td className="py-3 text-right">${user.estimatedCostUsd.toFixed(2)}</td></tr>)}</tbody>
           </table>
         </CardContent>
       </Card>

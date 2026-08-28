@@ -24,11 +24,21 @@ import {
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { throughAi } from "../lib/aiHealth";
 import {
+  AI_OPERATION_BOUNDS,
+  INSTITUTIONAL_STARTER,
+  SERVICE_AI_BUDGETS,
+  type SubscriptionTier,
+} from "@workspace/plan-economics";
+import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middlewares/requireAuth";
-import { consumeAiQuota, recordAiUsage } from "../lib/aiCostControls";
-import { getAccountEntitlements } from "../lib/entitlements";
+import {
+  consumeAiQuota,
+  recordAiCache,
+  recordAiUsage,
+} from "../lib/aiCostControls";
+import { resolveAccountPlan } from "../lib/entitlements";
 import { buildFreeQuickReview } from "../lib/sourceProvenance";
 import { logger } from "../lib/logger";
 import {
@@ -305,11 +315,14 @@ router.get(
     let deepUserId: number | null = null;
     let deepIsAdmin = false;
     let deepRates: { deepPerDay: number; deepPerMonth: number } | null = null;
+    let deepTier: SubscriptionTier | null = null;
     if (mode === "deep") {
       deepUserId = (req as AuthenticatedRequest).userId;
       deepIsAdmin = (req as AuthenticatedRequest).accountRole === "admin";
       if (!deepIsAdmin) {
-        deepRates = (await getAccountEntitlements(deepUserId)).ai;
+        const accountPlan = await resolveAccountPlan(deepUserId);
+        deepRates = accountPlan.entitlements.ai;
+        deepTier = accountPlan.entitlements.tier;
       }
     }
     const now = new Date().toISOString();
@@ -343,6 +356,7 @@ router.get(
         typeof cachedProfile === "object"
       ) {
         res.setHeader("X-Source-Review-Cache", "HIT");
+        if (mode === "deep") await recordAiCache("deep-research", deepUserId);
         await recordReview();
         res.json({
           ...report.data,
@@ -406,6 +420,25 @@ router.get(
           });
           return;
         }
+        if (deepTier === "institutional") {
+          const sharedDay = await consumeAiQuota(
+            "institutional-deep-day", "all", 24 * 60 * 60 * 1000,
+            INSTITUTIONAL_STARTER.deepPerDay,
+          );
+          const sharedMonth = await consumeAiQuota(
+            "institutional-deep-month", "all", 30 * 24 * 60 * 60 * 1000,
+            INSTITUTIONAL_STARTER.deepPerMonth,
+          );
+          if (!sharedDay.allowed || !sharedMonth.allowed) {
+            const retryAfter = Math.max(sharedDay.retryAfter, sharedMonth.retryAfter);
+            res.setHeader("Retry-After", retryAfter);
+            res.status(429).json({
+              error: "The Institutional shared deep-research pool is full.",
+              retryAfter,
+            });
+            return;
+          }
+        }
       }
       // The global daily budget remains a cost safety net for every non-admin
       // account, including premium.
@@ -414,17 +447,32 @@ router.get(
           "deep-global-day",
           "all",
           24 * 60 * 60 * 1000,
-          // Service-wide safety net, raised with the tier model: Pro-level
-          // accounts alone can legitimately run 15-25 reports a day.
           Number(process.env.AI_DEEP_DAILY_GLOBAL_LIMIT) > 0
             ? Math.floor(Number(process.env.AI_DEEP_DAILY_GLOBAL_LIMIT))
-            : 100,
+            : SERVICE_AI_BUDGETS.deepPerDay,
         );
         if (!globalDaily.allowed) {
           res.setHeader("Retry-After", globalDaily.retryAfter);
           res.status(429).json({
             error: "Today’s deep research budget has been reached.",
             retryAfter: globalDaily.retryAfter,
+          });
+          return;
+        }
+        const configuredMonthly = Number(process.env.AI_DEEP_MONTHLY_GLOBAL_LIMIT);
+        const globalMonthly = await consumeAiQuota(
+          "deep-global-month",
+          "all",
+          30 * 24 * 60 * 60 * 1000,
+          configuredMonthly > 0
+            ? Math.floor(configuredMonthly)
+            : SERVICE_AI_BUDGETS.deepPerMonth,
+        );
+        if (!globalMonthly.allowed) {
+          res.setHeader("Retry-After", globalMonthly.retryAfter);
+          res.status(429).json({
+            error: "This month’s deep research budget has been reached.",
+            retryAfter: globalMonthly.retryAfter,
           });
           return;
         }
@@ -469,14 +517,17 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
       let textOutput = "";
       const response = await throughAi("deep source review", () =>
         openai.responses.create({
-        model: "gpt-5-mini",
+        stream: false,
+        model: AI_OPERATION_BOUNDS.deepResearch.model,
         // The prompt asks for a nuanced 700-1000 word report AND a structured
         // object with fifteen required fields, including arrays of mentions
         // that each carry a URL. 1800 tokens could not hold both: the model
         // ran out mid-object, JSON.parse threw, and the catch below quietly
         // served the free registry check instead - which is why deep research
         // kept coming back looking exactly like a quick one.
-        max_output_tokens: 6000,
+        max_output_tokens: AI_OPERATION_BOUNDS.deepResearch.maxOutputTokens,
+        // Supported by the live API; the SDK declaration currently lags it.
+        ...{ max_tool_calls: AI_OPERATION_BOUNDS.deepResearch.maxToolCalls },
         text: {
           format: {
             type: "json_schema",
@@ -633,10 +684,13 @@ Conduct a multi-angle investigation of both the publisher/creator and this speci
         // cheapest setting on every axis while being asked to triangulate
         // across independent sources. Low context returns too little of each
         // page to compare claims against.
-        tools: [{ type: "web_search", search_context_size: "medium" }],
-        reasoning: { effort: "medium" },
-        input: deepPrompt,
-        }),
+        tools: [{
+          type: "web_search",
+          search_context_size: AI_OPERATION_BOUNDS.deepResearch.searchContextSize,
+        }],
+        reasoning: { effort: AI_OPERATION_BOUNDS.deepResearch.reasoningEffort },
+        input: deepPrompt.slice(0, AI_OPERATION_BOUNDS.deepResearch.maxPromptCharacters),
+        }, { signal: AbortSignal.timeout(AI_OPERATION_BOUNDS.deepResearch.timeoutMs) }),
       );
       textOutput = response.output_text ?? "";
       await recordAiUsage("deep-research", deepUserId);

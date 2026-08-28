@@ -2,27 +2,9 @@
  * @fileOverview Backend domain role: centralizes Ai Cost Controls logic so route handlers share one implementation and invariant.
  * System connection: imported by API routes and, where applicable, tested independently from HTTP transport.
  */
-import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { RequestHandler } from "express";
 import { pool } from "@workspace/db";
-import { buildRateLimitStore } from "./rateLimitStore";
-import { isAdminRequest } from "./adminAccess";
-import { decodeToken } from "./auth";
-import type { Request } from "express";
-
-function positiveLimit(value: string | undefined, fallback: number) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
-}
-
-/**
- * Only admins are exempt from the per-user AI search cap. Paid plans used to
- * skip it too, but no tier is uncapped anymore — uncapped is an operational
- * property of administrator accounts, not something a subscription grants.
- */
-async function skipPrivilegedRequest(req: Request): Promise<boolean> {
-  return isAdminRequest(req);
-}
+import { resolveAccountPlan } from "./entitlements";
 
 export const requireAiSearchEnabled: RequestHandler = (_req, res, next) => {
   if (process.env.AI_SEARCH_ENABLED === "false") {
@@ -31,62 +13,6 @@ export const requireAiSearchEnabled: RequestHandler = (_req, res, next) => {
   }
   next();
 };
-
-export const aiSearchDailyUserLimiter = rateLimit({
-  skip: skipPrivilegedRequest,
-  keyGenerator: (req) => {
-    const header = req.headers.authorization;
-    const payload = header?.startsWith("Bearer ")
-      ? decodeToken(header.slice(7))
-      : null;
-    return payload
-      ? "user:" + payload.userId
-      : ipKeyGenerator(req.ip ?? "unknown");
-  },
-  requestPropertyName: "aiSearchDailyUserRateLimit",
-  validate: { singleCount: false },
-  windowMs: 24 * 60 * 60 * 1000,
-  max: positiveLimit(process.env.AI_SEARCH_DAILY_USER_LIMIT, 3),
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: buildRateLimitStore("ai-search-user-day"),
-  handler(req, res, _next, options) {
-    const reset = (
-      req as unknown as { aiSearchDailyUserRateLimit?: { resetTime?: Date } }
-    ).aiSearchDailyUserRateLimit?.resetTime;
-    const retryAfter = reset
-      ? Math.ceil((reset.getTime() - Date.now()) / 1000)
-      : Math.ceil(options.windowMs / 1000);
-    res.setHeader("Retry-After", retryAfter);
-    res
-      .status(429)
-      .json({ error: "Daily AI search limit reached.", retryAfter });
-  },
-});
-
-export const aiSearchDailyBudget = rateLimit({
-  skip: isAdminRequest,
-  requestPropertyName: "aiSearchDailyRateLimit",
-  validate: { singleCount: false },
-  windowMs: 24 * 60 * 60 * 1000,
-  max: positiveLimit(process.env.AI_SEARCH_DAILY_LIMIT, 100),
-  keyGenerator: () => "all-ai-searches",
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: buildRateLimitStore("ai-search-daily"),
-  handler(req, res, _next, options) {
-    const reset = (
-      req as unknown as { aiSearchDailyRateLimit?: { resetTime?: Date } }
-    ).aiSearchDailyRateLimit?.resetTime;
-    const retryAfter = reset
-      ? Math.ceil((reset.getTime() - Date.now()) / 1000)
-      : Math.ceil(options.windowMs / 1000);
-    res.setHeader("Retry-After", retryAfter);
-    res
-      .status(429)
-      .json({ error: "Daily AI search budget reached.", retryAfter });
-  },
-});
 
 export function paidRetryAllowed() {
   return (
@@ -105,25 +31,45 @@ export async function recordAiUsage(
   if (process.env.NODE_ENV === "test") return;
   const tenYears = 10 * 365 * 24 * 60 * 60 * 1000;
   const month = 30 * 24 * 60 * 60 * 1000;
-  const tasks = [
-    consumeAiQuota("usage-total", feature, tenYears, 2_000_000_000),
-    consumeAiQuota("usage-month", feature, month, 2_000_000_000),
-  ];
-  if (userId !== null) {
-    tasks.push(
-      consumeAiQuota(
-        "usage-user-total",
-        String(userId) + ":" + feature,
-        tenYears,
-        2_000_000_000,
-      ),
-    );
-  }
   try {
+    const tasks = [
+      consumeAiQuota("usage-total", feature, tenYears, 2_000_000_000),
+      consumeAiQuota("usage-month", feature, month, 2_000_000_000),
+    ];
+    if (userId !== null) {
+      const tier = (await resolveAccountPlan(userId)).entitlements.tier;
+      tasks.push(
+        consumeAiQuota("usage-user-total", `${userId}:${feature}`, tenYears, 2_000_000_000),
+        consumeAiQuota("usage-user-month", `${userId}:${feature}`, month, 2_000_000_000),
+        consumeAiQuota("usage-plan-month", `${tier}:${feature}`, month, 2_000_000_000),
+      );
+    }
     await Promise.all(tasks);
   } catch (error) {
     // Usage telemetry must never turn a successful AI response into a 502.
     console.error("Could not record AI usage", error);
+  }
+}
+
+/** A provider call avoided by a fresh shared cache hit. */
+export async function recordAiCache(
+  feature: Extract<AiUsageFeature, "search" | "deep-research">,
+  userId: number | null,
+) {
+  if (process.env.NODE_ENV === "test") return;
+  const month = 30 * 24 * 60 * 60 * 1000;
+  try {
+    const tasks = [
+      consumeAiQuota("cache-month", feature, month, 2_000_000_000),
+    ];
+    if (userId !== null) {
+      tasks.push(
+        consumeAiQuota("cache-user-month", `${userId}:${feature}`, month, 2_000_000_000),
+      );
+    }
+    await Promise.all(tasks);
+  } catch (error) {
+    console.error("Could not record AI cache hit", error);
   }
 }
 

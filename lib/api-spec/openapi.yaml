@@ -3797,7 +3797,7 @@ components:
 
     AccountUsage:
       type: object
-      required: [plan, tier, unlimited, aiSearch, deepResearch, capacity]
+      required: [plan, tier, unlimited, aiSearch, deepResearch, capacity, storage]
       properties:
         plan: { type: string }
         tier:
@@ -3825,7 +3825,7 @@ components:
           properties:
             used: { type: integer }
             limit: { type: ["integer", "null"] }
-            window: { type: string, enum: [day] }
+            window: { type: string, enum: [day, month] }
         deepResearch:
           description: >-
             The deep-research allowance and how much of it is spent. `window`
@@ -3861,6 +3861,13 @@ components:
             resourceLists: { $ref: "#/components/schemas/CapacityUsage" }
             learningGoals: { $ref: "#/components/schemas/CapacityUsage" }
             canvases: { $ref: "#/components/schemas/CapacityUsage" }
+        storage:
+          description: Persisted upload usage. Institutional seats share one pool.
+          type: object
+          required: [usedBytes, limitBytes]
+          properties:
+            usedBytes: { type: integer, minimum: 0 }
+            limitBytes: { type: ["integer", "null"], minimum: 0 }
 
     CapacityUsage:
       type: object
@@ -3884,6 +3891,7 @@ components:
           userId,
           name,
           email,
+          plan,
           searches,
           quickReviews,
           deepResearch,
@@ -3895,6 +3903,9 @@ components:
         userId: { type: integer }
         name: { type: string }
         email: { type: string }
+        plan:
+          type: string
+          enum: [free, plus, pro, student-plus, student-pro, teacher-plus, teacher-pro, institutional]
         searches: { type: integer }
         quickReviews: { type: integer }
         deepResearch: { type: integer }
@@ -3943,6 +3954,7 @@ components:
               estimatedCostUsd,
               byFeature,
               byUser,
+              economics,
             ]
           properties:
             aiSearchesToday: { type: integer }
@@ -3962,6 +3974,29 @@ components:
             byUser:
               type: array
               items: { $ref: "#/components/schemas/AdminUserAiUsage" }
+            economics:
+              type: object
+              required:
+                [monthlyRevenueUsd, variableCostUsd, storageCostUsd, grossMargin, byPlan, cacheHits, cacheHitRate, avoidedCostUsd, storedBytes, budgetStatus, budgetRatio]
+              properties:
+                monthlyRevenueUsd: { type: number }
+                variableCostUsd: { type: number }
+                storageCostUsd: { type: number }
+                grossMargin: { type: ["number", "null"] }
+                byPlan:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    required: [requests, costUsd]
+                    properties:
+                      requests: { type: integer }
+                      costUsd: { type: number }
+                cacheHits: { type: integer }
+                cacheHitRate: { type: number }
+                avoidedCostUsd: { type: number }
+                storedBytes: { type: integer }
+                budgetStatus: { type: string, enum: [green, yellow, red, emergency] }
+                budgetRatio: { type: number }
         workflow:
           type: object
           required: [funnel, engagement]

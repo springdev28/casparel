@@ -36,6 +36,7 @@ function UsageMeter({
   label,
   used,
   limit,
+  formatValue = String,
   /**
    * AI counters reset daily; stored-data allowances do not. Saying "today" on a
    * class or activity count would suggest a limit that clears overnight.
@@ -46,6 +47,7 @@ function UsageMeter({
   used: number;
   limit: number | null;
   period?: "today" | "stored";
+  formatValue?: (value: number) => string;
 }) {
   const unlimited = limit == null;
   const pct = !unlimited && limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
@@ -63,7 +65,7 @@ function UsageMeter({
           {unlimited
             ? "Unlimited"
             : included
-              ? `${used} / ${limit}${period === "today" ? " today" : ""}`
+              ? `${formatValue(used)} / ${formatValue(limit)}${period === "today" ? " today" : ""}`
               : "Not included"}
         </span>
       </div>
@@ -79,6 +81,13 @@ function UsageMeter({
       ) : null}
     </div>
   );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 function useUpgradePrompt() {
@@ -129,6 +138,13 @@ function PlanDetails({ compact = false }: { compact?: boolean }) {
           <p className="text-xs font-medium text-muted-foreground">
             Workspace
           </p>
+          <UsageMeter
+            label="Stored uploads"
+            used={plan.storage.usedBytes}
+            limit={plan.storage.limitBytes}
+            period="stored"
+            formatValue={formatBytes}
+          />
           {WORKSPACE_METERS.filter(
             (key) => key !== "classesOwned" || plan.accountRole !== "student",
           ).map((key) => (

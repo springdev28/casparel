@@ -4,6 +4,15 @@
  */
 import { eq } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
+import {
+  PLAN_CATALOG,
+  type AiLimits,
+  type CapacityLimits,
+  type PlanCapacity,
+  type SubscriptionTier,
+} from "@workspace/plan-economics";
+
+export type { PlanCapacity, SubscriptionTier } from "@workspace/plan-economics";
 
 /**
  * RevenueCat entitlement identifiers. `premium` is kept for legacy buyers and
@@ -60,16 +69,6 @@ export function hasBuiltInGeneralProAccess(email: string): boolean {
  * institutional. Uncapped is an administrator property, not something money
  * can buy.
  */
-export type SubscriptionTier =
-  | "free"
-  | "plus"
-  | "pro"
-  | "student-plus"
-  | "student-pro"
-  | "teacher-plus"
-  | "teacher-pro"
-  | "institutional";
-
 /** Which account role a tier is reserved for. `null` = any role. */
 export type PlanRole = "student" | "teacher";
 
@@ -78,37 +77,12 @@ export type PlanFeature =
   | "deep-research"
   | "seating-planner";
 
-export type PlanCapacity =
-  | "classes-owned"
-  | "class-members"
-  | "study-activities"
-  | "resource-lists"
-  | "learning-goals"
-  | "canvases";
-
-/** Row budgets per capacity. `null` means uncapped — admin accounts only. */
-export type CapacityLimits = Record<PlanCapacity, number | null>;
-
 /** Per-account AI allowances. Finite for every tier; only admins bypass. */
-export interface AiRates {
-  /** AI discovery fallback searches per day. */
-  searchPerDay: number;
-  /** Deep source-research reports per day. */
-  deepPerDay: number;
-  /** Deep source-research reports per rolling 30 days. */
-  deepPerMonth: number;
-}
+export type AiRates = AiLimits;
 
-export const TIER_LABELS: Record<SubscriptionTier, string> = {
-  free: "Free",
-  plus: "Plus",
-  pro: "Pro",
-  "student-plus": "Student Plus",
-  "student-pro": "Student Pro",
-  "teacher-plus": "Teacher Plus",
-  "teacher-pro": "Teacher Pro",
-  institutional: "Institutional",
-};
+export const TIER_LABELS = Object.fromEntries(
+  Object.entries(PLAN_CATALOG).map(([tier, plan]) => [tier, plan.label]),
+) as Record<SubscriptionTier, string>;
 
 /** The account role a tier requires, or null when any role may hold it. */
 export function planRoleRequirement(tier: SubscriptionTier): PlanRole | null {
@@ -135,21 +109,9 @@ export function planLevel(tier: SubscriptionTier): "free" | "plus" | "pro" {
  * account can experience what AI discovery and a cited deep report actually
  * are before being asked to pay, without being large enough to live on.
  */
-export const AI_RATES_BY_TIER: Record<SubscriptionTier, AiRates> = {
-  // Free's deep taste is a flat 2 per rolling 30 days. deepPerDay equals
-  // deepPerMonth so the daily window can never be the binding cap — "1 a day
-  // but 2 a month" read as a maths error, and it effectively was one.
-  free: { searchPerDay: 2, deepPerDay: 2, deepPerMonth: 2 },
-  plus: { searchPerDay: 20, deepPerDay: 5, deepPerMonth: 50 },
-  pro: { searchPerDay: 60, deepPerDay: 15, deepPerMonth: 150 },
-  "student-plus": { searchPerDay: 30, deepPerDay: 8, deepPerMonth: 80 },
-  "student-pro": { searchPerDay: 90, deepPerDay: 25, deepPerMonth: 250 },
-  "teacher-plus": { searchPerDay: 20, deepPerDay: 5, deepPerMonth: 50 },
-  "teacher-pro": { searchPerDay: 60, deepPerDay: 15, deepPerMonth: 150 },
-  // Above both Pro specialisations, still finite: a licensed seat is not an
-  // admin account, and the daily window bounds worst-case AI spend per seat.
-  institutional: { searchPerDay: 120, deepPerDay: 30, deepPerMonth: 300 },
-};
+export const AI_RATES_BY_TIER = Object.fromEntries(
+  Object.entries(PLAN_CATALOG).map(([tier, plan]) => [tier, plan.ai]),
+) as Record<SubscriptionTier, AiRates>;
 
 /**
  * The single source of truth for stored-data capacity. The usage endpoint,
@@ -164,75 +126,9 @@ export const AI_RATES_BY_TIER: Record<SubscriptionTier, AiRates> = {
  * - Pro rows are large but finite. Legacy `premium` buyers resolve to `pro`
  *   and therefore also have finite caps now.
  */
-export const CAPACITY_BY_TIER: Record<SubscriptionTier, CapacityLimits> = {
-  free: {
-    "classes-owned": 1,
-    "class-members": 30,
-    "study-activities": 25,
-    "resource-lists": 5,
-    "learning-goals": 10,
-    canvases: 3,
-  },
-  plus: {
-    "classes-owned": 5,
-    "class-members": 100,
-    "study-activities": 250,
-    "resource-lists": 50,
-    "learning-goals": 100,
-    canvases: 30,
-  },
-  pro: {
-    "classes-owned": 20,
-    "class-members": 300,
-    "study-activities": 1000,
-    "resource-lists": 200,
-    "learning-goals": 400,
-    canvases: 100,
-  },
-  "student-plus": {
-    "classes-owned": 1,
-    "class-members": 30,
-    "study-activities": 400,
-    "resource-lists": 75,
-    "learning-goals": 150,
-    canvases: 40,
-  },
-  "student-pro": {
-    "classes-owned": 1,
-    "class-members": 30,
-    "study-activities": 1500,
-    "resource-lists": 300,
-    "learning-goals": 500,
-    canvases: 150,
-  },
-  "teacher-plus": {
-    "classes-owned": 8,
-    "class-members": 150,
-    "study-activities": 250,
-    "resource-lists": 50,
-    "learning-goals": 100,
-    canvases: 30,
-  },
-  "teacher-pro": {
-    "classes-owned": 25,
-    "class-members": 400,
-    "study-activities": 1000,
-    "resource-lists": 200,
-    "learning-goals": 400,
-    canvases: 100,
-  },
-  // The school licence: one seat's allowances, deliberately at or above every
-  // other tier on every column so no licensed teacher or student loses
-  // anything against the plan they might otherwise buy — and still finite.
-  institutional: {
-    "classes-owned": 50,
-    "class-members": 500,
-    "study-activities": 2500,
-    "resource-lists": 500,
-    "learning-goals": 800,
-    canvases: 250,
-  },
-};
+export const CAPACITY_BY_TIER = Object.fromEntries(
+  Object.entries(PLAN_CATALOG).map(([tier, plan]) => [tier, plan.capacity]),
+) as Record<SubscriptionTier, CapacityLimits>;
 
 export interface AccountEntitlements {
   tier: SubscriptionTier;
@@ -315,7 +211,7 @@ export function entitlementsForPlan(
 export function capacityLimitFor(
   tier: SubscriptionTier,
   capacity: PlanCapacity,
-): number | null {
+): number {
   return CAPACITY_BY_TIER[tier][capacity];
 }
 

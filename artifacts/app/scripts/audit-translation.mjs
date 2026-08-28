@@ -55,7 +55,7 @@ const PAGES = (
  */
 const SIGNED_IN_PAGES = (
   process.env.AUDIT_SIGNED_IN_PAGES ??
-  "/dashboard,/profile,/resources,/catalog,/settings,/plans," +
+  "/dashboard,/profile,/resources,/catalog,/settings,/plans,/support," +
     "/schedule,/classes,/goals,/forum,/messages,/activities,/lists,/people," +
     "/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/guide,/tutorial,/admin," +
     // The resource detail page, which was left out for a long time because it

@@ -10,8 +10,8 @@
  * `/users/me/usage` reported the larger of the two counters against the
  * *daily* limit, and both clients read "used >= limit" as "spent".
  *
- * On Student Plus, 8 a day and 80 a month: one full day of use leaves the
- * monthly counter at 8. Next morning the daily counter is 0 and eight reports
+ * On Student Plus, one full day of use leaves that use on the monthly
+ * counter. Next morning the daily counter is 0 and the daily allowance
  * are genuinely available, but the endpoint said 8 used of 8 -- so the phone
  * showed a locked "View paid plans for deep AI research" to somebody already
  * paying, and kept showing it for the rest of the thirty days. Over 90% of
@@ -29,36 +29,43 @@ const FREE = AI_RATES_BY_TIER.free;
 
 describe("a paid account", () => {
   it("has its whole day back the morning after using it", () => {
-    // The defect, as one case: yesterday's eight are on the monthly counter,
-    // today's counter is zero, and today's eight are available.
-    const allowance = deepAllowance({ dayUsed: 0, monthUsed: 8 }, PLUS);
-    expect(allowance.window).toBe("day");
-    expect(allowance.used).toBe(0);
-    expect(allowance.limit).toBe(PLUS.deepPerDay);
+    const allowance = deepAllowance(
+      { dayUsed: 0, monthUsed: PLUS.deepPerDay },
+      PLUS,
+    );
+    // With a deliberately small monthly pool the month may tie the restored
+    // daily remainder; either window is honest as long as one run remains.
+    expect((allowance.limit ?? 0) - allowance.used).toBeGreaterThan(0);
     expect(allowance.used < (allowance.limit ?? 0), "must not read as spent").toBe(true);
   });
 
   it("is told when today is what it has run out of", () => {
-    const allowance = deepAllowance({ dayUsed: 8, monthUsed: 8 }, PLUS);
+    const allowance = deepAllowance(
+      { dayUsed: PLUS.deepPerDay, monthUsed: PLUS.deepPerDay },
+      PLUS,
+    );
     expect(allowance.window).toBe("day");
     expect(allowance.used).toBe(PLUS.deepPerDay);
     expect(allowance.limit).toBe(PLUS.deepPerDay);
   });
 
   it("is told when the month is what it has run out of", () => {
-    // Eighty of eighty spent, none today: the daily window has room and the
+    // The monthly pool is spent, none today: the daily window has room and the
     // monthly one does not, so the monthly one is the answer.
-    const allowance = deepAllowance({ dayUsed: 0, monthUsed: 80 }, PLUS);
+    const allowance = deepAllowance(
+      { dayUsed: 0, monthUsed: PLUS.deepPerMonth },
+      PLUS,
+    );
     expect(allowance.window).toBe("month");
     expect(allowance.used).toBe(PLUS.deepPerMonth);
     expect(allowance.limit).toBe(PLUS.deepPerMonth);
   });
 
   it("reports the tighter of the two while both have room", () => {
-    // 3 left today, 20 left this month.
-    const allowance = deepAllowance({ dayUsed: 5, monthUsed: 60 }, PLUS);
+    const monthUsed = Math.max(0, PLUS.deepPerMonth - PLUS.deepPerDay - 1);
+    const allowance = deepAllowance({ dayUsed: 0, monthUsed }, PLUS);
     expect(allowance.window).toBe("day");
-    expect((allowance.limit ?? 0) - allowance.used).toBe(3);
+    expect((allowance.limit ?? 0) - allowance.used).toBe(PLUS.deepPerDay);
   });
 });
 
@@ -74,10 +81,13 @@ describe("a free account", () => {
 
   it("still reads as spent once the taste is gone", () => {
     // Used last week: nothing on today's counter, and nothing left either.
-    const allowance = deepAllowance({ dayUsed: 0, monthUsed: 2 }, FREE);
+    const allowance = deepAllowance(
+      { dayUsed: 0, monthUsed: FREE.deepPerMonth },
+      FREE,
+    );
     expect(allowance.window).toBe("month");
-    expect(allowance.used).toBe(2);
-    expect(allowance.limit).toBe(2);
+    expect(allowance.used).toBe(FREE.deepPerMonth);
+    expect(allowance.limit).toBe(FREE.deepPerMonth);
   });
 });
 

@@ -61,6 +61,11 @@ import {
 import { isResourceOwner } from "../lib/authz";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { throughAi } from "../lib/aiHealth";
+import {
+  AI_OPERATION_BOUNDS,
+  INSTITUTIONAL_STARTER,
+  SERVICE_AI_BUDGETS,
+} from "@workspace/plan-economics";
 import { contentLimiter, discoverLimiter } from "../lib/limiters";
 import {
   fetchPublicText,
@@ -70,6 +75,7 @@ import { isAdminRequest } from "../lib/adminAccess";
 import {
   consumeAiQuota,
   paidRetryAllowed,
+  recordAiCache,
   recordAiUsage,
 } from "../lib/aiCostControls";
 import {
@@ -93,7 +99,7 @@ import {
   discoveryCoverageInstructions,
   filterDiscoveryLanguage,
 } from "../lib/discoveryCoverage";
-import { getAccountEntitlements } from "../lib/entitlements";
+import { resolveAccountPlan } from "../lib/entitlements";
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 import { validationMessage } from "../lib/validationMessage";
 
@@ -813,24 +819,22 @@ async function callDiscoverAI(
   userId: number | null = null,
 ): Promise<ReturnType<typeof DiscoverResourcesResponse.parse>> {
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 55000);
+  const timer = setTimeout(() => ac.abort(), AI_OPERATION_BOUNDS.discovery.timeoutMs);
   try {
     const response = await throughAi("resource discovery", () =>
       openai.responses.create(
       {
-        model: "gpt-5-nano",
-        max_output_tokens:
-          maxItems >= 24
-            ? 4800
-            : maxItems >= 18
-              ? 3200
-              : maxItems >= 16
-                ? 2800
-                : maxItems >= 12
-                  ? 2200
-                  : 1400,
-        tools: [{ type: "web_search", search_context_size: "high" }],
-        reasoning: { effort: "low" },
+        stream: false,
+        model: AI_OPERATION_BOUNDS.discovery.model,
+        max_output_tokens: AI_OPERATION_BOUNDS.discovery.maxOutputTokens,
+        // Spread keeps this forward-compatible field accepted by the API even
+        // though the installed SDK declaration does not list it yet.
+        ...{ max_tool_calls: AI_OPERATION_BOUNDS.discovery.maxToolCalls },
+        tools: [{
+          type: "web_search",
+          search_context_size: AI_OPERATION_BOUNDS.discovery.searchContextSize,
+        }],
+        reasoning: { effort: AI_OPERATION_BOUNDS.discovery.reasoningEffort },
         text: {
           format: {
             type: "json_schema",
@@ -898,7 +902,7 @@ async function callDiscoverAI(
             },
           },
         },
-        input: prompt,
+        input: prompt.slice(0, AI_OPERATION_BOUNDS.discovery.maxPromptCharacters),
       },
       { signal: ac.signal },
       ),
@@ -980,6 +984,7 @@ const MATERIAL_VALUES = [
 
 const DISCOVER_MIN_RESULTS = 3;
 const DISCOVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const activeDiscoveryUsers = new Set<number>();
 const discoverCache = new Map<
   string,
   {
@@ -1203,6 +1208,7 @@ router.get(
       res.status(400).json({ error: "Missing query parameter: q" });
       return;
     }
+
     const params = DiscoverResourcesQueryParams.safeParse(req.query);
     if (!params.success) {
       res.status(400).json({ error: "Missing query parameter: q" });
@@ -1271,6 +1277,12 @@ router.get(
     const captions = queryBoolean(req.query.captions);
     const transcript = queryBoolean(req.query.transcript);
     const includeWeb = queryBoolean(req.query.includeWeb) === true;
+    const exactPersonSearch =
+      resultType === "people" &&
+      q.trim().toLowerCase().startsWith("exact-person:");
+    const effectiveQuery = exactPersonSearch
+      ? q.trim().slice("exact-person:".length).trim()
+      : q;
     let discoverUserId: number | null = null;
     try {
       const { decodeToken } = await import("../lib/auth");
@@ -1433,6 +1445,32 @@ router.get(
       return;
     }
 
+    // Deliberately excludes the user id: identical normalized searches share
+    // one result and therefore one paid provider call across accounts. Cache
+    // reads happen before paid quotas so reuse never reduces an allowance.
+    const cacheKey = JSON.stringify({
+      q: q.trim().toLowerCase(), format,
+      subject: subject?.trim().toLowerCase(), gradeLevel, language, page,
+      resultType, exactPhrase, excludedWords, sourceFilter,
+      excludeSourceFilter, materialFilter, excludeSubjectsFilter,
+      authorFilter, titleOnly, hasThumbnail, publishedFrom, publishedTo,
+      freshness, difficulty, accessType, license, contentLength,
+      sourceQuality, captions, transcript, includeWeb,
+    });
+    if (process.env.NODE_ENV !== "test") {
+      const cached = discoverCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        res.setHeader("X-Search-Cache", "HIT");
+        await recordAiCache("search", discoverUserId);
+        sendDiscoverResults(res, [
+          ...availableCatalogItems,
+          ...cached.items.filter(isUnsavedResult),
+        ]);
+        return;
+      }
+      if (cached) discoverCache.delete(cacheKey);
+    }
+
     // Live-web discovery needs an account (the allowance is per user, so
     // anonymous traffic cannot spend it), but every tier has one: Free's small
     // daily taste, larger allowances on the paid plans. Stored-catalog-only
@@ -1469,12 +1507,12 @@ router.get(
         });
         return;
       }
-      const entitlements = await getAccountEntitlements(discoverUserId);
+      const accountPlan = await resolveAccountPlan(discoverUserId);
       const userBudget = await consumeAiQuota(
         "discover-ai-user-day",
         `user:${discoverUserId}`,
         24 * 60 * 60 * 1000,
-        entitlements.ai.searchPerDay,
+        accountPlan.entitlements.ai.searchPerDay,
       );
       if (!userBudget.allowed) {
         res.setHeader("Retry-After", userBudget.retryAfter);
@@ -1484,14 +1522,47 @@ router.get(
         });
         return;
       }
+      const userMonthlyBudget = await consumeAiQuota(
+        "discover-ai-user-month",
+        `user:${discoverUserId}`,
+        30 * 24 * 60 * 60 * 1000,
+        accountPlan.entitlements.ai.searchPerMonth,
+      );
+      if (!userMonthlyBudget.allowed) {
+        res.setHeader("Retry-After", userMonthlyBudget.retryAfter);
+        res.status(429).json({
+          error: "Monthly AI discovery limit reached.",
+          retryAfter: userMonthlyBudget.retryAfter,
+        });
+        return;
+      }
+      if (accountPlan.entitlements.tier === "institutional") {
+        const sharedDay = await consumeAiQuota(
+          "institutional-discover-day", "all", 24 * 60 * 60 * 1000,
+          INSTITUTIONAL_STARTER.searchPerDay,
+        );
+        const sharedMonth = await consumeAiQuota(
+          "institutional-discover-month", "all", 30 * 24 * 60 * 60 * 1000,
+          INSTITUTIONAL_STARTER.searchPerMonth,
+        );
+        if (!sharedDay.allowed || !sharedMonth.allowed) {
+          const retryAfter = Math.max(sharedDay.retryAfter, sharedMonth.retryAfter);
+          res.setHeader("Retry-After", retryAfter);
+          res.status(429).json({
+            error: "The Institutional shared AI discovery pool is full.",
+            retryAfter,
+          });
+          return;
+        }
+      }
       const globalBudget = await consumeAiQuota(
         "discover-ai-global-day",
         "all",
         24 * 60 * 60 * 1000,
-        // The service-wide safety net. Raised alongside the tier model: with
-        // per-account allowances up to 90/day, a global 20 would let a couple
-        // of paying accounts exhaust the whole platform before lunch.
-        configuredLimit(process.env.AI_SEARCH_DAILY_LIMIT, 200),
+        configuredLimit(
+          process.env.AI_SEARCH_DAILY_LIMIT,
+          SERVICE_AI_BUDGETS.discoveryPerDay,
+        ),
       );
       if (!globalBudget.allowed) {
         res.setHeader("Retry-After", globalBudget.retryAfter);
@@ -1501,55 +1572,23 @@ router.get(
         });
         return;
       }
-    }
-
-    const exactPersonSearch =
-      resultType === "people" &&
-      q.trim().toLowerCase().startsWith("exact-person:");
-    const effectiveQuery = exactPersonSearch
-      ? q.trim().slice("exact-person:".length).trim()
-      : q;
-    const cacheKey = JSON.stringify({
-      q: q.trim().toLowerCase(),
-      format,
-      subject: subject?.trim().toLowerCase(),
-      gradeLevel,
-      language,
-      page,
-      resultType,
-      exactPhrase,
-      excludedWords,
-      sourceFilter,
-      excludeSourceFilter,
-      materialFilter,
-      excludeSubjectsFilter,
-      authorFilter,
-      titleOnly,
-      hasThumbnail,
-      publishedFrom,
-      publishedTo,
-      freshness,
-      difficulty,
-      accessType,
-      license,
-      contentLength,
-      sourceQuality,
-      captions,
-      transcript,
-      includeWeb,
-      userId: discoverUserId,
-    });
-    if (process.env.NODE_ENV !== "test") {
-      const cached = discoverCache.get(cacheKey);
-      if (cached && cached.expiresAt > Date.now()) {
-        res.setHeader("X-Search-Cache", "HIT");
-        sendDiscoverResults(res, [
-          ...availableCatalogItems,
-          ...cached.items.filter(isUnsavedResult),
-        ]);
+      const globalMonthlyBudget = await consumeAiQuota(
+        "discover-ai-global-month",
+        "all",
+        30 * 24 * 60 * 60 * 1000,
+        configuredLimit(
+          process.env.AI_SEARCH_MONTHLY_LIMIT,
+          SERVICE_AI_BUDGETS.discoveryPerMonth,
+        ),
+      );
+      if (!globalMonthlyBudget.allowed) {
+        res.setHeader("Retry-After", globalMonthlyBudget.retryAfter);
+        res.status(429).json({
+          error: "Monthly AI search budget reached.",
+          retryAfter: globalMonthlyBudget.retryAfter,
+        });
         return;
       }
-      if (cached) discoverCache.delete(cacheKey);
     }
 
     const languageNames: Record<string, string> = {
@@ -1703,6 +1742,14 @@ ${coverageRules}
 Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel, and language ("en"|"es"|"fr"|"de"|"pt"|"tr"|"multilingual"|"other").
 Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} ${platformSearchRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
     };
+
+    if (discoverUserId !== null && activeDiscoveryUsers.has(discoverUserId)) {
+      res.status(429).json({
+        error: "An AI discovery search is already running for this account.",
+      });
+      return;
+    }
+    if (discoverUserId !== null) activeDiscoveryUsers.add(discoverUserId);
 
     try {
       // ── First AI call ────────────────────────────────────────────────────────
@@ -1893,6 +1940,8 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       }
 
       res.status(502).json({ error: "Search failed. Please try again." });
+    } finally {
+      if (discoverUserId !== null) activeDiscoveryUsers.delete(discoverUserId);
     }
   },
 );

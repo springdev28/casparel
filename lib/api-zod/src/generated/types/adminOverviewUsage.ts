@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AdminOverviewUsageByFeature } from './adminOverviewUsageByFeature';
+import type { AdminOverviewUsageEconomics } from './adminOverviewUsageEconomics';
 import type { AdminUserAiUsage } from './adminUserAiUsage';
 
 export type AdminOverviewUsage = {
@@ -15,4 +16,5 @@ export type AdminOverviewUsage = {
   estimatedCostUsd: number;
   byFeature: AdminOverviewUsageByFeature;
   byUser: AdminUserAiUsage[];
+  economics: AdminOverviewUsageEconomics;
 };

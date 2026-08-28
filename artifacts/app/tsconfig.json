@@ -16,6 +16,7 @@
   },
   "references": [
     { "path": "../../lib/api-client-react" },
-    { "path": "../../lib/resource-identity" }
+    { "path": "../../lib/resource-identity" },
+    { "path": "../../lib/plan-economics" }
   ]
 }

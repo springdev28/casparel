@@ -47,6 +47,7 @@ export interface PlanState {
   seatingPlanner: boolean;
   aiSearch: { used: number; limit: number | null };
   deepResearch: { used: number; limit: number | null };
+  storage: { usedBytes: number; limitBytes: number | null };
   /**
    * Stored-data allowances. A plan is not only a rate of AI calls, it is also
    * how much of the workspace an account may keep, so these travel with the
@@ -160,6 +161,10 @@ export function usePlan(enabled = true): PlanState {
       limit: unlimited
         ? null
         : (usage?.deepResearch?.limit ?? FALLBACK_DEEP_LIMIT),
+    },
+    storage: {
+      usedBytes: usage?.storage?.usedBytes ?? 0,
+      limitBytes: unlimited ? null : (usage?.storage?.limitBytes ?? 0),
     },
     // Read field by field, like the counters above: a malformed usage body must
     // not be able to throw out of a hook the whole signed-in shell depends on.

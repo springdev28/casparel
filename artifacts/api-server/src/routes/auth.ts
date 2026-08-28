@@ -80,6 +80,11 @@ import {
   resolveAccountPlan,
 } from "../lib/entitlements";
 import { accountCapacityReport } from "../lib/planCapacity";
+import {
+  accountStorage,
+  base64StoredBytes,
+  ensureStorageCapacity,
+} from "../lib/storageCapacity";
 import { deepAllowance } from "../lib/deepAllowance";
 import { publicUserColumns } from "../lib/userColumns";
 import { publicResourceColumns } from "../lib/resourceColumns";
@@ -683,12 +688,18 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
     [
       [
         "discover-ai-user-day:user:" + userId,
+        "discover-ai-user-month:user:" + userId,
         "deep-user-day:" + userId,
         "deep-user-month:" + userId,
       ],
     ],
   );
   const usage = new Map(result.rows.map((row) => [row.key, Number(row.hits)]));
+  const searchDayUsed = usage.get("discover-ai-user-day:user:" + userId) ?? 0;
+  const searchMonthUsed = usage.get("discover-ai-user-month:user:" + userId) ?? 0;
+  const searchDayRemaining = entitlements.ai.searchPerDay - searchDayUsed;
+  const searchMonthRemaining = entitlements.ai.searchPerMonth - searchMonthUsed;
+  const searchWindow = searchMonthRemaining <= searchDayRemaining ? "month" : "day";
   const deep = deepAllowance(
     {
       dayUsed: usage.get("deep-user-day:" + userId) ?? 0,
@@ -700,6 +711,7 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
   // Stored-data allowances travel with the AI counters so a client renders the
   // whole plan from one response instead of guessing the half it cannot see.
   const capacity = await accountCapacityReport(userId);
+  const storage = await accountStorage(userId);
   res.json(
     GetMyUsageResponse.parse({
       plan: isAdmin ? "Administrator" : entitlements.label,
@@ -707,9 +719,13 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
       tier: isAdmin ? "administrator" : entitlements.tier,
       unlimited,
       aiSearch: {
-        used: usage.get("discover-ai-user-day:user:" + userId) ?? 0,
-        limit: unlimited ? null : entitlements.ai.searchPerDay,
-        window: "day",
+        used: searchWindow === "month" ? searchMonthUsed : searchDayUsed,
+        limit: unlimited
+          ? null
+          : searchWindow === "month"
+            ? entitlements.ai.searchPerMonth
+            : entitlements.ai.searchPerDay,
+        window: searchWindow,
       },
       // Whichever of the two enforced windows the account is actually up
       // against; see lib/deepAllowance.ts for what reporting the wrong one
@@ -722,6 +738,10 @@ router.get("/users/me/usage", requireAuth, async (req, res): Promise<void> => {
         resourceLists: capacity["resource-lists"],
         learningGoals: capacity["learning-goals"],
         canvases: capacity.canvases,
+      },
+      storage: {
+        usedBytes: storage.usedBytes,
+        limitBytes: storage.limitBytes,
       },
     }),
   );
@@ -821,6 +841,11 @@ router.post(
         .json({ error: "Only PNG, JPEG, and WebP images are accepted" });
       return;
     }
+    if (!(await ensureStorageCapacity(
+      res,
+      userId,
+      base64StoredBytes(req.file.buffer.byteLength) + 64,
+    ))) return;
     const dataUrl = `data:${verifiedMime};base64,${req.file.buffer.toString("base64")}`;
     const [user] = await db
       .update(usersTable)

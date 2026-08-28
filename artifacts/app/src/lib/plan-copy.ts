@@ -5,16 +5,11 @@
 /**
  * The one place plan copy lives on the web. The Settings plan section shows
  * `name` + `blurb`; the /plans page renders the full bullet lists. Numbers
- * must match CAPACITY_BY_TIER and AI_RATES_BY_TIER on the server — the client
- * cannot import server code, so this file is the hand-kept mirror, and a
- * number changed there must be changed here in the same commit.
+ * come from @workspace/plan-economics, the runtime-neutral source shared with
+ * the server and mobile app. Workspace prose remains presentation copy.
  *
- * Prices are USD reference prices and are the source of truth for what the
- * RevenueCat dashboard (Web Billing products, App Store and Play Console
- * prices) must be configured to. Stores localise currency on their own; when
- * checkout is live the buttons show the store's localised price, and these
- * strings remain the comparison-table reference. Change a price here and in
- * the dashboards together.
+ * Prices are USD reference prices from the shared catalog. Stores localise
+ * currency on their own; checkout always shows the store-localised value.
  *
  * The ladder prices the costs, not just the value: deep research reports are
  * the dominant per-user cost (LLM + search API per report), so each step's
@@ -31,12 +26,21 @@
  * - The seating planner is rule-based; it must never be described as AI.
  */
 import type { PlanTier } from "./use-plan";
+import {
+  INSTITUTIONAL_STARTER,
+  PLAN_CATALOG,
+  formatStorage,
+  formatUsd,
+  type SubscriptionTier,
+} from "@workspace/plan-economics";
 
 export interface TierPrice {
   /** e.g. "US$4.99" — reference price, see the header comment. */
   monthly: string;
-  /** e.g. "US$49.99" — two months free against 12× monthly. */
+  /** e.g. "US$53.99" — economically safe against twelve full months. */
   annual: string;
+  /** Rounded reduction against paying the monthly price twelve times. */
+  annualSavingsPercent: number;
 }
 
 export interface TierCard {
@@ -56,6 +60,32 @@ export interface TierCard {
 
 export type PlanAudience = "student" | "teacher" | "generic";
 
+function tierPrice(tier: Exclude<SubscriptionTier, "free">): TierPrice {
+  const price = PLAN_CATALOG[tier].price;
+  if (!price) throw new Error(`${tier} has no price`);
+  return {
+    monthly: formatUsd(price.monthlyUsd),
+    annual: formatUsd(price.annualUsd),
+    annualSavingsPercent: Math.round(
+      (1 - price.annualUsd / (price.monthlyUsd * 12)) * 100,
+    ),
+  };
+}
+
+function aiLines(tier: SubscriptionTier): string[] {
+  const limits = PLAN_CATALOG[tier].ai;
+  const searchNoun = limits.searchPerDay === 1 ? "search" : "searches";
+  const reportNoun = limits.deepPerDay === 1 ? "report" : "reports";
+  return [
+    `${limits.searchPerDay} AI discovery ${searchNoun} a day, up to ${limits.searchPerMonth} per 30 days`,
+    `${limits.deepPerDay} deep research ${reportNoun} a day, up to ${limits.deepPerMonth} per 30 days`,
+  ];
+}
+
+function storageLine(tier: SubscriptionTier): string {
+  return `${formatStorage(PLAN_CATALOG[tier].storageBytes)} stored uploads`;
+}
+
 export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
   student: [
     {
@@ -63,17 +93,15 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       name: "Free",
       price: null,
       blurb:
-        "The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases, plus an AI taste: 2 discovery searches a day and 2 deep reports per 30 days.",
+        "The adaptive study dashboard and a tightly capped taste of AI discovery and deep research.",
       workspace: [
         "25 study activities",
         "10 learning goals",
         "5 resource lists",
         "3 canvases",
+        storageLine("free"),
       ],
-      ai: [
-        "2 AI discovery searches a day",
-        "2 deep research reports per 30 days",
-      ],
+      ai: aiLines("free"),
       extras: [
         "Adaptive study dashboard",
         "Quick source check (registry-based, no AI)",
@@ -83,37 +111,33 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
     {
       tier: "student-plus",
       name: "Student Plus",
-      price: { monthly: "US$2.99", annual: "US$29.99" },
+      price: tierPrice("student-plus"),
       blurb:
-        "400 activities, 150 goals, 75 lists and 40 canvases, with 30 AI discovery searches and 8 deep reports a day.",
+        "More study workspace plus a safe monthly pool for regular AI discovery and deep research.",
       workspace: [
         "400 study activities",
         "150 learning goals",
         "75 resource lists",
         "40 canvases",
+        storageLine("student-plus"),
       ],
-      ai: [
-        "30 AI discovery searches a day",
-        "8 deep research reports a day, up to 80 per 30 days",
-      ],
+      ai: aiLines("student-plus"),
       extras: ["Everything in Free"],
     },
     {
       tier: "student-pro",
       name: "Student Pro",
-      price: { monthly: "US$6.99", annual: "US$69.99" },
+      price: tierPrice("student-pro"),
       blurb:
-        "1,500 activities, 500 goals, 300 lists and 150 canvases, with 90 AI discovery searches and 25 deep reports a day.",
+        "A large personal study workspace and heavier, still finite AI research pools.",
       workspace: [
         "1,500 study activities",
         "500 learning goals",
         "300 resource lists",
         "150 canvases",
+        storageLine("student-pro"),
       ],
-      ai: [
-        "90 AI discovery searches a day",
-        "25 deep research reports a day, up to 250 per 30 days",
-      ],
+      ai: aiLines("student-pro"),
       extras: ["Everything in Student Plus"],
     },
   ],
@@ -123,18 +147,16 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
       name: "Free",
       price: null,
       blurb:
-        "One class of up to 30 with manual seating, student seating suggestions and private notes, plus an AI taste: 2 discovery searches a day and 2 deep reports per 30 days.",
+        "One class with manual seating and private notes, plus a tightly capped AI taste.",
       workspace: [
         "1 class, up to 30 members",
         "25 study activities",
         "10 learning goals",
         "5 resource lists",
         "3 canvases",
+        storageLine("free"),
       ],
-      ai: [
-        "2 AI discovery searches a day",
-        "2 deep research reports per 30 days",
-      ],
+      ai: aiLines("free"),
       extras: [
         "Manual Classroom Designer",
         "Student seating suggestions",
@@ -144,39 +166,35 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
     {
       tier: "teacher-plus",
       name: "Teacher Plus",
-      price: { monthly: "US$4.99", annual: "US$49.99" },
+      price: tierPrice("teacher-plus"),
       blurb:
-        "8 classes of up to 150 members, 250 activities, and 20 AI discovery searches with 5 deep reports a day.",
+        "A practical classroom workspace with monthly AI discovery and research pools.",
       workspace: [
         "8 classes, up to 150 members each",
         "250 study activities",
         "100 learning goals",
         "50 resource lists",
         "30 canvases",
+        storageLine("teacher-plus"),
       ],
-      ai: [
-        "20 AI discovery searches a day",
-        "5 deep research reports a day, up to 50 per 30 days",
-      ],
+      ai: aiLines("teacher-plus"),
       extras: ["Everything in Free"],
     },
     {
       tier: "teacher-pro",
       name: "Teacher Pro",
-      price: { monthly: "US$11.99", annual: "US$119.99" },
+      price: tierPrice("teacher-pro"),
       blurb:
-        "25 classes of up to 400, the explainable seating planner, and 60 AI discovery searches with 15 deep reports a day.",
+        "Large classes, the explainable seating planner, and heavier finite AI pools.",
       workspace: [
         "25 classes, up to 400 members each",
         "1,000 study activities",
         "400 learning goals",
         "200 resource lists",
         "100 canvases",
+        storageLine("teacher-pro"),
       ],
-      ai: [
-        "60 AI discovery searches a day",
-        "15 deep research reports a day, up to 150 per 30 days",
-      ],
+      ai: aiLines("teacher-pro"),
       extras: [
         "Explainable seating planner (rule-based)",
         "Everything in Teacher Plus",
@@ -196,49 +214,43 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
         "10 learning goals",
         "5 resource lists",
         "3 canvases",
+        storageLine("free"),
       ],
-      ai: [
-        "2 AI discovery searches a day",
-        "2 deep research reports per 30 days",
-      ],
+      ai: aiLines("free"),
       extras: ["Adaptive study dashboard", "Manual Classroom Designer"],
     },
     {
       tier: "plus",
       name: "Plus",
-      price: { monthly: "US$5.99", annual: "US$59.99" },
+      price: tierPrice("plus"),
       blurb:
-        "5 classes of 100, 250 activities, 100 goals and 50 lists, with 20 AI discovery searches and 5 deep reports a day.",
+        "A flexible workspace with practical monthly AI discovery and research pools.",
       workspace: [
         "5 classes, up to 100 members each",
         "250 study activities",
         "100 learning goals",
         "50 resource lists",
         "30 canvases",
+        storageLine("plus"),
       ],
-      ai: [
-        "20 AI discovery searches a day",
-        "5 deep research reports a day, up to 50 per 30 days",
-      ],
+      ai: aiLines("plus"),
       extras: ["Everything in Free"],
     },
     {
       tier: "pro",
       name: "Pro",
-      price: { monthly: "US$13.99", annual: "US$139.99" },
+      price: tierPrice("pro"),
       blurb:
-        "20 classes of 300, 1,000 activities and 400 goals, the seating planner, and 60 discovery searches and 15 deep reports a day.",
+        "The largest self-serve flexible workspace, seating planner, and heavier finite AI pools.",
       workspace: [
         "20 classes, up to 300 members each",
         "1,000 study activities",
         "400 learning goals",
         "200 resource lists",
         "100 canvases",
+        storageLine("pro"),
       ],
-      ai: [
-        "60 AI discovery searches a day",
-        "15 deep research reports a day, up to 150 per 30 days",
-      ],
+      ai: aiLines("pro"),
       extras: [
         "Explainable seating planner (rule-based)",
         "Everything in Plus",
@@ -266,20 +278,21 @@ export const INSTITUTIONAL_PLAN = {
   tier: "institutional" as PlanTier,
   name: "Institutional",
   blurb:
-    "A per-seat licence for schools and academies: every licensed account — teacher or student — gets allowances above every other plan, still finite.",
-  priceLine: "Starting from US$2.50 per seat / month",
+    "A 30-seat annual school licence with shared AI and storage pools, so one seat cannot create unbounded contract exposure.",
+  priceLine: `${formatUsd(PLAN_CATALOG.institutional.price!.annualUsd)} / year`,
   priceNote:
-    "Up to US$3.00 · billed annually · 30-seat minimum · invoiced, not store checkout",
+    `${INSTITUTIONAL_STARTER.includedSeats} seats included · ${formatUsd(INSTITUTIONAL_STARTER.additionalSeatMonthlyUsd)} per added seat / month · invoiced, not store checkout`,
   workspace: [
     "50 classes, up to 500 members each",
     "2,500 study activities",
     "800 learning goals",
     "500 resource lists",
     "250 canvases",
+    `${formatStorage(INSTITUTIONAL_STARTER.storageBytes)} shared stored uploads`,
   ],
   ai: [
-    "120 AI discovery searches a day",
-    "30 deep research reports a day, up to 300 per 30 days",
+    `${INSTITUTIONAL_STARTER.searchPerMonth} shared AI discovery searches per 30 days`,
+    `${INSTITUTIONAL_STARTER.deepPerMonth} shared deep research reports per 30 days`,
   ],
   extras: [
     "Applies to any account role — one licence covers staff and students",

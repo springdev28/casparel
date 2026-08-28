@@ -19,6 +19,9 @@
       "path": "../../lib/resource-identity"
     },
     {
+      "path": "../../lib/plan-economics"
+    },
+    {
       "path": "../../lib/integrations-openai-ai-server"
     }
   ]

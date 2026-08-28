@@ -5,11 +5,13 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminUserAiUsagePlan } from './adminUserAiUsagePlan';
 
 export interface AdminUserAiUsage {
   userId: number;
   name: string;
   email: string;
+  plan: AdminUserAiUsagePlan;
   searches: number;
   quickReviews: number;
   deepResearch: number;

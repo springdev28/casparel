@@ -8,6 +8,7 @@
 import type { AccountUsageAiSearch } from './accountUsageAiSearch';
 import type { AccountUsageCapacity } from './accountUsageCapacity';
 import type { AccountUsageDeepResearch } from './accountUsageDeepResearch';
+import type { AccountUsageStorage } from './accountUsageStorage';
 import type { AccountUsageTier } from './accountUsageTier';
 
 export interface AccountUsage {
@@ -20,4 +21,6 @@ export interface AccountUsage {
   deepResearch: AccountUsageDeepResearch;
   /** Stored-data allowances for the plan. A null limit means uncapped. classMembers reports the per-class roster cap that applies to classes this account owns, so its used count is always 0. */
   capacity: AccountUsageCapacity;
+  /** Persisted upload usage. Institutional seats share one pool. */
+  storage: AccountUsageStorage;
 }

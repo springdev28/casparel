@@ -100,9 +100,11 @@ vi.mock("../lib/entitlements", async (importOriginal) => {
     await importOriginal<typeof import("../lib/entitlements")>();
   return {
     ...actual,
-    getAccountEntitlements: vi
-      .fn()
-      .mockResolvedValue(actual.entitlementsForPlan("pro", null)),
+    resolveAccountPlan: vi.fn().mockResolvedValue({
+      entitlements: actual.entitlementsForPlan("pro", null),
+      accountRole: "student",
+      isAdmin: false,
+    }),
   };
 });
 
@@ -112,7 +114,7 @@ import { db } from "@workspace/db";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   entitlementsForPlan,
-  getAccountEntitlements,
+  resolveAccountPlan,
 } from "../lib/entitlements";
 import sourceReviewRouter from "./sourceReview.js";
 
@@ -211,9 +213,11 @@ describe("GET /api/resources/:id/source-review, mode contract", () => {
   });
 
   it("lets a Free account run deep research on its small taste allowance", async () => {
-    vi.mocked(getAccountEntitlements).mockResolvedValueOnce(
-      entitlementsForPlan("free", null, "student"),
-    );
+    vi.mocked(resolveAccountPlan).mockResolvedValueOnce({
+      entitlements: entitlementsForPlan("free", null, "student"),
+      accountRole: "student",
+      isAdmin: false,
+    });
 
     const res = await request(buildApp()).get(
       "/api/resources/42/source-review?mode=deep",
@@ -223,7 +227,7 @@ describe("GET /api/resources/:id/source-review, mode contract", () => {
     // the normal deep-research path, and the taste allowance was consulted.
     expect(res.status).toBe(200);
     expect(openai.responses.create).toHaveBeenCalledOnce();
-    expect(getAccountEntitlements).toHaveBeenCalled();
+    expect(resolveAccountPlan).toHaveBeenCalled();
   });
 
   it("default (no mode param) behaves like quick without OpenAI", async () => {

@@ -56,8 +56,13 @@ const webCopy = readFileSync(
  * BENEFITS is keyed by audience -- student, teacher, generic -- and each entry
  * carries a title that is the plan name and a body that is the pitch.
  */
-const SOLD = [...paywall.matchAll(/title:\s*'([^']+)',\s*\n\s*body:\s*'([^']+)',/g)].map(
-  (match) => ({ plan: match[1], copy: match[2], where: "phone paywall" }),
+const SOLD = [...paywall.matchAll(/title:\s*'([^']+)',\s*\n\s*body:\s*`([^`]+)`,/g)].map(
+  (match) => ({
+    plan: match[1],
+    copy: match[2],
+    aiTier: /aiSummary\('([\w-]+)'\)/.exec(match[2])?.[1],
+    where: "phone paywall",
+  }),
 );
 
 /**
@@ -206,6 +211,11 @@ describe("what the paywall promises", () => {
     (_label, sold) => {
       const tier = TIER_FOR_PLAN[sold.plan];
       const checked: string[] = [];
+      expect(
+        sold.aiTier,
+        `${sold.plan} must generate its AI and storage promise from the canonical tier`,
+      ).toBe(tier);
+      checked.push("canonical AI and storage summary");
       for (const claim of CLAIMS) {
         const found = claim.pattern.exec(sold.copy);
         if (!found) continue;

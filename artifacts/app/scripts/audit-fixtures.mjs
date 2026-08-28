@@ -77,6 +77,7 @@ const USAGE = {
   unlimited: false,
   aiSearch: { used: 1, limit: 3, window: "day" },
   deepResearch: { used: 2, limit: 2, window: "month" },
+  storage: { usedBytes: 12_582_912, limitBytes: 104_857_600 },
   capacity: {
     classesOwned: { used: 1, limit: 1 },
     classMembers: { used: 0, limit: 30 },
@@ -756,6 +757,22 @@ export const FIXTURES = {
         metadata: { total: 40, month: 10, estimatedCostUsd: 0.31 },
       },
       byUser: [],
+      economics: {
+        monthlyRevenueUsd: 512.4,
+        variableCostUsd: 16.82,
+        storageCostUsd: 0.06,
+        grossMargin: 0.76,
+        byPlan: {
+          free: { requests: 210, costUsd: 1.84 },
+          pro: { requests: 85, costUsd: 2.37 },
+        },
+        cacheHits: 68,
+        cacheHitRate: 0.22,
+        avoidedCostUsd: 0.94,
+        storedBytes: 251_658_240,
+        budgetStatus: "green",
+        budgetRatio: 0.24,
+      },
     },
     workflow: {
       funnel: {

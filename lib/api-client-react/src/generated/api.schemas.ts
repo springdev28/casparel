@@ -794,6 +794,7 @@ export type AccountUsageAiSearchWindow = typeof AccountUsageAiSearchWindow[keyof
 
 export const AccountUsageAiSearchWindow = {
   day: 'day',
+  month: 'month',
 } as const;
 
 export type AccountUsageAiSearch = {
@@ -839,6 +840,19 @@ export type AccountUsageCapacity = {
   canvases: CapacityUsage;
 };
 
+/**
+ * Persisted upload usage. Institutional seats share one pool.
+ */
+export type AccountUsageStorage = {
+  /** @minimum 0 */
+  usedBytes: number;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  limitBytes: number | null;
+};
+
 export interface AccountUsage {
   plan: string;
   /** Machine-readable tier. Role-specific plans only apply while the account's role matches; this field always reports the tier that is actually in effect. */
@@ -849,6 +863,8 @@ export interface AccountUsage {
   deepResearch: AccountUsageDeepResearch;
   /** Stored-data allowances for the plan. A null limit means uncapped. classMembers reports the per-class roster cap that applies to classes this account owns, so its used count is always 0. */
   capacity: AccountUsageCapacity;
+  /** Persisted upload usage. Institutional seats share one pool. */
+  storage: AccountUsageStorage;
 }
 
 export interface AdminAiFeatureUsage {
@@ -857,10 +873,25 @@ export interface AdminAiFeatureUsage {
   estimatedCostUsd: number;
 }
 
+export type AdminUserAiUsagePlan = typeof AdminUserAiUsagePlan[keyof typeof AdminUserAiUsagePlan];
+
+
+export const AdminUserAiUsagePlan = {
+  free: 'free',
+  plus: 'plus',
+  pro: 'pro',
+  'student-plus': 'student-plus',
+  'student-pro': 'student-pro',
+  'teacher-plus': 'teacher-plus',
+  'teacher-pro': 'teacher-pro',
+  institutional: 'institutional',
+} as const;
+
 export interface AdminUserAiUsage {
   userId: number;
   name: string;
   email: string;
+  plan: AdminUserAiUsagePlan;
   searches: number;
   quickReviews: number;
   deepResearch: number;
@@ -892,6 +923,36 @@ export type AdminOverviewUsageByFeature = {
   metadata: AdminAiFeatureUsage;
 };
 
+export type AdminOverviewUsageEconomicsByPlan = {[key: string]: {
+  requests: number;
+  costUsd: number;
+}};
+
+export type AdminOverviewUsageEconomicsBudgetStatus = typeof AdminOverviewUsageEconomicsBudgetStatus[keyof typeof AdminOverviewUsageEconomicsBudgetStatus];
+
+
+export const AdminOverviewUsageEconomicsBudgetStatus = {
+  green: 'green',
+  yellow: 'yellow',
+  red: 'red',
+  emergency: 'emergency',
+} as const;
+
+export type AdminOverviewUsageEconomics = {
+  monthlyRevenueUsd: number;
+  variableCostUsd: number;
+  storageCostUsd: number;
+  /** @nullable */
+  grossMargin: number | null;
+  byPlan: AdminOverviewUsageEconomicsByPlan;
+  cacheHits: number;
+  cacheHitRate: number;
+  avoidedCostUsd: number;
+  storedBytes: number;
+  budgetStatus: AdminOverviewUsageEconomicsBudgetStatus;
+  budgetRatio: number;
+};
+
 export type AdminOverviewUsage = {
   aiSearchesToday: number;
   deepResearchToday: number;
@@ -899,6 +960,7 @@ export type AdminOverviewUsage = {
   estimatedCostUsd: number;
   byFeature: AdminOverviewUsageByFeature;
   byUser: AdminUserAiUsage[];
+  economics: AdminOverviewUsageEconomics;
 };
 
 export type AdminOverviewWorkflowFunnel = {

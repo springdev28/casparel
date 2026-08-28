@@ -133,17 +133,19 @@ export function TermsPage() {
           Casparel Free includes the core library, schedules, citations and
           manual seating, holds one class of up to 30 members, 25 study
           activities, 10 learning goals, 5 resource lists and 3 canvases, and
-          comes with a small taste of AI: two discovery searches a day and two
-          deep research reports per rolling 30 days. Paid plans are specific
+          comes with a small taste of AI: one discovery search a day, up to
+          three per rolling 30 days, and one deep research report per rolling
+          30 days. Paid plans are specific
           to your account role: Student Plus and Student Pro raise the personal
           study allowances, Teacher Plus and Teacher Pro raise classroom
           allowances, and Teacher Pro adds explainable seating-plan
           suggestions. A student plan grants nothing on a teacher account and
           the other way round; the role-agnostic Plus and Pro plans remain on
           sale and work on any account role. Schools can license Casparel
-          Institutional per seat: a sales-led licence, invoiced rather than
-          bought at checkout, that we activate on each licensed account and
-          that applies whatever the account&apos;s role. Every allowance on
+          Institutional through a sales-led annual agreement, invoiced rather
+          than bought at checkout. Institutional Starter includes 30 active
+          seats with shared AI and storage pools; added seats share the same
+          contract capacity unless the agreement adds a larger pool. Every allowance on
           every plan, the Institutional licence included, is finite. No
           subscription is unlimited, and your current allowances and usage
           are always shown under Settings, then Plan. Subscriptions can be

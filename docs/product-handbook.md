@@ -161,22 +161,9 @@ The specialisation is one sentence per family: student tiers buy personal study 
 
 ### Rate limits
 
-Free's AI row is a deliberate **taste**: enough to experience AI discovery and a couple of cited deep reports, far too small to live on. The free deep allowance is a flat 2 per rolling 30 days — the equal day and month caps mean the daily window can never be the binding number, after "1 a day, 2 a month" was rightly read as a contradiction.
+Free is a deliberately subsidized taste: 1 discovery/day and 3/30 days, plus 1 deep report/30 days. Current paid day/month limits, operation bounds, provider assumptions, worst-case costs, and margins are maintained in [`docs/plan-economics.md`](plan-economics.md) and machine-tested from `@workspace/plan-economics`. The quick source check remains a non-AI registry operation.
 
-| Tier          | Discovery/day | Deep/day | Deep/30 days |
-| ------------- | ------------: | -------: | -----------: |
-| Free          |             2 |        2 |            2 |
-| Plus          |            20 |        5 |           50 |
-| Pro           |            60 |       15 |          150 |
-| Student Plus  |            30 |        8 |           80 |
-| Student Pro   |            90 |       25 |          250 |
-| Teacher Plus  |            20 |        5 |           50 |
-| Teacher Pro   |            60 |       15 |          150 |
-| Institutional |           120 |       30 |          300 |
-
-Rates live in `AI_RATES_BY_TIER` in `artifacts/api-server/src/lib/entitlements.ts`. The quick source check is not an AI feature — it reads a maintained provenance registry — and stays available on every plan, signed in or out. AI discovery requires sign-in (the allowance is per account), but every tier including Free has one.
-
-Service-wide safety nets apply on top of every per-account allowance, admins excepted: `AI_SEARCH_DAILY_LIMIT` (default 200/day) and `AI_DEEP_DAILY_GLOBAL_LIMIT` (default 100/day). Since no plan claims to be unlimited any more, these are operational cost guards, not a contradiction of the product copy.
+Both AI features enforce day, rolling-30-day, concurrency, timeout, output, paid-tool, and service-wide emergency ceilings. Institutional seats additionally share one contract pool. A fresh cache hit is returned before quota consumption and records avoided cost for the admin economics panel.
 
 ### Capacity limits
 
@@ -206,27 +193,11 @@ Every account-owned capacity, its current usage and its limit are returned by `G
 
 ### Pricing
 
-USD reference prices, set 15 August 2026. The strings live in `artifacts/app/src/lib/plan-copy.ts` and are the source of truth for what the RevenueCat dashboard (Web Billing), App Store Connect and Play Console must be configured to; stores localise currency themselves, and the live checkout button always shows the store's localised price. Change a price in `plan-copy.ts` and in the dashboards together.
+The canonical USD reference prices and quotas live in `@workspace/plan-economics`, imported by the API, web pricing page, mobile paywall, tests, and store-ID mapping. Annual prices are based on twelve full months of maximum usage and discount only 8–10%; no plan assumes two idle months.
 
-| Tier          |  Monthly |   Annual | Annual vs 12× monthly |
-| ------------- | -------: | -------: | --------------------- |
-| Free          |      \$0 |      \$0 | —                     |
-| Student Plus  |   \$2.99 |  \$29.99 | 2 months free         |
-| Student Pro   |   \$6.99 |  \$69.99 | 2 months free         |
-| Teacher Plus  |   \$4.99 |  \$49.99 | 2 months free         |
-| Teacher Pro   |  \$11.99 | \$119.99 | 2 months free         |
-| Plus          |   \$5.99 |  \$59.99 | 2 months free         |
-| Pro           |  \$13.99 | \$139.99 | 2 months free         |
-| Institutional | quoted at US\$2.50–US\$3.00/seat/month, billed annually, 30-seat minimum (from US\$900/year) | — | invoiced, sales-led |
+Self-serve monthly prices remain Student Plus $2.99, Student Pro $6.99, Teacher Plus $4.99, Teacher Pro $11.99, Plus $5.99, and Pro $13.99. Annual prices are $32.99, $75.99, $53.99, $129.99, $64.99, and $151.99 respectively. Institutional Starter is $970/year for 30 included seats and a shared pool; it is never a store product.
 
-Why these numbers — the ladder prices the costs, not just the value:
-
-- **Deep research is the dominant marginal cost.** Each report is an LLM synthesis over fetched sources plus search/catalog calls — modelled at roughly \$0.03–0.08 per report on a Haiku-class pipeline, versus well under a cent per discovery search. Each tier's price therefore scales primarily with its deep-report ceiling, and the per-day caps bound worst-case burn per account (a Student Plus abuser tops out at 8 reports/day, not 80 in one day). Blended real usage is expected at 10–20% of cap; the sustained-max user is tolerated, not profitable, and the global daily safety nets cap the tail.
-- **Distribution fees come off the top.** Apple/Google take 15–30%, RevenueCat ~1%, card processing ~3% + \$0.30 on web. The margin at these prices covers the worst (30%) store cut on every tier.
-- **Storage is cheap; capacity caps are growth bounds, not priced goods.** A study activity is a few KB of rows; even Institutional's 2,500 activities are pennies of database and backup. Capacity is capped to bound per-account database growth and abuse, and the caps ride along with the tier rather than carrying their own price.
-- **Students get the discount, teachers pay for scale, generic carries a flexibility premium.** Student Pro (\$6.99) is half Pro (\$13.99): student budgets, personal-study costs only. Teacher Pro (\$11.99) prices the roster scale and the seating planner below generic Pro, because it only works on a teacher account; Plus/Pro cost slightly more than the matching role plan because they work on **any** role and must cover the costlier role's usage. This also makes the specialised plan the obvious choice for anyone it fits, which is the intent.
-- **Institutional is quote-priced within a public range** (US\$2.50–US\$3.00/seat/month vs US\$2.99–11.99 self-serve) because seat count and support needs vary. A school brings volume, one invoice instead of many store fees (no Apple/Google cut on invoiced licences), and near-zero acquisition cost per seat. The 30-seat minimum keeps the invoicing overhead worth it. The range is guidance, not a RevenueCat or app-store product price.
-- **Hosting is a fixed cost at this scale** (shared Hostinger + managed Postgres); it sets the floor for total subscribers needed, not the per-tier price.
+The full cost table, quota rationale, provider assumptions, migration policy, and exact Google Play/RevenueCat values are in [`docs/plan-economics.md`](plan-economics.md). CI rejects any quota or provider-price change that takes a monthly or annual plan below 70% worst-case gross margin.
 
 ### Feature placement
 

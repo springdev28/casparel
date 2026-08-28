@@ -21,6 +21,7 @@
  * SDK at all.
  */
 import type { Package, Purchases } from "@revenuecat/purchases-js";
+import { tierForStoreProductId } from "@workspace/plan-economics";
 import type { PlanTier } from "./use-plan";
 
 /**
@@ -60,6 +61,8 @@ export function webBillingConfigured(): boolean {
  */
 export function tierForWebPackage(pkg: Package): PaidTier {
   const product = pkg.webBillingProduct;
+  const explicit = tierForStoreProductId(product?.identifier ?? "");
+  if (explicit) return explicit;
   const identity =
     `${pkg.identifier} ${product?.identifier ?? ""} ${product?.displayName ?? ""}`.toLowerCase();
   const level: "plus" | "pro" = identity.includes("pro") ? "pro" : "plus";

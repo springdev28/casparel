@@ -422,6 +422,12 @@ export const SwitchRoleResponse = zod.object({
 /**
  * @summary Get the current account plan and AI usage
  */
+export const getMyUsageResponseStorageUsedBytesMin = 0;
+
+export const getMyUsageResponseStorageLimitBytesMin = 0;
+
+
+
 export const GetMyUsageResponse = zod.object({
   "plan": zod.string(),
   "tier": zod.enum(['free', 'plus', 'pro', 'student-plus', 'student-pro', 'teacher-plus', 'teacher-pro', 'institutional', 'administrator']).describe('Machine-readable tier. Role-specific plans only apply while the account\'s role matches; this field always reports the tier that is actually in effect.'),
@@ -429,7 +435,7 @@ export const GetMyUsageResponse = zod.object({
   "aiSearch": zod.object({
   "used": zod.int(),
   "limit": zod.int().nullable(),
-  "window": zod.enum(['day'])
+  "window": zod.enum(['day', 'month'])
 }),
   "deepResearch": zod.object({
   "used": zod.int(),
@@ -461,7 +467,11 @@ export const GetMyUsageResponse = zod.object({
   "used": zod.int(),
   "limit": zod.int().nullable()
 })
-}).describe('Stored-data allowances for the plan. A null limit means uncapped. classMembers reports the per-class roster cap that applies to classes this account owns, so its used count is always 0.')
+}).describe('Stored-data allowances for the plan. A null limit means uncapped. classMembers reports the per-class roster cap that applies to classes this account owns, so its used count is always 0.'),
+  "storage": zod.object({
+  "usedBytes": zod.int().min(getMyUsageResponseStorageUsedBytesMin),
+  "limitBytes": zod.int().min(getMyUsageResponseStorageLimitBytesMin).nullable()
+}).describe('Persisted upload usage. Institutional seats share one pool.')
 })
 
 
@@ -513,13 +523,30 @@ export const GetAdminOverviewResponse = zod.object({
   "userId": zod.int(),
   "name": zod.string(),
   "email": zod.string(),
+  "plan": zod.enum(['free', 'plus', 'pro', 'student-plus', 'student-pro', 'teacher-plus', 'teacher-pro', 'institutional']),
   "searches": zod.int(),
   "quickReviews": zod.int(),
   "deepResearch": zod.int(),
   "metadata": zod.int(),
   "total": zod.int(),
   "estimatedCostUsd": zod.number()
-}))
+})),
+  "economics": zod.object({
+  "monthlyRevenueUsd": zod.number(),
+  "variableCostUsd": zod.number(),
+  "storageCostUsd": zod.number(),
+  "grossMargin": zod.number().nullable(),
+  "byPlan": zod.record(zod.string(), zod.object({
+  "requests": zod.int(),
+  "costUsd": zod.number()
+})),
+  "cacheHits": zod.int(),
+  "cacheHitRate": zod.number(),
+  "avoidedCostUsd": zod.number(),
+  "storedBytes": zod.int(),
+  "budgetStatus": zod.enum(['green', 'yellow', 'red', 'emergency']),
+  "budgetRatio": zod.number()
+})
 }),
   "workflow": zod.object({
   "funnel": zod.object({

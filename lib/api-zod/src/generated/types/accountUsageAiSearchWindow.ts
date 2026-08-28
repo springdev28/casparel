@@ -11,4 +11,5 @@ export type AccountUsageAiSearchWindow = typeof AccountUsageAiSearchWindow[keyof
 
 export const AccountUsageAiSearchWindow = {
   day: 'day',
+  month: 'month',
 } as const;
