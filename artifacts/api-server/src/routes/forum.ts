@@ -221,42 +221,83 @@ function visibleStatus(accountRole: string) {
     : eq(forumMaterialsTable.moderationStatus, "approved");
 }
 
+/**
+ * The columns every view of a material needs, including the three counts.
+ *
+ * The counts are correlated subqueries rather than joins because they answer
+ * different questions about different tables; the database runs them once per
+ * row inside the one round trip, which is the part that matters.
+ */
+function materialColumns(userId: number) {
+  return {
+    id: forumMaterialsTable.id,
+    title: forumMaterialsTable.title,
+    description: forumMaterialsTable.description,
+    unit: forumMaterialsTable.unit,
+    topic: forumMaterialsTable.topic,
+    materialType: forumMaterialsTable.materialType,
+    tags: forumMaterialsTable.tags,
+    sources: forumMaterialsTable.sources,
+    uploaderId: forumMaterialsTable.uploaderId,
+    uploaderName: forumMaterialsTable.uploaderName,
+    uploaderRole: forumMaterialsTable.uploaderRole,
+    linkUrl: forumMaterialsTable.linkUrl,
+    fileName: forumMaterialsTable.fileName,
+    mimeType: forumMaterialsTable.mimeType,
+    moderationStatus: forumMaterialsTable.moderationStatus,
+    moderationNote: forumMaterialsTable.moderationNote,
+    viewCount: forumMaterialsTable.viewCount,
+    downloadCount: forumMaterialsTable.downloadCount,
+    createdAt: forumMaterialsTable.createdAt,
+    updatedAt: forumMaterialsTable.updatedAt,
+    likeCount: sql<number>`cast((select count(*) from forum_likes where target_type = 'material' and target_id = ${forumMaterialsTable.id}) as int)`,
+    commentCount: sql<number>`cast((select count(*) from forum_comments where target_type = 'material' and target_id = ${forumMaterialsTable.id} and moderation_status = 'approved') as int)`,
+    likedByMe: sql<boolean>`exists(select 1 from forum_likes where target_type = 'material' and target_id = ${forumMaterialsTable.id} and user_id = ${userId})`,
+  };
+}
+
+/**
+ * Materials with the approvals on them, in one query for the whole page.
+ *
+ * The listing selected a hundred ids and then re-read each material and its
+ * approvals one at a time: two hundred and one round trips for a screen. The
+ * pool is ten connections wide, so it also queued behind itself while a second
+ * person was reading the same forum.
+ */
+async function withApprovals<T extends { id: number }>(materials: T[]) {
+  if (materials.length === 0) return [];
+  const rows = await db
+    .select()
+    .from(forumMaterialApprovalsTable)
+    .where(
+      inArray(
+        forumMaterialApprovalsTable.materialId,
+        materials.map((material) => material.id),
+      ),
+    )
+    .orderBy(asc(forumMaterialApprovalsTable.createdAt));
+  const byMaterial = new Map<number, typeof rows>();
+  for (const row of rows) {
+    const existing = byMaterial.get(row.materialId);
+    if (existing) existing.push(row);
+    else byMaterial.set(row.materialId, [row]);
+  }
+  // A material nobody has approved has no rows, and so no entry: the shape a
+  // client reads is still an array either way.
+  return materials.map((material) => ({
+    ...material,
+    approvals: byMaterial.get(material.id) ?? [],
+  }));
+}
+
 async function materialResult(id: number, userId: number) {
   const [material] = await db
-    .select({
-      id: forumMaterialsTable.id,
-      title: forumMaterialsTable.title,
-      description: forumMaterialsTable.description,
-      unit: forumMaterialsTable.unit,
-      topic: forumMaterialsTable.topic,
-      materialType: forumMaterialsTable.materialType,
-      tags: forumMaterialsTable.tags,
-      sources: forumMaterialsTable.sources,
-      uploaderId: forumMaterialsTable.uploaderId,
-      uploaderName: forumMaterialsTable.uploaderName,
-      uploaderRole: forumMaterialsTable.uploaderRole,
-      linkUrl: forumMaterialsTable.linkUrl,
-      fileName: forumMaterialsTable.fileName,
-      mimeType: forumMaterialsTable.mimeType,
-      moderationStatus: forumMaterialsTable.moderationStatus,
-      moderationNote: forumMaterialsTable.moderationNote,
-      viewCount: forumMaterialsTable.viewCount,
-      downloadCount: forumMaterialsTable.downloadCount,
-      createdAt: forumMaterialsTable.createdAt,
-      updatedAt: forumMaterialsTable.updatedAt,
-      likeCount: sql<number>`cast((select count(*) from forum_likes where target_type = 'material' and target_id = ${forumMaterialsTable.id}) as int)`,
-      commentCount: sql<number>`cast((select count(*) from forum_comments where target_type = 'material' and target_id = ${forumMaterialsTable.id} and moderation_status = 'approved') as int)`,
-      likedByMe: sql<boolean>`exists(select 1 from forum_likes where target_type = 'material' and target_id = ${forumMaterialsTable.id} and user_id = ${userId})`,
-    })
+    .select(materialColumns(userId))
     .from(forumMaterialsTable)
     .where(eq(forumMaterialsTable.id, id));
   if (!material) return null;
-  const approvals = await db
-    .select()
-    .from(forumMaterialApprovalsTable)
-    .where(eq(forumMaterialApprovalsTable.materialId, id))
-    .orderBy(asc(forumMaterialApprovalsTable.createdAt));
-  return { ...material, approvals };
+  const [withOwn] = await withApprovals([material]);
+  return withOwn;
 }
 
 router.get("/forum/access", requireAuth, async (req, res): Promise<void> => {
@@ -313,7 +354,7 @@ router.get("/forum/materials", requireAuth, async (req, res): Promise<void> => {
     conditions.push(sql`${forumMaterialsTable.createdAt} >= now() - interval '1 year'`);
 
   const rows = await db
-    .select({ id: forumMaterialsTable.id })
+    .select(materialColumns(auth.userId))
     .from(forumMaterialsTable)
     .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(
@@ -326,8 +367,7 @@ router.get("/forum/materials", requireAuth, async (req, res): Promise<void> => {
             : desc(forumMaterialsTable.createdAt),
     )
     .limit(100);
-  const results = await Promise.all(rows.map((row) => materialResult(row.id, auth.userId)));
-  res.json(results.filter(Boolean));
+  res.json(await withApprovals(rows));
 });
 
 router.post(

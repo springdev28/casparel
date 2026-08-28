@@ -5,8 +5,9 @@
 /**
  * A listing costs the same whether it holds three rows or thirty.
  *
- * Three endpoints had the same defect, and all three are a screen somebody
- * opens: a Learning List, the classes tab, and the messages inbox.
+ * Four endpoints had the same defect, and all four are a screen somebody
+ * opens: a Learning List, the classes tab, the messages inbox, and the forum's
+ * shared materials.
  *
  * It did not. `GET /lists/:id` ran one query for each item's resource row and
  * another for that resource's rating summary, so a twelve-item list was
@@ -260,6 +261,75 @@ describe.skipIf(!url)("reading the classes and messages listings", () => {
       conversations.count,
       `listing 12 conversations took ${conversations.count} queries; it was ` +
         `three per conversation before and should now be a fixed handful`,
+    ).toBeLessThanOrEqual(6);
+  });
+});
+
+describe.skipIf(!url)("reading the forum's materials", () => {
+  it("does not re-read each material one at a time", async () => {
+    process.env.DATABASE_URL = url;
+    const { db, pool, usersTable, forumMaterialsTable } = await import("@workspace/db");
+    const { default: forumRouter } = await import("./routes/forum.js");
+    const { issueToken } = await import("./lib/auth.js");
+
+    const stamp = Date.now();
+    const [teacher] = await db
+      .insert(usersTable)
+      .values({
+        email: `forum-cost-${stamp}@example.test`,
+        passwordHash: "x",
+        name: "Forum Cost",
+        role: "teacher",
+        activeRole: "teacher",
+        teacherVerified: true,
+      })
+      .returning();
+
+    for (let index = 0; index < 12; index += 1) {
+      await db.insert(forumMaterialsTable).values({
+        title: `Material ${index} ${stamp}`,
+        description: "Something shared.",
+        unit: "Mechanics",
+        topic: "Forces",
+        materialType: "notes",
+        uploaderId: teacher.id,
+        uploaderName: "Forum Cost",
+        uploaderRole: "teacher",
+        moderationStatus: "approved",
+      });
+    }
+
+    const app = express();
+    app.use(express.json());
+    app.use("/api", forumRouter);
+    const auth = {
+      Authorization: `Bearer ${issueToken(teacher.id, teacher.role, teacher.activeRole)}`,
+    };
+
+    const original = pool.query.bind(pool);
+    let count = 0;
+    (pool as { query: unknown }).query = (...args: unknown[]) => {
+      count += 1;
+      return (original as (...a: unknown[]) => unknown)(...args);
+    };
+    let body: Array<Record<string, unknown>>;
+    try {
+      const response = await request(app).get("/api/forum/materials").set(auth);
+      expect(response.status, response.text.slice(0, 200)).toBe(200);
+      body = response.body;
+    } finally {
+      (pool as { query: unknown }).query = original;
+    }
+
+    expect(body.length).toBeGreaterThanOrEqual(12);
+    // The counts and the approvals are what the two extra queries per row were
+    // for; a cheaper listing that dropped them would otherwise pass.
+    expect(body[0]).toMatchObject({ likeCount: 0, commentCount: 0, likedByMe: false });
+    expect(Array.isArray(body[0].approvals)).toBe(true);
+    expect(
+      count,
+      `listing ${body.length} materials took ${count} queries; it was two per ` +
+        `material before, for up to the hundred the route allows itself`,
     ).toBeLessThanOrEqual(6);
   });
 });
