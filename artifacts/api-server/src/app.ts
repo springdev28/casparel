@@ -17,6 +17,7 @@ import {
   renderRouteShell,
   routeKey,
 } from "./lib/routeMetadata";
+import { isoTimestamps } from "./lib/contractDates";
 
 const app: Express = express();
 const configuredOrigins = new Set(
@@ -35,6 +36,13 @@ function originMatchesHost(origin: string, host?: string) {
 }
 
 app.disable("x-powered-by");
+
+/*
+ * Every timestamp goes out as ISO 8601. See lib/contractDates.ts: the driver
+ * hands Drizzle the text Postgres wrote, and Hermes -- the engine the phone
+ * app runs on -- reads that text as Invalid Date.
+ */
+app.set("json replacer", isoTimestamps);
 
 // Trust the Replit / reverse-proxy HTTPS termination layer so that
 // req.protocol correctly returns "https" and req.ip reflects the real client.

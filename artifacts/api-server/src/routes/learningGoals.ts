@@ -38,14 +38,33 @@ import { isClassTeacher } from "../lib/authz";
 import { ensureAccountCapacity } from "../lib/planCapacity";
 import { validationMessage } from "../lib/validationMessage";
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
+import { dateOnly } from "../lib/contractDates";
 import { resourceVisibilityCondition } from "../lib/resourceVisibility";
 import { isAdminRequest } from "../lib/adminAccess";
 
 const router: IRouter = Router();
-function dateString(
-  value: Date | string | null | undefined,
-): string | null | undefined {
-  return value instanceof Date ? value.toISOString().slice(0, 10) : value;
+
+/**
+ * A goal as the contract says it looks, with `targetDate` a plain YYYY-MM-DD.
+ *
+ * Every response here goes through a generated schema, and the contract calls
+ * targetDate a date, so orval made it `zod.coerce.date()` -- the parse turns
+ * the database's "2026-12-01" into a Date and res.json writes it back as
+ * "2026-12-01T00:00:00.000Z". The web app binds that value to an
+ * `<input type="date">`, which renders anything that is not YYYY-MM-DD as an
+ * empty field: a learner opening Edit on a goal with a target date was shown
+ * none, and the goal's own date was one tap from being cleared.
+ *
+ * See lib/contractDates.ts. The same defect made every schedule block
+ * invisible on every phone before it was found there.
+ */
+function asContract<T extends { targetDate?: Date | string | null }>(
+  goal: T,
+): T & { targetDate?: string | null } {
+  // A goal with no target date keeps the key it arrived with: the parse makes
+  // it optional, and res.json drops an undefined rather than sending a null
+  // where the client was typed to expect nothing.
+  return { ...goal, targetDate: dateOnly(goal.targetDate) };
 }
 
 function initialPath(title: string, subject: string) {
@@ -97,7 +116,11 @@ router.get("/classes/:id/student-goals", requireAuth, async (req, res): Promise<
     .innerJoin(usersTable, eq(usersTable.id, learningGoalsTable.userId))
     .where(eq(learningGoalsTable.workspaceRole, "student"))
     .orderBy(desc(learningGoalsTable.updatedAt));
-  res.json(ListClassStudentGoalsResponse.parse(rows.map((row) => ({ ...row.goal, studentName: row.studentName, classId }))));
+  res.json(
+    ListClassStudentGoalsResponse.parse(
+      rows.map((row) => ({ ...row.goal, studentName: row.studentName, classId })),
+    ).map(asContract),
+  );
 });
 
 router.patch("/classes/:id/student-goals/:goalId", contentLimiter, requireAuth, async (req, res): Promise<void> => {
@@ -129,7 +152,7 @@ router.patch("/classes/:id/student-goals/:goalId", contentLimiter, requireAuth, 
   }
   const [goal] = await db.update(learningGoalsTable).set({
     ...body.data,
-    targetDate: dateString(body.data.targetDate),
+    targetDate: dateOnly(body.data.targetDate),
     updatedAt: new Date().toISOString(),
   }).where(eq(learningGoalsTable.id, goalId)).returning();
   await db.insert(activityLogTable).values({
@@ -138,7 +161,15 @@ router.patch("/classes/:id/student-goals/:goalId", contentLimiter, requireAuth, 
     workspaceRole: "student",
     message: `Your teacher updated your goal "${goal.title}".`,
   });
-  res.json(UpdateClassStudentGoalResponse.parse({ ...goal, studentName: existing.studentName, classId }));
+  res.json(
+    asContract(
+      UpdateClassStudentGoalResponse.parse({
+        ...goal,
+        studentName: existing.studentName,
+        classId,
+      }),
+    ),
+  );
 });
 
 router.get("/learning-goal-templates", requireAuth, async (_req, res): Promise<void> => {
@@ -273,7 +304,7 @@ router.get("/learning-goals", requireAuth, async (req, res): Promise<void> => {
     .from(learningGoalsTable)
     .where(and(eq(learningGoalsTable.userId, userId), eq(learningGoalsTable.workspaceRole, userRole as "student" | "teacher")))
     .orderBy(desc(learningGoalsTable.updatedAt));
-  res.json(ListLearningGoalsResponse.parse(goals));
+  res.json(ListLearningGoalsResponse.parse(goals).map(asContract));
 });
 
 router.post(
@@ -292,14 +323,14 @@ router.post(
       .insert(learningGoalsTable)
       .values({
         ...body.data,
-        targetDate: dateString(body.data.targetDate),
+        targetDate: dateOnly(body.data.targetDate),
         userId,
         workspaceRole: userRole as "student" | "teacher",
         preferredFormats: body.data.preferredFormats ?? null,
         pathSteps: initialPath(body.data.title, body.data.subject),
       })
       .returning();
-    res.status(201).json(CreateLearningGoalResponse.parse(goal));
+    res.status(201).json(asContract(CreateLearningGoalResponse.parse(goal)));
   },
 );
 
@@ -319,7 +350,7 @@ router.patch(
       .update(learningGoalsTable)
       .set({
         ...body.data,
-        targetDate: dateString(body.data.targetDate),
+        targetDate: dateOnly(body.data.targetDate),
         updatedAt: new Date().toISOString(),
       })
       .where(
@@ -334,7 +365,7 @@ router.patch(
       res.status(404).json({ error: "Learning goal not found" });
       return;
     }
-    res.json(UpdateLearningGoalResponse.parse(goal));
+    res.json(asContract(UpdateLearningGoalResponse.parse(goal)));
   },
 );
 
@@ -462,11 +493,13 @@ router.post(
     }
 
     res.status(linked.alreadyLinked ? 200 : 201).json(
-      LinkGoalResourceResponse.parse({
-        ...linked.goal,
-        stepId: linked.stepId,
-        alreadyLinked: linked.alreadyLinked,
-      }),
+      asContract(
+        LinkGoalResourceResponse.parse({
+          ...linked.goal,
+          stepId: linked.stepId,
+          alreadyLinked: linked.alreadyLinked,
+        }),
+      ),
     );
   },
 );

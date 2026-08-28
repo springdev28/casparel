@@ -33,12 +33,18 @@
  * publishes. Point it at a throwaway server, never at production.
  */
 import { describe, expect, it, beforeAll } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
+  CreateLearningGoalResponse,
   CreateStudyActivityResponse,
   HealthCheckResponse,
   GetSharedStudyActivityResponse,
+  ListLearningGoalsResponse,
   ListStudyActivitiesResponse,
   PublishStudyActivityResponse,
+  UpdateLearningGoalResponse,
 } from "@workspace/api-zod";
 
 const BASE = process.env.VERIFY_LIVE_URL;
@@ -63,6 +69,122 @@ async function call(
   return { status: response.status, body };
 }
 
+/**
+ * The fields the contract calls a plain date, read from the contract.
+ *
+ * A schema saying `format: date` is turned by orval into `zod.coerce.date()`,
+ * so parsing a response through it replaces "2026-12-01" with a Date and
+ * res.json writes "2026-12-01T00:00:00.000Z". mustMatch cannot see that --
+ * coerce accepts both -- so the server can satisfy every schema check here
+ * while sending an instant where the contract promised a day.
+ *
+ * That is not a hypothetical failure mode: it shipped twice. It made every
+ * schedule block invisible on every phone, and it left the web app's goal
+ * editor showing an empty date field for a goal that had one.
+ *
+ * Read from openapi.yaml rather than listed here, so a seventh date field is
+ * covered by this the day it is added rather than the day somebody remembers
+ * this file.
+ */
+const contractPath = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../lib/api-spec/openapi.yaml",
+);
+const contract = readFileSync(contractPath, "utf8");
+
+const contractLines = contract.split("\n");
+
+/** Every `format: date` in the file — the declarations to account for. */
+const dateDeclarations = contractLines
+  .map((line, number) => ({ line, number: number + 1 }))
+  .filter(({ line }) => /\bformat:\s*date\b(?!-)/.test(line));
+
+/**
+ * The ones written inline on a property, which is how all six response fields
+ * are written: `targetDate: { type: [...], format: date }`.
+ */
+const inlineProperties = dateDeclarations.filter(({ line }) =>
+  /^\s*(\w+):\s*\{[^}]*\bformat:\s*date\b(?!-)/.test(line),
+);
+
+/**
+ * And the ones on a query or path parameter, which are inputs. `weekStart` on
+ * GET /schedule is one: nothing the server sends carries it, so it is out of
+ * scope here rather than unguarded.
+ */
+const parameterDeclarations = dateDeclarations.filter(
+  ({ line, number }) =>
+    !inlineProperties.some((property) => property.number === number) &&
+    contractLines
+      .slice(Math.max(0, number - 9), number - 1)
+      .some((earlier) => /^\s*in:\s*(query|path|header)\s*$/.test(earlier)),
+);
+
+/** A date-only field is known by its name, wherever it turns up in a body. */
+const DATE_ONLY_FIELDS = new Set(
+  inlineProperties.map(({ line }) => /^\s*(\w+):/.exec(line)![1]),
+);
+
+/**
+ * Anything neither bucket claims — a property written across several lines,
+ * say. The scan would miss it silently, and this would stop being a guard for
+ * that field while still reporting a clean run.
+ */
+const unaccountedDates = dateDeclarations.filter(
+  ({ number }) =>
+    !inlineProperties.some((property) => property.number === number) &&
+    !parameterDeclarations.some((parameter) => parameter.number === number),
+);
+
+/** YYYY-MM-DD and nothing else: no time, no zone, no T. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The text Postgres writes for a timestamp, which is not ISO 8601.
+ *
+ * Hermes -- the engine the Expo app runs on -- reads "2026-08-28 15:46:13+00"
+ * as Invalid Date, so any of these reaching a client is a date the phone
+ * cannot draw. V8 parses them, which is exactly why this needs checking here
+ * rather than being noticed by anyone using the web app.
+ */
+const POSTGRES_TIMESTAMP =
+  /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}(:?\d{2})?)?$/;
+
+/**
+ * Walk a response and hold its dates to what a client can actually read.
+ *
+ * Two rules. A field the contract calls a date must be a date: null and absent
+ * are both fine, an instant is not. And nothing anywhere may be the raw text
+ * Postgres wrote, whatever it is called.
+ */
+function datesAreReadable(value: unknown, what: string, path = ""): void {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => datesAreReadable(item, what, `${path}[${index}]`));
+    return;
+  }
+  if (value === null || typeof value !== "object") return;
+  for (const [key, child] of Object.entries(value)) {
+    const here = path ? `${path}.${key}` : key;
+    if (typeof child === "string") {
+      if (DATE_ONLY_FIELDS.has(key)) {
+        expect(
+          child,
+          `${what}: ${here} is declared "format: date" in openapi.yaml, so a ` +
+            `client reading it as a calendar day gets an instant instead -- and ` +
+            `an instant formatted west of Greenwich is the day before`,
+        ).toMatch(DATE_ONLY);
+      }
+      expect(
+        POSTGRES_TIMESTAMP.test(child),
+        `${what}: ${here} is the text Postgres wrote (${child}), not ISO 8601. ` +
+          `Hermes reads that as Invalid Date, so it is a date the phone app ` +
+          `cannot draw at all`,
+      ).toBe(false);
+    }
+    datesAreReadable(child, what, here);
+  }
+}
+
 /** What the failure should say: the path, not just "expected object". */
 function mustMatch(
   schema: { safeParse: (value: unknown) => { success: boolean; error?: { issues: Array<{ path: PropertyKey[]; message: string }> } } },
@@ -80,6 +202,9 @@ function mustMatch(
     `${what} is not the shape openapi.yaml describes, so every generated ` +
       `client is typed against something the server does not send`,
   ).toEqual([]);
+  // Checked on the raw body, before any schema has coerced it: the parsed
+  // value is a Date either way, so only what came off the wire can answer this.
+  datesAreReadable(value, what);
 }
 
 live("what the server sends for health", () => {
@@ -176,5 +301,79 @@ live("what the server sends for study activities", () => {
       shared.body,
       "GET /study-activities/shared/{token}",
     );
+  });
+});
+
+live("what the contract calls a date", () => {
+  it("knows about every date field in the file", () => {
+    expect(
+      unaccountedDates.map(({ number, line }) => `line ${number}: ${line.trim()}`),
+      "openapi.yaml declares a `format: date` this test's scan did not " +
+        "recognise as either a response property or a request parameter — " +
+        "probably written across several lines. Teach the scan about it " +
+        "rather than leaving the field unguarded.",
+    ).toEqual([]);
+    // The two fields that have ever had this defect, so an accidental empty
+    // set reads as a failure rather than as a clean run.
+    expect([...DATE_ONLY_FIELDS].sort()).toEqual(["date", "targetDate"]);
+  });
+});
+
+live("what the server sends for learning goals", () => {
+  let token = "";
+  let goalId = 0;
+
+  beforeAll(async () => {
+    const stamp = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const registered = await call("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Goal Contract",
+        email: `goal-contract-${stamp}@example.test`,
+        password: "correct-horse-8",
+      }),
+    });
+    token = (registered.body as { token?: string })?.token ?? "";
+    expect(token, "could not register an account to check with").toBeTruthy();
+  }, 30000);
+
+  it("creates one with a target date", async () => {
+    const created = await call(
+      "/learning-goals",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Understand electric fields",
+          subject: "Physics",
+          level: "beginner",
+          targetDate: "2026-12-01",
+        }),
+      },
+      token,
+    );
+    expect(created.status).toBe(201);
+    mustMatch(CreateLearningGoalResponse, created.body, "POST /learning-goals");
+    expect((created.body as { targetDate: string }).targetDate).toBe("2026-12-01");
+    goalId = (created.body as { id: number }).id;
+  });
+
+  it("lists them", async () => {
+    const listed = await call("/learning-goals", {}, token);
+    expect(listed.status).toBe(200);
+    mustMatch(ListLearningGoalsResponse, listed.body, "GET /learning-goals");
+  });
+
+  it("keeps the target date across an edit", async () => {
+    // Without this, a failure to create reads here as a 404 on the edit, which
+    // sends the next person looking at the wrong endpoint.
+    expect(goalId, "no goal was created, so there is nothing to edit").toBeGreaterThan(0);
+    const edited = await call(
+      `/learning-goals/${goalId}`,
+      { method: "PATCH", body: JSON.stringify({ title: "Understand fields" }) },
+      token,
+    );
+    expect(edited.status).toBe(200);
+    mustMatch(UpdateLearningGoalResponse, edited.body, "PATCH /learning-goals/{id}");
+    expect((edited.body as { targetDate: string }).targetDate).toBe("2026-12-01");
   });
 });

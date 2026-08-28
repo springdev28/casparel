@@ -93,13 +93,27 @@ and the Expo mobile app. Do not rename it or add a second key.
 The workspace uses `zod@3` with the `/v4` compat export.
 All imports in generated files use `from 'zod/v4'`, not `from 'zod'`.
 
-### 7. Drizzle timestamp columns need `mode: "string"`
+### 7. Drizzle timestamp columns need `mode: "string"`, and a name ending in `At`
 ```ts
 // Correct
 createdAt: timestamp("created_at").defaultNow().notNull().$$config({ mode: "string" })
 // Wrong — returns a Date object, breaks Zod string schemas at runtime
 createdAt: timestamp("created_at").defaultNow().notNull()
 ```
+
+`mode: "string"` keeps the text Postgres wrote, and that text is not ISO 8601:
+`2026-08-28 15:46:13.702493+00`. V8 parses it, **Hermes does not** — the Expo
+app reads it as `Invalid Date`. `app.ts` repairs every timestamp on the way out
+(`lib/contractDates.ts`), and it finds them by name: the column has to end in
+`At` or `Time`. A test fails if a new one does not, so read its message rather
+than working around it.
+
+The other half of the same trap: a field the contract declares `format: date`
+is generated as `zod.coerce.date()`, so parsing a response through the schema
+turns `2026-12-01` into a `Date` and `res.json` writes a full timestamp. Route
+handlers that return such a field put it back with `dateOnly()`. Both defects
+have shipped: one made every schedule block invisible on every phone, the other
+showed an empty date in the goal editor for a goal that had one.
 
 ### 8. Platform icons are generated, not drawn
 
