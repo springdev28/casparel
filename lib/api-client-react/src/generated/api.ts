@@ -131,6 +131,8 @@ import type {
   ShareListInput,
   SharedStudyActivity,
   SourceReview,
+  StepCompletion,
+  StepCompletionInput,
   StudentLearningGoal,
   StudentNoteInput,
   StudentRoleInput,
@@ -1941,6 +1943,81 @@ export const useDeleteLearningGoal = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteLearningGoalMutationOptions(options));
+    }
+
+export const getCompleteGoalStepUrl = (id: number,
+    stepId: string,) => {
+
+
+
+
+  return `/api/learning-goals/${id}/steps/${stepId}/completion`
+}
+
+/**
+ * Touches one step rather than replacing the whole path, so two devices working on the same goal cannot overwrite each other. A check-in is optional: when one is given, it is recorded as learning evidence against the step, and a step that has already been checked in is not checked in twice. Marking a step not done leaves any evidence in place, because evidence is a record of what happened rather than a state.
+ * @summary Mark one path step done or not done, optionally with a check-in
+ */
+export const completeGoalStep = async (id: number,
+    stepId: string,
+    stepCompletionInput: StepCompletionInput, options?: Parameters<typeof customFetch>[1]): Promise<StepCompletion> => {
+
+  return customFetch<StepCompletion>(getCompleteGoalStepUrl(id,stepId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(stepCompletionInput)
+  }
+);}
+
+
+
+
+
+export const getCompleteGoalStepMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeGoalStep>>, TError,{id: number;stepId: string;data: BodyType<StepCompletionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeGoalStep>>, TError,{id: number;stepId: string;data: BodyType<StepCompletionInput>}, TContext> => {
+
+const mutationKey = ['completeGoalStep'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeGoalStep>>, {id: number;stepId: string;data: BodyType<StepCompletionInput>}> = (props) => {
+          const {id,stepId,data} = props ?? {};
+
+          return  completeGoalStep(id,stepId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteGoalStepMutationResult = NonNullable<Awaited<ReturnType<typeof completeGoalStep>>>
+    export type CompleteGoalStepMutationBody = BodyType<StepCompletionInput>
+    export type CompleteGoalStepMutationError = ErrorType<void>
+
+    /**
+ * @summary Mark one path step done or not done, optionally with a check-in
+ */
+export const useCompleteGoalStep = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeGoalStep>>, TError,{id: number;stepId: string;data: BodyType<StepCompletionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeGoalStep>>,
+        TError,
+        {id: number;stepId: string;data: BodyType<StepCompletionInput>},
+        TContext
+      > => {
+      return useMutation(getCompleteGoalStepMutationOptions(options));
     }
 
 export const getLinkGoalResourceUrl = (id: number,) => {

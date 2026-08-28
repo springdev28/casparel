@@ -331,6 +331,27 @@ function stubbedBody(pathname) {
       },
     ];
   }
+  /*
+   * A check-in against the audit goal's first step, so the goal screen renders
+   * the "checked in" mark as well as the plain step.
+   */
+  if (pathname.endsWith("/learning-evidence")) {
+    return [
+      {
+        id: 1,
+        userId: 1,
+        resourceId: null,
+        learningGoalId: 11,
+        pathStepId: "s1",
+        concept: "Read the chapter",
+        confidence: 3,
+        understanding: 4,
+        reflection: "I can",
+        misconception: null,
+        createdAt: "2026-03-02T09:00:00.000Z",
+      },
+    ];
+  }
   if (pathname.endsWith("/study-activities")) {
     // Two cards, because the player's controls differ on the first and the
     // last: one card would render both as disabled and check neither.

@@ -10,6 +10,7 @@ import {
   learningGoalsTable,
   goalPathTemplatesTable,
   classMembersTable,
+  learningEvidenceTable,
   resourcesTable,
   usersTable,
   activityLogTable,
@@ -28,6 +29,9 @@ import {
   LinkGoalResourceParams,
   LinkGoalResourceBody,
   LinkGoalResourceResponse,
+  CompleteGoalStepParams,
+  CompleteGoalStepBody,
+  CompleteGoalStepResponse,
 } from "@workspace/api-zod";
 import {
   requireAuth,
@@ -366,6 +370,186 @@ router.patch(
       return;
     }
     res.json(asContract(UpdateLearningGoalResponse.parse(goal)));
+  },
+);
+
+/**
+ * Mark one step done, or not done, and record how it went.
+ *
+ * This is the study end of the product's spine: a path step is where somebody
+ * actually works, and completing one is the only moment the app learns
+ * anything about how it went. So the check-in rides along with the tick --
+ * "Not yet", "Almost", "I can", the same three answers the dashboard has asked
+ * since check-ins existed, which is what lets a teacher's signals aggregate
+ * across both.
+ *
+ * The check-in is optional and nothing is invented when it is skipped. A tick
+ * with no answer records that the step is done and claims nothing about
+ * understanding, because the alternative -- writing a middling number on the
+ * learner's behalf -- would put a sentence in a teacher's dashboard that
+ * nobody said.
+ *
+ * One step, under the goal's lock, rather than the whole path. The phone used
+ * to send the entire pathSteps array for a tick, which is a lost update
+ * waiting to happen: two devices, or a tick and an attachment, and whichever
+ * wrote second erased the other's work. Here the array is read and written
+ * inside the transaction and only the named step moves.
+ *
+ * Unticking leaves the evidence alone. A check-in is a record of what somebody
+ * said at a moment, not a property of the step, and deleting it because a box
+ * was cleared would quietly rewrite the history a teacher is reading.
+ */
+router.post(
+  "/learning-goals/:id/steps/:stepId/completion",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = CompleteGoalStepParams.safeParse(req.params);
+    const body = CompleteGoalStepBody.safeParse(req.body);
+    if (!params.success) {
+      res.status(400).json({ error: validationMessage(params.error) });
+      return;
+    }
+    if (!body.success) {
+      res.status(400).json({ error: validationMessage(body.error) });
+      return;
+    }
+    // Both halves of a check-in or neither: an understanding with no
+    // confidence beside it is half an answer, and the columns are not null.
+    const checkIn =
+      body.data.understanding !== undefined && body.data.confidence !== undefined
+        ? {
+            understanding: body.data.understanding,
+            confidence: body.data.confidence,
+            reflection: body.data.reflection ?? null,
+          }
+        : null;
+    if (
+      !checkIn &&
+      (body.data.understanding !== undefined || body.data.confidence !== undefined)
+    ) {
+      res.status(400).json({
+        error: "A check-in needs both understanding and confidence, or neither",
+      });
+      return;
+    }
+
+    const done = await db.transaction(async (tx) => {
+      // The goal's own lane, shared with resource attachment: both rewrite the
+      // path, and two of them at once is how a step goes missing.
+      await tx.execute(sql`select pg_advisory_xact_lock(${params.data.id}, 1)`);
+      const [goal] = await tx
+        .select()
+        .from(learningGoalsTable)
+        .where(
+          and(
+            eq(learningGoalsTable.id, params.data.id),
+            eq(learningGoalsTable.userId, userId),
+            eq(
+              learningGoalsTable.workspaceRole,
+              userRole === "teacher" ? "teacher" : "student",
+            ),
+          ),
+        );
+      if (!goal) return { missing: "goal" as const };
+
+      const step = goal.pathSteps.find(
+        (candidate) => candidate.id === params.data.stepId,
+      );
+      if (!step) return { missing: "step" as const };
+
+      const [existingEvidence] = checkIn
+        ? await tx
+            .select({ id: learningEvidenceTable.id })
+            .from(learningEvidenceTable)
+            .where(
+              and(
+                eq(learningEvidenceTable.learningGoalId, goal.id),
+                eq(learningEvidenceTable.pathStepId, step.id),
+              ),
+            )
+            .limit(1)
+        : [];
+
+      const alreadyRecorded =
+        step.completed === body.data.completed &&
+        (!checkIn || Boolean(existingEvidence));
+
+      const pathSteps =
+        step.completed === body.data.completed
+          ? goal.pathSteps
+          : goal.pathSteps.map((candidate) =>
+              candidate.id === step.id
+                ? { ...candidate, completed: body.data.completed }
+                : candidate,
+            );
+
+      const [updated] =
+        pathSteps === goal.pathSteps
+          ? [goal]
+          : await tx
+              .update(learningGoalsTable)
+              .set({ pathSteps, updatedAt: new Date().toISOString() })
+              .where(eq(learningGoalsTable.id, goal.id))
+              .returning();
+
+      // A check-in belongs to a step that is done, and only the first one:
+      // ticking, unticking and ticking again is one piece of evidence.
+      const [evidence] =
+        checkIn && body.data.completed && !existingEvidence
+          ? await tx
+              .insert(learningEvidenceTable)
+              .values({
+                userId,
+                resourceId: step.resourceId ?? null,
+                learningGoalId: goal.id,
+                pathStepId: step.id,
+                // The step's own words are the concept, which is what the
+                // learner was working on and what a teacher will read.
+                concept: step.title.slice(0, 160),
+                confidence: checkIn.confidence,
+                understanding: checkIn.understanding,
+                reflection: checkIn.reflection,
+              })
+              .returning()
+          : [];
+
+      return { goal: updated, step, evidence: evidence ?? null, alreadyRecorded };
+    });
+
+    if ("missing" in done) {
+      res.status(404).json({
+        error: done.missing === "goal" ? "Learning goal not found" : "Step not found",
+      });
+      return;
+    }
+
+    if (body.data.completed && !done.alreadyRecorded) {
+      await recordWorkflowEvent({
+        userId,
+        event: "path_step_completed",
+        resourceId: done.step.resourceId ?? null,
+        context: { goalId: done.goal.id, stepId: done.step.id },
+      });
+    }
+
+    /*
+     * The next thing to do, which is what the learner asked for by finishing
+     * this one. The first step still outstanding in the path's own order --
+     * not a recommendation, just the next one.
+     */
+    const nextStep =
+      done.goal.pathSteps.find((candidate) => !candidate.completed) ?? null;
+
+    res.json(
+      CompleteGoalStepResponse.parse({
+        goal: asContract(done.goal),
+        evidence: done.evidence,
+        nextStep,
+        alreadyRecorded: done.alreadyRecorded,
+      }),
+    );
   },
 );
 

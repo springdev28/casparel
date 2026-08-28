@@ -111,12 +111,21 @@ const CONSTANT_TABLES = [
   "app/onboarding.tsx",
   "components/ErrorState.tsx",
   "app/paywall.tsx",
+  /*
+   * The step check-in's three answers. They are a table rather than three
+   * buttons because each English word is also the number pair it stands for --
+   * confidence 1..3 against understanding 1, 2 and 4 -- and that mapping has
+   * to match the web's or a teacher's class signals describe two scales. The
+   * word is also sent as the check-in's own reflection, so the English is
+   * data as well as a label.
+   */
+  "components/StepCheckInSheet.tsx",
 ];
 for (const where of CONSTANT_TABLES) {
   const file = files.find((candidate) => candidate.where === where);
   expect(file, `${where} is gone; this list needs updating`).toBeTruthy();
   for (const match of file!.text.matchAll(
-    /\b(?:title|body|description):\s*\n?\s*(['"])((?:(?!\1).){4,})\1/g,
+    /\b(?:title|body|description|label):\s*\n?\s*(['"])((?:(?!\1).){4,})\1/g,
   )) {
     asked.set(decode(match[2]), where);
   }

@@ -13,6 +13,11 @@ export interface LearningEvidence {
   resourceId?: number | null;
   /** @nullable */
   learningGoalId?: number | null;
+  /**
+     * The goal path step this check-in came from, when it came from one. Null on a check-in made from the dashboard rather than a step.
+     * @nullable
+     */
+  pathStepId?: string | null;
   concept: string;
   /**
      * @minimum 1

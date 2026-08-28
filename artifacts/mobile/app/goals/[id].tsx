@@ -18,12 +18,19 @@
  * resource behind it may have gone; the resource screen answers that case, and
  * this screen does not pretend to know in advance.
  *
- * The write is optimistic. A checkbox that waits for a round-trip before it
- * moves feels broken on a slow connection, and the failure is recoverable:
- * the tick goes back and the screen says so. The PATCH sends the whole
- * pathSteps array because that is what the endpoint takes, so the array sent
- * is built from the list the server last gave us rather than from anything
- * this screen has been holding.
+ * Finishing one asks how it went. Three answers -- the same three the web
+ * dashboard has always asked -- and skipping is one of them: somebody ticking
+ * a box on a bus should not have to say, and a number recorded on their behalf
+ * would reach a teacher's dashboard as something they said. What comes back is
+ * the completion screen: what was recorded, where the goal stands, and the next
+ * step.
+ *
+ * Unticking is still one tap and asks nothing.
+ *
+ * The write moves one step rather than sending the whole path back. This
+ * screen used to PATCH the entire pathSteps array, which is a lost update
+ * waiting to happen: a tick here and a resource attached on the laptop, and
+ * whichever landed second erased the other.
  */
 import React from 'react';
 import {
@@ -45,24 +52,29 @@ import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
 import {
   getListLearningGoalsQueryKey,
+  useCompleteGoalStep,
+  useListLearningEvidence,
   useListLearningGoals,
-  useUpdateLearningGoal,
 } from '@workspace/api-client-react';
 import type { LearningGoal, LearningPathStep } from '@workspace/api-client-react';
 import { ErrorState } from '@/components/ErrorState';
+import { StepCheckInSheet, type StepOutcome } from '@/components/StepCheckInSheet';
 import { describeApiFailure } from '@/utils/api-failure';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useMotion } from '@/contexts/MotionContext';
 import { GoalProgress, goalProgress } from '@/components/GoalProgress';
 import { goalStatusLabel, levelLabel } from '@/utils/labels';
 
 function Step({
   step,
   busy,
+  checkedIn,
   onToggle,
   onOpenResource,
 }: {
   step: LearningPathStep;
   busy: boolean;
+  checkedIn: boolean;
   onToggle: () => void;
   onOpenResource: () => void;
 }) {
@@ -125,9 +137,11 @@ function Step({
           >
             {step.title}
           </Text>
-          {step.resourceId ? (
+          {step.resourceId || checkedIn ? (
             <Text style={[styles.stepMeta, { color: colors.mutedForeground }]}>
-              {t('Saved resource')}
+              {[step.resourceId ? t('Saved resource') : null, checkedIn ? t('Checked in') : null]
+                .filter(Boolean)
+                .join(' · ')}
             </Text>
           ) : null}
         </View>
@@ -161,6 +175,7 @@ export default function GoalScreen() {
   const { t } = useLanguage();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { selection, success, warning } = useMotion();
   const { id } = useLocalSearchParams<{ id: string }>();
   const goalId = Number(id);
 
@@ -177,38 +192,104 @@ export default function GoalScreen() {
 
   const [busyStep, setBusyStep] = React.useState<string | null>(null);
   const [writeError, setWriteError] = React.useState<string | null>(null);
-  const update = useUpdateLearningGoal();
+  /*
+   * Which steps carry a check-in, so a learner coming back sees what they
+   * said rather than only what they ticked. One request for the goal's own
+   * evidence; a failure here leaves the marks off and the screen alone.
+   */
+  const evidence = useListLearningEvidence();
+  const checkedInSteps = React.useMemo(
+    () =>
+      new Set(
+        (evidence.data ?? [])
+          .filter((row) => row.learningGoalId === goalId && row.pathStepId)
+          .map((row) => row.pathStepId as string),
+      ),
+    [evidence.data, goalId],
+  );
+  const [checkingIn, setCheckingIn] = React.useState<LearningPathStep | null>(null);
+  const [outcome, setOutcome] = React.useState<StepOutcome | null>(null);
+  const [checkInFailure, setCheckInFailure] = React.useState<string | null>(null);
+  const complete = useCompleteGoalStep();
 
-  async function toggle(step: LearningPathStep) {
+  /**
+   * Mark one step done or not done.
+   *
+   * Optimistic in the cache and reconciled from what the server returns. The
+   * check-in, when there is one, rides along with the same write: the sheet is
+   * the only place it is asked for, so a failed answer is a failed tick and
+   * both go back together.
+   */
+  async function setCompleted(
+    step: LearningPathStep,
+    completed: boolean,
+    checkIn: { confidence: number; understanding: number; reflection: string } | null,
+  ) {
     if (!goal || busyStep) return;
     setBusyStep(step.id);
     setWriteError(null);
+    setCheckInFailure(null);
     const key = getListLearningGoalsQueryKey();
     const previous = queryClient.getQueryData<LearningGoal[]>(key);
-    const pathSteps = goal.pathSteps.map((candidate) =>
-      candidate.id === step.id
-        ? { ...candidate, completed: !candidate.completed }
-        : candidate,
-    );
 
     // Move the tick now; put it back if the server disagrees.
     queryClient.setQueryData<LearningGoal[]>(key, (current) =>
       (current ?? []).map((candidate) =>
-        candidate.id === goal.id ? { ...candidate, pathSteps } : candidate,
+        candidate.id === goal.id
+          ? {
+              ...candidate,
+              pathSteps: candidate.pathSteps.map((one) =>
+                one.id === step.id ? { ...one, completed } : one,
+              ),
+            }
+          : candidate,
       ),
     );
 
     try {
-      await update.mutateAsync({ id: goal.id, data: { pathSteps } });
-      await queryClient.invalidateQueries({ queryKey: key });
+      const result = await complete.mutateAsync({
+        id: goal.id,
+        stepId: step.id,
+        data: { completed, ...(checkIn ?? {}) },
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: key }),
+        // A check-in has just been written, so the marks are out of date.
+        evidence.refetch(),
+      ]);
+      if (completed) {
+        const total = result.goal.pathSteps.length;
+        const done = result.goal.pathSteps.filter((one) => one.completed).length;
+        setOutcome({
+          recorded: result.evidence !== null,
+          nextStep: result.nextStep ?? null,
+          done,
+          total,
+        });
+        // The one moment on this screen worth a flourish, and only this one.
+        if (done === total) success();
+        else selection();
+      }
     } catch (failure) {
       if (previous) queryClient.setQueryData(key, previous);
-      setWriteError(
-        describeApiFailure(failure, t('That step could not be saved.'), t),
-      );
+      warning();
+      const said = describeApiFailure(failure, t('That step could not be saved.'), t);
+      if (completed) setCheckInFailure(said);
+      else setWriteError(said);
     } finally {
       setBusyStep(null);
     }
+  }
+
+  /** Unticking asks nothing; finishing opens the check-in. */
+  function toggle(step: LearningPathStep) {
+    if (step.completed) {
+      void setCompleted(step, false, null);
+      return;
+    }
+    setOutcome(null);
+    setCheckInFailure(null);
+    setCheckingIn(step);
   }
 
   if (isLoading) {
@@ -326,8 +407,9 @@ export default function GoalScreen() {
               key={step.id}
               step={step}
               busy={busyStep === step.id}
+              checkedIn={checkedInSteps.has(step.id)}
               onToggle={() => {
-                void toggle(step);
+                toggle(step);
               }}
               onOpenResource={() => {
                 if (step.resourceId) router.push(`/resource/${step.resourceId}`);
@@ -347,6 +429,26 @@ export default function GoalScreen() {
           {t('Every step is done.')}
         </Text>
       ) : null}
+
+      <StepCheckInSheet
+        visible={checkingIn !== null}
+        step={checkingIn}
+        outcome={outcome}
+        saving={busyStep !== null}
+        failure={checkInFailure}
+        onAnswer={(answer) => {
+          if (checkingIn) void setCompleted(checkingIn, true, answer);
+        }}
+        onOpenNext={(next) => {
+          setCheckingIn(null);
+          setOutcome(null);
+          if (next.resourceId) router.push(`/resource/${next.resourceId}`);
+        }}
+        onClose={() => {
+          setCheckingIn(null);
+          setOutcome(null);
+        }}
+      />
 
       {writeError ? (
         <Text

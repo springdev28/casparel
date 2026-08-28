@@ -225,6 +225,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `artifacts/api-server/src/routes/webhooks.ts` | authored source (commented) | API role: implements the Webhooks HTTP domain, including request validation and response shaping. System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations. |
 | `artifacts/api-server/src/rowLevelSecurity.db.test.ts` | authored source (commented) | Verification role: exercises Row Level Security.Db.Test behavior and guards its user-visible or system invariant. System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details. |
 | `artifacts/api-server/src/searchAgainstDatabase.db.test.ts` | authored source (commented) | Verification role: exercises Search Against Database.Db.Test behavior and guards its user-visible or system invariant. System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details. |
+| `artifacts/api-server/src/stepCompletion.db.test.ts` | authored source (commented) | Verification role: exercises Step Completion.Db.Test behavior and guards its user-visible or system invariant. System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details. |
 | `artifacts/api-server/src/test/setup.ts` | authored source (commented) | Verification role: exercises Setup behavior and guards its user-visible or system invariant. System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details. |
 | `artifacts/api-server/tsconfig.json` | manifest or machine-readable config | Machine-readable package, compiler, build, app, or dependency configuration; JSON cannot contain comments. |
 | `artifacts/api-server/vitest.config.ts` | authored source (commented) | API support role: configures or operates the Vitest.Config part of the backend package. System connection: participates in the API package's development, build, validation, or deployment lifecycle. |
@@ -420,6 +421,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `artifacts/mobile/components/PremiumCard.tsx` | authored source (commented) | Mobile UI role: provides the reusable Premium Card component. System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required. |
 | `artifacts/mobile/components/SaveToListSheet.tsx` | authored source (commented) | Mobile UI role: provides the reusable Save To List Sheet component. System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required. |
 | `artifacts/mobile/components/SourceReviewSection.tsx` | authored source (commented) | Mobile UI role: provides the reusable Source Review Section component. System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required. |
+| `artifacts/mobile/components/StepCheckInSheet.tsx` | authored source (commented) | Mobile UI role: provides the reusable Step Check In Sheet component. System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required. |
 | `artifacts/mobile/components/StudySets.tsx` | authored source (commented) | Mobile UI role: provides the reusable Study Sets component. System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required. |
 | `artifacts/mobile/components/UserProfileCard.tsx` | authored source (commented) | Mobile UI role: provides the reusable User Profile Card component. System connection: composed by Expo Router screens and aligned with shared API/auth/purchase state where required. |
 | `artifacts/mobile/contexts/AuthContext.tsx` | authored source (commented) | Mobile state role: owns the app-wide Auth Context context and lifecycle. System connection: installed by app/_layout.tsx and consumed by screens/components that need shared account state. |
@@ -950,6 +952,8 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/api-zod/src/generated/types/sourceReviewMentionSourceType.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/sourceReviewMode.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/sourceReviewTrustLevel.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
+| `lib/api-zod/src/generated/types/stepCompletion.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
+| `lib/api-zod/src/generated/types/stepCompletionInput.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/studentLearningGoal.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/studentNoteInput.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/studentRoleInput.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
@@ -1050,6 +1054,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/db/migrations/0050_enable_row_level_security.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/0051_goal_source_list.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/0052_list_item_role.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
+| `lib/db/migrations/0053_evidence_path_step.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/meta/_journal.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0000_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0001_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
@@ -1076,6 +1081,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/db/migrations/meta/0049_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0051_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0052_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
+| `lib/db/migrations/meta/0053_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/package.json` | manifest or machine-readable config | Machine-readable package, compiler, build, app, or dependency configuration; JSON cannot contain comments. |
 | `lib/db/src/index.ts` | authored source (commented) | Persistence support role: provides Index database connection or migration behavior. System connection: consumed by the API before handlers query the shared Drizzle schema. |
 | `lib/db/src/migrate.ts` | authored source (commented) | Persistence support role: provides Migrate database connection or migration behavior. System connection: consumed by the API before handlers query the shared Drizzle schema. |

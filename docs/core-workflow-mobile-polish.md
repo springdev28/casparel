@@ -318,7 +318,7 @@ Verification recorded for this increment:
 Still required after these increments:
 
 - verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
-- Phase 4: connect path steps to suitable activities, completion, evidence, goal progress, and next-action updates;
+- Phase 4 continues: choose the study activity by material and goal (flashcards, quiz, explain-back, comparison), which is the half of §8 that step completion does not answer;
 - capture second-device persistence and analytics evidence in the release record.
 
 ## Current implementation ledger — 2026-08-26
@@ -458,3 +458,37 @@ The endpoint returns facts with their numbers rather than sentences, so each
 client phrases them for its own reader; a sentence built on the server could
 only ever be in one language. Both screens say which checks were made, so the
 absence of a finding is not read as a claim about everything.
+
+## Current implementation ledger — 2026-08-28 (Phase 4, completion and evidence)
+
+Finishing a step is where the product finally learns something. This increment
+connects **completion, evidence, goal progress and the next action** — the
+first four of Phase 4's five; choosing an activity by material is the one still
+open.
+
+Implemented in this increment:
+
+- `POST /learning-goals/{id}/steps/{stepId}/completion`: one step, under the goal's lock, rather than the whole path sent back;
+- an optional check-in on the tick — "Not yet", "Almost", "I can", the same three answers and the same confidence/understanding mapping the web dashboard has used since check-ins existed, so a teacher's class signals aggregate across both surfaces;
+- the check-in recorded as learning evidence against the step (`learning_evidence.path_step_id`), once: ticking, unticking and ticking again is one piece of evidence, not three;
+- nothing invented when the check-in is skipped — a tick with no answer records that the step is done and claims nothing about understanding, because a middling number written on somebody's behalf reaches a teacher's dashboard as something they said;
+- unticking leaves the evidence, because a check-in is a record of what somebody said at a moment rather than a property of a step;
+- the completion screen the specification asks for: what was recorded, where the goal now stands, and the next step — with its resource one tap away when it has one;
+- a persistent "checked in" mark on the goal's steps, so returning to a goal shows what was said and not only what was ticked;
+- the same write on the web's goal page, which fixes the same lost update there;
+- a `path_step_completed` analytics milestone per step actually finished.
+
+The lost update is worth stating plainly. Both surfaces used to tick a box by
+sending the whole `pathSteps` array, so a tick on the phone and a resource
+attached on the laptop — or two ticks on two devices — meant whichever wrote
+second erased the other's work. The database test finishes two steps
+concurrently and requires both to survive; against a whole-array write it fails.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 802 API assertions across 94 test files against a real PostgreSQL instance;
+- 74 mobile tests;
+- the check-in written once, kept through an untick, refused when half-given, and two concurrent completions both surviving — all against a real database;
+- 84 end-to-end flow checks against a real server, including the check-in appearing exactly once in the learner's own evidence and a stranger who cannot tick somebody else's step;
+- the phone renders the goal and check-in screens in English and Turkish with every control named for a screen reader.

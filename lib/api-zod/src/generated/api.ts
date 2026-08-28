@@ -726,6 +726,96 @@ export const DeleteLearningGoalResponse = zod.void()
 
 
 /**
+ * Touches one step rather than replacing the whole path, so two devices working on the same goal cannot overwrite each other. A check-in is optional: when one is given, it is recorded as learning evidence against the step, and a step that has already been checked in is not checked in twice. Marking a step not done leaves any evidence in place, because evidence is a record of what happened rather than a state.
+ * @summary Mark one path step done or not done, optionally with a check-in
+ */
+export const CompleteGoalStepParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stepId": zod.coerce.string()
+})
+
+export const completeGoalStepBodyUnderstandingMin = 0;
+export const completeGoalStepBodyUnderstandingMax = 4;
+
+export const completeGoalStepBodyConfidenceMax = 3;
+
+export const completeGoalStepBodyReflectionMax = 2000;
+
+
+
+export const CompleteGoalStepBody = zod.object({
+  "completed": zod.boolean(),
+  "understanding": zod.int().min(completeGoalStepBodyUnderstandingMin).max(completeGoalStepBodyUnderstandingMax).optional().describe('Given together with confidence to record a check-in. Both absent means the step is marked done and nothing is claimed about how it went.'),
+  "confidence": zod.int().min(1).max(completeGoalStepBodyConfidenceMax).optional(),
+  "reflection": zod.string().max(completeGoalStepBodyReflectionMax).nullish()
+})
+
+export const completeGoalStepResponseGoalPathStepsItemIdMax = 80;
+
+export const completeGoalStepResponseGoalPathStepsItemTitleMax = 200;
+
+export const completeGoalStepResponseGoalPathStepsItemQueryMax = 300;
+
+export const completeGoalStepResponseEvidenceOneConfidenceMax = 3;
+
+export const completeGoalStepResponseEvidenceOneUnderstandingMin = 0;
+export const completeGoalStepResponseEvidenceOneUnderstandingMax = 4;
+
+export const completeGoalStepResponseNextStepOneIdMax = 80;
+
+export const completeGoalStepResponseNextStepOneTitleMax = 200;
+
+export const completeGoalStepResponseNextStepOneQueryMax = 300;
+
+
+
+export const CompleteGoalStepResponse = zod.object({
+  "goal": zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(completeGoalStepResponseGoalPathStepsItemIdMax),
+  "title": zod.string().min(1).max(completeGoalStepResponseGoalPathStepsItemTitleMax),
+  "query": zod.string().min(1).max(completeGoalStepResponseGoalPathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}),
+  "evidence": zod.union([zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "resourceId": zod.int().nullish(),
+  "learningGoalId": zod.int().nullish(),
+  "pathStepId": zod.string().nullish().describe('The goal path step this check-in came from, when it came from one. Null on a check-in made from the dashboard rather than a step.'),
+  "concept": zod.string(),
+  "confidence": zod.int().min(1).max(completeGoalStepResponseEvidenceOneConfidenceMax),
+  "understanding": zod.int().min(completeGoalStepResponseEvidenceOneUnderstandingMin).max(completeGoalStepResponseEvidenceOneUnderstandingMax),
+  "reflection": zod.string().nullish(),
+  "misconception": zod.string().nullish(),
+  "createdAt": zod.string()
+}),zod.null()]).optional().describe('The check-in written by this request, if one was.'),
+  "nextStep": zod.union([zod.object({
+  "id": zod.string().min(1).max(completeGoalStepResponseNextStepOneIdMax),
+  "title": zod.string().min(1).max(completeGoalStepResponseNextStepOneTitleMax),
+  "query": zod.string().min(1).max(completeGoalStepResponseNextStepOneQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
+}),zod.null()]).optional().describe('The next step still to do, or null when the path is done.'),
+  "alreadyRecorded": zod.boolean().describe('True when this step was already done and already checked in, so nothing was written.')
+})
+
+
+/**
  * Idempotent. A resource already on the path is reported with 200 and the step that carries it; the path is not changed and no second step is added.
  * @summary Attach a saved resource to a learning goal path
  */
@@ -3491,6 +3581,7 @@ export const ListLearningEvidenceResponseItem = zod.object({
   "userId": zod.int(),
   "resourceId": zod.int().nullish(),
   "learningGoalId": zod.int().nullish(),
+  "pathStepId": zod.string().nullish().describe('The goal path step this check-in came from, when it came from one. Null on a check-in made from the dashboard rather than a step.'),
   "concept": zod.string(),
   "confidence": zod.int().min(1).max(listLearningEvidenceResponseConfidenceMax),
   "understanding": zod.int().min(listLearningEvidenceResponseUnderstandingMin).max(listLearningEvidenceResponseUnderstandingMax),
@@ -3540,6 +3631,7 @@ export const CreateLearningEvidenceResponse = zod.object({
   "userId": zod.int(),
   "resourceId": zod.int().nullish(),
   "learningGoalId": zod.int().nullish(),
+  "pathStepId": zod.string().nullish().describe('The goal path step this check-in came from, when it came from one. Null on a check-in made from the dashboard rather than a step.'),
   "concept": zod.string(),
   "confidence": zod.int().min(1).max(createLearningEvidenceResponseConfidenceMax),
   "understanding": zod.int().min(createLearningEvidenceResponseUnderstandingMin).max(createLearningEvidenceResponseUnderstandingMax),

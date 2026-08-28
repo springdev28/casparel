@@ -809,6 +809,74 @@ async function main() {
       `steps: ${JSON.stringify(persisted?.pathSteps)?.slice(0, 200)}`,
     );
 
+    /*
+     * ---- and studying it ---------------------------------------------
+     *
+     * Finishing a step is where the product finally learns something: the tick
+     * carries a check-in, and the check-in becomes evidence a teacher can see.
+     * Checked against a real server because what matters is what the database
+     * ends up holding -- one row, tied to the step, not rewritten by a second
+     * tick.
+     */
+    const firstStep = (persisted?.pathSteps ?? [])[0];
+    if (firstStep) {
+      const finished = await call(
+        "POST",
+        `/api/learning-goals/${goal.body.id}/steps/${firstStep.id}/completion`,
+        {
+          token: alice.token,
+          body: { completed: true, understanding: 4, confidence: 3, reflection: "I can" },
+        },
+      );
+      check(
+        "a path step can be finished with a check-in",
+        finished.status === 200 &&
+          finished.body?.evidence?.pathStepId === firstStep.id &&
+          finished.body?.goal?.pathSteps?.[0]?.completed === true,
+        `HTTP ${finished.status} ${finished.text.slice(0, 200)}`,
+      );
+      check(
+        "and it says what to do next",
+        finished.body?.nextStep?.id && finished.body.nextStep.id !== firstStep.id,
+        `nextStep: ${JSON.stringify(finished.body?.nextStep)?.slice(0, 120)}`,
+      );
+
+      const twice = await call(
+        "POST",
+        `/api/learning-goals/${goal.body.id}/steps/${firstStep.id}/completion`,
+        {
+          token: alice.token,
+          body: { completed: true, understanding: 1, confidence: 1, reflection: "Not yet" },
+        },
+      );
+      check(
+        "finishing it again does not record a second check-in",
+        twice.status === 200 && twice.body?.alreadyRecorded === true && twice.body?.evidence === null,
+        `HTTP ${twice.status} ${twice.text.slice(0, 160)}`,
+      );
+
+      const evidence = await call("GET", "/api/learning-evidence", { token: alice.token });
+      const forStep = (evidence.body ?? []).filter(
+        (row) => row.pathStepId === firstStep.id,
+      );
+      check(
+        "the check-in is in the learner's evidence, once",
+        forStep.length === 1 && forStep[0].understanding === 4,
+        `evidence: ${JSON.stringify(forStep)?.slice(0, 200)}`,
+      );
+
+      const theirStep = await call(
+        "POST",
+        `/api/learning-goals/${goal.body.id}/steps/${firstStep.id}/completion`,
+        { token: bob.token, body: { completed: false } },
+      );
+      check(
+        "a stranger cannot tick somebody else's step",
+        theirStep.status === 403 || theirStep.status === 404,
+        `HTTP ${theirStep.status}`,
+      );
+    }
+
     const strangersGoal = await call(
       "POST",
       `/api/learning-goals/${goal.body.id}/resources`,

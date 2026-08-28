@@ -1086,6 +1086,66 @@ export type PathFromList = LearningGoal & {
   alreadyBuilt: boolean;
 };
 
+export interface StepCompletionInput {
+  completed: boolean;
+  /**
+     * Given together with confidence to record a check-in. Both absent means the step is marked done and nothing is claimed about how it went.
+     * @minimum 0
+     * @maximum 4
+     */
+  understanding?: number;
+  /**
+     * @minimum 1
+     * @maximum 3
+     */
+  confidence?: number;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  reflection?: string | null;
+}
+
+export interface LearningEvidence {
+  id: number;
+  userId: number;
+  /** @nullable */
+  resourceId?: number | null;
+  /** @nullable */
+  learningGoalId?: number | null;
+  /**
+     * The goal path step this check-in came from, when it came from one. Null on a check-in made from the dashboard rather than a step.
+     * @nullable
+     */
+  pathStepId?: string | null;
+  concept: string;
+  /**
+     * @minimum 1
+     * @maximum 3
+     */
+  confidence: number;
+  /**
+     * @minimum 0
+     * @maximum 4
+     */
+  understanding: number;
+  /** @nullable */
+  reflection?: string | null;
+  /** @nullable */
+  misconception?: string | null;
+  createdAt: string;
+}
+
+export interface StepCompletion {
+  goal: LearningGoal;
+  /** The check-in written by this request, if one was. */
+  evidence?: LearningEvidence | null;
+  /** The next step still to do, or null when the path is done. */
+  nextStep?: LearningPathStep | null;
+  /** True when this step was already done and already checked in, so nothing was written. */
+  alreadyRecorded: boolean;
+}
+
 export interface GoalResourceInput {
   resourceId: number;
 }
@@ -2314,31 +2374,6 @@ export interface CalendarConnectUrl {
 export interface CalendarIcalUrl {
   url: string;
   icalSecret: string;
-}
-
-export interface LearningEvidence {
-  id: number;
-  userId: number;
-  /** @nullable */
-  resourceId?: number | null;
-  /** @nullable */
-  learningGoalId?: number | null;
-  concept: string;
-  /**
-     * @minimum 1
-     * @maximum 3
-     */
-  confidence: number;
-  /**
-     * @minimum 0
-     * @maximum 4
-     */
-  understanding: number;
-  /** @nullable */
-  reflection?: string | null;
-  /** @nullable */
-  misconception?: string | null;
-  createdAt: string;
 }
 
 export interface LearningEvidenceInput {

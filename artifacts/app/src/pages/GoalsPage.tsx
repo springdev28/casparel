@@ -55,6 +55,7 @@ import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { authedRequest } from "../lib/api-request";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import { describeApiError } from "@/lib/api-error";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import {
   getListLearningGoalsQueryKey,
@@ -67,6 +68,7 @@ import {
   useGetMe,
   useListLearningGoals,
   useListResources,
+  useCompleteGoalStep,
   useUpdateLearningGoal,
   useListClasses,
   useListClassStudentGoals,
@@ -136,6 +138,7 @@ function escapeStudyPackHtml(value: string) {
 
 export default function GoalsPage() {
   const client = useQueryClient();
+  const completeStep = useCompleteGoalStep();
   const { data: me, isError: meFailed, error: meError } = useGetMe();
   const workspaceRole = me?.activeRole ?? me?.role;
   const { data: accountPreferences } = useUserPreferences(Boolean(me));
@@ -354,12 +357,37 @@ export default function GoalsPage() {
     await updateGoal.mutateAsync({ id, data });
     await refresh();
   }
+  /**
+   * Tick one step, through the endpoint that touches one step.
+   *
+   * The rest of this page edits the path as a whole -- renaming, reordering,
+   * deleting -- and sends the whole array, which is right for those. Ticking is
+   * not one of them: it is the thing two devices do at the same time, and a
+   * whole-array write means the phone's tick and this one overwrite each
+   * other. This asks the server to move one box.
+   *
+   * No check-in prompt here. The phone asks how it went because that is where
+   * somebody is studying; this page is where a path is built, and the
+   * dashboard has its own check-in. A tick with no answer records that the
+   * step is done and claims nothing about understanding.
+   */
   async function toggleStep(goal: LearningGoal, stepId: string) {
-    await patch(goal.id, {
-      pathSteps: goal.pathSteps.map((step) =>
-        step.id === stepId ? { ...step, completed: !step.completed } : step,
-      ),
-    });
+    const step = goal.pathSteps.find((candidate) => candidate.id === stepId);
+    if (!step) return;
+    try {
+      await completeStep.mutateAsync({
+        id: goal.id,
+        stepId,
+        data: { completed: !step.completed },
+      });
+      await refresh();
+    } catch (error) {
+      toast({
+        title: "Could not save that step",
+        description: describeApiError(error, "Please try again."),
+        variant: "destructive",
+      });
+    }
   }
   async function renameStep(goal: LearningGoal, stepId: string, title: string) {
     const cleanTitle = title.trim();

@@ -229,6 +229,8 @@ export * from './sourceReviewMentionSentiment';
 export * from './sourceReviewMentionSourceType';
 export * from './sourceReviewMode';
 export * from './sourceReviewTrustLevel';
+export * from './stepCompletion';
+export * from './stepCompletionInput';
 export * from './studentLearningGoal';
 export * from './studentNoteInput';
 export * from './studentRoleInput';
