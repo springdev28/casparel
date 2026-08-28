@@ -1989,6 +1989,36 @@ paths:
           description: Reordered
 
   /lists/{id}/items/{itemId}:
+    patch:
+      operationId: updateListItem
+      tags: [lists]
+      summary: Set what a resource is doing in a list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListItemPatch"
+      responses:
+        "200":
+          description: The item as it now stands
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListItem"
+        "403": { description: Only the list owner can change its items }
+        "404": { description: Item not found }
     delete:
       operationId: removeListItem
       tags: [lists]
@@ -4113,7 +4143,14 @@ components:
       properties:
         kind:
           type: string
-          enum: [one_provider, one_format, duplicate_link, level_mismatch]
+          enum:
+            [
+              one_provider,
+              one_format,
+              duplicate_link,
+              level_mismatch,
+              no_practice,
+            ]
         provider:
           { type: string, description: "one_provider: the site most of the list comes from" }
         format:
@@ -4721,6 +4758,12 @@ components:
         listId: { type: integer }
         resourceId: { type: integer }
         note: { type: ["string", "null"] }
+        role:
+          type: ["string", "null"]
+          enum: [explanation, practice, example, reference, null]
+          description: >-
+            What this resource is doing in the list, as the learner labelled
+            it. Null on an item nobody has labelled.
         addedAt: { type: string }
         position: { type: integer }
         resource: { $ref: "#/components/schemas/Resource" }
@@ -4736,6 +4779,18 @@ components:
       properties:
         resourceId: { type: integer }
         note: { type: string }
+        role:
+          type: string
+          enum: [explanation, practice, example, reference]
+
+    ListItemPatch:
+      type: object
+      properties:
+        role:
+          type: ["string", "null"]
+          enum: [explanation, practice, example, reference, null]
+          description: Null clears the role.
+        note: { type: ["string", "null"] }
 
     ReorderListItemsInput:
       type: object

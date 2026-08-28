@@ -1531,6 +1531,7 @@ export const GetClassResourcesListResponse = zod.object({
   "listId": zod.int(),
   "resourceId": zod.int(),
   "note": zod.string().nullish(),
+  "role": zod.union([zod.literal('explanation'),zod.literal('practice'),zod.literal('example'),zod.literal('reference'),zod.literal(null)]).nullish().describe('What this resource is doing in the list, as the learner labelled it. Null on an item nobody has labelled.'),
   "addedAt": zod.string(),
   "position": zod.int(),
   "resource": zod.object({
@@ -2435,6 +2436,7 @@ export const GetResourceListResponse = zod.object({
   "listId": zod.int(),
   "resourceId": zod.int(),
   "note": zod.string().nullish(),
+  "role": zod.union([zod.literal('explanation'),zod.literal('practice'),zod.literal('example'),zod.literal('reference'),zod.literal(null)]).nullish().describe('What this resource is doing in the list, as the learner labelled it. Null on an item nobody has labelled.'),
   "addedAt": zod.string(),
   "position": zod.int(),
   "resource": zod.object({
@@ -2503,7 +2505,8 @@ export const AddListItemParams = zod.object({
 
 export const AddListItemBody = zod.object({
   "resourceId": zod.int(),
-  "note": zod.string().optional()
+  "note": zod.string().optional(),
+  "role": zod.enum(['explanation', 'practice', 'example', 'reference']).optional()
 })
 
 export const AddListItemResponse = zod.object({
@@ -2511,6 +2514,7 @@ export const AddListItemResponse = zod.object({
   "listId": zod.int(),
   "resourceId": zod.int(),
   "note": zod.string().nullish(),
+  "role": zod.union([zod.literal('explanation'),zod.literal('practice'),zod.literal('example'),zod.literal('reference'),zod.literal(null)]).nullish().describe('What this resource is doing in the list, as the learner labelled it. Null on an item nobody has labelled.'),
   "addedAt": zod.string(),
   "position": zod.int(),
   "resource": zod.object({
@@ -2545,6 +2549,47 @@ export const ReorderListItemsBody = zod.object({
 })
 
 export const ReorderListItemsResponse = zod.void()
+
+
+/**
+ * @summary Set what a resource is doing in a list
+ */
+export const UpdateListItemParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "itemId": zod.coerce.number().int()
+})
+
+export const UpdateListItemBody = zod.object({
+  "role": zod.union([zod.literal('explanation'),zod.literal('practice'),zod.literal('example'),zod.literal('reference'),zod.literal(null)]).nullish().describe('Null clears the role.'),
+  "note": zod.string().nullish()
+})
+
+export const UpdateListItemResponse = zod.object({
+  "id": zod.int(),
+  "listId": zod.int(),
+  "resourceId": zod.int(),
+  "note": zod.string().nullish(),
+  "role": zod.union([zod.literal('explanation'),zod.literal('practice'),zod.literal('example'),zod.literal('reference'),zod.literal(null)]).nullish().describe('What this resource is doing in the list, as the learner labelled it. Null on an item nobody has labelled.'),
+  "addedAt": zod.string(),
+  "position": zod.int(),
+  "resource": zod.object({
+  "id": zod.int(),
+  "title": zod.string(),
+  "url": zod.string(),
+  "description": zod.string().nullish(),
+  "format": zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other']),
+  "subject": zod.string(),
+  "gradeLevel": zod.string(),
+  "thumbnailUrl": zod.string().nullish(),
+  "submittedById": zod.int(),
+  "avgRating": zod.number(),
+  "reviewCount": zod.int(),
+  "createdAt": zod.string(),
+  "verificationStatus": zod.enum(['unverified', 'verified', 'rejected']).optional(),
+  "verificationNote": zod.string().nullish()
+}),
+  "alreadyPresent": zod.boolean().optional().describe('Present on add responses. True means the resource was already in the list and the existing item was returned without changing order.')
+})
 
 
 /**
@@ -2624,7 +2669,7 @@ export const ReviewListQualityResponse = zod.object({
   "itemCount": zod.int(),
   "checked": zod.array(zod.string()).describe('The checks that were made, whether or not they found anything.'),
   "findings": zod.array(zod.object({
-  "kind": zod.enum(['one_provider', 'one_format', 'duplicate_link', 'level_mismatch']),
+  "kind": zod.enum(['one_provider', 'one_format', 'duplicate_link', 'level_mismatch', 'no_practice']),
   "provider": zod.string().optional().describe('one_provider: the site most of the list comes from'),
   "format": zod.string().optional().describe('one_format: the format every item shares'),
   "count": zod.int().optional().describe('How many items the finding is about'),

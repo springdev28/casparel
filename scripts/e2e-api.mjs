@@ -669,6 +669,23 @@ async function main() {
       body: { resourceId: third.body?.id },
     });
 
+    // What each resource is doing in the list, which is the only way the
+    // review can answer whether there is anything to practise on.
+    const items = await call("GET", `/api/lists/${bobsList.body.id}`, { token: bob.token });
+    const labelled = await Promise.all(
+      (items.body?.items ?? []).map((item) =>
+        call("PATCH", `/api/lists/${bobsList.body.id}/items/${item.id}`, {
+          token: bob.token,
+          body: { role: "explanation" },
+        }),
+      ),
+    );
+    check(
+      "a resource can be given a role in the list",
+      labelled.length === 3 && labelled.every((one) => one.status === 200),
+      `statuses: ${labelled.map((one) => one.status).join(",")}`,
+    );
+
     const quality = await call("GET", `/api/lists/${bobsList.body.id}/quality`, {
       token: bob.token,
     });
@@ -680,12 +697,18 @@ async function main() {
     const kinds = (quality.body?.findings ?? []).map((finding) => finding.kind);
     check(
       "and it reports what is actually true of it",
-      kinds.includes("one_provider") && kinds.includes("one_format"),
-      `findings: ${JSON.stringify(quality.body?.findings)?.slice(0, 200)}`,
+      kinds.includes("one_provider") &&
+        kinds.includes("one_format") &&
+        // Three items labelled and none of them practice, which the review can
+        // only know because the learner said so.
+        kinds.includes("no_practice"),
+      `findings: ${JSON.stringify(quality.body?.findings)?.slice(0, 250)}`,
     );
     check(
       "the review says which checks it made",
-      Array.isArray(quality.body?.checked) && quality.body.checked.length === 4,
+      Array.isArray(quality.body?.checked) &&
+        quality.body.checked.includes("one_provider") &&
+        quality.body.checked.includes("no_practice"),
       `checked: ${JSON.stringify(quality.body?.checked)}`,
     );
 

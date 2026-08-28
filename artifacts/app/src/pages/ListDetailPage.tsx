@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { describeApiError } from '@/lib/api-error';
-import { describeFinding } from '@/lib/list-quality';
+import { describeFinding, LIST_ITEM_ROLES, roleLabel } from '@/lib/list-quality';
+import type { ListItemRole } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -38,6 +39,7 @@ import {
   useBuildPathFromList,
   useGetResourceList,
   useReviewListQuality,
+  useUpdateListItem,
   useRemoveListItem,
   useReorderListItems,
   useGetMe,
@@ -74,6 +76,7 @@ interface ListItemData {
   listId: number;
   resourceId: number;
   note?: string | null;
+  role?: ListItemRole;
   addedAt: string;
   position?: number;
   resource: {
@@ -114,6 +117,7 @@ export default function ListDetailPage() {
   const removeItem = useRemoveListItem();
   const reorderItems = useReorderListItems();
   const buildPath = useBuildPathFromList();
+  const updateItem = useUpdateListItem();
   /*
    * Asked for rather than shown: a list opens to what is in it, and an
    * unrequested verdict on somebody's choices is not what they came for.
@@ -157,6 +161,24 @@ export default function ListDetailPage() {
     } catch (error) {
       toast({
         title: 'Could not build the path',
+        description: describeApiError(error, 'Please try again.'),
+        variant: 'destructive',
+      });
+    }
+  }
+
+  /** Say what an item is doing in this list, or stop saying it. */
+  async function handleRole(itemId: number, role: ListItemRole | null) {
+    try {
+      await updateItem.mutateAsync({ id: listId, itemId, data: { role } });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetResourceListQueryKey(listId) }),
+        // The review counts roles, so it is stale the moment one moves.
+        queryClient.invalidateQueries({ queryKey: getReviewListQualityQueryKey(listId) }),
+      ]);
+    } catch (error) {
+      toast({
+        title: 'Could not save that role',
         description: describeApiError(error, 'Please try again.'),
         variant: 'destructive',
       });
@@ -529,6 +551,7 @@ export default function ListDetailPage() {
                   isRemoving={removingId === item.id}
                   isOwner={isOwner}
                   onRemove={handleRemove}
+                  onRole={handleRole}
                 />
               ))}
             </div>
@@ -616,7 +639,7 @@ export default function ListDetailPage() {
   );
 }
 
-function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps) {
+function SortableItem({ item, isRemoving, isOwner, onRemove, onRole }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -676,6 +699,37 @@ function SortableItem({ item, isRemoving, isOwner, onRemove }: SortableItemProps
               {item.note && (
                 <p className="text-xs text-muted-foreground italic mt-1">Note: <span translate="no">{item.note}</span></p>
               )}
+              {/*
+                What this resource is doing here, which the owner sets and
+                everyone else reads. A select rather than a menu: it is one
+                choice out of five and the current answer has to be visible
+                without opening anything.
+              */}
+              {isOwner ? (
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground" htmlFor={`role-${item.id}`}>
+                    Role
+                  </label>
+                  <select
+                    id={`role-${item.id}`}
+                    className="h-7 rounded-md border border-input bg-card px-2 text-xs text-foreground"
+                    value={item.role ?? ''}
+                    onChange={(event) =>
+                      onRole(item.id, (event.target.value || null) as ListItemRole | null)
+                    }
+                    data-testid="item-role"
+                  >
+                    <option value="">No role</option>
+                    {LIST_ITEM_ROLES.map((role) => (
+                      <option key={role} value={role ?? ''}>
+                        {roleLabel(role)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : item.role ? (
+                <p className="text-xs text-muted-foreground mt-1">{roleLabel(item.role)}</p>
+              ) : null}
               <div className="flex items-center gap-2 mt-2">
                 <StarRating value={item.resource.avgRating} size="sm" />
                 <span className="text-xs text-muted-foreground">{counted(item.resource.reviewCount, "review", "reviews")}</span>
@@ -743,4 +797,5 @@ interface SortableItemProps {
   isRemoving: boolean;
   isOwner: boolean;
   onRemove: (id: number) => void;
+  onRole: (id: number, role: ListItemRole | null) => void;
 }

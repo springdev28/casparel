@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { ListQualityFinding } from '@workspace/api-client-react';
-import { describeFinding } from './list-quality';
+import { describeFinding, LIST_ITEM_ROLES, roleLabel } from './list-quality';
 
 /** The identity translator: these tests are about the shape, not the words. */
 const t = (value: string) => value;
@@ -51,6 +51,19 @@ describe('describeFinding', () => {
     expect(sentence).toContain('Undergraduate');
     expect(sentence).toContain('Year 12');
     expect(sentence).toContain('1');
+  });
+
+  it('says a labelled list has nothing to practise on', () => {
+    expect(describeFinding({ kind: 'no_practice', count: 4 }, t)).toBe(
+      'Nothing here is labelled as practice.',
+    );
+  });
+
+  it('names each role, and names having chosen none', () => {
+    expect(roleLabel('practice', t)).toBe('Practice');
+    expect(roleLabel(null, t)).toBe('No role');
+    // Four to choose from, and the picker offers them in this order.
+    expect(LIST_ITEM_ROLES).toEqual(['explanation', 'practice', 'example', 'reference']);
   });
 
   it('says nothing about a check it has not been taught', () => {

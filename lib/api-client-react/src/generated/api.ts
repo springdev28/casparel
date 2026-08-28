@@ -80,6 +80,7 @@ import type {
   LearningSignals,
   ListItem,
   ListItemInput,
+  ListItemPatch,
   ListProvenanceShowcase200,
   ListProvenanceShowcaseParams,
   ListQualityReview,
@@ -5908,6 +5909,80 @@ export const useReorderListItems = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getReorderListItemsMutationOptions(options));
+    }
+
+export const getUpdateListItemUrl = (id: number,
+    itemId: number,) => {
+
+
+
+
+  return `/api/lists/${id}/items/${itemId}`
+}
+
+/**
+ * @summary Set what a resource is doing in a list
+ */
+export const updateListItem = async (id: number,
+    itemId: number,
+    listItemPatch: ListItemPatch, options?: Parameters<typeof customFetch>[1]): Promise<ListItem> => {
+
+  return customFetch<ListItem>(getUpdateListItemUrl(id,itemId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(listItemPatch)
+  }
+);}
+
+
+
+
+
+export const getUpdateListItemMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateListItem>>, TError,{id: number;itemId: number;data: BodyType<ListItemPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateListItem>>, TError,{id: number;itemId: number;data: BodyType<ListItemPatch>}, TContext> => {
+
+const mutationKey = ['updateListItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateListItem>>, {id: number;itemId: number;data: BodyType<ListItemPatch>}> = (props) => {
+          const {id,itemId,data} = props ?? {};
+
+          return  updateListItem(id,itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateListItemMutationResult = NonNullable<Awaited<ReturnType<typeof updateListItem>>>
+    export type UpdateListItemMutationBody = BodyType<ListItemPatch>
+    export type UpdateListItemMutationError = ErrorType<void>
+
+    /**
+ * @summary Set what a resource is doing in a list
+ */
+export const useUpdateListItem = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateListItem>>, TError,{id: number;itemId: number;data: BodyType<ListItemPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateListItem>>,
+        TError,
+        {id: number;itemId: number;data: BodyType<ListItemPatch>},
+        TContext
+      > => {
+      return useMutation(getUpdateListItemMutationOptions(options));
     }
 
 export const getRemoveListItemUrl = (id: number,

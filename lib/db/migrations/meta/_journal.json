@@ -365,6 +365,13 @@
       "when": 1789372800009,
       "tag": "0051_goal_source_list",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1789372800010,
+      "tag": "0052_list_item_role",
+      "breakpoints": true
     }
   ]
 }

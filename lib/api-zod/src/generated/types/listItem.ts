@@ -5,6 +5,7 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { ListItemRole } from './listItemRole';
 import type { Resource } from './resource';
 
 export interface ListItem {
@@ -13,6 +14,11 @@ export interface ListItem {
   resourceId: number;
   /** @nullable */
   note?: string | null;
+  /**
+     * What this resource is doing in the list, as the learner labelled it. Null on an item nobody has labelled.
+     * @nullable
+     */
+  role?: ListItemRole;
   addedAt: string;
   position: number;
   resource: Resource;

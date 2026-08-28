@@ -352,6 +352,9 @@ const RESOURCE_LIST_DETAIL = {
       listId: 44,
       resourceId: 101,
       note: "Chapters 1 to 3 cover everything on the mock.",
+      // Labelled, so the list page renders a role rather than the empty state
+      // of one.
+      role: "explanation",
       addedAt: "2026-04-03T09:00:00.000Z",
       position: 0,
       resource: RESOURCE,

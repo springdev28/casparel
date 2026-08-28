@@ -17,10 +17,12 @@ import { canonicalResourceUrl, sourceFamily } from "@workspace/resource-identity
  * learner needs before this, what this list is missing -- and nothing here
  * knows them; a plausible sentence about them would be invention dressed as
  * advice, on the screen where somebody decides what to study next.
- * Explanation/practice balance is the same problem in a smaller way: the
- * catalogue records a format, not whether something asks the reader to do
- * anything, so what is reported is the fact -- every item is the same format --
- * and not a judgement about practice.
+ * Explanation/practice balance was the same problem until the learner could
+ * answer it: a format is not a role, and the catalogue does not record whether
+ * something asks the reader to do anything. It does now, for the items
+ * somebody has labelled, and only for those -- a list with no roles on it is
+ * not a list with nothing to practise on, it is a list nobody has said
+ * anything about, and the two must not read the same.
  *
  * So this returns facts, each with the numbers behind it, and the list of
  * checks it made. The screens phrase them; that is also what keeps the
@@ -34,6 +36,8 @@ export type ListQualityItem = {
   url: string;
   format: string;
   gradeLevel: string;
+  /** What the learner said this is doing here, when they said anything. */
+  role?: string | null;
 };
 
 export type ListQualityFinding =
@@ -45,7 +49,8 @@ export type ListQualityFinding =
       resourceIds: number[];
       level: string;
       majority: string;
-    };
+    }
+  | { kind: "no_practice"; count: number };
 
 /** The checks this makes, named so a screen can say what was looked at. */
 export const LIST_QUALITY_CHECKS = [
@@ -53,6 +58,7 @@ export const LIST_QUALITY_CHECKS = [
   "one_format",
   "duplicate_link",
   "level_mismatch",
+  "no_practice",
 ] as const;
 
 /**
@@ -112,6 +118,19 @@ export function reviewList(items: ListQualityItem[]): {
     // Only when there is a majority to be the odd one out of. A list evenly
     // split between two levels is a choice, not a mistake, and saying
     // otherwise would be noise on every list built across a transition.
+    // ── labelled, and none of it to practise on ─────────────────────────────
+    //
+    // Only about the items the learner labelled. An unlabelled list says
+    // nothing about practice, and reporting it as having none would be a
+    // conclusion drawn from silence.
+    const labelled = items.filter((item) => item.role);
+    if (
+      labelled.length >= ENOUGH_TO_JUDGE &&
+      !labelled.some((item) => item.role === "practice")
+    ) {
+      findings.push({ kind: "no_practice", count: labelled.length });
+    }
+
     const levels = tally(items.map((item) => item.gradeLevel).filter(Boolean));
     const [majority, majorityCount] = commonest(levels);
     if (majority && majorityCount > items.length / 2 && majorityCount < items.length) {

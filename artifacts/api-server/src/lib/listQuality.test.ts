@@ -127,6 +127,50 @@ describe("reviewList", () => {
     ).toEqual([]);
   });
 
+  it("says a labelled list has nothing to practise on", () => {
+    const findings = reviewList([
+      item({ resourceId: 1, url: "https://a.org/1", role: "explanation" }),
+      item({ resourceId: 2, url: "https://b.org/2", role: "explanation" }),
+      item({ resourceId: 3, url: "https://c.org/3", role: "reference", format: "video" }),
+    ]).findings;
+    expect(findings).toContainEqual({ kind: "no_practice", count: 3 });
+  });
+
+  it("says nothing about practice in a list nobody has labelled", () => {
+    // Silence is not a claim: an unlabelled list has not been asked the
+    // question, and reporting it as having no practice would be a conclusion
+    // drawn from nothing.
+    expect(
+      kinds([
+        item({ resourceId: 1, url: "https://a.org/1" }),
+        item({ resourceId: 2, url: "https://b.org/2" }),
+        item({ resourceId: 3, url: "https://c.org/3", format: "video" }),
+      ]).filter((kind) => kind === "no_practice"),
+    ).toEqual([]);
+  });
+
+  it("is satisfied by one thing to practise on", () => {
+    expect(
+      kinds([
+        item({ resourceId: 1, url: "https://a.org/1", role: "explanation" }),
+        item({ resourceId: 2, url: "https://b.org/2", role: "practice" }),
+        item({ resourceId: 3, url: "https://c.org/3", role: "example", format: "video" }),
+      ]).filter((kind) => kind === "no_practice"),
+    ).toEqual([]);
+  });
+
+  it("ignores unlabelled items when counting what was labelled", () => {
+    // Two labelled items is not enough to judge, however long the list is.
+    expect(
+      kinds([
+        item({ resourceId: 1, url: "https://a.org/1", role: "explanation" }),
+        item({ resourceId: 2, url: "https://b.org/2", role: "reference" }),
+        item({ resourceId: 3, url: "https://c.org/3", format: "video" }),
+        item({ resourceId: 4, url: "https://d.org/4", format: "pdf" }),
+      ]).filter((kind) => kind === "no_practice"),
+    ).toEqual([]);
+  });
+
   it("always says which checks it made, so a screen can name them", () => {
     const review = reviewList([]);
     expect(review.itemCount).toBe(0);
@@ -136,6 +180,7 @@ describe("reviewList", () => {
       "one_format",
       "duplicate_link",
       "level_mismatch",
+      "no_practice",
     ]);
   });
 });

@@ -14,4 +14,5 @@ export const ListQualityFindingKind = {
   one_format: 'one_format',
   duplicate_link: 'duplicate_link',
   level_mismatch: 'level_mismatch',
+  no_practice: 'no_practice',
 } as const;

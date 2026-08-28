@@ -202,6 +202,32 @@ describe.skipIf(!url)("building a path from a Learning List", () => {
       );
     expect(racedGoals).toHaveLength(1);
 
+    // ── a role is the learner's own note about the part an item plays ───────
+    const [firstItem] = await db
+      .select({ id: listItemsTable.id })
+      .from(listItemsTable)
+      .where(eq(listItemsTable.listId, list.id));
+    const labelled = await request(app)
+      .patch(`/api/lists/${list.id}/items/${firstItem.id}`)
+      .set(learnerAuth)
+      .send({ role: "practice" });
+    expect(labelled.status, labelled.text.slice(0, 200)).toBe(200);
+    expect(labelled.body.role).toBe("practice");
+    expect(labelled.body.resource?.title).toContain("Read the chapter");
+
+    const cleared = await request(app)
+      .patch(`/api/lists/${list.id}/items/${firstItem.id}`)
+      .set(learnerAuth)
+      .send({ role: null });
+    expect(cleared.status, cleared.text.slice(0, 200)).toBe(200);
+    expect(cleared.body.role).toBeNull();
+
+    const theirLabel = await request(app)
+      .patch(`/api/lists/${list.id}/items/${firstItem.id}`)
+      .set(strangerAuth)
+      .send({ role: "reference" });
+    expect([403, 404]).toContain(theirLabel.status);
+
     // ── and the path outlives the list it came from ──────────────────────────
     await db.delete(resourceListsTable).where(eq(resourceListsTable.id, raced.id));
     const [survivor] = await db

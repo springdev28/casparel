@@ -318,7 +318,7 @@ Verification recorded for this increment:
 Still required after these increments:
 
 - verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
-- continue Phase 3 with Learning List item roles;
+- Phase 4: connect path steps to suitable activities, completion, evidence, goal progress, and next-action updates;
 - capture second-device persistence and analytics evidence in the release record.
 
 ## Current implementation ledger — 2026-08-26
@@ -439,14 +439,20 @@ Three are arithmetic over rows the app already holds, and are implemented in
 | `one_format`     | three items or more, and every item is the same format                  |
 | `duplicate_link` | two items whose canonical URL is identical                              |
 | `level_mismatch` | a majority level exists and some items are aimed elsewhere              |
+| `no_practice`    | three items or more **labelled**, and none of them labelled practice    |
 
-Three are not, and must not be invented. Gaps and prerequisites are claims
-about a subject that nothing in this product knows; a plausible sentence about
-them is invention dressed as advice, on the screen where somebody decides what
-to study next. Explanation/practice balance is the same problem in a smaller
-form: the catalogue records a format, not whether a resource asks the reader to
-do anything, so what is reported is the fact — every item is the same format —
-and not a judgement about practice.
+The last one only became answerable when the learner could answer it. A format
+is not a role — the catalogue records what something is, not whether it asks
+the reader to do anything — so `list_items.role` is the learner's own note
+about the part an item plays: explanation, practice, example or reference. The
+check reads only the items somebody labelled: a list with no roles on it is not
+a list with nothing to practise on, it is a list nobody has said anything
+about, and the two must not read the same.
+
+Gaps and prerequisites remain unimplemented, and must not be invented. They are
+claims about a subject that nothing in this product knows; a plausible sentence
+about them is invention dressed as advice, on the screen where somebody decides
+what to study next.
 
 The endpoint returns facts with their numbers rather than sentences, so each
 client phrases them for its own reader; a sentence built on the server could

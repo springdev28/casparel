@@ -27,6 +27,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -50,17 +51,18 @@ import {
   useBuildPathFromList,
   useGetResourceList,
   useReviewListQuality,
+  useUpdateListItem,
   useRemoveListItem,
   useReorderListItems,
 } from '@workspace/api-client-react';
-import type { ListItem, ResourceListWithItems } from '@workspace/api-client-react';
+import type { ListItem, ListItemRole, ResourceListWithItems } from '@workspace/api-client-react';
 import { ErrorState } from '@/components/ErrorState';
 import { PathPreviewSheet } from '@/components/PathPreviewSheet';
 import { describeApiFailure } from '@/utils/api-failure';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useMotion } from '@/contexts/MotionContext';
 import { moveItem } from '@/utils/reorder';
-import { describeFinding } from '@/utils/list-quality';
+import { describeFinding, LIST_ITEM_ROLES, roleLabel } from '@/utils/list-quality';
 
 function Item({
   item,
@@ -70,6 +72,7 @@ function Item({
   onOpen,
   onMove,
   onRemove,
+  onRole,
 }: {
   item: ListItem;
   index: number;
@@ -78,6 +81,7 @@ function Item({
   onOpen: () => void;
   onMove: (delta: number) => void;
   onRemove: () => void;
+  onRole: () => void;
 }) {
   const colors = useColors();
   const { t } = useLanguage();
@@ -126,6 +130,37 @@ function Item({
           </Text>
         </View>
       </Pressable>
+      {/* What this is doing here, and the way to say so. A chip rather than a
+          menu on the row: it has to read as the answer when there is one. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t('Role')}: ${item.resource.title}`}
+        disabled={busy}
+        onPress={onRole}
+        hitSlop={6}
+        style={({ pressed }) => [
+          styles.role,
+          {
+            borderColor: item.role ? colors.primary : colors.border,
+            borderRadius: colors.radius,
+            backgroundColor: pressed ? colors.muted : 'transparent',
+          },
+        ]}
+      >
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.roleText,
+            {
+              color: item.role ? colors.primary : colors.mutedForeground,
+              fontFamily: colors.fontFamily.sansSemiBold,
+            },
+          ]}
+        >
+          {roleLabel(item.role, t)}
+        </Text>
+      </Pressable>
+
       <View style={styles.itemControls}>
         <Pressable
           accessibilityRole="button"
@@ -194,7 +229,7 @@ export default function ListScreen() {
   const router = useRouter();
   const { t } = useLanguage();
   const queryClient = useQueryClient();
-  const { selection, success, warning } = useMotion();
+  const { reduceMotion, selection, success, warning } = useMotion();
   const { id } = useLocalSearchParams<{ id: string }>();
   const listId = Number(id);
 
@@ -212,6 +247,8 @@ export default function ListScreen() {
    * for. Enabled only once they press, so the request is theirs too.
    */
   const [reviewing, setReviewing] = React.useState(false);
+  const [choosingRoleFor, setChoosingRoleFor] = React.useState<ListItem | null>(null);
+  const updateItem = useUpdateListItem();
   const quality = useReviewListQuality(listId, {
     query: {
       queryKey: getReviewListQualityQueryKey(listId),
@@ -257,6 +294,54 @@ export default function ListScreen() {
       warning();
       setWriteError(
         describeApiFailure(failure, t('That new order could not be saved.'), t),
+      );
+    } finally {
+      setPending(null);
+    }
+  }
+
+  /**
+   * Say what an item is doing here, or stop saying it.
+   *
+   * Optimistic like the other two writes on this screen, and restored the same
+   * way: the chip is the answer to a question the learner just answered, and
+   * watching it wait for a round-trip is worse than being wrong for a moment.
+   */
+  async function setRole(item: ListItem, role: ListItemRole | null) {
+    setChoosingRoleFor(null);
+    if (pending !== null || !data) return;
+    if ((item.role ?? null) === role) return;
+    setPending(item.id);
+    setWriteError(null);
+    const previous = queryClient.getQueryData<ResourceListWithItems>(key);
+
+    queryClient.setQueryData<ResourceListWithItems>(key, (current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((candidate) =>
+              candidate.id === item.id ? { ...candidate, role } : candidate,
+            ),
+          }
+        : current,
+    );
+    selection();
+
+    try {
+      await updateItem.mutateAsync({ id: listId, itemId: item.id, data: { role } });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: key }),
+        // The review counts roles, so it is out of date the moment one moves.
+        queryClient.invalidateQueries({
+          queryKey: getReviewListQualityQueryKey(listId),
+        }),
+      ]);
+      success();
+    } catch (failure) {
+      restore(previous);
+      warning();
+      setWriteError(
+        describeApiFailure(failure, t('That role could not be saved.'), t),
       );
     } finally {
       setPending(null);
@@ -437,6 +522,7 @@ export default function ListScreen() {
               onRemove={() => {
                 void drop(item);
               }}
+              onRole={() => setChoosingRoleFor(item)}
             />
           ))}
           {pending !== null ? (
@@ -557,6 +643,74 @@ export default function ListScreen() {
         </View>
       )}
 
+      {/* The role picker: four roles and the way back to none. */}
+      <Modal
+        visible={choosingRoleFor !== null}
+        transparent
+        animationType={reduceMotion ? 'fade' : 'slide'}
+        onRequestClose={() => setChoosingRoleFor(null)}
+      >
+        <View style={styles.pickerOverlay}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Close')}
+            style={StyleSheet.absoluteFill}
+            onPress={() => setChoosingRoleFor(null)}
+          />
+          <View
+            accessibilityViewIsModal
+            style={[
+              styles.picker,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                borderTopLeftRadius: colors.radius * 2,
+                borderTopRightRadius: colors.radius * 2,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.pickerTitle,
+                { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
+              ]}
+            >
+              {t('What is this doing in the list?')}
+            </Text>
+            {[...LIST_ITEM_ROLES, null].map((role) => (
+              <Pressable
+                key={role ?? 'none'}
+                accessibilityRole="button"
+                accessibilityLabel={roleLabel(role, t)}
+                onPress={() => {
+                  if (choosingRoleFor) void setRole(choosingRoleFor, role);
+                }}
+                style={({ pressed }) => [
+                  styles.pickerRow,
+                  {
+                    borderColor: colors.border,
+                    borderRadius: colors.radius,
+                    backgroundColor: pressed ? colors.muted : colors.background,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: colors.foreground,
+                    fontFamily: colors.fontFamily.sans,
+                  }}
+                >
+                  {roleLabel(role, t)}
+                </Text>
+                {(choosingRoleFor?.role ?? null) === role ? (
+                  <Feather name="check" size={16} color={colors.primary} />
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      </Modal>
+
       <PathPreviewSheet
         visible={previewing}
         listName={data.name}
@@ -602,6 +756,26 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 15, lineHeight: 20 },
   itemMeta: { fontSize: 12 },
   itemControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  role: {
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    minHeight: 30,
+    maxWidth: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roleText: { fontSize: 11 },
+  pickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.42)' },
+  picker: { borderWidth: 1, padding: 18, paddingBottom: 28, gap: 8 },
+  pickerTitle: { fontSize: 16, marginBottom: 2 },
+  pickerRow: {
+    borderWidth: 1,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   control: {
     width: 32,
     height: 32,

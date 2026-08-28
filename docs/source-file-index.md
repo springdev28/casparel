@@ -855,6 +855,10 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/api-zod/src/generated/types/learningSignals.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listItem.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listItemInput.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
+| `lib/api-zod/src/generated/types/listItemInputRole.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
+| `lib/api-zod/src/generated/types/listItemPatch.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
+| `lib/api-zod/src/generated/types/listItemPatchRole.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
+| `lib/api-zod/src/generated/types/listItemRole.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listProvenanceShowcase200.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listProvenanceShowcaseParams.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
 | `lib/api-zod/src/generated/types/listQualityFinding.ts` | generated API contract | Generated from lib/api-spec/openapi.yaml; never hand-edit it. |
@@ -1045,6 +1049,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/db/migrations/0049_purge_query_poisoned_catalog_rows.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/0050_enable_row_level_security.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/0051_goal_source_list.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
+| `lib/db/migrations/0052_list_item_role.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/meta/_journal.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0000_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0001_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
@@ -1070,6 +1075,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/db/migrations/meta/0048_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0049_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0051_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
+| `lib/db/migrations/meta/0052_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/package.json` | manifest or machine-readable config | Machine-readable package, compiler, build, app, or dependency configuration; JSON cannot contain comments. |
 | `lib/db/src/index.ts` | authored source (commented) | Persistence support role: provides Index database connection or migration behavior. System connection: consumed by the API before handlers query the shared Drizzle schema. |
 | `lib/db/src/migrate.ts` | authored source (commented) | Persistence support role: provides Migrate database connection or migration behavior. System connection: consumed by the API before handlers query the shared Drizzle schema. |

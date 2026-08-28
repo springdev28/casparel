@@ -279,6 +279,8 @@ function stubbedBody(pathname) {
           note: null,
           addedAt: "2026-03-02T09:00:00.000Z",
           position: 0,
+          // Labelled, so the row renders the chip rather than "No role".
+          role: "explanation",
           resource: resource(101, "Linear Algebra Done Right", "pdf"),
         },
         {

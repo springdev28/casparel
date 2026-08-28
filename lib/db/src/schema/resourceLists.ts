@@ -19,6 +19,20 @@ export const resourceListsTable = pgTable("resource_lists", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });
 
+/**
+ * What a resource is doing in a list.
+ *
+ * A Learning List is an ordered set rather than a folder, and the order alone
+ * does not say why something is third. Four roles, kept few enough to pick on
+ * a phone and distinct enough to be worth picking: something that teaches the
+ * idea, something to practise it on, a worked case, and something to look
+ * things up in.
+ *
+ * Nullable: every item added before this has no role, and saying nothing is a
+ * legitimate answer for somebody who just wants the list.
+ */
+export type ListItemRole = "explanation" | "practice" | "example" | "reference";
+
 export const listItemsTable = pgTable("list_items", {
   id: serial("id").primaryKey(),
   listId: integer("list_id")
@@ -32,6 +46,7 @@ export const listItemsTable = pgTable("list_items", {
     // NULL, so the row goes with it.
     .references(() => resourcesTable.id, { onDelete: "cascade" }),
   note: text("note"),
+  role: text("role").$type<ListItemRole>(),
   position: integer("position").notNull().default(0),
   addedAt: timestamp("added_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
 });

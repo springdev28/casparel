@@ -1032,6 +1032,7 @@ export const ListQualityFindingKind = {
   one_format: 'one_format',
   duplicate_link: 'duplicate_link',
   level_mismatch: 'level_mismatch',
+  no_practice: 'no_practice',
 } as const;
 
 export interface ListQualityFinding {
@@ -1723,12 +1724,31 @@ export interface AssignResourceResponse {
   listId: number;
 }
 
+/**
+ * What this resource is doing in the list, as the learner labelled it. Null on an item nobody has labelled.
+ * @nullable
+ */
+export type ListItemRole = typeof ListItemRole[keyof typeof ListItemRole] | null;
+
+
+export const ListItemRole = {
+  explanation: 'explanation',
+  practice: 'practice',
+  example: 'example',
+  reference: 'reference',
+} as const;
+
 export interface ListItem {
   id: number;
   listId: number;
   resourceId: number;
   /** @nullable */
   note?: string | null;
+  /**
+     * What this resource is doing in the list, as the learner labelled it. Null on an item nobody has labelled.
+     * @nullable
+     */
+  role?: ListItemRole;
   addedAt: string;
   position: number;
   resource: Resource;
@@ -1761,9 +1781,44 @@ export interface ResourceListPatch {
   description?: string;
 }
 
+export type ListItemInputRole = typeof ListItemInputRole[keyof typeof ListItemInputRole];
+
+
+export const ListItemInputRole = {
+  explanation: 'explanation',
+  practice: 'practice',
+  example: 'example',
+  reference: 'reference',
+} as const;
+
 export interface ListItemInput {
   resourceId: number;
   note?: string;
+  role?: ListItemInputRole;
+}
+
+/**
+ * Null clears the role.
+ * @nullable
+ */
+export type ListItemPatchRole = typeof ListItemPatchRole[keyof typeof ListItemPatchRole] | null;
+
+
+export const ListItemPatchRole = {
+  explanation: 'explanation',
+  practice: 'practice',
+  example: 'example',
+  reference: 'reference',
+} as const;
+
+export interface ListItemPatch {
+  /**
+     * Null clears the role.
+     * @nullable
+     */
+  role?: ListItemPatchRole;
+  /** @nullable */
+  note?: string | null;
 }
 
 export interface ReorderListItemsInput {

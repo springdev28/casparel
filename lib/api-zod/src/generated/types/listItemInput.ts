@@ -5,8 +5,10 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { ListItemInputRole } from './listItemInputRole';
 
 export interface ListItemInput {
   resourceId: number;
   note?: string;
+  role?: ListItemInputRole;
 }

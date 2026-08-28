@@ -35,6 +35,9 @@ import {
   BuildPathFromListResponse,
   ReviewListQualityParams,
   ReviewListQualityResponse,
+  UpdateListItemParams,
+  UpdateListItemBody,
+  UpdateListItemResponse,
   RemoveListItemParams,
   ReorderListItemsParams,
   ReorderListItemsBody,
@@ -407,6 +410,53 @@ router.post("/lists/:id/items/reorder", requireAuth, async (req, res): Promise<v
   res.sendStatus(204);
 });
 
+/**
+ * Say what a resource is doing in this list.
+ *
+ * The role is the learner's own note about the part an item plays, and it is
+ * the only way the review can answer the specification's sixth question --
+ * whether a list has anything to practise on. Nothing infers it: a format is
+ * not a role, and guessing would put words in somebody's mouth and then draw
+ * conclusions from them.
+ *
+ * Null clears it, which is a real answer rather than an absence: somebody who
+ * labelled an item and changed their mind is not the same as somebody who
+ * never labelled it, but the list treats them the same and so does the review.
+ */
+router.patch("/lists/:id/items/:itemId", contentLimiter, requireAuth, async (req, res): Promise<void> => {
+  const { userId, userRole } = req as AuthenticatedRequest;
+  const params = UpdateListItemParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: validationMessage(params.error) });
+    return;
+  }
+  const parsed = UpdateListItemBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: validationMessage(parsed.error) });
+    return;
+  }
+  if (!(await isListItemOwner(params.data.itemId, userId, userRole))) {
+    res.status(403).json({ error: "Only the list owner can change its items" });
+    return;
+  }
+  const [item] = await db
+    .update(listItemsTable)
+    .set(parsed.data)
+    .where(
+      and(
+        eq(listItemsTable.id, params.data.itemId),
+        eq(listItemsTable.listId, params.data.id),
+      ),
+    )
+    .returning();
+  if (!item) {
+    res.status(404).json({ error: "Item not found in this list" });
+    return;
+  }
+  const resource = await resourceWithRating(item.resourceId);
+  res.json(UpdateListItemResponse.parse({ ...item, resource }));
+});
+
 // DELETE /lists/:id/items/:itemId, list owner only
 router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise<void> => {
   const { userId, userRole } = req as AuthenticatedRequest;
@@ -455,6 +505,7 @@ router.get("/lists/:id/quality", requireAuth, async (req, res): Promise<void> =>
       url: resourcesTable.url,
       format: resourcesTable.format,
       gradeLevel: resourcesTable.gradeLevel,
+      role: listItemsTable.role,
     })
     .from(listItemsTable)
     .innerJoin(resourcesTable, eq(resourcesTable.id, listItemsTable.resourceId))
