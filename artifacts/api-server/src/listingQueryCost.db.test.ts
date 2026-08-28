@@ -487,3 +487,84 @@ describe.skipIf(!url)("reading a class", () => {
     ).toBeLessThanOrEqual(10);
   });
 });
+
+describe.skipIf(!url)("reading a resource's reviews", () => {
+  it("reads the people who wrote them in one query", async () => {
+    process.env.DATABASE_URL = url;
+    const { db, pool, usersTable, resourcesTable, reviewsTable } = await import("@workspace/db");
+    const { default: reviewsRouter } = await import("./routes/reviews.js");
+    const { issueToken } = await import("./lib/auth.js");
+
+    const stamp = Date.now();
+    const [author] = await db
+      .insert(usersTable)
+      .values({
+        email: `review-cost-${stamp}@example.test`,
+        passwordHash: "x",
+        name: "Review Cost",
+        role: "student",
+      })
+      .returning();
+    const [resource] = await db
+      .insert(resourcesTable)
+      .values({
+        title: `Reviewed ${stamp}`,
+        url: `https://example.test/reviewed-${stamp}`,
+        format: "article",
+        subject: "Physics",
+        gradeLevel: "Year 12",
+        submittedById: author.id,
+        verificationStatus: "verified",
+      })
+      .returning();
+
+    for (let index = 0; index < 12; index += 1) {
+      const [reviewer] = await db
+        .insert(usersTable)
+        .values({
+          email: `reviewer-${index}-${stamp}@example.test`,
+          passwordHash: "x",
+          name: `Reviewer ${index}`,
+          role: "student",
+        })
+        .returning();
+      await db.insert(reviewsTable).values({
+        resourceId: resource.id,
+        userId: reviewer.id,
+        rating: 4,
+        comment: `Review ${index}`,
+      });
+    }
+
+    const app = express();
+    app.use(express.json());
+    app.use("/api", reviewsRouter);
+
+    const original = pool.query.bind(pool);
+    let count = 0;
+    (pool as { query: unknown }).query = (...args: unknown[]) => {
+      count += 1;
+      return (original as (...a: unknown[]) => unknown)(...args);
+    };
+    let body: Array<{ user?: { name?: string } }>;
+    try {
+      const response = await request(app)
+        .get(`/api/resources/${resource.id}/reviews`)
+        .set({
+          Authorization: `Bearer ${issueToken(author.id, author.role, author.activeRole)}`,
+        });
+      expect(response.status, response.text.slice(0, 200)).toBe(200);
+      body = response.body;
+    } finally {
+      (pool as { query: unknown }).query = original;
+    }
+
+    expect(body).toHaveLength(12);
+    // The reviewer on each row is what the fan-out was fetching.
+    expect(body.every((review) => review.user?.name?.startsWith("Reviewer"))).toBe(true);
+    expect(
+      count,
+      `12 reviews took ${count} queries; it was one per review before`,
+    ).toBeLessThanOrEqual(6);
+  });
+});

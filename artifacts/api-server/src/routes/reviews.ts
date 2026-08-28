@@ -4,7 +4,7 @@
  */
 import { Router, type IRouter } from "express";
 import { contentLimiter } from "../lib/limiters";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db, reviewsTable, usersTable } from "@workspace/db";
 import {
   ListResourceReviewsParams,
@@ -31,15 +31,20 @@ router.get("/resources/:id/reviews", async (req, res): Promise<void> => {
     .select()
     .from(reviewsTable)
     .where(eq(reviewsTable.resourceId, params.data.id));
-  const reviews = await Promise.all(
-    rows.map(async (r) => {
-      const [user] = await db
+  // One query for the people who wrote them, not one per review. A resource
+  // with fifty reviews was fifty-one round trips, and the reviews are the
+  // second thing on a resource's page.
+  const people = rows.length
+    ? await db
         .select({ id: usersTable.id, name: usersTable.name, role: usersTable.role, avatarUrl: usersTable.avatarUrl, bio: usersTable.bio, subjects: usersTable.subjects, gradeOrDept: usersTable.gradeOrDept })
         .from(usersTable)
-        .where(eq(usersTable.id, r.userId));
-      return { ...r, user };
-    }),
-  );
+        .where(inArray(usersTable.id, rows.map((review) => review.userId)))
+    : [];
+  const byUser = new Map(people.map((person) => [person.id, person]));
+  const reviews = rows.map((review) => ({
+    ...review,
+    user: byUser.get(review.userId),
+  }));
   res.json(ListResourceReviewsResponse.parse(reviews));
 });
 

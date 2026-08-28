@@ -1359,15 +1359,20 @@ router.get("/classes/:id/shared-lists", requireAuth, async (req, res): Promise<v
     .from(resourceListsTable)
     .where(and(eq(resourceListsTable.classId, classId)));
 
-  const lists = await Promise.all(
-    rows.map(async (l) => {
-      const [{ count }] = await db
-        .select({ count: sql<number>`cast(count(*) as int)` })
+  // One grouped count for the class's lists rather than one count each, the
+  // same repair the learner's own list index needed.
+  const counts = rows.length
+    ? await db
+        .select({
+          listId: listItemsTable.listId,
+          count: sql<number>`cast(count(*) as int)`,
+        })
         .from(listItemsTable)
-        .where(eq(listItemsTable.listId, l.id));
-      return { ...l, itemCount: count };
-    })
-  );
+        .where(inArray(listItemsTable.listId, rows.map((row) => row.id)))
+        .groupBy(listItemsTable.listId)
+    : [];
+  const byList = new Map(counts.map((row) => [row.listId, row.count]));
+  const lists = rows.map((row) => ({ ...row, itemCount: byList.get(row.id) ?? 0 }));
   res.json(ListResourceListsResponse.parse(lists));
 });
 
