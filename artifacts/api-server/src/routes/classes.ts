@@ -4,7 +4,7 @@
  */
 import { Router, type IRouter } from "express";
 import { z } from "zod/v4";
-import { eq, sql, and, max, asc, desc } from "drizzle-orm";
+import { eq, sql, and, inArray, max, asc, desc } from "drizzle-orm";
 import { db, classesTable, classMembersTable, classInvitationsTable, usersTable, resourceListsTable, listItemsTable, resourcesTable, reviewsTable, scheduleBlocksTable, activityLogTable, classResourceRecommendationsTable, studyActivitiesTable, canvasesTable } from "@workspace/db";
 import { publicResourceColumns } from "../lib/resourceColumns";
 import {
@@ -238,9 +238,35 @@ router.get("/classes", requireAuth, async (req, res): Promise<void> => {
     .from(classesTable)
     .where(eq(classesTable.teacherId, userId));
 
-  const allIds = new Set([...memberClassIds, ...owned.map((c) => c.id)]);
-  const classes = await Promise.all([...allIds].map((id) => classWithCount(id)));
-  res.json(ListClassesResponse.parse(classes.filter(Boolean)));
+  const allIds = [...new Set([...memberClassIds, ...owned.map((c) => c.id)])];
+
+  /*
+   * Two queries, not two per class. This selected each class row and then
+   * counted its members, one round trip each, so a teacher with fifteen
+   * classes paid thirty-one for a screen that shows a name and a number.
+   */
+  if (allIds.length === 0) {
+    res.json(ListClassesResponse.parse([]));
+    return;
+  }
+  const [rows, counts] = await Promise.all([
+    db.select().from(classesTable).where(inArray(classesTable.id, allIds)),
+    db
+      .select({
+        classId: classMembersTable.classId,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(classMembersTable)
+      .where(inArray(classMembersTable.classId, allIds))
+      .groupBy(classMembersTable.classId),
+  ]);
+  const byClass = new Map(counts.map((row) => [row.classId, row.count]));
+  // A class with nobody in it has no rows to group, and therefore no entry.
+  const classes = rows.map((row) => ({
+    ...row,
+    memberCount: byClass.get(row.id) ?? 0,
+  }));
+  res.json(ListClassesResponse.parse(classes));
 });
 
 // POST /classes, teacher role required (verified against live DB, not token claim)

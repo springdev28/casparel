@@ -3,7 +3,7 @@
  * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
  */
 import { Router, type IRouter } from "express";
-import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   db,
@@ -91,6 +91,87 @@ async function conversationResult(
   };
 }
 
+/**
+ * Every conversation in the list, assembled in three queries rather than
+ * three per conversation.
+ *
+ * conversationResult is right for one row and wrong for a hundred: it asks for
+ * the other person, the last message and the unread count separately, so the
+ * messages screen cost three round trips per conversation and the route caps
+ * itself at a hundred of them. The pool is ten connections wide, so that
+ * fan-out also queues behind itself while somebody waits for their inbox.
+ *
+ * `distinct on (conversation_id) ... order by conversation_id, created_at desc`
+ * is how Postgres gives the newest message per conversation in one pass.
+ */
+async function conversationResults(
+  conversations: Array<typeof directConversationsTable.$inferSelect>,
+  userId: number,
+) {
+  if (conversations.length === 0) return [];
+  const ids = conversations.map((conversation) => conversation.id);
+  const otherIds = conversations.map((conversation) =>
+    conversation.firstUserId === userId
+      ? conversation.secondUserId
+      : conversation.firstUserId,
+  );
+
+  const [others, lastMessages, unreadCounts] = await Promise.all([
+    db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        role: usersTable.role,
+        avatarUrl: usersTable.avatarUrl,
+      })
+      .from(usersTable)
+      .where(inArray(usersTable.id, otherIds)),
+    db
+      .selectDistinctOn([directMessagesTable.conversationId])
+      .from(directMessagesTable)
+      .where(inArray(directMessagesTable.conversationId, ids))
+      .orderBy(
+        directMessagesTable.conversationId,
+        desc(directMessagesTable.createdAt),
+      ),
+    db
+      .select({
+        conversationId: directMessagesTable.conversationId,
+        count: sql<number>`cast(count(*) as int)`,
+      })
+      .from(directMessagesTable)
+      .where(
+        and(
+          inArray(directMessagesTable.conversationId, ids),
+          ne(directMessagesTable.senderId, userId),
+          isNull(directMessagesTable.readAt),
+        ),
+      )
+      .groupBy(directMessagesTable.conversationId),
+  ]);
+
+  const otherById = new Map(others.map((other) => [other.id, other]));
+  const lastByConversation = new Map(
+    lastMessages.map((message) => [message.conversationId, message]),
+  );
+  const unreadByConversation = new Map(
+    unreadCounts.map((row) => [row.conversationId, row.count]),
+  );
+
+  return conversations.map((conversation) => ({
+    ...conversation,
+    other: otherById.get(
+      conversation.firstUserId === userId
+        ? conversation.secondUserId
+        : conversation.firstUserId,
+    ),
+    lastMessage: lastByConversation.get(conversation.id) ?? null,
+    unreadCount: unreadByConversation.get(conversation.id) ?? 0,
+    incomingRequest:
+      conversation.status === "pending" && conversation.requestedById !== userId,
+  }));
+}
+
 router.get("/direct-messages/conversations", requireAuth, async (req, res): Promise<void> => {
   const { userId } = req as AuthenticatedRequest;
   const conversations = await db.select().from(directConversationsTable)
@@ -100,7 +181,7 @@ router.get("/direct-messages/conversations", requireAuth, async (req, res): Prom
     ))
     .orderBy(desc(directConversationsTable.updatedAt))
     .limit(100);
-  res.json(await Promise.all(conversations.map((item) => conversationResult(item, userId))));
+  res.json(await conversationResults(conversations, userId));
 });
 
 router.post(
