@@ -3,7 +3,11 @@
  * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
  */
 import { describe, expect, it } from "vitest";
-import { listResourcesMissingFromPath, pathStepForResource } from "./goalPath";
+import {
+  listResourcesMissingFromPath,
+  pathStepForResource,
+  stepsInOrder,
+} from "./goalPath";
 
 describe("what a path is missing from its list", () => {
   it("is nothing when the path carries every resource the list holds", () => {
@@ -72,5 +76,52 @@ describe("the step a resource becomes", () => {
   it("gives every step its own id", () => {
     const resource = { id: 1, title: "Vectors", subject: "Maths" };
     expect(pathStepForResource(resource).id).not.toBe(pathStepForResource(resource).id);
+  });
+});
+
+describe("putting a path in the order asked for", () => {
+  const path = [{ id: "a" }, { id: "b" }, { id: "c" }];
+
+  it("is the order given", () => {
+    expect(stepsInOrder(path, ["c", "a", "b"])).toEqual({
+      steps: [{ id: "c" }, { id: "a" }, { id: "b" }],
+    });
+  });
+
+  /*
+   * The case this rule exists for: a step appended on another device while
+   * the learner was dragging the ones they could see. It belongs after them.
+   */
+  it("keeps a step the caller never saw, after the ones they arranged", () => {
+    expect(stepsInOrder([...path, { id: "d" }], ["c", "a", "b"])).toEqual({
+      steps: [{ id: "c" }, { id: "a" }, { id: "b" }, { id: "d" }],
+    });
+  });
+
+  it("keeps unnamed steps in their own relative order", () => {
+    expect(
+      stepsInOrder([{ id: "a" }, { id: "d" }, { id: "e" }], ["a"]),
+    ).toEqual({ steps: [{ id: "a" }, { id: "d" }, { id: "e" }] });
+  });
+
+  /*
+   * A named id that is not on the path means the caller is working from a
+   * path that has changed — a step deleted elsewhere. Placing the rest anyway
+   * would give them an order they did not choose.
+   */
+  it("refuses an id that is not on the path", () => {
+    expect(stepsInOrder(path, ["a", "gone"])).toEqual({
+      conflict: "unknown_step",
+    });
+  });
+
+  it("refuses the same step named twice", () => {
+    expect(stepsInOrder(path, ["a", "a", "b"])).toEqual({
+      conflict: "duplicate_step",
+    });
+  });
+
+  it("leaves the path alone when nothing is named", () => {
+    expect(stepsInOrder(path, [])).toEqual({ steps: path });
   });
 });

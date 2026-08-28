@@ -70,6 +70,8 @@ import type {
   GoalListDrift,
   GoalResourceInput,
   GoalResourceLink,
+  GoalStepInput,
+  GoalStepOrderInput,
   HealthStatus,
   JoinClassInput,
   JoinedClass,
@@ -2030,6 +2032,300 @@ export function useGetStepActivity<TData = Awaited<ReturnType<typeof getStepActi
 
 
 
+
+export const getAddGoalStepUrl = (id: number,) => {
+
+
+
+
+  return `/api/learning-goals/${id}/steps`
+}
+
+/**
+ * Appends a single step rather than sending the path back with one more in it, so adding a step cannot overwrite a tick, a rename or a resource that arrived from somewhere else in the meantime.
+ * @summary Add one step to a path
+ */
+export const addGoalStep = async (id: number,
+    goalStepInput: GoalStepInput, options?: Parameters<typeof customFetch>[1]): Promise<LearningGoal> => {
+
+  return customFetch<LearningGoal>(getAddGoalStepUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(goalStepInput)
+  }
+);}
+
+
+
+
+
+export const getAddGoalStepMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addGoalStep>>, TError,{id: number;data: BodyType<GoalStepInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addGoalStep>>, TError,{id: number;data: BodyType<GoalStepInput>}, TContext> => {
+
+const mutationKey = ['addGoalStep'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addGoalStep>>, {id: number;data: BodyType<GoalStepInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addGoalStep(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddGoalStepMutationResult = NonNullable<Awaited<ReturnType<typeof addGoalStep>>>
+    export type AddGoalStepMutationBody = BodyType<GoalStepInput>
+    export type AddGoalStepMutationError = ErrorType<void>
+
+    /**
+ * @summary Add one step to a path
+ */
+export const useAddGoalStep = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addGoalStep>>, TError,{id: number;data: BodyType<GoalStepInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addGoalStep>>,
+        TError,
+        {id: number;data: BodyType<GoalStepInput>},
+        TContext
+      > => {
+      return useMutation(getAddGoalStepMutationOptions(options));
+    }
+
+export const getReorderGoalStepsUrl = (id: number,) => {
+
+
+
+
+  return `/api/learning-goals/${id}/steps/order`
+}
+
+/**
+ * Takes step ids rather than whole steps, so reordering says only what it means to say and cannot carry a stale title or a stale tick back with it. A step on the path the caller did not name keeps its place after the ones that were named, which is what a step appended on another device should do. An id that is not on the path means the caller is working from a path that has since changed, and is refused.
+ * @summary Set the order of a path's steps
+ */
+export const reorderGoalSteps = async (id: number,
+    goalStepOrderInput: GoalStepOrderInput, options?: Parameters<typeof customFetch>[1]): Promise<LearningGoal> => {
+
+  return customFetch<LearningGoal>(getReorderGoalStepsUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(goalStepOrderInput)
+  }
+);}
+
+
+
+
+
+export const getReorderGoalStepsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderGoalSteps>>, TError,{id: number;data: BodyType<GoalStepOrderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderGoalSteps>>, TError,{id: number;data: BodyType<GoalStepOrderInput>}, TContext> => {
+
+const mutationKey = ['reorderGoalSteps'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderGoalSteps>>, {id: number;data: BodyType<GoalStepOrderInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reorderGoalSteps(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderGoalStepsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderGoalSteps>>>
+    export type ReorderGoalStepsMutationBody = BodyType<GoalStepOrderInput>
+    export type ReorderGoalStepsMutationError = ErrorType<void>
+
+    /**
+ * @summary Set the order of a path's steps
+ */
+export const useReorderGoalSteps = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderGoalSteps>>, TError,{id: number;data: BodyType<GoalStepOrderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reorderGoalSteps>>,
+        TError,
+        {id: number;data: BodyType<GoalStepOrderInput>},
+        TContext
+      > => {
+      return useMutation(getReorderGoalStepsMutationOptions(options));
+    }
+
+export const getRenameGoalStepUrl = (id: number,
+    stepId: string,) => {
+
+
+
+
+  return `/api/learning-goals/${id}/steps/${stepId}`
+}
+
+/**
+ * @summary Rename one step of a path
+ */
+export const renameGoalStep = async (id: number,
+    stepId: string,
+    goalStepInput: GoalStepInput, options?: Parameters<typeof customFetch>[1]): Promise<LearningGoal> => {
+
+  return customFetch<LearningGoal>(getRenameGoalStepUrl(id,stepId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(goalStepInput)
+  }
+);}
+
+
+
+
+
+export const getRenameGoalStepMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameGoalStep>>, TError,{id: number;stepId: string;data: BodyType<GoalStepInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renameGoalStep>>, TError,{id: number;stepId: string;data: BodyType<GoalStepInput>}, TContext> => {
+
+const mutationKey = ['renameGoalStep'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renameGoalStep>>, {id: number;stepId: string;data: BodyType<GoalStepInput>}> = (props) => {
+          const {id,stepId,data} = props ?? {};
+
+          return  renameGoalStep(id,stepId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenameGoalStepMutationResult = NonNullable<Awaited<ReturnType<typeof renameGoalStep>>>
+    export type RenameGoalStepMutationBody = BodyType<GoalStepInput>
+    export type RenameGoalStepMutationError = ErrorType<void>
+
+    /**
+ * @summary Rename one step of a path
+ */
+export const useRenameGoalStep = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameGoalStep>>, TError,{id: number;stepId: string;data: BodyType<GoalStepInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof renameGoalStep>>,
+        TError,
+        {id: number;stepId: string;data: BodyType<GoalStepInput>},
+        TContext
+      > => {
+      return useMutation(getRenameGoalStepMutationOptions(options));
+    }
+
+export const getDeleteGoalStepUrl = (id: number,
+    stepId: string,) => {
+
+
+
+
+  return `/api/learning-goals/${id}/steps/${stepId}`
+}
+
+/**
+ * Any check-in recorded against the step is kept. Evidence is a record of what somebody said at a moment, not a property of a step, so removing the step from a path does not withdraw what was said while working on it.
+ * @summary Remove one step from a path
+ */
+export const deleteGoalStep = async (id: number,
+    stepId: string, options?: Parameters<typeof customFetch>[1]): Promise<LearningGoal> => {
+
+  return customFetch<LearningGoal>(getDeleteGoalStepUrl(id,stepId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteGoalStepMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGoalStep>>, TError,{id: number;stepId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteGoalStep>>, TError,{id: number;stepId: string}, TContext> => {
+
+const mutationKey = ['deleteGoalStep'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteGoalStep>>, {id: number;stepId: string}> = (props) => {
+          const {id,stepId} = props ?? {};
+
+          return  deleteGoalStep(id,stepId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteGoalStepMutationResult = NonNullable<Awaited<ReturnType<typeof deleteGoalStep>>>
+
+    export type DeleteGoalStepMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove one step from a path
+ */
+export const useDeleteGoalStep = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteGoalStep>>, TError,{id: number;stepId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteGoalStep>>,
+        TError,
+        {id: number;stepId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteGoalStepMutationOptions(options));
+    }
 
 export const getGetGoalListDriftUrl = (id: number,) => {
 

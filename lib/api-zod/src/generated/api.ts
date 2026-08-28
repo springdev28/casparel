@@ -763,6 +763,183 @@ export const GetStepActivityResponse = zod.object({
 
 
 /**
+ * Appends a single step rather than sending the path back with one more in it, so adding a step cannot overwrite a tick, a rename or a resource that arrived from somewhere else in the meantime.
+ * @summary Add one step to a path
+ */
+export const AddGoalStepParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const addGoalStepBodyTitleMax = 200;
+
+
+
+export const AddGoalStepBody = zod.object({
+  "title": zod.string().min(1).max(addGoalStepBodyTitleMax)
+})
+
+export const addGoalStepResponsePathStepsItemIdMax = 80;
+
+export const addGoalStepResponsePathStepsItemTitleMax = 200;
+
+export const addGoalStepResponsePathStepsItemQueryMax = 300;
+
+
+
+export const AddGoalStepResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(addGoalStepResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(addGoalStepResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(addGoalStepResponsePathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * Takes step ids rather than whole steps, so reordering says only what it means to say and cannot carry a stale title or a stale tick back with it. A step on the path the caller did not name keeps its place after the ones that were named, which is what a step appended on another device should do. An id that is not on the path means the caller is working from a path that has since changed, and is refused.
+ * @summary Set the order of a path's steps
+ */
+export const ReorderGoalStepsParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReorderGoalStepsBody = zod.object({
+  "stepIds": zod.array(zod.string()).describe('The path\'s step ids in the order they should appear. Steps not named here keep their relative order after the ones that are.')
+})
+
+export const reorderGoalStepsResponsePathStepsItemIdMax = 80;
+
+export const reorderGoalStepsResponsePathStepsItemTitleMax = 200;
+
+export const reorderGoalStepsResponsePathStepsItemQueryMax = 300;
+
+
+
+export const ReorderGoalStepsResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(reorderGoalStepsResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(reorderGoalStepsResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(reorderGoalStepsResponsePathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Rename one step of a path
+ */
+export const RenameGoalStepParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stepId": zod.coerce.string()
+})
+
+export const renameGoalStepBodyTitleMax = 200;
+
+
+
+export const RenameGoalStepBody = zod.object({
+  "title": zod.string().min(1).max(renameGoalStepBodyTitleMax)
+})
+
+export const renameGoalStepResponsePathStepsItemIdMax = 80;
+
+export const renameGoalStepResponsePathStepsItemTitleMax = 200;
+
+export const renameGoalStepResponsePathStepsItemQueryMax = 300;
+
+
+
+export const RenameGoalStepResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(renameGoalStepResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(renameGoalStepResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(renameGoalStepResponsePathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * Any check-in recorded against the step is kept. Evidence is a record of what somebody said at a moment, not a property of a step, so removing the step from a path does not withdraw what was said while working on it.
+ * @summary Remove one step from a path
+ */
+export const DeleteGoalStepParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "stepId": zod.coerce.string()
+})
+
+export const deleteGoalStepResponsePathStepsItemIdMax = 80;
+
+export const deleteGoalStepResponsePathStepsItemTitleMax = 200;
+
+export const deleteGoalStepResponsePathStepsItemQueryMax = 300;
+
+
+
+export const DeleteGoalStepResponse = zod.object({
+  "id": zod.int(),
+  "userId": zod.int(),
+  "title": zod.string(),
+  "subject": zod.string(),
+  "description": zod.string().nullish(),
+  "level": zod.enum(['beginner', 'intermediate', 'advanced']),
+  "preferredFormats": zod.array(zod.enum(['article', 'video', 'pdf', 'podcast', 'interactive', 'other'])).nullish(),
+  "targetDate": zod.coerce.date().nullish(),
+  "status": zod.enum(['active', 'paused', 'completed']),
+  "sourceListId": zod.int().nullish().describe('The Learning List this path was built from, when it was built from one. Absent or null on a goal somebody wrote themselves.'),
+  "pathSteps": zod.array(zod.object({
+  "id": zod.string().min(1).max(deleteGoalStepResponsePathStepsItemIdMax),
+  "title": zod.string().min(1).max(deleteGoalStepResponsePathStepsItemTitleMax),
+  "query": zod.string().min(1).max(deleteGoalStepResponsePathStepsItemQueryMax),
+  "completed": zod.boolean(),
+  "resourceId": zod.int().nullish().describe('The saved resource this step is about, when the learner attached one. Absent or null means the step is a search intent only, which is what every step created before resources could be attached is.')
+})),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
  * A path is a snapshot of a Learning List, and the list keeps moving. This reports the resources now in the list that no step of the path carries, so a learner is told their path has fallen behind rather than finding out by noticing something missing. It reports only additions: a resource taken out of the list is deliberately not reported, because the step for it may already be finished and evidence is not something to withdraw because a list was tidied.
  * @summary What the source list has gained since this path was built
  */

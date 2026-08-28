@@ -111,6 +111,8 @@ export * from './getResourceSourceReviewParams';
 export * from './goalListDrift';
 export * from './goalResourceInput';
 export * from './goalResourceLink';
+export * from './goalStepInput';
+export * from './goalStepOrderInput';
 export * from './healthStatus';
 export * from './healthStatusSchema';
 export * from './healthStatusSchemaState';

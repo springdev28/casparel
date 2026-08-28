@@ -69,6 +69,10 @@ import {
   useListLearningGoals,
   useListResources,
   useCompleteGoalStep,
+  useAddGoalStep,
+  useDeleteGoalStep,
+  useRenameGoalStep,
+  useReorderGoalSteps,
   useUpdateLearningGoal,
   useListClasses,
   useListClassStudentGoals,
@@ -208,6 +212,10 @@ export default function GoalsPage() {
   });
   const createGoal = useCreateLearningGoal();
   const updateGoal = useUpdateLearningGoal();
+  const addGoalStep = useAddGoalStep();
+  const renameGoalStep = useRenameGoalStep();
+  const deleteGoalStep = useDeleteGoalStep();
+  const reorderGoalSteps = useReorderGoalSteps();
   const deleteGoal = useDeleteLearningGoal();
   const [open, setOpen] = useState(false);
 
@@ -389,26 +397,70 @@ export default function GoalsPage() {
       });
     }
   }
+  /**
+   * Edit one step, saying only what the edit means to say.
+   *
+   * These four used to rebuild the whole `pathSteps` array and PATCH it back,
+   * which writes the path as it was when this page last read it: a rename
+   * undid a tick made on the phone, an added step erased a resource attached
+   * from the save sheet, a reorder carried a stale title back. Each now names
+   * the one step it is about, under the goal's own lock on the server.
+   *
+   * Reordering sends ids rather than steps for the same reason -- it has no
+   * business carrying a title or a tick at all -- and a step this page has
+   * not seen keeps its place after the ones it arranged.
+   */
+  async function whenStepEditFails(error: unknown) {
+    toast({
+      title: "Could not change that step",
+      description: describeApiError(error, "Please try again."),
+      variant: "destructive",
+    });
+    // The rows are drawn from server state, so pulling it back is what puts
+    // the screen right after a refused edit -- a 409 especially, which means
+    // this page is looking at a path that has since changed.
+    await refresh();
+  }
   async function renameStep(goal: LearningGoal, stepId: string, title: string) {
     const cleanTitle = title.trim();
     if (!cleanTitle) return;
-    await patch(goal.id, { pathSteps: goal.pathSteps.map((step) => step.id === stepId ? { ...step, title: cleanTitle, query: cleanTitle } : step) });
+    try {
+      await renameGoalStep.mutateAsync({ id: goal.id, stepId, data: { title: cleanTitle } });
+      await refresh();
+    } catch (error) {
+      await whenStepEditFails(error);
+    }
   }
   async function addStep(goal: LearningGoal) {
     const title = newStepTitles[goal.id]?.trim();
     if (!title) return;
-    await patch(goal.id, { pathSteps: [...goal.pathSteps, { id: crypto.randomUUID(), title, query: title, completed: false }] });
-    setNewStepTitles((current) => ({ ...current, [goal.id]: "" }));
+    try {
+      await addGoalStep.mutateAsync({ id: goal.id, data: { title } });
+      setNewStepTitles((current) => ({ ...current, [goal.id]: "" }));
+      await refresh();
+    } catch (error) {
+      await whenStepEditFails(error);
+    }
   }
   async function deleteStep(goal: LearningGoal, stepId: string) {
-    await patch(goal.id, { pathSteps: goal.pathSteps.filter((step) => step.id !== stepId) });
+    try {
+      await deleteGoalStep.mutateAsync({ id: goal.id, stepId });
+      await refresh();
+    } catch (error) {
+      await whenStepEditFails(error);
+    }
   }
   async function moveStep(goal: LearningGoal, index: number, direction: -1 | 1) {
     const target = index + direction;
     if (target < 0 || target >= goal.pathSteps.length) return;
-    const pathSteps = [...goal.pathSteps];
-    [pathSteps[index], pathSteps[target]] = [pathSteps[target], pathSteps[index]];
-    await patch(goal.id, { pathSteps });
+    const order = goal.pathSteps.map((step) => step.id);
+    [order[index], order[target]] = [order[target], order[index]];
+    try {
+      await reorderGoalSteps.mutateAsync({ id: goal.id, data: { stepIds: order } });
+      await refresh();
+    } catch (error) {
+      await whenStepEditFails(error);
+    }
   }
   async function remove(id: number) {
     if (!confirm("Delete this learning goal?")) return;

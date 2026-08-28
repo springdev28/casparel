@@ -1130,6 +1130,19 @@ export interface StepActivity {
   recallActivity?: StudyActivitySummary | null;
 }
 
+export interface GoalStepInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  title: string;
+}
+
+export interface GoalStepOrderInput {
+  /** The path's step ids in the order they should appear. Steps not named here keep their relative order after the ones that are. */
+  stepIds: string[];
+}
+
 export interface GoalListDrift {
   listId: number;
   listName: string;

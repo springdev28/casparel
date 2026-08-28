@@ -792,6 +792,98 @@ async function main() {
       strangersDrift.status === 404,
       `HTTP ${strangersDrift.status}`,
     );
+
+    /*
+     * ---- and editing the path afterwards ------------------------------
+     *
+     * Each of these used to be a whole-array PATCH, so each one wrote the path
+     * as the client last read it and undid whatever had arrived since. Checked
+     * against a real server because the property is about what the database
+     * ends up holding after two writes, not about one handler's return value.
+     */
+    const withStep = await call(
+      "POST",
+      `/api/learning-goals/${built.body.id}/steps`,
+      { token: bob.token, body: { title: "Something I thought of" } },
+    );
+    check(
+      "a step can be added to a path on its own",
+      withStep.status === 201 &&
+        withStep.body?.pathSteps?.at(-1)?.title === "Something I thought of",
+      `HTTP ${withStep.status} ${withStep.text.slice(0, 200)}`,
+    );
+    const mine = withStep.body?.pathSteps?.at(-1)?.id;
+
+    // Tick one step, then rename another. The tick has to still be there --
+    // this is the exact pair that a whole-array write loses.
+    await call(
+      "POST",
+      `/api/learning-goals/${built.body.id}/steps/${withStep.body.pathSteps[0].id}/completion`,
+      { token: bob.token, body: { completed: true } },
+    );
+    const renamed = await call(
+      "PATCH",
+      `/api/learning-goals/${built.body.id}/steps/${mine}`,
+      { token: bob.token, body: { title: "Renamed after the tick" } },
+    );
+    check(
+      "renaming one step leaves a tick made on another",
+      renamed.status === 200 &&
+        renamed.body?.pathSteps?.[0]?.completed === true &&
+        renamed.body.pathSteps.find((one) => one.id === mine)?.title ===
+          "Renamed after the tick",
+      `HTTP ${renamed.status} ${renamed.text.slice(0, 250)}`,
+    );
+
+    const stepOrder = renamed.body.pathSteps.map((one) => one.id);
+    const flipped = await call(
+      "POST",
+      `/api/learning-goals/${built.body.id}/steps/order`,
+      { token: bob.token, body: { stepIds: [...stepOrder].reverse() } },
+    );
+    check(
+      "a path can be reordered by id, carrying nothing stale with it",
+      flipped.status === 200 &&
+        JSON.stringify(flipped.body?.pathSteps?.map((one) => one.id)) ===
+          JSON.stringify([...stepOrder].reverse()) &&
+        flipped.body.pathSteps.at(-1)?.completed === true,
+      `HTTP ${flipped.status} ${flipped.text.slice(0, 250)}`,
+    );
+
+    const staleOrder = await call(
+      "POST",
+      `/api/learning-goals/${built.body.id}/steps/order`,
+      { token: bob.token, body: { stepIds: [...stepOrder, "not-a-step"] } },
+    );
+    check(
+      "an order naming a step that is gone is refused rather than guessed at",
+      staleOrder.status === 409,
+      `HTTP ${staleOrder.status} ${staleOrder.text.slice(0, 160)}`,
+    );
+
+    const removed = await call(
+      "DELETE",
+      `/api/learning-goals/${built.body.id}/steps/${mine}`,
+      { token: bob.token },
+    );
+    check(
+      "a step can be removed on its own",
+      removed.status === 200 &&
+        !removed.body?.pathSteps?.some((one) => one.id === mine) &&
+        removed.body.pathSteps.length === stepOrder.length - 1,
+      `HTTP ${removed.status} ${removed.text.slice(0, 200)}`,
+    );
+
+    const strangersEdit = await call(
+      "PATCH",
+      `/api/learning-goals/${built.body.id}/steps/${stepOrder[0]}`,
+      { token: alice.token, body: { title: "Not yours" } },
+    );
+    check(
+      "a stranger cannot edit somebody else's path",
+      strangersEdit.status === 404,
+      `HTTP ${strangersEdit.status}`,
+    );
   }
 
   // ---- a saved resource reaches the goal it is for -------------------------

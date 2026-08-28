@@ -504,6 +504,123 @@ paths:
                 $ref: "#/components/schemas/StepActivity"
         "404": { description: Goal or step not found }
 
+  /learning-goals/{id}/steps:
+    post:
+      operationId: addGoalStep
+      tags: [learning-goals]
+      summary: Add one step to a path
+      description: >-
+        Appends a single step rather than sending the path back with one more
+        in it, so adding a step cannot overwrite a tick, a rename or a resource
+        that arrived from somewhere else in the meantime.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalStepInput"
+      responses:
+        "201":
+          description: The goal, with the step appended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+        "404": { description: Goal not found }
+
+  /learning-goals/{id}/steps/order:
+    post:
+      operationId: reorderGoalSteps
+      tags: [learning-goals]
+      summary: Set the order of a path's steps
+      description: >-
+        Takes step ids rather than whole steps, so reordering says only what it
+        means to say and cannot carry a stale title or a stale tick back with
+        it. A step on the path the caller did not name keeps its place after
+        the ones that were named, which is what a step appended on another
+        device should do. An id that is not on the path means the caller is
+        working from a path that has since changed, and is refused.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalStepOrderInput"
+      responses:
+        "200":
+          description: The goal, in the order asked for
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+        "409": { description: "The path has changed since this order was chosen" }
+        "404": { description: Goal not found }
+
+  /learning-goals/{id}/steps/{stepId}:
+    patch:
+      operationId: renameGoalStep
+      tags: [learning-goals]
+      summary: Rename one step of a path
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stepId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalStepInput"
+      responses:
+        "200":
+          description: The goal, with the step renamed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+        "404": { description: Goal or step not found }
+    delete:
+      operationId: deleteGoalStep
+      tags: [learning-goals]
+      summary: Remove one step from a path
+      description: >-
+        Any check-in recorded against the step is kept. Evidence is a record of
+        what somebody said at a moment, not a property of a step, so removing
+        the step from a path does not withdraw what was said while working on
+        it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: stepId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The goal, without that step
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LearningGoal"
+        "404": { description: Goal or step not found }
+
   /learning-goals/{id}/list-drift:
     get:
       operationId: getGoalListDrift
@@ -4331,6 +4448,23 @@ components:
           oneOf:
             - $ref: "#/components/schemas/StudyActivitySummary"
             - type: "null"
+
+    GoalStepInput:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+
+    GoalStepOrderInput:
+      type: object
+      required: [stepIds]
+      properties:
+        stepIds:
+          type: array
+          description: >-
+            The path's step ids in the order they should appear. Steps not
+            named here keep their relative order after the ones that are.
+          items: { type: string }
 
     GoalListDrift:
       type: object

@@ -3,7 +3,7 @@
  * System connection: mounted by routes/index.ts; coordinates auth middleware, domain helpers, Drizzle tables, and external integrations.
  */
 import { randomUUID } from "node:crypto";
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import {
   db,
@@ -17,6 +17,7 @@ import {
   studyActivitiesTable,
   usersTable,
   activityLogTable,
+  type LearningPathStepRecord,
 } from "@workspace/db";
 import {
   CreateLearningGoalBody,
@@ -41,6 +42,17 @@ import {
   GetGoalListDriftResponse,
   AddStepsFromListParams,
   AddStepsFromListResponse,
+  AddGoalStepParams,
+  AddGoalStepBody,
+  AddGoalStepResponse,
+  RenameGoalStepParams,
+  RenameGoalStepBody,
+  RenameGoalStepResponse,
+  DeleteGoalStepParams,
+  DeleteGoalStepResponse,
+  ReorderGoalStepsParams,
+  ReorderGoalStepsBody,
+  ReorderGoalStepsResponse,
 } from "@workspace/api-zod";
 import {
   requireAuth,
@@ -59,6 +71,7 @@ import { suggestStepActivity } from "../lib/stepActivity";
 import {
   listResourcesMissingFromPath,
   pathStepForResource,
+  stepsInOrder,
 } from "../lib/goalPath";
 import { isAdminRequest } from "../lib/adminAccess";
 
@@ -841,6 +854,213 @@ async function listResourcesInOrder(
     )
     .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
 }
+
+/**
+ * One edit to a path, under the goal's own lane.
+ *
+ * Every write here reads the path, changes one thing about it and writes it
+ * back, and the whole reason these endpoints exist is that a client doing the
+ * same thing across two round trips cannot: whatever it read is stale by the
+ * time it writes, so a rename undoes a tick and an added step erases a
+ * resource that arrived from somewhere else. Inside the lock the read and the
+ * write are one moment, and the caller sends only what it means to change.
+ *
+ * The lane is (goal id, 1), shared with attaching a resource, catching up with
+ * a list and ticking a step -- everything that rewrites this column queues
+ * behind everything else that does.
+ */
+type PathEdit =
+  | { steps: LearningPathStepRecord[] }
+  | { failure: "step" | "conflict" };
+
+async function editGoalPath(
+  goalId: number,
+  userId: number,
+  userRole: string,
+  edit: (steps: LearningPathStepRecord[]) => PathEdit,
+): Promise<
+  { goal: typeof learningGoalsTable.$inferSelect } | { failure: "goal" | "step" | "conflict" }
+> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${goalId}, 1)`);
+    const [goal] = await tx
+      .select()
+      .from(learningGoalsTable)
+      .where(
+        and(
+          eq(learningGoalsTable.id, goalId),
+          eq(learningGoalsTable.userId, userId),
+          eq(
+            learningGoalsTable.workspaceRole,
+            userRole === "teacher" ? "teacher" : "student",
+          ),
+        ),
+      );
+    if (!goal) return { failure: "goal" as const };
+
+    const edited = edit(goal.pathSteps);
+    if ("failure" in edited) return edited;
+
+    const [updated] = await tx
+      .update(learningGoalsTable)
+      .set({ pathSteps: edited.steps, updatedAt: new Date().toISOString() })
+      .where(eq(learningGoalsTable.id, goal.id))
+      .returning();
+    return { goal: updated };
+  });
+}
+
+/** What a failed path edit says, so the four handlers answer alike. */
+function sendPathEditFailure(
+  res: Response,
+  failure: "goal" | "step" | "conflict",
+): void {
+  if (failure === "goal") {
+    res.status(404).json({ error: "Learning goal not found" });
+    return;
+  }
+  if (failure === "step") {
+    res.status(404).json({ error: "Step not found" });
+    return;
+  }
+  res.status(409).json({
+    error: "This path has changed since. Reload it and try again.",
+  });
+}
+
+/** Append one step, without sending the rest of the path back with it. */
+router.post(
+  "/learning-goals/:id/steps",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = AddGoalStepParams.safeParse(req.params);
+    const body = AddGoalStepBody.safeParse(req.body);
+    if (!params.success) {
+      res.status(400).json({ error: validationMessage(params.error) });
+      return;
+    }
+    if (!body.success) {
+      res.status(400).json({ error: validationMessage(body.error) });
+      return;
+    }
+    const title = body.data.title.trim();
+    const done = await editGoalPath(params.data.id, userId, userRole, (steps) => ({
+      steps: [
+        ...steps,
+        { id: randomUUID(), title, query: title, completed: false },
+      ],
+    }));
+    if ("failure" in done) {
+      sendPathEditFailure(res, done.failure);
+      return;
+    }
+    res.status(201).json(asContract(AddGoalStepResponse.parse(done.goal)));
+  },
+);
+
+/*
+ * Registered before the two /steps/:stepId handlers below it. Express matches
+ * in order and would otherwise read "order" as a step id -- though only for a
+ * method they share, which is why this has been safe by accident so far.
+ */
+router.post(
+  "/learning-goals/:id/steps/order",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = ReorderGoalStepsParams.safeParse(req.params);
+    const body = ReorderGoalStepsBody.safeParse(req.body);
+    if (!params.success) {
+      res.status(400).json({ error: validationMessage(params.error) });
+      return;
+    }
+    if (!body.success) {
+      res.status(400).json({ error: validationMessage(body.error) });
+      return;
+    }
+    const done = await editGoalPath(params.data.id, userId, userRole, (steps) => {
+      const ordered = stepsInOrder(steps, body.data.stepIds);
+      return "conflict" in ordered ? { failure: "conflict" } : ordered;
+    });
+    if ("failure" in done) {
+      sendPathEditFailure(res, done.failure);
+      return;
+    }
+    res.json(asContract(ReorderGoalStepsResponse.parse(done.goal)));
+  },
+);
+
+/** Rename one step. The query follows the title, as it always has. */
+router.patch(
+  "/learning-goals/:id/steps/:stepId",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = RenameGoalStepParams.safeParse(req.params);
+    const body = RenameGoalStepBody.safeParse(req.body);
+    if (!params.success) {
+      res.status(400).json({ error: validationMessage(params.error) });
+      return;
+    }
+    if (!body.success) {
+      res.status(400).json({ error: validationMessage(body.error) });
+      return;
+    }
+    const title = body.data.title.trim();
+    const done = await editGoalPath(params.data.id, userId, userRole, (steps) => {
+      if (!steps.some((step) => step.id === params.data.stepId)) {
+        return { failure: "step" };
+      }
+      return {
+        steps: steps.map((step) =>
+          step.id === params.data.stepId ? { ...step, title, query: title } : step,
+        ),
+      };
+    });
+    if ("failure" in done) {
+      sendPathEditFailure(res, done.failure);
+      return;
+    }
+    res.json(asContract(RenameGoalStepResponse.parse(done.goal)));
+  },
+);
+
+/**
+ * Remove one step.
+ *
+ * Any check-in against it stays. Evidence is a record of what somebody said at
+ * a moment rather than a property of a step, which is the same reason
+ * unticking leaves it: a learner tidying their path is not withdrawing what
+ * they told a teacher while working through it.
+ */
+router.delete(
+  "/learning-goals/:id/steps/:stepId",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId, userRole } = req as AuthenticatedRequest;
+    const params = DeleteGoalStepParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: validationMessage(params.error) });
+      return;
+    }
+    const done = await editGoalPath(params.data.id, userId, userRole, (steps) => {
+      if (!steps.some((step) => step.id === params.data.stepId)) {
+        return { failure: "step" };
+      }
+      return { steps: steps.filter((step) => step.id !== params.data.stepId) };
+    });
+    if ("failure" in done) {
+      sendPathEditFailure(res, done.failure);
+      return;
+    }
+    res.json(asContract(DeleteGoalStepResponse.parse(done.goal)));
+  },
+);
 
 /**
  * The list a path came from, and what it has gained since.

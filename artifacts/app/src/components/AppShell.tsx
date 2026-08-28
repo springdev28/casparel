@@ -68,7 +68,7 @@ import {
   getListLearningGoalsQueryKey,
   useListLearningGoals,
   useCompleteGoalStep,
-  useUpdateLearningGoal,
+  useRenameGoalStep,
   getListClassesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -363,8 +363,8 @@ export default function AppShell({ children }: AppShellProps) {
       queryKey: getListLearningGoalsQueryKey(),
     },
   });
-  const updateSidebarGoal = useUpdateLearningGoal();
   const completeSidebarStep = useCompleteGoalStep();
+  const renameSidebarGoalStep = useRenameGoalStep();
   const [expandedPaths, setExpandedPaths] = useState<number[]>([]);
   const [ambientStyle, setAmbientStyle] = useState<VantaStyle>(() => {
     const saved =
@@ -491,11 +491,13 @@ export default function AppShell({ children }: AppShellProps) {
       queryKey: getListLearningGoalsQueryKey(),
     });
   }
-  async function updatePath(
+  /** Rename one step, naming only the step it is about. */
+  async function renameSidebarStep(
     goal: NonNullable<typeof sidebarGoals>[number],
-    pathSteps: typeof goal.pathSteps,
+    stepId: string,
+    title: string,
   ) {
-    await updateSidebarGoal.mutateAsync({ id: goal.id, data: { pathSteps } });
+    await renameSidebarGoalStep.mutateAsync({ id: goal.id, stepId, data: { title } });
     await queryClient.invalidateQueries({
       queryKey: getListLearningGoalsQueryKey(),
     });
@@ -824,14 +826,7 @@ export default function AppShell({ children }: AppShellProps) {
                                   const title =
                                     event.currentTarget.value.trim();
                                   if (title && title !== step.title)
-                                    updatePath(
-                                      goal,
-                                      goal.pathSteps.map((item) =>
-                                        item.id === step.id
-                                          ? { ...item, title }
-                                          : item,
-                                      ),
-                                    );
+                                    void renameSidebarStep(goal, step.id, title);
                                 }}
                               />
                             </div>

@@ -596,3 +596,40 @@ it. The distinction it draws is the point: the correct write reads its step
 with `pathSteps.find` and sends one flag, and a looser pattern flags the fix
 as the defect. Measured by restoring the dashboard's old shape, which fails
 it.
+
+## Current implementation ledger — 2026-08-29 (the rest of the path edits)
+
+The tick was moved onto an endpoint that touches one step because a learning
+path is one JSON column and a client that rebuilds the array writes the path as
+it was when that client last read it. Renaming, adding, deleting and reordering
+were left on the whole-array write, with a comment saying that was right for
+them. It was not. Each undoes whatever arrived in between — a tick from the
+phone, a resource attached from the save sheet, a step brought forward from the
+list, which the previous increment had just made easy to do from a second
+device.
+
+Implemented in this increment:
+
+- `POST /learning-goals/{id}/steps`, `PATCH` and `DELETE .../steps/{stepId}`, and `POST .../steps/order`: one edit each, all through one locked read-modify-write in the goal's own lane, shared with ticking, attaching a resource and catching up with a list;
+- reordering takes step **ids** rather than whole steps, so it cannot carry a stale title or a stale tick back with it;
+- a step the caller never saw keeps its place after the ones they arranged, which is what a step appended on another device should do;
+- an order naming a step that is not on the path is refused with a 409 rather than applied to the rest, because guessing what the caller meant is how the order they get stops being the order they chose;
+- deleting a step keeps any check-in recorded against it, for the same reason unticking does: evidence is what somebody said at a moment, not a property of a step;
+- the goals page and the sidebar moved onto all four, with a refused edit pulling server state back so the screen matches what is actually stored.
+
+`pathEditsTouchOneStep.test.ts` replaces the narrower tick guard: it fails on
+any `data: { pathSteps: … }` in the four client files that can change a path,
+whatever the array is made of — a `.map` with a flag flipped, a spread with one
+appended, a `.filter` with one removed. Reading the path is not writing it, so
+it looks for the payload key rather than for any mention of the array.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 836 API assertions across 99 test files against a real PostgreSQL instance;
+- four edits to one path at the same moment — a tick, a rename, a delete and an add — all survive. Removing the advisory lock fails that;
+- against a real database: adding appends, renaming carries the query with it, reordering keeps a step the caller never named and refuses one that is gone, deleting keeps the check-in, and a stranger can do none of it;
+- the guard fails when a whole-path delete is put back on the goals page, and passes when it is not;
+- 96 end-to-end flow checks against a real server, including a rename that leaves a tick made a moment earlier on another step;
+- 180 page renders clean across four palettes and two widths;
+- the web production build passed and every visible string on it is still translated.

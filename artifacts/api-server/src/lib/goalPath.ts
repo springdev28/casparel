@@ -78,3 +78,42 @@ export function pathStepForResource(resource: {
     resourceId: resource.id,
   };
 }
+
+/**
+ * A path in the order the caller asked for.
+ *
+ * Reordering is the one edit that is genuinely about the whole path, so it is
+ * also the one most likely to carry stale work back with it: a client that
+ * sends whole step objects sends whatever title and tick it last read, and a
+ * rename or a tick made elsewhere in between is silently undone. Ids say only
+ * what reordering means to say.
+ *
+ * A step the caller did not name keeps its relative place after the ones that
+ * were named. That is what a step appended on another device should do — the
+ * learner arranged the five they could see, and the sixth belongs after them,
+ * not lost and not silently first. An id that is *not* on the path is
+ * different: the caller is working from a path that has since changed, and
+ * guessing what they meant is how the order they get stops being the order
+ * they chose.
+ */
+export type PathOrder<T extends { id: string }> =
+  | { steps: T[] }
+  | { conflict: "unknown_step" | "duplicate_step" };
+
+export function stepsInOrder<T extends { id: string }>(
+  steps: readonly T[],
+  stepIds: readonly string[],
+): PathOrder<T> {
+  if (new Set(stepIds).size !== stepIds.length) {
+    return { conflict: "duplicate_step" };
+  }
+  const byId = new Map(steps.map((step) => [step.id, step]));
+  const named: T[] = [];
+  for (const id of stepIds) {
+    const step = byId.get(id);
+    if (!step) return { conflict: "unknown_step" };
+    named.push(step);
+  }
+  const asked = new Set(stepIds);
+  return { steps: [...named, ...steps.filter((step) => !asked.has(step.id))] };
+}
