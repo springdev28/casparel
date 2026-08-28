@@ -899,3 +899,36 @@ Verification recorded for this increment:
 - 66 failure-state checks across eleven screens and two ways of not answering, in Turkish;
 - the audit fails when one screen's error branch is removed, naming the empty state it wrongly showed;
 - 32 screen renders across two languages still clean.
+
+## Fix — a check nothing runs is a file, not a check
+
+The audit scripts are where most of what is actually known about this product
+comes from. They are also the easiest thing here to write and then forget to
+wire up: the run that proves one works is the author's own terminal, and
+nothing afterwards notices its absence. The failure-state audit added an hour
+earlier would have been in exactly that state.
+
+`everyAuditRuns.test.ts` requires every script whose first line says it is
+meant to be executed to be named in a workflow. It cannot tell whether the
+workflow runs on the right branch or with the right server up; it can tell
+that nobody wired it in at all, which is the failure that costs the whole
+check rather than part of it. Five scripts are exempted in writing, each for
+the same kind of reason: they generate committed files, or produce store
+images on demand, rather than reporting a pass or a fail.
+
+It found one thing already true and one false alarm, and both were worth
+having.
+
+`document-source-files.mjs` was run by nobody. It has a real failure mode —
+it exits non-zero when an authored file has no `@fileOverview` header — and
+`docs/source-file-index.md` is the map built from those headers, so a file
+could arrive without one and the map could drift from the tree with nothing
+to say so. It runs in CI now, beside the type check.
+
+The false alarm was `check-release-config.mjs`, which CI runs through
+`pnpm --filter @workspace/mobile run check:release` rather than by filename.
+A rule that cannot see one of the two normal ways to call something teaches
+people to work around it, so the check now reads the package scripts the
+workflows invoke as well as the workflows themselves. Getting that wrong
+would have been "fixed" by adding a second, redundant way to run a script
+that was already running.

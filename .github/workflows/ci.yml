@@ -60,6 +60,14 @@ jobs:
       - name: Check the mobile release configuration
         run: pnpm --filter @workspace/mobile run check:release
 
+      # Every authored file says what it is for and how it connects, and
+      # docs/source-file-index.md is the map built from those headers. The
+      # script that checks it was only ever run by hand, so a file could
+      # arrive without a header and the map could drift from the tree with
+      # nothing to say so.
+      - name: Every authored file explains itself
+        run: node scripts/document-source-files.mjs
+
       - name: Typecheck every package
         run: pnpm run typecheck
 
@@ -518,6 +526,18 @@ jobs:
       - name: Render the phone app in every language
         working-directory: artifacts/mobile
         run: node scripts/audit-languages.mjs
+
+      # And the same nine screens with nothing answering. The run above stubs
+      # every request as 200 with a well-formed body, so no error state, no
+      # offline state and no retry in this app had ever been rendered by a
+      # check -- they were translated, because a source scan reads their
+      # strings, and never seen. This asks for the one failure worth the
+      # machinery: a screen that treats "the request failed" as "there is
+      # nothing here" tells somebody their lists are gone, in a sentence that
+      # sounds true.
+      - name: Render the phone app when nothing answers
+        working-directory: artifacts/mobile
+        run: node scripts/audit-failures.mjs
 
       # Same idea, for the app that gets submitted to the stores. It registers
       # through the real register screen, walks all five tabs in both colour
