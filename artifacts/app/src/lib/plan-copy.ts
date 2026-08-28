@@ -267,8 +267,9 @@ export const INSTITUTIONAL_PLAN = {
   name: "Institutional",
   blurb:
     "A per-seat licence for schools and academies: every licensed account — teacher or student — gets allowances above every other plan, still finite.",
-  priceLine: "US$1.50 per seat / month, billed annually",
-  priceNote: "30-seat minimum · invoiced, not card checkout",
+  priceLine: "Starting from US$2.50 per seat / month",
+  priceNote:
+    "Up to US$3.00 · billed annually · 30-seat minimum · invoiced, not store checkout",
   workspace: [
     "50 classes, up to 500 members each",
     "2,500 study activities",

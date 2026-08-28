@@ -217,7 +217,7 @@ USD reference prices, set 15 August 2026. The strings live in `artifacts/app/src
 | Teacher Pro   |  \$11.99 | \$119.99 | 2 months free         |
 | Plus          |   \$5.99 |  \$59.99 | 2 months free         |
 | Pro           |  \$13.99 | \$139.99 | 2 months free         |
-| Institutional | \$1.50/seat/month, billed annually, 30-seat minimum (from \$540/year) | — | invoiced, sales-led |
+| Institutional | quoted at US\$2.50–US\$3.00/seat/month, billed annually, 30-seat minimum (from US\$900/year) | — | invoiced, sales-led |
 
 Why these numbers — the ladder prices the costs, not just the value:
 
@@ -225,7 +225,7 @@ Why these numbers — the ladder prices the costs, not just the value:
 - **Distribution fees come off the top.** Apple/Google take 15–30%, RevenueCat ~1%, card processing ~3% + \$0.30 on web. The margin at these prices covers the worst (30%) store cut on every tier.
 - **Storage is cheap; capacity caps are growth bounds, not priced goods.** A study activity is a few KB of rows; even Institutional's 2,500 activities are pennies of database and backup. Capacity is capped to bound per-account database growth and abuse, and the caps ride along with the tier rather than carrying their own price.
 - **Students get the discount, teachers pay for scale, generic carries a flexibility premium.** Student Pro (\$6.99) is half Pro (\$13.99): student budgets, personal-study costs only. Teacher Pro (\$11.99) prices the roster scale and the seating planner below generic Pro, because it only works on a teacher account; Plus/Pro cost slightly more than the matching role plan because they work on **any** role and must cover the costlier role's usage. This also makes the specialised plan the obvious choice for anyone it fits, which is the intent.
-- **Institutional undercuts per-seat retail heavily** (\$1.50/seat vs \$2.99–11.99 self-serve) because a school brings volume, one invoice instead of many store fees (no Apple/Google cut on invoiced licences), and near-zero acquisition cost per seat. The 30-seat minimum keeps the invoicing overhead worth it.
+- **Institutional is quote-priced within a public range** (US\$2.50–US\$3.00/seat/month vs US\$2.99–11.99 self-serve) because seat count and support needs vary. A school brings volume, one invoice instead of many store fees (no Apple/Google cut on invoiced licences), and near-zero acquisition cost per seat. The 30-seat minimum keeps the invoicing overhead worth it. The range is guidance, not a RevenueCat or app-store product price.
 - **Hosting is a fixed cost at this scale** (shared Hostinger + managed Postgres); it sets the floor for total subscribers needed, not the per-tier price.
 
 ### Feature placement
