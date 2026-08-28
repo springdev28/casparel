@@ -710,3 +710,31 @@ Verification recorded for this increment:
 - 871 API assertions across 100 test files against a real PostgreSQL instance;
 - 77 mobile tests;
 - 32 screen renders across two languages, including the goal screen with its editing mode open, every control in it named for a screen reader, the three rename fields carrying their step titles and the add field its translated placeholder.
+
+## Fix — a translation check that could not see a wrapped line break
+
+`mobileSpeaksItsLanguages.test.ts` answers "is every string wrapped, and is
+every wrapped string translated". It found the strings by matching `t('…')`
+with the quote immediately after the bracket, so a long sentence that had been
+wrapped — `t(\n  'Open a profile on the web…',\n)` — was not a `t()` call as
+far as it was concerned. Two strings were invisible to it, which means a
+missing translation in either would have shipped in silence, in every
+language. The pattern now allows the whitespace and the trailing comma that
+wrapping puts there; the companion check for *unwrapped* English already did.
+
+The blind spot surfaced from the other side. The file checked that every
+string a screen asks for is translated, and never that every translation is
+still a string some screen asks for — so a key survives the deletion of the
+sentence it translates, and the dictionary grows a layer describing an app
+that has moved on. One was found by hand: the goal screen's old empty state,
+still telling somebody to go and use the web. Seven more were leftovers of an
+account-deletion flow that has since been rewritten with different words.
+
+All eight are gone and the check now runs both ways. Two of the nine it first
+reported were the wrapped-line-break false positives, which is how that came
+to light.
+
+The web dictionary deliberately gets no such check. Its bridge translates
+whatever is in the rendered DOM, including strings a third-party component
+produced — React Flow's own zoom and minimap labels are in there — so a key
+with no match in this repository's source is not evidence of anything.

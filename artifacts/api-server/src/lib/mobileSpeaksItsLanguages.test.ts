@@ -94,7 +94,15 @@ function decode(text: string) {
 /** Every English string the app asks `t()` for. */
 const asked = new Map<string, string>();
 for (const { where, text } of files) {
-  for (const match of text.matchAll(/\bt\((['"])((?:(?!\1).)*)\1\)/g)) {
+  /*
+   * Whitespace and a trailing comma are allowed around the literal, because
+   * a long sentence gets wrapped: `t(\n  'Open a profile on the web…',\n)`
+   * is the same call, and a pattern that insisted on `t('…')` on one line
+   * could not see it. Two strings were invisible here for that reason, which
+   * means a missing translation in either would have shipped in silence --
+   * the exact thing this file exists to prevent.
+   */
+  for (const match of text.matchAll(/\bt\(\s*(['"])((?:(?!\1).)*)\1\s*,?\s*\)/g)) {
     asked.set(decode(match[2]), where);
   }
 }
@@ -164,6 +172,27 @@ describe("the phone app's translations", () => {
       missing,
       `these fall back to English for a ${language} reader, one string at a ` +
         `time, which is how a screen ends up half translated`,
+    ).toEqual([]);
+  });
+
+  /*
+   * The other direction, and the one nothing was watching. A key whose
+   * English no longer appears in any screen is a translation of a sentence
+   * that is not there: it survives a rename or a deletion, and the file grows
+   * a layer of strings describing an app that has moved on. One was found by
+   * hand -- the goal screen's old empty state, still telling somebody to go
+   * and use the web -- which is one more than a check should need.
+   *
+   * Kept in every language at once, because the dictionaries are already
+   * required to have the same keys, so an orphan is an orphan in all of them.
+   */
+  it("has no translation for a string the app never asks for", () => {
+    const dictionary = dictionaryFor(translated[0]);
+    const orphans = Object.keys(dictionary).filter((english) => !asked.has(english));
+    expect(
+      orphans,
+      "these translate sentences no screen shows any more; delete them, or " +
+        "find the screen that lost its t()",
     ).toEqual([]);
   });
 
