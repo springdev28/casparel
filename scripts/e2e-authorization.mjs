@@ -128,6 +128,25 @@ async function main() {
     );
   }
 
+  /*
+   * One resource of Ana's, so her list can hold a real item. The item routes
+   * name an id, and an id that does not exist is refused for the wrong reason
+   * -- "no such item" rather than "not your list" -- which would pass against
+   * a handler that never checks whose list it is.
+   */
+  const anasResource = await call("POST", "/api/resources", {
+    token: ana.token,
+    body: {
+      title: `Ana's own resource ${RUN}`,
+      url: `https://example.test/anas-${RUN}`,
+      format: "article",
+      subject: "Mathematics",
+      gradeLevel: "Year 12",
+    },
+  });
+  const anasResourceId =
+    anasResource.status < 400 ? anasResource.body?.id : undefined;
+
   async function create(label, path, body, paths) {
     const res = await call("POST", path, { token: ana.token, body });
     if (res.status !== 201 && res.status !== 200) {
@@ -146,27 +165,86 @@ async function main() {
     "learning goal",
     "/api/learning-goals",
     { title: "Ana's goal", subject: "Mathematics", level: "beginner" },
+    /*
+     * Every way into somebody's path, not just the two that replace it.
+     * There is now an endpoint per edit -- add, rename, delete, reorder, tick
+     * -- and each is its own handler with its own ownership check to forget.
+     * "foundations" is the first step of every generated path, so the ones
+     * that name a step name a real one: a 404 for a step that was never there
+     * would look like a refusal and prove nothing.
+     */
     (id) => [
       ["GET", `/api/learning-goals/${id}`],
       ["PATCH", `/api/learning-goals/${id}`, { title: "Ben was here", subject: "Mathematics", level: "beginner" }],
-      // A write that reaches inside somebody's path rather than replacing it.
+      // Writes that reach inside somebody's path rather than replacing it.
       ...(bensResourceId
         ? [["POST", `/api/learning-goals/${id}/resources`, { resourceId: bensResourceId }]]
         : []),
+      ["POST", `/api/learning-goals/${id}/steps`, { title: "Ben was here" }],
+      ["PATCH", `/api/learning-goals/${id}/steps/foundations`, { title: "Ben was here" }],
+      ["DELETE", `/api/learning-goals/${id}/steps/foundations`],
+      ["POST", `/api/learning-goals/${id}/steps/order`, { stepIds: ["foundations"] }],
+      ["POST", `/api/learning-goals/${id}/steps/foundations/completion`, { completed: true }],
+      ["POST", `/api/learning-goals/${id}/steps/from-list`],
+      // And every way to read one.
+      ["GET", `/api/learning-goals/${id}/steps/foundations/activity`],
+      ["GET", `/api/learning-goals/${id}/list-drift`],
       ["DELETE", `/api/learning-goals/${id}`],
     ],
   );
 
-  await create(
-    "reading list",
-    "/api/lists",
-    { name: "Ana's list" },
-    (id) => [
-      ["GET", `/api/lists/${id}`],
-      ["PATCH", `/api/lists/${id}`, { name: "Ben was here" }],
-      ["DELETE", `/api/lists/${id}`],
-    ],
-  );
+  /*
+   * The list is created here rather than through `create` because its item
+   * routes need an item id, and that means one more write between creating
+   * the list and knowing what to ask for.
+   */
+  const anasList = await call("POST", "/api/lists", {
+    token: ana.token,
+    body: { name: "Ana's list" },
+  });
+  if (anasList.status >= 400 || !anasList.body?.id) {
+    console.log(
+      `--   ${"reading list".padEnd(34)} not created (HTTP ${anasList.status})`,
+    );
+  } else {
+    const listId = anasList.body.id;
+    const anasItem = anasResourceId
+      ? await call("POST", `/api/lists/${listId}/items`, {
+          token: ana.token,
+          body: { resourceId: anasResourceId },
+        })
+      : null;
+    const itemId = anasItem && anasItem.status < 400 ? anasItem.body?.id : undefined;
+    if (!itemId) {
+      console.log(
+        `--   ${"editing an item in someone's list".padEnd(34)} not run: Ana could not add one`,
+      );
+    }
+    owned.push({
+      label: "reading list",
+      id: listId,
+      paths: [
+        ["GET", `/api/lists/${listId}`],
+        ["PATCH", `/api/lists/${listId}`, { name: "Ben was here" }],
+        ["GET", `/api/lists/${listId}/quality`],
+        // Writes that reach inside somebody's list rather than replacing it.
+        ...(bensResourceId
+          ? [["POST", `/api/lists/${listId}/items`, { resourceId: bensResourceId }]]
+          : []),
+        ...(itemId
+          ? [
+              ["POST", `/api/lists/${listId}/items/reorder`, { itemIds: [itemId] }],
+              ["PATCH", `/api/lists/${listId}/items/${itemId}`, { role: "practice" }],
+              ["DELETE", `/api/lists/${listId}/items/${itemId}`],
+            ]
+          : []),
+        // Turning somebody else's list into a goal on your own account would
+        // copy their organising wholesale, so it is refused rather than owned.
+        ["POST", `/api/lists/${listId}/path`, {}],
+        ["DELETE", `/api/lists/${listId}`],
+      ],
+    });
+  }
 
   await create(
     "canvas",
@@ -201,6 +279,13 @@ async function main() {
           { id: "b", term: "z", answer: "w" },
         ],
       }],
+      // Copying is allowed for what you may see -- your own, a class's, or
+      // anything behind a share link. Ana's is none of those to Ben, and a
+      // copy would put her cards on his account permanently.
+      ["POST", `/api/study-activities/${id}/copy`],
+      // Publishing somebody else's set would mint a share link for work that
+      // is not yours to hand out.
+      ["POST", `/api/study-activities/${id}/publish`],
       ["DELETE", `/api/study-activities/${id}`],
     ],
   );
@@ -216,6 +301,9 @@ async function main() {
     },
     (id) => [
       ["PATCH", `/api/schedule/${id}`, { title: "Ben was here" }],
+      // A calendar export is a read of the whole row in another format, and
+      // an .ics is the kind of route that gets written once and not revisited.
+      ["GET", `/api/schedule/${id}/export.ics`],
       ["DELETE", `/api/schedule/${id}`],
     ],
   );
@@ -232,6 +320,10 @@ async function main() {
     (id) => [
       ["GET", `/api/study-sessions/${id}`],
       ["PATCH", `/api/study-sessions/${id}`, { title: "Ben was here" }],
+      // RSVP is for people who were invited. Ben was not, so answering for a
+      // session he is not part of would put him in somebody's participant list.
+      ["PATCH", `/api/study-sessions/${id}/rsvp`, { status: "accepted" }],
+      ["GET", `/api/study-sessions/${id}/export.ics`],
       ["DELETE", `/api/study-sessions/${id}`],
     ],
   );

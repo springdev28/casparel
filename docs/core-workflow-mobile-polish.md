@@ -633,3 +633,39 @@ Verification recorded for this increment:
 - 96 end-to-end flow checks against a real server, including a rename that leaves a tick made a moment earlier on another step;
 - 180 page renders clean across four palettes and two widths;
 - the web production build passed and every visible string on it is still translated.
+
+## Fix — twelve ways into somebody else's work that nobody was asking about
+
+`e2e-authorization.mjs` is the only thing here that can see a missing
+ownership check. A handler that forgets to compare the row's owner against the
+caller returns 200 with the right shape and renders fine; the sole way to
+notice is to ask for the row as a second account and find that it comes back.
+That script is hand-written, and adding an endpoint does not add a probe.
+
+Nothing noticed that it had fallen behind. Seven new ways into a learning goal
+— add a step, rename one, delete one, reorder them, tick one, catch up with a
+list, read what a step asks for — had arrived since it was written, and it
+still asked about the two that existed then. Five more had been missed for
+longer: editing an item in somebody's list, reordering their items, adding to
+their list, building a goal from it, reviewing its quality, copying and
+publishing their study set, answering an RSVP for a session they were not
+invited to, and both single-row `.ics` exports.
+
+All twelve are now probed, and all twelve refuse: 45 attempts, nothing of
+Ana's reachable, up from 26. No hole was found — every one of these handlers
+was already right. What was missing was the evidence, and the difference
+matters, because "it was checked when it was written" is not a property
+anybody can re-verify next month.
+
+`everyOwnedRouteIsProbed.test.ts` closes the gap the twelve came through. It
+reads the contract, takes every method and path under a family of rows that
+belong to one account, and requires the script to name it — so an endpoint
+added without a probe fails, which is measured by adding one. It cannot tell
+whether a probe is a good one; it can tell that nobody thought about an
+endpoint at all, which is the state all twelve were in. Two routes are
+exempted in writing, each with the reason it is reachable by design.
+
+One thing the probes needed to be worth anything: Ana's list now holds a real
+item, and the goal probes name a step that exists. An id that is not there is
+refused for the wrong reason — "no such item" rather than "not your list" —
+and would pass against a handler that never checks whose list it is.
