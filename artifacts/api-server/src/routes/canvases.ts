@@ -4,7 +4,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, desc, eq, ilike, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import {
   canvasCollaboratorsTable,
@@ -105,26 +105,38 @@ async function getCanvasRow(id: number) {
   return canvas ?? null;
 }
 
-async function accessForCanvas(
-  canvas: Canvas,
-  userId: number,
-  accountRole: string,
-): Promise<CanvasAccess | null> {
-  if (accountRole === "admin" || canvas.ownerId === userId) {
+/**
+ * Everything about the reader that decides what they may do with a canvas.
+ *
+ * Gathered once for however many canvases are being judged. The rules
+ * themselves are a pure function below, so the listing and the single-canvas
+ * routes cannot come to different answers about the same canvas -- which is
+ * the failure mode worth designing against here: this is authorization, and a
+ * second copy of it drifts silently in the direction of showing more.
+ */
+export type CanvasViewer = {
+  userId: number;
+  accountRole: string;
+  /** canvas id to this reader's collaborator role on it */
+  collaboratorRoles: Map<number, string>;
+  /** class id to the id of the teacher who owns it */
+  classTeachers: Map<number, number>;
+  /** class id to this reader's role in it */
+  classRoles: Map<number, string>;
+};
+
+/** The rules, and nowhere else. */
+export function decideAccess(
+  canvas: Pick<Canvas, "id" | "ownerId" | "classId" | "visibility" | "classAccess">,
+  viewer: CanvasViewer,
+): CanvasAccess | null {
+  if (viewer.accountRole === "admin" || canvas.ownerId === viewer.userId) {
     return { canView: true, canEdit: true, canManage: true, role: "owner" };
   }
 
-  const [collaborator] = await db
-    .select({ role: canvasCollaboratorsTable.role })
-    .from(canvasCollaboratorsTable)
-    .where(
-      and(
-        eq(canvasCollaboratorsTable.canvasId, canvas.id),
-        eq(canvasCollaboratorsTable.userId, userId),
-      ),
-    );
+  const collaborator = viewer.collaboratorRoles.get(canvas.id);
   if (collaborator) {
-    const canEdit = collaborator.role === "editor";
+    const canEdit = collaborator === "editor";
     return {
       canView: true,
       canEdit,
@@ -134,30 +146,18 @@ async function accessForCanvas(
   }
 
   if (canvas.classId != null) {
-    const [cls] = await db
-      .select({ teacherId: classesTable.teacherId })
-      .from(classesTable)
-      .where(eq(classesTable.id, canvas.classId));
-    if (cls?.teacherId === userId) {
+    if (viewer.classTeachers.get(canvas.classId) === viewer.userId) {
       return { canView: true, canEdit: true, canManage: true, role: "owner" };
     }
     if (canvas.visibility === "class") {
-      const [membership] = await db
-        .select({ role: classMembersTable.role })
-        .from(classMembersTable)
-        .where(
-          and(
-            eq(classMembersTable.classId, canvas.classId),
-            eq(classMembersTable.userId, userId),
-          ),
-        );
+      const membership = viewer.classRoles.get(canvas.classId);
       if (membership) {
         const canEdit =
-          membership.role === "teacher" || canvas.classAccess === "edit";
+          membership === "teacher" || canvas.classAccess === "edit";
         return {
           canView: true,
           canEdit,
-          canManage: membership.role === "teacher",
+          canManage: membership === "teacher",
           role: canEdit ? "class-editor" : "class-viewer",
         };
       }
@@ -166,48 +166,242 @@ async function accessForCanvas(
   return null;
 }
 
-async function decorateCanvas(canvas: Canvas, access: CanvasAccess) {
-  const [[owner], [cls], [{ collaboratorCount }]] = await Promise.all([
-    db
-      .select({ id: usersTable.id, name: usersTable.name })
-      .from(usersTable)
-      .where(eq(usersTable.id, canvas.ownerId)),
-    canvas.classId
-      ? db
-          .select({ id: classesTable.id, name: classesTable.name })
-          .from(classesTable)
-          .where(eq(classesTable.id, canvas.classId))
-      : Promise.resolve([]),
+/**
+ * The reader's side of the rules, in three queries however many canvases are
+ * being judged. An administrator needs none of it: every branch that reads
+ * these is behind a check they pass first.
+ */
+async function viewerFor(
+  canvases: Array<Pick<Canvas, "id" | "classId">>,
+  userId: number,
+  accountRole: string,
+): Promise<CanvasViewer> {
+  const empty: CanvasViewer = {
+    userId,
+    accountRole,
+    collaboratorRoles: new Map(),
+    classTeachers: new Map(),
+    classRoles: new Map(),
+  };
+  if (accountRole === "admin" || canvases.length === 0) return empty;
+
+  const canvasIds = canvases.map((canvas) => canvas.id);
+  const classIds = [
+    ...new Set(
+      canvases
+        .map((canvas) => canvas.classId)
+        .filter((classId): classId is number => classId != null),
+    ),
+  ];
+
+  const [collaborations, teachers, memberships] = await Promise.all([
     db
       .select({
-        collaboratorCount: sql<number>`cast(count(*) as int)`,
+        canvasId: canvasCollaboratorsTable.canvasId,
+        role: canvasCollaboratorsTable.role,
       })
       .from(canvasCollaboratorsTable)
-      .where(eq(canvasCollaboratorsTable.canvasId, canvas.id)),
+      .where(
+        and(
+          inArray(canvasCollaboratorsTable.canvasId, canvasIds),
+          eq(canvasCollaboratorsTable.userId, userId),
+        ),
+      ),
+    classIds.length
+      ? db
+          .select({ id: classesTable.id, teacherId: classesTable.teacherId })
+          .from(classesTable)
+          .where(inArray(classesTable.id, classIds))
+      : Promise.resolve([]),
+    classIds.length
+      ? db
+          .select({
+            classId: classMembersTable.classId,
+            role: classMembersTable.role,
+          })
+          .from(classMembersTable)
+          .where(
+            and(
+              inArray(classMembersTable.classId, classIds),
+              eq(classMembersTable.userId, userId),
+            ),
+          )
+      : Promise.resolve([]),
   ]);
+
   return {
-    ...canvas,
-    owner: owner ?? null,
-    class: cls ?? null,
-    collaboratorCount,
-    permissions: access,
+    userId,
+    accountRole,
+    collaboratorRoles: new Map(
+      collaborations.map((row) => [row.canvasId, row.role]),
+    ),
+    classTeachers: new Map(teachers.map((row) => [row.id, row.teacherId])),
+    classRoles: new Map(memberships.map((row) => [row.classId, row.role])),
   };
 }
 
+async function accessForCanvas(
+  canvas: Canvas,
+  userId: number,
+  accountRole: string,
+): Promise<CanvasAccess | null> {
+  return decideAccess(canvas, await viewerFor([canvas], userId, accountRole));
+}
+
+/**
+ * The owner, the class and the collaborator count for a page of canvases, in
+ * three queries rather than three each.
+ */
+async function decorateCanvases(
+  entries: Array<{ canvas: Canvas; access: CanvasAccess }>,
+) {
+  if (entries.length === 0) return [];
+  const canvases = entries.map((entry) => entry.canvas);
+  const classIds = [
+    ...new Set(
+      canvases
+        .map((canvas) => canvas.classId)
+        .filter((classId): classId is number => classId != null),
+    ),
+  ];
+
+  const [owners, classes, counts] = await Promise.all([
+    db
+      .select({ id: usersTable.id, name: usersTable.name })
+      .from(usersTable)
+      .where(inArray(usersTable.id, canvases.map((canvas) => canvas.ownerId))),
+    classIds.length
+      ? db
+          .select({ id: classesTable.id, name: classesTable.name })
+          .from(classesTable)
+          .where(inArray(classesTable.id, classIds))
+      : Promise.resolve([]),
+    db
+      .select({
+        canvasId: canvasCollaboratorsTable.canvasId,
+        collaboratorCount: sql<number>`cast(count(*) as int)`,
+      })
+      .from(canvasCollaboratorsTable)
+      .where(
+        inArray(canvasCollaboratorsTable.canvasId, canvases.map((canvas) => canvas.id)),
+      )
+      .groupBy(canvasCollaboratorsTable.canvasId),
+  ]);
+
+  const ownerById = new Map(owners.map((owner) => [owner.id, owner]));
+  const classById = new Map(classes.map((cls) => [cls.id, cls]));
+  const countByCanvas = new Map(
+    counts.map((row) => [row.canvasId, row.collaboratorCount]),
+  );
+
+  return entries.map(({ canvas, access }) => ({
+    ...canvas,
+    owner: ownerById.get(canvas.ownerId) ?? null,
+    class: canvas.classId != null ? classById.get(canvas.classId) ?? null : null,
+    // A canvas nobody shares has no rows to group, and therefore no entry.
+    collaboratorCount: countByCanvas.get(canvas.id) ?? 0,
+    permissions: access,
+  }));
+}
+
+async function decorateCanvas(canvas: Canvas, access: CanvasAccess) {
+  const [decorated] = await decorateCanvases([{ canvas, access }]);
+  return decorated;
+}
+
+const CANVAS_PAGE = 250;
+
 router.get("/canvases", requireAuth, async (req, res): Promise<void> => {
   const { userId, accountRole } = req as AuthenticatedRequest;
+
+  /*
+   * Which canvases this reader can see, decided in the query rather than
+   * afterwards.
+   *
+   * This read the 250 most recently updated canvases in the database and then
+   * filtered them by access in JavaScript, which is wrong twice. The cost grew
+   * with the whole table -- up to six more queries for every canvas read,
+   * almost all of them belonging to strangers and thrown away. And the limit
+   * counted other people's work: once 250 canvases anywhere had been touched
+   * more recently than yours, your own canvas was not in the page that was
+   * filtered, so it simply stopped appearing on your screen. That is the
+   * failure that reads as "my work is gone".
+   */
+  const isAdmin = accountRole === "admin";
+  const [collaborations, memberships, taught] = isAdmin
+    ? [[], [], []]
+    : await Promise.all([
+        db
+          .select({
+            canvasId: canvasCollaboratorsTable.canvasId,
+            role: canvasCollaboratorsTable.role,
+          })
+          .from(canvasCollaboratorsTable)
+          .where(eq(canvasCollaboratorsTable.userId, userId)),
+        db
+          .select({
+            classId: classMembersTable.classId,
+            role: classMembersTable.role,
+          })
+          .from(classMembersTable)
+          .where(eq(classMembersTable.userId, userId)),
+        db
+          .select({ id: classesTable.id })
+          .from(classesTable)
+          .where(eq(classesTable.teacherId, userId)),
+      ]);
+  const collaboratorCanvasIds = collaborations.map((row) => row.canvasId);
+  const memberClassIds = memberships.map((row) => row.classId);
+  const taughtClassIds = taught.map((row) => row.id);
+
+  const reachable = [
+    eq(canvasesTable.ownerId, userId),
+    ...(collaboratorCanvasIds.length
+      ? [inArray(canvasesTable.id, collaboratorCanvasIds)]
+      : []),
+    ...(memberClassIds.length
+      ? [
+          and(
+            eq(canvasesTable.visibility, "class"),
+            inArray(canvasesTable.classId, memberClassIds),
+          )!,
+        ]
+      : []),
+    ...(taughtClassIds.length
+      ? [inArray(canvasesTable.classId, taughtClassIds)]
+      : []),
+  ];
+
   const rows = await db
     .select()
     .from(canvasesTable)
+    .where(isAdmin ? undefined : or(...reachable))
     .orderBy(desc(canvasesTable.updatedAt))
-    .limit(250);
-  const visible = await Promise.all(
-    rows.map(async (canvas) => {
-      const access = await accessForCanvas(canvas, userId, accountRole);
-      return access ? decorateCanvas(canvas, access) : null;
-    }),
-  );
-  res.json((await Promise.all(visible)).filter(Boolean));
+    .limit(CANVAS_PAGE);
+
+  /*
+   * The rules still decide, on exactly the rows the query proposed. The filter
+   * above is what the reader can reach; decideAccess is what they may do with
+   * it, and it is the same function the single-canvas routes use.
+   *
+   * The reader's side of it is built from the three queries above rather than
+   * asked for again: a class this reader teaches is a class whose teacher is
+   * them, which is what decideAccess checks.
+   */
+  const viewer: CanvasViewer = {
+    userId,
+    accountRole,
+    collaboratorRoles: new Map(
+      collaborations.map((row) => [row.canvasId, row.role]),
+    ),
+    classTeachers: new Map(taughtClassIds.map((classId) => [classId, userId])),
+    classRoles: new Map(memberships.map((row) => [row.classId, row.role])),
+  };
+  const visible = rows.flatMap((canvas) => {
+    const access = decideAccess(canvas, viewer);
+    return access ? [{ canvas, access }] : [];
+  });
+  res.json(await decorateCanvases(visible));
 });
 
 router.post(
