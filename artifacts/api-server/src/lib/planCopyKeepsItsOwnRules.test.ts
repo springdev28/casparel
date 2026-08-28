@@ -70,6 +70,7 @@ const priced = (Object.keys(PLAN_CATALOG) as SubscriptionTier[]).flatMap((tier) 
 });
 
 const priceOf = (tier: string) => priced.find((entry) => entry.tier === tier);
+const selfServePriced = priced.filter((entry) => entry.tier !== "institutional");
 
 describe("plan-copy.ts", () => {
   it("has cards and prices this test can read", () => {
@@ -114,7 +115,7 @@ describe("plan-copy.ts", () => {
     expect(claims, "the seating planner is rule-based").toEqual([]);
   });
 
-  it.each(priced.map((entry) => [entry.tier, entry] as const))(
+  it.each(selfServePriced.map((entry) => [entry.tier, entry] as const))(
     "prices %s with an 8–12% annual discount",
     (_tier, entry) => {
       /*

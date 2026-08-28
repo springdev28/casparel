@@ -9,7 +9,7 @@ Written: 15 August 2026, economically re-baselined 28 August 2026. Shipaton dead
 - Every paid plan now clears a machine-tested 70% gross margin even when all monthly allowances are consumed. Annual discounts are 8–10%, not two free months.
 - AI Discovery and Deep Research have explicit model, prompt, output, tool-call, timeout, concurrency, day, month, and service-wide limits. Cached results do not consume allowance.
 - Total stored upload bytes are enforced alongside the existing row limits.
-- Institutional Starter is $970/year for 30 included seats with one shared pool of 300 discovery searches, 60 deep reports, and 10 GB per rolling 30 days. It remains invoiced and absent from store offerings.
+- Institutional is advertised at $2.50–$3.00 per seat/month, billed annually, with a 30-seat minimum and contact-for-quote pricing. Its Starter capacity uses one shared pool of 250 discovery searches, 55 deep reports, and 10 GB per rolling 30 days. It remains invoiced and absent from store offerings.
 - Stable product IDs now map explicitly to tiers before the legacy name heuristic. Exact Google Play and RevenueCat values are in the economics document.
 
 This roadmap follows two changes: the one that made Casparel's tiers about stored data as well as AI usage, and the one that specialised the tiers by role (Student/Teacher Plus and Pro), gave Free a small AI taste, and made every paid allowance finite — uncapped is now an admin property only. It is deliberately ordered by what blocks revenue, not by what is most interesting to build.

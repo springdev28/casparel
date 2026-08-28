@@ -64,42 +64,42 @@ export const PLAN_CATALOG: Record<SubscriptionTier, CommercialPlan> = {
     ai: { searchPerDay: 3, searchPerMonth: 15, deepPerDay: 1, deepPerMonth: 3 },
     storageBytes: 1 * GIB,
     capacity: { "classes-owned": 5, "class-members": 100, "study-activities": 250, "resource-lists": 50, "learning-goals": 100, canvases: 30 },
-    price: { monthlyUsd: 5.99, annualUsd: 64.99 },
+    price: { monthlyUsd: 9.99, annualUsd: 107.99 },
   },
   pro: {
     label: "Pro",
     ai: { searchPerDay: 6, searchPerMonth: 29, deepPerDay: 2, deepPerMonth: 10 },
     storageBytes: 2 * GIB,
     capacity: { "classes-owned": 20, "class-members": 300, "study-activities": 1000, "resource-lists": 200, "learning-goals": 400, canvases: 100 },
-    price: { monthlyUsd: 13.99, annualUsd: 151.99 },
+    price: { monthlyUsd: 19.99, annualUsd: 215.99 },
   },
   "student-plus": {
     label: "Student Plus",
     ai: { searchPerDay: 2, searchPerMonth: 7, deepPerDay: 1, deepPerMonth: 2 },
     storageBytes: 256 * MIB,
     capacity: { "classes-owned": 1, "class-members": 30, "study-activities": 400, "resource-lists": 75, "learning-goals": 150, canvases: 40 },
-    price: { monthlyUsd: 2.99, annualUsd: 32.99 },
+    price: { monthlyUsd: 4.99, annualUsd: 53.99 },
   },
   "student-pro": {
     label: "Student Pro",
     ai: { searchPerDay: 3, searchPerMonth: 17, deepPerDay: 2, deepPerMonth: 4 },
     storageBytes: 1 * GIB,
     capacity: { "classes-owned": 1, "class-members": 30, "study-activities": 1500, "resource-lists": 300, "learning-goals": 500, canvases: 150 },
-    price: { monthlyUsd: 6.99, annualUsd: 75.99 },
+    price: { monthlyUsd: 9.99, annualUsd: 107.99 },
   },
   "teacher-plus": {
     label: "Teacher Plus",
     ai: { searchPerDay: 2, searchPerMonth: 9, deepPerDay: 1, deepPerMonth: 3 },
     storageBytes: 1 * GIB,
     capacity: { "classes-owned": 8, "class-members": 150, "study-activities": 250, "resource-lists": 50, "learning-goals": 100, canvases: 30 },
-    price: { monthlyUsd: 4.99, annualUsd: 53.99 },
+    price: { monthlyUsd: 7.99, annualUsd: 85.99 },
   },
   "teacher-pro": {
     label: "Teacher Pro",
     ai: { searchPerDay: 5, searchPerMonth: 24, deepPerDay: 2, deepPerMonth: 8 },
     storageBytes: 2 * GIB,
     capacity: { "classes-owned": 25, "class-members": 400, "study-activities": 1000, "resource-lists": 200, "learning-goals": 400, canvases: 100 },
-    price: { monthlyUsd: 11.99, annualUsd: 129.99 },
+    price: { monthlyUsd: 16.99, annualUsd: 182.99 },
   },
   institutional: {
     label: "Institutional",
@@ -108,19 +108,21 @@ export const PLAN_CATALOG: Record<SubscriptionTier, CommercialPlan> = {
     ai: { searchPerDay: 3, searchPerMonth: 20, deepPerDay: 1, deepPerMonth: 5 },
     storageBytes: 10 * GIB,
     capacity: { "classes-owned": 50, "class-members": 500, "study-activities": 2500, "resource-lists": 500, "learning-goals": 800, canvases: 250 },
-    price: { monthlyUsd: 89, annualUsd: 970 },
+    // Internal revenue floor for the margin test: 30 seats at the bottom of
+    // the public $2.50–$3.00 range. This is not a public quote or fixed price.
+    price: { monthlyUsd: 75, annualUsd: 900 },
   },
 };
 
 /** One manually provisioned starter contract, shared by up to 30 active seats. */
 export const INSTITUTIONAL_STARTER = {
   includedSeats: 30,
-  searchPerDay: 30,
-  searchPerMonth: 300,
+  searchPerDay: 25,
+  searchPerMonth: 250,
   deepPerDay: 6,
-  deepPerMonth: 60,
+  deepPerMonth: 55,
   storageBytes: 10 * GIB,
-  additionalSeatMonthlyUsd: 2.75,
+  seatMonthlyUsdRange: { minimum: 2.5, maximum: 3 },
 } as const;
 
 /** Default emergency ceilings across every non-admin account on the service. */

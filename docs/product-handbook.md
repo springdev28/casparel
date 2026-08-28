@@ -195,7 +195,7 @@ Every account-owned capacity, its current usage and its limit are returned by `G
 
 The canonical USD reference prices and quotas live in `@workspace/plan-economics`, imported by the API, web pricing page, mobile paywall, tests, and store-ID mapping. Annual prices are based on twelve full months of maximum usage and discount only 8–10%; no plan assumes two idle months.
 
-Self-serve monthly prices remain Student Plus $2.99, Student Pro $6.99, Teacher Plus $4.99, Teacher Pro $11.99, Plus $5.99, and Pro $13.99. Annual prices are $32.99, $75.99, $53.99, $129.99, $64.99, and $151.99 respectively. Institutional Starter is $970/year for 30 included seats and a shared pool; it is never a store product.
+Self-serve monthly prices are Student Plus $4.99, Student Pro $9.99, Teacher Plus $7.99, Teacher Pro $16.99, Plus $9.99, and Pro $19.99. Annual prices are $53.99, $107.99, $85.99, $182.99, $107.99, and $215.99 respectively. Institutional is advertised at $2.50–$3.00 per seat/month, billed annually, with a 30-seat minimum and contact-for-quote pricing; it is never a store product.
 
 The full cost table, quota rationale, provider assumptions, migration policy, and exact Google Play/RevenueCat values are in [`docs/plan-economics.md`](plan-economics.md). CI rejects any quota or provider-price change that takes a monthly or annual plan below 70% worst-case gross margin.
 

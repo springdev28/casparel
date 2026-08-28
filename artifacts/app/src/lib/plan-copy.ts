@@ -279,9 +279,9 @@ export const INSTITUTIONAL_PLAN = {
   name: "Institutional",
   blurb:
     "A 30-seat annual school licence with shared AI and storage pools, so one seat cannot create unbounded contract exposure.",
-  priceLine: `${formatUsd(PLAN_CATALOG.institutional.price!.annualUsd)} / year`,
+  priceLine: `Starting from ${formatUsd(INSTITUTIONAL_STARTER.seatMonthlyUsdRange.minimum)}–${formatUsd(INSTITUTIONAL_STARTER.seatMonthlyUsdRange.maximum)} per seat / month`,
   priceNote:
-    `${INSTITUTIONAL_STARTER.includedSeats} seats included · ${formatUsd(INSTITUTIONAL_STARTER.additionalSeatMonthlyUsd)} per added seat / month · invoiced, not store checkout`,
+    `Billed annually · ${INSTITUTIONAL_STARTER.includedSeats}-seat minimum · contact us for a quote`,
   workspace: [
     "50 classes, up to 500 members each",
     "2,500 study activities",

@@ -31,7 +31,7 @@ describe("commercial plans remain safe at maximum permitted usage", () => {
   });
 
   it("uses a deliberate 8–12% annual discount, not two free months", () => {
-    for (const tier of PAID_TIERS) {
+    for (const tier of PAID_TIERS.filter((candidate) => candidate !== "institutional")) {
       const discount = PLAN_ECONOMICS[tier].annualDiscountPercent;
       expect(discount, tier).toBeGreaterThanOrEqual(0.08);
       expect(discount, tier).toBeLessThanOrEqual(0.12);
@@ -60,6 +60,10 @@ describe("commercial plans remain safe at maximum permitted usage", () => {
 
   it("bounds the starter school contract with one shared pool", () => {
     expect(INSTITUTIONAL_STARTER.includedSeats).toBe(30);
+    expect(INSTITUTIONAL_STARTER.seatMonthlyUsdRange).toEqual({
+      minimum: 2.5,
+      maximum: 3,
+    });
     expect(INSTITUTIONAL_STARTER.searchPerMonth).toBeLessThan(3000);
     expect(INSTITUTIONAL_STARTER.deepPerMonth).toBeLessThan(1000);
     expect(PLAN_ECONOMICS.institutional.annualGrossMargin).toBeGreaterThanOrEqual(
