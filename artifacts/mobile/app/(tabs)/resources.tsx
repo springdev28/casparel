@@ -451,14 +451,41 @@ export default function ResourcesScreen() {
             </Pressable>
           )}
         </View>
-        <Text
-          style={[
-            styles.sectionTitle,
-            { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
-          ]}
-        >
-          {t('Resources')}
-        </Text>
+        <View style={styles.sectionHeadingRow}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
+            ]}
+          >
+            {t('Resources')}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('Open learning lists')}
+            onPress={() => router.push('/lists')}
+            style={({ pressed }) => [
+              styles.listsButton,
+              {
+                backgroundColor: colors.primary + '12',
+                borderColor: colors.primary + '55',
+                borderRadius: colors.radius,
+                opacity: pressed ? 0.72 : 1,
+              },
+            ]}
+          >
+            <Feather name="list" size={15} color={colors.primary} />
+            <Text
+              style={{
+                color: colors.primary,
+                fontFamily: colors.fontFamily.sansSemiBold,
+                fontSize: 13,
+              }}
+            >
+              {t('Learning lists')}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {isLoading ? (
@@ -552,7 +579,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchInput: { flex: 1, fontSize: 15, padding: 0 },
+  sectionHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   sectionTitle: { fontSize: 22, letterSpacing: -0.3 },
+  listsButton: {
+    minHeight: 40,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+  },
   listContent: {
     padding: 16,
     gap: 10,

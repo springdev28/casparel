@@ -62,6 +62,7 @@ const NAME = "Mobile Audit";
 const BLOCK_TITLE = "Audit revision block";
 /** Added through the API, then opened on its own screen. */
 const RESOURCE_TITLE = "Audit reading on tides";
+const LIST_TITLE = "Audit tides reading list";
 /** Made by a teacher, joined from the phone, then opened. */
 const CLASS_NAME = "Audit physics set";
 const GOAL_TITLE = "Audit goal: master tides";
@@ -272,7 +273,7 @@ function isInterestingFailure(url, status, signedIn) {
  * worth catching, so each expectation names something only that screen's data
  * can produce -- not its title, which the shell draws either way.
  */
-function screens(resourceId, classId, goalId) {
+function screens(resourceId, classId, goalId, listId) {
   return [
     ...TABS,
     // The detail screens are reached by tapping a row, so nothing above ever
@@ -307,6 +308,10 @@ function screens(resourceId, classId, goalId) {
     // title only appears once the path has been read out of the goal.
     goalId
       ? { name: "goal detail", route: `/goals/${goalId}`, expect: new RegExp(GOAL_STEP) }
+      : null,
+    listId ? { name: "learning lists", route: "/lists", expect: new RegExp(LIST_TITLE) } : null,
+    listId
+      ? { name: "learning list detail", route: `/lists/${listId}`, expect: new RegExp(RESOURCE_TITLE) }
       : null,
     // The screen the whole Shipaton submission turns on. It renders before any
     // store connection exists, which is the state CI is always in, so what is
@@ -513,6 +518,27 @@ async function main() {
     const resourceId = resource.status === 201 ? (await resource.json()).id : null;
 
     /*
+     * A named list containing the resource proves both native list routes
+     * against the real handlers. The index must recognise the list summary;
+     * the detail must recognise the nested resource returned by the server.
+     */
+    const list = await fetch(`${BASE}/api/lists`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: LIST_TITLE, description: "For the mobile screen audit." }),
+    });
+    check("the server accepts a learning list", list.status === 201, `${list.status}`);
+    const listId = list.status === 201 ? (await list.json()).id : null;
+    if (listId && resourceId) {
+      const added = await fetch(`${BASE}/api/lists/${listId}/items`, {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ resourceId }),
+      });
+      check("the server adds a resource to the learning list", [200, 201].includes(added.status), `${added.status}`);
+    }
+
+    /*
      * One learning goal, then a path put on it, so the goal screens have
      * something in them -- and so the only thing the phone *writes* about
      * progress gets exercised end to end rather than only rendered.
@@ -639,7 +665,7 @@ async function main() {
         }, origin?.localStorage ?? []);
       }
 
-      for (const tab of screens(resourceId, classId, goalId)) {
+      for (const tab of screens(resourceId, classId, goalId, listId)) {
         const tabPage = await context.newPage();
         tabPage.on("pageerror", (error) =>
           pageErrors.push(`${scheme} ${tab.name}: ${String(error).slice(0, 200)}`),

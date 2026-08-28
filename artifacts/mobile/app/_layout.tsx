@@ -113,6 +113,14 @@ function RootLayoutNav() {
         options={{ title: t('Learning goals'), headerBackTitle: t("Back") }}
       />
       <Stack.Screen
+        name="lists/index"
+        options={{ title: t('Learning lists'), headerBackTitle: t("Back") }}
+      />
+      <Stack.Screen
+        name="lists/[id]"
+        options={{ title: t('Learning list'), headerBackTitle: t("Back") }}
+      />
+      <Stack.Screen
         /* The goal's own title is too long for a phone header and belongs to
            the reader rather than to us, so the header names the kind of thing
            and the screen names the thing. */

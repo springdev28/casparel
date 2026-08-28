@@ -125,6 +125,9 @@ const SCREENS = [
    */
   { path: "/goals", session: "in" },
   { path: "/goals/11", session: "in" },
+  // Learning Lists has both an index and a management surface; neither is a tab.
+  { path: "/lists", session: "in" },
+  { path: "/lists/7", session: "in" },
 ];
 
 const MIME = {
@@ -187,6 +190,30 @@ function stubbedBody(pathname) {
   }
   if (pathname.includes("/dashboard")) {
     return { resourceCount: 0, reviewCount: 0, classCount: 0, upcomingCount: 0 };
+  }
+  if (pathname.endsWith("/lists/shared")) return [];
+  if (pathname.endsWith("/lists/7")) {
+    return {
+      id: 7,
+      name: "Audit reading list",
+      description: "Standing in for a focused study collection.",
+      ownerId: 1,
+      classId: null,
+      itemCount: 0,
+      createdAt: "2026-03-02T09:00:00.000Z",
+      items: [],
+    };
+  }
+  if (pathname.endsWith("/lists")) {
+    return [{
+      id: 7,
+      name: "Audit reading list",
+      description: "Standing in for a focused study collection.",
+      ownerId: 1,
+      classId: null,
+      itemCount: 0,
+      createdAt: "2026-03-02T09:00:00.000Z",
+    }];
   }
   if (pathname.endsWith("/learning-goals")) {
     /*
