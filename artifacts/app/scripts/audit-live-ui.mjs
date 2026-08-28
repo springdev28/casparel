@@ -162,12 +162,31 @@ async function main() {
      * rendered" made against document.body passes for a screen whose content
      * area is completely empty. Every check below reads <main>.
      */
+    /**
+     * What is on a page, including what is inside its form fields.
+     *
+     * `innerText` stops at the edge of an `<input>`. The goals page draws every
+     * path step as an editable field, so a whole learning path was invisible
+     * here: this file could assert that the page had rendered and never that it
+     * had rendered the right steps. Values and placeholders are both things a
+     * person reads off the screen.
+     */
     async function mainText(path) {
       await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
       await page.waitForTimeout(1500);
       const landed = new URL(page.url()).pathname;
       const main = page.locator("main").first();
-      const text = (await main.count()) ? await main.innerText() : "";
+      const text = (await main.count())
+        ? await main.evaluate((node) => {
+            const parts = [/** @type {HTMLElement} */ (node).innerText];
+            for (const field of node.querySelectorAll("input, textarea")) {
+              const box = /** @type {HTMLInputElement} */ (field);
+              if (box.placeholder) parts.push(box.placeholder);
+              if (box.value) parts.push(box.value);
+            }
+            return parts.join("\n");
+          })
+        : "";
       return { landed, text };
     }
 
@@ -280,6 +299,152 @@ async function main() {
       distinct.size === 3,
       `${distinct.size} distinct <main> renders across /activities, /resources, /dashboard`,
     );
+
+    /*
+     * ---- arranging a path, through the controls a person uses ------------
+     *
+     * Every one of these was a whole-array PATCH until recently: the page read
+     * the path, changed one thing about it, and wrote all of it back, so an
+     * edit undid whatever had arrived since. They are one endpoint each now,
+     * and this is the only check that drives them the way somebody does --
+     * through the buttons, in a browser, against a real server.
+     *
+     * Asserted against what the server holds afterwards rather than against
+     * what the page shows. A screen that renders the change it just made
+     * optimistically looks identical to one whose write landed.
+     */
+    async function callApi(method, path, body) {
+      return page.evaluate(
+        async ({ base, method, path, body }) => {
+          const res = await fetch(`${base}${path}`, {
+            method,
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${localStorage.getItem("schoolar_token")}`,
+            },
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+          });
+          return { status: res.status, body: await res.json().catch(() => null) };
+        },
+        { base: BASE, method, path, body },
+      );
+    }
+
+    const goal = await callApi("POST", "/api/learning-goals", {
+      title: "Arranged during the UI audit",
+      subject: "Mathematics",
+      level: "beginner",
+    });
+    if (goal.status === 429) {
+      throw new Inconclusive(
+        "still rate limited when creating a goal; the run cannot show whether " +
+          "the path controls reach the server.",
+      );
+    }
+    check(
+      "a goal can be created for the path controls to work on",
+      goal.status === 201 && Array.isArray(goal.body?.pathSteps),
+      `HTTP ${goal.status}`,
+    );
+
+    if (goal.status === 201) {
+      const goalId = goal.body.id;
+      const steps = async () =>
+        (await callApi("GET", "/api/learning-goals")).body?.find(
+          (one) => one.id === goalId,
+        )?.pathSteps ?? [];
+
+      const before = await steps();
+      await page.goto(`${BASE}/goals`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(1500);
+
+      // ── adding ────────────────────────────────────────────────────────────
+      const addField = page.getByLabel(`Add step to ${goal.body.title}`);
+      await addField.fill("Added through the form");
+      await addField.press("Enter");
+      await page.waitForTimeout(1200);
+      const added = await steps();
+      check(
+        "a step typed into the form is on the path afterwards",
+        added.length === before.length + 1 &&
+          added.at(-1)?.title === "Added through the form",
+        `path: ${added.map((one) => one.title).join(" | ").slice(0, 200)}`,
+      );
+
+      const first = added[0];
+      await page.getByLabel(`Complete ${first.title}`).click();
+      await page.waitForTimeout(1200);
+      check(
+        "ticking a step through the page marks it done on the server",
+        (await steps()).find((one) => one.id === first.id)?.completed === true,
+        `first step: ${JSON.stringify((await steps())[0])?.slice(0, 160)}`,
+      );
+
+      /*
+       * The lost update, staged the way it actually happens.
+       *
+       * A tick made through the page refreshes the page's own copy of the
+       * path, so a rename straight afterwards writes a copy that is current
+       * and nothing is lost -- which is why a first version of this passed
+       * with the old whole-array write still in place. What loses a tick is a
+       * change this page never saw: another device, or the phone. So the
+       * second tick goes through the API and nothing tells the page, leaving
+       * it holding a path that is one tick out of date; then a rename is made
+       * through the form. The tick has to survive it.
+       */
+      const second = added[1];
+      await callApi(
+        "POST",
+        `/api/learning-goals/${goalId}/steps/${second.id}/completion`,
+        { completed: true },
+      );
+
+      const renameField = page.getByLabel("Rename Added through the form");
+      await renameField.fill("Renamed through the form");
+      // A rename is saved on blur, which is what a person does by clicking away.
+      await renameField.blur();
+      await page.waitForTimeout(1200);
+      const renamed = await steps();
+      check(
+        "renaming a step does not undo a tick made on another device",
+        renamed.at(-1)?.title === "Renamed through the form" &&
+          renamed.find((one) => one.id === first.id)?.completed === true &&
+          renamed.find((one) => one.id === second.id)?.completed === true,
+        `path: ${JSON.stringify(renamed)?.slice(0, 300)}`,
+      );
+
+      // ── reordering ────────────────────────────────────────────────────────
+      await page.getByLabel(`Move ${renamed[0].title} down`).click();
+      await page.waitForTimeout(1200);
+      const moved = await steps();
+      check(
+        "moving a step down reorders the path and carries nothing stale",
+        moved[1]?.id === renamed[0].id &&
+          moved[0]?.id === renamed[1].id &&
+          moved.find((one) => one.id === first.id)?.completed === true,
+        `order: ${moved.map((one) => one.title).join(" | ").slice(0, 200)}`,
+      );
+
+      // ── deleting ──────────────────────────────────────────────────────────
+      await page.getByLabel("Delete Renamed through the form").click();
+      await page.waitForTimeout(1200);
+      const remaining = await steps();
+      check(
+        "deleting a step removes that one and leaves the rest",
+        remaining.length === moved.length - 1 &&
+          !remaining.some((one) => one.title === "Renamed through the form"),
+        `path: ${remaining.map((one) => one.title).join(" | ").slice(0, 200)}`,
+      );
+
+      // And the page shows what the server holds, rather than what it guessed.
+      const goalsText = await mainText("/goals");
+      check(
+        "the page ends up showing the path the server actually holds",
+        !goalsText.text.includes("Renamed through the form") &&
+          goalsText.text.includes(remaining[0].title),
+        `/goals showed: ${goalsText.text.replace(/\s+/g, " ").slice(0, 220)}`,
+      );
+    }
 
     // ---- can the secondary text actually be read --------------------------
     /**
@@ -442,6 +607,27 @@ async function main() {
       "/settings",
     ];
 
+    /**
+     * Writes a page is allowed to make while being read.
+     *
+     * One entry, and it took an account with a goal in it to find. The
+     * dashboard decides what to ask you next and stores that question on the
+     * account, so the same one appears on your phone -- a write caused by
+     * opening a page, and the mechanism by which a check-in follows somebody
+     * between devices rather than an accident. It happens once per goal; the
+     * stored answer short-circuits it afterwards.
+     *
+     * It was invisible until this run started creating a goal. The check was
+     * green because the audited account was empty, which is a reminder that a
+     * read-only rule is only as strong as the state it is asked about.
+     */
+    const ALLOWED_WRITES_ON_READ = new Map([
+      [
+        "/dashboard PATCH /api/users/me/preferences",
+        "stores the next check-in on the account so it follows the learner to another device",
+      ],
+    ]);
+
     const wroteWhileReading = [];
     for (const path of READ_ONLY_PAGES) {
       const writes = [];
@@ -457,8 +643,11 @@ async function main() {
       await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(2500);
       page.off("request", countWrites);
-      if (writes.length) {
-        wroteWhileReading.push(`${path} sent ${[...new Set(writes)].join(", ")}`);
+      const unexpected = [...new Set(writes)].filter(
+        (write) => !ALLOWED_WRITES_ON_READ.has(`${path} ${write}`),
+      );
+      if (unexpected.length) {
+        wroteWhileReading.push(`${path} sent ${unexpected.join(", ")}`);
       }
     }
 

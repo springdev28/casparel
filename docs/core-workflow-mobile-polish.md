@@ -823,3 +823,41 @@ stripped now and only the middleware chain is read — a guard a comment can
 satisfy is a guard that describes the code instead of reading it, and the only
 reason that was caught is that removing the fix and re-running is part of
 adding one here.
+
+## Current implementation ledger — 2026-08-29 (the path controls, driven in a browser)
+
+`audit-live-ui.mjs` is the only check here that drives the real app against a
+real server: a page audit answers the API from fixtures, so a button wired to a
+route that does not exist renders perfectly. It covered registration, three
+pages, sign-out and the two channels a person notices — an uncaught exception,
+and an API call that failed behind a screen that looked fine. It did not touch
+the core loop this document is about.
+
+It does now. A goal is created, and then adding, ticking, renaming, reordering
+and deleting a step all happen through the controls a person uses, in a
+browser, with every assertion made against what the server holds afterwards
+rather than against what the page draws. A screen that renders the change it
+just made optimistically looks identical to one whose write landed.
+
+The rename check is staged the way the defect actually happens, and the first
+version of it was worthless. A tick made through the page refreshes the page's
+own copy of the path, so a rename straight afterwards writes a copy that is
+current and nothing is lost — that version passed with the old whole-array
+write put back. What loses a tick is a change this page never saw. The second
+tick now goes through the API with nothing telling the page, leaving it holding
+a path one tick out of date, and then the rename is made through the form. Put
+the whole-array rename back and the check fails; that is the two-device lost
+update, caught through a browser rather than argued about.
+
+Two things had to be fixed for any of it to be visible:
+
+- `innerText` stops at the edge of an `<input>`, and the goals page draws every path step as an editable field — so a whole learning path was invisible to this file, which could assert that the page had rendered and never that it had rendered the right steps. It now reads field values and placeholders, the same repair the phone's audit needed and for the same reason.
+- "opening a page to read it writes nothing" failed as soon as the audited account had a goal in it. The dashboard decides what to ask you next and stores that question on the account, so the same one appears on your phone. That is the mechanism by which a check-in follows somebody between devices, not an accident, and it happens once per goal. It is recorded as a named exception with that reason. The check had been green because the account was empty, which is a reminder that a read-only rule is only as strong as the state it is asked about.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 877 API assertions across 102 test files against a real PostgreSQL instance;
+- 24 live UI checks against a real server serving the built app, up from 17;
+- the rename check fails when the whole-array write is put back and passes when it is not;
+- 180 page renders clean, and every visible string on the web is still translated.
