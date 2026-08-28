@@ -318,7 +318,7 @@ Verification recorded for this increment:
 Still required after these increments:
 
 - verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
-- continue Phase 3 with Learning List item roles and quality review;
+- continue Phase 3 with Learning List item roles;
 - capture second-device persistence and analytics evidence in the release record.
 
 ## Current implementation ledger — 2026-08-26
@@ -423,3 +423,32 @@ generated entry sorted *behind* the previous one — and Drizzle skips a
 migration whose `when` is not greater than the last applied, reporting success
 while doing it. The column silently did not exist. `migrationsCanApply.test.ts`
 now fails on a journal that is out of order or missing a file.
+
+## Quality review — what it checks, and what it will not
+
+The list builder's **inspect quality** requirement names six things: gaps,
+duplication, prerequisites, level mismatch, provider concentration, and
+explanation/practice balance.
+
+Three are arithmetic over rows the app already holds, and are implemented in
+`artifacts/api-server/src/lib/listQuality.ts`:
+
+| Finding          | When it is reported                                                    |
+| ---------------- | ---------------------------------------------------------------------- |
+| `one_provider`   | three items or more, and 70% or more share a source family              |
+| `one_format`     | three items or more, and every item is the same format                  |
+| `duplicate_link` | two items whose canonical URL is identical                              |
+| `level_mismatch` | a majority level exists and some items are aimed elsewhere              |
+
+Three are not, and must not be invented. Gaps and prerequisites are claims
+about a subject that nothing in this product knows; a plausible sentence about
+them is invention dressed as advice, on the screen where somebody decides what
+to study next. Explanation/practice balance is the same problem in a smaller
+form: the catalogue records a format, not whether a resource asks the reader to
+do anything, so what is reported is the fact — every item is the same format —
+and not a judgement about practice.
+
+The endpoint returns facts with their numbers rather than sentences, so each
+client phrases them for its own reader; a sentence built on the server could
+only ever be in one language. Both screens say which checks were made, so the
+absence of a finding is not read as a claim about everything.

@@ -33,6 +33,8 @@ import {
   BuildPathFromListParams,
   BuildPathFromListBody,
   BuildPathFromListResponse,
+  ReviewListQualityParams,
+  ReviewListQualityResponse,
   RemoveListItemParams,
   ReorderListItemsParams,
   ReorderListItemsBody,
@@ -46,6 +48,7 @@ import { recordWorkflowEvent, recordWorkflowEvents } from "../lib/workflowAnalyt
 import { ensureAccountCapacity } from "../lib/planCapacity";
 import { validationMessage } from "../lib/validationMessage";
 import { dateOnly } from "../lib/contractDates";
+import { reviewList } from "../lib/listQuality";
 
 const router: IRouter = Router();
 
@@ -420,6 +423,44 @@ router.delete("/lists/:id/items/:itemId", requireAuth, async (req, res): Promise
     .delete(listItemsTable)
     .where(and(eq(listItemsTable.id, params.data.itemId), eq(listItemsTable.listId, params.data.id)));
   res.sendStatus(204);
+});
+
+/**
+ * What can be said about a list from the list itself.
+ *
+ * The builder is meant to let somebody inspect a list's quality before they
+ * study from it. What that can honestly mean is in lib/listQuality.ts: three
+ * of the six things the specification names are arithmetic over rows the app
+ * holds, and three are claims about a subject that nothing here knows.
+ *
+ * Readable by anyone who can read the list, because it says nothing the list
+ * does not already say -- a class member looking at a shared list sees the
+ * same rows and can count them for themselves.
+ */
+router.get("/lists/:id/quality", requireAuth, async (req, res): Promise<void> => {
+  const { userId, userRole } = req as AuthenticatedRequest;
+  const params = ReviewListQualityParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: validationMessage(params.error) });
+    return;
+  }
+  if (!(await canReadList(params.data.id, userId, userRole))) {
+    res.status(403).json({ error: "You do not have access to this list" });
+    return;
+  }
+  const items = await db
+    .select({
+      resourceId: listItemsTable.resourceId,
+      title: resourcesTable.title,
+      url: resourcesTable.url,
+      format: resourcesTable.format,
+      gradeLevel: resourcesTable.gradeLevel,
+    })
+    .from(listItemsTable)
+    .innerJoin(resourcesTable, eq(resourcesTable.id, listItemsTable.resourceId))
+    .where(eq(listItemsTable.listId, params.data.id))
+    .orderBy(asc(listItemsTable.position), asc(listItemsTable.addedAt));
+  res.json(ReviewListQualityResponse.parse(reviewList(items)));
 });
 
 /**

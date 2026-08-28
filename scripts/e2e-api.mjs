@@ -645,6 +645,59 @@ async function main() {
       `HTTP ${twice.status} ${twice.text.slice(0, 160)}`,
     );
 
+    /*
+     * What can be said about the list from the list itself.
+     *
+     * A third resource first, because two of anything is a coincidence and the
+     * review says nothing about a list shorter than three. All three are
+     * articles from example.test, which is what makes both arithmetic checks
+     * fire -- a run that only proved the endpoint answers would not have shown
+     * that the rules reach the screen.
+     */
+    const third = await call("POST", "/api/resources", {
+      token: bob.token,
+      body: {
+        title: `Third read ${RUN}`,
+        url: `https://example.test/third-read-${RUN}`,
+        format: "article",
+        subject: "Physics",
+        gradeLevel: "Year 12",
+      },
+    });
+    await call("POST", `/api/lists/${bobsList.body.id}/items`, {
+      token: bob.token,
+      body: { resourceId: third.body?.id },
+    });
+
+    const quality = await call("GET", `/api/lists/${bobsList.body.id}/quality`, {
+      token: bob.token,
+    });
+    check(
+      "a list can be checked against itself",
+      quality.status === 200 && quality.body?.itemCount === 3,
+      `HTTP ${quality.status} ${quality.text.slice(0, 160)}`,
+    );
+    const kinds = (quality.body?.findings ?? []).map((finding) => finding.kind);
+    check(
+      "and it reports what is actually true of it",
+      kinds.includes("one_provider") && kinds.includes("one_format"),
+      `findings: ${JSON.stringify(quality.body?.findings)?.slice(0, 200)}`,
+    );
+    check(
+      "the review says which checks it made",
+      Array.isArray(quality.body?.checked) && quality.body.checked.length === 4,
+      `checked: ${JSON.stringify(quality.body?.checked)}`,
+    );
+
+    const strangersQuality = await call("GET", `/api/lists/${bobsList.body.id}/quality`, {
+      token: alice.token,
+    });
+    check(
+      "a stranger cannot review someone's private list",
+      strangersQuality.status === 403 || strangersQuality.status === 404,
+      `HTTP ${strangersQuality.status}`,
+    );
+
     const strangersBuild = await call("POST", `/api/lists/${bobsList.body.id}/path`, {
       token: alice.token,
       body: {},

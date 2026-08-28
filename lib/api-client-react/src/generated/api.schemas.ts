@@ -1024,6 +1024,39 @@ export interface LearningGoalPatch {
   pathSteps?: LearningPathStep[];
 }
 
+export type ListQualityFindingKind = typeof ListQualityFindingKind[keyof typeof ListQualityFindingKind];
+
+
+export const ListQualityFindingKind = {
+  one_provider: 'one_provider',
+  one_format: 'one_format',
+  duplicate_link: 'duplicate_link',
+  level_mismatch: 'level_mismatch',
+} as const;
+
+export interface ListQualityFinding {
+  kind: ListQualityFindingKind;
+  /** one_provider: the site most of the list comes from */
+  provider?: string;
+  /** one_format: the format every item shares */
+  format?: string;
+  /** How many items the finding is about */
+  count?: number;
+  /** duplicate_link and level_mismatch: the resources concerned */
+  resourceIds?: number[];
+  /** level_mismatch: the level these items are aimed at */
+  level?: string;
+  /** level_mismatch: the level the rest of the list is aimed at */
+  majority?: string;
+}
+
+export interface ListQualityReview {
+  itemCount: number;
+  /** The checks that were made, whether or not they found anything. */
+  checked: string[];
+  findings: ListQualityFinding[];
+}
+
 export type PathFromListInputLevel = typeof PathFromListInputLevel[keyof typeof PathFromListInputLevel];
 
 

@@ -2046,6 +2046,33 @@ paths:
         "403": { description: Only the list owner can build a path from it }
         "404": { description: List not found }
 
+  /lists/{id}/quality:
+    get:
+      operationId: reviewListQuality
+      tags: [lists]
+      summary: What can be said about a list from the list itself
+      description: >-
+        Facts about the list's own rows: whether almost everything comes from
+        one site, whether it is entirely one format, whether a link appears
+        twice, and whether an item is aimed at a different level from the rest.
+        It does not judge gaps or prerequisites, which nothing here knows, and
+        the findings carry the numbers behind them rather than sentences so
+        each client can phrase them in its own language.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListQualityReview"
+        "403": { description: No access to this list }
+        "404": { description: List not found }
+
   /lists/{id}/share:
     post:
       operationId: shareListWithClass
@@ -4066,6 +4093,41 @@ components:
           type: array
           maxItems: 20
           items: { $ref: "#/components/schemas/LearningPathStep" }
+
+    ListQualityReview:
+      type: object
+      required: [itemCount, findings, checked]
+      properties:
+        itemCount: { type: integer }
+        checked:
+          type: array
+          description: The checks that were made, whether or not they found anything.
+          items: { type: string }
+        findings:
+          type: array
+          items: { $ref: "#/components/schemas/ListQualityFinding" }
+
+    ListQualityFinding:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [one_provider, one_format, duplicate_link, level_mismatch]
+        provider:
+          { type: string, description: "one_provider: the site most of the list comes from" }
+        format:
+          { type: string, description: "one_format: the format every item shares" }
+        count:
+          { type: integer, description: "How many items the finding is about" }
+        resourceIds:
+          type: array
+          description: "duplicate_link and level_mismatch: the resources concerned"
+          items: { type: integer }
+        level:
+          { type: string, description: "level_mismatch: the level these items are aimed at" }
+        majority:
+          { type: string, description: "level_mismatch: the level the rest of the list is aimed at" }
 
     PathFromListInput:
       type: object

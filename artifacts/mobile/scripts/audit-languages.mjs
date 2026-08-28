@@ -302,6 +302,20 @@ function stubbedBody(pathname) {
       ],
     };
   }
+  /*
+   * The list review, which the list screen asks for only when the reader
+   * presses. Two findings so both the sentence and the count are rendered.
+   */
+  if (/\/lists\/\d+\/quality$/.test(pathname)) {
+    return {
+      itemCount: 3,
+      checked: ["one_provider", "one_format", "duplicate_link", "level_mismatch"],
+      findings: [
+        { kind: "one_provider", provider: "example.org", count: 3 },
+        { kind: "one_format", format: "article", count: 3 },
+      ],
+    };
+  }
   if (pathname.endsWith("/lists")) {
     return [
       {

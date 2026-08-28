@@ -2613,6 +2613,29 @@ export const BuildPathFromListResponse = zod.object({
 
 
 /**
+ * Facts about the list's own rows: whether almost everything comes from one site, whether it is entirely one format, whether a link appears twice, and whether an item is aimed at a different level from the rest. It does not judge gaps or prerequisites, which nothing here knows, and the findings carry the numbers behind them rather than sentences so each client can phrase them in its own language.
+ * @summary What can be said about a list from the list itself
+ */
+export const ReviewListQualityParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const ReviewListQualityResponse = zod.object({
+  "itemCount": zod.int(),
+  "checked": zod.array(zod.string()).describe('The checks that were made, whether or not they found anything.'),
+  "findings": zod.array(zod.object({
+  "kind": zod.enum(['one_provider', 'one_format', 'duplicate_link', 'level_mismatch']),
+  "provider": zod.string().optional().describe('one_provider: the site most of the list comes from'),
+  "format": zod.string().optional().describe('one_format: the format every item shares'),
+  "count": zod.int().optional().describe('How many items the finding is about'),
+  "resourceIds": zod.array(zod.int()).optional().describe('duplicate_link and level_mismatch: the resources concerned'),
+  "level": zod.string().optional().describe('level_mismatch: the level these items are aimed at'),
+  "majority": zod.string().optional().describe('level_mismatch: the level the rest of the list is aimed at')
+}))
+})
+
+
+/**
  * @summary Share a list with a class
  */
 export const ShareListWithClassParams = zod.object({

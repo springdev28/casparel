@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical, Target, Users } from 'lucide-react';
+import { ArrowLeft, Trash2, List, ExternalLink, BookOpen, RefreshCw, Check, AlertCircle, GripVertical, Search, Target, Users } from 'lucide-react';
 import { Button } from '@workspace/edu-ds/components/ui/button';
 import { Card, CardContent } from '@workspace/edu-ds/components/ui/card';
 import { Badge } from '@workspace/edu-ds/components/ui/badge';
@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/edu-ds/components/ui/select';
 import { toast } from '@workspace/edu-ds/hooks/use-toast';
 import { describeApiError } from '@/lib/api-error';
+import { describeFinding } from '@/lib/list-quality';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -36,6 +37,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   useBuildPathFromList,
   useGetResourceList,
+  useReviewListQuality,
   useRemoveListItem,
   useReorderListItems,
   useGetMe,
@@ -46,6 +48,7 @@ import {
   useShareListWithClass,
   getGetResourceListQueryKey,
   getListLearningGoalsQueryKey,
+  getReviewListQualityQueryKey,
   getListResourceListsQueryKey,
   getGetGCStatusQueryKey,
   getListGCCoursesQueryKey,
@@ -111,6 +114,17 @@ export default function ListDetailPage() {
   const removeItem = useRemoveListItem();
   const reorderItems = useReorderListItems();
   const buildPath = useBuildPathFromList();
+  /*
+   * Asked for rather than shown: a list opens to what is in it, and an
+   * unrequested verdict on somebody's choices is not what they came for.
+   */
+  const [reviewing, setReviewing] = useState(false);
+  const quality = useReviewListQuality(listId, {
+    query: {
+      queryKey: getReviewListQualityQueryKey(listId),
+      enabled: reviewing && !!listId,
+    },
+  });
 
   // Sync local order from server whenever the list data changes
   useEffect(() => {
@@ -395,6 +409,19 @@ export default function ListDetailPage() {
           </Dialog>
         )}
 
+        {(list?.items.length ?? 0) > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setReviewing(true)}
+            disabled={reviewing}
+            data-testid="check-list-button"
+          >
+            <Search size={15} className="mr-1.5" />
+            Check this list
+          </Button>
+        )}
+
         {isOwner && (list?.items.length ?? 0) > 0 && (
           <Button
             variant="outline"
@@ -440,6 +467,41 @@ export default function ListDetailPage() {
         {list.description && <p translate="no" className="text-muted-foreground text-sm mt-1">{list.description}</p>}
         <p className="text-xs text-muted-foreground mt-1">{counted(list.itemCount, "item", "items")}</p>
       </div>
+
+      {reviewing && (
+        <Card data-testid="list-quality">
+          <CardContent className="p-4 space-y-2">
+            <p className="font-semibold text-foreground text-sm">How this list looks</p>
+            {quality.isLoading ? (
+              <Skeleton className="h-4 w-3/4" />
+            ) : quality.isError ? (
+              <Button variant="ghost" size="sm" onClick={() => void quality.refetch()}>
+                Try again
+              </Button>
+            ) : (
+              <>
+                {(quality.data?.findings ?? [])
+                  .map((finding) => describeFinding(finding))
+                  .filter((sentence): sentence is string => sentence !== null)
+                  .map((sentence) => (
+                    <p key={sentence} className="text-sm text-foreground flex items-start gap-2">
+                      <AlertCircle size={15} className="mt-0.5 shrink-0 text-muted-foreground" />
+                      <span>{sentence}</span>
+                    </p>
+                  ))}
+                {(quality.data?.findings ?? []).length === 0 && (
+                  <p className="text-sm text-muted-foreground">Nothing stands out.</p>
+                )}
+                {/* What was looked at, so the absence of a finding is not read
+                    as a claim about everything. */}
+                <p className="text-xs text-muted-foreground">
+                  Checked for one site, one format, repeated links and level. Whether the list is complete is your call.
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Items */}
       {displayItems.length === 0 ? (

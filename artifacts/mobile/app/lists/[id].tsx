@@ -45,9 +45,11 @@ import { Empty } from '@workspace/edu-ds/components/native/empty';
 import {
   getGetResourceListQueryKey,
   getListLearningGoalsQueryKey,
+  getReviewListQualityQueryKey,
   getListResourceListsQueryKey,
   useBuildPathFromList,
   useGetResourceList,
+  useReviewListQuality,
   useRemoveListItem,
   useReorderListItems,
 } from '@workspace/api-client-react';
@@ -58,6 +60,7 @@ import { describeApiFailure } from '@/utils/api-failure';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useMotion } from '@/contexts/MotionContext';
 import { moveItem } from '@/utils/reorder';
+import { describeFinding } from '@/utils/list-quality';
 
 function Item({
   item,
@@ -203,6 +206,18 @@ export default function ListScreen() {
   const [pending, setPending] = React.useState<number | null>(null);
   const [writeError, setWriteError] = React.useState<string | null>(null);
   const [previewing, setPreviewing] = React.useState(false);
+  /*
+   * The review is asked for rather than shown: a list opens to what is in it,
+   * and an unrequested verdict on somebody's choices is not what they came
+   * for. Enabled only once they press, so the request is theirs too.
+   */
+  const [reviewing, setReviewing] = React.useState(false);
+  const quality = useReviewListQuality(listId, {
+    query: {
+      queryKey: getReviewListQualityQueryKey(listId),
+      enabled: reviewing && !!listId,
+    },
+  });
   const [buildFailure, setBuildFailure] = React.useState<string | null>(null);
   const buildPath = useBuildPathFromList();
 
@@ -433,6 +448,83 @@ export default function ListScreen() {
             </View>
           ) : null}
 
+          {reviewing ? (
+            <View
+              style={[
+                styles.review,
+                { borderColor: colors.border, borderRadius: colors.radius },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.reviewTitle,
+                  { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold },
+                ]}
+              >
+                {t('How this list looks')}
+              </Text>
+              {quality.isLoading ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : quality.isError ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={quality.isFetching}
+                  onPress={() => void quality.refetch()}
+                >
+                  <Text style={{ color: colors.primary, fontSize: 13 }}>
+                    {quality.isFetching ? t('Loading…') : t('Retry')}
+                  </Text>
+                </Pressable>
+              ) : (
+                <>
+                  {(quality.data?.findings ?? [])
+                    .map((finding) => describeFinding(finding, t))
+                    .filter((sentence): sentence is string => sentence !== null)
+                    .map((sentence) => (
+                      <View key={sentence} style={styles.reviewRow}>
+                        <Feather name="info" size={14} color={colors.mutedForeground} />
+                        <Text
+                          style={[
+                            styles.reviewText,
+                            { color: colors.foreground, fontFamily: colors.fontFamily.sans },
+                          ]}
+                        >
+                          {sentence}
+                        </Text>
+                      </View>
+                    ))}
+                  {(quality.data?.findings ?? []).length === 0 ? (
+                    <Text style={[styles.reviewText, { color: colors.mutedForeground }]}>
+                      {t('Nothing stands out.')}
+                    </Text>
+                  ) : null}
+                  {/* What was looked at, so the absence of a finding is not
+                      read as a claim about everything. */}
+                  <Text style={[styles.reviewFootnote, { color: colors.mutedForeground }]}>
+                    {t('Checked for one site, one format, repeated links and level. Whether the list is complete is your call.')}
+                  </Text>
+                </>
+              )}
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t('Check this list')}
+              onPress={() => setReviewing(true)}
+              style={({ pressed }) => [styles.checkList, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Feather name="search" size={15} color={colors.primary} />
+              <Text
+                style={[
+                  styles.checkListText,
+                  { color: colors.primary, fontFamily: colors.fontFamily.sansSemiBold },
+                ]}
+              >
+                {t('Check this list')}
+              </Text>
+            </Pressable>
+          )}
+
           {/* The way out of organising and into studying. */}
           <Pressable
             accessibilityRole="button"
@@ -529,4 +621,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   buildPathText: { fontSize: 15 },
+  checkList: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 44,
+    paddingTop: 4,
+  },
+  checkListText: { fontSize: 14 },
+  review: { borderWidth: 1, padding: 12, gap: 8, marginTop: 4 },
+  reviewTitle: { fontSize: 14 },
+  reviewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  reviewText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  reviewFootnote: { fontSize: 12, lineHeight: 16 },
 });

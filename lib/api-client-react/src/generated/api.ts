@@ -82,6 +82,7 @@ import type {
   ListItemInput,
   ListProvenanceShowcase200,
   ListProvenanceShowcaseParams,
+  ListQualityReview,
   ListResourcesParams,
   ListScheduleBlocksParams,
   ListStudyActivitiesParams,
@@ -6054,6 +6055,84 @@ export const useBuildPathFromList = <TError = ErrorType<void>,
       > => {
       return useMutation(getBuildPathFromListMutationOptions(options));
     }
+
+export const getReviewListQualityUrl = (id: number,) => {
+
+
+
+
+  return `/api/lists/${id}/quality`
+}
+
+/**
+ * Facts about the list's own rows: whether almost everything comes from one site, whether it is entirely one format, whether a link appears twice, and whether an item is aimed at a different level from the rest. It does not judge gaps or prerequisites, which nothing here knows, and the findings carry the numbers behind them rather than sentences so each client can phrase them in its own language.
+ * @summary What can be said about a list from the list itself
+ */
+export const reviewListQuality = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ListQualityReview> => {
+
+  return customFetch<ListQualityReview>(getReviewListQualityUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getReviewListQualityQueryKey = (id: number,) => {
+    return [
+    `/api/lists/${id}/quality`
+    ] as const;
+    }
+
+
+export const getReviewListQualityQueryOptions = <TData = Awaited<ReturnType<typeof reviewListQuality>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof reviewListQuality>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getReviewListQualityQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof reviewListQuality>>> = ({ signal }) => reviewListQuality(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof reviewListQuality>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ReviewListQualityQueryResult = NonNullable<Awaited<ReturnType<typeof reviewListQuality>>>
+export type ReviewListQualityQueryError = ErrorType<void>
+
+
+/**
+ * @summary What can be said about a list from the list itself
+ */
+
+export function useReviewListQuality<TData = Awaited<ReturnType<typeof reviewListQuality>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof reviewListQuality>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getReviewListQualityQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getShareListWithClassUrl = (id: number,) => {
 
