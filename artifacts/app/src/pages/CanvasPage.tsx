@@ -95,6 +95,7 @@ import {
   SelectValue,
 } from "@workspace/edu-ds/components/ui/select";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
+import { LoadFailure } from "@/components/LoadFailure";
 import {
   canvasRequest,
   type CanvasCollaborator,
@@ -405,7 +406,17 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   const [, setLocation] = useLocation();
   const [canvas, setCanvas] = useState<SchoolarCanvas | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  /*
+   * Why the board could not be loaded, as the error rather than as its
+   * message.
+   *
+   * The page printed `error.message` under a heading of its own -- so a
+   * reader whose network had dropped got "Canvas unavailable" over "Failed to
+   * fetch", which is a developer's sentence, and a button back to the list
+   * rather than a way to try again. The rest of the app tells offline apart
+   * from broken and offers a retry; this now says the same things.
+   */
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<StudyFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<StudyFlowEdge>([]);
   const [viewport, setViewportState] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
@@ -513,9 +524,9 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
       const path = shared ? `/canvases/shared/${params.token}` : `/canvases/${params.id}`;
       const next = await canvasRequest<SchoolarCanvas>(path, {}, !shared);
       applyCanvas(next);
-      setLoadError("");
+      setLoadError(null);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Canvas could not be loaded");
+      setLoadError(error ?? new Error("Canvas could not be loaded"));
     } finally {
       setLoading(false);
     }
@@ -731,7 +742,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
   }, [canvas?.id, canManage, routeSearch, shared]);
 
   if (loading) return <div className={`flex ${pageHeight} items-center justify-center`}><Loader2 className="size-7 animate-spin text-primary-text" /></div>;
-  if (!canvas || loadError) return <div className={`flex ${pageHeight} flex-col items-center justify-center gap-3 p-6 text-center`}><h1 className="text-xl font-bold">Canvas unavailable</h1><p className="text-sm text-muted-foreground">{loadError}</p>{!shared ? <Button variant="outline" onClick={() => setLocation("/canvases")}><ArrowLeft className="mr-2 size-4" />Back to canvases</Button> : null}</div>;
+  if (!canvas || loadError) return <div className={`flex ${pageHeight} flex-col items-center justify-center gap-3 p-6 text-center`}><LoadFailure error={loadError} retrying={loading} onRetry={() => void loadCanvas()} />{!shared ? <Button variant="outline" onClick={() => setLocation("/canvases")}><ArrowLeft className="mr-2 size-4" />Back to canvases</Button> : null}</div>;
 
   const shareUrl = canvas.shareToken ? `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/canvas/shared/${canvas.shareToken}` : "";
 

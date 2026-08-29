@@ -1662,3 +1662,20 @@ Verification recorded for this increment:
   failure conditions; after, 122/122;
 - 189 page renders clean, every visible string translated, 230 user-content
   renders all protected, api-server 848 tests, the app type-checks.
+
+## Fix — a canvas that could not load said "Failed to fetch"
+
+The board page did have a failure state, and it was its own: "Canvas
+unavailable" over `error.message`, which for a dropped connection is the
+string "Failed to fetch" — a developer's sentence printed at a reader — and a
+button back to the list, which is not a way to try again. The rest of the app
+tells offline apart from broken, says which, and offers a retry. This does
+now, through the same `LoadFailure` block, keeping the back button beside it.
+
+131 offline checks pass where 128 did, and the three that failed were this
+page in its three failure conditions.
+
+Verification recorded for this increment:
+
+- proved by driving: three checks failed naming `/canvases/12`; after, 131/131;
+- 189 page renders clean and every visible string still translated.
