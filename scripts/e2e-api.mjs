@@ -363,8 +363,29 @@ async function main() {
           { id: "c1", term: "changed", answer: "changed" },
           { id: "c2", term: "also changed", answer: "also changed" },
         ],
+        // The version this edit was made from. A save that carries none
+        // cannot know whether it is overwriting somebody else's work, so the
+        // server refuses it rather than guessing.
+        expectedVersion: c.version,
       },
     });
+    const stale = await call("PATCH", `/api/study-activities/${c.id}`, {
+      token: bob.token,
+      body: {
+        ...ACTIVITY("Bob's second edit"),
+        cards: [
+          { id: "c1", term: "later", answer: "later" },
+          { id: "c2", term: "later still", answer: "later still" },
+        ],
+        expectedVersion: c.version,
+      },
+    });
+    check(
+      "an edit made from a version that has moved is refused, not applied",
+      stale.status === 409 && stale.body?.current?.title === "Bob's edited copy",
+      `HTTP ${stale.status} ${stale.text.slice(0, 200)}`,
+    );
+
     check("the copy can be edited by its new owner", edited.status === 200,
       `HTTP ${edited.status}`);
 

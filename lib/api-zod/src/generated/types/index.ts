@@ -259,6 +259,7 @@ export * from './studySessionRsvpStatus';
 export * from './studySessionWithParticipants';
 export * from './submitSeatingSuggestion201';
 export * from './submitSeatingSuggestionBody';
+export * from './updateStudyActivity409';
 export * from './uploadAvatarBody';
 export * from './user';
 export * from './userActiveRole';

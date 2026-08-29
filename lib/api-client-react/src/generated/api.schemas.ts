@@ -2040,6 +2040,8 @@ export const StudyActivityMode = {
 
 export interface StudyActivity {
   id: number;
+  /** Increments on every write. Send it back as `expectedVersion` when replacing the cards, and a write made from a version that has since moved is refused rather than applied over the top. */
+  version?: number;
   ownerId: number;
   workspaceRole: StudyActivityWorkspaceRole;
   /** @nullable */
@@ -2111,6 +2113,8 @@ export interface StudyActivityInput {
   sourceResourceId?: number;
   sourceActivityId?: number;
   remixedFromActivityId?: number;
+  /** The version this edit was made from, required when `cards` are being replaced. A set can be edited by its owner and by the teacher of the class it was shared into, and by one person on two devices, so a write that carries no version is a write that cannot tell whether it is about to overwrite somebody's work. */
+  expectedVersion?: number;
   /** @maxItems 100 */
   cards: StudyActivityCard[];
 }
@@ -2887,6 +2891,11 @@ export type ListStudyActivitiesParams = {
  * A class you belong to or teach. Without it, your own activities in the workspace role you are currently in.
  */
 classId?: number;
+};
+
+export type UpdateStudyActivity409 = {
+  error: string;
+  current: StudyActivity;
 };
 
 export type PublishStudyActivityBodyDestination = typeof PublishStudyActivityBodyDestination[keyof typeof PublishStudyActivityBodyDestination];

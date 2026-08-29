@@ -89,6 +89,16 @@ export const studyActivitiesTable = pgTable("study_activities", {
     .default("flashcards"),
   shareToken: text("share_token"),
   cards: jsonb("cards").$type<StudyActivityCard[]>().notNull().default([]),
+  /**
+   * Which edit this row is on, so a write can say what it was made from.
+   *
+   * A set is one jsonb document, and two people can edit it: its owner, and
+   * the teacher of the class it was shared into. Without this, the second
+   * save replaces the first without either of them knowing, and what is lost
+   * is the cards a learner revises from. Canvases have carried a version for
+   * the same reason since they gained collaborators.
+   */
+  version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
     .notNull()
     .defaultNow(),

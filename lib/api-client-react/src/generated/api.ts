@@ -150,6 +150,7 @@ import type {
   StudySessionWithParticipants,
   SubmitSeatingSuggestion201,
   SubmitSeatingSuggestionBody,
+  UpdateStudyActivity409,
   UploadAvatarBody,
   User,
   UserLibrary,
@@ -7430,6 +7431,7 @@ export const getUpdateStudyActivityUrl = (id: number,) => {
 }
 
 /**
+ * Replacing the cards requires the `expectedVersion` the edit was made from. A set can be edited by its owner and by the teacher of the class it was shared into, so a write with no version is one that cannot tell whether it is overwriting somebody else's work — and losing a set of cards is losing the thing a learner revises from.
  * @summary Replace a study activity's title, subject, mode and cards
  */
 export const updateStudyActivity = async (id: number,
@@ -7448,7 +7450,7 @@ export const updateStudyActivity = async (id: number,
 
 
 
-export const getUpdateStudyActivityMutationOptions = <TError = ErrorType<void>,
+export const getUpdateStudyActivityMutationOptions = <TError = ErrorType<void | UpdateStudyActivity409>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStudyActivity>>, TError,{id: number;data: BodyType<StudyActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateStudyActivity>>, TError,{id: number;data: BodyType<StudyActivityInput>}, TContext> => {
 
@@ -7477,12 +7479,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateStudyActivityMutationResult = NonNullable<Awaited<ReturnType<typeof updateStudyActivity>>>
     export type UpdateStudyActivityMutationBody = BodyType<StudyActivityInput>
-    export type UpdateStudyActivityMutationError = ErrorType<void>
+    export type UpdateStudyActivityMutationError = ErrorType<void | UpdateStudyActivity409>
 
     /**
  * @summary Replace a study activity's title, subject, mode and cards
  */
-export const useUpdateStudyActivity = <TError = ErrorType<void>,
+export const useUpdateStudyActivity = <TError = ErrorType<void | UpdateStudyActivity409>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStudyActivity>>, TError,{id: number;data: BodyType<StudyActivityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateStudyActivity>>,

@@ -1148,3 +1148,46 @@ Verification recorded for this increment:
 - 91 mobile tests, including both halves of the entrance rule going to zero;
 - the guard fails when one animation is returned to a fixed 500ms;
 - 36 screen renders across two languages, and 99 failure-state checks, both unchanged.
+
+## Fix — two people editing one set of cards, and one of them losing it
+
+A study set is one jsonb document, and two accounts can edit it: its owner,
+and the teacher of the class it was shared into. One person on two devices is
+the same shape. Every save replaced the whole document with no check on what
+it was replacing, so the second one overwrote the first and neither was told.
+What is lost is the cards a learner revises from.
+
+This is the last of the lost updates. Learning paths were moved onto one
+endpoint per edit; canvases have carried a version since they gained
+collaborators. Study sets had neither, and are the one remaining document two
+people can hold at once.
+
+A save now carries the `expectedVersion` it was made from, and a save made
+from a version that has since moved is refused. **Refused, not merged**: two
+sets of cards cannot be combined without inventing an order nobody chose. And
+refused rather than silently resolved in the other direction — the canvas
+takes the newer document and replaces the unsaved view, which is right for a
+canvas that autosaves every eight hundred milliseconds and wrong for a form
+somebody has been filling in. Here the editor stays open with their own words
+in it, the version moves to the one the server handed back, and pressing Save
+again is a deliberate decision to write over what is now there.
+
+A save with no version at all is refused too, rather than treated as "just
+write it". A write that cannot say what it was made from is exactly the write
+this exists to stop.
+
+One thing found on the way: the activities page keeps its own hand-written
+picture of a study set, because it talks to the API through `fetch` rather
+than the generated hooks. That is a second description of a shape the contract
+already defines, and it had to be edited by hand to learn about `version`.
+Recorded in the file rather than fixed — moving that page onto the generated
+client is a change with its own risks and is not this increment's work.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 909 API assertions across 105 test files against a real PostgreSQL instance;
+- against a real database: the first save lands and moves the version, the second is refused with the current set attached, the row still holds the first person's cards, saving again from the version just handed back works, and a save with no version writes nothing;
+- removing the version check makes that test fail, with the second save landing over the first;
+- 99 end-to-end flow checks against a real server, including the conflict;
+- 24 live UI checks, 180 page renders clean, and every visible string on the web still translated.

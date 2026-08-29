@@ -21,6 +21,8 @@ export interface StudyActivityInput {
   sourceResourceId?: number;
   sourceActivityId?: number;
   remixedFromActivityId?: number;
+  /** The version this edit was made from, required when `cards` are being replaced. A set can be edited by its owner and by the teacher of the class it was shared into, and by one person on two devices, so a write that carries no version is a write that cannot tell whether it is about to overwrite somebody's work. */
+  expectedVersion?: number;
   /** @maxItems 100 */
   cards: StudyActivityCard[];
 }

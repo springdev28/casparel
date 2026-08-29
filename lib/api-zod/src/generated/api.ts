@@ -3192,6 +3192,7 @@ export const ListStudyActivitiesQueryParams = zod.object({
   "classId": zod.coerce.number().int().optional().describe('A class you belong to or teach. Without it, your own activities in the workspace role you are currently in.')
 })
 
+export const listStudyActivitiesResponseVersionDefault = 1;
 export const listStudyActivitiesResponseCardsItemIdMax = 80;
 
 export const listStudyActivitiesResponseCardsItemTermMax = 500;
@@ -3202,6 +3203,7 @@ export const listStudyActivitiesResponseCardsItemAnswerMax = 1000;
 
 export const ListStudyActivitiesResponseItem = zod.object({
   "id": zod.int(),
+  "version": zod.int().default(listStudyActivitiesResponseVersionDefault).describe('Increments on every write. Send it back as `expectedVersion` when replacing the cards, and a write made from a version that has since moved is refused rather than applied over the top.'),
   "ownerId": zod.int(),
   "workspaceRole": zod.enum(['student', 'teacher']),
   "classId": zod.int().nullish(),
@@ -3249,6 +3251,7 @@ export const CreateStudyActivityBody = zod.object({
   "sourceResourceId": zod.int().optional(),
   "sourceActivityId": zod.int().optional(),
   "remixedFromActivityId": zod.int().optional(),
+  "expectedVersion": zod.int().optional().describe('The version this edit was made from, required when `cards` are being replaced. A set can be edited by its owner and by the teacher of the class it was shared into, and by one person on two devices, so a write that carries no version is a write that cannot tell whether it is about to overwrite somebody\'s work.'),
   "cards": zod.array(zod.object({
   "id": zod.string().max(createStudyActivityBodyCardsItemIdMax),
   "term": zod.string().max(createStudyActivityBodyCardsItemTermMax),
@@ -3260,6 +3263,7 @@ export const CreateStudyActivityBody = zod.object({
 })).max(createStudyActivityBodyCardsMax)
 })
 
+export const createStudyActivityResponseVersionDefault = 1;
 export const createStudyActivityResponseCardsItemIdMax = 80;
 
 export const createStudyActivityResponseCardsItemTermMax = 500;
@@ -3270,6 +3274,7 @@ export const createStudyActivityResponseCardsItemAnswerMax = 1000;
 
 export const CreateStudyActivityResponse = zod.object({
   "id": zod.int(),
+  "version": zod.int().default(createStudyActivityResponseVersionDefault).describe('Increments on every write. Send it back as `expectedVersion` when replacing the cards, and a write made from a version that has since moved is refused rather than applied over the top.'),
   "ownerId": zod.int(),
   "workspaceRole": zod.enum(['student', 'teacher']),
   "classId": zod.int().nullish(),
@@ -3292,6 +3297,7 @@ export const CreateStudyActivityResponse = zod.object({
 
 
 /**
+ * Replacing the cards requires the `expectedVersion` the edit was made from. A set can be edited by its owner and by the teacher of the class it was shared into, so a write with no version is one that cannot tell whether it is overwriting somebody else's work — and losing a set of cards is losing the thing a learner revises from.
  * @summary Replace a study activity's title, subject, mode and cards
  */
 export const UpdateStudyActivityParams = zod.object({
@@ -3320,6 +3326,7 @@ export const UpdateStudyActivityBody = zod.object({
   "sourceResourceId": zod.int().optional(),
   "sourceActivityId": zod.int().optional(),
   "remixedFromActivityId": zod.int().optional(),
+  "expectedVersion": zod.int().optional().describe('The version this edit was made from, required when `cards` are being replaced. A set can be edited by its owner and by the teacher of the class it was shared into, and by one person on two devices, so a write that carries no version is a write that cannot tell whether it is about to overwrite somebody\'s work.'),
   "cards": zod.array(zod.object({
   "id": zod.string().max(updateStudyActivityBodyCardsItemIdMax),
   "term": zod.string().max(updateStudyActivityBodyCardsItemTermMax),
@@ -3331,6 +3338,7 @@ export const UpdateStudyActivityBody = zod.object({
 })).max(updateStudyActivityBodyCardsMax)
 })
 
+export const updateStudyActivityResponseVersionDefault = 1;
 export const updateStudyActivityResponseCardsItemIdMax = 80;
 
 export const updateStudyActivityResponseCardsItemTermMax = 500;
@@ -3341,6 +3349,7 @@ export const updateStudyActivityResponseCardsItemAnswerMax = 1000;
 
 export const UpdateStudyActivityResponse = zod.object({
   "id": zod.int(),
+  "version": zod.int().default(updateStudyActivityResponseVersionDefault).describe('Increments on every write. Send it back as `expectedVersion` when replacing the cards, and a write made from a version that has since moved is refused rather than applied over the top.'),
   "ownerId": zod.int(),
   "workspaceRole": zod.enum(['student', 'teacher']),
   "classId": zod.int().nullish(),
@@ -3379,6 +3388,7 @@ export const CopyStudyActivityParams = zod.object({
   "id": zod.coerce.number().int()
 })
 
+export const copyStudyActivityResponseVersionDefault = 1;
 export const copyStudyActivityResponseCardsItemIdMax = 80;
 
 export const copyStudyActivityResponseCardsItemTermMax = 500;
@@ -3389,6 +3399,7 @@ export const copyStudyActivityResponseCardsItemAnswerMax = 1000;
 
 export const CopyStudyActivityResponse = zod.object({
   "id": zod.int(),
+  "version": zod.int().default(copyStudyActivityResponseVersionDefault).describe('Increments on every write. Send it back as `expectedVersion` when replacing the cards, and a write made from a version that has since moved is refused rather than applied over the top.'),
   "ownerId": zod.int(),
   "workspaceRole": zod.enum(['student', 'teacher']),
   "classId": zod.int().nullish(),

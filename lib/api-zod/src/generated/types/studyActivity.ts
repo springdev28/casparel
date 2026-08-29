@@ -11,6 +11,8 @@ import type { StudyActivityWorkspaceRole } from './studyActivityWorkspaceRole';
 
 export interface StudyActivity {
   id: number;
+  /** Increments on every write. Send it back as `expectedVersion` when replacing the cards, and a write made from a version that has since moved is refused rather than applied over the top. */
+  version?: number;
   ownerId: number;
   workspaceRole: StudyActivityWorkspaceRole;
   /** @nullable */

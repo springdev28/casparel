@@ -66,6 +66,14 @@ type ActivityCard = {
   imageAlt?: string | null;
 };
 
+/**
+ * This page's own picture of a study set.
+ *
+ * Hand-written because the page talks to the API through `fetch` rather than
+ * the generated hooks, which means it is a second description of a shape the
+ * contract already defines and will drift from it: `version` is here because
+ * the row grew one and nothing said so.
+ */
 type StudyActivity = {
   id: number;
   classId: number | null;
@@ -73,6 +81,8 @@ type StudyActivity = {
   subject: string | null;
   mode: ActivityMode;
   cards: ActivityCard[];
+  /** Which edit the row is on. Sent back on save so a stale one is refused. */
+  version: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -187,7 +197,18 @@ async function activityRequest(path: string, init?: RequestInit) {
     error?: string;
   };
   if (!response.ok) {
-    throw new Error(payload.error ?? "The activity request failed");
+    /*
+     * A conflict carries the set as it now stands, and the editor needs it:
+     * the difference between "could not save" and "somebody else saved first,
+     * here is what they wrote" is the difference between a dead end and a
+     * decision. Attached to the error rather than thrown separately, so every
+     * existing caller keeps working.
+     */
+    const failure = Object.assign(
+      new Error(payload.error ?? "The activity request failed"),
+      { status: response.status, current: (payload as { current?: unknown }).current },
+    );
+    throw failure;
   }
   return payload;
 }
@@ -320,6 +341,8 @@ export default function ActivitiesPage({
   const [mode, setMode] = useState<ActivityMode>("flashcards");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  /** The version the open edit was made from, sent back so a save can be refused. */
+  const [editingVersion, setEditingVersion] = useState(1);
   const [saving, setSaving] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -557,6 +580,8 @@ export default function ActivitiesPage({
 
   function openEditSet(activity: StudyActivity) {
     setEditingId(activity.id);
+    // The version this edit is being made from, sent back with the save.
+    setEditingVersion(activity.version ?? 1);
     setFormTitle(activity.title);
     setFormSubject(activity.subject ?? "");
     setFormMode(activity.mode ?? "flashcards");
@@ -708,6 +733,7 @@ export default function ActivitiesPage({
             cards: completeCards,
             classId: classIdOverride ?? null,
             sourceResourceId: formSourceResourceId,
+            ...(editingId ? { expectedVersion: editingVersion } : {}),
           }),
         },
       )) as unknown as StudyActivity;
@@ -719,6 +745,25 @@ export default function ActivitiesPage({
       setEditorOpen(false);
       toast({ title: editingId ? "Activity updated" : "Activity created" });
     } catch (error) {
+      /*
+       * Somebody saved first. The editor stays open with this person's own
+       * words in it -- replacing them with the other version would lose the
+       * work they came here to do, which is the failure this whole mechanism
+       * exists to prevent. What moves is the version, so pressing Save again
+       * is a deliberate decision to write over what is there now.
+       */
+      const conflict = error as { status?: number; current?: StudyActivity };
+      if (conflict?.status === 409 && conflict.current) {
+        setEditingVersion(conflict.current.version ?? 1);
+        await loadActivities();
+        toast({
+          title: "This set changed while you were editing",
+          description:
+            "Somebody else saved first, so nothing was written. Your edits are still here — save again to replace theirs.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: "Could not save activity",
         description:

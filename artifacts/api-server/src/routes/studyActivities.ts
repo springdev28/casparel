@@ -4,7 +4,7 @@
  */
 import { randomBytes, randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { and, desc, eq, ilike, isNull } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
 import {
   db,
   forumMaterialsTable,
@@ -458,13 +458,56 @@ router.patch(
       res.status(404).json({ error: "Study activity not found" });
       return;
     }
+    /*
+     * The version this edit was made from, or nothing is written.
+     *
+     * A set is one jsonb document and two people can edit it: its owner, and
+     * the teacher of the class it was shared into. One person on two devices
+     * is the same shape. Without this the second save replaced the first and
+     * neither was told -- and what is lost is the cards a learner revises
+     * from. Canvases have worked this way since they gained collaborators.
+     *
+     * Refused rather than merged. Two sets of cards cannot be combined
+     * without inventing an order somebody did not choose, so the honest
+     * answer is to say the set moved and hand back what it now holds, with
+     * the editor's own text still in front of them.
+     */
+    const expectedVersion = (req.body as { expectedVersion?: unknown })
+      ?.expectedVersion;
+    if (typeof expectedVersion !== "number" || !Number.isInteger(expectedVersion)) {
+      res.status(400).json({
+        error: "Send the expectedVersion this edit was made from",
+      });
+      return;
+    }
+
     const [activity] = await db
       .update(studyActivitiesTable)
-      .set({ ...input, updatedAt: new Date().toISOString() })
-      .where(eq(studyActivitiesTable.id, id))
+      .set({
+        ...input,
+        version: sql`${studyActivitiesTable.version} + 1`,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(studyActivitiesTable.id, id),
+          eq(studyActivitiesTable.version, expectedVersion),
+        ),
+      )
       .returning();
     if (!activity) {
-      res.status(404).json({ error: "Study activity not found" });
+      const [current] = await db
+        .select()
+        .from(studyActivitiesTable)
+        .where(eq(studyActivitiesTable.id, id));
+      if (!current) {
+        res.status(404).json({ error: "Study activity not found" });
+        return;
+      }
+      res.status(409).json({
+        error: "This set changed in another session",
+        current,
+      });
       return;
     }
     res.json(activity);
