@@ -1301,3 +1301,35 @@ to ignore.
 The web audit now asks three questions of nine pages: what a page says while
 waiting, when nothing reaches the server, and when the server answers 500.
 Sixty-three checks, from ten.
+
+## Fix — two detail pages that said a thing was gone when it was merely unreachable
+
+"Not found" is the sharpest sentence either of these pages can say, and the
+only one that sends somebody away for good. A learning list that could not be
+fetched has not been deleted; a resource that timed out still exists. Being
+told otherwise is worse than being told nothing, because the reader goes and
+makes another one.
+
+`/lists/44` and `/resources/101` both said it, in both failure modes. They now
+distinguish the answer from the absence of one: a 404 or a 403 still says "not
+found", and anything else says the request failed, with a retry.
+
+A third thing came out of adding them to the audit, and it was mine. The
+Learning List page read `drift.data?.added.length` — one optional chain where
+it needed two. The first guards a response that has not arrived; the second
+guards one that arrived without the field, which is what an error body or a
+fixture that does not know the endpoint looks like. Written with one, the page
+threw during render and the whole screen became the error boundary, so a list
+that merely failed to load took the app down with it. The audit did not see it
+because when *everything* fails the page returns earlier; it took failing one
+request while the rest succeeded — which is the ordinary case — to reach it.
+
+The fixture set now answers the drift endpoint too, so the page reads a real
+shape rather than whatever a missing fixture leaves behind.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 77 checks across eleven pages and three conditions, up from 63 across nine;
+- driven directly: a genuine 404 still says "not found" on both pages, and a 500 says it could not load;
+- 180 page renders clean, 122 pages reachable, every visible string still translated, sessions correct, 24 live UI checks, 102 end-to-end checks and 55 readable endpoints against freshly started servers.

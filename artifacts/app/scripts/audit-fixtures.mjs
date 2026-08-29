@@ -595,6 +595,13 @@ export const FIXTURES = {
     classShare: null,
   },
   "/api/learning-goals": [LEARNING_GOAL],
+  /*
+   * What the list this goal was built from has gained since. Empty, because
+   * the fixture's list and its path hold the same resources -- the point of
+   * having it here at all is that the endpoint answers, so the page reads a
+   * real shape instead of whatever a missing fixture leaves behind.
+   */
+  "/api/learning-goals/7/list-drift": { listId: 44, listName: "Sprint plan", added: [] },
   "/api/learning-evidence": [],
   "/api/assignments/today": [],
   "/api/workflow/continue": [],

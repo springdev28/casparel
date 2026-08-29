@@ -75,6 +75,8 @@ const EMPTY_SENTENCE = {
   "/activities": "No study activities yet",
   "/canvases": "Start with a blank canvas",
   "/resources?view=library": "Your library is empty",
+  "/lists/44": "List not found",
+  "/resources/101": "Resource not found",
 };
 
 const PAGES = [
@@ -94,6 +96,15 @@ const PAGES = [
    * sentence audit-loading.mjs was written for.
    */
   "/resources?view=library",
+  /*
+   * The detail pages, which make the sharpest claim of all: "not found". A
+   * list that could not be fetched has not been deleted, and telling somebody
+   * it is gone is worse than telling them nothing -- they go and make another.
+   * The ids are the fixture set's own, so each page has something real to
+   * fail at fetching.
+   */
+  "/lists/44",
+  "/resources/101",
 ];
 
 /**

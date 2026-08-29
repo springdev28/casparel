@@ -94,6 +94,7 @@ import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
 import { counted } from "@/lib/counted";
 import { formatName } from "@/lib/resource-format";
+import { LoadFailure } from "@/components/LoadFailure";
 
 // ── Media helpers ────────────────────────────────────────────────────────────
 
@@ -956,7 +957,14 @@ export default function ResourceDetailPage() {
   const [workflow, setWorkflow] = useState<ResourceWorkflow | null>(null);
   const [workflowLoading, setWorkflowLoading] = useState(false);
 
-  const { data: resource, isLoading: resourceLoading } = useGetResource(
+  const {
+    data: resource,
+    isLoading: resourceLoading,
+    isError: resourceFailed,
+    error: resourceError,
+    isFetching: resourceFetching,
+    refetch: refetchResource,
+  } = useGetResource(
     resourceId,
     {
       query: {
@@ -1201,6 +1209,26 @@ export default function ResourceDetailPage() {
             <Skeleton className="h-24 w-full" />
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  /*
+   * A 404 means this resource is gone. A request that never got an answer
+   * means nothing of the kind, and "not found" is the one sentence on this
+   * page that sends somebody away for good.
+   */
+  const resourceStatus = (resourceError as { status?: number } | null)?.status;
+  if (resourceFailed && resourceStatus !== 404 && resourceStatus !== 403) {
+    return (
+      <div className="mx-auto max-w-4xl p-6">
+        <LoadFailure
+          error={resourceError}
+          retrying={resourceFetching}
+          onRetry={() => {
+            void refetchResource();
+          }}
+        />
       </div>
     );
   }

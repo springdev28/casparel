@@ -65,6 +65,7 @@ import {
 import { StarRating } from '../components/StarRating';
 import { counted } from "@/lib/counted";
 import { formatName } from "@/lib/resource-format";
+import { LoadFailure } from "@/components/LoadFailure";
 
 const FORMAT_COLORS: Record<string, string> = {
   article: 'bg-blue-100 text-blue-700',
@@ -114,7 +115,14 @@ export default function ListDetailPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [gcReconnectNeeded, setGcReconnectNeeded] = useState(false);
 
-  const { data: list, isLoading } = useGetResourceList(listId, {
+  const {
+    data: list,
+    isLoading,
+    isError: listFailed,
+    error: listError,
+    isFetching: listFetching,
+    refetch: refetchList,
+  } = useGetResourceList(listId, {
     query: { enabled: !!listId, queryKey: getGetResourceListQueryKey(listId) },
   });
   const { data: me } = useGetMe();
@@ -138,7 +146,15 @@ export default function ListDetailPage() {
     },
   });
   const catchUp = useAddStepsFromList();
-  const driftCount = drift.data?.added.length ?? 0;
+  /*
+   * `?.added?.length`, both of them. The first guards a response that has not
+   * arrived; the second guards one that arrived without the field -- which is
+   * what a 404, an error body, or a fixture that does not know this endpoint
+   * looks like. Written with one, this page threw on render and the whole
+   * screen became the error boundary, so a list that merely failed to load
+   * took the app down with it.
+   */
+  const driftCount = drift.data?.added?.length ?? 0;
   /*
    * Asked for rather than shown: a list opens to what is in it, and an
    * unrequested verdict on somebody's choices is not what they came for.
@@ -394,6 +410,28 @@ export default function ListDetailPage() {
             </div>
           </div>
         </Card>
+      </div>
+    );
+  }
+
+  /*
+   * "Not found" is the sharpest claim this page can make, and the only one
+   * that should send somebody away. A 404 means the list is gone. A request
+   * that never got an answer means nothing of the kind -- and being told a
+   * list is gone is worse than being told nothing, because the reader goes
+   * and makes another one.
+   */
+  const listStatus = (listError as { status?: number } | null)?.status;
+  if (listFailed && listStatus !== 404 && listStatus !== 403) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <LoadFailure
+          error={listError}
+          retrying={listFetching}
+          onRetry={() => {
+            void refetchList();
+          }}
+        />
       </div>
     );
   }
