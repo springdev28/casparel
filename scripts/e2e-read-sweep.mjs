@@ -38,6 +38,17 @@ const EXIT_INCONCLUSIVE = 75;
 const RUN = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 const PASSWORD = "sweep-Passw0rd!checks";
 
+/**
+ * The administrator's password.
+ *
+ * The same string in every harness here. They all bootstrap the same
+ * allowlisted account and whichever runs first creates it; when the defaults
+ * differed, the second script found the address registered, could not sign in
+ * to it, and stopped with a 401 that looked like a broken login.
+ */
+const ADMIN_PASSWORD =
+  process.env.E2E_ADMIN_PASSWORD || "e2e-Admin-Passw0rd!shared";
+
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 class Inconclusive extends Error {}
@@ -280,15 +291,73 @@ async function main() {
       : path.startsWith("/schedule") ? made.block
       : path.startsWith("/resources") ? made.resource
       : path.startsWith("/users") ? userId
+      : path.startsWith("/classes") ? (classId ?? 999999)
       : 999999,
     stepId: () => stepId,
-    classId: () => 999999,
+    classId: () => classId ?? 999999,
     courseId: () => "999999",
     itemId: () => 999999,
     reviewId: () => 999999,
     token: () => "no-such-share-token",
     targetType: () => "post",
   };
+
+  /*
+   * A teacher with a class of their own.
+   *
+   * Without one, every `/classes/{id}` read is a 403 against an id that does
+   * not exist: the guard answers and the handler never runs, so the eight
+   * endpoints behind it -- roster, seating chart, invitations, join code,
+   * shared resources, recommendations, student goals -- were being asked
+   * about and proving nothing. Registration only ever creates students, so a
+   * teacher needs an administrator, and without one those reads are reported
+   * as not run rather than quietly passing.
+   */
+  let teacherToken = null;
+  let adminToken = null;
+  let classId = null;
+  const adminEmail = process.env.E2E_ADMIN_EMAIL;
+  if (adminEmail) {
+    await call("POST", "/api/auth/register", {
+      body: { email: adminEmail, password: ADMIN_PASSWORD, name: "Sweep Admin" },
+    });
+    const adminSignIn = await call("POST", "/api/auth/login", {
+      body: { email: adminEmail, password: ADMIN_PASSWORD },
+    });
+    adminToken = adminSignIn.status === 200 ? adminSignIn.body?.token : null;
+    const teacher = await call("POST", "/api/auth/register", {
+      body: {
+        email: `sweep-teacher-${RUN}@example.test`,
+        password: PASSWORD,
+        name: "Sweep Teacher",
+      },
+    });
+    if (adminToken && teacher.status === 201) {
+      const promoted = await call(`PATCH`, `/api/admin/users/${teacher.body.user.id}`, {
+        token: adminToken,
+        body: { role: "teacher", activeRole: "teacher" },
+      });
+      if (promoted.status === 200) {
+        const signedIn = await call("POST", "/api/auth/login", {
+          body: { email: teacher.body.user.email, password: PASSWORD },
+        });
+        teacherToken = signedIn.status === 200 ? signedIn.body?.token : null;
+      }
+    }
+    if (teacherToken) {
+      const cls = await call("POST", "/api/classes", {
+        token: teacherToken,
+        body: { name: `Sweep class ${RUN}`, subject: "Mathematics", gradeLevel: "Year 10" },
+      });
+      if (cls.status === 201) classId = cls.body.id;
+    }
+  }
+  if (!classId) {
+    console.log(
+      `--   class reads run as a student against an id that is not theirs; set ` +
+        `E2E_ADMIN_EMAIL to reach the handlers behind them`,
+    );
+  }
 
   console.log("");
   for (const path of readablePaths()) {
@@ -300,7 +369,21 @@ async function main() {
     const filled = path.replace(/\{([^}]+)\}/g, (_, name) =>
       String((values[name] ?? (() => 999999))(path)),
     );
-    const res = await call("GET", `/api${filled}`, { token });
+    /*
+     * Whoever the endpoint is for.
+     *
+     * Reading somebody else's rows is the authorization harness's question,
+     * not this one's; here the point is that the handler runs at all, and a
+     * handler behind a role gate never runs for an account without the role.
+     * A learner asking for the administration overview measures the gate and
+     * nothing behind it.
+     */
+    const asWhom =
+      path.startsWith("/admin") ? (adminToken ?? token)
+      : path === "/learning-signals" ? (teacherToken ?? token)
+      : classId && path.startsWith("/classes/") ? teacherToken
+      : token;
+    const res = await call("GET", `/api${filled}`, { token: asWhom });
     if (res.status === 429) {
       throw new Inconclusive(
         `rate limited part-way through at ${filled}; the sweep is incomplete ` +
@@ -321,8 +404,9 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `${checks} readable endpoints asked for by one signed-in account, and ` +
-      `none of them broke.`,
+    `${checks} readable endpoints asked for, each as somebody it is meant ` +
+      `for${teacherToken ? " -- learner, teacher and administrator" : " (learner only)"}, ` +
+      `and none of them broke.`,
   );
 }
 

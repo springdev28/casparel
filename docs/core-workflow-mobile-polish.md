@@ -1059,6 +1059,18 @@ Fifty-five endpoints, none of them broken. Seven are skipped in writing, all
 for the same reason: they end at Google, or fetch a third-party page, so a
 failure would be somebody else's outage rather than ours.
 
+Each is asked as somebody it is meant for, which took a second pass to get
+right. The first version asked everything as one learner, so the eight reads
+behind a class — roster, seating chart, invitations, join code, shared
+resources, recommendations, student goals — answered 403 against an id that
+did not exist, and the administration overview and the teacher's learning
+signals did the same. Ten endpoints were being asked about and proving
+nothing: a role gate answering is not the handler behind it running. The
+sweep now bootstraps a teacher with a class of their own and reads those as
+the teacher, and the administration overview as the administrator. Without an
+allowlisted address it says so and carries on as a learner, rather than
+reporting a guard as coverage.
+
 Two things about the sweep are worth recording, because the first version of
 it was weaker than it looked.
 

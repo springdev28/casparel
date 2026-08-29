@@ -529,6 +529,9 @@ jobs:
       # After the live UI run for the same rate-limit reason: this registers
       # two accounts and writes a handful of rows, and gives up as
       # inconclusive rather than reporting a limiter as a product failure.
+      # E2E_ADMIN_EMAIL comes from the job's own environment above: a class
+      # read is a 403 without a teacher, and a 403 measures the guard rather
+      # than the eight handlers behind it.
       - name: Ask for every readable endpoint
         run: |
           set +e
