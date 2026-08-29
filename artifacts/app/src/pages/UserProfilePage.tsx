@@ -15,6 +15,7 @@ import { Skeleton } from '@workspace/edu-ds/components/ui/skeleton';
 import { Separator } from '@workspace/edu-ds/components/ui/separator';
 import { useGetPublicProfile, getGetPublicProfileQueryKey, useGetUserLibrary, getGetUserLibraryQueryKey, useGetUserSafetyStatus, getGetUserSafetyStatusQueryKey, useBlockUser, useUnblockUser, useReportUser, ReportUserInputReason, useGetSeatingChart, getGetSeatingChartQueryKey, useUpdateStudentNote } from '@workspace/api-client-react';
 import { formatName } from "@/lib/resource-format";
+import { LoadFailure } from "@/components/LoadFailure";
 
 export default function UserProfilePage() {
   const { userId } = useParams<{ userId: string }>();
@@ -32,7 +33,14 @@ export default function UserProfilePage() {
   const classStudent = classChart.data?.students.find((student) => student.userId === id);
   const [teacherNote, setTeacherNote] = useState("");
   useEffect(() => setTeacherNote(classStudent?.teacherNote ?? ""), [classStudent?.teacherNote]);
-  const { data: profile, isLoading, isError } = useGetPublicProfile(id, {
+  const {
+    data: profile,
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+  } = useGetPublicProfile(id, {
     query: { enabled: !isNaN(id), queryKey: getGetPublicProfileQueryKey(id) },
   });
   const library = useGetUserLibrary(id, {
@@ -80,7 +88,27 @@ export default function UserProfilePage() {
     );
   }
 
-  if (isError || !profile) {
+  /*
+   * A request that failed is not a person who does not exist.
+   *
+   * One branch covered both, so a reader whose network dropped was told
+   * "User not found." about somebody they had just tapped on -- which reads
+   * as "this account is gone" and offers nothing to do about it. The page had
+   * never been rendered against a server that would not answer.
+   */
+  if (isError && profile === undefined) {
+    return (
+      <div className="max-w-xl mx-auto p-6">
+        <LoadFailure
+          error={error}
+          retrying={isFetching}
+          onRetry={() => void refetch()}
+        />
+      </div>
+    );
+  }
+
+  if (!profile) {
     return (
       <div className="max-w-xl mx-auto p-6">
         <p className="text-muted-foreground">User not found.</p>

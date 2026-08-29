@@ -84,10 +84,46 @@ const EMPTY_SENTENCE = {
    */
   "/forum": "No posts match these filters",
   "/catalog": "No materials match these filters",
+  "/messages": "Open a person\u2019s profile and choose Message.",
+  "/profile/2": "User not found.",
+  "/admin": "No matching accounts.",
   "/canvases/12": "This canvas is ready",
   "/classes/31": "Class not found",
   "/lists/44": "List not found",
   "/resources/101": "Resource not found",
+};
+
+/**
+ * Signed-in pages this run leaves out, and why.
+ *
+ * Held against audit-pages.mjs by a test, so a page sitting out is a decision
+ * about the page rather than a list quietly falling behind -- which is what
+ * the list was for as long as it named eleven of twenty-eight.
+ */
+export const SKIPS = {
+  "/guide": "a written document shipped in the bundle; it reads nothing",
+  "/tutorial": "the product tour, also shipped in the bundle and read from it",
+  "/plans":
+    "the price table, which is product wording rather than anything fetched; " +
+    "a reader with no network sees the same page a reader with one does",
+  "/people":
+    "its content is a search the reader has not run yet, so on load there is " +
+    "nothing that failed to arrive -- the page says 'Choose filters and press " +
+    "Search people', which stays true with no network at all. The search's " +
+    "own failure is its own branch and is not what this run renders",
+};
+
+/**
+ * Pages that say it in their own words rather than through the shared block.
+ *
+ * The catalogue is the one so far, and it earns it: "The starter library
+ * could not be loaded. Search is still available above." tells the reader
+ * both what failed and what still works, which the shared block cannot say.
+ * The sentence is named here so the check still asserts particular words on
+ * screen rather than accepting anything at all.
+ */
+const SAYS_INSTEAD = {
+  "/resources": "The starter library could not be loaded",
 };
 
 const PAGES = [
@@ -118,6 +154,24 @@ const PAGES = [
   "/catalog",
   "/canvases/12",
   "/classes/31",
+  /*
+   * The class's seven tabs. Each is a different panel with its own read and
+   * its own empty state, and the tab strip is the only thing they share --
+   * so rendering the class page proves nothing about six of them.
+   */
+  "/classes/31?tab=notes",
+  "/classes/31?tab=forum",
+  "/classes/31?tab=canvas",
+  "/classes/31?tab=assignments",
+  "/classes/31?tab=designer",
+  "/classes/31?tab=activities",
+  "/classes/31?tab=resources",
+  // The rest of the signed-in product that reads something.
+  "/admin",
+  "/messages",
+  "/profile/2",
+  "/resources",
+  "/settings",
   "/lists/44",
   "/resources/101",
 ];
@@ -286,9 +340,20 @@ async function main() {
         await page.waitForTimeout(4000);
 
         const failureBlocks = await page.locator('[data-testid="load-failure"]').count();
-        const text = await page.evaluate(() =>
-          document.body.innerText.replace(/\s+/g, " ").slice(0, 260),
+        /*
+         * The whole page, and the excerpt separately.
+         *
+         * The excerpt is for the failure message -- 260 characters of a
+         * signed-in page is the shell's navigation and nothing else, which is
+         * why the report reads the same for every page. Anything the checks
+         * actually look for has to be looked for in the whole text: a page's
+         * own failure wording sits well past the nav, and matching the
+         * excerpt found it on no page at all.
+         */
+        const wholeText = await page.evaluate(() =>
+          document.body.innerText.replace(/\s+/g, " "),
         );
+        const text = wholeText.slice(0, 260);
 
         if (failure.expect === "waiting") {
           const sentence = EMPTY_SENTENCE[pathname];
@@ -303,9 +368,10 @@ async function main() {
             `showed a load-failure block before anything failed`,
           );
         } else {
+          const ownWords = SAYS_INSTEAD[pathname];
           check(
             `${pathname} [${failure.name}] says it could not load`,
-            failureBlocks > 0,
+            failureBlocks > 0 || (!!ownWords && wholeText.includes(ownWords)),
             `no load-failure block; the page showed: ${text}`,
           );
         }

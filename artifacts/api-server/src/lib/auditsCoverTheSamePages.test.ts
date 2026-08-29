@@ -82,6 +82,36 @@ const fits = routesIn(read("audit-text-fits.mjs"), "PAGES");
  * a route no audit opens is a page nothing has ever rendered, and the checks
  * that follow each other around cannot see it because they all agree.
  */
+/**
+ * The offline audit keeps its list as an array of literals rather than one
+ * comma-separated string, so `routesIn` cannot read it -- and read it wrong
+ * is worse than not at all: an empty list makes every comparison against it
+ * pass. Parsed on its own terms instead.
+ */
+const offline = (() => {
+  const source = read("audit-offline.mjs");
+  const at = source.indexOf("const PAGES = [");
+  const list = source.slice(at, source.indexOf("\n];", at));
+  return [...list.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+})();
+
+/**
+ * Pages the offline audit leaves out, and why, read from its own file.
+ *
+ * Same shape as the mobile guard: a page may sit out that run, but the reason
+ * has to be written beside the list rather than left as an absence.
+ */
+function offlineSkips(): Set<string> {
+  const source = read("audit-offline.mjs");
+  const at = source.indexOf("const SKIPS");
+  if (at < 0) return new Set();
+  // Bounded at the object's own closing brace. Reading to the end of the file
+  // swept up PRIMARY_READ, whose rows have the same shape, and every page
+  // named there looked excused from a run it was actually in.
+  const block = source.slice(at, source.indexOf("\n};", at));
+  return new Set([...block.matchAll(/^  "([^"]+)":/gm)].map((m) => m[1]));
+}
+
 const OPENED = [
   ...routesIn(read("audit-pages.mjs"), "PAGES"),
   ...renders,
@@ -90,7 +120,7 @@ const OPENED = [
   ...userContent,
   ...reachable,
   ...fits,
-  ...routesIn(read("audit-offline.mjs"), "PAGES"),
+  ...offline,
 ];
 
 /**
@@ -233,6 +263,41 @@ describe("the browser audits", () => {
       unopened,
       "no browser audit has ever opened these routes; add one to a page list, " +
         "or name it in NOT_OPENED here with a reason",
+    ).toEqual([]);
+  });
+
+  /*
+   * The third question, after "does it paint" and "is it in my language".
+   *
+   * A page is rendered against fixtures that always answer. That says nothing
+   * about the state a reader on a train is in, and that state is where the
+   * findings have been: the forum told somebody their filters were too
+   * narrow when the network had dropped, the class page said nothing at all,
+   * and the canvas showed them "Failed to fetch". Each was found by adding
+   * one page to a list of eleven, so the list is the bug.
+   */
+  it("render every signed-in page against a server that will not answer", () => {
+    const skips = offlineSkips();
+    const unchecked = renders.filter(
+      (route) => !offline.includes(route) && !skips.has(route),
+    );
+
+    expect(
+      unchecked.sort(),
+      "these pages are rendered against fixtures that always answer and never " +
+        "against one that will not; add them to PAGES in audit-offline.mjs, " +
+        "or name them in its SKIPS with a reason",
+    ).toEqual([]);
+  });
+
+  it("does not excuse a page the offline audit actually renders", () => {
+    // The other direction, same as USER_CONTENT_SKIPS below: a reason for a
+    // page that is in the list anyway is a reason nobody will check, and the
+    // next real omission hides behind it.
+    const stale = [...offlineSkips()].filter((route) => offline.includes(route));
+    expect(
+      stale.sort(),
+      "these are named in audit-offline.mjs's SKIPS and are in its PAGES too",
     ).toEqual([]);
   });
 

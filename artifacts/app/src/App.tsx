@@ -38,6 +38,7 @@ import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
 import { hasDictionary } from "./lib/translated-languages";
 import { clearSession, readSessionToken } from "./lib/session";
 import { useSessionClaims } from "./lib/use-session";
+import { LoadFailure } from "@/components/LoadFailure";
 
 const AppShell = lazy(() => import("./components/AppShell"));
 const UiTranslationBridge = lazy(
@@ -282,13 +283,38 @@ function PrivateRoute({
  * Unauthenticated users get a slim header with Sign In / Create Account.
  */
 function AdminRoute() {
-  const { data: me, isLoading } = useGetMe();
+  const { data: me, isLoading, isError, error, isFetching, refetch } = useGetMe({
+    query: { retry: false, queryKey: getGetMeQueryKey() },
+  });
   if (isLoading)
     return (
       <AppShell>
         <div className="p-8">Loading administrator panel...</div>
       </AppShell>
     );
+  /*
+   * A failed identity check is not "you are not an administrator".
+   *
+   * `me?.role !== admin` was true for both, so an administrator whose network
+   * hiccuped was silently redirected off the page they were on -- landing on
+   * the dashboard with no explanation and no way back except retyping the
+   * address. A 401 or 403 is an answer and still redirects; anything else is
+   * the question going unanswered.
+   */
+  const status = (error as { status?: number } | null)?.status;
+  if (isError && status !== 401 && status !== 403) {
+    return (
+      <AppShell>
+        <div className="p-8">
+          <LoadFailure
+            error={error}
+            retrying={isFetching}
+            onRetry={() => void refetch()}
+          />
+        </div>
+      </AppShell>
+    );
+  }
   if (me?.role !== UserRole.admin) return <Redirect to="/dashboard" />;
   return (
     <AppShell>

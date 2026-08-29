@@ -4,7 +4,7 @@
  */
 import { useState } from "react";
 import { Link } from "wouter";
-import { useGetMe } from "@workspace/api-client-react";
+import { getGetMeQueryKey, useGetMe } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Switch } from "@workspace/edu-ds/components/ui/switch";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
@@ -28,13 +28,31 @@ import { AuthLanguageSelect } from "../components/AuthLanguageSelect";
 import ThemeCustomizer from "../components/ThemeCustomizer";
 import { PlanSection } from "../components/PlanSection";
 import { useAuthLanguage } from "../lib/auth-locale";
+import { LoadFailure } from "@/components/LoadFailure";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
 } from "../lib/user-preferences";
 
 export default function SettingsPage() {
-  const { data: me } = useGetMe();
+  const {
+    data: me,
+    isError: meFailed,
+    error: meError,
+    isFetching: meFetching,
+    refetch: refetchMe,
+  } = useGetMe({ query: { retry: false, queryKey: getGetMeQueryKey() } });
+  /*
+   * Whether this page knows whose settings it is showing.
+   *
+   * The preferences query is gated on `me`, so a failed /users/me leaves it
+   * disabled -- reporting neither data nor an error -- and every control
+   * below falls back to its default. That is the same failure as the
+   * catalogue's `identityUnknown`, and it is worse here: a default shown as
+   * a setting is a setting the reader thinks they chose.
+   */
+  const meStatus = (meError as { status?: number } | null)?.status;
+  const identityUnknown = meFailed && meStatus !== 401 && meStatus !== 403;
   const { language, setLanguage, copy } = useAuthLanguage();
   const preferences = useUserPreferences(Boolean(me));
   const updatePreferences = useUpdateUserPreferences();
@@ -114,14 +132,35 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
-          <Switch
-            checked={preferences.data?.allowMessageRequests ?? true}
-            disabled={preferences.isLoading || updatePreferences.isPending}
-            onCheckedChange={(checked) =>
-              updatePreferences.mutate({ allowMessageRequests: checked })
-            }
-            aria-label="Allow message requests"
-          />
+          {/*
+            * A setting nobody could read is not a setting that is on.
+            *
+            * This fell back to `?? true`, so a reader whose preferences did
+            * not load saw the switch on whatever they had chosen -- and it
+            * stayed usable, so flipping it wrote a value derived from a state
+            * the page had invented. Somebody who had turned message requests
+            * off was shown them on. The page had never been rendered against
+            * a server that would not answer.
+            */}
+          {identityUnknown || preferences.isError ? (
+            <LoadFailure
+              className="max-w-xs border-none p-0 text-left"
+              error={identityUnknown ? meError : preferences.error}
+              retrying={identityUnknown ? meFetching : preferences.isFetching}
+              onRetry={() => {
+                void (identityUnknown ? refetchMe() : preferences.refetch());
+              }}
+            />
+          ) : (
+            <Switch
+              checked={preferences.data?.allowMessageRequests ?? true}
+              disabled={preferences.isLoading || updatePreferences.isPending}
+              onCheckedChange={(checked) =>
+                updatePreferences.mutate({ allowMessageRequests: checked })
+              }
+              aria-label="Allow message requests"
+            />
+          )}
         </section>
 
         <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">

@@ -125,10 +125,13 @@ describe("the phone app's screens", () => {
       [...languages.matchAll(/\bpath: "([^"]+)"/g)].map((match) => match[1]),
     );
     const failing = new Set([...failures.matchAll(/\bpath: "([^"]+)"/g)].map((match) => match[1]));
+    // Bounded at the object's own closing brace: reading to the end of the
+    // file sweeps up anything else shaped like a row of string keys, and a
+    // screen named there would look excused from a run it was in.
+    const skipsAt = failures.indexOf("export const SKIPS");
+    const skipBlock = failures.slice(skipsAt, failures.indexOf("\n};", skipsAt));
     const skipped = new Set(
-      [...failures.slice(failures.indexOf("export const SKIPS")).matchAll(/^  "([^"]+)":/gm)].map(
-        (match) => match[1],
-      ),
+      [...skipBlock.matchAll(/^  "([^"]+)":/gm)].map((match) => match[1]),
     );
 
     const unchecked = [...rendered].filter(

@@ -1679,3 +1679,60 @@ Verification recorded for this increment:
 
 - proved by driving: three checks failed naming `/canvases/12`; after, 131/131;
 - 189 page renders clean and every visible string still translated.
+
+## Fix — sixteen pages that had never been rendered failing, and the one that ran away
+
+The offline audit named eleven of the twenty-eight signed-in pages the render
+audit draws. Nothing held the two lists against each other, so the gap was
+invisible in the same way every gap in this file has been: both runs passed,
+completely, about different things.
+
+Held together, sixteen pages had never been rendered against a server that
+would not answer. Six of them were wrong:
+
+- **`/messages`** left the list empty and said "Open a person's profile and
+  choose Message." — an instruction that assumes the reader has no
+  conversations, given to somebody who has them and cannot reach them.
+- **`/profile/2`** said **"User not found."** about a person the reader had
+  just tapped on. One branch covered a failed request and a deleted account.
+- **`/settings`** showed the message-requests switch **on**, because it falls
+  back to `?? true` — and the preferences query is gated on `/users/me`, so
+  when that fails the query is disabled and reports neither data nor an error.
+  A default drawn as a setting is a setting the reader thinks they chose, and
+  the switch stayed usable, so flipping it wrote a value derived from a state
+  the page had invented.
+- **`/admin`** said "No matching accounts." after a failed read, to an
+  administrator looking at a server they could not reach.
+- **`/admin` also ran away.** `AdminRoute` tested `me?.role !== admin`, which
+  is true both for "you are not an administrator" and for "we could not ask" —
+  so an administrator whose network hiccuped was silently redirected to the
+  dashboard, with no explanation and no way back but retyping the address. A
+  401 or 403 is an answer and still redirects; anything else now says so and
+  offers a retry.
+- **`/resources`** was fine and the audit was wrong. The page says "The
+  starter library could not be loaded. Search is still available above.",
+  which tells a reader more than the shared block can. The check now accepts a
+  page's own wording when that wording is named in `SAYS_INSTEAD` — and the
+  bug in that first version is worth recording: it matched against the report
+  excerpt, which is 260 characters of a signed-in page and therefore the
+  navigation sidebar and nothing else. It matched on no page at all. The
+  checks read the whole page now; only the message is an excerpt.
+
+`/people` sits the run out with a reason: its content is a search the reader
+has not run, so on load there is nothing that failed to arrive, and "Choose
+filters and press Search people" stays true with no network at all.
+
+Two guards hold the lists together now. Every signed-in page the render audit
+draws is rendered failing or named in `SKIPS` with a reason; and a reason for
+a page that is in the list anyway fails too, because a stale excuse is where
+the next real omission hides. Both proved by reverting.
+
+Verification recorded for this increment:
+
+- proved by driving: ten checks failed naming five pages; after, 215/215,
+  where the run was 131 checks over fourteen pages before;
+- proved by reverting: dropping `/messages` from the list names `/messages`;
+  a skip for `/dashboard` names `/dashboard`;
+- 189 page renders clean, every visible string translated, 230 user-content
+  renders all protected, the loading audit, api-server 850 tests, the app
+  type-checks.

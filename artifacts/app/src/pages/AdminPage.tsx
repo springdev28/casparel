@@ -57,6 +57,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useIntlLocale } from "@/lib/date-locale";
+import { LoadFailure } from "@/components/LoadFailure";
 
 type AdminUser = {
   id: number;
@@ -197,6 +198,15 @@ export default function AdminPage() {
   const { data: me } = useGetMe();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
+  /*
+   * Why the account list could not be loaded.
+   *
+   * Without it a failed read left the list empty and the page said "No
+   * matching accounts." -- which reads as a fact about the search, to an
+   * administrator looking at a server they cannot reach. The toast that said
+   * otherwise had already gone.
+   */
+  const [usersFailure, setUsersFailure] = useState<unknown>(null);
   const [query, setQuery] = useState("");
   const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
@@ -210,12 +220,9 @@ export default function AdminPage() {
     setUsersLoading(true);
     try {
       setUsers((await adminRequest("/admin/users")) as AdminUser[]);
+      setUsersFailure(null);
     } catch (loadError) {
-      toast({
-        title: "Could not load accounts",
-        description: loadError instanceof Error ? loadError.message : "Please try again.",
-        variant: "destructive",
-      });
+      setUsersFailure(loadError ?? new Error("Could not load accounts"));
     } finally {
       setUsersLoading(false);
     }
@@ -632,7 +639,15 @@ export default function AdminPage() {
               </tbody>
             </table>
           )}
-          {!usersLoading && filteredUsers.length === 0 && <p className="py-8 text-center text-muted-foreground">No matching accounts.</p>}
+          {!usersLoading && usersFailure ? (
+            <LoadFailure
+              className="my-6"
+              error={usersFailure}
+              retrying={usersLoading}
+              onRetry={() => void loadUsers()}
+            />
+          ) : null}
+          {!usersLoading && !usersFailure && filteredUsers.length === 0 && <p className="py-8 text-center text-muted-foreground">No matching accounts.</p>}
         </CardContent>
       </Card>
 

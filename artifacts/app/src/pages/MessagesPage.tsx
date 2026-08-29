@@ -14,6 +14,7 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { Check, Loader2, MessageCircle, Send, ShieldCheck, X } from "lucide-react";
 import { useUpdateUserPreferences, useUserPreferences } from "../lib/user-preferences";
 import { useDocumentVisibility } from "../lib/use-document-visibility";
+import { LoadFailure } from "@/components/LoadFailure";
 
 type Message = {
   id: number;
@@ -66,6 +67,15 @@ export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [active, setActive] = useState<ConversationDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  /*
+   * Why the list could not be loaded.
+   *
+   * Without it a failed read left `conversations` empty and the page said
+   * "Open a person's profile and choose Message." -- an instruction that
+   * assumes the reader has no conversations, given to somebody who has them
+   * and cannot reach them. A toast said the truth and then went away.
+   */
+  const [failure, setFailure] = useState<unknown>(null);
   const [sending, setSending] = useState(false);
   const documentVisible = useDocumentVisibility();
 
@@ -74,6 +84,7 @@ export default function MessagesPage() {
     try {
       const rows = await messageRequest<Conversation[]>("/direct-messages/conversations");
       setConversations(rows);
+      setFailure(null);
       if (active) {
         const updated = rows.find((item) => item.id === active.id);
         if (updated) setActive((current) => current ? { ...current, ...updated } : current);
@@ -109,7 +120,7 @@ export default function MessagesPage() {
         }
       }
       if (selected) await openConversation(selected);
-    }).catch((error) => toast({ title: "Could not load messages", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }));
+    }).catch((error) => setFailure(error ?? new Error("Could not load messages")));
     return () => { activeEffect = false; };
   }, [targetUserId]);
 
@@ -184,7 +195,8 @@ export default function MessagesPage() {
               {conversation.unreadCount ? <Badge>{conversation.unreadCount}</Badge> : null}
             </button>
           ))}
-          {!loading && conversations.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">Open a person’s profile and choose Message.</p> : null}
+          {!loading && failure ? <LoadFailure className="m-4" error={failure} retrying={loading} onRetry={() => { setFailure(null); void loadConversations().catch(setFailure); }} /> : null}
+          {!loading && !failure && conversations.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">Open a person’s profile and choose Message.</p> : null}
         </aside>
         <main className={(active ? "flex" : "hidden md:flex") + " min-h-0 flex-col"}>
           {active ? <>
