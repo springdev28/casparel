@@ -170,6 +170,25 @@ const SCREENS = [
     open: [{ testId: "build-path" }],
     as: "/lists/11 (path preview)",
   },
+  /*
+   * The three screens reached by tapping a row, which is why the list above
+   * looked complete without them: every tab was on it, and nothing that a tab
+   * leads to was.
+   *
+   * A conversation is where somebody reads and writes; a class is a roster
+   * and a seating chart; a catalogue entry carries the reviews, the rating
+   * and the control that puts it in a library. None had been drawn by
+   * anything, in either language, in any state.
+   */
+  { path: "/messages/81", session: "in" },
+  { path: "/class/31", session: "in" },
+  { path: "/resource/101", session: "in" },
+  /*
+   * And the screen for an address that is not a screen. `/+not-found` is not
+   * a route -- files prefixed with `+` are not served at their own name --
+   * so asking for it is the same thing a mistyped deep link does.
+   */
+  { path: "/+not-found", session: "in", as: "/+not-found (an address that is not a screen)" },
 ];
 
 const MIME = {
@@ -464,6 +483,133 @@ function stubbedBody(pathname) {
    * a failure that says nothing about the product. `other` is a participant
    * and `lastMessage` is a whole message.
    */
+  /*
+   * One conversation and its messages, which is the screen a person actually
+   * reads. Two senders, because the bubble on the left and the bubble on the
+   * right are drawn by different branches, and two days, because the day
+   * heading between them is drawn by a third.
+   */
+  if (/\/direct-messages\/conversations\/\d+$/.test(pathname)) {
+    return {
+      id: 81,
+      firstUserId: 1,
+      secondUserId: 2,
+      requestedById: 2,
+      status: "accepted",
+      createdAt: "2026-03-01T09:00:00.000Z",
+      updatedAt: "2026-03-02T09:00:00.000Z",
+      other: { id: 2, name: "Audit Teacher", role: "teacher", avatarUrl: null },
+      lastMessage: {
+        id: 92,
+        conversationId: 81,
+        senderId: 1,
+        body: "Standing in for a reply.",
+        isAdminMessage: false,
+        createdAt: "2026-03-02T09:05:00.000Z",
+      },
+      unreadCount: 0,
+      incomingRequest: false,
+      messages: [
+        {
+          id: 91,
+          conversationId: 81,
+          senderId: 2,
+          body: "Standing in for a real message.",
+          isAdminMessage: false,
+          createdAt: "2026-03-01T09:00:00.000Z",
+        },
+        {
+          id: 92,
+          conversationId: 81,
+          senderId: 1,
+          body: "Standing in for a reply.",
+          isAdminMessage: false,
+          createdAt: "2026-03-02T09:05:00.000Z",
+        },
+      ],
+    };
+  }
+
+  // A class and the people in it: a teacher and a student, so both role
+  // labels are drawn, and a seat so the seating chart is not empty.
+  if (/\/classes\/\d+$/.test(pathname)) {
+    return {
+      id: 31,
+      name: "Audit Class",
+      subject: "Mathematics",
+      gradeLevel: "Undergraduate",
+      description: "Standing in for a real class.",
+      seatingRows: 2,
+      seatingColumns: 3,
+      teacherId: 2,
+      memberCount: 2,
+      createdAt: "2026-03-02T09:00:00.000Z",
+      members: [
+        {
+          userId: 2,
+          classId: 31,
+          role: "teacher",
+          customRole: null,
+          joinedAt: "2026-03-02T09:00:00.000Z",
+          user: { id: 2, name: "Audit Teacher", role: "teacher", avatarUrl: null },
+        },
+        {
+          userId: 1,
+          classId: 31,
+          role: "student",
+          customRole: null,
+          joinedAt: "2026-03-02T09:00:00.000Z",
+          user: { id: 1, name: "Audit Learner", role: "student", avatarUrl: null },
+        },
+      ],
+      mySeat: { row: 0, column: 1 },
+    };
+  }
+
+  // The reviews under a catalogue entry. One with a comment and one without,
+  // because a rating with nothing written under it is its own row.
+  if (/\/resources\/\d+\/reviews$/.test(pathname)) {
+    return [
+      {
+        id: 71,
+        resourceId: 101,
+        userId: 2,
+        rating: 5,
+        comment: "Standing in for a real review.",
+        createdAt: "2026-03-02T09:00:00.000Z",
+        user: { id: 2, name: "Audit Teacher", role: "teacher", avatarUrl: null },
+      },
+      {
+        id: 72,
+        resourceId: 101,
+        userId: 1,
+        rating: 3,
+        comment: null,
+        createdAt: "2026-03-01T09:00:00.000Z",
+        user: { id: 1, name: "Audit Learner", role: "student", avatarUrl: null },
+      },
+    ];
+  }
+
+  if (/\/resources\/\d+$/.test(pathname)) {
+    return {
+      id: 101,
+      title: "Linear Algebra Done Right",
+      url: "https://example.org/101",
+      description: "Standing in for a real catalogue entry.",
+      format: "pdf",
+      subject: "Mathematics",
+      gradeLevel: "Undergraduate",
+      thumbnailUrl: null,
+      submittedById: 1,
+      avgRating: 4.5,
+      reviewCount: 3,
+      createdAt: "2026-03-02T09:00:00.000Z",
+      verificationStatus: "verified",
+      verificationNote: null,
+    };
+  }
+
   if (pathname.endsWith("/direct-messages/conversations")) {
     return [
       {

@@ -17,6 +17,7 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Badge } from '@workspace/edu-ds/components/native/badge';
 import { Skeleton } from '@workspace/edu-ds/components/native/skeleton';
 import { Empty } from '@workspace/edu-ds/components/native/empty';
+import { ErrorState } from '@/components/ErrorState';
 import { useGetClass } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import type { ClassMember } from '@workspace/api-client-react';
@@ -88,7 +89,7 @@ export default function ClassDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const classId = parseInt(id, 10);
 
-  const { data: cls, isLoading } = useGetClass(classId);
+  const { data: cls, isLoading, isError, error, isFetching, refetch } = useGetClass(classId);
 
   const webBottomPad = Platform.OS === 'web' ? 34 : 0;
 
@@ -102,6 +103,29 @@ export default function ClassDetailScreen() {
         <Skeleton width="50%" height={18} style={{ marginTop: 8 }} />
         <Skeleton width="100%" height={80} borderRadius={12} style={{ marginTop: 20 }} />
       </ScrollView>
+    );
+  }
+
+  /*
+   * A request that failed is not a class that is gone.
+   *
+   * This screen had one branch for both, so a phone on a train said "Class
+   * not found" -- which reads as "your teacher removed you", offers nothing
+   * to do about it, and is wrong. Nothing had ever rendered this screen with
+   * a failing server, so nothing had ever read that sentence.
+   */
+  if (isError && cls === undefined) {
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.background }]}>
+        <ErrorState
+          error={error}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetch();
+          }}
+          style={{ paddingTop: 24 }}
+        />
+      </View>
     );
   }
 

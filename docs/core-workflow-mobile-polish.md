@@ -1413,3 +1413,51 @@ Verification recorded for this increment:
 - 36 screen renders across two languages, no unrecognised endpoint left;
 - 99 checks across eleven screens and four ways of not answering;
 - mobile 91 tests, api-server 844, every package type-checks.
+
+## Fix — three phone screens nothing had ever drawn, and what two of them said
+
+The mobile audits carry hand-written lists of routes. Both lists named every
+tab, which is why they looked complete, and neither named anything a tab leads
+to. Three screens had therefore never been rendered by anything, in either
+language, in any state:
+
+- `messages/[id]`, where a person reads and writes a conversation;
+- `class/[id]`, a roster and a seating chart;
+- `resource/[id]`, a catalogue entry with its reviews and the control that
+  puts it in a library.
+
+Rendered against a stubbed server all three come up. Rendered against a server
+that will not answer, two of them lie:
+
+    a class [offline]           showed "Sınıf bulunamadı"      (Class not found)
+    a catalogue entry [broken]  showed "Kaynak bulunamadı"     (Resource not found)
+
+Both screens had one branch for "the row is gone" and "the request failed".
+A phone on a train was told the class had been deleted — which reads as *your
+teacher removed you*, offers nothing to do about it, and is wrong. The goal
+and list screens had been fixed for this months ago; these two were never
+looked at because nothing had ever put them in front of a broken server.
+
+Each now separates `isError && data === undefined` from `!data`, and draws the
+same `ErrorState` — with the reason and a Retry — that the rest of the app
+draws.
+
+The lists that let this happen are now held against the app directory and
+against each other. `everyPhoneScreenIsRendered.test.ts` reads `app/`, turns
+each route file into the address Expo Router serves it at, and requires the
+language audit to name it; then requires the failure audit to name everything
+the language audit does. A screen may still sit out either run — the paywall
+reads nothing from this server, its plans and tier come from the store SDK —
+but it has to be written down in `SKIPS` with the reason, so an omission is a
+decision on the screen rather than a list falling behind.
+
+Verification recorded for this increment:
+
+- proved by reverting: removing `/resource/101` from the language audit names
+  `/resource/{id}`; removing `/class/31` from the failure audit names
+  `/class/31`; restored, both pass;
+- proved by driving: before the fix, four checks failed naming the two
+  screens and the two conditions; after, 126 checks across fourteen screens
+  and four ways of not answering pass;
+- 44 screen renders across two languages, up from 36;
+- mobile 91 tests, api-server 846, every package type-checks.

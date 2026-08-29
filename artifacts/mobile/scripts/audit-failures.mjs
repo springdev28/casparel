@@ -80,7 +80,37 @@ const SCREENS = [
   { path: "/goals/11", label: "a goal" },
   { path: "/lists", label: "learning lists" },
   { path: "/lists/11", label: "a learning list" },
+  /*
+   * The three reached by tapping a row rather than a tab. Each has an empty
+   * state this rule already names -- "No members yet", "No reviews yet",
+   * "Resource not found", "Class not found" -- and none had ever been
+   * rendered failing, so none of those titles had been held against a
+   * failure.
+   */
+  { path: "/messages/81", label: "a conversation" },
+  { path: "/class/31", label: "a class" },
+  { path: "/resource/101", label: "a catalogue entry" },
 ];
+
+/**
+ * Screens the language audit renders that this one does not, and why.
+ *
+ * Held against the other audit's list by a test, so a screen leaving this run
+ * is a decision somebody wrote down rather than a list quietly falling
+ * behind -- which is the state three screens were in until the list above
+ * grew by three.
+ *
+ * Short by design. A long list here means the rule has stopped meaning much.
+ */
+export const SKIPS = {
+  "/login": "signed out; there is no request behind it to fail",
+  "/register": "signed out; there is no request behind it to fail",
+  "/onboarding": "signed out; the account is created after it",
+  "/paywall":
+    "reads nothing from this server -- plans and the current tier come from " +
+    "the store SDK -- so breaking the API does not change what it draws",
+  "/+not-found": "reads nothing; it is what an address with no screen shows",
+};
 
 /**
  * What a screen says when there is nothing to show.

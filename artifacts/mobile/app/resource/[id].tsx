@@ -32,6 +32,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import type { Resource, Review } from '@workspace/api-client-react';
 import { SourceReviewSection } from '@/components/SourceReviewSection';
+import { ErrorState } from '@/components/ErrorState';
 import { SaveToListSheet } from '@/components/SaveToListSheet';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useMotion } from '@/contexts/MotionContext';
@@ -138,7 +139,14 @@ export default function ResourceDetailScreen() {
 
   const { data: me } = useGetMe();
   const userId = me?.id ?? 0;
-  const { data: resource, isLoading } = useGetResource(resourceId);
+  const {
+    data: resource,
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+  } = useGetResource(resourceId);
   const { data: reviews, isLoading: reviewsLoading } = useListResourceReviews(resourceId);
   const library = useGetUserLibrary(userId, {
     query: {
@@ -215,6 +223,27 @@ export default function ResourceDetailScreen() {
         <Skeleton width="50%" height={18} style={{ marginTop: 10 }} />
         <Skeleton width="100%" height={100} borderRadius={12} style={{ marginTop: 20 }} />
       </ScrollView>
+    );
+  }
+
+  /*
+   * A request that failed is not a resource that is gone. Same branch, same
+   * bug, same reason nobody saw it: "Resource not found" was what the screen
+   * said when the phone could not reach the server, and no run had ever put
+   * this screen in front of one that would not answer.
+   */
+  if (isError && resource === undefined) {
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.background }]}>
+        <ErrorState
+          error={error}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetch();
+          }}
+          style={{ paddingTop: 24 }}
+        />
+      </View>
     );
   }
 
