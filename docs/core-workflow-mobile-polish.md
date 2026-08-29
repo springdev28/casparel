@@ -317,8 +317,7 @@ Verification recorded for this increment:
 
 Still required after these increments:
 
-- verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware;
-- capture second-device persistence and analytics evidence in the release record.
+- verify save, retry, restart persistence, screen-reader behavior, Reduce Motion, and frame performance on real iOS and mid-range Android hardware.
 
 ## Current implementation ledger — 2026-08-26
 
@@ -1191,3 +1190,47 @@ Verification recorded for this increment:
 - removing the version check makes that test fail, with the second save landing over the first;
 - 99 end-to-end flow checks against a real server, including the conflict;
 - 24 live UI checks, 180 page renders clean, and every visible string on the web still translated.
+
+## Current implementation ledger — 2026-08-29 (the release record: second device, and the numbers)
+
+The last item on the list above, other than real hardware, was second-device
+persistence and analytics evidence. Both are now recorded rather than assumed.
+
+**Second device.** Every write that two people can make at once has a test
+that makes them at once, against a real database, and requires both to
+survive:
+
+- four edits to one learning path arriving together — a tick, a rename, a delete and an add — all present afterwards, and none of them there when the goal's advisory lock is removed;
+- eight simultaneous catch-ups with a Learning List adding the new resource once, and eight times without the lock;
+- eight concurrent attachments of two different resources leaving one step each;
+- two study-set saves from the same version, the second refused with the current set attached rather than written over the first;
+- and through a browser, a rename made on the goals page while a tick arrived from elsewhere, with the tick still there afterwards — the two-device lost update driven through the controls a person uses.
+
+**Analytics.** Ten workflow milestones are recorded across twenty-three call
+sites, and nothing had ever read one back. They cannot be checked by a unit
+test — `recordWorkflowEvent` returns early when `NODE_ENV` is "test", so a
+suite would assert on writes that never happen — which is why the gap
+survived: the only place they exist is a run against a real server.
+
+The end-to-end flow now saves a resource into a list, opens it, and runs the
+free source check, then reads the administration overview before and after and
+requires the three milestones to have moved by exactly one each. It also opens
+the resource a second time and requires the count *not* to move, which is the
+"without duplicate-tap inflation" claim that had been made and never checked.
+
+Two things were learned by breaking it on purpose. Disabling the milestone on
+adding to a list changed nothing, because the workflow view backfills
+`resource_saved` when the item is in a list and the event is missing — a
+self-heal nobody had written down. Disabling `resource_viewed`, which has no
+backfill, fails the check immediately.
+
+And the naming is worth recording: `resource_reviewed` is the *source
+credibility check*, not a rating. The screen calls that step "Verify source",
+and writing a review records nothing. A first pass at this check asserted the
+wrong one and reported a defect that was not there.
+
+Verification recorded for this increment:
+
+- 102 end-to-end flow checks against a real server, including the three milestones moving by one and not moving on a second visit;
+- the check fails when `resource_viewed` stops being recorded;
+- everything else in the repository green at the same commit: every package type-checks, 909 API assertions across 105 files, 91 mobile tests, 9 fixture-based web audits, 24 live UI checks, 36 phone renders across two languages, 99 phone failure-state checks, 63 phone checks against a real server, 55 readable endpoints, 45 authorization probes refused, and 21 class-access checks.

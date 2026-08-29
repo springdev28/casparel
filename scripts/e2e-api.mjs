@@ -1120,14 +1120,124 @@ async function main() {
     );
   }
 
-  // ---- classes: invite, accept, leave -------------------------------------
+  /*
+   * ---- the milestones the product counts ----------------------------------
+   *
+   * Ten workflow milestones are recorded across twenty-three call sites, and
+   * nothing had ever read one back. They are how this product knows whether
+   * the loop it is built around is being completed, so a route that stopped
+   * recording, or recorded twice, would show up as a number moving in a
+   * report months later and nowhere else.
+   *
+   * They cannot be checked by a unit test: `recordWorkflowEvent` returns
+   * early when NODE_ENV is "test", so a suite would assert on writes that
+   * never happen. This run is the only place they exist.
+   *
+   * Read through the administration overview rather than out of the database,
+   * because that is the product's own view of them: it groups by learner and
+   * resource, so one journey counts once however many times the button was
+   * pressed.
+   */
   const admin = await adminSession();
   if (!admin) {
     notRun(
       "class invite and join",
       "set E2E_ADMIN_EMAIL to an address in the server's ADMIN_EMAILS",
     );
+    notRun(
+      "the milestones the product counts",
+      "the overview that reports them is an administrator's page",
+    );
   } else {
+    const overview = async () =>
+      (await call("GET", "/api/admin/overview", { token: admin.token })).body
+        ?.workflow?.funnel ?? {};
+    const before = await overview();
+
+    const watched = await call("POST", "/api/resources", {
+      token: alice.token,
+      body: {
+        title: `Milestone resource ${RUN}`,
+        url: `https://example.test/milestone-${RUN}`,
+        format: "article",
+        subject: "Physics",
+        gradeLevel: "Year 12",
+      },
+    });
+    if (watched.body?.id) {
+      /*
+       * Saving is putting it in a list, not creating the row: a resource
+       * exists in the catalogue for everybody, and it is somebody's own list
+       * that makes it saved. Then opening it records the view, and reviewing
+       * it records the review.
+       */
+      const shelf = await call("POST", "/api/lists", {
+        token: alice.token,
+        body: { name: `Milestone list ${RUN}` },
+      });
+      if (shelf.body?.id) {
+        await call("POST", `/api/lists/${shelf.body.id}/items`, {
+          token: alice.token,
+          body: { resourceId: watched.body.id },
+        });
+      }
+      await call("GET", `/api/workflow/resources/${watched.body.id}`, {
+        token: alice.token,
+      });
+      /*
+       * "Reviewed" here is the source check, not a rating -- the screen calls
+       * the step "Verify source", and `resource_reviewed` is recorded by the
+       * credibility check rather than by writing a review. Worth saying out
+       * loud, because the event's name reads like the other thing and a
+       * first pass at this check asserted the wrong one.
+       *
+       * Quick mode reads the maintained provenance registry, so it needs no
+       * AI and no allowance, which is what makes it drivable here at all.
+       */
+      await call(
+        "GET",
+        `/api/resources/${watched.body.id}/source-review?mode=quick`,
+        { token: alice.token },
+      );
+
+      const journey = await call(
+        "GET",
+        `/api/workflow/resources/${watched.body.id}`,
+        { token: alice.token },
+      );
+      check(
+        "the product knows this resource was saved and its source checked",
+        journey.status === 200 &&
+          journey.body?.steps?.saved === true &&
+          journey.body?.steps?.reviewed === true,
+        `steps: ${JSON.stringify(journey.body?.steps)}`,
+      );
+
+      const after = await overview();
+      const moved = (key) => (after[key] ?? 0) - (before[key] ?? 0);
+      check(
+        "and the milestones reach the report that counts them",
+        moved("viewed") === 1 && moved("saved") === 1 && moved("reviewed") === 1,
+        `viewed +${moved("viewed")}, saved +${moved("saved")}, reviewed +${moved("reviewed")}`,
+      );
+
+      /*
+       * Opening the same resource again is the same journey. The counter is
+       * per learner and resource, so a second visit must not make it two --
+       * which is what "without duplicate-tap inflation" has claimed since
+       * these milestones were written, and what nothing had ever checked.
+       */
+      await call("GET", `/api/workflow/resources/${watched.body.id}`, {
+        token: alice.token,
+      });
+      const twiceOver = await overview();
+      check(
+        "opening it twice is still one journey",
+        (twiceOver.viewed ?? 0) === (after.viewed ?? 0),
+        `viewed went ${after.viewed} -> ${twiceOver.viewed}`,
+      );
+    }
+
     const studentCreate = await call("POST", "/api/classes", {
       token: alice.token,
       body: { name: "Should not exist", subject: "Mathematics", gradeLevel: "Year 10" },
