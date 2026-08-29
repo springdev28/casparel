@@ -1613,3 +1613,33 @@ Verification recorded for this increment:
 - 192 text-fit renders, now with only the four findings that were already
   there;
 - every package type-checks.
+
+## Fix — the forum told a reader their search was too narrow
+
+The offline audit covered eleven pages. The forum and the catalogue were not
+among them, and could not usefully have been: the fixtures behind both were
+empty arrays, so a working server and a broken one drew the same screen and
+there was nothing to tell apart. With rows in them, both fail four ways:
+
+- **"No posts match these filters."** and **"No materials match these
+  filters."** were what the page said when the request had failed. That is not
+  a claim about the network, it is a claim about the reader's search — so
+  somebody whose connection dropped is told their filters are too narrow, and
+  goes and widens them. A toast said the truth and then went away, which is
+  the shape of an answer nobody sees.
+- **The page threw.** `loadAccess` was the only one of the three loaders
+  without a catch and it is fired with `void` from an effect, so a network
+  failure became an unhandled `TypeError: Failed to fetch` while the two lists
+  beside it failed politely. It keeps the read-only defaults now, which is
+  what an unreachable server can honestly say about somebody's permissions.
+
+Both lists carry the shared `LoadFailure` block, with the reason and a Try
+again, in place of the empty state. 113 offline checks pass where 103 did, and
+the ten that failed were all on these two pages.
+
+Verification recorded for this increment:
+
+- proved by driving: before the fix, ten checks failed naming both pages and
+  all four conditions; after, 113/113;
+- 189 page renders clean, every visible string translated, 230 user-content
+  renders all protected, api-server 848 tests, the app type-checks.

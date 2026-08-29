@@ -75,6 +75,15 @@ const EMPTY_SENTENCE = {
   "/activities": "No study activities yet",
   "/canvases": "Start with a blank canvas",
   "/resources?view=library": "Your library is empty",
+  /*
+   * The two forum surfaces. Both say "match these filters", which reads as a
+   * claim about the filters -- so a reader whose network dropped is told
+   * their search was too narrow and goes and widens it. Neither page had
+   * ever been rendered failing, because the fixtures behind both were empty
+   * arrays and the audit had nothing to tell apart.
+   */
+  "/forum": "No posts match these filters",
+  "/catalog": "No materials match these filters",
   "/lists/44": "List not found",
   "/resources/101": "Resource not found",
 };
@@ -103,6 +112,8 @@ const PAGES = [
    * The ids are the fixture set's own, so each page has something real to
    * fail at fetching.
    */
+  "/forum",
+  "/catalog",
   "/lists/44",
   "/resources/101",
 ];
@@ -131,6 +142,8 @@ const PRIMARY_READ = {
   "/classes": "**/api/classes",
   "/resources/101": "**/api/resources/101",
   "/resources?view=library": "**/api/resources?*",
+  "/forum": "**/api/forum/posts*",
+  "/catalog": "**/api/forum/materials*",
 };
 
 /**

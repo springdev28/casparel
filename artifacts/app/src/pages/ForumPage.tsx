@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { counted } from "@/lib/counted";
+import { LoadFailure } from "@/components/LoadFailure";
 import { Link, useSearch } from "wouter";
 import {
   ArrowLeft,
@@ -439,6 +440,19 @@ export default function ForumPage({
     teacherVerified: false,
     canApprove: false,
   });
+  /*
+   * Why the load failed, kept per section.
+   *
+   * Both lists said "No posts match these filters" and "No materials match
+   * these filters" when the request had failed -- which reads as a claim
+   * about the filters, so a reader whose network dropped is told their search
+   * was too narrow and goes and widens it. A toast said the truth and then
+   * went away. Neither page had ever been rendered failing, because the
+   * fixtures behind both were empty arrays and there was nothing to tell
+   * apart.
+   */
+  const [materialFailure, setMaterialFailure] = useState<unknown>(null);
+  const [postFailure, setPostFailure] = useState<unknown>(null);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
@@ -463,11 +477,25 @@ export default function ForumPage({
   const [quoteTarget, setQuoteTarget] = useState<ForumPost | null>(null);
   const [repostingIds, setRepostingIds] = useState<number[]>([]);
 
+  /*
+   * Who may post and who may moderate.
+   *
+   * The only one of the three loaders with no catch, and it is fired with
+   * `void` from an effect -- so a network failure here became an unhandled
+   * rejection and the page threw "TypeError: Failed to fetch" while the two
+   * lists beside it failed politely. A reader who cannot reach the server
+   * gets the read-only defaults, which is what they have anyway.
+   */
   async function loadAccess() {
-    const value = await forumRequest<ForumAccess>("/forum/access");
-    setAccess(value);
-    if (value.isAdmin) {
-      setReports(await forumRequest<Report[]>("/forum/reports"));
+    try {
+      const value = await forumRequest<ForumAccess>("/forum/access");
+      setAccess(value);
+      if (value.isAdmin) {
+        setReports(await forumRequest<Report[]>("/forum/reports"));
+      }
+    } catch {
+      // Leave the read-only defaults in place, which is what an unreachable
+      // server can honestly say about somebody's permissions.
     }
   }
 
@@ -485,13 +513,9 @@ export default function ForumPage({
       setMaterials(
         await forumRequest<Material[]>("/forum/materials?" + params),
       );
+      setMaterialFailure(null);
     } catch (error) {
-      toast({
-        title: "Could not load materials",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      });
+      setMaterialFailure(error);
     } finally {
       setLoadingMaterials(false);
     }
@@ -506,13 +530,9 @@ export default function ForumPage({
       if (postTag !== "all") params.set("tag", postTag);
       if (classId) params.set("classId", String(classId));
       setPosts(await forumRequest<ForumPost[]>("/forum/posts?" + params));
+      setPostFailure(null);
     } catch (error) {
-      toast({
-        title: "Could not load posts",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive",
-      });
+      setPostFailure(error);
     } finally {
       setLoadingPosts(false);
     }
@@ -1127,6 +1147,13 @@ export default function ForumPage({
               <Loader2 className="mx-auto mb-2 size-5 animate-spin" />
               Loading materials...
             </div>
+          ) : materialFailure ? (
+            <LoadFailure
+              error={materialFailure}
+              retrying={loadingMaterials}
+              onRetry={() => void loadMaterials()}
+              className="my-8"
+            />
           ) : materials.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
               No materials match these filters.
@@ -1571,6 +1598,13 @@ export default function ForumPage({
                   <Loader2 className="mx-auto mb-2 size-5 animate-spin" />
                   Loading posts...
                 </div>
+              ) : postFailure ? (
+                <LoadFailure
+                  error={postFailure}
+                  retrying={loadingPosts}
+                  onRetry={() => void loadPosts()}
+                  className="my-8"
+                />
               ) : posts.length === 0 ? (
                 <div className="border-y py-12 text-center text-muted-foreground">
                   No posts match these filters.
