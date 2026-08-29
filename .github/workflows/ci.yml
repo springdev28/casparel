@@ -518,6 +518,29 @@ jobs:
           fi
           exit "$status"
 
+      # Every readable endpoint in the contract, asked for once, by one
+      # account. The flow checks are written feature by feature, which leaves
+      # whatever nobody wrote a flow for completely unasked -- and a handler
+      # whose response no longer matches its own schema answers 500, because
+      # the response is parsed before it is sent. The bar is low and absolute:
+      # a 403 or a 404 is a fine answer to a question this account has no
+      # business asking, and a 500 is the server saying it broke.
+      #
+      # After the live UI run for the same rate-limit reason: this registers
+      # two accounts and writes a handful of rows, and gives up as
+      # inconclusive rather than reporting a limiter as a product failure.
+      - name: Ask for every readable endpoint
+        run: |
+          set +e
+          node scripts/e2e-read-sweep.mjs http://localhost:4319
+          status=$?
+          set -e
+          if [ "$status" = "75" ]; then
+            echo "::warning::Read sweep was inconclusive, not a product failure."
+            exit 0
+          fi
+          exit "$status"
+
       # Nine screens, six languages, against a stubbed server: does each one
       # still come up. Wrapping 252 strings in t() touched twenty-five files,
       # and the ways that goes wrong are not type errors -- a hook in the wrong

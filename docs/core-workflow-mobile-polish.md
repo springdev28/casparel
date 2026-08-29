@@ -1033,3 +1033,51 @@ checking.
 Both render correctly in both languages, and every control in them has a name
 a screen reader can read. That is what those earlier increments claimed on the
 strength of a source scan; it is now what a browser has shown.
+
+## Current implementation ledger — 2026-08-29 (asking for everything, once)
+
+The harnesses here are written flow by flow — register, save, organise, study
+— which is the right shape for checking that a feature works and leaves
+whatever nobody wrote a flow for completely unasked. That matters more than it
+sounds: every response goes through its generated schema before it is sent, so
+a handler whose response no longer matches the contract answers 500, and a
+handler that forgets a null check does the same. Neither shows up anywhere
+until somebody opens that screen.
+
+`e2e-read-sweep.mjs` reads openapi.yaml, takes every GET in it, fills the
+parameters from rows the run creates, and asks for all of them. The bar is
+deliberately low and absolute: no endpoint may answer 5xx. A 403 or a 404 is a
+fine answer to a question this account has no business asking; a 500 is the
+server saying it broke.
+
+Reading the contract rather than a list kept in the script is the point. A
+list would be exactly as stale as the flows it was meant to backstop, and a
+new endpoint joins the sweep by being added to the contract — which it has to
+be anyway, because `contractDescribesEveryRoute.test.ts` says so.
+
+Fifty-five endpoints, none of them broken. Seven are skipped in writing, all
+for the same reason: they end at Google, or fetch a third-party page, so a
+failure would be somebody else's outage rather than ours.
+
+Two things about the sweep are worth recording, because the first version of
+it was weaker than it looked.
+
+Its fixtures were wrong twice, and the server was right both times: a study
+set of one card is refused because a set needs two, and a study session is a
+meeting so it needs somewhere to meet. Those are rules, not failures, and a
+sweep that treats a 400 as "could not set up" rather than as an answer would
+have quietly stopped exercising two handlers.
+
+And it did not catch a schema mismatch introduced on purpose. A listing that
+returns `[]` parses its item schema zero times, so the broken shape sailed
+through — the sweep was measuring the router, not the handler. It now creates
+a check-in, a review and a forum post so the listings have rows in them, and
+with those the same deliberate break is caught as a 500.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 905 API assertions across 103 test files against a real PostgreSQL instance;
+- 55 readable endpoints asked for against a real server, none answering 5xx;
+- the sweep fails on a response shape that no longer matches its contract, once the listing it belongs to has a row in it;
+- 98 end-to-end flow checks, 45 authorization probes refused, 21 class-access checks.
