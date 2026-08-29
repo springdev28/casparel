@@ -1821,3 +1821,28 @@ Verification recorded for this increment:
   that tier's four capacity lines reports it as holding three checkable
   numbers where six are required;
 - api-server 857 tests.
+
+## Guard — the phone sells the same plans, from a third copy of the numbers
+
+`artifacts/mobile/app/paywall.tsx` holds a third hand-kept table of the same
+limits, written as prose rather than bulleted lines: "8 classes of up to 150
+members, 250 activities, and 20 AI discovery searches with 5 cited deep
+reports a day". It agrees with the server today. Nothing was holding it there
+either, and a phone buyer has no way to check.
+
+It is under the same rule now, with patterns for its own phrasing. Prose was
+left outside the web rule because the blurb there restates lines checked
+beside it; here the prose is the whole card, so it is this or nothing.
+
+One thing about writing it is worth keeping. The first pattern for the search
+cap required "discovery searches a day", copied from the web wording — and the
+phone writes "20 AI discovery searches with 5 cited deep reports a day", where
+the daily suffix belongs to the reports. So it matched on no card at all, and
+the check quietly covered nothing. Measured by lowering the server's
+teacher-plus rate: only the web copy complained. Both do now.
+
+Verification recorded for this increment:
+
+- proved by reverting: lowering teacher-plus's daily searches to 12 reports
+  the line from both the web plans page and the phone's paywall;
+- api-server 860 tests.
