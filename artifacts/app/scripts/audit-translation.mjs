@@ -349,6 +349,57 @@ async function collect(pagePath, language, signedIn, viewport, role) {
         `  !  ${pagePath} [${language}] still translating after 10s; read anyway`,
       );
     });
+  /*
+   * And then wait for the page to stop changing.
+   *
+   * `data-translating` covers work the bridge already knows about. It cannot
+   * cover a node that does not exist yet -- and one of them is a real
+   * request: the Google Classroom banner is drawn when
+   * /google-classroom/status answers, which is a network round trip that
+   * regularly lands after the bridge has gone idle. The string was then read
+   * before the observer reached it and reported as untranslated, while
+   * sitting in the dictionary; it happened on about one run in three and on a
+   * different page each time.
+   *
+   * So: let the network settle, then require the DOM to stop mutating for a
+   * moment, then ask the bridge again. Each step is bounded, and a page that
+   * never goes quiet is read anyway rather than skipped.
+   */
+  await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+  await page
+    .waitForFunction(
+      () =>
+        new Promise((resolve) => {
+          let quiet;
+          const observer = new MutationObserver(() => {
+            clearTimeout(quiet);
+            quiet = setTimeout(done, 400);
+          });
+          function done() {
+            observer.disconnect();
+            resolve(true);
+          }
+          observer.observe(document.body, {
+            subtree: true,
+            childList: true,
+            characterData: true,
+            attributes: true,
+          });
+          quiet = setTimeout(done, 400);
+        }),
+      undefined,
+      { timeout: 10000 },
+    )
+    .catch(() => {
+      console.error(`  !  ${pagePath} [${language}] never stopped changing; read anyway`);
+    });
+  await page
+    .waitForFunction(
+      () => !document.documentElement.hasAttribute("data-translating"),
+      undefined,
+      { timeout: 10000 },
+    )
+    .catch(() => {});
   await page.waitForTimeout(300);
   const strings = await page.evaluate(COLLECT);
   await context.close();

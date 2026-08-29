@@ -77,12 +77,17 @@ const COUNTED: Array<{ phrase: RegExp; of: (tier: string) => number | undefined 
   },
 ];
 
+/*
+ * Read by a string the copy names rather than by the union's key, because the
+ * point is to catch a card for a tier the server does not have -- which a
+ * typed lookup would refuse to express rather than report.
+ */
 function capacity(tier: string) {
-  return (CAPACITY_BY_TIER as Record<string, Record<string, number>>)[tier];
+  return (CAPACITY_BY_TIER as unknown as Record<string, Record<string, number>>)[tier];
 }
 
 function rates(tier: string) {
-  return (AI_RATES_BY_TIER as Record<string, Record<string, number>>)[tier];
+  return (AI_RATES_BY_TIER as unknown as Record<string, Record<string, number>>)[tier];
 }
 
 /**

@@ -2157,3 +2157,40 @@ Verification recorded for this increment:
   a row for a file that does not exist is named as stale;
 - 205 page renders clean, every visible string translated, api-server 869
   tests, the app type-checks.
+
+## Fix — the translation audit read some pages before they had finished changing
+
+Running the audit three times in a row gave two different answers. One run
+reported
+
+    "(not set up)"  — teacher /resources/101 @desktop
+    "Google Classroom credentials are not configured on this server…"
+
+and the next reported nothing. Both strings are in the dictionary.
+
+The file already carries a comment about this exact failure and the fix that
+was made for it: wait on `data-translating`, which the bridge sets while it
+owes the document work, rather than on a fixed 300ms. That fix is right and
+insufficient. The attribute covers work the bridge knows about, and it cannot
+cover a node that does not exist yet — the Google Classroom banner is drawn
+when `/google-classroom/status` answers, a network round trip that regularly
+lands after the bridge has gone idle. The string was then read before the
+observer reached it.
+
+So the audit now lets the network settle, requires the DOM to stop mutating
+for four hundred milliseconds, and asks the bridge once more. Each step is
+bounded and a page that never goes quiet is read anyway rather than skipped.
+
+The important half is what this was hiding rather than what it was inventing.
+With the wait in place, deleting `"(not set up)"` from the dictionary reports
+it on **three** pages — the dashboard, the profile and the library. It was
+always on all three; the old timing caught it on one, sometimes. A flaky
+report is not only noise, it is coverage that comes and goes.
+
+Verification recorded for this increment:
+
+- six consecutive clean runs where two in six had been reporting a phantom;
+- proved by reverting: with one entry deleted the audit names it, on every
+  page that draws it;
+- the whole workspace type-checks, and the api-server suite is 934 tests
+  across 111 files with the database ones included.
