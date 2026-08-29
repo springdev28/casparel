@@ -55,6 +55,7 @@ import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { counted } from "@/lib/counted";
+import { LoadFailure } from "@/components/LoadFailure";
 
 type ActivityCard = {
   id: string;
@@ -336,6 +337,13 @@ export default function ActivitiesPage({
   const importRef = useRef<HTMLInputElement>(null);
   const handledWorkflowSource = useRef<number | null>(null);
   const [activities, setActivities] = useState<StudyActivity[]>([]);
+  /*
+   * Why the list is empty, when it is empty because the request failed.
+   * A toast says so and then goes away, and what is left on screen is "No
+   * study activities yet" -- a statement about this person's own sets, made
+   * by a page that never got an answer.
+   */
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [mode, setMode] = useState<ActivityMode>("flashcards");
@@ -413,6 +421,7 @@ export default function ActivitiesPage({
 
   async function loadActivities() {
     setLoading(true);
+    setLoadError(null);
     try {
       const result = shared
         ? [await activityRequest(`/study-activities/shared/${params.token}`) as unknown as StudyActivity]
@@ -426,6 +435,7 @@ export default function ActivitiesPage({
           : (result[0]?.id ?? null),
       );
     } catch (error) {
+      setLoadError(error);
       toast({
         title: "Could not load activities",
         description:
@@ -1197,6 +1207,14 @@ export default function ActivitiesPage({
           <Skeleton className="h-96" />
           <Skeleton className="h-96" />
         </div>
+      ) : loadError && !activities.length ? (
+        <LoadFailure
+          error={loadError}
+          retrying={loading}
+          onRetry={() => {
+            void loadActivities();
+          }}
+        />
       ) : !activities.length ? (
         <div className="border-y py-16 text-center">
           <Layers3 className="mx-auto mb-3 size-10 text-muted-foreground" />

@@ -134,6 +134,7 @@ import {
   isSameWork,
 } from "@workspace/resource-identity";
 import { counted } from "@/lib/counted";
+import { LoadFailure } from "@/components/LoadFailure";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatName } from "@/lib/resource-format";
 
@@ -1333,10 +1334,29 @@ export default function ResourcesPage() {
     submittedSearch?.resultType === DiscoverResourcesResultType.source;
 
   // Auth
-  const { data: me, isLoading: meLoading } = useGetMe({
+  const {
+    data: me,
+    isLoading: meLoading,
+    isError: meFailed,
+    error: meError,
+    isFetching: meFetching,
+    refetch: refetchMe,
+  } = useGetMe({
     query: { retry: false, queryKey: getGetMeQueryKey() },
   });
   const isLoggedIn = !!me;
+  /*
+   * Whether this page knows who is reading it.
+   *
+   * A 401 is an answer -- nobody is signed in, and the public catalogue is the
+   * right page. Anything else is the question going unanswered, and the
+   * library below cannot say "yours is empty" on the strength of a request
+   * that failed. It cannot even run: the library query is gated on being
+   * signed in, so a failed /users/me leaves it disabled and reporting neither
+   * data nor an error of its own.
+   */
+  const meStatus = (meError as { status?: number } | null)?.status;
+  const identityUnknown = meFailed && meStatus !== 401 && meStatus !== 403;
   const isAdmin = me?.role === "admin";
 
   useEffect(() => {
@@ -1447,13 +1467,19 @@ export default function ResourcesPage() {
   );
 
   const libraryCatalogParams = { limit: 50, offset: 0 };
-  const { data: libraryCatalog, isLoading: libraryCatalogLoading } =
-    useListResources(libraryCatalogParams, {
-      query: {
-        enabled: isLoggedIn,
-        queryKey: getListResourcesQueryKey(libraryCatalogParams),
-      },
-    });
+  const {
+    data: libraryCatalog,
+    isLoading: libraryCatalogLoading,
+    isError: libraryFailed,
+    error: libraryError,
+    isFetching: libraryFetching,
+    refetch: refetchLibrary,
+  } = useListResources(libraryCatalogParams, {
+    query: {
+      enabled: isLoggedIn,
+      queryKey: getListResourcesQueryKey(libraryCatalogParams),
+    },
+  });
   // A user's library is the set of resources they submitted, not the entire
   // shared catalogue. Scope the grid to the current account so it only shows
   // (and offers Remove on) resources this user actually owns; browsing the
@@ -3367,6 +3393,26 @@ export default function ResourcesPage() {
             // useGetMe has retry: false, so a signed-out visitor's 401 settles
             // at once and they still reach the empty state promptly.
             <CardSkeletons count={3} />
+          ) : identityUnknown ? (
+            <LoadFailure
+              error={meError}
+              retrying={meFetching}
+              onRetry={() => {
+                void refetchMe();
+              }}
+            />
+          ) : libraryFailed && libraryCatalog === undefined ? (
+            /* "Your library is empty" is a statement about what this person
+               has saved. A request that never got an answer is not evidence
+               for it -- the same reason the schedule and the goals page each
+               have one of these. */
+            <LoadFailure
+              error={libraryError}
+              retrying={libraryFetching}
+              onRetry={() => {
+                void refetchLibrary();
+              }}
+            />
           ) : !uniqueLibraryCatalog.length ? (
             <div className="border-y py-12 text-center">
               <BookOpen className="mx-auto mb-3 size-8 text-muted-foreground" />

@@ -1234,3 +1234,44 @@ Verification recorded for this increment:
 - 102 end-to-end flow checks against a real server, including the three milestones moving by one and not moving on a second visit;
 - the check fails when `resource_viewed` stops being recorded;
 - everything else in the repository green at the same commit: every package type-checks, 909 API assertions across 105 files, 91 mobile tests, 9 fixture-based web audits, 24 live UI checks, 36 phone renders across two languages, 99 phone failure-state checks, 63 phone checks against a real server, 55 readable endpoints, 45 authorization probes refused, and 21 class-access checks.
+
+## Fix — four web pages that claimed emptiness they could not know
+
+The phone's failure audit found nothing to fix, because the phone's screens
+were already right. Pointing the same question at the web found four pages
+that were not.
+
+`audit-offline.mjs` had covered five pages and one way of failing since it was
+written, and the app grew past it. Learning Lists, study sets and canvases each
+say "you have none of these", and each arrived after that list was fixed. So:
+
+- **/lists** said "No lists yet — Create your first list to start organizing resources." while every request behind it was failing;
+- **/activities** said "No study activities yet". It showed a toast first, which is worse than nothing: the toast goes away and the sentence stays;
+- **/canvases** offered "Start with a blank canvas", inviting somebody to begin again on a page that never learned what they already had;
+- **the library** said "Your library is empty" — the sentence `audit-loading.mjs` exists because of, in the one state that file does not cover.
+
+All four now render the shared failure block with a retry.
+
+The library needed one more thing. Its query is gated on being signed in, and
+that comes from `/users/me`, so a failed identity call left the library query
+disabled — reporting neither data nor an error of its own, and falling through
+to the empty state. A 401 there is an answer: nobody is signed in, and the
+public catalogue is the right page. Anything else is the question going
+unanswered, and the page now says so rather than guessing.
+
+The audit itself was broadened twice over: the four pages above, and a second
+way of not answering. Nothing came back at all, and something came back saying
+the server broke, are different branches of the failure block, and only the
+first had ever been rendered here. Both are asked for now, on nine pages.
+
+`/resources` is asked for as `?view=library`, because that page opens on the
+public catalogue search — which is the same page for a signed-out visitor and
+has nothing to be wrong about. The library half is the half that makes a claim
+about the reader.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 36 offline and broken-server checks across nine pages, up from 10 across five;
+- the four failures were found by the audit before the fixes and pass after them;
+- 180 page renders clean, 122 pages reachable, every visible string still translated, sessions still behave correctly, and 24 live UI checks against a real server.

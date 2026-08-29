@@ -26,6 +26,7 @@ import {
   getListResourceListsQueryKey,
 } from '@workspace/api-client-react';
 import { counted } from "@/lib/counted";
+import { LoadFailure } from "@/components/LoadFailure";
 
 export default function ListsPage() {
   const locale = useDateLocale();
@@ -39,7 +40,14 @@ export default function ListsPage() {
   // Delete confirmation state
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
 
-  const { data: lists, isLoading } = useListResourceLists();
+  const {
+    data: lists,
+    isLoading,
+    isError: listsFailed,
+    error: listsError,
+    isFetching: listsFetching,
+    refetch: refetchLists,
+  } = useListResourceLists();
   const { data: sharedLists, isLoading: sharedLoading } = useListSharedResourceLists();
   const createList = useCreateResourceList();
   const deleteList = useDeleteResourceList();
@@ -138,6 +146,16 @@ export default function ListsPage() {
             </Card>
           ))}
         </div>
+      ) : listsFailed && lists === undefined ? (
+        /* "No lists yet" is a statement about this person's own lists. A
+           request that never got an answer is not evidence for it. */
+        <LoadFailure
+          error={listsError}
+          retrying={listsFetching}
+          onRetry={() => {
+            void refetchLists();
+          }}
+        />
       ) : !lists || lists.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <List size={40} className="text-muted-foreground mb-4" />

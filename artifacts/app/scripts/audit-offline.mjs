@@ -47,10 +47,60 @@ const EXIT_INCONCLUSIVE = 75;
  * Pages whose whole content is the reader's own data.
  *
  * A page that mostly holds controls -- /settings, /catalog search -- has
- * nothing to be wrong about when a request fails, so it is not listed. These
- * five each make a statement about what the reader has.
+ * nothing to be wrong about when a request fails, so it is not listed. Each of
+ * these makes a statement about what the reader has, and a statement made
+ * without asking is a false one.
+ *
+ * The list started at five and grew with the app: Learning Lists, study sets
+ * and canvases each say "you have none of these" and each arrived after this
+ * file was written. The library is here for the reason audit-loading.mjs
+ * exists at all -- "Your library is empty" is the sentence that started this.
  */
-const PAGES = ["/dashboard", "/schedule", "/classes", "/goals", "/profile"];
+const PAGES = [
+  "/dashboard",
+  "/schedule",
+  "/classes",
+  "/goals",
+  "/profile",
+  "/lists",
+  "/activities",
+  "/canvases",
+  /*
+   * The library, addressed directly. This page opens on the public catalogue
+   * search, which has nothing to be wrong about when a request fails -- it is
+   * the same page for a signed-out visitor. The library half is the half that
+   * makes a claim about the reader, and "Your library is empty" is the
+   * sentence audit-loading.mjs was written for.
+   */
+  "/resources?view=library",
+];
+
+/**
+ * Two ways of not answering, because the app tells them apart and so does a
+ * person: nothing came back at all, and something came back saying the server
+ * broke. They are different branches of LoadFailure, and only the first had
+ * ever been rendered here.
+ */
+const FAILURES = [
+  {
+    name: "offline",
+    describe: "nothing reaches the server",
+    install: (context) =>
+      context.route("**/api/**", (route) => route.abort("connectionfailed")),
+  },
+  {
+    name: "broken",
+    describe: "the server answers 500",
+    install: (context) =>
+      context.route("**/api/**", (route) =>
+        route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Something went wrong" }),
+        }),
+      ),
+  },
+];
 
 let failures = 0;
 let checks = 0;
@@ -84,7 +134,6 @@ async function main() {
 
   try {
     browser = await chromium.launch(launchOptions());
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 
     /*
      * A real session first, then the network taken away.
@@ -94,34 +143,49 @@ async function main() {
      * would "pass" by never rendering. installSession issues one the guards
      * accept.
      */
-    await installSession(context, { role: "student" });
-    // Installed after the fixtures so this wins: every API call now fails the
-    // way a dropped connection fails, with no reply at all.
-    await context.route("**/api/**", (route) => route.abort("connectionfailed"));
-
-    for (const pathname of PAGES) {
-      const page = await context.newPage();
-      const pageErrors = [];
-      page.on("pageerror", (error) => pageErrors.push(String(error).slice(0, 160)));
-      await page.goto(`${base}${pathname}`, { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(4000);
-
-      const failureBlocks = await page.locator('[data-testid="load-failure"]').count();
-      const text = await page.evaluate(() => {
-        const main = document.querySelector("main") ?? document.body;
-        return main.innerText.replace(/\s+/g, " ").slice(0, 220);
+    for (const failure of FAILURES) {
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 900 },
       });
+      /*
+       * A real session first, then the failure. The route guards read the
+       * token's own claims rather than asking the server, so a made-up token
+       * redirects to sign-in and every page below would "pass" by never
+       * rendering. installSession issues one the guards accept.
+       */
+      await installSession(context, { role: "student" });
+      // Installed after the fixtures so this wins.
+      await failure.install(context);
+      console.log(`\n${failure.describe}:\n`);
 
-      check(
-        `${pathname} says it could not load`,
-        failureBlocks > 0,
-        `no load-failure block; the page showed: ${text}`,
-      );
-      check(`${pathname} does not throw`, pageErrors.length === 0, pageErrors[0] ?? "");
-      await page.close();
+      for (const pathname of PAGES) {
+        const page = await context.newPage();
+        const pageErrors = [];
+        page.on("pageerror", (error) => pageErrors.push(String(error).slice(0, 160)));
+        await page.goto(`${base}${pathname}`, { waitUntil: "domcontentloaded" });
+        await page.waitForTimeout(4000);
+
+        const failureBlocks = await page.locator('[data-testid="load-failure"]').count();
+        const text = await page.evaluate(() => {
+          const main = document.querySelector("main") ?? document.body;
+          return main.innerText.replace(/\s+/g, " ").slice(0, 220);
+        });
+
+        check(
+          `${pathname} [${failure.name}] says it could not load`,
+          failureBlocks > 0,
+          `no load-failure block; the page showed: ${text}`,
+        );
+        check(
+          `${pathname} [${failure.name}] does not throw`,
+          pageErrors.length === 0,
+          pageErrors[0] ?? "",
+        );
+        await page.close();
+      }
+
+      await context.close();
     }
-
-    await context.close();
   } finally {
     await browser?.close().catch(() => {});
     server.close();

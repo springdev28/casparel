@@ -51,6 +51,7 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { useGetMe, useListClasses, UserRole } from "@workspace/api-client-react";
 import { counted } from "@/lib/counted";
 import { canvasRequest, type SchoolarCanvas } from "../lib/canvas-api";
+import { LoadFailure } from "@/components/LoadFailure";
 
 /**
  * The role and visibility names, written out rather than interpolated.
@@ -92,6 +93,13 @@ export default function CanvasesPage({
       : new URLSearchParams(routeSearch).get("classId");
   const [canvases, setCanvases] = useState<SchoolarCanvas[]>([]);
   const [loading, setLoading] = useState(true);
+  /*
+   * Why there is nothing to show, when there is nothing because the request
+   * failed. The toast below says so and then goes away, leaving an invitation
+   * to start a blank canvas on a page that never learned whether this person
+   * has any.
+   */
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
@@ -108,9 +116,11 @@ export default function CanvasesPage({
   );
 
   async function load() {
+    setLoadError(null);
     try {
       setCanvases(await canvasRequest<SchoolarCanvas[]>("/canvases"));
     } catch (error) {
+      setLoadError(error);
       toast({
         title: "Could not load canvases",
         description: error instanceof Error ? error.message : "Try again",
@@ -259,6 +269,15 @@ export default function CanvasesPage({
 
       {loading ? (
         <div className="flex min-h-52 items-center justify-center"><Loader2 className="size-6 animate-spin text-primary-text" /></div>
+      ) : loadError && !hasVisibleCanvases ? (
+        <LoadFailure
+          error={loadError}
+          retrying={loading}
+          onRetry={() => {
+            setLoading(true);
+            void load();
+          }}
+        />
       ) : !hasVisibleCanvases ? (
         <section className="border-y py-16 text-center">
           <LayoutDashboard className="mx-auto mb-4 size-10 text-muted-foreground" />
