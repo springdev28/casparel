@@ -628,6 +628,15 @@ const OPENED = [
     open: [{ testId: "citation-maker-button" }],
     as: "/resources (citation maker)",
   },
+  { path: "/goals", open: [{ testId: "new-goal-button" }], as: "/goals (new goal)" },
+  { path: "/canvases", open: [{ testId: "new-canvas-button" }], as: "/canvases (new canvas)" },
+  // The material sheet lives on the catalogue half of the forum page, which
+  // the router serves at its own address.
+  {
+    path: "/catalog",
+    open: [{ testId: "share-material-button" }],
+    as: "/catalog (share a material)",
+  },
   { path: "/classes", open: [{ testId: "create-class-button" }], as: "/classes (new class)" },
   { path: "/lists", open: [{ testId: "create-list-button" }], as: "/lists (new list)" },
   { path: "/schedule", open: [{ testId: "add-block-button" }], as: "/schedule (new block)" },

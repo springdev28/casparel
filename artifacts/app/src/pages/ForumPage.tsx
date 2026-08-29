@@ -990,7 +990,7 @@ export default function ForumPage({
               </Button>
               <Dialog open={materialDialog} onOpenChange={setMaterialDialog}>
                 <DialogTrigger asChild>
-                  <Button>
+                  <Button data-testid="share-material-button">
                     <Upload className="mr-2 size-4" />
                     Upload material
                   </Button>
@@ -1007,22 +1007,30 @@ export default function ForumPage({
                     onSubmit={createMaterial}
                     className="grid gap-4 sm:grid-cols-2"
                   >
+                    {/*
+                      * Every label here was a <Label> with nothing tying it to
+                      * its field, so a screen reader read the form as seven
+                      * boxes called nothing. It is a teacher sharing a
+                      * worksheet, and it sits inside a dialog -- which is why
+                      * a run that renders every page in five palettes had
+                      * never once seen it.
+                      */}
                     <div className="space-y-1.5 sm:col-span-2">
-                      <Label>Unique title</Label>
-                      <Input name="title" maxLength={180} required />
+                      <Label htmlFor="material-title">Unique title</Label>
+                      <Input id="material-title" name="title" maxLength={180} required />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Unit</Label>
-                      <Input name="unit" maxLength={120} required />
+                      <Label htmlFor="material-unit">Unit</Label>
+                      <Input id="material-unit" name="unit" maxLength={120} required />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Topic</Label>
-                      <Input name="topic" maxLength={120} required />
+                      <Label htmlFor="material-topic">Topic</Label>
+                      <Input id="material-topic" name="topic" maxLength={120} required />
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
-                      <Label>Type</Label>
+                      <Label htmlFor="material-type">Type</Label>
                       <Select name="materialType" required>
-                        <SelectTrigger>
+                        <SelectTrigger id="material-type">
                           <SelectValue placeholder="Choose material type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1035,35 +1043,44 @@ export default function ForumPage({
                       </Select>
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
-                      <Label>Description</Label>
-                      <Textarea name="description" rows={3} maxLength={2000} />
+                      <Label htmlFor="material-description">Description</Label>
+                      <Textarea
+                        id="material-description"
+                        name="description"
+                        rows={3}
+                        maxLength={2000}
+                      />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Tags</Label>
+                      <Label htmlFor="material-tags">Tags</Label>
                       <Input
+                        id="material-tags"
                         name="tags"
                         placeholder="algebra, practice, exam"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>Online activity / YouTube link</Label>
+                      <Label htmlFor="material-link">Online activity / YouTube link</Label>
                       <Input
+                        id="material-link"
                         name="linkUrl"
                         type="url"
                         placeholder="https://..."
                       />
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
-                      <Label>Sources</Label>
+                      <Label htmlFor="material-sources">Sources</Label>
                       <Textarea
+                        id="material-sources"
                         name="sources"
                         rows={3}
                         placeholder="One source or URL per line"
                       />
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
-                      <Label>File</Label>
+                      <Label htmlFor="material-file">File</Label>
                       <Input
+                        id="material-file"
                         name="file"
                         type="file"
                         accept=".pdf,.docx,.jpg,.jpeg,.png,.mov,.mp4"

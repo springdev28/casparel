@@ -1929,3 +1929,39 @@ Verification recorded for this increment:
 - 199 page renders clean, up from 189; every visible string translated; 230
   user-content renders all protected; 215 offline checks; 192 text-fit
   renders; api-server 863 tests; the app type-checks.
+
+## Fix — a teacher sharing a worksheet heard "edit text, blank" seven times
+
+Three more dialogs opened: a new goal, a new canvas, and the material sheet on
+the catalogue. The third is the one that mattered.
+
+Every field in the upload form — title, unit, topic, type, description, tags,
+link, sources, file — had a `<Label>` above it and nothing tying the two
+together. No `htmlFor`, no `id`. So the form a teacher fills in to share a
+worksheet read to a screen reader as nine boxes called nothing, and the
+`<Label>` text was floating prose beside them. They are paired now.
+
+Two things the first attempt got wrong, both worth keeping:
+
+- **The trigger was on the wrong page.** The material sheet lives on the
+  catalogue half of the forum page, which the router serves at its own
+  address, so pressing it at `/forum` found nothing. The audit reported that
+  rather than throwing, which is the whole point of that change.
+- **The guard mapped a component to one route.** ForumPage is served at both
+  `/forum` and `/catalog`; keeping the first meant the page was reported as
+  unopened while the audit was opening it at the other address. It reads every
+  route a component is served at now.
+
+The backlog's unit is a page rather than a dialog, and the file says so: a page
+with three dialogs and one opened comes off the list, and the other two are
+covered by the audit's list growing rather than by a row. A finer rule would
+need a name for every dialog, which is a bigger thing to keep true than it is
+worth.
+
+Verification recorded for this increment:
+
+- proved by driving: nine unlabelled fields on the material sheet, named by
+  the run that first opened it;
+- 202 page renders clean, up from 199; every visible string translated; 230
+  user-content renders all protected; api-server 863 tests; the app
+  type-checks.

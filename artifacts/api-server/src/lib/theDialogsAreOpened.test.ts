@@ -30,28 +30,37 @@ const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..
 const web = join(repository, "artifacts/app/src");
 
 /**
- * Pages with a dialog that nothing opens yet, and what is in them.
+ * Pages where nothing at all is opened yet, and what is behind the button.
  *
  * A backlog, not a policy, and written down rather than left to be
  * rediscovered -- the same treatment the contract's undescribed routes get.
  * Delete a row by adding the page to OPENED in audit-pages.mjs.
+ *
+ * The unit here is a page, not a dialog: a page with three dialogs and one
+ * opened comes off this list, and the other two are covered by the audit's
+ * own list growing rather than by a row here. A finer rule would need a name
+ * for every dialog, which is a bigger thing to keep true than this is worth.
  */
 const NOT_OPENED_YET: Record<string, string> = {
   "ActivitiesPage.tsx": "the study-activity editor and its share sheet",
   "AdminPage.tsx": "the account management sheet, reached through its own fetch wrapper",
   "CanvasPage.tsx": "share, details and the library picker on the board",
-  "CanvasesPage.tsx": "the new-canvas dialog",
   "ClassDetailPage.tsx":
     "six: invite, assignment, seating, Google Classroom import, resource list, notes",
-  "ForumPage.tsx": "the new-post composer and the report sheet",
-  "GoalsPage.tsx": "the goal editor and the template preview",
   "ProfilePage.tsx": "the profile editor",
 };
 
-/** Route paths in App.tsx, with the page component each one renders. */
-function routesByComponent(): Map<string, string> {
+/**
+ * Every route in App.tsx, grouped by the page component it renders.
+ *
+ * All of them, not the first: ForumPage is served at both /forum and
+ * /catalog, and its material sheet is only on the catalogue half. Keeping
+ * one route per component reported that page as unopened while the audit was
+ * opening it at the other address.
+ */
+function routesByComponent(): Map<string, string[]> {
   const source = readFileSync(join(web, "App.tsx"), "utf8");
-  const byComponent = new Map<string, string>();
+  const byComponent = new Map<string, string[]>();
   for (const match of source.matchAll(
     /<Route\s+path="([^"]+)"([\s\S]*?)(?=<Route\s+path=|<\/Switch>)/g,
   )) {
@@ -59,9 +68,7 @@ function routesByComponent(): Map<string, string> {
     const component = match[2].match(/component=\{(\w+)\}|<(\w+Page)\b/);
     const name = component?.[1] ?? component?.[2];
     if (!name) continue;
-    // The first route wins: /classes/:id is declared before /classes, and the
-    // detail page is the one with the dialogs.
-    if (!byComponent.has(name)) byComponent.set(name, path);
+    byComponent.set(name, [...(byComponent.get(name) ?? []), path]);
   }
   return byComponent;
 }
@@ -101,10 +108,12 @@ describe("the dialogs", () => {
     const unopened = pagesWithDialogs()
       .filter((file) => {
         if (file in NOT_OPENED_YET) return false;
-        const route = routes.get(file.replace(/\.tsx$/, ""));
+        const declared = routes.get(file.replace(/\.tsx$/, ""));
         // A page the router does not reach cannot be opened by a path.
-        if (!route) return false;
-        return ![...opened].some((path) => sameShape(path, route));
+        if (!declared?.length) return false;
+        return ![...opened].some((path) =>
+          declared.some((route) => sameShape(path, route)),
+        );
       })
       .sort();
 
@@ -122,8 +131,10 @@ describe("the dialogs", () => {
     const routes = routesByComponent();
     const opened = openedRoutes();
     const stale = Object.keys(NOT_OPENED_YET).filter((file) => {
-      const route = routes.get(file.replace(/\.tsx$/, ""));
-      return route ? [...opened].some((path) => sameShape(path, route)) : false;
+      const declared = routes.get(file.replace(/\.tsx$/, "")) ?? [];
+      return [...opened].some((path) =>
+        declared.some((route) => sameShape(path, route)),
+      );
     });
 
     expect(stale.sort(), "these are on the backlog and are opened").toEqual([]);

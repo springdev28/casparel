@@ -577,7 +577,7 @@ export default function GoalsPage() {
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button data-testid="new-goal-button">
               <Plus className="mr-2 size-4" />
               New goal
             </Button>

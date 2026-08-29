@@ -264,7 +264,7 @@ export default function CanvasesPage({
             Connect notes, links, and Casparel resources in a flexible workspace.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 size-4" /> New canvas</Button>
+        <Button data-testid="new-canvas-button" onClick={() => setCreateOpen(true)}><Plus className="mr-2 size-4" /> New canvas</Button>
       </header>
 
       {loading ? (
