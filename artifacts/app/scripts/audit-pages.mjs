@@ -637,7 +637,22 @@ const OPENED = [
     open: [{ testId: "share-material-button" }],
     as: "/catalog (share a material)",
   },
+  {
+    path: "/classes/31",
+    open: [{ testId: "add-member-button" }],
+    as: "/classes/31 (invite somebody)",
+  },
   { path: "/classes", open: [{ testId: "create-class-button" }], as: "/classes (new class)" },
+  {
+    path: "/activities",
+    open: [{ testId: "new-activity-button" }],
+    as: "/activities (new activity)",
+  },
+  {
+    path: "/canvases/12",
+    open: [{ testId: "canvas-resource-button" }],
+    as: "/canvases/12 (library picker)",
+  },
   { path: "/lists", open: [{ testId: "create-list-button" }], as: "/lists (new list)" },
   { path: "/schedule", open: [{ testId: "add-block-button" }], as: "/schedule (new block)" },
   {

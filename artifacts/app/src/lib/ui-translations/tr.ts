@@ -573,6 +573,7 @@ const TR: Record<string, string> = {
   "Casparel library resource": "Casparel kitaplık kaynağı",
   "There are no cards here yet.": "Burada henüz kart yok.",
   "Search reading lists": "Okuma listelerinde ara",
+  "Filter library resources": "Kitaplık kaynaklarını süz",
   "Search classmates or people to invite": "Sınıf arkadaşlarını ya da davet edilecek kişileri ara",
   "Your next class tasks, ordered by deadline.": "Sıradaki sınıf görevlerin, teslim tarihine göre sıralı.",
   "Enable alerts": "Uyarıları aç",

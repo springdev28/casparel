@@ -1164,7 +1164,7 @@ export default function ActivitiesPage({
         {!viewOnly && <div className="flex flex-wrap gap-2">
           <input ref={importRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" className="hidden" onChange={(event) => void importSet(event.target.files?.[0])} />
           <Button variant="outline" onClick={() => importRef.current?.click()}><FileUp className="mr-2 size-4" /> Import CSV / Quizlet</Button>
-          <Button onClick={() => openNewSet()}><Plus className="mr-2 size-4" /> New activity</Button>
+          <Button data-testid="new-activity-button" onClick={() => openNewSet()}><Plus className="mr-2 size-4" /> New activity</Button>
         </div>}
       </header>
 

@@ -825,7 +825,7 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
             <Button size="sm" variant="ghost" aria-label="Note" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("note")}><StickyNote className="size-4 sm:mr-2" /><span className="hidden sm:inline">Note</span></Button>
             <Button size="sm" variant="ghost" aria-label="Heading" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("heading")}><Heading className="size-4 sm:mr-2" /><span className="hidden sm:inline">Heading</span></Button>
             <Button size="sm" variant="ghost" aria-label="Link" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => addNode("link")}><Link2 className="size-4 sm:mr-2" /><span className="hidden sm:inline">Link</span></Button>
-            <Button size="sm" variant="ghost" aria-label="Resource" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => setResourceOpen(true)}><BookOpen className="size-4 sm:mr-2" /><span className="hidden sm:inline">Resource</span></Button>
+            <Button size="sm" variant="ghost" data-testid="canvas-resource-button" aria-label="Resource" className="shrink-0 text-white hover:bg-white/10 hover:text-white" onClick={() => setResourceOpen(true)}><BookOpen className="size-4 sm:mr-2" /><span className="hidden sm:inline">Resource</span></Button>
           </div>
         ) : null}
 
@@ -835,7 +835,9 @@ export default function CanvasPage({ shared = false }: { shared?: boolean }) {
       <Dialog open={resourceOpen} onOpenChange={setResourceOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Add a library resource</DialogTitle><DialogDescription>Place an existing Casparel resource directly on this canvas.</DialogDescription></DialogHeader>
-          <Input value={resourceQuery} onChange={(event) => setResourceQuery(event.target.value)} placeholder="Filter library resources..." />
+          {/* Named, not just placeheld: a placeholder disappears when
+              somebody types, and this dialog has no label above the field. */}
+          <Input aria-label="Filter library resources" value={resourceQuery} onChange={(event) => setResourceQuery(event.target.value)} placeholder="Filter library resources..." />
           <div className="max-h-[55dvh] space-y-2 overflow-y-auto pr-1">
             {resourcesLoading ? <div className="flex justify-center py-10"><Loader2 className="size-5 animate-spin" /></div> : resources?.length ? resources.map((resource) => <button key={resource.id} type="button" className="flex w-full items-start justify-between gap-4 border p-3 text-left hover:bg-muted" style={{ borderRadius: 8 }} onClick={() => addNode("resource", resource)}><span className="min-w-0"><strong className="block truncate text-sm">{resource.title}</strong><span className="block truncate text-xs text-muted-foreground">{resource.subject} · {resource.gradeLevel}</span></span><Plus className="mt-1 size-4 shrink-0" /></button>) : <p className="py-10 text-center text-sm text-muted-foreground">No matching library resources.</p>}
           </div>

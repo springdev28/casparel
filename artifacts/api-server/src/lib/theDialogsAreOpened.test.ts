@@ -42,12 +42,10 @@ const web = join(repository, "artifacts/app/src");
  * for every dialog, which is a bigger thing to keep true than this is worth.
  */
 const NOT_OPENED_YET: Record<string, string> = {
-  "ActivitiesPage.tsx": "the study-activity editor and its share sheet",
   "AdminPage.tsx": "the account management sheet, reached through its own fetch wrapper",
-  "CanvasPage.tsx": "share, details and the library picker on the board",
-  "ClassDetailPage.tsx":
-    "six: invite, assignment, seating, Google Classroom import, resource list, notes",
-  "ProfilePage.tsx": "the profile editor",
+  "ProfilePage.tsx":
+    "its only dialog is the avatar cropper, which opens after a file is chosen " +
+    "rather than after a button is pressed",
 };
 
 /**

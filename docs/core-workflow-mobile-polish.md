@@ -1965,3 +1965,26 @@ Verification recorded for this increment:
 - 202 page renders clean, up from 199; every visible string translated; 230
   user-content renders all protected; api-server 863 tests; the app
   type-checks.
+
+## Fix — the rest of the dialog backlog, and one more nameless field
+
+Five more opened: inviting somebody to a class, a new activity, a new goal, a
+new canvas, and the library picker on a board. The picker had the same fault
+as the schedule's — an `<Input>` whose only name was a placeholder, in a
+dialog with no label above it — and it is named now.
+
+The backlog is down to three, each with a reason that is about the page rather
+than about nobody having got to it:
+
+- `AdminPage` reaches its sheet through its own fetch wrapper;
+- `CanvasPage`'s share and details dialogs are behind a menu on the board;
+- `ProfilePage`'s only dialog is the avatar cropper, which opens after a file
+  is chosen rather than after a button is pressed.
+
+Sixteen dialogs are opened on every build now, where none was a day ago.
+
+Verification recorded for this increment:
+
+- 205 page renders clean, up from 189 before any dialog was opened;
+- every visible string translated; 230 user-content renders all protected;
+  192 text-fit renders; api-server 863 tests; the app type-checks.
