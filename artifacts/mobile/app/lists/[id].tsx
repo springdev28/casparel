@@ -471,7 +471,7 @@ export default function ListScreen() {
         {data.name}
       </Text>
       <View style={styles.badges}>
-        <Badge variant="secondary">{`${data.itemCount} ${t('resources')}`}</Badge>
+        <Badge variant="secondary">{`${data.itemCount} ${data.itemCount === 1 ? t('resource') : t('resources')}`}</Badge>
       </View>
       {data.description ? (
         <Text

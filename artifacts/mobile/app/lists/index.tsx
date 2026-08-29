@@ -74,7 +74,7 @@ function ListRow({ list, onPress }: { list: ResourceList; onPress: () => void })
             { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
           ]}
         >
-          {list.itemCount} {t('resources')}
+          {`${list.itemCount} ${list.itemCount === 1 ? t('resource') : t('resources')}`}
         </Text>
       </View>
       <Feather name="chevron-right" size={18} color={colors.mutedForeground} />

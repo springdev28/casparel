@@ -2083,3 +2083,37 @@ two happened rather than "nothing to check".
 `verify-package.test.mjs` pins all three cases and runs in CI beside the other
 three desktop checks. Proved by removing the branch: the two inconclusive
 cases go back to exit 1.
+
+## Fix — "1 resources", and the list screens driven against a real server
+
+`audit-screens.mjs` drives the phone against a real server and a real
+database, which is the only run that can catch the app and the contract
+disagreeing — the header on that file records the bug it exists for, a date
+sent as a timestamp that made every schedule block invisible on the phone.
+Its walk covered the dashboard, resources, schedule, classes, profile, the
+resource and class detail screens, messages, goals and the paywall.
+
+It did not cover Learning Lists, which are the other half of the workflow the
+specification is built around: a list is what a path is built from. Seeding a
+list with one resource in it and walking both screens turned up, immediately:
+
+    Learning lists | Audit reading list | 1 resources
+
+Three places render `{n} {t('resources')}` with no singular — the list index,
+the list detail and the sheet that saves into one. Turkish is invariant here,
+so the translation looked right and the source language was the broken one,
+which is not where anybody looks. It only shows with exactly one item, which
+is the state a new account is in.
+
+A fourth rule in the source scan now catches the shape: a count expression, a
+space, and a `t()` of a word ending in "s", with no `=== 1 ?` on the line.
+Proved by reverting one of the three.
+
+Verification recorded for this increment:
+
+- proved by reverting: the list index reports `"resources" (a plural with no
+  singular)`;
+- proved by driving: the same screens now read "1 resource" against a real
+  server, and the run is 86 checks where it was 63;
+- 54 screen renders across two languages; 126 failure checks; mobile 91
+  tests; api-server 866; every package type-checks.

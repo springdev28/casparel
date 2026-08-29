@@ -387,7 +387,7 @@ export function SaveToListSheet({ visible, resource, userId, onClose, onViewGoal
                         {list.name}
                       </Text>
                       <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>
-                        {list.itemCount} {t('resources')}
+                        {`${list.itemCount} ${list.itemCount === 1 ? t('resource') : t('resources')}`}
                       </Text>
                     </View>
                     {addingListId === list.id ? (

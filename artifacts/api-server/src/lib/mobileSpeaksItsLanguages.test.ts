@@ -370,6 +370,31 @@ describe("the phone app's translations", () => {
         );
       }
 
+      /*
+       * A count with a plural noun and no singular.
+       *
+       * `{list.itemCount} {t('resources')}` reads "1 resources" to every
+       * English reader with one item in a list, and there were three of
+       * them -- the list index, the list detail and the sheet that saves
+       * into one. Turkish is invariant here, so the translation looked
+       * right and the source language was the broken one, which is not
+       * where anybody looks.
+       *
+       * The shape is a count expression, a space, and a `t()` of a word
+       * ending in "s". A singular is a `=== 1 ?` on the same line, which is
+       * how the two counts already fixed in this app are written.
+       */
+      for (const match of text.matchAll(
+        /\{\s*[^{}]*?(?:count|length|total)[^{}]*?\}\s*\{\s*t\(\s*'([a-z]+s)'\s*\)\s*\}/gi,
+      )) {
+        const line = text.slice(0, match.index).split("\n").length;
+        const wholeLine = text.split("\n")[line - 1] ?? "";
+        if (/===\s*1\s*\?/.test(wholeLine)) continue;
+        unwrapped.push(
+          `${where}:${line}  ${JSON.stringify(match[1])} (a plural with no singular)`,
+        );
+      }
+
       // The two tables whose English is translated where it is rendered.
       if (CONSTANT_TABLES.includes(where)) continue;
       const comments = commentRanges(text);

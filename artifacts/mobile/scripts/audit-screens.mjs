@@ -66,6 +66,7 @@ const RESOURCE_TITLE = "Audit reading on tides";
 const CLASS_NAME = "Audit physics set";
 const GOAL_TITLE = "Audit goal: master tides";
 const GOAL_STEP = "Read the tides chapter";
+const LIST_NAME = "Audit reading list";
 /** Typed into the phone's own form, then looked for on the schedule. */
 const SESSION_TITLE = "Audit revision huddle";
 
@@ -272,7 +273,7 @@ function isInterestingFailure(url, status, signedIn) {
  * worth catching, so each expectation names something only that screen's data
  * can produce -- not its title, which the shell draws either way.
  */
-function screens(resourceId, classId, goalId) {
+function screens(resourceId, classId, goalId, listId) {
   return [
     ...TABS,
     // The detail screens are reached by tapping a row, so nothing above ever
@@ -307,6 +308,18 @@ function screens(resourceId, classId, goalId) {
     // title only appears once the path has been read out of the goal.
     goalId
       ? { name: "goal detail", route: `/goals/${goalId}`, expect: new RegExp(GOAL_STEP) }
+      : null,
+    /*
+     * Learning Lists, which are half of the workflow the specification is
+     * about -- a list is what a path gets built from -- and had never been
+     * driven against a real server. The list expectation is its own name and
+     * the detail's is the resource in it, for the same reason as the goals
+     * above: a heading is drawn by the shell whether or not the request ever
+     * answered.
+     */
+    listId ? { name: "lists", route: "/lists", expect: new RegExp(LIST_NAME) } : null,
+    listId
+      ? { name: "list detail", route: `/lists/${listId}`, expect: new RegExp(RESOURCE_TITLE) }
       : null,
     // The screen the whole Shipaton submission turns on. It renders before any
     // store connection exists, which is the state CI is always in, so what is
@@ -564,6 +577,34 @@ async function main() {
     }
 
     /*
+     * A list with the resource in it, so the list screens have a row.
+     *
+     * A list is the other half of the workflow this product is built around
+     * -- it is what a path gets built from -- and neither the index nor the
+     * detail had ever been drawn against a real server. An empty list renders
+     * the same whether the screen works or not, which is why the item matters
+     * as much as the list.
+     */
+    let listId = null;
+    const list = await fetch(`${BASE}/api/lists`, {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: LIST_NAME }),
+    });
+    check("the server accepts a learning list", list.status === 201, `${list.status}`);
+    if (list.status === 201) {
+      listId = (await list.json()).id;
+      if (resourceId) {
+        const item = await fetch(`${BASE}/api/lists/${listId}/items`, {
+          method: "POST",
+          headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ resourceId }),
+        });
+        check("and takes a resource into it", item.status === 201, `${item.status}`);
+      }
+    }
+
+    /*
      * A class, joined the way a pupil joins one: from the invitation card on
      * the classes screen.
      *
@@ -639,7 +680,7 @@ async function main() {
         }, origin?.localStorage ?? []);
       }
 
-      for (const tab of screens(resourceId, classId, goalId)) {
+      for (const tab of screens(resourceId, classId, goalId, listId)) {
         const tabPage = await context.newPage();
         tabPage.on("pageerror", (error) =>
           pageErrors.push(`${scheme} ${tab.name}: ${String(error).slice(0, 200)}`),

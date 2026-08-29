@@ -326,6 +326,7 @@ const TR: Record<string, string> = {
   "Resource not found": "Kaynak bulunamadı",
   "Resources": "Kaynaklar",
   "Resources will appear here once they are added": "Kaynaklar eklendikçe burada görünecek",
+  "resource": "kaynak",
   "resources": "kaynak",
   "Restore previous purchases": "Önceki satın almaları geri yükle",
   "Restore purchases": "Satın almaları geri yükle",
