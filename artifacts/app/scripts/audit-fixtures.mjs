@@ -405,7 +405,60 @@ const CANVAS = {
   visibility: "private",
   classAccess: "view",
   shareToken: null,
-  document: { nodes: [], edges: [] },
+  /*
+   * A board with something on it.
+   *
+   * This was `{ nodes: [], edges: [] }`, so every audit that has ever opened
+   * a canvas has opened an empty one: no card, no connector, no card title,
+   * no edge label -- the whole of what this page is for went unrendered. All
+   * four kinds are here because each draws differently, and one edge, because
+   * a connector is drawn by code no empty board reaches.
+   */
+  document: {
+    nodes: [
+      {
+        id: "n1",
+        type: "study",
+        position: { x: 0, y: 0 },
+        data: { kind: "heading", title: "Light reactions" },
+      },
+      {
+        id: "n2",
+        type: "study",
+        position: { x: 0, y: 160 },
+        data: {
+          kind: "note",
+          title: "Where it happens",
+          text: "In the thylakoid membrane, and the products feed the Calvin cycle.",
+        },
+      },
+      {
+        id: "n3",
+        type: "study",
+        position: { x: 320, y: 0 },
+        data: {
+          kind: "link",
+          title: "A diagram worth keeping",
+          url: "https://example.org/photosynthesis",
+        },
+      },
+      {
+        id: "n4",
+        type: "study",
+        position: { x: 320, y: 160 },
+        data: { kind: "resource", title: "Linear Algebra Done Right", resourceId: 101 },
+      },
+    ],
+    edges: [
+      {
+        id: "e1",
+        source: "n1",
+        target: "n2",
+        direction: "one-way",
+        label: "explains",
+      },
+    ],
+  },
   version: 3,
   createdAt: "2026-04-02T09:00:00.000Z",
   updatedAt: "2026-04-09T16:20:00.000Z",
@@ -715,6 +768,50 @@ export const FIXTURES = {
   "/api/users/2/safety": { blocked: false },
   "/api/canvases": [CANVAS],
   "/api/canvases/12": CANVAS,
+  /*
+   * The two share links, which are the only pages here a person opens without
+   * an account: somebody sends a link, and this is the whole of what the
+   * product looks like to them.
+   *
+   * Both are served over a token rather than an id and neither had ever been
+   * rendered. The canvas comes back with the viewer's permissions already
+   * reduced -- view only, no manage -- because that is what the server sends
+   * for a token, and the page reads those flags to decide what to draw.
+   */
+  "/api/canvases/shared/aud1t-t0ken": {
+    ...CANVAS,
+    visibility: "link",
+    shareToken: "aud1t-t0ken",
+    permissions: { canView: true, canEdit: false, canManage: false, role: "viewer" },
+  },
+  /*
+   * The same link to a board with nothing on it.
+   *
+   * Worth its own entry because the sentence a viewer reads there --
+   * "There are no cards here yet." -- is drawn by no other state in the
+   * product: it is the else of a `canEdit` branch, so an owner never sees it
+   * and a populated board never reaches it. It was still in English in every
+   * language when this fixture first rendered it.
+   */
+  "/api/canvases/shared/aud1t-empty": {
+    ...CANVAS,
+    id: 13,
+    title: "Nothing on it yet",
+    visibility: "link",
+    shareToken: "aud1t-empty",
+    document: { nodes: [], edges: [] },
+    permissions: { canView: true, canEdit: false, canManage: false, role: "viewer" },
+  },
+  "/api/study-activities/shared/aud1t-t0ken": {
+    id: STUDY_ACTIVITY.id,
+    title: STUDY_ACTIVITY.title,
+    subject: STUDY_ACTIVITY.subject,
+    mode: STUDY_ACTIVITY.mode,
+    classId: null,
+    cards: STUDY_ACTIVITY.cards,
+    createdAt: STUDY_ACTIVITY.createdAt,
+    updatedAt: STUDY_ACTIVITY.updatedAt,
+  },
   "/api/class-invitations": [],
   "/api/google-classroom/status": { connected: false, configured: false },
   "/api/lists/shared": [],

@@ -193,7 +193,7 @@ function StudyNodeCard({ id, data, selected }: NodeProps<StudyFlowNode>) {
             onChange={(event) => actions.update(id, { title: event.target.value })}
           />
         ) : (
-          <h3 className={`${isHeading ? "text-xl leading-tight" : "text-sm"} min-w-0 flex-1 break-words font-bold`}>{data.title}</h3>
+          <h3 translate="no" className={`${isHeading ? "text-xl leading-tight" : "text-sm"} min-w-0 flex-1 break-words font-bold`}>{data.title}</h3>
         )}
         {actions.editable ? (
           <DropdownMenu>
@@ -209,15 +209,15 @@ function StudyNodeCard({ id, data, selected }: NodeProps<StudyFlowNode>) {
       </header>
       <div className="p-4">
         {data.kind === "link" ? (
-          actions.editable ? <Input className="nodrag h-8 bg-white/70 text-xs" value={data.url ?? ""} placeholder="https://..." onChange={(event) => actions.update(id, { url: event.target.value })} /> : data.url ? <a className="nodrag flex items-center gap-1 break-all text-xs underline" href={data.url} target="_blank" rel="noreferrer">{data.url}<ExternalLink className="size-3 shrink-0" /></a> : null
+          actions.editable ? <Input className="nodrag h-8 bg-white/70 text-xs" value={data.url ?? ""} placeholder="https://..." aria-label="Card link" onChange={(event) => actions.update(id, { url: event.target.value })} /> : data.url ? <a translate="no" className="nodrag flex items-center gap-1 break-all text-xs underline" href={data.url} target="_blank" rel="noreferrer">{data.url}<ExternalLink className="size-3 shrink-0" /></a> : null
         ) : data.kind === "resource" ? (
           <div className="space-y-2">
-            <p className="line-clamp-3 text-xs leading-relaxed">{data.text || "Casparel library resource"}</p>
+            <p className="line-clamp-3 text-xs leading-relaxed">{data.text ? <span translate="no">{data.text}</span> : "Casparel library resource"}</p>
             {data.resourceId ? <a className="nodrag inline-flex items-center gap-1 text-xs font-semibold underline" href={`${import.meta.env.BASE_URL}resources/${data.resourceId}`}>Open resource <ExternalLink className="size-3" /></a> : null}
           </div>
         ) : actions.editable ? (
-          <Textarea className={`nodrag min-h-24 resize-none border-0 !bg-transparent px-1 py-1 text-sm !text-slate-950 shadow-none placeholder:!text-slate-500 focus-visible:ring-0 ${isHeading ? "min-h-12 font-medium" : ""}`} value={data.text ?? ""} placeholder={isHeading ? "Add context..." : "Write a note..."} maxLength={10_000} onChange={(event) => actions.update(id, { text: event.target.value })} />
-        ) : data.text ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{data.text}</p> : null}
+          <Textarea className={`nodrag min-h-24 resize-none border-0 !bg-transparent px-1 py-1 text-sm !text-slate-950 shadow-none placeholder:!text-slate-500 focus-visible:ring-0 ${isHeading ? "min-h-12 font-medium" : ""}`} value={data.text ?? ""} placeholder={isHeading ? "Add context..." : "Write a note..."} aria-label={isHeading ? "Card context" : "Card note"} maxLength={10_000} onChange={(event) => actions.update(id, { text: event.target.value })} />
+        ) : data.text ? <p translate="no" className="whitespace-pre-wrap break-words text-sm leading-relaxed">{data.text}</p> : null}
       </div>
     </article>
   );
@@ -346,12 +346,26 @@ function routeEdge(edge: StudyFlowEdge, nodes: StudyFlowNode[]): StudyFlowEdge {
 }
 
 function flowEdges(document: CanvasDocument): StudyFlowEdge[] {
+  const titleOf = new Map(document.nodes.map((node) => [node.id, node.data.title]));
   return document.edges.map((edge) => {
     const direction = edge.direction ?? "one-way";
     return {
       ...edge,
       type: "study",
       data: { direction },
+      /*
+       * What a screen reader says about a connector.
+       *
+       * React Flow's default is "Edge from n1 to n2" -- two internal ids, in
+       * English whatever language the reader chose, and the only thing said
+       * about the line at all. A connector means "this card leads to that
+       * one", so the cards' own titles are what belongs here. The shape is a
+       * SHAPE_RULE in ui-translations, because the titles in the middle are
+       * somebody's own words and no dictionary key could ever match.
+       */
+      ariaLabel: `Connection from "${titleOf.get(edge.source) ?? edge.source}" to "${
+        titleOf.get(edge.target) ?? edge.target
+      }"`,
       ...edgeMarkers(direction),
     };
   });

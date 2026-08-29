@@ -76,6 +76,40 @@ const reachable = [
 const fits = routesIn(read("audit-text-fits.mjs"), "PAGES");
 
 /**
+ * Every address any browser audit opens, whatever list it keeps it in.
+ *
+ * The comparisons above are between audits. This one is against the router:
+ * a route no audit opens is a page nothing has ever rendered, and the checks
+ * that follow each other around cannot see it because they all agree.
+ */
+const OPENED = [
+  ...routesIn(read("audit-pages.mjs"), "PAGES"),
+  ...renders,
+  ...routesIn(read("audit-translation.mjs"), "PAGES"),
+  ...translations,
+  ...userContent,
+  ...reachable,
+  ...fits,
+  ...routesIn(read("audit-offline.mjs"), "PAGES"),
+];
+
+/**
+ * Routes the browser audits do not open, and why.
+ *
+ * Two share links sat outside this list for as long as it has existed --
+ * `/canvas/shared/:token` and `/activities/shared/:token`, the only pages in
+ * the product a person reaches without an account and without choosing to.
+ * Somebody sends a link and that page is the whole of what Casparel is to
+ * them. Opening them found a sentence English in every language, four form
+ * fields a screen reader could not name, and every card on a shared board
+ * exposed to the translation bridge.
+ *
+ * Short by design, and each entry has to say why the page is not worth
+ * rendering rather than why nobody has got to it.
+ */
+const NOT_OPENED = new Map<string, string>([]);
+
+/**
  * Routes an audit leaves out on purpose, and why.
  *
  * `/catalog`, `/settings` and `/plans` are in the translation audit and not in
@@ -175,6 +209,24 @@ describe("the browser audits", () => {
       "these are not routes in App.tsx, so the catch-all redirects them to " +
         "/resources: the audit renders the resources page again, passes, and " +
         "reports it as coverage of a page nobody has ever audited",
+    ).toEqual([]);
+  });
+
+  it("open every page the router serves", () => {
+    const unopened = ROUTES.filter((declared) => {
+      if (NOT_OPENED.has(declared)) return false;
+      const parts = declared.split("/");
+      return !OPENED.some((opened) => {
+        const asked = opened.split("?")[0].split("/");
+        if (asked.length !== parts.length) return false;
+        return parts.every((part, index) => part.startsWith(":") || part === asked[index]);
+      });
+    });
+
+    expect(
+      unopened,
+      "no browser audit has ever opened these routes; add one to a page list, " +
+        "or name it in NOT_OPENED here with a reason",
     ).toEqual([]);
   });
 

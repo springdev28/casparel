@@ -40,7 +40,7 @@ const BUDGET = Number(process.env.AUDIT_TRANSLATION_MAX ?? 0);
 
 const PAGES = (
   process.env.AUDIT_PAGES ??
-  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy"
+  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy,/canvas/shared/aud1t-t0ken,/canvas/shared/aud1t-empty,/activities/shared/aud1t-t0ken"
 )
   .split(",")
   .filter(Boolean);
@@ -138,6 +138,10 @@ const COLLECT = `(() => {
     'React Flow','React Flow attribution',
     'Free','Plus','Pro','Student Plus','Student Pro','Teacher Plus','Teacher Pro','Institutional',
     'English','Español','Français','Deutsch','Português','Türkçe','Email','e-mail',
+    // The placeholder in a canvas link card. It is the shape of a URL, not a
+    // sentence: every language types https:// the same way, and a translated
+    // one would be wrong rather than merely odd.
+    'https://...',
   ]);
   const seen = new Set();
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {

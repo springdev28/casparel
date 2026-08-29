@@ -177,6 +177,19 @@ const SHAPE_RULES: Array<{
   render: Partial<Record<AuthLanguage, (...parts: string[]) => string>>;
 }> = [
   {
+    /*
+     * What a screen reader says about a line between two canvas cards.
+     *
+     * The titles are the reader's own words, so this can never be a
+     * dictionary key -- and React Flow's default was worse than English:
+     * "Edge from n1 to n2", two internal ids and nothing a person means.
+     */
+    match: /^Connection from "(.*?)" to "(.+)"$/,
+    render: {
+      tr: (a, b) => `"${a}" kartından "${b}" kartına bağlantı`,
+    },
+  },
+  {
     match: /^(\d[\d.,]*)% mastery evidence$/,
     render: {
       tr: (n) => `%${n} ustalık kanıtı`,

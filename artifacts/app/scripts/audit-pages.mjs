@@ -40,9 +40,13 @@ const PORT = Number(process.env.AUDIT_PORT ?? 4321);
 // /terms and /privacy are in the default set because the app stores require
 // them to resolve for a signed-out reviewer, so a regression there is a
 // submission blocker rather than a cosmetic issue.
+// The two share links are here because they are the only pages in the product
+// a person reaches without an account and without having chosen to: somebody
+// sends a link, and this page is the whole of what Casparel looks like to
+// them. Neither had been rendered by any audit.
 const PAGES = (
   process.env.AUDIT_PAGES ??
-  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy"
+  "/,/resources,/support,/download,/code-signing,/plans,/auth/login,/auth/register,/terms,/privacy,/canvas/shared/aud1t-t0ken,/canvas/shared/aud1t-empty,/activities/shared/aud1t-t0ken"
 ).split(",");
 // Signed-in pages, rendered against fixtures rather than a live API. These are
 // where the regressions that reached production actually were, so they matter

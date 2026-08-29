@@ -1461,3 +1461,54 @@ Verification recorded for this increment:
   and four ways of not answering pass;
 - 44 screen renders across two languages, up from 36;
 - mobile 91 tests, api-server 846, every package type-checks.
+
+## Fix — the two pages a person reaches without an account
+
+`auditsCoverTheSamePages.test.ts` held the browser audits against each other
+and against the router, in one direction: an audit may not name a page the
+router does not serve. The other direction was never asked. Two routes had
+therefore never been opened by anything:
+
+    /canvas/shared/:token
+    /activities/shared/:token
+
+These are the share links. Somebody sends one, and the page that opens is the
+whole of what Casparel is to the person who clicked — often signed out, often
+on a phone, often before they have an account. Nothing had ever rendered
+either one.
+
+Opening them, and giving the canvas fixture a board with cards on it (it was
+`{ nodes: [], edges: [] }`, so every canvas ever audited was an empty one),
+found four things:
+
+- **"There are no cards here yet." was English in every language.** It is the
+  `else` of a `canEdit` branch, so an owner never sees it and a populated
+  board never reaches it. Only a viewer of an empty shared board does, and no
+  run had ever been one.
+- **Four form fields on a canvas card had no accessible name** — the note and
+  heading textareas and the link input. A screen-reader user editing a card
+  heard "edit text, blank". The title input had `aria-label` already; these
+  had only placeholders, which disappear when you type.
+- **Every card on a shared board was exposed to the translation bridge.** The
+  read-only `<h3>`, `<p>` and link were unmarked, so a card titled "Answer" or
+  "Match" would be rewritten into Turkish — the bug this bridge's user-content
+  audit exists to prevent, on a page that audit had never opened. Proved by
+  reverting: six markers unprotected on the shared board, none once marked.
+- **A connector announced itself as "Edge from n1 to n2"** — React Flow's
+  default: two internal ids, in English, and the only thing a screen reader
+  can say about a line. It now names the two cards it joins, through a
+  SHAPE_RULE, because the titles in the middle are somebody's own words and no
+  dictionary key could ever match them.
+
+The guard is the missing direction: every route `App.tsx` declares is opened
+by some browser audit, or named in `NOT_OPENED` with a reason. Proved by
+reverting — with the share links removed from the page lists, it names both.
+
+Verification recorded for this increment:
+
+- 189 page renders clean, up from 186;
+- every visible string translated across 146 page comparisons, up from 144;
+- 190 user-content renders across 27 pages, all protected, up from 175 across
+  25 — and the six that were not, before the fix, named by file and element;
+- 95 offline checks, the loading audit, api-server 847 tests, both packages
+  type-check.
