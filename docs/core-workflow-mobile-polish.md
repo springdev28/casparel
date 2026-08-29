@@ -1340,3 +1340,23 @@ Verification recorded for this increment:
 - driven directly: a genuine 404 still says "not found" on both pages, and a 500 says it could not load;
 - and a fourth condition since: everything working except the one read a page is about, which is the ordinary failure rather than the tidy one. A page that returns early when *nothing* loaded will carry on rendering when only one thing did not, and that is the state the render error above appeared in. Eleven pages, nine of them with a primary read worth naming;
 - 180 page renders clean, 122 pages reachable, every visible string still translated, sessions correct, 24 live UI checks, 102 end-to-end checks and 55 readable endpoints against freshly started servers.
+
+## Fix — an endpoint the harness cannot answer is one no audit can check
+
+The page audit answered an unmapped endpoint with `200 []` and printed a note
+saying so. A note is what nothing acts on, which is the shape of every other
+gap found tonight.
+
+The empty array is a deliberate choice — most unmapped endpoints are
+collections and most components tolerate an empty one — and its cost is that
+the panel reading it renders a shape the contract never produces. One of them
+put a page into its error boundary for a whole audit run, and the run reported
+"clean" underneath a line nobody had read.
+
+It fails now. The fix is one line in `audit-fixtures.mjs`, and writing it is
+what makes that page's panel checkable at all. Measured by removing the drift
+fixture: the run reports the missing endpoint by name and exits non-zero,
+where before it said all 180 renders were clean.
+
+Nothing in the current fixture set is unmapped, so this costs nothing today
+and refuses to let the next endpoint arrive unchecked.

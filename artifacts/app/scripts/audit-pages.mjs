@@ -637,10 +637,25 @@ for (const {
   }
 }
 
+/*
+ * An endpoint the harness cannot answer is an endpoint no audit can check.
+ *
+ * This was a note, and a note is what nothing acts on. An unmapped endpoint is
+ * answered `200 []`, which is a deliberate choice -- most of them are
+ * collections and most components tolerate an empty one -- and it means the
+ * panel that reads it renders a shape the contract never produces. One of them
+ * put a page into its error boundary for a whole audit run, and the run said
+ * "clean" underneath a line nobody had read.
+ *
+ * So it fails now. The fix is one line in audit-fixtures.mjs, and writing it
+ * is what makes the page's panel checkable at all.
+ */
 if (unfixtured.size) {
+  failed += 1;
   console.log(
-    `\nnote: no fixture for ${[...unfixtured].sort().join(", ")}` +
-      ". Answered empty; add it to scripts/audit-fixtures.mjs.",
+    `\nFAIL no fixture for ${[...unfixtured].sort().join(", ")}` +
+      ". Answered empty, so whatever reads it was not checked. Add it to " +
+      "scripts/audit-fixtures.mjs.",
   );
 }
 
