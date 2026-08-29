@@ -932,3 +932,55 @@ people to work around it, so the check now reads the package scripts the
 workflows invoke as well as the workflows themselves. Getting that wrong
 would have been "fixed" by adding a second, redundant way to run a script
 that was already running.
+
+## Fix — the phone had no way out of an expired session
+
+Nothing on the phone acted on a 401. An expired or revoked token left somebody
+inside the app with every screen showing "You don't have access to this. Your
+session may have expired. Sign in again, then retry." above a **Retry** that
+could never succeed — and no way to reach the sign-in screen, because the
+guard asks whether a token is present and never whether it still works. The
+message tells the reader to sign in again and the app gives them nowhere to do
+it. In every language. The way out was to delete the app.
+
+The web had exactly this and fixed it; `audit-session.mjs` exists because of
+it. The phone was never given the same treatment, and nothing rendered a 401
+here, so nothing said so.
+
+The rule for what counts as an ended session now lives in
+`@workspace/api-client-react`, which both clients already depend on, and the
+web moved onto it. It is worth sharing because the two conditions that keep it
+from firing wrongly are easy to get right once and hard to remember twice: a
+401 only means "your session ended" if a session was actually sent, and the
+credential endpoints answer 401 for a wrong password, which has to go on
+saying "email or password is incorrect" rather than bouncing somebody out on
+their first typo. Account reset and deletion answer 401 for a wrong *current*
+password for the same reason.
+
+Acting on it needed a seam. The query client is created at module scope, above
+every provider, so its error handler cannot call a hook or reach the auth
+context — and moving the client inside the tree would recreate it on any
+re-render above it, throwing away every cached response. So one handler is
+registered by the provider that owns the session and called by the client that
+finds out first, with the token's presence mirrored where a synchronous
+handler can read it: SecureStore is asynchronous and an error handler cannot
+wait for it.
+
+It signs out once. Every screen has several queries in flight, so an expired
+token arrives as a burst of 401s within a few milliseconds, and without a
+guard each one would clear storage, empty the cache and navigate — several
+times over, from handlers racing each other.
+
+`audit-failures.mjs` gained a third way of not answering. It asks something
+different of this one: not that the screen says the right words, but that the
+app leaves. All eleven screens now land on sign-in; with the ejection removed,
+all eleven stay where they were, showing the sentence that has no way to act
+on it.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 904 API assertions across 103 test files against a real PostgreSQL instance;
+- 88 mobile tests, including the rule's four must-not-eject cases and the burst of failures signing out once;
+- 77 failure-state checks across eleven screens and three ways of not answering, which fail when the ejection is removed;
+- the web's own session audit still passes on the shared rule, and 24 live UI checks against a real server.

@@ -5,6 +5,10 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/utils/secure-storage";
+import {
+  onSessionExpired,
+  setSessionTokenPresent,
+} from "@/utils/session-expiry";
 import type { User } from "@workspace/api-client-react";
 
 const TOKEN_KEY = "schoolar_token";
@@ -58,6 +62,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     loadStored();
   }, []);
+
+  /*
+   * The query client sits above this provider and finds out first when the
+   * server rejects the session. It cannot call `logout` itself -- it is
+   * created at module scope, outside every provider -- so the handler is
+   * registered here, and the token's presence is mirrored where a synchronous
+   * error handler can read it. SecureStore is asynchronous; an error handler
+   * cannot wait for it.
+   */
+  useEffect(() => {
+    setSessionTokenPresent(Boolean(token));
+  }, [token]);
+
+  useEffect(() => {
+    onSessionExpired(async () => {
+      await logout();
+    });
+    return () => onSessionExpired(null);
+  });
 
   const login = async (newToken: string, newUser: User) => {
     await storage.setItemAsync(TOKEN_KEY, newToken);

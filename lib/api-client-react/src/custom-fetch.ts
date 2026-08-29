@@ -175,6 +175,41 @@ function buildErrorMessage(response: Response, data: unknown): string {
   return prefix;
 }
 
+/**
+ * Whether a failure means the session has ended.
+ *
+ * Nothing acted on a 401 for a long time, and the result is the same on every
+ * client: an expired or revoked token leaves somebody inside the signed-in app
+ * with every panel failing, being told to sign in again, and no route to the
+ * sign-in screen. The token still looks valid to a guard that only checks
+ * whether one is present.
+ *
+ * The rule lives here because both clients need it and the two conditions that
+ * keep it from firing wrongly are easy to get right once and hard to remember
+ * twice:
+ *
+ *  - a 401 only means "your session ended" if a session was actually sent, so
+ *    requests made while signed out are not expiry;
+ *  - the credential endpoints answer 401 for a wrong password, which has to go
+ *    on saying "email or password is incorrect" rather than bouncing somebody
+ *    to a spurious "session expired" on their first typo. Account reset and
+ *    deletion answer 401 for a wrong *current* password for the same reason:
+ *    that is failed reauthentication, not an ended session.
+ *
+ * `hasSession` is passed in rather than read here, because where the token is
+ * kept differs -- localStorage in a browser, SecureStore on a phone, and the
+ * second is asynchronous.
+ */
+export function isSessionExpiry(error: unknown, hasSession: boolean): boolean {
+  if (!hasSession) return false;
+  const status = (error as { status?: unknown } | null)?.status;
+  if (status !== 401) return false;
+  const body = (error as { data?: { error?: unknown } } | null)?.data;
+  if (body?.error === "Current password is incorrect") return false;
+  const url = String((error as { url?: unknown } | null)?.url ?? "");
+  return !/\/auth\/(login|register)$/.test(url);
+}
+
 export class ApiError<T = unknown> extends Error {
   readonly name = "ApiError";
   readonly status: number;

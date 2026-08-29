@@ -28,6 +28,13 @@
  *   broken    the server answers 500. There is a status, so the app says
  *             something went wrong at its end rather than blaming the
  *             connection.
+ *   expired   the server answers 401. This one is not an error state at all:
+ *             a session the server has rejected is over, and the only honest
+ *             screen is the sign-in screen. It used to be an error state --
+ *             every screen said "your session may have expired, sign in
+ *             again" above a Retry that could never succeed, and offered no
+ *             way to sign in. So this case asks for a different thing: that
+ *             the app leaves.
  *
  * Usage, after building a web export as audit-languages.mjs describes:
  *
@@ -185,8 +192,13 @@ async function main() {
 
   const browser = await chromium.launch(launchOptions());
 
-  for (const how of ["offline", "broken"]) {
-    console.log(`\n${how === "offline" ? "Nothing reaches a server" : "The server answers 500"}, in ${LANGUAGE}:\n`);
+  for (const how of ["offline", "broken", "expired"]) {
+    const situation = {
+      offline: "Nothing reaches a server",
+      broken: "The server answers 500",
+      expired: "The server rejects the session",
+    }[how];
+    console.log(`\n${situation}, in ${LANGUAGE}:\n`);
     for (const screen of SCREENS) {
       const context = await browser.newContext({ viewport: { width: 393, height: 852 } });
       await context.addInitScript(
@@ -201,9 +213,11 @@ async function main() {
         how === "offline"
           ? route.abort("connectionrefused")
           : route.fulfill({
-              status: 500,
+              status: how === "expired" ? 401 : 500,
               contentType: "application/json",
-              body: JSON.stringify({ error: "Something went wrong" }),
+              body: JSON.stringify({
+                error: how === "expired" ? "Unauthorized" : "Something went wrong",
+              }),
             }),
       );
 
@@ -222,6 +236,26 @@ async function main() {
         const text = (await page.evaluate(() => document.body.innerText)).trim();
 
         const where = `${screen.label} [${how}]`;
+
+        /*
+         * A rejected session is not something to report on the screen
+         * somebody happened to be on. It is over, so the app has to leave.
+         * Asserted on the address rather than on words, because what matters
+         * is that there is a way back in and not that a sentence was shown.
+         */
+        if (how === "expired") {
+          const landed = new URL(page.url()).pathname;
+          check(
+            `${where} returns to sign-in`,
+            landed.includes("login") || landed.includes("register"),
+            `stayed on ${landed}: ${text.replace(/\s+/g, " ").slice(0, 140)}`,
+          );
+          for (const crash of crashes) {
+            check(`${where} threw nothing`, false, crash.slice(0, 160));
+          }
+          continue;
+        }
+
         const shown = emptyStates.filter((title) => text.includes(title));
         check(
           `${where} does not claim the reader has nothing`,
@@ -261,9 +295,9 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `${checks} checks across ${SCREENS.length} screens and two ways of not ` +
-      `answering: every screen says it could not load, and none of them ` +
-      `claims the reader has nothing.`,
+    `${checks} checks across ${SCREENS.length} screens and three ways of not ` +
+      `answering: every screen says it could not load, none of them claims ` +
+      `the reader has nothing, and a rejected session returns to sign-in.`,
   );
 }
 

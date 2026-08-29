@@ -24,6 +24,7 @@ import {
   getGetMeQueryKey,
   getMe,
   getMyAccess,
+  isSessionExpiry,
   setAuthTokenGetter,
   useGetMe,
   UserRole,
@@ -81,35 +82,18 @@ const PlansPage = lazy(() => import("./pages/PlansPage"));
 const TOKEN_KEY = "schoolar_token";
 const LANGUAGE_EVENT = "schoolar-language-change";
 
-/**
- * Sign the user out when the server says the session is gone.
+/*
+ * Signing out when the server says the session is gone.
  *
- * Nothing acted on a 401 before, so an expired or revoked token left the user
- * inside the signed-in app with every panel failing and no route back to
- * login. The token sat in localStorage looking valid to the route guards.
- *
- * Two conditions keep this from firing on a normal failed sign-in. A 401 only
- * means "your session ended" if a session was actually sent, so requests made
- * while signed out are ignored; and the credential endpoints answer 401 for a
- * wrong password, which must keep showing "Email or password is incorrect"
- * rather than bouncing to a spurious "session expired".
+ * The rule for what counts as expiry moved into @workspace/api-client-react,
+ * because the phone needs the same answer and the two conditions that keep it
+ * from firing on an ordinary wrong password are easy to get right once and
+ * hard to remember twice. The phone had no rule at all: an expired token left
+ * every screen saying "sign in again" above a Retry that could never work,
+ * with no way to reach the sign-in screen.
  */
-function isSessionExpiry(error: unknown): boolean {
-  const status = (error as { status?: unknown } | null)?.status;
-  if (status !== 401) return false;
-  if (!readSessionToken()) return false;
-  // Reset and deletion deliberately return 401 for a wrong current password.
-  // That is failed reauthentication, not an expired bearer token; treating it
-  // as expiry would sign somebody out on their first typo and hide the inline
-  // "password is incorrect" correction the safety dialog provides.
-  const body = (error as { data?: { error?: unknown } } | null)?.data;
-  if (body?.error === "Current password is incorrect") return false;
-  const url = String((error as { url?: unknown } | null)?.url ?? "");
-  return !/\/auth\/(login|register)$/.test(url);
-}
-
 function handleQueryError(error: unknown): void {
-  if (!isSessionExpiry(error)) return;
+  if (!isSessionExpiry(error, Boolean(readSessionToken()))) return;
   clearSession();
   // Drop every cached response so the next signed-in visit cannot read data
   // belonging to the session that just ended.

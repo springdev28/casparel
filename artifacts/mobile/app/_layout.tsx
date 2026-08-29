@@ -3,7 +3,12 @@
  * System connection: composed by Expo Router and backed by auth, onboarding, purchases, secure storage, and the shared API.
  */
 import React, { useEffect } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -12,7 +17,12 @@ import { Redirect, Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { storage } from "@/utils/secure-storage";
 import { apiOrigin } from "@/utils/api-host";
-import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
+import {
+  isSessionExpiry,
+  setBaseUrl,
+  setAuthTokenGetter,
+} from "@workspace/api-client-react";
+import { reportSessionExpiry, sessionTokenIsPresent } from "@/utils/session-expiry";
 import { useDesignSystemFonts } from "@workspace/edu-ds/hooks/use-fonts";
 import { useColors } from "@workspace/edu-ds/hooks/use-colors";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -27,7 +37,29 @@ setAuthTokenGetter(() => storage.getItemAsync("schoolar_token"));
 
 SplashScreen.preventAutoHideAsync();
 
+/**
+ * Sign out when the server says the session is gone.
+ *
+ * Nothing acted on a 401 here, so an expired or revoked token left somebody
+ * inside the app with every screen showing "your session may have expired,
+ * sign in again" above a Retry that could never succeed -- and no way to
+ * reach the sign-in screen, because the guard only asks whether a token is
+ * present, not whether it still works. Rendered in every language, in an app
+ * where the only way out was to delete it.
+ *
+ * The rule for what counts as expiry is shared with the web, in
+ * @workspace/api-client-react, because the two conditions that keep it from
+ * firing on an ordinary wrong password are easy to get right once and hard to
+ * remember twice.
+ */
+function handleQueryError(error: unknown): void {
+  if (!isSessionExpiry(error, sessionTokenIsPresent())) return;
+  void reportSessionExpiry();
+}
+
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({ onError: handleQueryError }),
+  mutationCache: new MutationCache({ onError: handleQueryError }),
   defaultOptions: {
     queries: {
       retry: 1,
