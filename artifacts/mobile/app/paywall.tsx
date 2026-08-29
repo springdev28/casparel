@@ -33,6 +33,8 @@ import {
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useMotion } from '@/contexts/MotionContext';
+import { entranceTiming } from '@/utils/motion';
 
 /**
  * Plan explainers per account role. Student and teacher plans never mix, so a
@@ -172,6 +174,16 @@ export default function PaywallScreen() {
   const upgradePackages = isPlus
     ? rolePackages.filter((pkg) => tierLevel(tierForPackage(pkg)) === 'pro')
     : rolePackages;
+
+  const { reduceMotion } = useMotion();
+  /*
+   * The four blocks arrive in reading order: what this is, what it costs,
+   * what you get, and how to restore a purchase you already made. Under
+   * Reduce Motion every one is {duration: 0, delay: 0}, so the screen is
+   * simply there -- the stagger goes with the fade, because a sequence of
+   * instant appearances is still movement across a screen.
+   */
+  const entrance = (index: number) => entranceTiming(reduceMotion, index);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -319,7 +331,7 @@ export default function PaywallScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
-        <Animated.View entering={FadeInDown.duration(450)}>
+        <Animated.View entering={FadeInDown.delay(entrance(0).delay).duration(entrance(0).duration)}>
           <LinearGradient
             colors={[colors.primary, colors.accent]}
             start={{ x: 0, y: 0 }}
@@ -364,7 +376,7 @@ export default function PaywallScreen() {
 
         {/* Benefits */}
         <Animated.View
-          entering={FadeInDown.delay(120).duration(450)}
+          entering={FadeInDown.delay(entrance(1).delay).duration(entrance(1).duration)}
           style={[
             styles.card,
             {
@@ -428,7 +440,10 @@ export default function PaywallScreen() {
         ) : (
           <>
             {/* Package options */}
-            <Animated.View entering={FadeInDown.delay(200).duration(450)} style={{ gap: 10, marginTop: 18 }}>
+            <Animated.View
+              entering={FadeInDown.delay(entrance(2).delay).duration(entrance(2).duration)}
+              style={{ gap: 10, marginTop: 18 }}
+            >
               {upgradePackages.map((pkg) => (
                 <PackageOption
                   key={pkg.identifier}
@@ -441,7 +456,7 @@ export default function PaywallScreen() {
             </Animated.View>
 
             {/* CTA */}
-            <Animated.View entering={FadeInDown.delay(280).duration(450)}>
+            <Animated.View entering={FadeInDown.delay(entrance(3).delay).duration(entrance(3).duration)}>
               <View style={{ marginTop: 18 }}>
                 <Button size="lg" onPress={handlePurchase} loading={busy} disabled={!selected}>
                   {t('Continue')}

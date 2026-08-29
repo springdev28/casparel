@@ -1108,3 +1108,43 @@ renders on no page passes every check by never being reached. The fixture now
 points at the list the same fixture set already has, so the link is drawn,
 followed to `/lists/44`, and read in both languages by the runs that were
 already there.
+
+## Current implementation ledger — 2026-08-29 (Phase 5, motion that can be turned off)
+
+Phase 5 asks for reduced motion among other things, and the machinery for it
+was already here and already tested: `MotionContext` reads the system setting,
+`durationForMotion` turns it into a duration of zero, and
+`MOTION_DURATION` holds the four canonical lengths the specification names.
+
+Neither was used where this app actually animates. Onboarding and the paywall
+held seven staggered fade-ins between them, every one written as
+`.duration(450)` or `.duration(500)` with a hand-written delay, and not one of
+them asked what the reader had turned on. The tokens were right, the helper
+was right, the context was wired into the tree, and the two screens that
+animate went their own way — including using durations that are not in the
+token set at all.
+
+Reduce Motion is not a preference about decoration. For some people motion
+causes nausea or migraine, and an app that ignores the setting is one they
+close.
+
+Implemented in this increment:
+
+- `entranceTiming(reduceMotion, index, token)`, which gives an entrance its duration and its place in the sequence, and returns zero for both when Reduce Motion is on;
+- the stagger removed as well as the fade, because a sequence of instant appearances arriving ninety milliseconds apart is still movement across a screen — it is the thing being asked about, drawn without the fade;
+- all seven animations on both screens routed through it, so they now use the canonical 400ms rather than an invented 450 or 500;
+- `motionRespectsTheSetting.test.ts`, which fails on any literal duration or delay written into an animation in a screen or component. A value from the context reads `.duration(timing.duration)` and does not match; the number is the problem, not the call. `.delay(0)` is allowed, because zero is exactly what Reduce Motion asks for and writing it plainly is clearer than routing it through a helper.
+
+What this increment does not claim: how any of it feels. There is no device
+here, and a fade cannot be measured by rendering a screen and reading its
+text. What is measured is that the timings come from the setting, that the
+screens still render in both languages, and that the guard fails when a fixed
+duration is put back.
+
+Verification recorded for this increment:
+
+- every package type-checks;
+- 907 API assertions across 104 test files against a real PostgreSQL instance;
+- 91 mobile tests, including both halves of the entrance rule going to zero;
+- the guard fails when one animation is returned to a fixed 500ms;
+- 36 screen renders across two languages, and 99 failure-state checks, both unchanged.

@@ -13,6 +13,8 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useMotion } from '@/contexts/MotionContext';
+import { entranceTiming } from '@/utils/motion';
 
 const VALUE_PROPS: { icon: string; title: string; body: string }[] = [
   {
@@ -32,13 +34,18 @@ const VALUE_PROPS: { icon: string; title: string; body: string }[] = [
   },
 ];
 
-function ValueRow({ icon, title, body, delay }: { icon: string; title: string; body: string; delay: number }) {
+function ValueRow({ icon, title, body, index }: { icon: string; title: string; body: string; index: number }) {
   // VALUE_PROPS is a module constant, so it holds the English and this
   // translates it -- a hook cannot be called where the constant is written.
   const { t } = useLanguage();
   const colors = useColors();
+  const { reduceMotion } = useMotion();
+  const timing = entranceTiming(reduceMotion, index);
   return (
-    <Animated.View entering={FadeInDown.delay(delay).duration(450)} style={styles.row}>
+    <Animated.View
+      entering={FadeInDown.delay(timing.delay).duration(timing.duration)}
+      style={styles.row}
+    >
       <View style={[styles.rowIcon, { backgroundColor: colors.primary + '18', borderRadius: colors.radius }]}>
         <Feather name={icon as never} size={20} color={colors.primary} />
       </View>
@@ -57,6 +64,7 @@ function ValueRow({ icon, title, body, delay }: { icon: string; title: string; b
 export default function OnboardingScreen() {
   const { t } = useLanguage();
   const colors = useColors();
+  const { reduceMotion } = useMotion();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { complete } = useOnboarding();
@@ -66,11 +74,19 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)');
   }
 
+  /*
+   * The hero first, then the four value rows, then the button: an order a
+   * reader's eye can follow. Under Reduce Motion every one of these is
+   * {duration: 0, delay: 0}, so the screen is simply there.
+   */
+  const hero = entranceTiming(reduceMotion, 0);
+  const cta = entranceTiming(reduceMotion, VALUE_PROPS.length + 1);
+
   return (
     <View style={[styles.flex, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom + 20 }]}>
       <View style={styles.content}>
         {/* Hero */}
-        <Animated.View entering={FadeInDown.duration(500)}>
+        <Animated.View entering={FadeInDown.duration(hero.duration)}>
           <LinearGradient
             colors={[colors.primary, colors.accent]}
             start={{ x: 0, y: 0 }}
@@ -92,13 +108,16 @@ export default function OnboardingScreen() {
         {/* Value props */}
         <View style={styles.rows}>
           {VALUE_PROPS.map((p, i) => (
-            <ValueRow key={p.title} {...p} delay={140 + i * 90} />
+            <ValueRow key={p.title} {...p} index={i + 1} />
           ))}
         </View>
       </View>
 
       {/* CTA */}
-      <Animated.View entering={FadeInDown.delay(420).duration(450)} style={styles.cta}>
+      <Animated.View
+        entering={FadeInDown.delay(cta.delay).duration(cta.duration)}
+        style={styles.cta}
+      >
         <Button size="lg" onPress={getStarted}>
           {t('Get started')}
         </Button>
