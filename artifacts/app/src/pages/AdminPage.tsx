@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { useIntlLocale } from "@/lib/date-locale";
 import { LoadFailure } from "@/components/LoadFailure";
+import { counted } from "@/lib/counted";
 
 type AdminUser = {
   id: number;
@@ -772,8 +773,8 @@ export default function AdminPage() {
                                     {item.status || item.moderationStatus ? <Badge variant="outline" className="capitalize">{item.status || item.moderationStatus}</Badge> : null}
                                     {item.format || item.kind ? <Badge variant="outline" className="capitalize">{item.format || item.kind}</Badge> : null}
                                     {item.classId ? <span>Class #{item.classId}</span> : null}
-                                    {item.cards ? <span>{item.cards.length} cards</span> : null}
-                                    {item.nodes ? <span>{item.nodes.length} nodes · {item.connectionCount ?? 0} connections</span> : null}
+                                    {item.cards ? <span>{counted(item.cards.length, "card", "cards")}</span> : null}
+                                    {item.nodes ? <span>{counted(item.nodes.length, "node", "nodes")} · {counted(item.connectionCount ?? 0, "connection", "connections")}</span> : null}
                                   </div>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-1">{date ? <span className="text-xs text-muted-foreground">{date}</span> : null}<Button size="icon" variant="ghost" title="Edit user work" onClick={() => void editWorkItem(key, item)}><Pencil className="size-4" /></Button><Button size="icon" variant="ghost" title="Delete user work" onClick={() => void deleteWorkItem(key, item)}><Trash2 className="size-4 text-destructive-text" /></Button></div>

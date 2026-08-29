@@ -50,6 +50,7 @@ import {
   useUserPreferences,
 } from "../lib/user-preferences";
 import { formatName } from "@/lib/resource-format";
+import { counted } from "@/lib/counted";
 
 const path = [
   {
@@ -804,7 +805,7 @@ function TeacherView({ name }: { name?: string }) {
         (signal) =>
           [
             signal.stalledCount ? CircleAlert : TrendingUp,
-            `${signal.learnerCount} learners · ${signal.concept}`,
+            `${counted(signal.learnerCount, "learner", "learners")} · ${signal.concept}`,
             signal.commonMisconception ??
               `Average understanding: ${signal.averageUnderstanding} of 4`,
           ] as const,

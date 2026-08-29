@@ -192,7 +192,7 @@ export default function ListDetailPage() {
         title: goal.alreadyBuilt ? 'This list already has a path' : 'Learning path built',
         description: goal.alreadyBuilt
           ? 'Opening the one you built before.'
-          : `${goal.pathSteps.length} steps, in the order of your list.`,
+          : `${counted(goal.pathSteps.length, "step", "steps")}, in the order of your list.`,
       });
       setLocation('/goals');
     } catch (error) {

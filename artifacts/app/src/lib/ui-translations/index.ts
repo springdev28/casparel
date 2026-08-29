@@ -174,6 +174,42 @@ const COUNTED: Record<string, Partial<Record<AuthLanguage, CountRule>>> = {
   min: {
     tr: (n) => `${n} dk`,
   },
+  /*
+   * The singulars, and three nouns that had none at all.
+   *
+   * `{n} items`, `{n} cards`, `{n} nodes · {n} connections` and
+   * `{n} learners` were written straight into JSX, so each of them read
+   * "1 items" to an English reader with one -- and the count that made it
+   * visible on the phone made it visible here: Turkish is invariant, so the
+   * translation looked right and English was the broken half.
+   */
+  item: {
+    tr: (n) => `${n} öğe`,
+  },
+  card: {
+    tr: (n) => `${n} kart`,
+  },
+  node: {
+    tr: (n) => `${n} düğüm`,
+  },
+  nodes: {
+    tr: (n) => `${n} düğüm`,
+  },
+  connection: {
+    tr: (n) => `${n} bağlantı`,
+  },
+  connections: {
+    tr: (n) => `${n} bağlantı`,
+  },
+  learner: {
+    tr: (n) => `${n} öğrenci`,
+  },
+  learners: {
+    tr: (n) => `${n} öğrenci`,
+  },
+  time: {
+    tr: (n) => `${n} kez`,
+  },
 };
 
 /**

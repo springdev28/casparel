@@ -117,6 +117,7 @@ import type { StudySessionWithParticipants } from "@workspace/api-client-react";
 import { Link, useSearch as useRouteSearch } from "wouter";
 import { LoadFailure } from "@/components/LoadFailure";
 import { formatName } from "@/lib/resource-format";
+import { counted } from "@/lib/counted";
 
 /**
  * One clock for this page.
@@ -292,7 +293,7 @@ function ListPicker({
               <span className="truncate flex-1">{l.name}</span>
               {l.itemCount != null && (
                 <Badge variant="outline" className="text-[10px] shrink-0">
-                  {l.itemCount} items
+                  {counted(l.itemCount, "item", "items")}
                 </Badge>
               )}
             </button>

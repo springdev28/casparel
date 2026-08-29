@@ -92,6 +92,7 @@ import {
 
 import { getDashboardGoalId, setDashboardGoalId } from "../lib/dashboardGoal";
 import { LoadFailure } from "@/components/LoadFailure";
+import { counted } from "@/lib/counted";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -559,7 +560,9 @@ export default function GoalsPage() {
     URL.revokeObjectURL(url);
     toast({
       title: "Offline study pack downloaded",
-      description: `${goal.pathSteps.length} steps and ${resources.length} selected resources included.`,
+      description:
+        `${counted(goal.pathSteps.length, "step", "steps")} and ` +
+        `${counted(resources.length, "selected resource", "selected resources")} included.`,
     });
   }
 
@@ -823,7 +826,7 @@ export default function GoalsPage() {
                         each have to be one, and the name has to be its own so
                         nothing rewrites it. */}
                     Shared by <span translate="no">{path.creatorName}</span> ·{" "}
-                    <span>{`Used ${path.useCount} times`}</span>
+                    <span>{`Used ${counted(path.useCount, "time", "times")}`}</span>
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-3">

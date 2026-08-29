@@ -2117,3 +2117,43 @@ Verification recorded for this increment:
   server, and the run is 86 checks where it was 63;
 - 54 screen renders across two languages; 126 failure checks; mobile 91
   tests; api-server 866; every package type-checks.
+
+## Fix — five more "1 items" on the web, and a rule for the shape
+
+The phone's "1 resources" was not a phone problem. The same scan over the web
+found fourteen places writing a count and a plural noun straight into JSX, and
+five of them can render one:
+
+    {l.itemCount} items                                  the list picker
+    {item.cards.length} cards                            the admin surface
+    {item.nodes.length} nodes · {n} connections          the admin surface
+    ${signal.learnerCount} learners                      the teacher's signals
+    Used ${path.useCount} times                          a shared study path
+
+plus two in toast copy — the offline pack's step count and the sentence that
+confirms a path was built from a list.
+
+All of them are invisible to every check here. The string is grammatical to a
+parser; it is translated, because Turkish does not inflect a noun after a
+number, so the dictionary is right and English is the broken half; and it fits
+its box. Only somebody with exactly one of something ever sees it, which is
+what a new account has.
+
+`counted(n, singular, plural)` already existed for this. Nine singular forms
+joined the count table so the Turkish still resolves, and three nouns that had
+no entry at all — node, connection, learner.
+
+`countsHaveASingular.test.ts` reads every `.tsx` in the web app for the shape
+and requires either `counted`, an inline `=== 1 ?`, or a row in
+`ALWAYS_PLURAL` saying why one can never be rendered. The four rows there are
+real: a ratio where the noun belongs to the second number, a block drawn only
+when more than one is selected, "1 of 8 fields", and an importer that throws
+below two rows. A row naming a file or a word that is no longer written fails
+too.
+
+Verification recorded for this increment:
+
+- proved by reverting, twice: putting `{l.itemCount} items` back names it;
+  a row for a file that does not exist is named as stale;
+- 205 page renders clean, every visible string translated, api-server 869
+  tests, the app type-checks.
