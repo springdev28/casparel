@@ -2027,3 +2027,35 @@ Verification recorded for this increment:
   named by the run that first opened this sheet;
 - 54 screen renders across two languages, up from 46; 126 failure checks;
   mobile 91 tests; api-server 863; every package type-checks.
+
+## Guard — every sheet on the phone is opened, or the file says why not
+
+The web guard's twin. It counts the modals in the phone app and requires each
+file that draws one to be reached by `audit-languages.mjs`, or named with the
+reason it cannot be.
+
+Two things it took a wrong first version to get right:
+
+- **It follows imports one hop.** A sheet is usually a component of its own,
+  opened from the screen that renders it, so the button is never in the same
+  file as the modal. The first version looked only for the testid inside the
+  file with the modal and reported three sheets as unopened while the audit
+  was opening all three.
+- **Its limit is worth stating rather than hiding.** The unit is a file, so a
+  file with two modals and one opened passes. Measured while proving it:
+  breaking the role picker's open step changed nothing, because the same file
+  is credited for the path preview beside it; breaking the save sheet's step,
+  which is a component of its own, named it at once. This catches a sheet
+  nothing reaches, not a sheet whose neighbour is reached.
+
+Two files are named rather than opened, each about the modal rather than about
+nobody having got to it: the error boundary's own screen, which a crash
+reaches and `audit-failures.mjs` renders, and the profile's account
+confirmation, whose only way in is an `Alert.alert` — the platform's own
+dialog, which does not appear on the web at all.
+
+Verification recorded for this increment:
+
+- proved by reverting: breaking the save sheet's open step names
+  `components/SaveToListSheet.tsx`;
+- api-server 866 tests.
