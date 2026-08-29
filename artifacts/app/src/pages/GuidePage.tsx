@@ -107,7 +107,7 @@ const SECTIONS: GuideSection[] = [
       },
       {
         title: "Languages",
-        desc: "The interface ships in English, Spanish, French, German, Portuguese, and Turkish. Pick your language on the sign-in screen or in Settings.",
+        desc: "The interface ships in English and Turkish. Pick your language on the sign-in screen or in Settings.",
       },
       {
         title: "The product tour",
@@ -408,8 +408,8 @@ const SECTIONS: GuideSection[] = [
         desc: "Tune contrast in appearance settings, and reduced-motion preferences are respected.",
       },
       {
-        title: "Six languages",
-        desc: "Use Casparel in English, Spanish, French, German, Portuguese, or Turkish.",
+        title: "Two languages",
+        desc: "Use Casparel in English or Turkish.",
       },
     ],
   },

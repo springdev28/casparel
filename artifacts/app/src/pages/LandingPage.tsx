@@ -39,8 +39,10 @@ import { getInitialLanguage } from "../lib/auth-locale";
 
 /**
  * A language code as a word, for the note on a source that is not in the
- * reader's. Only the six this product ships; anything else falls back to the
- * code itself, which is more honest than inventing a name for it.
+ * reader's. This names the language a *source* is written in, which is a
+ * wider set than the two the interface ships in -- a catalogue entry can be
+ * in Spanish whatever the reader's chrome says. Anything not named here falls
+ * back to the code itself, which is more honest than inventing a name.
  */
 const LANGUAGE_NAMES: Record<string, string> = {
   en: "English",

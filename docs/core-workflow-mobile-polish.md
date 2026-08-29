@@ -1736,3 +1736,49 @@ Verification recorded for this increment:
 - 189 page renders clean, every visible string translated, 230 user-content
   renders all protected, the loading audit, api-server 850 tests, the app
   type-checks.
+
+## Fix — the guide said the product speaks six languages; it speaks two
+
+Two entries in the guide:
+
+    "Six languages"
+    "Use Casparel in English, Spanish, French, German, Portuguese, or Turkish."
+    "The interface ships in English, Spanish, French, German, Portuguese, and
+     Turkish. Pick your language on the sign-in screen or in Settings."
+
+`AUTH_LANGUAGES` offers English and Turkish, and `src/lib/ui-translations`
+holds one dictionary. Somebody choosing Casparel because it speaks Spanish
+finds out that it does not after signing up, which is the worst moment to
+find out and the reason this is a defect rather than stale copy.
+
+Nothing could have caught it. Every audit renders the guide; a sentence that
+is grammatical, translated, and fits its box passes all of them. The only
+thing wrong with it is that it is untrue, and the claim and the language list
+live in different files with no reference between them.
+
+So a test reads the list the app actually offers and refuses any user-facing
+sentence naming a language outside it, refuses a count that disagrees with it,
+and refuses a language offered on the sign-in screen with no dictionary behind
+it — the same promise broken the other way round, where the reader picks a
+language and the product stays in English.
+
+Two things about writing it are worth keeping:
+
+- **The rule reads sentences, not literals.** `es: "Spanish"` on the landing
+  page is a lookup table for naming the language a *catalogue source* is
+  written in, which is a wider set than the interface's and is not a claim
+  about anything. Four words separates a claim from a table entry — except
+  for the count, which reads two, because "Six languages" is a whole claim.
+- **It reads line by line.** Pairing quotes across a whole file
+  desynchronises on the first apostrophe in JSX text: one `'` opens a run
+  that swallows everything to the next. Measured — the file-wide pass found
+  229 sentences and none of them contained "Spanish", in a file that plainly
+  did.
+
+Verification recorded for this increment:
+
+- proved by reverting, three ways: the original copy names four languages the
+  product does not have; "Six languages" is reported against two; and adding
+  Spanish to the sign-in screen reports the missing dictionary;
+- 189 page renders clean, every visible string translated, 192 text-fit
+  renders, api-server 854 tests, the app type-checks.
