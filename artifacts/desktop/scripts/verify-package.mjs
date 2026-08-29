@@ -33,6 +33,21 @@ const releaseDir = path.resolve(process.argv[2] ?? path.join(DESKTOP, "release")
 const problems = [];
 const fail = (message) => problems.push(message);
 
+/**
+ * Nothing was built, which is not the same as something being wrong.
+ *
+ * With no release directory this reported "2 problem(s) with the Linux
+ * packages" and exited 1 -- which reads as "the installers are broken" when
+ * the truth is that nobody made any. Everything else here uses 75 for a run
+ * that could not look: the smoke check, the four end-to-end scripts and every
+ * audit. This is the same case.
+ *
+ * The distinction is real rather than a softening. A release directory with
+ * a .deb and no .AppImage is a build that ran and produced half of what it
+ * should, and that stays a failure.
+ */
+const EXIT_INCONCLUSIVE = 75;
+
 /** The packaging description, which must not end up as user-facing copy. */
 const PACKAGING_BLURB = /for macOS, Windows and Linux/i;
 
@@ -49,12 +64,20 @@ function findOne(pattern) {
 const deb = findOne(/\.deb$/);
 const appImage = findOne(/\.AppImage$/);
 
+if (!deb && !appImage) {
+  console.error(
+    `Nothing to check: no .deb and no .AppImage under ${releaseDir}.\n` +
+      "Build them first with `pnpm --filter @workspace/desktop run build:linux`.",
+  );
+  process.exit(EXIT_INCONCLUSIVE);
+}
+
 if (!appImage) {
-  fail("no .AppImage in the release directory: the portable Linux build did not happen");
+  fail("a .deb was built and no .AppImage: the portable Linux build did not happen");
 }
 
 if (!deb) {
-  fail("no .deb in the release directory: nothing to check");
+  fail("an .AppImage was built and no .deb: the installer build did not happen");
 } else {
   let unpacked;
   try {

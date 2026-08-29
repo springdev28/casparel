@@ -2059,3 +2059,27 @@ Verification recorded for this increment:
 - proved by reverting: breaking the save sheet's open step names
   `components/SaveToListSheet.tsx`;
 - api-server 866 tests.
+
+## Fix — a missing build reported as a broken one
+
+`verify-package.mjs` checks what the Linux installers contain. Run on a
+checkout where nobody has built any, it printed
+
+    2 problem(s) with the Linux packages:
+      • no .AppImage in the release directory: the portable Linux build did not happen
+      • no .deb in the release directory: nothing to check
+
+and exited 1. That is the verdict for installers that came out wrong, given
+to a machine where no build had run — in CI it reads as a broken release and
+sends somebody looking for a fault that is not there. Every other check in
+this repository already tells the difference: the smoke check, the four
+end-to-end scripts and every audit exit 75 when they could not look.
+
+It does now, and the distinction is real rather than a softening: a release
+directory holding a `.deb` and no `.AppImage` is a build that ran and produced
+half of what it should, and that stays exit 1. Both messages say which of the
+two happened rather than "nothing to check".
+
+`verify-package.test.mjs` pins all three cases and runs in CI beside the other
+three desktop checks. Proved by removing the branch: the two inconclusive
+cases go back to exit 1.

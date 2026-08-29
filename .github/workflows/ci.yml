@@ -298,6 +298,13 @@ jobs:
       - name: Check how signatures are judged
         run: pnpm --filter @workspace/desktop run test:signing
 
+      # And the fourth: whether a missing build is a broken one. It was --
+      # with no release directory the package check printed "2 problem(s) with
+      # the Linux packages" and exited 1, which is the verdict for installers
+      # that came out wrong, given to a checkout where nobody had built any.
+      - name: Check how a missing build is judged
+        run: pnpm --filter @workspace/desktop run test:verify-package
+
       - name: Smoke-test the desktop shell
         run: pnpm --filter @workspace/desktop run smoke
 
