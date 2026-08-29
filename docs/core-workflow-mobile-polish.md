@@ -1579,3 +1579,37 @@ Verification recorded for this increment:
   board, and the dash rule reports the range again when it reads the node
   instead of the line;
 - api-server 848 tests, both packages type-check.
+
+## Fix — the report behind a button, and a report nobody could read past
+
+Two smaller things, both about what a run actually draws.
+
+**The source review on the phone.** Every word of it — the trust badge, the
+strengths, the concerns, the limitations, the mentions, the reasoning — is
+behind a button, so a run that loads pages draws none of it. The badge read
+`level.charAt(0).toUpperCase() + level.slice(1) + " trust"`, which is how
+"High trust" stayed English on an otherwise Turkish screen; that was fixed
+when the source scan found it, and until now nothing had ever rendered the
+fix. The audit taps the button: 60 lines where the page alone drew 44.
+
+The profile's `subjects` was `[]` for the same reason and with the same
+effect — the chips a profile is mostly made of, and the completeness row
+gated on them, had never been drawn.
+
+**A report nobody can read past.** Putting cards on the canvas fixture made
+the text-fit audit print twelve rows of "clipped in en, tr, by up to 668px",
+all of them React Flow's own viewport containers. A canvas is a pan-and-zoom
+surface: it lays cards out in board coordinates and moves the plane under a
+window, so those containers reach past the screen by construction and a board
+is unusable if they do not. Twelve rows of noise under a heading that says
+"layout, not translation" is how a real finding gets skipped, so `.react-flow`
+joins the deliberately-sideways list with the reason written down. Sixteen
+rows became four, and the four are the pre-existing ones.
+
+Verification recorded for this increment:
+
+- 46 screen renders across two languages, up from 44;
+- 126 failure checks across fourteen screens; mobile 91 tests; api-server 848;
+- 192 text-fit renders, now with only the four findings that were already
+  there;
+- every package type-checks.

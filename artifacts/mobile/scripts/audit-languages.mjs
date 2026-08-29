@@ -184,6 +184,20 @@ const SCREENS = [
   { path: "/class/31", session: "in" },
   { path: "/resource/101", session: "in" },
   /*
+   * The same page with a source review run on it.
+   *
+   * Every word of the report -- the trust badge, the strengths, the concerns,
+   * the limitations, the mentions -- is behind a button, so a run that only
+   * loads pages draws none of it. The badge was `Level + " trust"` glued
+   * together in English until something rendered it.
+   */
+  {
+    path: "/resource/101",
+    session: "in",
+    open: [{ testId: "run-quick-review" }],
+    as: "/resource/101 (source review)",
+  },
+  /*
    * And the screen for an address that is not a screen. `/+not-found` is not
    * a route -- files prefixed with `+` are not served at their own name --
    * so asking for it is the same thing a mistyped deep link does.
@@ -218,7 +232,13 @@ function stubbedBody(pathname) {
       role: "student",
       activeRole: "student",
       plan: "free",
-      subjects: [],
+      /*
+       * Two, not none. An empty list draws the prompt to add one and never
+       * the chips, and the chips are what the profile is mostly made of --
+       * including the row that says the profile is complete, which is gated
+       * on this being non-empty.
+       */
+      subjects: ["Mathematics", "Biology"],
       bio: null,
       avatarUrl: null,
       gradeOrDept: null,
@@ -568,6 +588,45 @@ function stubbedBody(pathname) {
 
   // The reviews under a catalogue entry. One with a comment and one without,
   // because a rating with nothing written under it is its own row.
+  // What a quick source check reports back. Every field is optional except
+  // five, and each optional one draws its own block, so they are all here.
+  if (/\/resources\/\d+\/source-review$/.test(pathname)) {
+    return {
+      sourceName: "example.org",
+      sourceType: "University press",
+      description: "Standing in for a real publisher description.",
+      founded: "1913",
+      headquarters: "Cambridge",
+      trustLevel: "high",
+      trustReason: "A named academic publisher with an editorial process.",
+      summary: "Peer-reviewed and openly licensed, with the errata published.",
+      reputationAnalysis: "Widely cited in undergraduate reading lists.",
+      audienceSentiment: "Readers describe the proofs as unusually readable.",
+      contentQuality: "Consistent notation and worked examples throughout.",
+      currencyAssessment: "Fourth edition, last revised two years ago.",
+      researchScope: "Checked against three independent catalogues.",
+      strengths: ["Proofs are written out in full", "Errata are published"],
+      concerns: ["Assumes a first course in matrices"],
+      limitations: ["Only the English edition was checked"],
+      links: [{ label: "Publisher page", url: "https://example.org/about" }],
+      mentions: [
+        {
+          summary: "Named on a university reading list.",
+          url: "https://example.org/list",
+          sourceType: "official",
+          sentiment: "positive",
+        },
+        {
+          summary: "A reader found the third chapter heavy going.",
+          url: "https://example.org/thread",
+          sourceType: "forum",
+          sentiment: "mixed",
+        },
+      ],
+      mode: "quick",
+    };
+  }
+
   if (/\/resources\/\d+\/reviews$/.test(pathname)) {
     return [
       {

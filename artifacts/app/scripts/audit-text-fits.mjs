@@ -120,11 +120,20 @@ const ROLES = (process.env.AUDIT_FIT_ROLES ?? "student,teacher").split(",");
 /**
  * Regions that are meant to scroll sideways, and so may exceed the screen.
  *
- * Empty today. Named by selector rather than inferred from overflow-x,
- * because "has an overflow-x" is what a container gets as a precaution and
- * "is a carousel" is a decision somebody made.
+ * Named by selector rather than inferred from overflow-x, because "has an
+ * overflow-x" is what a container gets as a precaution and "is a carousel"
+ * is a decision somebody made.
+ *
+ * The canvas is the one entry so far. It is a pan-and-zoom surface: React
+ * Flow lays every card out in board coordinates and moves the whole plane
+ * under a viewport, so its containers reach past the screen on both axes by
+ * construction and a board is unusable if they do not. The first time a
+ * fixture put cards on a board, twelve rows of "clipped in en, tr, by up to
+ * 668px" appeared under a heading saying they were layout bugs -- and a
+ * report nobody can read past is the thing this file exists to avoid.
  */
-const DELIBERATELY_SIDEWAYS = process.env.AUDIT_FIT_SIDEWAYS ?? "[data-sideways]";
+const DELIBERATELY_SIDEWAYS =
+  process.env.AUDIT_FIT_SIDEWAYS ?? "[data-sideways], .react-flow";
 
 const MEASURE = `(() => {
   const clipped = [];

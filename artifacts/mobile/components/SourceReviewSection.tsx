@@ -387,6 +387,7 @@ export function SourceReviewSection({ resourceId }: { resourceId: number }) {
           <Pressable
             onPress={runQuick}
             disabled={isFetching}
+            testID="run-quick-review"
             accessibilityRole="button"
             accessibilityLabel={t('Run a quick non-AI source check')}
             style={[styles.actionBtn, { borderColor: colors.border, opacity: isFetching ? 0.5 : 1 }]}
