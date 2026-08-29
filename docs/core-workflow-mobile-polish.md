@@ -984,3 +984,25 @@ Verification recorded for this increment:
 - 88 mobile tests, including the rule's four must-not-eject cases and the burst of failures signing out once;
 - 77 failure-state checks across eleven screens and three ways of not answering, which fail when the ejection is removed;
 - the web's own session audit still passes on the shared rule, and 24 live UI checks against a real server.
+
+## Fix — still waiting is not the same as having nothing
+
+The failure audit gained a fourth condition, and it is the one that comes
+first in time. The server has not answered yet: nothing has failed, so a
+screen that has reached for its empty state has jumped to a conclusion.
+"No learning goals yet" while the request is still in flight is the same lie
+as showing it after the request failed, a second or two earlier. The web has
+checked this since a library screen painted "Your library is empty" during
+load.
+
+Every screen on the phone was already right, which is the useful outcome
+rather than a disappointing one — the point of asking is that nobody had.
+Proved by disabling the goals screen's loading branch and running it again:
+it reported the screen deciding, while a request was still open, that the
+learner had no goals.
+
+The condition is the same machinery as the other three, so the audit now
+covers what a screen says while waiting, when the connection fails, when the
+server breaks and when the session is rejected — the four states the
+verification contract asks about that a run against a healthy stub can never
+reach.

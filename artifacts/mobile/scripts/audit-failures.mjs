@@ -28,6 +28,12 @@
  *   broken    the server answers 500. There is a status, so the app says
  *             something went wrong at its end rather than blaming the
  *             connection.
+ *   waiting   the server never answers at all. Nothing has failed yet, so a
+ *             screen that has reached for its empty state has jumped to a
+ *             conclusion: "No learning lists yet" while the request is still
+ *             in flight is the same lie as showing it when the request failed,
+ *             a second or two earlier. The web has checked this since a
+ *             library screen painted "Your library is empty" during load.
  *   expired   the server answers 401. This one is not an error state at all:
  *             a session the server has rejected is over, and the only honest
  *             screen is the sign-in screen. It used to be an error state --
@@ -192,8 +198,9 @@ async function main() {
 
   const browser = await chromium.launch(launchOptions());
 
-  for (const how of ["offline", "broken", "expired"]) {
+  for (const how of ["waiting", "offline", "broken", "expired"]) {
     const situation = {
+      waiting: "The server has not answered yet",
       offline: "Nothing reaches a server",
       broken: "The server answers 500",
       expired: "The server rejects the session",
@@ -209,8 +216,11 @@ async function main() {
         },
         { lang: LANGUAGE },
       );
-      await context.route(`${APP_ORIGIN}/**`, (route) =>
-        how === "offline"
+      await context.route(`${APP_ORIGIN}/**`, (route) => {
+        // Held open, never answered and never refused: the screen stays in the
+        // state it shows while it is waiting, which is the state under test.
+        if (how === "waiting") return;
+        return how === "offline"
           ? route.abort("connectionrefused")
           : route.fulfill({
               status: how === "expired" ? 401 : 500,
@@ -218,8 +228,8 @@ async function main() {
               body: JSON.stringify({
                 error: how === "expired" ? "Unauthorized" : "Something went wrong",
               }),
-            }),
-      );
+            });
+      });
 
       const page = await context.newPage();
       const crashes = [];
@@ -236,6 +246,30 @@ async function main() {
         const text = (await page.evaluate(() => document.body.innerText)).trim();
 
         const where = `${screen.label} [${how}]`;
+
+        /*
+         * Still waiting is not the same as having nothing. A screen that has
+         * reached for its empty state before the answer arrives is telling
+         * somebody their lists are gone, a second before it would have been
+         * able to tell them the truth.
+         */
+        if (how === "waiting") {
+          const shownEarly = emptyStates.filter((title) => text.includes(title));
+          check(
+            `${where} does not decide the reader has nothing`,
+            shownEarly.length === 0,
+            shownEarly.length ? `showed ${JSON.stringify(shownEarly)}` : "",
+          );
+          check(
+            `${where} draws something while it waits`,
+            text.length > 0,
+            text.length ? "" : "blank screen",
+          );
+          for (const crash of crashes) {
+            check(`${where} threw nothing`, false, crash.slice(0, 160));
+          }
+          continue;
+        }
 
         /*
          * A rejected session is not something to report on the screen
@@ -295,9 +329,10 @@ async function main() {
     process.exit(1);
   }
   console.log(
-    `${checks} checks across ${SCREENS.length} screens and three ways of not ` +
-      `answering: every screen says it could not load, none of them claims ` +
-      `the reader has nothing, and a rejected session returns to sign-in.`,
+    `${checks} checks across ${SCREENS.length} screens and four ways of not ` +
+      `answering: no screen decides the reader has nothing -- while waiting ` +
+      `or after failing -- every failure says so, and a rejected session ` +
+      `returns to sign-in.`,
   );
 }
 
