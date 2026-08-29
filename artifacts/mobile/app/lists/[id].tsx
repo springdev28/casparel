@@ -614,6 +614,9 @@ export default function ListScreen() {
           {/* The way out of organising and into studying. */}
           <Pressable
             accessibilityRole="button"
+            // Named for the audit, which clicks it: the label is translated,
+            // and a check that renders screens has no other way into a sheet.
+            testID="build-path"
             accessibilityLabel={t('Build a learning path')}
             disabled={pending !== null}
             onPress={() => {

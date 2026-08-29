@@ -1006,3 +1006,30 @@ covers what a screen says while waiting, when the connection fails, when the
 server breaks and when the session is rejected — the four states the
 verification contract asks about that a run against a healthy stub can never
 reach.
+
+## Fix — two more screens nobody had ever looked at
+
+A sheet nobody has opened renders none of its words, so the same gap that hid
+the goal screen's editing mode hid two more surfaces, and both are places the
+specification is specific about.
+
+The **check-in sheet** is where a learner says what they can now do — the write
+the whole of §8 exists for, and the one that becomes evidence a teacher reads.
+Its three answers and its completion screen are a table of English translated
+where they are rendered, so the source scan sees the strings and nothing had
+drawn them.
+
+The **path preview** is the review before a path exists. "Do not immediately
+activate generated work" is the specification's instruction and this sheet is
+where somebody decides; every word on it, including the two that name the
+decision, had never been rendered either.
+
+Both are opened now, by the same mechanism as the editing mode: by id where
+there is one, and otherwise by a label that is data rather than copy — a
+step's own title, which the stub supplies and no dictionary translates. Never
+by a translated name, because finding it would need the answer the run is
+checking.
+
+Both render correctly in both languages, and every control in them has a name
+a screen reader can read. That is what those earlier increments claimed on the
+strength of a source scan; it is now what a browser has shown.

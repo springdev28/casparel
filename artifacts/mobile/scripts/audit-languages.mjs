@@ -133,7 +133,21 @@ const SCREENS = [
    * to tell apart. Clicked by testID rather than by name, because the name is
    * translated and finding it would need the answer this is checking.
    */
-  { path: "/goals/11", session: "in", open: "edit-steps", as: "/goals/11 (editing)" },
+  { path: "/goals/11", session: "in", open: [{ testId: "edit-steps" }], as: "/goals/11 (editing)" },
+  /*
+   * And the check-in sheet, which is where a learner records what they can now
+   * do -- the write the whole of §8 exists for. Its three answers and its
+   * completion screen are a table of English translated where they are
+   * rendered, so the source scan sees the strings and nothing had ever drawn
+   * them. Opened by tapping an unfinished step, whose label is its own title:
+   * data from the stub, identical in every language.
+   */
+  {
+    path: "/goals/11",
+    session: "in",
+    open: [{ label: "Try the practice set" }],
+    as: "/goals/11 (checking in)",
+  },
   /*
    * Learning Lists, reached from the resources tab.
    *
@@ -144,6 +158,18 @@ const SCREENS = [
    */
   { path: "/lists", session: "in" },
   { path: "/lists/11", session: "in" },
+  /*
+   * The review before a path exists. The specification is explicit that
+   * generated work is not activated on somebody's behalf, so this sheet is
+   * the moment they decide -- and every word on it, including the two that
+   * name the decision, had never been rendered.
+   */
+  {
+    path: "/lists/11",
+    session: "in",
+    open: [{ testId: "build-path" }],
+    as: "/lists/11 (path preview)",
+  },
 ];
 
 const MIME = {
@@ -586,10 +612,18 @@ async function main() {
           timeout: 45000,
         });
         await page.waitForTimeout(600);
-        if (screen.open) {
-          const control = page.locator(`[data-testid="${screen.open}"]`);
+        for (const step of screen.open ?? []) {
+          /*
+           * By id where there is one, and otherwise by a label that is data
+           * rather than copy -- a step's own title, which the stub supplies
+           * and no dictionary translates. Never by a translated name: finding
+           * it would need the answer this run is checking.
+           */
+          const control = step.testId
+            ? page.locator(`[data-testid="${step.testId}"]`)
+            : page.getByLabel(step.label, { exact: false }).first();
           await control.click({ timeout: 10000 });
-          await page.waitForTimeout(400);
+          await page.waitForTimeout(500);
         }
         const text = (await page.evaluate(VISIBLE_TEXT)).trim();
         rendered += 1;
