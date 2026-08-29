@@ -1846,3 +1846,39 @@ Verification recorded for this increment:
 - proved by reverting: lowering teacher-plus's daily searches to 12 reports
   the line from both the web plans page and the phone's paywall;
 - api-server 860 tests.
+
+## Verification — the whole suite, against a real server and a real database
+
+Everything in this file until now was checked with the database tests excluded,
+because nothing here was running PostgreSQL. It is now, and they pass:
+
+- 20 database test files, 65 tests, against PostgreSQL 16 with every migration
+  applied — including the migration-ordering guard, which is the one that can
+  only be answered by actually applying them;
+- 860 tests in the rest of the api-server suite;
+- and all four end-to-end scripts, against the production build of the server
+  talking to that database: 84 API checks, 45 refused attempts at another
+  account's work, 21 class-access checks, and 55 readable endpoints asked for
+  as somebody they are meant for, none of them broken.
+
+## Fix — five checks that printed the opposite of what happened
+
+Running them turned one up. `check(label, condition, detail)` printed `detail`
+whether the check passed or failed, and five call sites had written the
+*failure explanation* into it. So a passing run said:
+
+    ok   leaving the class takes the shared canvas away  someone who left the
+         class can still open the canvas shared with it (HTTP 403)
+    ok   deleting an account takes the name off what it wrote  the forum still
+         shows "E2E carol" on a post by a deleted account
+
+Every one of those lines says the opposite of what happened, under a tick. A
+reader either believes it, or learns to stop reading the text after "ok" — and
+the second is worse, because that text is where a real failure explains itself.
+
+The two are different things and are two parameters now: `detail` is a fact
+(an HTTP code, an id) and prints either way; `whenFailed` is an explanation
+and prints only when there is a failure to explain. Proved by breaking one
+expectation on purpose: the failure now reads "someone who left the class can
+still open the canvas shared with it — HTTP 403", which is both halves in the
+right order.

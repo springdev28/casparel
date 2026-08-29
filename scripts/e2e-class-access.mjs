@@ -46,13 +46,28 @@ let checks = 0;
 
 class Inconclusive extends Error {}
 
-function check(label, condition, detail = "") {
+/**
+ * One check, and the two different things there are to say about it.
+ *
+ * `detail` is a fact -- an HTTP code, an id -- and is true whichever way the
+ * check went, so it prints either way. `whenFailed` is an explanation of the
+ * failure and is only true when there is one.
+ *
+ * They were one parameter, and five call sites had written the explanation
+ * into it. A passing run therefore printed `ok   leaving the class takes the
+ * shared canvas away  someone who left the class can still open the canvas
+ * shared with it (HTTP 403)` -- a line that says the opposite of what
+ * happened, under a tick. A reader either believes it or learns to skip the
+ * text after "ok", and the second is worse.
+ */
+function check(label, condition, detail = "", whenFailed = "") {
   checks += 1;
   if (condition) {
     console.log(`ok   ${label}${detail ? `  ${detail}` : ""}`);
   } else {
     failures += 1;
-    console.log(`FAIL ${label}\n     ${detail || "expected true"}`);
+    const said = [whenFailed, detail].filter(Boolean).join(" — ");
+    console.log(`FAIL ${label}\n     ${said || "expected true"}`);
   }
 }
 
@@ -210,7 +225,8 @@ async function main() {
   check(
     "leaving the class takes the shared canvas away",
     [403, 404].includes(afterLeaving),
-    `someone who left the class can still open the canvas shared with it (HTTP ${afterLeaving})`,
+    `HTTP ${afterLeaving}`,
+    "someone who left the class can still open the canvas shared with it",
   );
 
   const remove = await call(
@@ -223,10 +239,12 @@ async function main() {
   check(
     "being removed takes the shared canvas away",
     [403, 404].includes(afterRemoval),
-    `a removed member can still open the canvas shared with the class (HTTP ${afterRemoval})`,
+    `HTTP ${afterRemoval}`,
+    "a removed member can still open the canvas shared with the class",
   );
 
   check("the remaining member still has it", (await seeCanvas(member.token)) === 200,
+    "",
     "removing one person must not cut off everybody else");
 
   // The class roster itself is worth the same question.
@@ -288,7 +306,8 @@ async function main() {
       check(
         `${who} cannot see the class's activities`,
         !leaked,
-        `HTTP ${res.status} still lists the activity shared with a class they are not in`,
+        `HTTP ${res.status}`,
+      "it still lists the activity shared with a class they are not in",
       );
     }
   }
@@ -360,8 +379,8 @@ async function main() {
     check(
       "deleting the class leaves the pupil their own work",
       mine.status === 200 && (mine.body || []).some((a) => a.id === pupilSet.body.id),
-      `the pupil's set was destroyed when someone else deleted the class ` +
-        `(HTTP ${mine.status}, ids ${(mine.body || []).map((a) => a.id).join(",") || "none"})`,
+      `HTTP ${mine.status}, ids ${(mine.body || []).map((a) => a.id).join(",") || "none"}`,
+      "the pupil's set was destroyed when someone else deleted the class",
     );
   }
 

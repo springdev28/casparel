@@ -78,9 +78,19 @@ function fail(label, detail) {
   console.log(`FAIL ${label}\n     ${detail}`);
 }
 
-function check(label, condition, detail = "") {
+/**
+ * One check, and the two different things there are to say about it.
+ *
+ * `detail` is a fact -- an HTTP code, an id -- true whichever way the check
+ * went, so it prints either way. `whenFailed` explains a failure and is only
+ * true when there is one. They were one parameter, and a passing run printed
+ * `ok   deleting an account takes the name off what it wrote  the forum still
+ * shows "E2E carol" on a post by a deleted account`: a line that says the
+ * opposite of what happened, under a tick.
+ */
+function check(label, condition, detail = "", whenFailed = "") {
   if (condition) ok(label, detail);
-  else fail(label, detail || "expected true");
+  else fail(label, [whenFailed, detail].filter(Boolean).join(" — ") || "expected true");
 }
 
 /** Named so it reads differently from a pass in the output, because it is. */
@@ -1440,6 +1450,7 @@ async function main() {
     check(
       "deleting an account takes the name off what it wrote",
       !stillNamed,
+      "",
       `the forum still shows "${CAROL_NAME}" on a post by a deleted account`,
     );
   }
