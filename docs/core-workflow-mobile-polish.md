@@ -1093,3 +1093,18 @@ Verification recorded for this increment:
 - 55 readable endpoints asked for against a real server, none answering 5xx;
 - the sweep fails on a response shape that no longer matches its contract, once the listing it belongs to has a row in it;
 - 98 end-to-end flow checks, 45 authorization probes refused, 21 class-access checks.
+
+## Fix — the web goal card could not say where it came from
+
+An earlier ledger entry claimed a link on the goal back to the list it came
+from, for the phone and the web. Only the phone had one. `sourceListId` never
+appeared anywhere in the web app, so a learner looking at their goals on a
+laptop could not tell which had been built from organising and which had been
+typed — on one of the two screens that show goals.
+
+It is there now, with the same words the phone uses. The audit fixture's goal
+carried `sourceListId: null`, which is why nothing noticed: a line that
+renders on no page passes every check by never being reached. The fixture now
+points at the list the same fixture set already has, so the link is drawn,
+followed to `/lists/44`, and read in both languages by the runs that were
+already there.

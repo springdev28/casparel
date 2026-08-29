@@ -70,6 +70,7 @@ const TR: Record<string, string> = {
   "Build a learning path": "Öğrenme yolu oluştur",
   "Build reusable learning activities from a resource.": "Bir kaynaktan yeniden kullanılabilir öğrenme etkinlikleri oluştur.",
   "Build the room, place students, and arrange furniture with precise top-view controls.": "Odayı kur, öğrencileri yerleştir ve mobilyayı üstten görünümde hassas denetimlerle düzenle.",
+  "Built from a learning list": "Bir öğrenme listesinden oluşturuldu",
   "Built to be usable by everyone, in your language.": "Herkesin kullanabilmesi için yapıldı, hem de kendi dilinde.",
   "Built-in citation maker.": "Yerleşik kaynakça oluşturucu.",
   "Canvas by": "Tuval sahibi:",

@@ -8,6 +8,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  Bookmark,
   CalendarPlus,
   Check,
   CheckCircle2,
@@ -926,6 +927,22 @@ export default function GoalsPage() {
                         <Badge variant="outline">{LEVEL_NAME[goal.level] ?? goal.level}</Badge>
                         <Badge>{STATUS_NAME[goal.status] ?? goal.status}</Badge>
                       </div>
+                      {/*
+                        Where the path came from. The phone has carried this
+                        since paths could be built from a list, and this page
+                        never did — so a learner could see which of their
+                        goals was built from organising and which was typed,
+                        on one of the two screens that show goals.
+                      */}
+                      {goal.sourceListId ? (
+                        <Link
+                          href={`/lists/${goal.sourceListId}`}
+                          className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary-text hover:underline"
+                        >
+                          <Bookmark size={13} />
+                          Built from a learning list
+                        </Link>
+                      ) : null}
                     </div>
                     <div className="flex items-center">
                       <Button

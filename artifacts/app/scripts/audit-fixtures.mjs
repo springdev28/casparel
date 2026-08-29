@@ -246,7 +246,12 @@ const LEARNING_GOAL = {
   targetDate: "2026-12-01",
   status: "active",
   progress: 25,
-  sourceListId: null,
+  /*
+   * Built from the list this fixture set already has, so the goals page draws
+   * the link back to it. Left null, the provenance line renders on no page
+   * and every check of it passes by never reaching it.
+   */
+  sourceListId: 44,
   /*
    * `query` and `completed`, which is what the contract says a step is. These
    * read `done`, so the app -- which reads `completed` -- saw two unfinished
