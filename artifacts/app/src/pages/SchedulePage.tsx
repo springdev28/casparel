@@ -255,7 +255,15 @@ function ListPicker({
 
   return (
     <div ref={containerRef} className="relative">
+      {/*
+        * Named, not just placeheld. The <Label> above this in the dialog is
+        * not associated with it -- no htmlFor -- so the only thing a screen
+        * reader had was a placeholder, which disappears the moment somebody
+        * types. Both pickers sit inside dialogs, which is why nothing had
+        * ever rendered them to notice.
+        */}
       <Input
+        aria-label="Search reading lists"
         placeholder="Search reading lists…"
         value={query}
         onChange={(e) => {
@@ -358,6 +366,7 @@ function ResourcePicker({
   return (
     <div ref={containerRef} className="relative">
       <Input
+        aria-label="Search resources"
         placeholder="Search resources…"
         value={query}
         onChange={(e) => {
@@ -476,6 +485,7 @@ function InviteePicker({
       )}
       <div ref={containerRef} className="relative">
         <Input
+          aria-label="Search classmates or people to invite"
           placeholder="Search classmates or people to invite…"
           value={query}
           onChange={(e) => {

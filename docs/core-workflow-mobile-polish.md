@@ -1882,3 +1882,50 @@ and prints only when there is a failure to explain. Proved by breaking one
 expectation on purpose: the failure now reads "someone who left the class can
 still open the canvas shared with it — HTTP 403", which is both halves in the
 right order.
+
+## Fix — about forty dialogs, none of which anything had ever opened
+
+The render audit loads pages. A dialog is markup that does not exist until
+somebody opens it, so every sheet, confirmation and form behind a button in
+this app — about forty of them across nineteen files — was checked by nothing:
+not its heading levels, not its fields, not the names a screen reader reads
+off the controls inside. The phone audit has pressed things for a while; this
+side had pressed nothing.
+
+Ten are opened now, chosen as the workflow the product is about: making a list
+into a path, checking a list, putting a source into a list, giving a class work
+to do, recommending one, planning time for it, submitting a resource, making a
+citation, starting a class, starting a list. They found:
+
+- **five form fields with no accessible name.** The schedule's reading-list
+  and resource pickers, the invitee search beside them, and the note on a
+  recommendation. Each had a placeholder and a `<Label>` that was not
+  associated with it, so a screen reader announced "edit text, blank" — and
+  the placeholder disappears the moment somebody types.
+- **an endpoint no fixture answered.** Pressing "Check this list" reads
+  `/lists/44/quality`, which the empty-fixture rule immediately named. The
+  panel behind that button — a sentence per finding about a list's own rows —
+  had never been drawn either.
+
+Two things about the mechanism are worth keeping. A control that cannot be
+found is a finding, not an exception: the first version let it throw, and one
+button that was not on the page ended the whole run with a stack trace and no
+report for the other 190 renders. And "cannot be found" is the more
+interesting half of that news, because it means the audit is checking a dialog
+nobody can reach any more.
+
+`theDialogsAreOpened.test.ts` holds the list against the pages that have
+dialogs. The eight pages not yet covered are a written-down backlog, each row
+saying what is still unopened, and a row for a page that *is* opened fails
+too — a stale excuse is where the next real omission hides, and here it reads
+as a description of what is unchecked.
+
+Verification recorded for this increment:
+
+- proved by reverting, twice: dropping the `/lists` entry names `ListsPage`;
+  a backlog row for a page that is opened names it as stale;
+- proved by driving: five unlabelled fields and one unfixtured endpoint, all
+  named by the run that first opened these dialogs;
+- 199 page renders clean, up from 189; every visible string translated; 230
+  user-content renders all protected; 215 offline checks; 192 text-fit
+  renders; api-server 863 tests; the app type-checks.

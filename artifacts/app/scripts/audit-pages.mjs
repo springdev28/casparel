@@ -380,7 +380,7 @@ async function auditGuideNavigation(page, pathname, width, signedIn) {
 }
 
 async function audit(pathname, colorScheme, width, options = {}) {
-  const { signedIn = false, palette } = options;
+  const { signedIn = false, palette, open = [], as } = options;
   const ctx = await browser.newContext({
     viewport: { width, height: 900 },
     colorScheme,
@@ -396,6 +396,41 @@ async function audit(pathname, colorScheme, width, options = {}) {
     timeout: 30_000,
   });
   await page.waitForTimeout(1500);
+
+  /*
+   * Controls to press before looking.
+   *
+   * Every dialog and sheet in this app is markup that does not exist until
+   * somebody opens it, so a run that only loads pages checks none of it: not
+   * the headings, not the fields, not the names a screen reader reads off the
+   * buttons inside. The phone audit has done this for a while; this side had
+   * forty of them and had opened none.
+   *
+   * Pressed by testid rather than by name, because a name is translated and
+   * finding one would need the answer some of these checks are looking for.
+   */
+  const couldNotOpen = [];
+  for (const step of open) {
+    try {
+      const control = page.locator(`[data-testid="${step.testId}"]`).first();
+      await control.waitFor({ state: "visible", timeout: 10_000 });
+      await control.click();
+      await page.waitForTimeout(step.settle ?? 900);
+    } catch {
+      /*
+       * A finding, not an exception.
+       *
+       * The first version let this throw, and one control that had moved
+       * behind a menu ended the whole run with a stack trace and no report
+       * for the other 190 renders -- the same failure the render timeout
+       * below already exists to avoid. A control that cannot be found is
+       * also the more interesting half of the news: it means the audit is
+       * checking a dialog nobody can reach any more.
+       */
+      couldNotOpen.push(step.testId);
+      break;
+    }
+  }
 
   const guideNavigation = await auditGuideNavigation(
     page,
@@ -461,6 +496,7 @@ async function audit(pathname, colorScheme, width, options = {}) {
         })
       : false;
   const findings = {
+    couldNotOpen,
     lowContrast: await page.evaluate(CONTRAST),
     dashes: await page.evaluate(DASHES),
     ...a11y,
@@ -483,7 +519,7 @@ async function audit(pathname, colorScheme, width, options = {}) {
     missingPrivacyAdvertisingDisclosure,
   };
   await ctx.close();
-  return { pathname, colorScheme, width, signedIn, palette, findings };
+  return { pathname: as ?? pathname, colorScheme, width, signedIn, palette, findings };
 }
 
 /**
@@ -500,12 +536,13 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
     timer = setTimeout(
       () =>
         resolve({
-          pathname,
+          pathname: options.as ?? pathname,
           colorScheme,
           width,
           signedIn: options.signedIn ?? false,
           palette: options.palette,
           findings: {
+            couldNotOpen: [],
             lowContrast: [],
             dashes: [],
             invisibleAfterScroll: [],
@@ -550,6 +587,57 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
  * colorScheme is a strict enum (dark|light|no-preference|no-override) and
  * rejects a palette name outright, throwing before any page is rendered.
  */
+/**
+ * Pages with something opened on them, and what to press.
+ *
+ * A dialog is markup that does not exist until somebody opens it, so a run
+ * that only loads pages checks none of it: not the heading levels, not the
+ * fields, not the names a screen reader reads off the controls inside. There
+ * are about forty in this app and nothing had opened one.
+ *
+ * This is the first tranche, and it is the workflow the product is about:
+ * making a list into a path, putting a source into a list, giving a class
+ * work to do, planning time for it. `theDialogsAreOpened.test.ts` holds this
+ * list against the pages that have dialogs, so what is not here is written
+ * down rather than forgotten.
+ */
+const OPENED = [
+  { path: "/lists/44", open: [{ testId: "check-list-button" }], as: "/lists/44 (check the list)" },
+  {
+    path: "/resources/101",
+    open: [{ testId: "add-to-list-button" }],
+    as: "/resources/101 (add to a list)",
+  },
+  {
+    path: "/resources/101",
+    open: [{ testId: "assign-to-class-button" }],
+    as: "/resources/101 (assign to a class)",
+  },
+  {
+    path: "/resources/101",
+    open: [{ testId: "recommend-to-class-button" }],
+    as: "/resources/101 (recommend to a class)",
+  },
+  {
+    path: "/resources",
+    open: [{ testId: "submit-resource-button" }],
+    as: "/resources (submit a resource)",
+  },
+  {
+    path: "/resources",
+    open: [{ testId: "citation-maker-button" }],
+    as: "/resources (citation maker)",
+  },
+  { path: "/classes", open: [{ testId: "create-class-button" }], as: "/classes (new class)" },
+  { path: "/lists", open: [{ testId: "create-list-button" }], as: "/lists (new list)" },
+  { path: "/schedule", open: [{ testId: "add-block-button" }], as: "/schedule (new block)" },
+  {
+    path: "/schedule",
+    open: [{ testId: "new-study-session-button" }],
+    as: "/schedule (new study session)",
+  },
+];
+
 const SIGNED_IN_SWEEP = [
   ["dark", "dark"],
   ["light", "light"],
@@ -577,6 +665,17 @@ for (const pathname of SIGNED_IN_PAGES) {
     RENDERS.push([pathname, colorScheme, 1280, { signedIn: true, palette }]);
   }
   RENDERS.push([pathname, "dark", 390, { signedIn: true, palette: "dark" }]);
+}
+/*
+ * The same pages with something opened on them.
+ *
+ * One palette and one width each rather than the five-render sweep the pages
+ * get: a dialog's contrast and its layout come from the same tokens as the
+ * page behind it, and what is new here is the markup, which is the same in
+ * every palette. The point is that it is rendered at all.
+ */
+for (const { path, open, as } of OPENED) {
+  RENDERS.push([path, "dark", 1280, { signedIn: true, palette: "dark", open, as }]);
 }
 
 const results = await inParallel(
@@ -616,6 +715,9 @@ for (const {
       (c) => `form field has no label: ${c}`,
     ),
     ...(findings.headingSkips ?? []).map((s) => `heading level skips ${s}`),
+    ...(findings.couldNotOpen ?? []).map(
+      (t) => `nothing on the page to press: [data-testid="${t}"]`,
+    ),
     ...(findings.dashes ?? []).map((t) => `em or en dash in copy: "${t}"`),
     ...findings.pageErrors.map((e) => `page error: ${e}`),
     ...(findings.guideNavigation && !findings.guideNavigation.hashUpdated

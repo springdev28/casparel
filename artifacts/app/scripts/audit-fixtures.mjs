@@ -951,6 +951,30 @@ export const FIXTURES = {
   },
   "/api/lists": [RESOURCE_LIST],
   "/api/lists/44": RESOURCE_LIST_DETAIL,
+  /*
+   * What can be said about a list from the list itself.
+   *
+   * Reached by pressing "Check this list", so nothing had it until the page
+   * audit started opening things -- and the panel behind it, which is a
+   * sentence per finding, had never been drawn. One of each kind that carries
+   * different data: a provider, a format, a duplicate pair.
+   */
+  "/api/lists/44/quality": {
+    itemCount: 3,
+    checked: ["one_provider", "one_format", "duplicate_link", "level_mismatch", "no_practice"],
+    findings: [
+      { kind: "one_provider", provider: "openstax.org", count: 3 },
+      { kind: "one_format", format: "pdf", count: 3 },
+      { kind: "duplicate_link", count: 2, resourceIds: [101, 102] },
+      {
+        kind: "level_mismatch",
+        count: 1,
+        resourceIds: [103],
+        level: "Undergraduate",
+        majority: "Secondary",
+      },
+    ],
+  },
   // The generated client builds these as /api/users/{id}, .../library and
   // .../safety; the page opens all three at once.
   "/api/users/2": OTHER_PROFILE,
