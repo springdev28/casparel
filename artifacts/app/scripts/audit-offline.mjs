@@ -84,6 +84,7 @@ const EMPTY_SENTENCE = {
    */
   "/forum": "No posts match these filters",
   "/catalog": "No materials match these filters",
+  "/classes/31": "Class not found",
   "/lists/44": "List not found",
   "/resources/101": "Resource not found",
 };
@@ -114,6 +115,7 @@ const PAGES = [
    */
   "/forum",
   "/catalog",
+  "/classes/31",
   "/lists/44",
   "/resources/101",
 ];
@@ -142,6 +144,7 @@ const PRIMARY_READ = {
   "/classes": "**/api/classes",
   "/resources/101": "**/api/resources/101",
   "/resources?view=library": "**/api/resources?*",
+  "/classes/31": "**/api/classes/31",
   "/forum": "**/api/forum/posts*",
   "/catalog": "**/api/forum/materials*",
 };

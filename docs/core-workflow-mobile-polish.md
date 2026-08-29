@@ -1643,3 +1643,22 @@ Verification recorded for this increment:
   all four conditions; after, 113/113;
 - 189 page renders clean, every visible string translated, 230 user-content
   renders all protected, api-server 848 tests, the app type-checks.
+
+## Fix — the class page, on the web, with the same shape as the phone's
+
+The phone's class screen said "Class not found" when the request had failed.
+The web one has the same branch and says nothing at all: a failed read fell
+past `isError` — there was no `isError` — into the block for a class that is
+gone, and a reader learned neither what went wrong nor that trying again was
+worth it. It draws the shared `LoadFailure` now.
+
+Found the same way as everything else here: the page had never been rendered
+against a server that would not answer. 122 offline checks pass where 119 did,
+and the three that failed were all this page.
+
+Verification recorded for this increment:
+
+- proved by driving: three checks failed naming `/classes/31` in all three
+  failure conditions; after, 122/122;
+- 189 page renders clean, every visible string translated, 230 user-content
+  renders all protected, api-server 848 tests, the app type-checks.

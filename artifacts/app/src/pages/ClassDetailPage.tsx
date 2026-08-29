@@ -55,6 +55,7 @@ import ActivitiesPage from './ActivitiesPage';
 import CanvasesPage from './CanvasesPage';
 import { counted } from "@/lib/counted";
 import { formatName } from "@/lib/resource-format";
+import { LoadFailure } from "@/components/LoadFailure";
 
 /**
  * The eight sections of a class workspace.
@@ -139,7 +140,14 @@ export default function ClassDetailPage() {
   const [pendingInvitations, setPendingInvitations] = useState<ClassInvitation[]>([]);
   const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
 
-  const { data: cls, isLoading } = useGetClass(classId, {
+  const {
+    data: cls,
+    isLoading,
+    isError,
+    error,
+    isFetching,
+    refetch,
+  } = useGetClass(classId, {
     query: { enabled: !!classId, queryKey: getGetClassQueryKey(classId) },
   });
   const { data: me } = useGetMe();
@@ -371,6 +379,27 @@ export default function ClassDetailPage() {
             <div key={i} className="flex items-center gap-3"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-4 w-40" /></div>
           ))}</div></CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  /*
+   * A request that failed is not a class that is gone.
+   *
+   * With no branch of its own, a failed read fell through to the block below
+   * and the page said nothing about it -- neither what went wrong nor how to
+   * try again. The phone had the same shape and said the worse thing, "Class
+   * not found", to somebody whose network had dropped. Neither had ever been
+   * rendered against a server that would not answer.
+   */
+  if (isError && cls === undefined) {
+    return (
+      <div className="p-6">
+        <LoadFailure
+          error={error}
+          retrying={isFetching}
+          onRetry={() => void refetch()}
+        />
       </div>
     );
   }
