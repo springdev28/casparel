@@ -180,6 +180,43 @@ const SCREENS = [
    * and the control that puts it in a library. None had been drawn by
    * anything, in either language, in any state.
    */
+  /*
+   * The sheets and modals behind a tap, which is markup that does not exist
+   * until somebody opens it. The web audit had never opened one either; when
+   * it started, the first sixteen turned up fifteen form fields whose only
+   * name was a placeholder. These are the phone's.
+   */
+  {
+    path: "/(tabs)/schedule",
+    session: "in",
+    open: [{ testId: "new-schedule-entry" }],
+    as: "/(tabs)/schedule (new entry)",
+  },
+  {
+    path: "/(tabs)/schedule",
+    session: "in",
+    open: [{ testId: "open-pending-session" }],
+    as: "/(tabs)/schedule (a session invitation)",
+  },
+  /*
+   * Not the profile's account confirmation. It is an `Alert.alert`, which is
+   * the platform's own dialog rather than markup this app draws, so there is
+   * nothing here to render or to read -- and on the web it does not appear at
+   * all. Its strings are already wrapped, which is the half that can be
+   * checked from the source.
+   */
+  {
+    path: "/lists/11",
+    session: "in",
+    open: [{ testId: "choose-role" }],
+    as: "/lists/11 (choose a role)",
+  },
+  {
+    path: "/resource/101",
+    session: "in",
+    open: [{ testId: "save-or-add-to-list" }],
+    as: "/resource/101 (save to a list)",
+  },
   { path: "/messages/81", session: "in" },
   { path: "/class/31", session: "in" },
   { path: "/resource/101", session: "in" },
@@ -466,6 +503,25 @@ function stubbedBody(pathname) {
         classId: null,
         participantCount: 2,
         createdAt: "2026-03-02T09:00:00.000Z",
+        /*
+         * The two fields the contract requires and this stub did not have.
+         *
+         * `participants` is what the collaborative badge counts and
+         * `myStatus` is what puts the invitation banner on screen, so
+         * without them the screen drew neither -- and the strings on both
+         * had never been rendered in any language.
+         */
+        participants: [
+          { userId: 1, status: "pending", name: "Audit Account", avatarUrl: null, respondedAt: null },
+          {
+            userId: 2,
+            status: "accepted",
+            name: "Audit Teacher",
+            avatarUrl: null,
+            respondedAt: "2026-03-02T09:30:00.000Z",
+          },
+        ],
+        myStatus: "pending",
       },
     ];
   }
@@ -991,8 +1047,11 @@ async function main() {
            * and no dictionary translates. Never by a translated name: finding
            * it would need the answer this run is checking.
            */
+          // `.first()` on both: a testid that names a row's control matches
+          // one per row, and a strict-mode violation is not the news -- the
+          // sheet behind it is.
           const control = step.testId
-            ? page.locator(`[data-testid="${step.testId}"]`)
+            ? page.locator(`[data-testid="${step.testId}"]`).first()
             : page.getByLabel(step.label, { exact: false }).first();
           await control.click({ timeout: 10000 });
           await page.waitForTimeout(500);

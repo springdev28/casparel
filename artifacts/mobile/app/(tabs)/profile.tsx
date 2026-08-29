@@ -937,6 +937,7 @@ export default function ProfileScreen() {
           style={styles.row}
           disabled={resetAccount.isPending || deleteAccount.isPending}
           onPress={() => warnBeforeAccountAction('delete')}
+          testID="delete-account"
           activeOpacity={0.7}
         >
           <View style={styles.rowLeft}>

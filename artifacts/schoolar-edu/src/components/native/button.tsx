@@ -25,6 +25,16 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   style?: object;
+  /**
+   * A name for a test or an audit to find this by.
+   *
+   * React Native maps it to `data-testid` on the web, and every other
+   * pressable in this app takes one. Without it the only way to reach a
+   * Button from an audit is its label, which is translated -- so a run
+   * checking whether a sheet comes up in Turkish would have to know the
+   * Turkish to open it.
+   */
+  testID?: string;
 }
 
 export function Button({
@@ -35,6 +45,7 @@ export function Button({
   disabled = false,
   loading = false,
   style,
+  testID,
 }: ButtonProps) {
   const colors = useColors();
 
@@ -85,6 +96,7 @@ export function Button({
   return (
     <Pressable
       onPress={handlePress}
+      testID={testID}
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.base,

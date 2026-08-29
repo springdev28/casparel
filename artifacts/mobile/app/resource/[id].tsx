@@ -467,6 +467,7 @@ export default function ResourceDetailScreen() {
           </Button>
           <Button
             onPress={() => void handleSave()}
+            testID="save-or-add-to-list"
             loading={saveResource.isPending}
             disabled={!userId}
             style={styles.actionButton}

@@ -1988,3 +1988,42 @@ Verification recorded for this increment:
 - 205 page renders clean, up from 189 before any dialog was opened;
 - every visible string translated; 230 user-content renders all protected;
   192 text-fit renders; api-server 863 tests; the app type-checks.
+
+## Fix — the phone's sheets, and six more fields with no name
+
+The same question on the phone. Four of its sheets were opened by the language
+audit; five were not. Opening them found:
+
+- **six form fields with no accessible name**, all in the sheet for planning a
+  study session: title, date, start time, duration, meeting link and topic.
+  Each had its label drawn as a `<Text>` beside it, which pairs them for the
+  eye and not at all for VoiceOver — the same fault the shared Input had on
+  the sign-in screen, in a sheet nothing had opened;
+- **five of those six labels were English in Turkish.** "Title *", "Date *
+  (YYYY-MM-DD)", "Start time *", "Duration (min) *", "Meeting link *". Short
+  labels with an asterisk are not sentences, so the source scan walks past
+  them, and nothing had ever drawn them to be compared;
+- **a stub missing the two fields the contract requires.** `/study-sessions`
+  answered without `participants` or `myStatus`, so the collaborative badge
+  and the invitation banner — and every string on both — had never been drawn.
+
+Three mechanics were wrong on the first attempt and are worth keeping:
+
+- **`.first()` on the locator.** A testid that names a row's control matches
+  one per row, and a strict-mode violation is not the news; the sheet behind
+  it is.
+- **The shared `Button` took no `testID`.** Every other pressable does. Without
+  it the only way to reach a Button from an audit is its label, which is
+  translated — so a run checking whether a sheet comes up in Turkish would
+  have needed the Turkish to open it.
+- **One confirmation is not markup at all.** The profile's account dialog is an
+  `Alert.alert`, the platform's own, which does not appear on the web and has
+  nothing here to render. It is left out with that reason written down rather
+  than as an absence.
+
+Verification recorded for this increment:
+
+- proved by driving: six unnamed fields and five untranslated labels, all
+  named by the run that first opened this sheet;
+- 54 screen renders across two languages, up from 46; 126 failure checks;
+  mobile 91 tests; api-server 863; every package type-checks.

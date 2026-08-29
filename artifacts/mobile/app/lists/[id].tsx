@@ -135,6 +135,7 @@ function Item({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${t('Role')}: ${item.resource.title}`}
+        testID="choose-role"
         disabled={busy}
         onPress={onRole}
         hitSlop={6}

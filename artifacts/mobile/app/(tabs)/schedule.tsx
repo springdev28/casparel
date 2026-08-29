@@ -520,11 +520,12 @@ function CreateStudySessionModal({
 
           {/* Title */}
           <View style={{ gap: 6 }}>
-            <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>Title *</Text>
+            <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>{t('Title *')}</Text>
             <TextInput
               style={inputStyle}
               value={title}
               onChangeText={setTitle}
+              accessibilityLabel={t('Title *')}
               placeholder="e.g. Calculus group review"
               placeholderTextColor={colors.mutedForeground}
             />
@@ -532,11 +533,12 @@ function CreateStudySessionModal({
 
           {/* Date */}
           <View style={{ gap: 6 }}>
-            <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>Date * (YYYY-MM-DD)</Text>
+            <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>{t('Date * (YYYY-MM-DD)')}</Text>
             <TextInput
               style={inputStyle}
               value={date}
               onChangeText={setDate}
+              accessibilityLabel={t('Date * (YYYY-MM-DD)')}
               placeholder="2026-08-10"
               placeholderTextColor={colors.mutedForeground}
               keyboardType="numeric"
@@ -546,22 +548,24 @@ function CreateStudySessionModal({
           {/* Time + Duration */}
           <View style={{ flexDirection: 'row', gap: 12 }}>
             <View style={{ gap: 6, flex: 1 }}>
-              <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>Start time *</Text>
+              <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>{t('Start time *')}</Text>
               <TextInput
                 style={inputStyle}
                 value={startTime}
                 onChangeText={setStartTime}
-                placeholder="14:00"
+                accessibilityLabel={t('Start time *')}
+              placeholder="14:00"
                 placeholderTextColor={colors.mutedForeground}
               />
             </View>
             <View style={{ gap: 6, flex: 1 }}>
-              <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>Duration (min) *</Text>
+              <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>{t('Duration (min) *')}</Text>
               <TextInput
                 style={inputStyle}
                 value={duration}
                 onChangeText={setDuration}
-                placeholder="60"
+                accessibilityLabel={t('Duration (min) *')}
+              placeholder="60"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="numeric"
               />
@@ -570,11 +574,12 @@ function CreateStudySessionModal({
 
           {/* Meeting link */}
           <View style={{ gap: 6 }}>
-            <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>Meeting link *</Text>
+            <Text style={[styles.fieldLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansMedium }]}>{t('Meeting link *')}</Text>
             <TextInput
               style={inputStyle}
               value={meetingUrl}
               onChangeText={setMeetingUrl}
+              accessibilityLabel={t('Meeting link *')}
               placeholder="https://meet.google.com/…"
               placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
@@ -589,6 +594,7 @@ function CreateStudySessionModal({
               style={[inputStyle, { minHeight: 64, textAlignVertical: 'top' }]}
               value={topic}
               onChangeText={setTopic}
+              accessibilityLabel={t('Topic (optional)')}
               placeholder={t('What will you study?')}
               placeholderTextColor={colors.mutedForeground}
               multiline
@@ -836,6 +842,7 @@ export default function ScheduleScreen() {
           </Text>
           <Pressable
             onPress={() => setCreateModalVisible(true)}
+            testID="new-schedule-entry"
             style={[styles.fabButton, { backgroundColor: violet.accent, borderRadius: colors.radius }]}
           >
             <Text style={[styles.fabText, { color: violet.onAccent, fontFamily: colors.fontFamily.sansSemiBold }]}>+ {t('Study Session')}</Text>
@@ -846,6 +853,7 @@ export default function ScheduleScreen() {
         {pendingSessions.length > 0 && (
           <Pressable
             onPress={() => setSelectedSession(pendingSessions[0])}
+            testID="open-pending-session"
             style={[styles.pendingPill, { backgroundColor: violet.surfacePressed, borderColor: violet.border, borderRadius: colors.radius }]}
           >
             <Text style={[styles.pendingPillText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>
