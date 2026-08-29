@@ -56,6 +56,27 @@ const EXIT_INCONCLUSIVE = 75;
  * file was written. The library is here for the reason audit-loading.mjs
  * exists at all -- "Your library is empty" is the sentence that started this.
  */
+/**
+ * What each page says when it has nothing, and must not say while it is still
+ * asking.
+ *
+ * Curated rather than derived, because on the web these sentences are written
+ * into each page and sit alongside phrases that are legitimately about
+ * nothing -- "No named author or institution" is a credibility label, "No
+ * reason recorded." is a moderation field. A list scraped from the source
+ * would report both as claims about the reader.
+ */
+const EMPTY_SENTENCE = {
+  "/dashboard": "No mastery evidence",
+  "/schedule": "No plans",
+  "/classes": "You haven't joined any classes yet",
+  "/goals": "Your path is empty",
+  "/lists": "No lists yet",
+  "/activities": "No study activities yet",
+  "/canvases": "Start with a blank canvas",
+  "/resources?view=library": "Your library is empty",
+};
+
 const PAGES = [
   "/dashboard",
   "/schedule",
@@ -82,6 +103,18 @@ const PAGES = [
  * ever been rendered here.
  */
 const FAILURES = [
+  {
+    name: "waiting",
+    describe: "the server has not answered yet",
+    /*
+     * Held open, never answered and never refused. Nothing has failed, so a
+     * page that has reached its empty state has jumped to a conclusion: "No
+     * lists yet" while the request is in flight is the same claim as showing
+     * it after the request failed, a second or two earlier.
+     */
+    install: (context) => context.route("**/api/**", () => {}),
+    expect: "waiting",
+  },
   {
     name: "offline",
     describe: "nothing reaches the server",
@@ -171,11 +204,25 @@ async function main() {
           return main.innerText.replace(/\s+/g, " ").slice(0, 220);
         });
 
-        check(
-          `${pathname} [${failure.name}] says it could not load`,
-          failureBlocks > 0,
-          `no load-failure block; the page showed: ${text}`,
-        );
+        if (failure.expect === "waiting") {
+          const sentence = EMPTY_SENTENCE[pathname];
+          check(
+            `${pathname} [waiting] does not decide the reader has nothing`,
+            !sentence || !text.includes(sentence),
+            `showed ${JSON.stringify(sentence)} while still asking`,
+          );
+          check(
+            `${pathname} [waiting] has not given up either`,
+            failureBlocks === 0,
+            `showed a load-failure block before anything failed`,
+          );
+        } else {
+          check(
+            `${pathname} [${failure.name}] says it could not load`,
+            failureBlocks > 0,
+            `no load-failure block; the page showed: ${text}`,
+          );
+        }
         check(
           `${pathname} [${failure.name}] does not throw`,
           pageErrors.length === 0,

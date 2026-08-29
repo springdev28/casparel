@@ -1275,3 +1275,29 @@ Verification recorded for this increment:
 - 36 offline and broken-server checks across nine pages, up from 10 across five;
 - the four failures were found by the audit before the fixes and pass after them;
 - 180 page renders clean, 122 pages reachable, every visible string still translated, sessions still behave correctly, and 24 live UI checks against a real server.
+
+## Fix — and what the web says while it is still asking
+
+The same third condition the phone's audit gained: the server has not answered
+yet. Nothing has failed, so a page that has reached its empty state has jumped
+to a conclusion — "No lists yet" while the request is in flight is the same
+claim as showing it after the request failed, a second or two earlier.
+
+Every one of the nine pages was already right, which is the useful outcome:
+the four fixed an hour ago were wrong about *failure*, not about waiting, and
+this says so rather than leaving it assumed. Proved by disabling the Learning
+Lists page's loading branch, which reported it deciding the reader had no
+lists while a request was still open.
+
+The sentences it looks for are curated rather than scraped. On the web they
+are written into each page and sit beside phrases that are legitimately about
+nothing — "No named author or institution" is a credibility label, "No reason
+recorded." is a moderation field — so a list taken from the source would
+report both as claims about the reader. The phone could derive its list
+because every empty state there goes through one `Empty` component; the web
+has no such seam, and pretending otherwise would make the check noisy enough
+to ignore.
+
+The web audit now asks three questions of nine pages: what a page says while
+waiting, when nothing reaches the server, and when the server answers 500.
+Sixty-three checks, from ten.
