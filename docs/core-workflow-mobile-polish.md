@@ -1314,22 +1314,29 @@ makes another one.
 distinguish the answer from the absence of one: a 404 or a 403 still says "not
 found", and anything else says the request failed, with a retry.
 
-A third thing came out of adding them to the audit, and it was mine. The
-Learning List page read `drift.data?.added.length` — one optional chain where
-it needed two. The first guards a response that has not arrived; the second
-guards one that arrived without the field, which is what an error body or a
-fixture that does not know the endpoint looks like. Written with one, the page
-threw during render and the whole screen became the error boundary, so a list
-that merely failed to load took the app down with it. The audit did not see it
-because when *everything* fails the page returns earlier; it took failing one
-request while the rest succeeded — which is the ordinary case — to reach it.
+A third thing came out of adding them, and the first account of it here was
+wrong in a way worth correcting rather than quietly editing. The Learning List
+page read `drift.data?.added.length` — one optional chain where two would be
+safer — and the page threw during render, so the whole screen became the error
+boundary.
 
-The fixture set now answers the drift endpoint too, so the page reads a real
-shape rather than whatever a missing fixture leaves behind.
+That is not a production defect, and this file said it was. In production the
+contract guarantees `added`, and a failed request leaves `data` undefined so
+the single chain short-circuits correctly. What actually happened is that the
+drift endpoint had no fixture, and the audit harness answers an unmapped
+endpoint with `200 []` — a deliberate choice, since most unmapped endpoints
+are collections. An array has no `added`, so the second dereference threw.
+A harness artefact, not something a reader could hit.
+
+Both changes stay: the fixture, because an endpoint the audit cannot answer is
+an endpoint it cannot check, and the second optional chain, because it is free
+and correct against a partial body. What is not claimed any more is that a
+learner could have seen it.
 
 Verification recorded for this increment:
 
 - every package type-checks;
 - 77 checks across eleven pages and three conditions, up from 63 across nine;
 - driven directly: a genuine 404 still says "not found" on both pages, and a 500 says it could not load;
+- and a fourth condition since: everything working except the one read a page is about, which is the ordinary failure rather than the tidy one. A page that returns early when *nothing* loaded will carry on rendering when only one thing did not, and that is the state the render error above appeared in. Eleven pages, nine of them with a primary read worth naming;
 - 180 page renders clean, 122 pages reachable, every visible string still translated, sessions correct, 24 live UI checks, 102 end-to-end checks and 55 readable endpoints against freshly started servers.

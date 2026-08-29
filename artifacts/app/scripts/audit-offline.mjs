@@ -108,12 +108,59 @@ const PAGES = [
 ];
 
 /**
+ * The one request each page is really about.
+ *
+ * Taking the whole network away is the tidy failure and not the ordinary one.
+ * Ordinarily a single endpoint is down, or a single row answers 404, and
+ * everything else on the page works — which is a different code path, because
+ * a page that returns early when *nothing* loaded will happily carry on
+ * rendering when only one thing did not. The Learning List page threw during
+ * render in exactly that state, and the whole screen became the error
+ * boundary; a blanket failure never reached it.
+ *
+ * Curated because only the page knows which read it is about. A page with no
+ * entry is skipped in this mode rather than guessed at.
+ */
+const PRIMARY_READ = {
+  "/lists": "**/api/lists",
+  "/lists/44": "**/api/lists/44",
+  "/activities": "**/api/study-activities*",
+  "/canvases": "**/api/canvases",
+  "/goals": "**/api/learning-goals",
+  "/schedule": "**/api/schedule*",
+  "/classes": "**/api/classes",
+  "/resources/101": "**/api/resources/101",
+  "/resources?view=library": "**/api/resources?*",
+};
+
+/**
  * Two ways of not answering, because the app tells them apart and so does a
  * person: nothing came back at all, and something came back saying the server
  * broke. They are different branches of LoadFailure, and only the first had
  * ever been rendered here.
  */
 const FAILURES = [
+  {
+    name: "only this one",
+    describe: "everything works except the one read the page is about",
+    install: () => {},
+    /*
+     * Installed per page rather than per context, because which request to
+     * break depends on which page is being opened.
+     */
+    perPage: (context, pathname) => {
+      const pattern = PRIMARY_READ[pathname];
+      if (!pattern) return null;
+      return context.route(pattern, (route) =>
+        route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Something went wrong" }),
+        }),
+      );
+    },
+    expect: "failure",
+  },
   {
     name: "waiting",
     describe: "the server has not answered yet",
@@ -203,17 +250,26 @@ async function main() {
       console.log(`\n${failure.describe}:\n`);
 
       for (const pathname of PAGES) {
+        if (failure.perPage) {
+          const installed = failure.perPage(context, pathname);
+          if (!installed) {
+            console.log(`--   ${pathname} has no primary read named; not asked`);
+            continue;
+          }
+          await installed;
+        }
         const page = await context.newPage();
         const pageErrors = [];
         page.on("pageerror", (error) => pageErrors.push(String(error).slice(0, 160)));
+        // The boundary catches a render error before `pageerror` sees it, so
+        // the message it draws is what tells us the page fell over.
         await page.goto(`${base}${pathname}`, { waitUntil: "domcontentloaded" });
         await page.waitForTimeout(4000);
 
         const failureBlocks = await page.locator('[data-testid="load-failure"]').count();
-        const text = await page.evaluate(() => {
-          const main = document.querySelector("main") ?? document.body;
-          return main.innerText.replace(/\s+/g, " ").slice(0, 220);
-        });
+        const text = await page.evaluate(() =>
+          document.body.innerText.replace(/\s+/g, " ").slice(0, 260),
+        );
 
         if (failure.expect === "waiting") {
           const sentence = EMPTY_SENTENCE[pathname];
@@ -236,10 +292,11 @@ async function main() {
         }
         check(
           `${pathname} [${failure.name}] does not throw`,
-          pageErrors.length === 0,
-          pageErrors[0] ?? "",
+          pageErrors.length === 0 && !/A page error occurred/i.test(text),
+          pageErrors[0] ?? text,
         );
         await page.close();
+        if (failure.perPage) await context.unroute(PRIMARY_READ[pathname]);
       }
 
       await context.close();
