@@ -98,8 +98,34 @@ const CLASS_ID = 1;
 const TEACHER_ID = 10;
 const MEMBER_ID = 99;
 
-const CLASS_ROW = { id: CLASS_ID, teacherId: TEACHER_ID, name: "Test Class", description: null, subject: "Math", gradeLevel: "Grade 5", createdAt: new Date().toISOString() };
-const MEMBER_ROW = { id: 5, userId: MEMBER_ID, classId: CLASS_ID, role: "student", joinedAt: new Date().toISOString() };
+const CLASS_ROW = {
+  id: CLASS_ID,
+  teacherId: TEACHER_ID,
+  name: "Test Class",
+  description: null,
+  subject: "Math",
+  gradeLevel: "Grade 5",
+  createdAt: new Date().toISOString(),
+  rows: 2,
+  columns: 2,
+  desks: null,
+};
+const MEMBER_ROW = {
+  id: 5,
+  userId: MEMBER_ID,
+  classId: CLASS_ID,
+  role: "student",
+  joinedAt: new Date().toISOString(),
+  name: "Member",
+  avatarUrl: null,
+  gradeOrDept: null,
+  teacherNote: null,
+  customRole: null,
+  seatRow: null,
+  seatColumn: null,
+  seatDeskId: null,
+  seatPosition: null,
+};
 const INVITED_USER_ROW = { id: MEMBER_ID, email: "member@example.com", name: "Member", role: "student", createdAt: new Date().toISOString() };
 
 function buildApp() {
@@ -146,6 +172,7 @@ function makeSelectChain() {
       }
     }),
     innerJoin: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
     // count sub-select used by classWithCount
     limit: vi.fn().mockReturnThis(),
     offset: vi.fn().mockReturnThis(),
@@ -693,15 +720,14 @@ describe("POST /api/classes, plan capacity gate", () => {
       capacity: "classes-owned",
       limit: 1,
       used: 1,
-      // Class creation is teacher-only, so the upsell names the teacher plan.
-      requiredPlan: "teacher-plus",
+      requiredPlan: "plus",
     });
     // The refusal must happen before the write, not after it.
     expect(db.insert).not.toHaveBeenCalled();
   });
 
-  it("lets a Teacher Plus teacher past the Free ceiling", async () => {
-    mockOwnedClasses("teacher-plus", 1);
+  it("lets a Plus teacher past the Free ceiling", async () => {
+    mockOwnedClasses("plus", 1);
     const returning = vi.fn().mockResolvedValue([CLASS_ROW]);
     vi.mocked(db.insert).mockReturnValue({
       values: vi.fn().mockReturnValue({
@@ -734,13 +760,13 @@ describe("POST /api/classes/:id/seating-plan/suggest, subscription gate", () => 
     expect(res.status).toBe(402);
     expect(res.body).toMatchObject({
       code: "SUBSCRIPTION_REQUIRED",
-      requiredPlan: "teacher-pro",
+      requiredPlan: "pro",
     });
   });
 
-  it("rejects Teacher Plus too: the planner lives on the Pro level", async () => {
+  it("rejects Plus too: the planner lives on Pro", async () => {
     vi.mocked(getAccountEntitlements).mockResolvedValueOnce(
-      entitlementsForPlan("teacher-plus", null, "teacher"),
+      entitlementsForPlan("plus", null, "teacher"),
     );
 
     const res = await request(buildApp())
@@ -752,19 +778,36 @@ describe("POST /api/classes/:id/seating-plan/suggest, subscription gate", () => 
     expect(res.body).toMatchObject({ code: "SUBSCRIPTION_REQUIRED" });
   });
 
-  it("rejects a teacher holding a student plan: roles do not mix", async () => {
-    // A Student Pro plan on a teacher account resolves to Free, so the
-    // teacher-only seating planner stays locked despite the paid plan.
+  it("accepts Pro independently of the account role", async () => {
     vi.mocked(getAccountEntitlements).mockResolvedValueOnce(
-      entitlementsForPlan("student-pro", null, "teacher"),
+      entitlementsForPlan("pro", null, "teacher"),
     );
+    const rows = [
+      [{ id: TEACHER_ID, role: "teacher", activeRole: "teacher" }],
+      [CLASS_ROW],
+      [{ rows: 2, columns: 2, desks: null }],
+      [MEMBER_ROW],
+    ];
+    let selectIndex = 0;
+    vi.mocked(db.select).mockImplementation(() => {
+      const result = rows[selectIndex++] ?? [];
+      const chain: Record<string, unknown> = {
+        from: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        where: vi.fn().mockImplementation(() =>
+          selectIndex === 4
+            ? { orderBy: vi.fn().mockResolvedValue(result) }
+            : Promise.resolve(result),
+        ),
+      };
+      return chain as unknown as ReturnType<typeof db.select>;
+    });
 
     const res = await request(buildApp())
       .post(`/api/classes/${CLASS_ID}/seating-plan/suggest`)
       .set("Authorization", tokenFor("teacher"))
       .send({ priorities: null });
 
-    expect(res.status).toBe(402);
-    expect(res.body).toMatchObject({ code: "SUBSCRIPTION_REQUIRED" });
+    expect(res.status).toBe(200);
   });
 });

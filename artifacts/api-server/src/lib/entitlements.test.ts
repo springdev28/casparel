@@ -4,7 +4,7 @@
  */
 /**
  * Tests for the tier model:
- *  • role-specific plans never grant across roles ("roles do not mix")
+ *  • account roles never change billing products or allowances
  *  • every tier is finite — uncapped is an admin property, not a plan
  *  • Free keeps a small AI taste on every rate
  *  • ladders are monotonic: paying more never buys less within a family
@@ -43,10 +43,6 @@ const ALL_TIERS: SubscriptionTier[] = [
   "free",
   "plus",
   "pro",
-  "student-plus",
-  "student-pro",
-  "teacher-plus",
-  "teacher-pro",
   "institutional",
 ];
 
@@ -118,25 +114,20 @@ describe("isPlanActive", () => {
   });
 });
 
-describe("roles do not mix", () => {
-  it("grants a student plan only on a student account", () => {
-    expect(normalizePlan("student-pro", null, "student")).toBe("student-pro");
-    expect(normalizePlan("student-pro", null, "teacher")).toBe("free");
-    expect(normalizePlan("student-pro", null, "admin")).toBe("free");
-    expect(normalizePlan("student-pro", null, null)).toBe("free");
-  });
-
-  it("grants a teacher plan only on a teacher account", () => {
-    expect(normalizePlan("teacher-plus", null, "teacher")).toBe("teacher-plus");
-    expect(normalizePlan("teacher-plus", null, "student")).toBe("free");
-  });
-
-  it("keeps the generic plans role-agnostic", () => {
+describe("plan and account role stay separate", () => {
+  it("keeps Plus and Pro role-agnostic", () => {
     for (const role of ["student", "teacher", "admin", null]) {
       expect(normalizePlan("plus", null, role)).toBe("plus");
       expect(normalizePlan("pro", null, role)).toBe("pro");
       expect(normalizePlan("premium", null, role)).toBe("pro");
     }
+  });
+
+  it("collapses legacy role-specific rows without consulting role", () => {
+    expect(normalizePlan("student-plus", null, "teacher")).toBe("plus");
+    expect(normalizePlan("teacher-plus", null, "student")).toBe("plus");
+    expect(normalizePlan("student-pro", null, "teacher")).toBe("pro");
+    expect(normalizePlan("teacher-pro", null, "student")).toBe("pro");
   });
 
   it("grants the school licence on any account role", () => {
@@ -146,32 +137,18 @@ describe("roles do not mix", () => {
     expect(planRoleRequirement("institutional")).toBeNull();
   });
 
-  it("never leaks the seating planner to a student-held plan", () => {
-    // The feature lives on the Pro level of plans a teacher can hold.
+  it("gives Pro features independently of role", () => {
     expect(
-      entitlementsForPlan("student-pro", null, "student").features[
-        "seating-planner"
-      ],
-    ).toBe(false);
-    expect(
-      entitlementsForPlan("teacher-pro", null, "teacher").features[
-        "seating-planner"
-      ],
+      entitlementsForPlan("pro", null, "student").features["seating-planner"],
     ).toBe(true);
     expect(
-      entitlementsForPlan("pro", null, "teacher").features["seating-planner"],
-    ).toBe(true);
-    expect(
-      entitlementsForPlan("teacher-plus", null, "teacher").features[
-        "seating-planner"
-      ],
+      entitlementsForPlan("plus", null, "teacher").features["seating-planner"],
     ).toBe(false);
   });
 
-  it("declares which role each tier is reserved for", () => {
-    expect(planRoleRequirement("student-plus")).toBe("student");
-    expect(planRoleRequirement("teacher-pro")).toBe("teacher");
+  it("declares no role requirement for any plan", () => {
     expect(planRoleRequirement("plus")).toBeNull();
+    expect(planRoleRequirement("pro")).toBeNull();
     expect(planRoleRequirement("free")).toBeNull();
   });
 });
@@ -225,17 +202,7 @@ describe("nothing is uncapped", () => {
 });
 
 describe("ladders are monotonic", () => {
-  /**
-   * Within each family the paid steps must never shrink an allowance
-   * relative to Free or to each other. Student tiers deliberately keep the
-   * Free class columns (students cannot create classes), so "not smaller"
-   * is the invariant, not "strictly bigger".
-   */
-  const FAMILIES: SubscriptionTier[][] = [
-    ["free", "plus", "pro"],
-    ["free", "student-plus", "student-pro"],
-    ["free", "teacher-plus", "teacher-pro"],
-  ];
+  const FAMILIES: SubscriptionTier[][] = [["free", "plus", "pro"]];
 
   it("never shrinks a capacity as the plan gets more expensive", () => {
     for (const family of FAMILIES) {
@@ -287,64 +254,38 @@ describe("ladders are monotonic", () => {
     ).toBe(true);
   });
 
-  it("specialises each role's tiers against the generic level", () => {
-    // Students buy study depth beyond the generic plan of the same level...
-    expect(
-      capacityLimitFor("student-plus", "study-activities") as number,
-    ).toBeGreaterThan(capacityLimitFor("plus", "study-activities") as number);
-    // ...teachers buy classroom scale beyond it...
-    expect(
-      capacityLimitFor("teacher-plus", "class-members") as number,
-    ).toBeGreaterThan(capacityLimitFor("plus", "class-members") as number);
-    expect(
-      capacityLimitFor("teacher-pro", "classes-owned") as number,
-    ).toBeGreaterThan(capacityLimitFor("pro", "classes-owned") as number);
-    // ...and neither pays for the other role's speciality.
-    expect(capacityLimitFor("student-pro", "classes-owned")).toBe(
-      capacityLimitFor("free", "classes-owned"),
-    );
+  it("gives Pro at least every Plus allowance", () => {
+    for (const capacity of CAPACITIES) {
+      expect(capacityLimitFor("pro", capacity)).toBeGreaterThanOrEqual(
+        capacityLimitFor("plus", capacity),
+      );
+    }
   });
 });
 
 describe("plan levels and upgrades", () => {
   it("collapses tiers to price levels", () => {
     expect(planLevel("free")).toBe("free");
-    expect(planLevel("student-plus")).toBe("plus");
-    expect(planLevel("teacher-plus")).toBe("plus");
+    expect(planLevel("plus")).toBe("plus");
     expect(planLevel("pro")).toBe("pro");
-    expect(planLevel("student-pro")).toBe("pro");
   });
 
-  it("recommends from the account's own ladder", () => {
-    // A free teacher who needs a 120-seat roster: Teacher Plus (150) fits.
-    expect(upgradeTargetFor("class-members", "teacher", 120)).toBe(
-      "teacher-plus",
-    );
-    // 200 seats: only Teacher Pro fits.
-    expect(upgradeTargetFor("class-members", "teacher", 200)).toBe(
-      "teacher-pro",
-    );
-    // A student who needs 500 activities is pointed at Student Pro,
-    // never at a teacher plan.
-    expect(upgradeTargetFor("study-activities", "student", 500)).toBe(
-      "student-pro",
-    );
-    // Unknown role falls back to the generic ladder.
+  it("recommends the same ladder for every role", () => {
+    expect(upgradeTargetFor("class-members", "teacher", 80)).toBe("plus");
+    expect(upgradeTargetFor("class-members", "student", 200)).toBe("pro");
     expect(upgradeTargetFor("study-activities", null, 100)).toBe("plus");
   });
 
   it("names the top of the ladder when nothing fits", () => {
     // Every tier is finite now, so some requests exceed every plan; the top
     // plan is still the honest "gets you furthest" answer.
-    expect(upgradeTargetFor("class-members", "teacher", 10_000)).toBe(
-      "teacher-pro",
-    );
+    expect(upgradeTargetFor("class-members", "teacher", 10_000)).toBe("pro");
   });
 
   it("does not recommend a sideways move from a Plus-level plan", () => {
     expect(
-      upgradeTargetFor("study-activities", "student", 500, "student-plus"),
-    ).toBe("student-pro");
+      upgradeTargetFor("study-activities", "student", 500, "plus"),
+    ).toBe("pro");
   });
 
   it("never recommends a smaller plan to a school-licensed account", () => {
@@ -356,18 +297,16 @@ describe("plan levels and upgrades", () => {
 
 describe("planForEntitlementIds", () => {
   it("maps each entitlement to its plan", () => {
-    expect(planForEntitlementIds(["teacher-pro"])).toBe("teacher-pro");
-    expect(planForEntitlementIds(["student-plus"])).toBe("student-plus");
+    expect(planForEntitlementIds(["teacher-pro"])).toBe("pro");
+    expect(planForEntitlementIds(["student-plus"])).toBe("plus");
     expect(planForEntitlementIds(["plus"])).toBe("plus");
     expect(planForEntitlementIds(["premium"])).toBe("pro");
   });
 
   it("lets the strongest entitlement win when several are active", () => {
-    expect(planForEntitlementIds(["plus", "teacher-pro"])).toBe("teacher-pro");
+    expect(planForEntitlementIds(["plus", "teacher-pro"])).toBe("pro");
     expect(planForEntitlementIds(["student-plus", "pro"])).toBe("pro");
-    expect(planForEntitlementIds(["teacher-plus", "student-plus"])).toBe(
-      "teacher-plus",
-    );
+    expect(planForEntitlementIds(["teacher-plus", "student-plus"])).toBe("plus");
     expect(planForEntitlementIds(["teacher-pro", "institutional"])).toBe(
       "institutional",
     );
@@ -382,15 +321,13 @@ describe("planForEntitlementIds", () => {
 describe("expiry", () => {
   it("downgrades an expired or invalid-dated paid plan to Free", () => {
     const past = new Date(Date.now() - 60_000).toISOString();
-    expect(normalizePlan("teacher-pro", past, "teacher")).toBe("free");
+    expect(normalizePlan("pro", past, "teacher")).toBe("free");
     expect(normalizePlan("pro", "not-a-date", null)).toBe("free");
   });
 
   it("keeps a future-dated plan active", () => {
     const future = new Date(Date.now() + 60_000).toISOString();
-    expect(normalizePlan("student-plus", future, "student")).toBe(
-      "student-plus",
-    );
+    expect(normalizePlan("plus", future, "student")).toBe("plus");
   });
 });
 
@@ -409,16 +346,16 @@ describe("isPremiumAccount", () => {
     vi.clearAllMocks();
   });
 
-  it("is true for an active generic or role-matched plan", async () => {
+  it("is true for an active generic or legacy plan", async () => {
     mockAccountRow({ plan: "premium", expiresAt: null, role: "student" });
     await expect(isPremiumAccount(1)).resolves.toBe(true);
     mockAccountRow({ plan: "teacher-pro", expiresAt: null, role: "teacher" });
     await expect(isPremiumAccount(1)).resolves.toBe(true);
   });
 
-  it("is false when the plan's role does not match the account", async () => {
+  it("stays true when a legacy plan's former role does not match", async () => {
     mockAccountRow({ plan: "teacher-pro", expiresAt: null, role: "student" });
-    await expect(isPremiumAccount(1)).resolves.toBe(false);
+    await expect(isPremiumAccount(1)).resolves.toBe(true);
   });
 
   it("is false for free, missing, or expired accounts", async () => {

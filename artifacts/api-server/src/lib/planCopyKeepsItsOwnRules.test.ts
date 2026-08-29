@@ -5,20 +5,18 @@
 /**
  * The rules plan-copy.ts states about itself, enforced.
  *
- * Its header lays out four, two of them introduced as "wording rules that
+ * Its header lays out three, two of them introduced as "wording rules that
  * already burned this product once each":
  *
  *   - Nothing may say "unlimited": only administrator accounts are uncapped,
  *     and none of these cards are for administrators.
  *   - The seating planner is rule-based and must never be described as AI.
  *   - Annual discounts remain inside the deliberate 8–12% range.
- *   - Role plans undercut the generic plan of the same level, because they are
- *     specialised rather than premium.
  *
  * All four were true and none was checked. A comment is a good place to record
  * why a rule exists and a poor place to keep it: the first two are exactly the
- * kind of wording somebody adds back in a hurry, and the second two are
- * arithmetic that reads fine at a glance while being wrong by a month.
+ * kind of wording somebody adds back in a hurry, and the third is arithmetic
+ * that reads fine at a glance while being wrong by a month.
  *
  * The two claims are not decoration. "Unlimited" against a finite cap is a
  * promise the server will break in front of a paying customer, and calling the
@@ -69,15 +67,14 @@ const priced = (Object.keys(PLAN_CATALOG) as SubscriptionTier[]).flatMap((tier) 
     : [];
 });
 
-const priceOf = (tier: string) => priced.find((entry) => entry.tier === tier);
 const selfServePriced = priced.filter((entry) => entry.tier !== "institutional");
 
 describe("plan-copy.ts", () => {
   it("has cards and prices this test can read", () => {
     // Both lists coming back empty is how this file would pass while checking
     // nothing at all.
-    expect(cards.length, "no tier cards found").toBeGreaterThanOrEqual(9);
-    expect(priced.length, "no prices found").toBeGreaterThanOrEqual(7);
+    expect(cards.length, "no tier cards found").toBeGreaterThanOrEqual(4);
+    expect(priced.length, "no prices found").toBeGreaterThanOrEqual(3);
   });
 
   it("never says a plan is unlimited", () => {
@@ -136,26 +133,7 @@ describe("plan-copy.ts", () => {
     },
   );
 
-  it("prices a role plan under the generic plan of the same level", () => {
-    /*
-     * The header's reasoning: role plans are specialised, not premium, and
-     * the generic plan carries a small flexibility premium for working on any
-     * account role. A role plan that crept above its generic sibling would
-     * invert that and nothing would say so.
-     */
-    for (const level of ["plus", "pro"]) {
-      const generic = priceOf(level);
-      expect(generic, `no ${level} card to compare against`).toBeTruthy();
-      for (const role of ["student", "teacher"]) {
-        const specialised = priceOf(`${role}-${level}`);
-        if (!specialised) continue;
-        expect(
-          specialised.monthly,
-          `${role}-${level} is US$${specialised.monthly} against ` +
-            `${level} at US$${generic!.monthly}; the specialised plan is ` +
-            `meant to undercut the flexible one`,
-        ).toBeLessThan(generic!.monthly);
-      }
-    }
+  it("exposes only role-agnostic self-serve paid tiers", () => {
+    expect(selfServePriced.map((entry) => entry.tier).sort()).toEqual(["plus", "pro"]);
   });
 });

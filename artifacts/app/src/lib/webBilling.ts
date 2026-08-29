@@ -21,7 +21,6 @@
  * SDK at all.
  */
 import type { Package, Purchases } from "@revenuecat/purchases-js";
-import { tierForStoreProductId } from "@workspace/plan-economics";
 import type { PlanTier } from "./use-plan";
 
 /**
@@ -34,6 +33,16 @@ export type PaidTier = Exclude<
   "free" | "administrator" | "institutional"
 >;
 export type BillingPeriod = "monthly" | "annual" | "other";
+
+const WEB_PACKAGE_MAP = {
+  plus_monthly: { tier: "plus", period: "monthly", productId: "casparel_plus_monthly" },
+  plus_yearly: { tier: "plus", period: "annual", productId: "casparel_plus_yearly" },
+  pro_monthly: { tier: "pro", period: "monthly", productId: "casparel_pro_monthly" },
+  pro_yearly: { tier: "pro", period: "annual", productId: "casparel_pro_yearly" },
+} as const satisfies Record<
+  string,
+  { tier: PaidTier; period: BillingPeriod; productId: string }
+>;
 
 export interface WebPlanPackage {
   /** RevenueCat package identifier. */
@@ -53,54 +62,29 @@ export function webBillingConfigured(): boolean {
 }
 
 /**
- * Map a package to the tier it sells. Mirror of `tierForPackage` in
- * artifacts/mobile/utils/revenuecat.ts — keep the two in sync: role words are
- * matched first, then the level, and `pro` beats `plus` so "Pro Plus"-style
- * names never undersell. Explicit product-identifier mapping in the dashboard
- * remains the real fix; this is the mapping of last resort.
+ * Resolve only the exact custom package and product pair. Unexpected packages
+ * fail closed instead of being guessed from display names.
  */
-export function tierForWebPackage(pkg: Package): PaidTier {
+export function tierForWebPackage(pkg: Package): PaidTier | null {
   const product = pkg.webBillingProduct;
-  const explicit = tierForStoreProductId(product?.identifier ?? "");
-  if (explicit) return explicit;
-  const identity =
-    `${pkg.identifier} ${product?.identifier ?? ""} ${product?.displayName ?? ""}`.toLowerCase();
-  const level: "plus" | "pro" = identity.includes("pro") ? "pro" : "plus";
-  if (identity.includes("teacher")) return `teacher-${level}`;
-  if (identity.includes("student")) return `student-${level}`;
-  return level;
+  const definition = WEB_PACKAGE_MAP[pkg.identifier as keyof typeof WEB_PACKAGE_MAP];
+  return definition && definition.productId === product?.identifier
+    ? definition.tier
+    : null;
 }
 
 function periodOf(pkg: Package): BillingPeriod {
-  const type = String(pkg.packageType ?? "").toLowerCase();
-  const duration = (pkg.webBillingProduct?.normalPeriodDuration ?? "").toUpperCase();
-  if (type.includes("annual") || duration === "P1Y") return "annual";
-  if (type.includes("monthly") || duration === "P1M") return "monthly";
-  return "other";
-}
-
-/** The account role a tier is reserved for; null when any role may hold it. */
-function tierRole(tier: PaidTier): "student" | "teacher" | null {
-  if (tier === "student-plus" || tier === "student-pro") return "student";
-  if (tier === "teacher-plus" || tier === "teacher-pro") return "teacher";
-  return null;
+  return WEB_PACKAGE_MAP[pkg.identifier as keyof typeof WEB_PACKAGE_MAP]?.period ?? "other";
 }
 
 /**
- * Roles never mix at the point of sale, on the web exactly as on mobile: the
- * other role's packages are never shown. The generic Plus and Pro packages
- * are valid for every role and are always kept — they are the original plans
- * and remain buyable alongside the role specialisations, so a student may
- * choose Student Pro or plain Pro, but never a teacher plan.
+ * Account role deliberately has no effect on billing products.
  */
 export function webPackagesForRole(
   packages: WebPlanPackage[],
-  role: "student" | "teacher" | null,
+  _role: "student" | "teacher" | null,
 ): WebPlanPackage[] {
-  return packages.filter((pkg) => {
-    const pkgRole = tierRole(pkg.tier);
-    return pkgRole === null || pkgRole === role;
-  });
+  return packages;
 }
 
 let instance: Purchases | null = null;
@@ -139,14 +123,23 @@ export async function fetchWebPackages(
   purchases: Purchases,
 ): Promise<WebPlanPackage[]> {
   const offerings = await purchases.getOfferings();
-  const packages = offerings.current?.availablePackages ?? [];
-  return packages.map((pkg) => ({
-    id: pkg.identifier,
-    tier: tierForWebPackage(pkg),
-    period: periodOf(pkg),
-    price: pkg.webBillingProduct?.currentPrice?.formattedPrice ?? "",
-    raw: pkg,
-  }));
+  const offering = offerings.all.default?.identifier === "default"
+    ? offerings.all.default
+    : offerings.current?.identifier === "default"
+      ? offerings.current
+      : null;
+  return (offering?.availablePackages ?? []).flatMap((pkg) => {
+    const tier = tierForWebPackage(pkg);
+    return tier
+      ? [{
+          id: pkg.identifier,
+          tier,
+          period: periodOf(pkg),
+          price: pkg.webBillingProduct?.currentPrice?.formattedPrice ?? "",
+          raw: pkg,
+        }]
+      : [];
+  });
 }
 
 export type WebPurchaseOutcome = "success" | "cancelled" | "error";

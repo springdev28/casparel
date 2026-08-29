@@ -16,8 +16,7 @@
  * purchase pipeline serves every store.
  *
  * Signed-out visitors see live prices through an anonymous RevenueCat
- * identity and a role toggle (student/teacher plans differ); pressing
- * Subscribe sends them through sign-in with ?next=/plans and straight back
+ * identity; pressing Subscribe sends them through sign-in with ?next=/plans and straight back
  * here. Without the key — or before the dashboard has offerings — the page
  * degrades to comparison plus buy-on-mobile instructions, never a broken
  * checkout.
@@ -50,10 +49,8 @@ import BrandIcon from "../components/BrandIcon";
 import { useSystemDark } from "../hooks/use-system-dark";
 import { usePlan, type PlanTier } from "../lib/use-plan";
 import {
-  audienceForRole,
   INSTITUTIONAL_PLAN,
   TIER_CARDS,
-  type PlanAudience,
   type TierCard,
 } from "../lib/plan-copy";
 import { readSessionClaims } from "../lib/session";
@@ -75,21 +72,13 @@ const LEVEL_RANK: Record<"free" | "plus" | "pro", number> = {
 
 function levelOfTier(tier: PlanTier): "free" | "plus" | "pro" {
   if (tier === "free") return "free";
-  if (tier === "plus" || tier === "student-plus" || tier === "teacher-plus")
-    return "plus";
+  if (tier === "plus") return "plus";
   return "pro";
-}
-
-/** The account role a tier is reserved for; null when any role may hold it. */
-function roleOfTier(tier: PlanTier): "student" | "teacher" | null {
-  if (tier === "student-plus" || tier === "student-pro") return "student";
-  if (tier === "teacher-plus" || tier === "teacher-pro") return "teacher";
-  return null;
 }
 
 const SALES_EMAIL = "support@casparel.com";
 
-type PlanView = PlanAudience | "institutional";
+type PlanView = "generic" | "institutional";
 
 type CheckoutState =
   | { status: "unavailable" }
@@ -107,7 +96,6 @@ type CheckoutState =
 function useWebCheckout(
   userId: number | null,
   enabled: boolean,
-  role: "student" | "teacher" | null,
 ) {
   const [state, setState] = useState<CheckoutState>({
     status: webBillingConfigured() ? "loading" : "unavailable",
@@ -131,7 +119,7 @@ function useWebCheckout(
           userId != null ? managementUrl(purchases) : Promise.resolve(null),
         ]);
         if (cancelled) return;
-        const forRole = webPackagesForRole(packages, role);
+        const forRole = webPackagesForRole(packages, null);
         setState(
           forRole.length > 0
             ? { status: "ready", packages: forRole, manageUrl }
@@ -144,7 +132,7 @@ function useWebCheckout(
     return () => {
       cancelled = true;
     };
-  }, [userId, enabled, role]);
+  }, [userId, enabled]);
 
   return state;
 }
@@ -293,37 +281,12 @@ export default function PlansPage() {
   const queryClient = useQueryClient();
   const isAdmin = plan.tier === "administrator";
 
-  // Everyone gets all four plan sections behind a toggle: the role plans, the
-  // original Plus/Pro, and the sales-led Institutional licence.
-  // Role accounts land on their own tab; the other role's tab is view-only
-  // for them, because roles never mix at the point of sale.
-  const ownAudience = isLoggedIn
-    ? audienceForRole(plan.accountRole)
-    : "generic";
-  // The user's explicit tab choice; until they click, follow the account role
-  // as it loads (usage arrives async — a teacher must not be stranded on the
-  // student tab just because the role was still unknown on first render).
-  const [chosenAudience, setChosenAudience] = useState<PlanView | null>(null);
-  const audience =
-    chosenAudience ?? (ownAudience === "generic" ? "student" : ownAudience);
+  const [audience, setAudience] = useState<PlanView>("generic");
   const cards = audience === "institutional" ? [] : TIER_CARDS[audience];
-  const accountRole =
-    plan.accountRole === "student" || plan.accountRole === "teacher"
-      ? plan.accountRole
-      : null;
-  // A signed-in role account looking at the other role's tab can only look.
-  const viewOnlyAudience =
-    isLoggedIn &&
-    !isAdmin &&
-    accountRole !== null &&
-    audience !== "generic" &&
-    audience !== "institutional" &&
-    audience !== accountRole;
 
   const checkout = useWebCheckout(
     isLoggedIn && !isAdmin ? (me?.id ?? null) : null,
     !isAdmin,
-    audience === "student" || audience === "teacher" ? audience : null,
   );
   const [busyPackageId, setBusyPackageId] = useState<string | null>(null);
   const [purchaseNote, setPurchaseNote] = useState<{
@@ -417,11 +380,7 @@ export default function PlansPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {audience === "institutional"
                 ? "Institutional licensing gives schools and academies one annual, per-seat plan for teachers and students, with priority support."
-                : audience === "teacher"
-                  ? "Teacher plans grow your classroom: more classes, bigger rosters, and the explainable seating planner on Teacher Pro."
-                  : audience === "student"
-                    ? "Student plans grow your study space: more activities, goals, lists and canvases, and larger AI research allowances."
-                    : "Plus and Pro are the original plans and fit any account: balanced study and classroom allowances on one subscription, whichever role you hold."}
+                : "Plus and Pro fit any account: the same subscription, products, and allowances apply whether your role is student or teacher."}
             </p>
             {isLoggedIn && !isAdmin ? (
               /*
@@ -451,8 +410,7 @@ export default function PlansPage() {
             {isAdmin ? (
               <p className="mt-1 text-sm text-muted-foreground">
                 Administrator accounts are uncapped and never need a plan; use
-                the sections below to review every ladder: student, teacher,
-                role-agnostic Plus and Pro, and Institutional.
+                the sections below to review Plus, Pro, and Institutional.
               </p>
             ) : null}
           </div>
@@ -463,13 +421,13 @@ export default function PlansPage() {
           role="group"
           aria-label="Choose which plans to view"
         >
-          {(["student", "teacher", "generic", "institutional"] as const).map(
+          {(["generic", "institutional"] as const).map(
             (tab) => (
               <button
                 key={tab}
                 type="button"
                 aria-pressed={audience === tab}
-                onClick={() => setChosenAudience(tab)}
+                onClick={() => setAudience(tab)}
                 data-testid={`plans-tab-${tab}`}
                 className={
                   "rounded-md px-4 py-1.5 text-sm font-medium transition-colors " +
@@ -486,25 +444,12 @@ export default function PlansPage() {
                   is a product name it is told to leave alone. The card below
                   still carries the plan's name.
                 */}
-                {tab === "student"
-                  ? "For students"
-                  : tab === "teacher"
-                    ? "For teachers"
-                    : tab === "generic"
-                      ? "For everyone"
-                      : "For schools"}
+                {tab === "generic" ? "For everyone" : "For schools"}
               </button>
             ),
           )}
         </div>
 
-        {viewOnlyAudience ? (
-          <p className="mt-3 text-sm text-muted-foreground" role="note">
-            {audience === "student"
-              ? "Student plans only apply to student accounts, so they are shown here for comparison. Your teacher account can subscribe to the teacher plans or to Plus and Pro under “For everyone”."
-              : "Teacher plans only apply to teacher accounts, so they are shown here for comparison. Your student account can subscribe to the student plans or to Plus and Pro under “For everyone”."}
-          </p>
-        ) : null}
 
         {purchaseNote ? (
           <p
@@ -637,10 +582,6 @@ export default function PlansPage() {
                     !isAdmin &&
                     (!isLoggedIn ||
                       (!plan.pending &&
-                        // Role plans are only buyable on a matching account;
-                        // generic Plus/Pro are buyable on any role.
-                        (roleOfTier(card.tier) === null ||
-                          roleOfTier(card.tier) === accountRole) &&
                         LEVEL_RANK[levelOfTier(card.tier)] >
                           LEVEL_RANK[plan.level]))
                   }

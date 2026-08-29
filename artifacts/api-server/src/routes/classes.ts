@@ -858,9 +858,9 @@ router.post("/classes/:id/seating-plan/suggest", contentLimiter, requireAuth, as
     // deterministic — pattern rules over notes and positions, no model call —
     // so the refusal must not call it AI, and no AI allowance is consumed.
     res.status(402).json({
-      error: "The explainable seating planner requires Casparel Teacher Pro.",
+      error: "The explainable seating planner requires Casparel Pro.",
       code: "SUBSCRIPTION_REQUIRED",
-      requiredPlan: "teacher-pro",
+      requiredPlan: "pro",
     });
     return;
   }

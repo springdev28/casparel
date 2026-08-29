@@ -98,10 +98,6 @@ const TIER_FOR_PLAN: Record<string, keyof typeof CAPACITY_BY_TIER> = {
   Free: "free",
   Plus: "plus",
   Pro: "pro",
-  "Student Plus": "student-plus",
-  "Student Pro": "student-pro",
-  "Teacher Plus": "teacher-plus",
-  "Teacher Pro": "teacher-pro",
 };
 
 /** The words the copy uses for each allowance, and where the limit lives. */
@@ -160,7 +156,7 @@ describe("what the paywall promises", () => {
   it("found the plans it sells", () => {
     // A renamed constant or a reshaped literal would leave nothing to compare,
     // and comparing nothing passes.
-    expect(SOLD.length, "no plan copy found in paywall.tsx").toBeGreaterThanOrEqual(9);
+    expect(SOLD.length, "no plan copy found in paywall.tsx").toBeGreaterThanOrEqual(3);
   });
 
   it("names a tier this test knows for every plan it sells", () => {
@@ -175,7 +171,7 @@ describe("what the paywall promises", () => {
   });
 
   it("found the web's plan cards", () => {
-    expect(WEB_CARDS.length, "no tier cards found in plan-copy.ts").toBeGreaterThanOrEqual(9);
+    expect(WEB_CARDS.length, "no tier cards found in plan-copy.ts").toBeGreaterThanOrEqual(4);
   });
 
   it.each(

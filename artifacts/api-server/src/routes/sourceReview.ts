@@ -441,7 +441,7 @@ router.get(
         }
       }
       // The global daily budget remains a cost safety net for every non-admin
-      // account, including premium.
+      // account, including paid plans.
       if (!deepIsAdmin) {
         const globalDaily = await consumeAiQuota(
           "deep-global-day",

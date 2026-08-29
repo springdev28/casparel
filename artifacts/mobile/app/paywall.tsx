@@ -21,15 +21,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
+import { useGetMyUsage } from '@workspace/api-client-react';
 import { usePurchases } from '@/contexts/PurchasesContext';
-import { useAuth } from '@/contexts/AuthContext';
 import {
-  packagesForRole,
+  packageDefinition,
   purchasesSupported,
   tierForPackage,
-  tierLevel,
   TIER_TITLES,
-  type PlanRole,
+  upgradePackagesForTier,
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -39,12 +38,7 @@ import {
   type SubscriptionTier,
 } from '@workspace/plan-economics';
 
-/**
- * Plan explainers per account role. Student and teacher plans never mix, so a
- * student reads about study depth and a teacher about classroom scale — never
- * the other way round. Numbers must match the server's tier tables. Free's AI
- * line is the taste: enough to see what the feature is, not enough to live on.
- */
+/** Plan explainers shared by every account role. */
 /**
  * A name Feather actually has.
  *
@@ -62,62 +56,23 @@ function aiSummary(tier: SubscriptionTier): string {
   return `${plan.ai.searchPerMonth} AI discovery searches and ${plan.ai.deepPerMonth} cited deep ${reportNoun} per 30 days, with daily safety limits; ${formatStorage(plan.storageBytes)} stored uploads.`;
 }
 
-const BENEFITS: Record<
-  'student' | 'teacher' | 'generic',
-  { icon: FeatherName; title: string; body: string }[]
-> = {
-  student: [
-    {
-      icon: 'book-open',
-      title: 'Free',
-      body: `The adaptive study dashboard, 25 activities, 10 goals, 5 lists and 3 canvases — ${aiSummary('free')}`,
-    },
-    {
-      icon: 'zap',
-      title: 'Student Plus',
-      body: `400 activities, 150 goals, 75 lists and 40 canvases — ${aiSummary('student-plus')}`,
-    },
-    {
-      icon: 'award',
-      title: 'Student Pro',
-      body: `1,500 activities, 500 goals, 300 lists and 150 canvases — ${aiSummary('student-pro')}`,
-    },
-  ],
-  teacher: [
-    {
-      icon: 'book-open',
-      title: 'Free',
-      body: `One class of up to 30 with manual seating, seating suggestions and private notes — ${aiSummary('free')}`,
-    },
-    {
-      icon: 'zap',
-      title: 'Teacher Plus',
-      body: `8 classes of up to 150 members and 250 activities — ${aiSummary('teacher-plus')}`,
-    },
-    {
-      icon: 'award',
-      title: 'Teacher Pro',
-      body: `25 classes of up to 400 and the explainable seating planner — ${aiSummary('teacher-pro')}`,
-    },
-  ],
-  generic: [
-    {
-      icon: 'book-open',
-      title: 'Free',
-      body: `One class of 30, 25 activities, 10 goals and 5 lists — ${aiSummary('free')}`,
-    },
-    {
-      icon: 'zap',
-      title: 'Plus',
-      body: `5 classes of 100, 250 activities, 100 goals and 50 lists — ${aiSummary('plus')}`,
-    },
-    {
-      icon: 'award',
-      title: 'Pro',
-      body: `20 classes of 300, 1,000 activities and the seating planner — ${aiSummary('pro')}`,
-    },
-  ],
-};
+const BENEFITS: { icon: FeatherName; title: string; body: string }[] = [
+  {
+    icon: 'book-open',
+    title: 'Free',
+    body: `One class of 30, 25 activities, 10 goals and 5 lists — ${aiSummary('free')}`,
+  },
+  {
+    icon: 'zap',
+    title: 'Plus',
+    body: `5 classes of 100, 250 activities, 100 goals and 50 lists — ${aiSummary('plus')}`,
+  },
+  {
+    icon: 'award',
+    title: 'Pro',
+    body: `20 classes of 300, 1,000 activities and the seating planner — ${aiSummary('pro')}`,
+  },
+];
 
 function BenefitRow({ icon, title, body }: { icon: FeatherName; title: string; body: string }) {
   // PLAN_FEATURES is a module constant -- a hook cannot run where it is
@@ -171,18 +126,18 @@ export default function PaywallScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { ready, available, tier, isPlus, isPro, packages, purchase, restore } = usePurchases();
-  const { user } = useAuth();
-  const accountRole: PlanRole | null =
-    user?.role === 'teacher' ? 'teacher' : user?.role === 'student' ? 'student' : null;
-  const benefits = BENEFITS[accountRole ?? 'generic'];
-  // Roles never mix at the point of sale: a student is only offered student
-  // (or generic) packages, a teacher only teacher (or generic) ones. On a
-  // Plus-level plan, only the Pro-level packages remain as upgrades.
-  const rolePackages = packagesForRole(packages, accountRole);
-  const upgradePackages = isPlus
-    ? rolePackages.filter((pkg) => tierLevel(tierForPackage(pkg)) === 'pro')
-    : rolePackages;
+  const { ready, available, tier: revenueCatTier, packages, purchase, restore } = usePurchases();
+  const { data: usage } = useGetMyUsage();
+  const serverTier = usage?.tier;
+  const tier = serverTier === 'institutional'
+    ? 'institutional'
+    : serverTier === 'pro' || revenueCatTier === 'pro'
+      ? 'pro'
+      : serverTier === 'plus' || revenueCatTier === 'plus'
+        ? 'plus'
+        : 'free';
+  const isPro = tier === 'pro' || tier === 'institutional';
+  const upgradePackages = upgradePackagesForTier(packages, tier);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -190,13 +145,9 @@ export default function PaywallScreen() {
   // Default the selection to the annual package when offerings arrive, else the first.
   useEffect(() => {
     if (selected && upgradePackages.some((pkg) => pkg.identifier === selected)) return;
-    const plusAnnual = upgradePackages.find(
-      (pkg) =>
-        tierLevel(tierForPackage(pkg)) === 'plus' &&
-        pkg.packageType?.toUpperCase() === 'ANNUAL',
-    );
-    const annual = upgradePackages.find((pkg) => pkg.packageType?.toUpperCase() === 'ANNUAL');
-    setSelected((plusAnnual ?? annual ?? upgradePackages[0])?.identifier ?? null);
+    const plusYearly = upgradePackages.find((pkg) => pkg.identifier === 'plus_yearly');
+    const yearly = upgradePackages.find((pkg) => packageDefinition(pkg)?.period === 'yearly');
+    setSelected((plusYearly ?? yearly ?? upgradePackages[0])?.identifier ?? null);
   }, [upgradePackages, selected]);
 
   function close() {
@@ -206,12 +157,13 @@ export default function PaywallScreen() {
 
   // "Best value" + computed savings on the annual package vs. 12× monthly.
   function badgeFor(pkg: RCPackage): string | null {
-    if (pkg.packageType?.toUpperCase() !== 'ANNUAL') return null;
+    if (packageDefinition(pkg)?.period !== 'yearly') return null;
     const packageTier = tierForPackage(pkg);
+    if (!packageTier) return null;
     const monthlyPkg = packages.find(
       (candidate) =>
         tierForPackage(candidate) === packageTier &&
-        candidate.packageType?.toUpperCase() === 'MONTHLY',
+        packageDefinition(candidate)?.period === 'monthly',
     );
     const monthlyPrice = monthlyPkg?.product.price ?? 0;
     if (monthlyPrice > 0 && pkg.product.price > 0) {
@@ -229,6 +181,7 @@ export default function PaywallScreen() {
     setBusy(false);
     if (result === 'success') {
       const purchasedTier = tierForPackage(pkg);
+      if (!purchasedTier) return;
       Alert.alert(
         `${t('Welcome to Casparel')} ${TIER_TITLES[purchasedTier]}`,
         t('Your subscription features are now unlocked. Thank you!'),
@@ -385,7 +338,7 @@ export default function PaywallScreen() {
             },
           ]}
         >
-          {benefits.map((b) => (
+          {BENEFITS.map((b) => (
             <BenefitRow key={b.title} {...b} />
           ))}
         </Animated.View>
@@ -544,12 +497,9 @@ function PackageOption({
   const { t } = useLanguage();
   const colors = useColors();
   const packageTier = tierForPackage(pkg);
-  const period =
-    pkg.packageType?.toUpperCase() === 'ANNUAL'
-      ? t('Billed yearly')
-      : pkg.packageType?.toUpperCase() === 'MONTHLY'
-        ? t('Billed monthly')
-        : pkg.product.description || '';
+  const definition = packageDefinition(pkg);
+  if (!packageTier || !definition) return null;
+  const period = definition.period === 'yearly' ? t('Billed yearly') : t('Billed monthly');
   return (
     <Pressable
       onPress={onSelect}

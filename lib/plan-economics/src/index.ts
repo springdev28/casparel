@@ -11,10 +11,6 @@ export type SubscriptionTier =
   | "free"
   | "plus"
   | "pro"
-  | "student-plus"
-  | "student-pro"
-  | "teacher-plus"
-  | "teacher-pro"
   | "institutional";
 
 export type SelfServePaidTier = Exclude<SubscriptionTier, "free" | "institutional">;
@@ -72,34 +68,6 @@ export const PLAN_CATALOG: Record<SubscriptionTier, CommercialPlan> = {
     storageBytes: 2 * GIB,
     capacity: { "classes-owned": 20, "class-members": 300, "study-activities": 1000, "resource-lists": 200, "learning-goals": 400, canvases: 100 },
     price: { monthlyUsd: 19.99, annualUsd: 215.99 },
-  },
-  "student-plus": {
-    label: "Student Plus",
-    ai: { searchPerDay: 2, searchPerMonth: 7, deepPerDay: 1, deepPerMonth: 2 },
-    storageBytes: 256 * MIB,
-    capacity: { "classes-owned": 1, "class-members": 30, "study-activities": 400, "resource-lists": 75, "learning-goals": 150, canvases: 40 },
-    price: { monthlyUsd: 4.99, annualUsd: 53.99 },
-  },
-  "student-pro": {
-    label: "Student Pro",
-    ai: { searchPerDay: 3, searchPerMonth: 17, deepPerDay: 2, deepPerMonth: 4 },
-    storageBytes: 1 * GIB,
-    capacity: { "classes-owned": 1, "class-members": 30, "study-activities": 1500, "resource-lists": 300, "learning-goals": 500, canvases: 150 },
-    price: { monthlyUsd: 9.99, annualUsd: 107.99 },
-  },
-  "teacher-plus": {
-    label: "Teacher Plus",
-    ai: { searchPerDay: 2, searchPerMonth: 9, deepPerDay: 1, deepPerMonth: 3 },
-    storageBytes: 1 * GIB,
-    capacity: { "classes-owned": 8, "class-members": 150, "study-activities": 250, "resource-lists": 50, "learning-goals": 100, canvases: 30 },
-    price: { monthlyUsd: 7.99, annualUsd: 85.99 },
-  },
-  "teacher-pro": {
-    label: "Teacher Pro",
-    ai: { searchPerDay: 5, searchPerMonth: 24, deepPerDay: 2, deepPerMonth: 8 },
-    storageBytes: 2 * GIB,
-    capacity: { "classes-owned": 25, "class-members": 400, "study-activities": 1000, "resource-lists": 200, "learning-goals": 400, canvases: 100 },
-    price: { monthlyUsd: 16.99, annualUsd: 182.99 },
   },
   institutional: {
     label: "Institutional",
@@ -260,23 +228,15 @@ export function economicsForTier(tier: Exclude<SubscriptionTier, "free">): PlanE
 }
 
 export const PAID_TIERS: ReadonlyArray<Exclude<SubscriptionTier, "free">> = [
-  "student-plus",
-  "student-pro",
-  "teacher-plus",
-  "teacher-pro",
   "plus",
   "pro",
   "institutional",
 ];
 
-/** Stable store product ids; legacy ids remain in RevenueCat for grandfathering. */
+/** Exact store product ids configured in RevenueCat's `default` offering. */
 export const STORE_PRODUCTS: Record<SelfServePaidTier, { monthly: string; annual: string }> = {
-  "student-plus": { monthly: "casparel_student_plus_monthly", annual: "casparel_student_plus_annual" },
-  "student-pro": { monthly: "casparel_student_pro_monthly", annual: "casparel_student_pro_annual" },
-  "teacher-plus": { monthly: "casparel_teacher_plus_monthly", annual: "casparel_teacher_plus_annual" },
-  "teacher-pro": { monthly: "casparel_teacher_pro_monthly", annual: "casparel_teacher_pro_annual" },
-  plus: { monthly: "casparel_plus_monthly", annual: "casparel_plus_annual" },
-  pro: { monthly: "casparel_pro_monthly", annual: "casparel_pro_annual" },
+  plus: { monthly: "casparel_plus_monthly", annual: "casparel_plus_yearly" },
+  pro: { monthly: "casparel_pro_monthly", annual: "casparel_pro_yearly" },
 };
 
 export function tierForStoreProductId(productId: string): SelfServePaidTier | null {

@@ -217,6 +217,28 @@ if (eas) {
         `eas.json: build profile "${name}" does not set EXPO_PUBLIC_DOMAIN, so the build falls back to the default host in utils/api-host.ts rather than the one this profile is for.`,
       );
     }
+    const expectedTestStore = name === "production" ? "false" : "true";
+    if (profileEnv(name).EXPO_PUBLIC_RC_USE_TEST_STORE !== expectedTestStore) {
+      fail(
+        `eas.json: build profile "${name}" must set EXPO_PUBLIC_RC_USE_TEST_STORE=${expectedTestStore}.`,
+      );
+    }
+  }
+
+  const productionEnv = profileEnv("production");
+  for (const keyName of ["EXPO_PUBLIC_RC_IOS_KEY", "EXPO_PUBLIC_RC_ANDROID_KEY"]) {
+    const configured = process.env[keyName] ?? productionEnv[keyName];
+    if (typeof configured === "string" && configured.trim().startsWith("test_")) {
+      fail(
+        `production RevenueCat configuration selects a Test Store key through ${keyName}. Use the platform-specific production public key instead.`,
+      );
+    }
+  }
+  if (
+    process.env.EAS_BUILD_PROFILE === "production" &&
+    process.env.EXPO_PUBLIC_RC_USE_TEST_STORE === "true"
+  ) {
+    fail("production RevenueCat configuration enables Test Store.");
   }
 
   // An .aab cannot be installed by a tester; it can only be uploaded to Play.

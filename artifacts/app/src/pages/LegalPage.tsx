@@ -135,13 +135,10 @@ export function TermsPage() {
           activities, 10 learning goals, 5 resource lists and 3 canvases, and
           comes with a small taste of AI: one discovery search a day, up to
           three per rolling 30 days, and one deep research report per rolling
-          30 days. Paid plans are specific
-          to your account role: Student Plus and Student Pro raise the personal
-          study allowances, Teacher Plus and Teacher Pro raise classroom
-          allowances, and Teacher Pro adds explainable seating-plan
-          suggestions. A student plan grants nothing on a teacher account and
-          the other way round; the role-agnostic Plus and Pro plans remain on
-          sale and work on any account role. Schools can license Casparel
+          30 days. The self-serve paid plans are Plus and Pro. They use the
+          same products, allowances and features for student and teacher
+          accounts; changing an account role does not change its subscription.
+          Pro adds explainable seating-plan suggestions. Schools can license Casparel
           Institutional through a sales-led annual agreement, invoiced rather
           than bought at checkout. Institutional Starter includes 30 active
           seats with shared AI and storage pools; added seats share the same

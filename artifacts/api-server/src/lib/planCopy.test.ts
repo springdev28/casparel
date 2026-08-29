@@ -74,10 +74,8 @@ function bullets(card: string, field: "workspace" | "ai"): string[] {
 /** Every tier the app advertises, mapped to the tier the server enforces. */
 const ADVERTISED: SubscriptionTier[] = [
   "free",
-  "student-plus",
-  "student-pro",
-  "teacher-plus",
-  "teacher-pro",
+  "plus",
+  "pro",
 ];
 
 describe("advertised plan limits match the enforced ones", () => {

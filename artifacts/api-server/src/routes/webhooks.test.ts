@@ -6,8 +6,8 @@
  * Tests for the RevenueCat webhook:
  *  • rejects when the shared secret is not configured (503)
  *  • rejects a wrong/missing Authorization header (401)
- *  • grants premium on a purchase event and records the expiry
- *  • clears premium on an EXPIRATION event
+ *  • grants a subscription on a purchase event and records the expiry
+ *  • clears a subscription on an EXPIRATION event
  *  • ignores anonymous (non-numeric) app_user_ids and non-entitlement events
  *  • applies each event id once, however many times it is delivered
  *  • moves a subscription between accounts on TRANSFER
@@ -155,12 +155,12 @@ describe("POST /api/webhooks/revenuecat", () => {
     });
   });
 
-  it("stores the role-specific plan exactly as bought", async () => {
+  it("collapses historical role-specific entitlements safely", async () => {
     for (const [entitlement, plan] of [
-      ["teacher-pro", "teacher-pro"],
-      ["teacher-plus", "teacher-plus"],
-      ["student-pro", "student-pro"],
-      ["student-plus", "student-plus"],
+      ["teacher-pro", "pro"],
+      ["teacher-plus", "plus"],
+      ["student-pro", "pro"],
+      ["student-plus", "plus"],
     ] as const) {
       setMock.mockClear();
       const res = await post(
@@ -191,7 +191,7 @@ describe("POST /api/webhooks/revenuecat", () => {
     );
     expect(res.status).toBe(200);
     expect(setMock).toHaveBeenCalledWith({
-      plan: "teacher-pro",
+      plan: "pro",
       planExpiresAt: null,
     });
   });
@@ -323,7 +323,7 @@ describe("POST /api/webhooks/revenuecat, TRANSFER", () => {
 
   it("moves the plan to the destination and frees the source", async () => {
     sourceAccounts = [
-      { id: 7, plan: "teacher-pro", planExpiresAt: "2026-12-01T00:00:00.000Z" },
+      { id: 7, plan: "pro", planExpiresAt: "2026-12-01T00:00:00.000Z" },
     ];
 
     const res = await post(transfer, SECRET);
@@ -331,13 +331,22 @@ describe("POST /api/webhooks/revenuecat, TRANSFER", () => {
     expect(res.status).toBe(200);
     // Granted first, then revoked: the destination is never briefly unentitled.
     expect(setMock).toHaveBeenNthCalledWith(1, {
-      plan: "teacher-pro",
+      plan: "pro",
       planExpiresAt: "2026-12-01T00:00:00.000Z",
     });
     expect(setMock).toHaveBeenNthCalledWith(2, {
       plan: "free",
       planExpiresAt: null,
     });
+  });
+
+  it("does not transfer or revoke a manually provisioned Institutional plan", async () => {
+    sourceAccounts = [{ id: 7, plan: "institutional", planExpiresAt: null }];
+
+    const res = await post(transfer, SECRET);
+
+    expect(res.status).toBe(200);
+    expect(db.update).not.toHaveBeenCalled();
   });
 
   it("keeps an account entitled when it transfers to itself", async () => {

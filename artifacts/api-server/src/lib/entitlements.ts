@@ -15,9 +15,9 @@ import {
 export type { PlanCapacity, SubscriptionTier } from "@workspace/plan-economics";
 
 /**
- * RevenueCat entitlement identifiers. `premium` is kept for legacy buyers and
- * resolves to the generic Pro plan. The role-specific identifiers must match
- * the entitlements configured in the RevenueCat dashboard.
+ * RevenueCat grants `plus` and `pro`. The remaining identifiers are accepted
+ * only for safe reconciliation of historical events and immediately collapse
+ * to generic Plus, Pro, or the existing manual Institutional licence.
  */
 export const PLUS_ENTITLEMENT = "plus";
 export const PRO_ENTITLEMENT = "pro";
@@ -52,18 +52,12 @@ export function hasBuiltInGeneralProAccess(email: string): boolean {
 /**
  * The public tier model.
  *
- * `plus` and `pro` are the original role-agnostic plans and remain valid and
- * purchasable; the role-specific tiers specialise them. Student tiers buy
- * depth for personal study (activities, goals, lists, canvases, research);
- * teacher tiers buy classroom scale (classes, rosters, and on Teacher Pro the
- * explainable seating planner).
+ * `plus` and `pro` are role-agnostic plans. Student and teacher remain account
+ * roles only and do not affect billing, entitlements, limits, or products.
  *
  * `institutional` is the sales-led school licence: per-seat, invoiced, never
- * sold as a store package. It applies to any account role and sits above both
- * Pro specialisations on every allowance. It is fulfilled by granting the
- * `institutional` RevenueCat entitlement to each licensed account (or by
- * setting the plan directly), so it flows through the same webhook pipeline
- * as every purchased plan.
+ * sold as a store package. It is manually provisioned and takes precedence
+ * over self-serve subscription updates.
  *
  * No tier is uncapped anywhere: every allowance below is finite — including
  * institutional. Uncapped is an administrator property, not something money
@@ -84,10 +78,9 @@ export const TIER_LABELS = Object.fromEntries(
   Object.entries(PLAN_CATALOG).map(([tier, plan]) => [tier, plan.label]),
 ) as Record<SubscriptionTier, string>;
 
-/** The account role a tier requires, or null when any role may hold it. */
+/** Plans are role-agnostic; retained for source compatibility during rollout. */
 export function planRoleRequirement(tier: SubscriptionTier): PlanRole | null {
-  if (tier === PLAN_STUDENT_PLUS || tier === PLAN_STUDENT_PRO) return "student";
-  if (tier === PLAN_TEACHER_PLUS || tier === PLAN_TEACHER_PRO) return "teacher";
+  void tier;
   return null;
 }
 
@@ -99,8 +92,7 @@ export function planRoleRequirement(tier: SubscriptionTier): PlanRole | null {
  */
 export function planLevel(tier: SubscriptionTier): "free" | "plus" | "pro" {
   if (tier === PLAN_FREE) return "free";
-  if (tier === PLAN_PLUS || tier === PLAN_STUDENT_PLUS || tier === PLAN_TEACHER_PLUS)
-    return "plus";
+  if (tier === PLAN_PLUS) return "plus";
   return "pro";
 }
 
@@ -118,13 +110,8 @@ export const AI_RATES_BY_TIER = Object.fromEntries(
  * the enforcement helper and the tests all read this table, so a limit shown
  * to a user and a limit applied by the server cannot drift apart.
  *
- * Shape notes:
- * - Student tiers keep the Free class columns: students cannot create classes,
- *   and a roster is always charged to the teacher who owns the class.
- * - Teacher tiers keep the study columns of their generic level: teachers
- *   build materials too, but classroom scale is what they are paying for.
- * - Pro rows are large but finite. Legacy `premium` buyers resolve to `pro`
- *   and therefore also have finite caps now.
+ * Legacy stored values collapse to the matching generic row and therefore do
+ * not create additional public plans.
  */
 export const CAPACITY_BY_TIER = Object.fromEntries(
   Object.entries(PLAN_CATALOG).map(([tier, plan]) => [tier, plan.capacity]),
@@ -150,10 +137,10 @@ const STORED_PLAN_TO_TIER: Record<string, SubscriptionTier> = {
   [PLAN_PLUS]: "plus",
   [PLAN_PRO]: "pro",
   [PLAN_PREMIUM]: "pro",
-  [PLAN_STUDENT_PLUS]: "student-plus",
-  [PLAN_STUDENT_PRO]: "student-pro",
-  [PLAN_TEACHER_PLUS]: "teacher-plus",
-  [PLAN_TEACHER_PRO]: "teacher-pro",
+  [PLAN_STUDENT_PLUS]: "plus",
+  [PLAN_STUDENT_PRO]: "pro",
+  [PLAN_TEACHER_PLUS]: "plus",
+  [PLAN_TEACHER_PRO]: "pro",
   [PLAN_INSTITUTIONAL]: "institutional",
 };
 
@@ -161,23 +148,17 @@ const STORED_PLAN_TO_TIER: Record<string, SubscriptionTier> = {
  * Normalise a stored plan value into the tier that actually applies to this
  * account right now.
  *
- * Roles do not mix: a role-specific plan grants nothing while the account's
- * role does not match it. The stored plan is left untouched — it is billing
- * truth — so the benefits come back the moment the role matches again (roles
- * are self-service, so a student who switches to teacher and back must not
- * permanently lose a student plan they are still paying for).
+ * Roles do not participate in subscription normalization. The third argument
+ * remains temporarily source-compatible with existing route callers.
  */
 export function normalizePlan(
   plan: string | null,
   expiresAt: string | null,
-  accountRole: string | null = null,
+  _accountRole: string | null = null,
 ): SubscriptionTier {
   if (!expiryIsActive(expiresAt)) return PLAN_FREE;
   const tier = plan ? STORED_PLAN_TO_TIER[plan] : undefined;
-  if (!tier) return PLAN_FREE;
-  const requiredRole = planRoleRequirement(tier);
-  if (requiredRole && accountRole !== requiredRole) return PLAN_FREE;
-  return tier;
+  return tier ?? PLAN_FREE;
 }
 
 export function entitlementsForPlan(
@@ -195,13 +176,7 @@ export function entitlementsForPlan(
       // Every tier can touch the AI features; the tiers differ in how much.
       "ai-discovery": true,
       "deep-research": true,
-      // The explainable seating planner is a classroom feature and lives on
-      // the Pro level of the plans a teacher can actually hold — which now
-      // includes the school licence.
-      "seating-planner":
-        tier === PLAN_PRO ||
-        tier === PLAN_TEACHER_PRO ||
-        tier === PLAN_INSTITUTIONAL,
+      "seating-planner": tier === PLAN_PRO || tier === PLAN_INSTITUTIONAL,
     },
     capacity: { ...CAPACITY_BY_TIER[tier] },
   };
@@ -216,14 +191,9 @@ export function capacityLimitFor(
 }
 
 /**
- * The upgrade ladder for an account role: the plans this account may actually
- * buy, cheapest first. Role-specific plans are preferred; the generic ladder
- * is the fallback for accounts with no role match (and for admins, who never
- * see an upsell anyway).
+ * Student and teacher roles share the same self-serve upgrade ladder.
  */
-export function upgradeLadderFor(accountRole: string | null): SubscriptionTier[] {
-  if (accountRole === "student") return [PLAN_STUDENT_PLUS, PLAN_STUDENT_PRO];
-  if (accountRole === "teacher") return [PLAN_TEACHER_PLUS, PLAN_TEACHER_PRO];
+export function upgradeLadderFor(_accountRole: string | null): SubscriptionTier[] {
   return [PLAN_PLUS, PLAN_PRO];
 }
 
@@ -260,23 +230,26 @@ export function upgradeTargetFor(
 }
 
 /**
- * Map a RevenueCat event's entitlement identifiers to the plan to store.
- * When several are active, the strongest wins: the school licence first (it
- * exceeds everything), then role-specific Pro plans (the most specialised
- * product actually bought), then generic Pro (and legacy premium), then the
- * Plus level the same way.
+ * Map RevenueCat entitlements to the four-plan backend model. Historical
+ * identifiers remain recognized only to avoid removing paid access during a
+ * rolling deployment; none are exposed as a current tier.
  */
 export function planForEntitlementIds(ids: string[]): string | null {
   const active = new Set(ids);
   if (active.has(INSTITUTIONAL_ENTITLEMENT)) return PLAN_INSTITUTIONAL;
-  if (active.has(TEACHER_PRO_ENTITLEMENT)) return PLAN_TEACHER_PRO;
-  if (active.has(STUDENT_PRO_ENTITLEMENT)) return PLAN_STUDENT_PRO;
-  if (active.has(PRO_ENTITLEMENT) || active.has(PREMIUM_ENTITLEMENT)) {
+  if (
+    active.has(PRO_ENTITLEMENT) ||
+    active.has(PREMIUM_ENTITLEMENT) ||
+    active.has(TEACHER_PRO_ENTITLEMENT) ||
+    active.has(STUDENT_PRO_ENTITLEMENT)
+  ) {
     return PLAN_PRO;
   }
-  if (active.has(TEACHER_PLUS_ENTITLEMENT)) return PLAN_TEACHER_PLUS;
-  if (active.has(STUDENT_PLUS_ENTITLEMENT)) return PLAN_STUDENT_PLUS;
-  if (active.has(PLUS_ENTITLEMENT)) return PLAN_PLUS;
+  if (
+    active.has(PLUS_ENTITLEMENT) ||
+    active.has(TEACHER_PLUS_ENTITLEMENT) ||
+    active.has(STUDENT_PLUS_ENTITLEMENT)
+  ) return PLAN_PLUS;
   return null;
 }
 

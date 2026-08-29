@@ -128,10 +128,6 @@ const PRODUCT_NAMES = new Set([
   "Free",
   "Plus",
   "Pro",
-  "Student Plus",
-  "Student Pro",
-  "Teacher Plus",
-  "Teacher Pro",
 ]);
 
 const translated = LANGUAGE_CODES.filter((code) => code !== "en");
@@ -205,11 +201,7 @@ describe("the phone app's translations", () => {
       "Free",
       "Plus",
       "Pro",
-      "Student Plus",
-      "Student Pro",
-      "Teacher Plus",
-      "Teacher Pro",
-      // The school licence, which is a plan name like the seven above it.
+      // The school licence is also a plan name.
       "Institutional",
       "App Store",
       "Google Play",

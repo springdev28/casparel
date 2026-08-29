@@ -16,9 +16,8 @@
  * price scales with its deep-report ceiling; store commissions (15–30%) and
  * card fees are covered by the margin; storage rows are cheap and the
  * capacity columns exist to bound database growth rather than to be priced
- * per row. Role plans undercut the generic plan of the same level — they are
- * specialised, not premium; the generic plans carry a small flexibility
- * premium for working on any account role.
+ * per row. Student and teacher are account roles only; both buy the same Plus
+ * or Pro product and receive the same allowances.
  *
  * Wording rules that already burned this product once each:
  * - Nothing here may say "unlimited": only administrator accounts are
@@ -58,7 +57,7 @@ export interface TierCard {
   extras: string[];
 }
 
-export type PlanAudience = "student" | "teacher" | "generic";
+export type PlanAudience = "generic";
 
 function tierPrice(tier: Exclude<SubscriptionTier, "free">): TierPrice {
   const price = PLAN_CATALOG[tier].price;
@@ -87,120 +86,6 @@ function storageLine(tier: SubscriptionTier): string {
 }
 
 export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
-  student: [
-    {
-      tier: "free",
-      name: "Free",
-      price: null,
-      blurb:
-        "The adaptive study dashboard and a tightly capped taste of AI discovery and deep research.",
-      workspace: [
-        "25 study activities",
-        "10 learning goals",
-        "5 resource lists",
-        "3 canvases",
-        storageLine("free"),
-      ],
-      ai: aiLines("free"),
-      extras: [
-        "Adaptive study dashboard",
-        "Quick source check (registry-based, no AI)",
-        "Join any class you are invited to",
-      ],
-    },
-    {
-      tier: "student-plus",
-      name: "Student Plus",
-      price: tierPrice("student-plus"),
-      blurb:
-        "More study workspace plus a safe monthly pool for regular AI discovery and deep research.",
-      workspace: [
-        "400 study activities",
-        "150 learning goals",
-        "75 resource lists",
-        "40 canvases",
-        storageLine("student-plus"),
-      ],
-      ai: aiLines("student-plus"),
-      extras: ["Everything in Free"],
-    },
-    {
-      tier: "student-pro",
-      name: "Student Pro",
-      price: tierPrice("student-pro"),
-      blurb:
-        "A large personal study workspace and heavier, still finite AI research pools.",
-      workspace: [
-        "1,500 study activities",
-        "500 learning goals",
-        "300 resource lists",
-        "150 canvases",
-        storageLine("student-pro"),
-      ],
-      ai: aiLines("student-pro"),
-      extras: ["Everything in Student Plus"],
-    },
-  ],
-  teacher: [
-    {
-      tier: "free",
-      name: "Free",
-      price: null,
-      blurb:
-        "One class with manual seating and private notes, plus a tightly capped AI taste.",
-      workspace: [
-        "1 class, up to 30 members",
-        "25 study activities",
-        "10 learning goals",
-        "5 resource lists",
-        "3 canvases",
-        storageLine("free"),
-      ],
-      ai: aiLines("free"),
-      extras: [
-        "Manual Classroom Designer",
-        "Student seating suggestions",
-        "Private per-student notes",
-      ],
-    },
-    {
-      tier: "teacher-plus",
-      name: "Teacher Plus",
-      price: tierPrice("teacher-plus"),
-      blurb:
-        "A practical classroom workspace with monthly AI discovery and research pools.",
-      workspace: [
-        "8 classes, up to 150 members each",
-        "250 study activities",
-        "100 learning goals",
-        "50 resource lists",
-        "30 canvases",
-        storageLine("teacher-plus"),
-      ],
-      ai: aiLines("teacher-plus"),
-      extras: ["Everything in Free"],
-    },
-    {
-      tier: "teacher-pro",
-      name: "Teacher Pro",
-      price: tierPrice("teacher-pro"),
-      blurb:
-        "Large classes, the explainable seating planner, and heavier finite AI pools.",
-      workspace: [
-        "25 classes, up to 400 members each",
-        "1,000 study activities",
-        "400 learning goals",
-        "200 resource lists",
-        "100 canvases",
-        storageLine("teacher-pro"),
-      ],
-      ai: aiLines("teacher-pro"),
-      extras: [
-        "Explainable seating planner (rule-based)",
-        "Everything in Teacher Plus",
-      ],
-    },
-  ],
   generic: [
     {
       tier: "free",
@@ -260,10 +145,8 @@ export const TIER_CARDS: Record<PlanAudience, TierCard[]> = {
 };
 
 export function audienceForRole(
-  role: "student" | "teacher" | "admin" | null,
+  _role: "student" | "teacher" | "admin" | null,
 ): PlanAudience {
-  if (role === "teacher") return "teacher";
-  if (role === "student") return "student";
   return "generic";
 }
 

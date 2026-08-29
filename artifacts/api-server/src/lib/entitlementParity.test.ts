@@ -35,6 +35,10 @@ const mobile = readFileSync(
   resolve(here, "../../../mobile/utils/revenuecat.ts"),
   "utf8",
 );
+const mobilePlans = readFileSync(
+  resolve(here, "../../../mobile/utils/revenuecat-plans.ts"),
+  "utf8",
+);
 
 /** `export const X_ENTITLEMENT = 'value'` on either side. */
 function declaredEntitlements(source: string): Record<string, string> {
@@ -60,37 +64,34 @@ describe("the app and the server agree about entitlements", () => {
   const mobileIds = declaredEntitlements(mobile);
 
   it("finds the declarations to compare", () => {
-    // A rename or a move would otherwise make every assertion below vacuous.
-    expect(Object.keys(serverIds).length).toBeGreaterThanOrEqual(7);
-    expect(Object.keys(mobileIds).length).toBeGreaterThanOrEqual(7);
+    expect(Object.keys(mobileIds)).toHaveLength(2);
+    expect(Object.keys(serverIds).length).toBeGreaterThanOrEqual(2);
   });
 
-  it("knows the same entitlements by the same names", () => {
-    expect(Object.keys(mobileIds).sort()).toEqual(Object.keys(serverIds).sort());
+  it("exposes only Plus and Pro in the current mobile integration", () => {
+    expect(Object.keys(mobileIds).sort()).toEqual([
+      "PLUS_ENTITLEMENT",
+      "PRO_ENTITLEMENT",
+    ]);
   });
 
   it("spells every identifier the same way", () => {
     // A typo here is invisible until a real purchase fails to unlock anything:
     // RevenueCat matches these strings exactly.
-    for (const [name, value] of Object.entries(serverIds)) {
-      expect(mobileIds[name], `${name} differs between app and server`).toBe(value);
+    for (const [name, value] of Object.entries(mobileIds)) {
+      expect(serverIds[name], `${name} differs between app and server`).toBe(value);
     }
   });
 
-  it("resolves a stack of entitlements in the same order", () => {
-    expect(precedence(mobile, "subscriptionTier")).toEqual(
-      precedence(server, "planForEntitlementIds"),
-    );
+  it("lets Pro win over Plus on both sides", () => {
+    expect(mobilePlans).toMatch(/active\.pro\?\.isActive[\s\S]*return 'pro'/);
+    expect(server).toMatch(/active\.has\(PRO_ENTITLEMENT\)[\s\S]*return PLAN_PRO/);
   });
 
-  it("treats the legacy identifier as Pro on both sides", () => {
-    // Kept for buyers from before the tiers were split by role. Dropping it on
-    // one side silently demotes people who are still paying.
+  it("accepts legacy identifiers only on the server during migration", () => {
     expect(precedence(server, "planForEntitlementIds")).toContain(
       "PREMIUM_ENTITLEMENT",
     );
-    expect(precedence(mobile, "subscriptionTier")).toContain(
-      "PREMIUM_ENTITLEMENT",
-    );
+    expect(mobileIds).not.toHaveProperty("PREMIUM_ENTITLEMENT");
   });
 });

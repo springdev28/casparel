@@ -430,7 +430,7 @@ export const getMyUsageResponseStorageLimitBytesMin = 0;
 
 export const GetMyUsageResponse = zod.object({
   "plan": zod.string(),
-  "tier": zod.enum(['free', 'plus', 'pro', 'student-plus', 'student-pro', 'teacher-plus', 'teacher-pro', 'institutional', 'administrator']).describe('Machine-readable tier. Role-specific plans only apply while the account\'s role matches; this field always reports the tier that is actually in effect.'),
+  "tier": zod.enum(['free', 'plus', 'pro', 'institutional', 'administrator']).describe('Machine-readable tier. Student and teacher are account roles and do not alter the subscription tier.'),
   "unlimited": zod.boolean(),
   "aiSearch": zod.object({
   "used": zod.int(),
@@ -523,7 +523,7 @@ export const GetAdminOverviewResponse = zod.object({
   "userId": zod.int(),
   "name": zod.string(),
   "email": zod.string(),
-  "plan": zod.enum(['free', 'plus', 'pro', 'student-plus', 'student-pro', 'teacher-plus', 'teacher-pro', 'institutional']),
+  "plan": zod.enum(['free', 'plus', 'pro', 'institutional']),
   "searches": zod.int(),
   "quickReviews": zod.int(),
   "deepResearch": zod.int(),

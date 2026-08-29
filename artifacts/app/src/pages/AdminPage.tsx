@@ -897,7 +897,7 @@ export default function AdminPage() {
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                {/* A plan name -- Free, Student Pro -- which this product does not
+                {/* A plan name -- Free, Pro -- which this product does not
                     translate in any language. 
 
                     `plan.status` under it is a database enum whose only value

@@ -78,13 +78,11 @@ describe("accountCapacity", () => {
     });
 
     mockAccount("free", 5);
-    // The default mock account is a teacher, so the upsell names the teacher
-    // ladder, never a generic or student plan.
     await expect(accountCapacity(1, "resource-lists")).resolves.toMatchObject({
       allowed: false,
       used: 5,
       remaining: 0,
-      requiredPlan: "teacher-plus",
+      requiredPlan: "plus",
     });
   });
 
@@ -119,14 +117,12 @@ describe("accountCapacity", () => {
     });
   });
 
-  it("resolves a role-mismatched plan as Free", async () => {
-    // A teacher holding a student plan gets no benefit from it: roles do not
-    // mix, and the stored plan only counts while the role matches.
+  it("translates a legacy plan independently of role", async () => {
     mockAccount("student-pro", 20, "teacher");
     await expect(accountCapacity(1, "resource-lists")).resolves.toMatchObject({
-      allowed: false,
-      tier: "free",
-      limit: 5,
+      allowed: true,
+      tier: "pro",
+      limit: 200,
     });
   });
 
@@ -162,7 +158,7 @@ describe("accountCapacity", () => {
     mockAccount("free", 0);
     await expect(
       accountCapacity(1, "study-activities", 400),
-    ).resolves.toMatchObject({ allowed: false, requiredPlan: "teacher-pro" });
+    ).resolves.toMatchObject({ allowed: false, requiredPlan: "pro" });
   });
 });
 
@@ -189,11 +185,11 @@ describe("classMemberCapacity", () => {
     });
   });
 
-  it("gives a Teacher Pro roster more room than generic Pro", async () => {
-    mockClass("teacher-pro", 350);
+  it("keeps Pro roster capacity finite", async () => {
+    mockClass("pro", 300);
     await expect(classMemberCapacity(7)).resolves.toMatchObject({
-      allowed: true,
-      limit: 400,
+      allowed: false,
+      limit: 300,
     });
   });
 
@@ -203,7 +199,7 @@ describe("classMemberCapacity", () => {
       allowed: false,
       limit: 30,
       used: 30,
-      requiredPlan: "teacher-plus",
+      requiredPlan: "plus",
     });
   });
 
@@ -238,10 +234,10 @@ describe("the refusal sent to the client", () => {
       capacity: "study-activities",
       limit: 25,
       used: 25,
-      requiredPlan: "teacher-plus",
+      requiredPlan: "plus",
     });
     expect(body.error).toContain("25");
-    expect(body.error).toContain("Teacher Plus");
+    expect(body.error).toContain("Plus");
   });
 
   it("sends 402 and reports that the route must stop", async () => {

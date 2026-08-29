@@ -136,7 +136,7 @@ const COLLECT = `(() => {
     // -- are in the dictionaries and do get translated; the library's own
     // name is not ours to translate.
     'React Flow','React Flow attribution',
-    'Free','Plus','Pro','Student Plus','Student Pro','Teacher Plus','Teacher Pro','Institutional',
+    'Free','Plus','Pro','Institutional',
     'English','Español','Français','Deutsch','Português','Türkçe','Email','e-mail',
   ]);
   const seen = new Set();

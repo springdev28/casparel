@@ -1936,7 +1936,7 @@ export function SeatingChartEditor({
                   <p className="text-xs text-muted-foreground">
                     {plan.seatingPlanner
                       ? "Rule-based, not a model. Uses current positions, front distance, desk-mates, and private notes only when requested."
-                      : "Seating suggestions require Teacher Pro. You can still design and assign every seat manually."}
+                      : "Seating suggestions require Pro. You can still design and assign every seat manually."}
                   </p>
                   <Textarea
                     value={priorities}

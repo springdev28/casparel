@@ -12,22 +12,22 @@ Written: 15 August 2026, economically re-baselined 28 August 2026. Shipaton dead
 - Institutional is advertised at $2.50–$3.00 per seat/month, billed annually, with a 30-seat minimum and contact-for-quote pricing. Its Starter capacity uses one shared pool of 250 discovery searches, 55 deep reports, and 10 GB per rolling 30 days. It remains invoiced and absent from store offerings.
 - Stable product IDs now map explicitly to tiers before the legacy name heuristic. Exact Google Play and RevenueCat values are in the economics document.
 
-This roadmap follows two changes: the one that made Casparel's tiers about stored data as well as AI usage, and the one that specialised the tiers by role (Student/Teacher Plus and Pro), gave Free a small AI taste, and made every paid allowance finite — uncapped is now an admin property only. It is deliberately ordered by what blocks revenue, not by what is most interesting to build.
+This roadmap follows the change that made Casparel's tiers about stored data as well as AI usage, gave Free a small AI taste, and made every paid allowance finite. Student and teacher are account roles only; Free, Plus, and Pro are the self-serve subscription ladder. Uncapped remains an admin property only.
 
 ## Revision note (later the same day): prices, the generic plans back on the shelf, and Institutional
 
 Owner feedback on the live /plans page drove three changes:
 
-- **The original Plus/Pro had become invisible.** The backend kept them, but the page's student/teacher toggle had no tab that showed them — "keep the original plans" means *visibly on sale*, not just honoured in the database. The plans page now gives everyone three tabs (For students / For teachers / For everyone); role accounts land on their own tab, see the other role's tab view-only with an explanation, and can buy the generic plans, which work on any role. Checkout filtering on web and mobile now always includes the generic packages alongside the role-specific ones (previously generic was only a fallback when no role package existed).
+- **Plus and Pro are the only self-serve paid tiers.** The plans page now has one ladder for every role, and both mobile and web use the same four monthly/yearly packages.
 - **`institutional` is the eighth tier.** It is now a shared-pool annual contract rather than a huge independent quota on every seat; see the current economics authority above.
 - **Every plan has a maximum-consumption-safe price.** The shared catalog, formulas, assumptions, exact quotas, annual values, and manual store table live in `docs/plan-economics.md`.
 
 ## Revision note (same day)
 
-- The tier set is now seven: `free`, generic `plus`/`pro` (kept, still honoured), `student-plus`, `student-pro`, `teacher-plus`, `teacher-pro`. Roles never mix: a role-specific plan resolves to Free while the account's role does not match, purchases are never rewritten, and the paywall only sells packages for the buyer's role.
+- The backend tier set is `free`, `plus`, `pro`, and `institutional`. Roles are stored separately and never alter a purchase.
 - Free's "no AI" decision was reversed into a taste: 2 discovery searches/day and a flat 2 deep reports per rolling 30 days (first worded "1/day, 2/30 days", corrected after the owner flagged it as reading like a maths error).
 - Phase 1's first item (Pro sold as uncapped but globally capped) is **resolved by product definition**: nothing is sold as uncapped any more. The global budgets remain as operational guards, raised to defaults that clear paying demand (discovery 200/day, deep 100/day).
-- Phase 1's third item (`tierForPackage` substring mapping) is improved — role words are recognised, `pro` beats `plus` in ambiguous names — but explicit dashboard-identifier mapping remains the real fix before launch.
+- Phase 1's third item is resolved with four exact custom-package/product mappings; unexpected or miswired packages fail closed.
 - New consequence to own: **legacy `premium` buyers were sold "unlimited deep research" and now resolve to finite Pro caps.** The caps are large (15/day, 150/30 days), but store copy and any renewal messaging must be corrected before the next release, and a goodwill path (e.g. grandfathered higher caps) should be decided consciously rather than discovered by a complaint.
 
 ## What changed
@@ -60,7 +60,7 @@ The tier model has to speak for the product's flagship experiences by name, not 
 
 ### The seating arrangement suite
 
-Four pieces, placed individually. Manual Classroom Designer (grid and custom desks), student seating-change suggestions to the teacher, and per-student private notes are on **every plan** — they are the collaborative core, and the notes are valuable even if the planner is never run. The **explainable seating planner** is the Teacher Pro feature (generic Pro keeps it for legacy holders; admins always have it).
+Four pieces, placed individually. Manual Classroom Designer (grid and custom desks), student seating-change suggestions to the teacher, and per-student private notes are on **every plan** — they are the collaborative core. The **explainable seating planner** is a Pro/Institutional feature (admins always have it).
 
 Corrected in this revision: the planner was being sold as "AI seating-plan suggestions" — including in copy written yesterday — but the implementation is **deterministic**: pattern rules over the teacher's notes (front/back needs, keep-apart/keep-together relationships) and a seat-scoring loop, with no model call anywhere. That is the same truth-in-labeling failure the August audit existed to catch, one release away from an App Store listing. All copy (402 body, web editor, Terms) now says rule-based and explainable, never AI. Two consequences worth writing down:
 
@@ -71,9 +71,9 @@ Corrected in this revision: the planner was being sold as "AI seating-plan sugge
 
 What exists today is the **adaptive dashboard**: goal path steps, confidence check-ins, evidence capture, and a ratings-based resource-effectiveness heuristic that recommends the next action. It makes no model calls and is deliberately **free on every tier** — it is the activation loop the readiness review's evidence dashboard measures, and paywalling the surface that teaches users why Casparel matters would starve every paid tier of buyers. Its check-ins write learning-evidence rows, which are not yet capacity-metered (added to Phase 4).
 
-A **model-backed personal assistant** — chat over your own goals, schedule, evidence and saved resources, answering "what should I do next and why" with citations into the library — is the strongest candidate flagship for the Student ladder, and the honest place for it is this roadmap, not the feature list:
+A **model-backed personal assistant** — chat over your own goals, schedule, evidence and saved resources, answering "what should I do next and why" with citations into the library — is a candidate for the shared paid ladder, and the honest place for it is this roadmap, not the feature list:
 
-- **Placement if built:** taste on Free (a handful of turns/day), a real daily allowance on Student Plus, the headline allowance on Student Pro; it joins `AI_RATES_BY_TIER` like every other AI surface, because uncapped remains admin-only.
+- **Placement if built:** taste on Free, a real daily allowance on Plus, and the headline allowance on Pro; it joins `AI_RATES_BY_TIER` like every other AI surface.
 - **Safety before tiers:** the audience includes minors. It needs the same posture as source review — cite, hedge, show limitations, never present itself as an authority — plus moderation on both sides of the conversation, before any pricing question matters.
 - **Sequencing:** after the store gates. It is exactly the "broad new feature" the August audit warned against spending the remaining runway on. Nothing in the product may describe it as existing until it does.
 
@@ -83,7 +83,7 @@ These are correctness problems in the paid path. Every one of them can take mone
 
 1. ~~Pro is sold as uncapped but is capped.~~ **Resolved** — no plan is sold as uncapped; global budgets raised and documented as operational guards. Remaining follow-up: correct legacy-premium store copy (see revision note).
 2. ~~Paying users can be told they have not paid.~~ **Mostly resolved** — the client no longer pre-blocks any AI feature on plan (every tier has an allowance; the server answers 429 when it is spent), and the tier now arrives as machine-readable data in `/users/me/usage` instead of being parsed from a label. Residual cosmetic issue: sidebar meters read "Not included" for a moment while usage is loading. Watch it; do not let a future gate read those pending zeros.
-3. ~~Tier is inferred only from product-name substrings.~~ **Resolved in code** — twelve canonical product IDs map explicitly before the compatibility heuristic. Remaining external gate: create/map those IDs in Google Play and RevenueCat, then sandbox-test them.
+3. ~~Tier is inferred only from product-name substrings.~~ **Resolved in code** — the four dashboard-configured custom packages map to exact product IDs and unexpected packages fail safely.
 4. **Webhook idempotency and `TRANSFER` reconciliation** (open since the August audit). Repeated delivery is normal in RevenueCat, and a store-account transfer can leave the previous Casparel account holding an entitlement it no longer owns. Key on event ID; reconcile subscriber state for both aliases.
 5. **The deletion copy is wrong.** Terms and Privacy say deletion "removes your account and the content tied to it". `DELETE /users/me` anonymises the row and bans it; contributions survive, unlinked. The earlier wording described this accurately and was replaced with something shorter and false. This feeds the App Store privacy and Play Data Safety forms, so it blocks submission independently of anything above.
 
@@ -91,7 +91,7 @@ Exit gate: a sandbox purchase of each product grants exactly the tier it names, 
 
 ### Where users actually see and buy these plans
 
-Plans are buyable through the RevenueCat native paywall and Web Billing. The code degrades safely when unconfigured. Dashboard setup must use the twelve exact product IDs and prices in `docs/plan-economics.md`; Institutional remains a manually granted entitlement, never a package. Sandbox coverage must include every product, a web purchase, cancellation, restoration, and a webhook replay. The iOS app deliberately does not link to web checkout.
+Plans are buyable through the RevenueCat native paywall and Web Billing. The code degrades safely when unconfigured. The manually configured `default` offering uses the four exact package/product mappings in `docs/plan-economics.md`; Institutional remains manually provisioned, never a package. Sandbox coverage includes every product, cancellation, restoration, and a webhook replay.
 
 ## Phase 2 — find out whether these numbers are right (23 August – 6 September)
 
@@ -135,8 +135,8 @@ Sequencing note: nothing in this phase should displace Phase 1 or the store gate
 
 ## Open questions (updated)
 
-- The role-specific capacity numbers are as much a hypothesis as the first table was; Phase 2's instrumentation now needs a `tier` dimension so student and teacher demand can be read separately.
-- When a teacher on `teacher-pro` self-switches to student (losing verification, per the role-switch route), their plan resolves to Free until they switch back. That is the strict reading of "roles do not mix" and is reversible, but the switch screen should warn about it.
+- Phase 2 instrumentation needs separate `tier` and `role` dimensions so commercial performance and student/teacher usage can be studied without conflating them.
+- Role switching must never change the subscription tier or the RevenueCat product attached to the account.
 
 ## Earlier open questions
 

@@ -7,7 +7,7 @@
  */
 
 /**
- * Machine-readable tier. Role-specific plans only apply while the account's role matches; this field always reports the tier that is actually in effect.
+ * Machine-readable tier. Student and teacher are account roles and do not alter the subscription tier.
  */
 export type AccountUsageTier = typeof AccountUsageTier[keyof typeof AccountUsageTier];
 
@@ -16,10 +16,6 @@ export const AccountUsageTier = {
   free: 'free',
   plus: 'plus',
   pro: 'pro',
-  'student-plus': 'student-plus',
-  'student-pro': 'student-pro',
-  'teacher-plus': 'teacher-plus',
-  'teacher-pro': 'teacher-pro',
   institutional: 'institutional',
   administrator: 'administrator',
 } as const;

@@ -10,7 +10,7 @@
  * `/users/me/usage` reported the larger of the two counters against the
  * *daily* limit, and both clients read "used >= limit" as "spent".
  *
- * On Student Plus, one full day of use leaves that use on the monthly
+ * On Plus, one full day of use leaves that use on the monthly
  * counter. Next morning the daily counter is 0 and the daily allowance
  * are genuinely available, but the endpoint said 8 used of 8 -- so the phone
  * showed a locked "View paid plans for deep AI research" to somebody already
@@ -24,7 +24,7 @@ import { describe, expect, it } from "vitest";
 import { deepAllowance } from "./deepAllowance";
 import { AI_RATES_BY_TIER } from "./entitlements";
 
-const PLUS = AI_RATES_BY_TIER["student-plus"];
+const PLUS = AI_RATES_BY_TIER.plus;
 const FREE = AI_RATES_BY_TIER.free;
 
 describe("a paid account", () => {

@@ -896,9 +896,7 @@ async function main() {
         await tabPage.goto(`${local}${tab.route}`, { waitUntil: "networkidle" });
         await tabPage.waitForTimeout(2500);
         const text = await tabPage.evaluate(() => document.body.innerText);
-        // Not the student's expectation: a teacher's account holds different
-        // rows, so what is checked is that the screen rendered itself rather
-        // than the error boundary.
+        // Role changes navigation, not subscription products.
         check(`teacher: ${tab.name} does not throw`, !CRASHED.test(text), text.replace(/\n+/g, " | ").slice(0, 140));
         await tabPage.close();
       }
@@ -908,8 +906,8 @@ async function main() {
       await paywall.waitForTimeout(2500);
       const plans = await paywall.evaluate(() => document.body.innerText);
       check(
-        "teacher: the paywall offers teacher plans",
-        /Teacher Plus|Teacher Pro/.test(plans),
+        "teacher: the paywall offers the shared Plus and Pro plans",
+        /Plus/.test(plans) && /Pro/.test(plans),
         plans.replace(/\n+/g, " | ").slice(0, 160),
       );
       await paywall.close();

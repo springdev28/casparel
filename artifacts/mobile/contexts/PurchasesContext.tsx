@@ -22,6 +22,7 @@ import {
   type TierLevel,
   type PurchasesModule,
   classifyPurchaseError,
+  defaultOffering,
   type PurchaseFailure,
   type RCCustomerInfo,
   type RCOffering,
@@ -50,7 +51,7 @@ interface PurchasesContextValue {
   available: boolean;
   /** Compatibility flag: the user holds any paid entitlement. */
   isPremium: boolean;
-  /** RevenueCat's active tier, including the role-specific plans. */
+  /** RevenueCat's active self-serve tier. */
   tier: SubscriptionTier;
   /** The tier's price level, which is what upgrade decisions care about. */
   level: TierLevel;
@@ -110,7 +111,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         ]);
         if (cancelled) return;
         applyCustomerInfo(info);
-        setCurrentOffering(offerings.current ?? null);
+        setCurrentOffering(defaultOffering(offerings));
       } catch {
         setAvailable(false);
       } finally {
@@ -166,7 +167,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         Purchases.getOfferings(),
       ]);
       applyCustomerInfo(info);
-      setCurrentOffering(offerings.current ?? null);
+      setCurrentOffering(defaultOffering(offerings));
     } catch {
       // ignore transient errors
     }

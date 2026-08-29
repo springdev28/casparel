@@ -1,6 +1,6 @@
 # Casparel product and engineering handbook
 
-Last verified: 15 August 2026
+Last verified: 29 August 2026
 
 This is the canonical overview of what Casparel is, how its parts fit together, how to operate it, and where its boundaries are. Implementation details are grounded in the repository at the date above; product claims should be changed here when behaviour changes.
 
@@ -21,9 +21,7 @@ The product's strongest differentiator is the path from **discovery → source e
 | Student    | Goals, schedules, resources/lists, classes, activities, canvases, messaging, forum, profile and evidence                    |
 | Teacher    | Student capabilities plus class management, assignments/recommendations, notes, seating tools, Google Classroom integration |
 | Admin      | Moderation, user/class/work controls, verification queues, usage/cost overview; the only uncapped accounts                  |
-| Student Plus/Pro | Larger personal-study allowances (activities, goals, lists, canvases) and larger AI research allowances               |
-| Teacher Plus/Pro | Larger classroom allowances (classes, rosters); Teacher Pro adds the explainable seating planner                      |
-| Plus/Pro (legacy generic) | The original role-agnostic paid plans; still valid, finite like everything else                              |
+| Plus/Pro  | Role-agnostic paid plans with larger workspace and AI allowances; Pro adds the explainable seating planner              |
 
 Authentication uses a signed bearer token stored under the legacy key `schoolar_token` on web and mobile. That key is a compatibility contract and must not be renamed casually.
 
@@ -65,7 +63,7 @@ The Expo Router app provides focused native flows:
 - quick and deep source review;
 - profile, usage and the plan paywall.
 
-The native identifiers are `com.casparel.app`; the Expo slug and URL scheme are `casparel`. RevenueCat is loaded behind a platform-safe adapter, resolves the `plus`, `pro` and legacy `premium` entitlements, and logs in with the numeric Casparel user ID so purchases can reconcile to the server account.
+The native identifiers are `com.casparel.app`; the Expo slug and URL scheme are `casparel`. RevenueCat is loaded behind a platform-safe adapter, resolves only the current `plus` and `pro` entitlements in the client, and logs in with the numeric Casparel user ID so purchases can reconcile to the server account. Historical entitlement identifiers are handled only by the server during migration and webhook replay.
 
 The mobile app is intentionally narrower than the web app. It does not currently provide the full web experiences for goals, canvases, lists, messaging, forum, activities, admin, or AI-assisted open-catalog discovery. Paywall copy must not imply that missing native experiences exist.
 
@@ -144,11 +142,11 @@ Schema changes require both a TypeScript schema edit and a generated migration c
 
 ### Plans
 
-Casparel sells eight tiers: `free`, the role-agnostic `plus` and `pro` (the original pair — still on sale, on every surface, alongside everything newer), four role-specific plans — `student-plus`, `student-pro`, `teacher-plus`, `teacher-pro` — and the sales-led school licence `institutional`. The legacy `premium` plan value and entitlement resolve to Pro.
+Casparel has four backend tiers: `free`, `plus`, `pro`, and the sales-led school licence `institutional`. Student and teacher are account roles, not billing tiers. Plus and Pro use the same products, limits, and features for every role. Historical `premium`, student-specific, and teacher-specific database values are migrated to the matching generic tier.
 
-**Roles do not mix.** A student plan grants nothing on a teacher account and the other way round. The stored plan is billing truth and is never rewritten; whether it applies is resolved at read time against the account's base `role` (`activeRole` is a view mode and is ignored). Because roles are self-service (`PATCH /users/me/role`), a user who switches roles keeps their purchase and regains its benefits the moment the role matches again. Checkout on every surface offers the account's role plans **and** the role-agnostic Plus/Pro — never the other role's plans — so a mismatch can only arise from a role switch after purchase. `institutional` has no role requirement: one licence covers staff and student seats alike.
+**Plan and role are independent.** A `(plus, student)` account and a `(plus, teacher)` account receive the same subscription allowances. Switching role never changes, hides, or substitutes a paid product. `activeRole` remains only a workspace view mode.
 
-**Institutional is sales-led, not checkout.** It is priced per seat, invoiced, and fulfilled by granting the `institutional` RevenueCat entitlement to each licensed account (promotional entitlements in the dashboard) or by setting the plan directly — either way it flows through the same webhook/read-time pipeline as a purchased plan. It sits at or above every other tier on every allowance and is still finite: a licensed seat is not an administrator. When an institutional account hits a cap, the 402 says "contact support to extend your licence" instead of recommending a smaller plan (`upgradeTargetFor` returns `institutional` for institutional accounts).
+**Institutional is sales-led, not checkout.** It is priced per seat, invoiced, manually provisioned on Casparel accounts, and never a RevenueCat store product. It sits at or above every other tier on every allowance and is still finite: a licensed seat is not an administrator. RevenueCat webhooks cannot overwrite this manual plan. When an institutional account hits a cap, the 402 says "contact support to extend your licence" instead of recommending a smaller plan (`upgradeTargetFor` returns `institutional` for institutional accounts).
 
 **Nothing paid is uncapped.** Every allowance on every tier is finite; uncapped is an administrator property, not something money can buy. Legacy `premium` buyers now resolve to the large-but-finite Pro caps.
 
@@ -156,8 +154,6 @@ A plan governs two different things, and both matter:
 
 - **Rate** — how much AI an account may consume per day or per month.
 - **Capacity** — how many rows an account may accumulate. Every capacity maps to one table, so a tier is also a statement about how much database and backup an account occupies.
-
-The specialisation is one sentence per family: student tiers buy personal study depth, teacher tiers buy classroom scale, generic tiers buy a bit of both.
 
 ### Rate limits
 
@@ -169,16 +165,14 @@ Both AI features enforce day, rolling-30-day, concurrency, timeout, output, paid
 
 Defined once in `CAPACITY_BY_TIER` in `artifacts/api-server/src/lib/entitlements.ts`, which the usage endpoint, the enforcement helper and the tests all read, so a displayed limit and an applied limit cannot drift apart.
 
-| Capacity          | Free | Plus |  Pro | Student Plus | Student Pro | Teacher Plus | Teacher Pro | Institutional |
-| ----------------- | ---: | ---: | ---: | -----------: | ----------: | -----------: | ----------: | ------------: |
-| Classes owned     |    1 |    5 |   20 |            1 |           1 |            8 |          25 |            50 |
-| Members per class |   30 |  100 |  300 |           30 |          30 |          150 |         400 |           500 |
-| Study activities  |   25 |  250 | 1000 |          400 |        1500 |          250 |        1000 |          2500 |
-| Resource lists    |    5 |   50 |  200 |           75 |         300 |           50 |         200 |           500 |
-| Learning goals    |   10 |  100 |  400 |          150 |         500 |          100 |         400 |           800 |
-| Canvases          |    3 |   30 |  100 |           40 |         150 |           30 |         100 |           250 |
-
-Student tiers keep the Free class columns because students cannot create classes and rosters are always charged to the owning teacher; the columns are inert unless the account's role changes, at which point the plan stops applying anyway.
+| Capacity          | Free | Plus |  Pro | Institutional |
+| ----------------- | ---: | ---: | ---: | ------------: |
+| Classes owned     |    1 |    5 |   20 |            50 |
+| Members per class |   30 |  100 |  300 |           500 |
+| Study activities  |   25 |  250 | 1000 |          2500 |
+| Resource lists    |    5 |   50 |  200 |           500 |
+| Learning goals    |   10 |  100 |  400 |           800 |
+| Canvases          |    3 |   30 |  100 |           250 |
 
 Rules that hold across every capacity:
 
@@ -195,7 +189,7 @@ Every account-owned capacity, its current usage and its limit are returned by `G
 
 The canonical USD reference prices and quotas live in `@workspace/plan-economics`, imported by the API, web pricing page, mobile paywall, tests, and store-ID mapping. Annual prices are based on twelve full months of maximum usage and discount only 8–10%; no plan assumes two idle months.
 
-Self-serve monthly prices are Student Plus $4.99, Student Pro $9.99, Teacher Plus $7.99, Teacher Pro $16.99, Plus $9.99, and Pro $19.99. Annual prices are $53.99, $107.99, $85.99, $182.99, $107.99, and $215.99 respectively. Institutional is advertised at $2.50–$3.00 per seat/month, billed annually, with a 30-seat minimum and contact-for-quote pricing; it is never a store product.
+Self-serve monthly prices are Plus $9.99 and Pro $19.99. Annual prices are $107.99 and $215.99 respectively. Institutional is advertised at $2.50–$3.00 per seat/month, billed annually, with a 30-seat minimum and contact-for-quote pricing; it is never a store product.
 
 The full cost table, quota rationale, provider assumptions, migration policy, and exact Google Play/RevenueCat values are in [`docs/plan-economics.md`](plan-economics.md). CI rejects any quota or provider-price change that takes a monthly or annual plan below 70% worst-case gross margin.
 
@@ -213,7 +207,7 @@ Two named experiences sit at the centre of the product and deserve explicit plac
 | Student seating suggestions | A student sends the teacher a seating-change message | Every plan |
 | Teacher private notes | Per-student notes (feed the planner; useful alone) | Every plan |
 | Custom student roles | Short teacher-chosen labels ("Group Leader") on the roster, visible to the whole class, assignable, editable and removable from the Members tab | Every plan |
-| Explainable seating planner | Generates a full reviewable seating plan with a reason per placement | Teacher Pro, generic Pro, admin |
+| Explainable seating planner | Generates a full reviewable seating plan with a reason per placement | Pro, Institutional, admin |
 
 Room elements carry `capacity: 0` and therefore never enter the seating planner's seat pool; the planner reasons over tables and chairs only. Custom roles live in their own column (`class_members.custom_role`, migration 0047) precisely because they are class-visible, while `teacher_note` stays private to the teacher — the two must never be merged.
 
@@ -223,16 +217,16 @@ The planner is **rule-based, not an AI model**: it pattern-matches the teacher's
 
 Plans are buyable from every surface, through one reconciliation pipeline:
 
-- **iOS / Android**: the mobile paywall, RevenueCat native SDKs, billed by Apple/Google. Offers the account's role packages **and** the role-agnostic Plus/Pro — never the other role's.
-- **Web**: `/plans`, a public comparison page that is also a card checkout. Everyone — visitor, admin, or signed-in user — gets all three ladders behind a three-way toggle (For students / For teachers / For everyone), so the original Plus/Pro are always one tab away; a signed-in role account lands on its own tab and sees the other role's tab as view-only with an explanation. Every card shows its USD reference price (monthly + annual). Below the grid, the Institutional licence has its own section with per-seat pricing and a contact-us action (mailto to support) instead of a Subscribe button. When the build carries `VITE_REVENUECAT_WEB_API_KEY` (a *publishable* Web Billing key, like the mobile SDK keys) and the RevenueCat dashboard has a Web Billing app with offerings, buyable cards additionally get Subscribe buttons with live localised prices; checkout is RevenueCat's hosted card flow (Stripe-backed), and a Manage billing link (invoices, card, cancellation) appears for web subscribers. Without the key or offerings the page degrades to comparison plus buy-on-mobile instructions — never a broken checkout. The browser audit runs unconfigured, so the SDK is never even loaded there.
+- **iOS / Android**: the mobile paywall, RevenueCat native SDKs, billed by Apple/Google. Every role sees the same four Plus/Pro monthly/yearly packages and store-localized prices.
+- **Web**: `/plans`, a public comparison page and card checkout with one self-serve ladder (Free, Plus, Pro) plus a separate Institutional contact section. When configured, checkout uses RevenueCat Web Billing; otherwise the page degrades to comparison plus buy-on-mobile instructions.
 
-Every purchase path — App Store, Play, web card — reports to the same `POST /api/webhooks/revenuecat` with the same entitlement identifiers, and the client signs into RevenueCat with the numeric Casparel user id on web exactly as on mobile. The server therefore has exactly one grant path, and role matching keeps applying at read time regardless of where the plan was bought. Every web upsell — the sidebar upgrade link, the Settings/Profile plan buttons, the locked seating planner — lands on `/plans`, never on a toast.
+Every purchase path — App Store, Play, web card — reports to the same `POST /api/webhooks/revenuecat` with `plus` or `pro`, and the client signs into RevenueCat with the numeric Casparel user id on web exactly as on mobile. The server therefore has one grant path. Every web upsell lands on `/plans`.
 
 One deliberate omission: the iOS app does not advertise the web card checkout. Apple's anti-steering rules constrain linking out to external purchases from inside the app; revisit only with the current rules in hand.
 
 ### Entitlement reconciliation
 
-The native client derives immediate entitlement state from RevenueCat. RevenueCat also calls `POST /api/webhooks/revenuecat` with a shared Authorization value so the server can grant/revoke the account plan. The webhook recognises eight entitlements (`plus`, `pro`, legacy `premium`, `student-plus`, `student-pro`, `teacher-plus`, `teacher-pro`, `institutional`) and stores the strongest one active — `institutional` beats everything, then the role-specific Pro plans, then generic Pro, then Plus the same way — exactly as bought or granted; role matching happens at read time, not at grant time, so a purchase is never silently converted into a different product. Institutional seats are granted as RevenueCat promotional entitlements (or by setting the plan directly), so the school licence rides the same webhook path as a store purchase. `GET /users/me/usage` returns the label, the machine-readable `tier`, both AI counters and the full capacity report.
+The native client derives immediate entitlement state from RevenueCat. RevenueCat also calls `POST /api/webhooks/revenuecat` with a shared Authorization value so the server can grant/revoke the account plan. Current events grant only `plus` or `pro`; Pro wins if both are active. Historical identifiers are accepted during rollout and collapsed to their generic equivalent. A manually provisioned Institutional account is never overwritten by a RevenueCat grant, expiry, or transfer. `GET /users/me/usage` returns the label, machine-readable tier, AI counters, and full capacity report.
 
 ## 6. Discovery and research
 

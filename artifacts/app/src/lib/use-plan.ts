@@ -26,15 +26,11 @@ export type PlanTier =
   | "free"
   | "plus"
   | "pro"
-  | "student-plus"
-  | "student-pro"
-  | "teacher-plus"
-  | "teacher-pro"
   | "institutional"
   | "administrator";
 
 export interface PlanState {
-  /** Label to show, e.g. "Administrator", "Teacher Pro", "Plus" or "Free". */
+  /** Label to show, e.g. "Administrator", "Pro", "Plus" or "Free". */
   label: string;
   /** The server's machine-readable tier; the label is derived from it. */
   tier: PlanTier;
@@ -78,11 +74,7 @@ export const CAPACITY_LABELS: Record<PlanCapacityKey, string> = {
 const LEVELS: Record<PlanTier, "free" | "plus" | "pro"> = {
   free: "free",
   plus: "plus",
-  "student-plus": "plus",
-  "teacher-plus": "plus",
   pro: "pro",
-  "student-pro": "pro",
-  "teacher-pro": "pro",
   // The school licence sits above Pro, but nothing self-serve is sold past
   // it, so for CTA purposes ("is there an upgrade to offer?") it is Pro.
   institutional: "pro",
@@ -93,10 +85,6 @@ const TIER_VALUES: ReadonlySet<string> = new Set([
   "free",
   "plus",
   "pro",
-  "student-plus",
-  "student-pro",
-  "teacher-plus",
-  "teacher-pro",
   "institutional",
   "administrator",
 ]);
@@ -149,7 +137,6 @@ export function usePlan(enabled = true): PlanState {
     unlimited,
     seatingPlanner:
       tier === "pro" ||
-      tier === "teacher-pro" ||
       tier === "institutional" ||
       tier === "administrator",
     aiSearch: {

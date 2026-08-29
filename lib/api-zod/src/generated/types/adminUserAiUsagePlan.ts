@@ -13,9 +13,5 @@ export const AdminUserAiUsagePlan = {
   free: 'free',
   plus: 'plus',
   pro: 'pro',
-  'student-plus': 'student-plus',
-  'student-pro': 'student-pro',
-  'teacher-plus': 'teacher-plus',
-  'teacher-pro': 'teacher-pro',
   institutional: 'institutional',
 } as const;

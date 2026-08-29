@@ -4,12 +4,13 @@
  */
 import { Router, type IRouter, type Response } from "express";
 import { timingSafeEqual } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { db, usersTable, webhookEventsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import {
   KNOWN_ENTITLEMENTS,
   PLAN_FREE,
+  PLAN_INSTITUTIONAL,
   PLAN_PRO,
   planForEntitlementIds,
 } from "../lib/entitlements";
@@ -18,7 +19,7 @@ const router: IRouter = Router();
 
 const REVENUECAT = "revenuecat";
 
-/** Event types that grant/refresh the premium entitlement. */
+/** Event types that grant or refresh a self-serve subscription. */
 const GRANT_EVENTS = new Set([
   "INITIAL_PURCHASE",
   "RENEWAL",
@@ -143,10 +144,8 @@ router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
   const touchesSubscription =
     entitlementIds.length === 0 ||
     entitlementIds.some((id) => KNOWN_ENTITLEMENTS.has(id));
-  // The stored plan is billing truth: it records exactly what was bought,
-  // including a role-specific plan. Whether the account's current role lets
-  // that plan grant anything is decided at read time in entitlements, so a
-  // role switch never destroys a purchase and roles still never mix.
+  // Historical entitlement identifiers collapse to Plus or Pro. Account role
+  // never changes what was bought.
   const grantedPlan =
     planForEntitlementIds(entitlementIds) ??
     (entitlementIds.length === 0 ? PLAN_PRO : null);
@@ -174,12 +173,22 @@ router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
       await db
         .update(usersTable)
         .set({ plan: grantedPlan, planExpiresAt: expiresAt })
-        .where(eq(usersTable.id, userId));
+        .where(
+          and(
+            eq(usersTable.id, userId),
+            ne(usersTable.plan, PLAN_INSTITUTIONAL),
+          ),
+        );
     } else {
       await db
         .update(usersTable)
         .set({ plan: PLAN_FREE, planExpiresAt: null })
-        .where(eq(usersTable.id, userId));
+        .where(
+          and(
+            eq(usersTable.id, userId),
+            ne(usersTable.plan, PLAN_INSTITUTIONAL),
+          ),
+        );
     }
   } catch (error) {
     logger.error({ err: error }, "RevenueCat webhook: failed to reconcile plan");
@@ -272,7 +281,12 @@ async function reconcileTransfer(
       .from(usersTable)
       .where(inArray(usersTable.id, from));
     // The paid one, if the source side holds several accounts.
-    const paid = sources.find((source) => source.plan && source.plan !== PLAN_FREE);
+    const paid = sources.find(
+      (source) =>
+        source.plan &&
+        source.plan !== PLAN_FREE &&
+        source.plan !== PLAN_INSTITUTIONAL,
+    );
     if (!paid) {
       logger.info(
         { from, to },
@@ -285,11 +299,23 @@ async function reconcileTransfer(
     await db
       .update(usersTable)
       .set({ plan: paid.plan, planExpiresAt: paid.planExpiresAt })
-      .where(inArray(usersTable.id, to));
+      .where(
+        and(
+          inArray(usersTable.id, to),
+          ne(usersTable.plan, PLAN_INSTITUTIONAL),
+        ),
+      );
     // Revoked after the grant, and only from accounts that are not also on
     // the receiving side: a transfer between aliases of one account would
     // otherwise end with that account on the free plan.
-    const losing = from.filter((id) => !to.includes(id));
+    const institutionalSourceIds = new Set(
+      sources
+        .filter((source) => source.plan === PLAN_INSTITUTIONAL)
+        .map((source) => source.id),
+    );
+    const losing = from.filter(
+      (id) => !to.includes(id) && !institutionalSourceIds.has(id),
+    );
     if (losing.length)
       await db
         .update(usersTable)

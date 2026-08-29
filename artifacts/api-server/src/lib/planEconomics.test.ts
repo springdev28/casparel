@@ -75,5 +75,15 @@ describe("commercial plans remain safe at maximum permitted usage", () => {
     expect(Object.keys(STORE_PRODUCTS).sort()).toEqual(
       PAID_TIERS.filter((tier) => tier !== "institutional").sort(),
     );
+    expect(STORE_PRODUCTS).toEqual({
+      plus: {
+        monthly: "casparel_plus_monthly",
+        annual: "casparel_plus_yearly",
+      },
+      pro: {
+        monthly: "casparel_pro_monthly",
+        annual: "casparel_pro_yearly",
+      },
+    });
   });
 });
