@@ -28,15 +28,38 @@ const TRUST_COLOR: Record<string, 'chart2' | 'chart3' | 'destructive' | 'mutedFo
   unknown: 'mutedForeground',
 };
 
+/**
+ * The badge's words, chosen by level rather than built from it.
+ *
+ * This read `{level.charAt(0).toUpperCase() + level.slice(1)} trust`, which
+ * capitalises an API value and glues an English noun to it -- so a Turkish
+ * reader got "High trust" on a screen that was otherwise Turkish, and no
+ * check could see it: "trust" alone is not a sentence, and the level is not
+ * a literal at all.
+ */
+function trustLabel(level: string, t: (text: string) => string): string {
+  switch (level) {
+    case 'high':
+      return t('High trust');
+    case 'medium':
+      return t('Medium trust');
+    case 'low':
+      return t('Low trust');
+    default:
+      return t('Unknown trust');
+  }
+}
+
 function TrustBadge({ level }: { level: string }) {
   const colors = useColors();
+  const { t } = useLanguage();
   const token = TRUST_COLOR[level] ?? 'mutedForeground';
   const color = colors[token];
   return (
     <View style={[styles.trustBadge, { backgroundColor: color + '20', borderColor: color + '55' }]}>
       <Feather name="shield" size={12} color={color} />
       <Text style={[styles.trustText, { color, fontFamily: colors.fontFamily.sansSemiBold }]}>
-        {level.charAt(0).toUpperCase() + level.slice(1)} trust
+        {trustLabel(level, t)}
       </Text>
     </View>
   );

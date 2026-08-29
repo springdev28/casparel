@@ -186,7 +186,7 @@ function StudySessionCard({
           <Text style={[styles.collaborativeBadgeText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>👥 {t('Collaborative')}</Text>
         </View>
         <Text style={[styles.participantCount, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>
-          {session.participants.length} invited
+          {`${session.participants.length} ${t('invited')}`}
         </Text>
       </View>
     </Pressable>
@@ -251,7 +251,7 @@ function StudySessionDetailSheet({
             <Text style={{ fontSize: 16 }}>🕐</Text>
             <Text style={[styles.infoText, { color: colors.foreground, fontFamily: colors.fontFamily.sans }]}>
               {formatDateTime(session.startsAt, intlLocale)} – {clock(endsAt, intlLocale)}{'\n'}
-              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{session.durationMinutes} minutes</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{`${session.durationMinutes} ${t('minutes')}`}</Text>
             </Text>
           </View>
 
@@ -849,7 +849,9 @@ export default function ScheduleScreen() {
             style={[styles.pendingPill, { backgroundColor: violet.surfacePressed, borderColor: violet.border, borderRadius: colors.radius }]}
           >
             <Text style={[styles.pendingPillText, { color: violet.accentText, fontFamily: colors.fontFamily.sans }]}>
-              👥 {pendingSessions.length} pending invitation{pendingSessions.length > 1 ? 's' : ''}
+              {`👥 ${pendingSessions.length} ${
+                pendingSessions.length === 1 ? t('pending invitation') : t('pending invitations')
+              }`}
             </Text>
           </Pressable>
         )}

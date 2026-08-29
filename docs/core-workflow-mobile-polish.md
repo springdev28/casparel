@@ -1360,3 +1360,56 @@ where before it said all 180 renders were clean.
 
 Nothing in the current fixture set is unmapped, so this costs nothing today
 and refuses to let the next endpoint arrive unchecked.
+
+## Fix — five screens the phone audit had only ever rendered empty
+
+The mobile language audit answers requests it recognises and returns `[]` for
+everything else. Nothing said which endpoints fell into "everything else", so
+nothing noticed that nine of them did: `/classes`, `/class-invitations`,
+`/schedule`, `/study-sessions`, `/assignments/today`, `/activity/recent`,
+`/direct-messages/conversations`, `/resources` and `/library`.
+
+That is not a small gap. Five tabs — classes, schedule, resources, messages,
+and the dashboard's panels — had been rendered in both languages on every run
+of this audit, and every one of them had been rendered with nothing in it. A
+screen with no rows draws no row. Every string that only exists next to data
+had never been drawn at all, in either language, by any check in this repo.
+
+The audit now records the paths it did not recognise and fails naming them,
+which is what turns "most unmapped endpoints are collections" from a silent
+default into a decision somebody makes on purpose. Then the nine stubs, which
+is the work: the conversation stub had to be written to the real contract
+shape — `firstUserId`, `requestedById`, `other`, `lastMessage`, `unreadCount`
+— because the first guess sent the messages screen to its error boundary,
+which is the audit doing its job on the stub rather than on the app.
+
+Populated, the five screens showed five strings that were English in Turkish:
+
+- `{n} member{n !== 1 ? 's' : ''}` and `{n} invited` and
+  `{n} pending invitation{...}` — a count with an English noun stuck to it;
+- `{session.durationMinutes} minutes`;
+- `{level.charAt(0).toUpperCase() + level.slice(1)} trust`, which capitalises
+  an API value and glues a noun to it. That one is now a `trustLabel(level, t)`
+  with four `t()` calls, so the choice is in one place and the strings are
+  literals the translation checks can see.
+
+None of the three checks that already exist could have found these. The source
+scan reads string literals and full sentences, and `member` is neither. The
+render comparison passes because the rest of the page differs in Turkish. The
+failure audit renders these screens with no data by design. They are only
+visible when a screen has rows, in a language that is not English.
+
+So a fourth check: a lowercase word sitting between `}` and either `</Text>` or
+another `{`. That shape is a count and its noun, and it is a shape a script can
+find. The rule is deliberately blunt — a nine-word keyword list keeps
+`} finally {` out — and it may only span spaces and tabs, never a newline:
+allowing newlines reads the first word of the next statement, and reported
+`const` from a `const { done } = ...` three lines below an early return.
+
+Verification recorded for this increment:
+
+- proved by reverting: with `{n} invited` and the `trust` badge put back, the
+  new scan names both by file and line; restored, six tests pass;
+- 36 screen renders across two languages, no unrecognised endpoint left;
+- 99 checks across eleven screens and four ways of not answering;
+- mobile 91 tests, api-server 844, every package type-checks.

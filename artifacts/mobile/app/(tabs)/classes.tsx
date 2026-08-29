@@ -36,6 +36,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 function ClassCard({ item, onPress }: { item: Class; onPress: () => void }) {
   const colors = useColors();
+  const { t } = useLanguage();
   return (
     <Pressable
       onPress={onPress}
@@ -96,7 +97,15 @@ function ClassCard({ item, onPress }: { item: Class; onPress: () => void }) {
             { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans },
           ]}
         >
-          {item.memberCount ?? 0} member{(item.memberCount ?? 0) !== 1 ? 's' : ''}
+          {/*
+            The number outside the translated word, the way the rest of this
+            app counts things. Written as `member{'s'}` it was English in every
+            language -- and invisible to both checks, because a lowercase word
+            is not a sentence and the page differed elsewhere.
+          */}
+          {`${item.memberCount ?? 0} ${
+            (item.memberCount ?? 0) === 1 ? t('member') : t('members')
+          }`}
         </Text>
       </View>
     </Pressable>

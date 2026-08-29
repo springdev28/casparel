@@ -187,6 +187,9 @@ const MIME = {
 class Inconclusive extends Error {}
 
 /** What the stubbed server answers, by path suffix. Everything else is []. */
+/** Endpoints no branch of stubbedBody answered, reported at the end. */
+const unstubbed = new Set();
+
 function stubbedBody(pathname) {
   if (pathname.endsWith("/users/me")) {
     return {
@@ -353,6 +356,162 @@ function stubbedBody(pathname) {
       ],
     };
   }
+  /*
+   * ---- the tabs that had only ever been rendered empty -------------------
+   *
+   * Nine endpoints fell through to the empty-array default, which meant five
+   * screens -- classes, schedule, the library, messages and the dashboard's
+   * own panels -- had only ever been drawn with nothing in them. Every string
+   * that appears beside a class card, a schedule block, a resource or an
+   * assignment was unrendered and therefore unchecked, in both languages.
+   *
+   * Shapes follow the contract, because a stub that does not is a screen
+   * rendered against something the server never sends.
+   */
+  if (pathname.endsWith("/classes")) {
+    return [
+      {
+        id: 21,
+        name: "Audit class",
+        subject: "Mathematics",
+        gradeLevel: "Year 10",
+        teacherId: 2,
+        teacherName: "Audit Teacher",
+        description: "Standing in for a real class.",
+        joinCode: "AUDIT1",
+        memberCount: 3,
+        createdAt: "2026-03-02T09:00:00.000Z",
+      },
+    ];
+  }
+  if (pathname.endsWith("/class-invitations")) {
+    return [
+      {
+        id: 31,
+        classId: 21,
+        className: "Audit class",
+        subject: "Mathematics",
+        teacherName: "Audit Teacher",
+        status: "pending",
+        createdAt: "2026-03-02T09:00:00.000Z",
+      },
+    ];
+  }
+  if (pathname.endsWith("/schedule")) {
+    return [
+      {
+        id: 41,
+        userId: 1,
+        title: "Revise electric fields",
+        date: "2026-03-02",
+        startTime: "09:00",
+        endTime: "10:00",
+        notes: "Standing in for a real block.",
+        classId: null,
+        resourceListId: null,
+        createdAt: "2026-03-02T09:00:00.000Z",
+      },
+    ];
+  }
+  if (pathname.endsWith("/study-sessions")) {
+    return [
+      {
+        id: 51,
+        organizerId: 1,
+        organizerName: "Audit Account",
+        title: "Audit study session",
+        description: "Standing in for a real session.",
+        startsAt: "2026-03-02T09:00:00.000Z",
+        durationMinutes: 30,
+        meetingUrl: "https://meet.example.org/audit",
+        classId: null,
+        participantCount: 2,
+        createdAt: "2026-03-02T09:00:00.000Z",
+      },
+    ];
+  }
+  if (pathname.endsWith("/assignments/today")) {
+    return [
+      {
+        id: 61,
+        classId: 21,
+        className: "Audit class",
+        title: "Finish the practice set",
+        instructions: "Standing in for a real assignment.",
+        dueAt: "2026-03-03T09:00:00.000Z",
+        completed: false,
+      },
+    ];
+  }
+  if (pathname.endsWith("/activity/recent")) {
+    return [
+      {
+        id: 71,
+        userId: 1,
+        type: "class",
+        workspaceRole: "student",
+        message: "Your teacher updated your goal.",
+        createdAt: "2026-03-02T09:00:00.000Z",
+      },
+    ];
+  }
+  /*
+   * A conversation, in the shape the contract actually describes.
+   *
+   * The first attempt at this stub invented one -- otherUserName, a
+   * lastMessage that was a string -- and the screen went straight to its error
+   * boundary, which is what a stub that does not follow the contract buys you:
+   * a failure that says nothing about the product. `other` is a participant
+   * and `lastMessage` is a whole message.
+   */
+  if (pathname.endsWith("/direct-messages/conversations")) {
+    return [
+      {
+        id: 81,
+        firstUserId: 1,
+        secondUserId: 2,
+        requestedById: 2,
+        status: "accepted",
+        createdAt: "2026-03-02T09:00:00.000Z",
+        updatedAt: "2026-03-02T09:00:00.000Z",
+        other: { id: 2, name: "Audit Teacher", role: "teacher", avatarUrl: null },
+        lastMessage: {
+          id: 91,
+          conversationId: 81,
+          senderId: 2,
+          body: "Standing in for a real message.",
+          isAdminMessage: false,
+          createdAt: "2026-03-02T09:00:00.000Z",
+        },
+        unreadCount: 1,
+        incomingRequest: false,
+      },
+    ];
+  }
+  /*
+   * The library, and one account's own saved resources. Both answer with the
+   * same card so the resources tab draws a real one in each of its halves.
+   */
+  if (pathname.endsWith("/resources") || pathname.endsWith("/library")) {
+    return [
+      {
+        id: 101,
+        title: "Linear Algebra Done Right",
+        url: "https://example.org/101",
+        description: "Standing in for a real catalogue entry.",
+        format: "pdf",
+        subject: "Mathematics",
+        gradeLevel: "Undergraduate",
+        thumbnailUrl: null,
+        submittedById: 1,
+        avgRating: 4.5,
+        reviewCount: 3,
+        createdAt: "2026-03-02T09:00:00.000Z",
+        verificationStatus: "verified",
+        verificationNote: null,
+      },
+    ];
+  }
   if (pathname.endsWith("/lists")) {
     return [
       {
@@ -466,6 +625,14 @@ function stubbedBody(pathname) {
       },
     ];
   }
+  /*
+   * Nothing matched. An empty array is the safer guess -- most of what this
+   * app reads is a collection -- and its cost is that the screen reading it
+   * renders a shape the contract never produces while the run reports that
+   * the screen came up. Recorded rather than swallowed: a stub the audit
+   * cannot answer is a screen the audit cannot check.
+   */
+  unstubbed.add(pathname);
   return [];
 }
 
@@ -703,6 +870,13 @@ async function main() {
   }
 
   if (rendered === 0) throw new Inconclusive("no screen rendered; this run checked nothing");
+
+  if (unstubbed.size) {
+    failures.push(
+      `no stub for ${[...unstubbed].sort().join(", ")} — answered empty, so ` +
+        `whatever reads it was not checked. Add a branch to stubbedBody.`,
+    );
+  }
 
   if (failures.length) {
     console.error(`\n${failures.length} problem(s):`);

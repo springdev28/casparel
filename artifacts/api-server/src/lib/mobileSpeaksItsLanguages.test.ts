@@ -324,6 +324,52 @@ describe("the phone app's translations", () => {
         );
       }
 
+      /*
+       * A word stuck to an expression, which is how a count gets its noun.
+       *
+       * `{n} member{n !== 1 ? 's' : ''}` and `{minutes} minutes` were English
+       * in every language, and neither check above could see them: a lowercase
+       * word is not a sentence, so the literal scan walks past it, and the
+       * render comparison passes because the rest of the page differs. They
+       * were found by giving the audit's stubbed server something to return,
+       * which is the only state these screens draw them in.
+       *
+       * The keyword list is what keeps `} finally {` and `} catch {` out. It
+       * is short and finite, which is the whole reason this rule can be this
+       * blunt.
+       *
+       * Only spaces and tabs may follow the `}`. A word stuck to an
+       * expression is stuck to it on the same line -- that is what makes it
+       * one phrase to a reader. Letting the gap span newlines instead reads
+       * the first word of the next statement, and the closing brace of an
+       * early return three lines above `const { done } = ...` reported
+       * "const" as untranslated copy.
+       */
+      const jsxComments = commentRanges(text);
+      const JS_KEYWORDS = new Set([
+        "finally",
+        "catch",
+        "else",
+        "try",
+        "while",
+        "do",
+        "return",
+        "switch",
+        "case",
+      ]);
+      for (const match of text.matchAll(
+        /\}[ \t]*([a-z][a-z'\u2019-]{1,30}(?: [a-z'\u2019-]{1,30}){0,3})[ \t]*(?:\r?\n[ \t]*)?(?:<\/(?:Text|Button|Label|ThemedText)>|\{)/g,
+      )) {
+        const found = match[1].trim();
+        if (JS_KEYWORDS.has(found.split(" ")[0])) continue;
+        if (jsxComments.some(([from, to]) => match.index >= from && match.index < to))
+          continue;
+        unwrapped.push(
+          `${where}:${text.slice(0, match.index).split("\n").length}  ` +
+            `${JSON.stringify(found)} (stuck to an expression)`,
+        );
+      }
+
       // The two tables whose English is translated where it is rendered.
       if (CONSTANT_TABLES.includes(where)) continue;
       const comments = commentRanges(text);
