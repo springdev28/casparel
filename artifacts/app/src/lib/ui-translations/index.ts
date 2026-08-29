@@ -147,6 +147,33 @@ const COUNTED: Record<string, Partial<Record<AuthLanguage, CountRule>>> = {
     // below carries the whole phrase rather than this table carrying the noun.
     tr: (n) => `${n} kez`,
   },
+  /*
+   * Seven more, each found the first time anything rendered the panel it is
+   * on. Every one was written as `{n} word` in JSX, which splits into two
+   * text nodes -- the number goes one way and the noun the other, and no rule
+   * here can see the pair. They are single strings at the call site now.
+   */
+  steps: {
+    tr: (n) => `${n} adım`,
+  },
+  step: {
+    tr: (n) => `${n} adım`,
+  },
+  selections: {
+    tr: (n) => `${n} seçim`,
+  },
+  selection: {
+    tr: (n) => `${n} seçim`,
+  },
+  view: {
+    tr: (n) => `${n} görüntülenme`,
+  },
+  vote: {
+    tr: (n) => `${n} oy`,
+  },
+  min: {
+    tr: (n) => `${n} dk`,
+  },
 };
 
 /**
@@ -324,6 +351,45 @@ const SHAPE_RULES: Array<{
     match: /^Move (.+) down$/,
     render: {
       tr: (t) => `${t} aşağı taşı`,
+    },
+  },
+  {
+    /*
+     * "3 due soon", "2 in progress", "1 pending study session", "2/5 steps".
+     *
+     * Each is a number and a phrase rather than a number and a noun, which is
+     * why none of them fits COUNTED above. All four were split across two
+     * text nodes until now, so all four were English in every language --
+     * unnoticed because the panels they sit on had never had a row in them.
+     */
+    match: /^(\d[\d.,]*) due soon$/,
+    render: {
+      tr: (n) => `${n} tanesi yakında teslim`,
+    },
+  },
+  {
+    match: /^(\d[\d.,]*) in progress$/,
+    render: {
+      tr: (n) => `${n} tanesi sürüyor`,
+    },
+  },
+  {
+    match: /^(\d[\d.,]*) pending study sessions?$/,
+    render: {
+      tr: (n) => `${n} bekleyen çalışma oturumu`,
+    },
+  },
+  {
+    match: /^([\d.,]+)\/([\d.,]+) steps$/,
+    render: {
+      tr: (a, b) => `${b} adımdan ${a} tanesi`,
+    },
+  },
+  {
+    // The date field beside a student's goal in a teacher's list.
+    match: /^Target date for (.+)$/,
+    render: {
+      tr: (t) => `${t} için hedef tarih`,
     },
   },
   {

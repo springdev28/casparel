@@ -9,6 +9,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { counted } from "@/lib/counted";
 import { Link, useSearch } from "wouter";
 import {
   ArrowLeft,
@@ -1137,11 +1138,19 @@ export default function ForumPage({
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <CardTitle className="text-base">
+                        {/*
+                          * A material's title, unit and topic are what the
+                          * teacher who uploaded it typed. The catalogue page
+                          * drew all three unmarked, and nothing noticed
+                          * because the fixture behind that page was an empty
+                          * array until now.
+                          */}
+                        <CardTitle translate="no" className="text-base">
                           {material.title}
                         </CardTitle>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {material.unit} · {material.topic} ·{" "}
+                          <span translate="no">{material.unit}</span> ·{" "}
+                          <span translate="no">{material.topic}</span> ·{" "}
                           {new Date(material.createdAt).toLocaleDateString(intlLocale)}
                         </p>
                       </div>
@@ -1154,23 +1163,23 @@ export default function ForumPage({
                     <div className="flex flex-wrap gap-1.5">
                       <Badge>
                         {roleLabel(material.uploaderRole)} ·{" "}
-                        {material.uploaderName}
+                        <span translate="no">{material.uploaderName}</span>
                       </Badge>
                       {material.approvals.map((approval) => (
                         <Badge key={approval.id} variant="secondary">
                           <CheckCircle2 className="mr-1 size-3" />
-                          Approved by {approval.teacherName}
+                          Approved by <span translate="no">{approval.teacherName}</span>
                         </Badge>
                       ))}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {material.description && (
-                      <p className="text-sm">{material.description}</p>
+                      <p translate="no" className="text-sm">{material.description}</p>
                     )}
                     <div className="flex flex-wrap gap-1">
                       {material.tags.map((tag) => (
-                        <Badge key={tag} variant="outline">
+                        <Badge translate="no" key={tag} variant="outline">
                           {tag}
                         </Badge>
                       ))}
@@ -1182,6 +1191,7 @@ export default function ForumPage({
                           validSource(source) ? (
                             <a
                               key={source}
+                              translate="no"
                               href={source}
                               target="_blank"
                               rel="noreferrer"
@@ -1190,7 +1200,7 @@ export default function ForumPage({
                               {source}
                             </a>
                           ) : (
-                            <p key={source}>{source}</p>
+                            <p translate="no" key={source}>{source}</p>
                           ),
                         )}
                       </div>
@@ -1527,8 +1537,15 @@ export default function ForumPage({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All topics</SelectItem>
+                    {/*
+                      * A tag is a word somebody typed on a post, and the
+                      * list above is a suggestion rather than a vocabulary.
+                      * The chips on the posts are left untranslated, so this
+                      * filter has to be too -- a translated filter beside an
+                      * untranslated chip is a filter that matches nothing.
+                      */}
                     {POST_TAGS.map((tag) => (
-                      <SelectItem key={tag} value={tag}>
+                      <SelectItem translate="no" key={tag} value={tag}>
                         {tag}
                       </SelectItem>
                     ))}
@@ -1662,6 +1679,7 @@ export default function ForumPage({
                               {post.tags.map((tag) => (
                                 <button
                                   key={tag}
+                                  translate="no"
                                   type="button"
                                   onClick={() => setPostTag(tag)}
                                   className="text-sm text-primary-text hover:underline"
@@ -1743,7 +1761,7 @@ export default function ForumPage({
                                       className="absolute inset-y-0 left-0 bg-primary/10"
                                       style={{ width: percent + "%" }}
                                     />
-                                    <span className="relative flex-1">
+                                    <span translate="no" className="relative flex-1">
                                       {option.text}
                                     </span>
                                     <span className="relative text-xs text-muted-foreground">
@@ -1753,9 +1771,9 @@ export default function ForumPage({
                                 );
                               })}
                               <p className="text-xs text-muted-foreground">
-                                {totalVotes} {post.allowMultipleVotes
-                                  ? `selection${totalVotes === 1 ? "" : "s"}`
-                                  : `vote${totalVotes === 1 ? "" : "s"}`}
+                                {post.allowMultipleVotes
+                                  ? counted(totalVotes, "selection", "selections")
+                                  : counted(totalVotes, "vote", "votes")}
                               </p>
                             </div>
                           )}
@@ -1770,7 +1788,7 @@ export default function ForumPage({
                           <div className="flex items-center border-t pt-3 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Eye className="size-3.5" />
-                              {post.viewCount} views
+                              {counted(post.viewCount, "view", "views")}
                             </span>
                           </div>
                           <div className="grid grid-cols-3 border-y">
@@ -1854,7 +1872,7 @@ export default function ForumPage({
                       onClick={() => setPostTag(tag)}
                       className="flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
                     >
-                      <span className="font-medium">#{tag}</span>
+                      <span translate="no" className="font-medium">#{tag}</span>
                       {count > 0 && (
                         <span className="text-xs text-muted-foreground">
                           {count}

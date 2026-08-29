@@ -620,7 +620,7 @@ function StudySessionDetail({
         <Clock size={14} />
         <span>
           {format(startsAt, "EEE, MMM d", { locale })} · {clock(startsAt)}–{clock(endsAt)}{" "}
-          ({session.durationMinutes} min)
+          ({`${session.durationMinutes} min`})
         </span>
       </div>
 
@@ -1089,8 +1089,7 @@ function PendingInvitationsBanner({
         <div className="flex items-center gap-2">
           <Users size={16} className="text-violet-600" />
           <span className="font-semibold text-sm text-violet-900">
-            {pending.length} pending study session
-            {pending.length > 1 ? "s" : ""}
+            {`${pending.length} pending study session${pending.length === 1 ? "" : "s"}`}
           </span>
         </div>
         <ChevronDown
@@ -1756,7 +1755,7 @@ export default function SchedulePage() {
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {format(startsAt, "EEE, MMM d", { locale })} · {clock(startsAt)} ·{" "}
-                      {session.durationMinutes} min
+                      {`${session.durationMinutes} min`}
                     </p>
                   </div>
                   {session.myStatus === "pending" && (

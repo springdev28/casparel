@@ -171,7 +171,7 @@ export function ContinueWorkflows() {
               Resume unfinished learning work from any device.
             </p>
           </div>
-          <Badge variant="secondary">{items.length} in progress</Badge>
+          <Badge variant="secondary">{`${items.length} in progress`}</Badge>
         </div>
         <div className="divide-y">
           {items.slice(0, 4).map((item) => {
@@ -188,9 +188,16 @@ export function ContinueWorkflows() {
                 <div className="min-w-0">
                   {/* The user's own goal, list or canvas title. */}
                   <p translate="no" className="truncate text-sm font-semibold">{item.title}</p>
+                  {/*
+                    * The subject and the class name are the reader's own
+                    * words; the format is a name the product chose from a
+                    * fixed list, so it is the only part that translates. The
+                    * class name arrives inside a composed string, which is
+                    * why it needs a node of its own to be marked.
+                    */}
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {item.subject} · {formatName(item.format)}
-                    {item.classShare?.name ? ` · ${item.classShare.name}` : ""}
+                    <span translate="no">{item.subject}</span> · {formatName(item.format)}
+                    {item.classShare?.name ? <> · <span translate="no">{item.classShare.name}</span></> : null}
                   </p>
                   <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground sm:hidden">
                     <Icon className="size-3.5 text-primary-text" /> {action.description}
@@ -198,7 +205,7 @@ export function ContinueWorkflows() {
                 </div>
                 <div className="min-w-0">
                   <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
-                    <span>{item.completedSteps}/{item.totalSteps} steps</span>
+                    <span>{`${item.completedSteps}/${item.totalSteps} steps`}</span>
                     <span>{progress}%</span>
                   </div>
                   <Progress value={progress} className="h-1.5" />

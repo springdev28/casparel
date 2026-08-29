@@ -1512,3 +1512,70 @@ Verification recorded for this increment:
   25 — and the six that were not, before the fix, named by file and element;
 - 95 offline checks, the loading audit, api-server 847 tests, both packages
   type-check.
+
+## Fix — thirteen panels that had only ever been rendered with nothing in them
+
+`audit-fixtures.mjs` answered thirteen endpoints with `[]`:
+
+    /forum/posts            /forum/materials        /learning-evidence
+    /assignments/today      /workflow/continue      /activity/recent
+    /resources/101/reviews  /study-sessions         /class-invitations
+    /lists/shared           /classes/31/invitations
+    /classes/31/student-goals   /classes/31/resource-recommendations
+
+Each is a whole panel. Every audit — render, translation, user content, text
+fit, offline — has opened those pages on every build for as long as they have
+existed, and has never seen a row in any of them. The markup that draws a row,
+the strings on it, the names a screen reader reads and the user's own words
+inside it were checked by nothing at all.
+
+Giving each fixture something to return found, in one pass:
+
+- **52 strings a Turkish reader saw in English.** The forum's Posted by,
+  Upvote, Repost, Quote, views and votes; the catalogue's Approved by, Sources,
+  Like and Report material; the schedule's Study Sessions, Accept, Decline and
+  a pending-session count; the dashboard's "Your next class tasks, ordered by
+  deadline", Enable alerts and Due; the whole continue-studying strip; a
+  class's Pending invitations, invited as, Awaiting response, Recommended by
+  and Approve.
+- **Seven counted phrases split across two text nodes.** `{n} views`,
+  `{n} steps`, `{n} min`, `{n} due soon`, `{n} in progress`,
+  `{n} pending study session`, `{a}/{b} steps` — written in JSX, so the number
+  went into one text node and the noun into another, and no rule could ever
+  see the pair. A rule matches a string; there was no string.
+- **Eight places where somebody's own words were exposed to the translation
+  bridge**: a class name on the dashboard, a reviewer's name and their review,
+  a material's title, description, unit and topic, an uploader's and an
+  approving teacher's name, a survey's options, a post's tags, a source URL, an
+  invitee, a recommender and their note. Any of them would have been rewritten
+  the day it matched a dictionary entry — which for a tag like "class" or an
+  option like "Match" is the first day.
+- **A date field with no accessible name** in a teacher's list of student
+  goals: a column of identical date inputs, each announcing nothing.
+- **A rule in the render audit that could not see a time range.** `17:00–18:00`
+  was reported as prose the first time anything rendered a study session:
+  JSX splits it into three text nodes, so the dash arrives with no characters
+  either side and the rule that excuses closed-up ranges cannot tell it is
+  one. It reads the line now, not the node.
+
+And one skip that had gone stale: `/catalog` was excused from the user-content
+audit because it "renders nothing a user typed". That was true only because
+the fixture behind it was an empty array. A skip is a claim about a page; that
+one was a claim about a fixture.
+
+The guard is that an empty collection now has to be a decision. A fixture that
+answers `[]` fails unless it is named in `EMPTY_ON_PURPOSE` with the reason
+the empty state is the one worth rendering. Proved by reverting: empty the
+forum's posts again and it names `/api/forum/posts`.
+
+Verification recorded for this increment:
+
+- 189 page renders clean; every visible string translated across 146 page
+  comparisons; 230 user-content renders across 28 pages, all protected, up
+  from 175 across 25; 192 text-fit renders; 122 pages reachable; 95 offline
+  checks; the loading audit;
+- proved by reverting, three times: the empty-fixture guard names the endpoint
+  it lost, the user-content audit names the six exposed markers on a shared
+  board, and the dash rule reports the range again when it reads the node
+  instead of the line;
+- api-server 848 tests, both packages type-check.

@@ -153,7 +153,19 @@ const DASHES = `(() => {
     if (!el) continue;
     const style = getComputedStyle(el);
     if (style.visibility === 'hidden' || style.display === 'none') continue;
-    const text = node.textContent || '';
+    /*
+     * The line the dash is on, not the text node it lives in.
+     *
+     * JSX splits a rendered range into three text nodes -- the start, the
+     * dash, the end -- so the
+     * dash arrives here alone with no characters either side of it -- and a
+     * rule that excuses a closed-up range cannot see that this is one.
+     * "17:00\u201318:00" on the schedule was reported as prose the first time
+     * anything rendered a study session. Reading the parent's text puts the
+     * range back together. Concatenating can only close a dash up, never
+     * space one out, so a genuine prose dash still reads as prose.
+     */
+    const text = el.textContent || '';
     // Ranges are the legitimate use, and they are written closed up: A\u2013Z,
     // 1\u201310, Mon\u2013Fri. Prose dashes are spaced. Keying on the spacing rather
     // than on token length matters: a length rule matches the last few

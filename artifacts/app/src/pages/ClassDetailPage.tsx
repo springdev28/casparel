@@ -657,7 +657,7 @@ export default function ClassDetailPage() {
             </CardContent>
           </Card>
         )}
-        {isTeacher && pendingInvitations.length > 0 && <div className="mt-5 space-y-2"><h3 className="text-sm font-semibold">Pending invitations</h3>{pendingInvitations.map((invitation) => <div key={invitation.id} className="flex flex-col gap-2 border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderRadius: 8 }}><div className="min-w-0"><p className="truncate text-sm font-medium">{invitation.invitee.name}</p><p className="truncate text-xs text-muted-foreground">{invitation.invitee.email} · invited as {invitation.role}</p></div><Badge variant="outline">Awaiting response</Badge></div>)}</div>}
+        {isTeacher && pendingInvitations.length > 0 && <div className="mt-5 space-y-2"><h3 className="text-sm font-semibold">Pending invitations</h3>{pendingInvitations.map((invitation) => <div key={invitation.id} className="flex flex-col gap-2 border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderRadius: 8 }}><div className="min-w-0"><p translate="no" className="truncate text-sm font-medium">{invitation.invitee.name}</p><p className="truncate text-xs text-muted-foreground"><span translate="no">{invitation.invitee.email}</span> · <span>invited as</span> {invitation.role}</p></div><Badge variant="outline">Awaiting response</Badge></div>)}</div>}
       </section>}
 
       <Dialog open={memberToRemove !== null} onOpenChange={(open) => { if (!open) setMemberToRemove(null); }}>
@@ -680,7 +680,7 @@ export default function ClassDetailPage() {
           <div className="space-y-2">
             {(classRecommendations as ClassResourceRecommendation[]).filter((item) => item.status === ClassResourceRecommendationStatus.pending).map((item) => (
               <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3">
-                <div><p className="text-sm font-medium">{item.resource.title}</p><p className="text-xs text-muted-foreground">Recommended by {item.recommenderName}{item.note ? `, ${item.note}` : ""}</p></div>
+                <div><p translate="no" className="text-sm font-medium">{item.resource.title}</p><p className="text-xs text-muted-foreground"><span>Recommended by</span> <span translate="no">{item.recommenderName}</span>{item.note ? <>, <span translate="no">{item.note}</span></> : null}</p></div>
                 <div className="flex gap-2"><Button size="sm" onClick={() => handleReviewRecommendation(item.id, "approved")} disabled={reviewRecommendation.isPending}><Check size={14} className="mr-1" /> Approve</Button><Button size="sm" variant="outline" onClick={() => handleReviewRecommendation(item.id, "declined")} disabled={reviewRecommendation.isPending}><X size={14} className="mr-1" /> Decline</Button></div>
               </div>
             ))}

@@ -112,14 +112,20 @@ const NOT_OPENED = new Map<string, string>([]);
 /**
  * Routes an audit leaves out on purpose, and why.
  *
- * `/catalog`, `/settings` and `/plans` are in the translation audit and not in
- * the user-content one because they render nothing a user typed: a price, a
- * plan name and a toggle are all product wording, so there is no field for the
+ * `/settings` and `/plans` are in the translation audit and not in the
+ * user-content one because they render nothing a user typed: a price, a plan
+ * name and a toggle are all product wording, so there is no field for the
  * bridge to damage. `/guide` and `/tutorial` are there for the same reason and
  * more plainly: both are written documents shipped in the bundle.
+ *
+ * `/catalog` sat here on the same reason and the reason was wrong. It draws
+ * the shared teaching materials -- somebody's title, description, unit, topic,
+ * tags and name -- and the reason held only because the fixture behind it was
+ * an empty array, so the page under audit really did render nothing a user
+ * typed. A skip is a claim about the page, and this one was a claim about the
+ * fixture.
  */
 const USER_CONTENT_SKIPS = new Set([
-  "/catalog",
   "/settings",
   "/plans",
   // The guide and the tour are written documents. Every string on both is

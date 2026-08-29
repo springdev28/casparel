@@ -1830,7 +1830,8 @@ export default function ResourceDetailPage() {
                 <CardContent className="py-3">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">
+                      {/* A reviewer's name and, below, what they wrote. */}
+                      <span translate="no" className="text-sm font-medium">
                         {review.user.name}
                       </span>
                       <StarRating value={review.rating} size="sm" />
@@ -1843,7 +1844,7 @@ export default function ResourceDetailPage() {
                     </span>
                   </div>
                   {review.comment && (
-                    <p className="text-sm text-muted-foreground">
+                    <p translate="no" className="text-sm text-muted-foreground">
                       {review.comment}
                     </p>
                   )}

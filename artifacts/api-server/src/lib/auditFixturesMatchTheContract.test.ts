@@ -83,6 +83,15 @@ const schemas = contract as unknown as Record<string, ZodType | undefined>;
 /** The fixtures this file has a schema for, and can therefore check. */
 const checkable = Object.keys(SCHEMA_FOR).filter((path) => path in FIXTURES);
 
+/**
+ * Fixtures that answer with an empty collection on purpose, and why.
+ *
+ * Kept short. Each row is a claim that the empty state is the state worth
+ * rendering for that endpoint -- not that nobody has got round to writing the
+ * data yet.
+ */
+const EMPTY_ON_PURPOSE = new Map<string, string>([]);
+
 describe("the audit fixtures", () => {
   it("found the fixtures and the schemas to check them against", () => {
     /*
@@ -121,6 +130,42 @@ describe("the audit fixtures", () => {
       ).toEqual([]);
     },
   );
+
+  /*
+   * A fixture that answers with nothing is a panel nothing has ever drawn.
+   *
+   * Thirteen of these sat here at once: the forum's posts and materials, the
+   * evidence a learner records, what a class has set for today, the
+   * continue-studying queue, the activity feed, a resource's reviews, study
+   * sessions, invitations, lists shared with you, a teacher's view of student
+   * goals. Every one is a whole panel, and every one had been rendered by
+   * every audit on every build with no row in it -- so the row's markup, its
+   * strings, its accessible names and its user content were checked by
+   * nothing at all.
+   *
+   * Filling them found 52 strings a Turkish reader saw in English, eight
+   * places where somebody's own words were exposed to the translation bridge,
+   * an unlabelled date field in a teacher's list, and a rule in the render
+   * audit that could not see a time range.
+   *
+   * So an empty collection has to be a decision. A row in EMPTY_ON_PURPOSE
+   * says why this panel is worth rendering with nothing in it; anything else
+   * fails.
+   */
+  it("answers every endpoint with something to render", () => {
+    const empty = Object.entries(FIXTURES as Record<string, unknown>)
+      .filter(([, body]) => Array.isArray(body) && body.length === 0)
+      .map(([path]) => path)
+      .filter((path) => !EMPTY_ON_PURPOSE.has(path));
+
+    expect(
+      empty.sort(),
+      "these fixtures answer with an empty collection, so the panel behind " +
+        "each is rendered with no rows in it and nothing in that panel is " +
+        "checked by any audit; give it a row, or name it in EMPTY_ON_PURPOSE " +
+        "with the reason it is worth rendering empty",
+    ).toEqual([]);
+  });
 
   it("says which fixtures nothing here can check", () => {
     /*

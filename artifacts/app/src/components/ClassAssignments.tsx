@@ -312,7 +312,7 @@ export function ClassAssignments({
             <CalendarDays size={18} /> Assignments{" "}
             {dueSoon > 0 && (
               <Badge variant="destructive">
-                <Bell size={12} className="mr-1" /> {dueSoon} due soon
+                <Bell size={12} className="mr-1" /> {`${dueSoon} due soon`}
               </Badge>
             )}
           </h2>

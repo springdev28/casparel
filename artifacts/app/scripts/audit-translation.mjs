@@ -138,6 +138,9 @@ const COLLECT = `(() => {
     'React Flow','React Flow attribution',
     'Free','Plus','Pro','Student Plus','Student Pro','Teacher Plus','Teacher Pro','Institutional',
     'English','Español','Français','Deutsch','Português','Türkçe','Email','e-mail',
+    // The forum's own handle, printed beside a post the way a community name
+    // is printed everywhere else. A name, not a word.
+    'c/casparel',
     // The placeholder in a canvas link card. It is the shape of a URL, not a
     // sentence: every language types https:// the same way, and a translated
     // one would be wrong rather than merely odd.

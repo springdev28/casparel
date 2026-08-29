@@ -64,7 +64,7 @@ const PORT = Number(process.env.AUDIT_UC_PORT ?? 4327);
 
 const PAGES = (
   process.env.AUDIT_UC_PAGES ??
-  "/dashboard,/activities,/classes,/goals,/lists,/schedule,/messages,/forum,/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/people,/profile,/resources,/admin,/resources/101,/canvas/shared/aud1t-t0ken,/activities/shared/aud1t-t0ken"
+  "/dashboard,/catalog,/activities,/classes,/goals,/lists,/schedule,/messages,/forum,/canvases,/canvases/12,/classes/31,/classes/31?tab=notes,/classes/31?tab=forum,/classes/31?tab=canvas,/classes/31?tab=assignments,/classes/31?tab=designer,/classes/31?tab=activities,/classes/31?tab=resources,/lists/44,/profile/2,/people,/profile,/resources,/admin,/resources/101,/canvas/shared/aud1t-t0ken,/activities/shared/aud1t-t0ken"
 )
   .split(",")
   .filter(Boolean);
@@ -91,6 +91,10 @@ const USER_TEXT = new Set([
   "gradeOrDept",
   "title",
   "name",
+  // What a teacher filed a shared material under. Both are free text they
+  // typed, not a value chosen from a list the product defines.
+  "unit",
+  "topic",
   "description",
   "body",
   "notes",
@@ -103,6 +107,21 @@ const USER_TEXT = new Set([
   "instructions",
   "creatorName",
   "authorName",
+  /*
+   * The other names people gave things, and the other people.
+   *
+   * `name` alone missed every field that spells the same thing differently:
+   * a class name on a dashboard assignment, the teacher who uploaded a
+   * material, the student who recommended a source, the teacher who approved
+   * one. Each is somebody's own words on screen, and each was drawn unmarked
+   * for as long as its panel had a row in it -- which, until the fixtures
+   * behind them stopped being empty arrays, was never.
+   */
+  "className",
+  "uploaderName",
+  "recommenderName",
+  "studentName",
+  "teacherName",
   "question",
   "prompt",
   "content",

@@ -571,7 +571,33 @@ export const FIXTURES = {
   // The detail page: its own strings are a large share of the product, and
   // without a fixture the audit renders an error page and reports nothing.
   "/api/resources/101": RESOURCE,
-  "/api/resources/101/reviews": [],
+  /*
+   * Reviews under a catalogue entry.
+   *
+   * This was `[]`, so the review list, the star row, the reviewer's name and
+   * the rating-with-no-comment row had never been drawn by any audit. Two
+   * because a rating with nothing written under it is its own branch.
+   */
+  "/api/resources/101/reviews": [
+    {
+      id: 71,
+      resourceId: 101,
+      userId: 2,
+      rating: 5,
+      comment: "Clearer than the textbook on eigenvalues.",
+      createdAt: "2026-06-02T09:00:00.000Z",
+      user: { id: 2, name: "Deniz Aydın", role: "teacher", avatarUrl: null },
+    },
+    {
+      id: 72,
+      resourceId: 101,
+      userId: 3,
+      rating: 3,
+      comment: null,
+      createdAt: "2026-06-01T09:00:00.000Z",
+      user: { id: 3, name: "Mert Şahin", role: "student", avatarUrl: null },
+    },
+  ],
   /*
    * The quick source review, which the detail page fetches on mount.
    *
@@ -655,15 +681,149 @@ export const FIXTURES = {
    * real shape instead of whatever a missing fixture leaves behind.
    */
   "/api/learning-goals/7/list-drift": { listId: 44, listName: "Sprint plan", added: [] },
-  "/api/learning-evidence": [],
-  "/api/assignments/today": [],
-  "/api/workflow/continue": [],
+  /*
+   * What somebody said they could now do, which is the whole point of the
+   * check-in the specification is built around -- and it was an empty array,
+   * so no audit had ever rendered one. Three, because confidence and
+   * understanding are drawn as bands and one row shows one band.
+   */
+  "/api/learning-evidence": [
+    {
+      id: 501,
+      userId: 1,
+      resourceId: 101,
+      learningGoalId: 21,
+      pathStepId: "step-1",
+      concept: "Row reduction",
+      confidence: 3,
+      understanding: 4,
+      reflection: "I can do it without looking at the worked example now.",
+      misconception: null,
+      createdAt: "2026-06-18T09:00:00.000Z",
+    },
+    {
+      id: 502,
+      userId: 1,
+      resourceId: 101,
+      learningGoalId: 21,
+      pathStepId: "step-2",
+      concept: "Determinants",
+      confidence: 2,
+      understanding: 2,
+      reflection: null,
+      misconception: "I keep expanding along a row with no zeros in it.",
+      createdAt: "2026-06-12T09:00:00.000Z",
+    },
+    {
+      id: 503,
+      userId: 1,
+      resourceId: null,
+      learningGoalId: null,
+      pathStepId: null,
+      concept: "Eigenvectors",
+      confidence: 1,
+      understanding: 0,
+      reflection: null,
+      misconception: null,
+      createdAt: "2026-06-04T09:00:00.000Z",
+    },
+  ],
+  /*
+   * What a class has set for today. One done and one not, because the tick
+   * and the untick are different rows, and neither had ever been drawn.
+   */
+  "/api/assignments/today": [
+    {
+      id: 601,
+      classId: 31,
+      className: "Further Maths",
+      title: "Read chapter 4 and try the first six exercises",
+      instructions: "Bring your working; we will compare approaches.",
+      resourceId: 101,
+      activityId: null,
+      dueAt: "2026-06-20T16:00:00.000Z",
+      completedAt: null,
+      completed: false,
+    },
+    {
+      id: 602,
+      classId: 31,
+      className: "Further Maths",
+      title: "Photosynthesis vocabulary set",
+      instructions: null,
+      resourceId: null,
+      activityId: 12,
+      dueAt: "2026-06-19T16:00:00.000Z",
+      completedAt: "2026-06-19T10:12:00.000Z",
+      completed: true,
+    },
+  ],
+  /*
+   * The continue-studying queue, and the panel that had never had a row in
+   * it. Two, because the next action differs per row and each draws its own
+   * label, description and icon.
+   */
+  "/api/workflow/continue": [
+    {
+      resourceId: 101,
+      title: "Linear Algebra Done Right",
+      subject: "Mathematics",
+      format: "pdf",
+      lastEventAt: "2026-06-18T09:00:00.000Z",
+      nextAction: "create_activity",
+      completedSteps: 2,
+      totalSteps: 5,
+      activity: null,
+      classShare: null,
+    },
+    {
+      resourceId: 102,
+      title: "Photosynthesis, start to finish",
+      subject: "Biology",
+      format: "video",
+      lastEventAt: "2026-06-15T09:00:00.000Z",
+      nextAction: "share_class",
+      completedSteps: 3,
+      totalSteps: 5,
+      activity: { id: 12, title: "Photosynthesis vocabulary" },
+      classShare: null,
+    },
+  ],
   "/api/calendar/status": {
     googleConnected: false,
     googleConfigured: false,
     icalSecret: "audit-ical-secret",
   },
-  "/api/activity/recent": [],
+  /*
+   * The recent-activity feed. One of each kind the enum allows, because the
+   * icon and the wording are chosen by kind.
+   */
+  "/api/activity/recent": [
+    {
+      id: 701,
+      type: "review",
+      message: "checked the credibility of Linear Algebra Done Right",
+      createdAt: "2026-06-18T09:00:00.000Z",
+      userId: 1,
+      userName: "Audit Student",
+    },
+    {
+      id: 702,
+      type: "resource",
+      message: "added Photosynthesis, start to finish to the catalogue",
+      createdAt: "2026-06-17T09:00:00.000Z",
+      userId: 2,
+      userName: "Deniz Aydın",
+    },
+    {
+      id: 703,
+      type: "class",
+      message: "joined Further Maths",
+      createdAt: "2026-06-16T09:00:00.000Z",
+      userId: 3,
+      userName: "Mert Şahin",
+    },
+  ],
   "/api/classes": [CLASS],
   "/api/classes/31": CLASS,
   /*
@@ -686,8 +846,38 @@ export const FIXTURES = {
     ],
   },
   "/api/classes/31/join-code": { joinCode: "PHY-4821" },
-  "/api/classes/31/invitations": [],
-  "/api/classes/31/resource-recommendations": [],
+  // Who has been invited to this class and has not answered.
+  "/api/classes/31/invitations": [
+    {
+      id: 801,
+      classId: 31,
+      userId: 4,
+      invitedById: 2,
+      role: "student",
+      status: "pending",
+      createdAt: "2026-06-17T09:00:00.000Z",
+      respondedAt: null,
+      class: { id: 31, name: "Further Maths" },
+      inviter: { id: 2, name: "Deniz Aydın" },
+      invitee: { id: 4, name: "Elif Korkmaz", email: "elif@example.org" },
+    },
+  ],
+  // A student suggesting a source for the class list, waiting on a teacher.
+  "/api/classes/31/resource-recommendations": [
+    {
+      id: 811,
+      classId: 31,
+      resourceId: 101,
+      recommendedById: 3,
+      recommenderName: "Mert Şahin",
+      status: "pending",
+      note: "The chapter on eigenvalues is the clearest I have found.",
+      reviewedById: null,
+      reviewedAt: null,
+      createdAt: "2026-06-16T09:00:00.000Z",
+      resource: RESOURCE,
+    },
+  ],
   "/api/classes/31/resources-list": {
     id: 77,
     name: "Physics A-level shared list",
@@ -812,17 +1002,176 @@ export const FIXTURES = {
     createdAt: STUDY_ACTIVITY.createdAt,
     updatedAt: STUDY_ACTIVITY.updatedAt,
   },
-  "/api/class-invitations": [],
+  // An invitation waiting for this account to answer, which is what puts the
+  // accept-or-decline banner on screen.
+  "/api/class-invitations": [
+    {
+      id: 802,
+      classId: 32,
+      userId: 1,
+      invitedById: 2,
+      role: "student",
+      status: "pending",
+      createdAt: "2026-06-18T09:00:00.000Z",
+      respondedAt: null,
+      class: { id: 32, name: "Biology A-level" },
+      inviter: { id: 2, name: "Deniz Aydın" },
+      invitee: { id: 1, name: "Audit Student", email: "student@example.org" },
+    },
+  ],
   "/api/google-classroom/status": { connected: false, configured: false },
-  "/api/lists/shared": [],
+  // A list somebody else shared into a class this account is in.
+  "/api/lists/shared": [{ ...RESOURCE_LIST, id: 45, name: "Chapter 4, in order" }],
   "/api/schedule": [SCHEDULE_BLOCK],
-  "/api/study-sessions": [],
+  /*
+   * A study session somebody organised. Two participants with different
+   * answers, because the row that says who is coming is drawn per status,
+   * and one of them is this account -- which is what makes the session's own
+   * accept and decline controls render.
+   */
+  "/api/study-sessions": [
+    {
+      id: 901,
+      organizerId: 2,
+      title: "Eigenvalues, together",
+      startsAt: `${todayInTheGrid()}T17:00:00.000Z`,
+      durationMinutes: 60,
+      topic: "Chapter 4 exercises",
+      resourceId: 101,
+      meetingUrl: "https://example.org/meet/901",
+      createdAt: "2026-06-15T09:00:00.000Z",
+      participants: [
+        { userId: 1, status: "pending", name: "Audit Student", avatarUrl: null, respondedAt: null },
+        {
+          userId: 3,
+          status: "accepted",
+          name: "Mert Şahin",
+          avatarUrl: null,
+          respondedAt: "2026-06-16T09:00:00.000Z",
+        },
+      ],
+      myStatus: "pending",
+    },
+  ],
   "/api/forum/access": { canPost: true, canModerate: true },
   // Both on, so the AI search controls render and get audited. They are off by
   // default on a server with no keys, which is the state that was rendering.
   "/api/discover/capabilities": { publicProfileSearch: true, resourceSearch: true },
-  "/api/forum/materials": [],
-  "/api/forum/posts": [],
+  /*
+   * A shared teaching material, with a teacher's approval on it.
+   *
+   * The forum was two empty arrays, so nothing here had ever been rendered:
+   * not a post, not a comment count, not a vote, not the approval line that
+   * says a teacher has looked at this.
+   */
+  "/api/forum/materials": [
+    {
+      id: 1001,
+      title: "Eigenvalues worksheet",
+      description: "Twelve questions, worked answers at the back.",
+      unit: "Linear algebra",
+      topic: "Eigenvalues",
+      materialType: "worksheet",
+      tags: ["maths", "a-level"],
+      sources: ["https://example.org/eigen"],
+      uploaderId: 2,
+      uploaderName: "Deniz Aydın",
+      uploaderRole: "teacher",
+      linkUrl: "https://example.org/eigen",
+      fileName: null,
+      mimeType: null,
+      moderationStatus: "approved",
+      moderationNote: null,
+      viewCount: 42,
+      downloadCount: 11,
+      likeCount: 6,
+      commentCount: 2,
+      likedByMe: false,
+      createdAt: "2026-06-14T09:00:00.000Z",
+      approvals: [{ id: 1, teacherName: "Deniz Aydın", createdAt: "2026-06-14T10:00:00.000Z" }],
+    },
+  ],
+  /*
+   * Two posts, because the forum draws two kinds. A survey renders its
+   * options, its vote counts and the bars beside them; a plain post renders
+   * the quoted post above it. Neither had ever been on screen.
+   */
+  "/api/forum/posts": [
+    {
+      id: 1101,
+      authorId: 3,
+      authorName: "Mert Şahin",
+      authorRole: "student",
+      kind: "post",
+      title: "How do you keep track of which method you used?",
+      body: "I end up redoing the same expansion three times before I notice.",
+      tags: ["maths"],
+      surveyOptions: [],
+      allowMultipleVotes: false,
+      quotedPostId: null,
+      quotedPost: null,
+      attachmentMaterialId: null,
+      attachmentFileName: null,
+      attachmentMimeType: null,
+      classId: null,
+      moderationStatus: "approved",
+      moderationNote: null,
+      viewCount: 87,
+      likeCount: 9,
+      commentCount: 3,
+      likedByMe: true,
+      repostCount: 1,
+      repostedByMe: false,
+      createdAt: "2026-06-18T09:00:00.000Z",
+      votes: [],
+      myVote: null,
+      myVotes: [],
+    },
+    {
+      id: 1102,
+      authorId: 2,
+      authorName: "Deniz Aydın",
+      authorRole: "teacher",
+      kind: "survey",
+      title: "Which should we cover on Thursday?",
+      body: "Pick one; I will bring worked examples for whichever wins.",
+      tags: ["maths", "class"],
+      surveyOptions: [
+        { id: "o1", text: "Determinants" },
+        { id: "o2", text: "Eigenvectors" },
+      ],
+      allowMultipleVotes: false,
+      quotedPostId: 1101,
+      quotedPost: {
+        id: 1101,
+        authorName: "Mert Şahin",
+        authorRole: "student",
+        title: "How do you keep track of which method you used?",
+        body: "I end up redoing the same expansion three times before I notice.",
+        tags: ["maths"],
+        createdAt: "2026-06-18T09:00:00.000Z",
+      },
+      attachmentMaterialId: null,
+      attachmentFileName: null,
+      attachmentMimeType: null,
+      classId: null,
+      moderationStatus: "approved",
+      moderationNote: null,
+      viewCount: 54,
+      likeCount: 4,
+      commentCount: 1,
+      likedByMe: false,
+      repostCount: 0,
+      repostedByMe: false,
+      createdAt: "2026-06-17T09:00:00.000Z",
+      votes: [
+        { optionId: "o1", count: 3 },
+        { optionId: "o2", count: 7 },
+      ],
+      myVote: "o2",
+      myVotes: ["o2"],
+    },
+  ],
   "/api/study-activities": [STUDY_ACTIVITY],
   "/api/learning-goal-templates": [GOAL_TEMPLATE],
   "/api/direct-messages/conversations": [CONVERSATION],
@@ -842,7 +1191,11 @@ export const FIXTURES = {
       CONVERSATION.lastMessage,
     ],
   },
-  "/api/classes/31/student-goals": [],
+  // The teacher's view of what a class is working towards. Empty until now,
+  // so the panel a teacher opens this page for had never been drawn.
+  "/api/classes/31/student-goals": [
+    { ...LEARNING_GOAL, id: 22, studentName: "Mert Şahin", classId: 31 },
+  ],
   "/api/admin/users": [ADMIN_USER_ROW],
   "/api/admin/resources/review-queue": [
     {

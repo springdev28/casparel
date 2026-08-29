@@ -72,7 +72,7 @@ export function TodayAssignments() {
           <div className="flex items-center gap-2">
             {dueSoon > 0 && (
               <Badge variant="destructive">
-                <Bell size={12} className="mr-1" /> {dueSoon} due soon
+                <Bell size={12} className="mr-1" /> {`${dueSoon} due soon`}
               </Badge>
             )}
             {!alertsEnabled &&
@@ -100,11 +100,21 @@ export function TodayAssignments() {
               <div className="min-w-40 flex-1">
                 {/* An assignment title, written by a teacher. */}
                 <p translate="no" className="text-sm font-medium">{item.title}</p>
+                {/*
+                  * The class name is the teacher's own; "Due" is ours. They
+                  * were one composed string, so the name was exposed to the
+                  * bridge and the word was invisible to it -- English in
+                  * every language, on the panel that says what is due today.
+                  */}
                 <p className="text-xs text-muted-foreground">
-                  {item.className}
-                  {item.dueAt
-                    ? ` · Due ${new Date(item.dueAt).toLocaleString(intlLocale)}`
-                    : ""}
+                  <span translate="no">{item.className}</span>
+                  {item.dueAt ? (
+                    <>
+                      {" · "}
+                      <span>Due</span>{" "}
+                      {new Date(item.dueAt).toLocaleString(intlLocale)}
+                    </>
+                  ) : null}
                 </p>
               </div>
               <Button

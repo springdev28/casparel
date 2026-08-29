@@ -761,13 +761,20 @@ export default function GoalsPage() {
           ) : (
             <div className="space-y-2">{(studentGoals as StudentLearningGoal[]).map((goal) => (
               <div key={goal.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-                <div><p translate="no" className="text-sm font-medium">{goal.title}</p><p className="text-xs text-muted-foreground"><span translate="no">{goal.studentName}</span> · {goal.subject}</p></div>
+                <div><p translate="no" className="text-sm font-medium">{goal.title}</p><p className="text-xs text-muted-foreground"><span translate="no">{goal.studentName}</span> · <span translate="no">{goal.subject}</span></p></div>
                 <div className="flex items-center gap-2">
                   <Select value={goal.status} onValueChange={(status) => manageStudentGoal(goal.id, { status: status as LearningGoalStatus })}>
                     <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value={LearningGoalStatus.active}>Active</SelectItem><SelectItem value={LearningGoalStatus.paused}>Paused</SelectItem><SelectItem value={LearningGoalStatus.completed}>Completed</SelectItem></SelectContent>
                   </Select>
-                  <Input className="w-36" type="date" value={goal.targetDate ?? ""} onChange={(event) => manageStudentGoal(goal.id, { targetDate: event.target.value || null })} />
+                  {/*
+                    * Named after the goal it belongs to, because a teacher's
+                    * list of student goals is a column of identical date
+                    * fields and "date" says which one to nobody. The panel
+                    * only draws when a class has goals in it, which is why
+                    * nothing had ever rendered this field to notice.
+                    */}
+                  <Input className="w-36" type="date" aria-label={`Target date for ${goal.title}`} value={goal.targetDate ?? ""} onChange={(event) => manageStudentGoal(goal.id, { targetDate: event.target.value || null })} />
                 </div>
               </div>
             ))}</div>
