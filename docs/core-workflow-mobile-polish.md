@@ -1782,3 +1782,42 @@ Verification recorded for this increment:
   Spanish to the sign-in screen reports the missing dictionary;
 - 189 page renders clean, every visible string translated, 192 text-fit
   renders, api-server 854 tests, the app type-checks.
+
+## Guard — every number on the price list is a number the server enforces
+
+`plan-copy.ts` is what somebody reads before paying: "400 study activities",
+"8 deep research reports a day", "8 classes, up to 150 members each".
+`entitlements.ts` is what the server allows. Two hand-kept tables in two
+packages, with no reference between them, and the difference between them is
+a promise a customer paid for and did not get.
+
+They agree today. Nothing was holding them there, and no audit could: the
+plans page renders, translates, fits its box and says the same thing in both
+languages — the sentence is simply not true of the running product. It is the
+guide's six languages again, with money attached.
+
+So a test reads both tables and holds every counted noun on a tier's card
+against that tier's row on the server. It cannot check the words; whether
+"Adaptive study dashboard" is real is not something a test knows. Every number
+is checkable, and the numbers are what a buyer compares.
+
+The blurb is deliberately outside the rule. It is a sentence written for
+reading — "One class of up to 30 with manual seating" — and holding prose to
+the same standard would either fail on wording that is true or force the
+wording to be written for the parser. The bulleted lines are the
+specification, so those are what is checked.
+
+The third check took two goes and the first version is worth recording.
+"At least one countable line per tier" passed when all four of Student Plus's
+capacity lines were reworded to "Hundreds of study activities", because its
+two AI lines still matched — a whole tier's capacity left the check and the
+test said nothing. It is a floor now: six numbers per card, so one line may be
+reworded and four may not.
+
+Verification recorded for this increment:
+
+- proved by reverting, twice: lowering the server's student-plus activity cap
+  to 300 reports `"400 study activities" — the server allows 300`; rewording
+  that tier's four capacity lines reports it as holding three checkable
+  numbers where six are required;
+- api-server 857 tests.
