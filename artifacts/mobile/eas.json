@@ -12,6 +12,7 @@
     },
     "development": {
       "extends": "base",
+      "environment": "development",
       "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "true" },
       "developmentClient": true,
       "distribution": "internal",
@@ -20,16 +21,16 @@
     },
     "preview": {
       "extends": "base",
+      "environment": "preview",
       "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "true" },
       "distribution": "internal",
-      "channel": "preview",
       "ios": { "simulator": false },
       "android": { "buildType": "apk" }
     },
     "production": {
       "extends": "base",
+      "environment": "production",
       "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "false" },
-      "channel": "production",
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" }
     }
