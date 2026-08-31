@@ -22,6 +22,7 @@ import { useLogin } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { describeAuthFailure } from '@/utils/auth-errors';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { BrandMark } from '@/components/BrandMark';
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -76,10 +77,10 @@ export default function LoginScreen() {
           <View
             style={[
               styles.logoBox,
-              { backgroundColor: colors.primary, borderRadius: colors.radius },
+              { backgroundColor: '#f8f7f4', borderColor: colors.border, borderRadius: colors.radius },
             ]}
           >
-            <Feather name="book-open" size={28} color={colors.primaryForeground} />
+            <BrandMark size={31} />
           </View>
           <Text
             style={[
@@ -214,6 +215,7 @@ const styles = StyleSheet.create({
   logoBox: {
     width: 52,
     height: 52,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -241,6 +241,56 @@ if (eas) {
     fail("production RevenueCat configuration enables Test Store.");
   }
 
+  /*
+   * The declarations above prove that a build selects the right kind of
+   * store. They do not prove that the selected store has a key. Previously an
+   * empty production key still passed because its name appeared in
+   * .env.example; EAS produced a perfectly installable build whose purchase
+   * screen could never load a product.
+   *
+   * This block runs inside EAS through `eas-build-pre-install`, where secrets
+   * from the chosen EAS environment are available. A store binary now cannot
+   * be created unless its actual platform key is present and recognisable.
+   */
+  const activeProfile = process.env.EAS_BUILD_PROFILE;
+  const activePlatform = process.env.EAS_BUILD_PLATFORM;
+  if (activeProfile === "production") {
+    const productionKeys = {
+      android: {
+        name: "EXPO_PUBLIC_RC_ANDROID_KEY",
+        prefix: "goog_",
+      },
+      ios: {
+        name: "EXPO_PUBLIC_RC_IOS_KEY",
+        prefix: "appl_",
+      },
+    };
+    const expected = productionKeys[activePlatform];
+    if (!expected) {
+      fail(
+        `EAS_BUILD_PLATFORM must be android or ios for a production build; received ${JSON.stringify(activePlatform ?? null)}.`,
+      );
+    } else {
+      const configured = process.env[expected.name]?.trim() ?? "";
+      if (!configured) {
+        fail(
+          `production ${activePlatform} build is missing ${expected.name}. Configure the public RevenueCat key in the EAS production environment before building.`,
+        );
+      } else if (!configured.startsWith(expected.prefix)) {
+        fail(
+          `production ${activePlatform} build has an invalid ${expected.name}; RevenueCat production keys for this platform start with ${expected.prefix}.`,
+        );
+      }
+    }
+  } else if (activeProfile === "development" || activeProfile === "preview") {
+    const testKey = process.env.EXPO_PUBLIC_RC_TEST_KEY?.trim() ?? "";
+    if (!testKey.startsWith("test_")) {
+      fail(
+        `${activeProfile} build is missing a valid EXPO_PUBLIC_RC_TEST_KEY. RevenueCat Test Store keys start with test_.`,
+      );
+    }
+  }
+
   // An .aab cannot be installed by a tester; it can only be uploaded to Play.
   // A profile marked for internal distribution that produces one is a build
   // nobody can open.

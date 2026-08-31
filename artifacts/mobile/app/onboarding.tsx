@@ -13,6 +13,7 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { BrandMark } from '@/components/BrandMark';
 
 const VALUE_PROPS: { icon: string; title: string; body: string }[] = [
   {
@@ -77,8 +78,8 @@ export default function OnboardingScreen() {
             end={{ x: 1, y: 1 }}
             style={[styles.hero, { borderRadius: colors.radius + 8 }]}
           >
-            <View style={[styles.logo, { backgroundColor: colors.primaryForeground + '26', borderRadius: 22 }]}>
-              <Feather name="feather" size={28} color={colors.primaryForeground} />
+            <View style={[styles.logo, { backgroundColor: '#f8f7f4', borderRadius: 18 }]}>
+              <BrandMark size={34} />
             </View>
             <Text style={[styles.heroTitle, { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold }]}>
               {t('Welcome to Casparel')}

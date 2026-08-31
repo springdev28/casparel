@@ -393,7 +393,7 @@ export default function ProfileScreen() {
     try {
       const result = await switchRoleMutation.mutateAsync({ data: { role: newRole } });
       // The token first, so everything refetched below carries the new role.
-      await updateToken(result.token);
+      await updateToken(result.token, result.user);
       /*
        * Everything, not just /users/me.
        *
