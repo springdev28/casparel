@@ -9,8 +9,9 @@ import { pool } from "@workspace/db";
  * PostgreSQL-backed store for express-rate-limit.
  *
  * Uses the shared `pool` already exported by @workspace/db, no extra
- * connection needed.  The table is created (if absent) by calling
- * `initRateLimitStore()` once at server startup, before any request is served.
+ * connection needed. The table belongs to the Drizzle schema and migration
+ * history. `initRateLimitStore()` remains an idempotent compatibility guard
+ * for an older deployment whose migrations have not completed yet.
  *
  * Each limiter must be given a unique `prefix` so that the global, auth, and
  * content limiters maintain independent counters per IP even though they all
@@ -21,16 +22,13 @@ import { pool } from "@workspace/db";
  */
 
 /*
- * Row level security is enabled here rather than in a migration, because this
- * table is not made by one.
+ * Row level security is enabled both here and in the table's migration.
  *
- * Migration 0050 closes the REST API that Supabase publishes over every table
- * in the public schema, by looping `pg_tables` and enabling RLS on each. That
- * loop runs at migration time, and this table is created at boot -- after
- * migrations -- so it has never existed when the loop looks, and has been the
- * one table in the database reachable with the project's anon key. It maps a
- * limiter prefix and a client key, which is an address or an account id, to a
- * request count.
+ * Migration 0050 closed the REST API that Supabase publishes over every table
+ * that existed at the time. The limiter table used to be created only at boot,
+ * after that migration, and could also be absent when production skipped the
+ * startup initializer. Migration 0053 makes it a normal schema invariant; this
+ * initializer keeps older bundles safe during a rolling deploy.
  *
  * `ENABLE`, not `FORCE`, for the same reason 0050 says: FORCE applies to the
  * owner too, and with no policies written it would refuse the app itself. The

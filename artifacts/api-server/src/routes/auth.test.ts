@@ -479,6 +479,39 @@ describe("PATCH /api/users/me, profile fields", () => {
     expect(lastUpdated).toMatchObject({ bio: null, subjects: null, gradeOrDept: null });
   });
 
+  it("replaces a Turkish subject with Mathematics", async () => {
+    mockUserRow = {
+      id: USER_ID,
+      email: "alice@example.com",
+      name: "Alice",
+      role: "student",
+      activeRole: "student",
+      avatarUrl: null,
+      bio: null,
+      subjects: ["Matematik"],
+      gradeOrDept: null,
+      timezone: null,
+      websiteUrl: null,
+      profileVisibility: "classmates",
+      libraryVisibility: "classmates",
+      showBio: true,
+      showSubjects: true,
+      showGradeOrDept: true,
+      showWebsite: true,
+      createdAt: new Date().toISOString(),
+    };
+
+    const token = `Bearer ${issueToken(USER_ID, "student")}`;
+    const res = await request(buildApp())
+      .patch("/api/users/me")
+      .set("Authorization", token)
+      .send({ subjects: ["Matematik"] });
+
+    expect(res.status).toBe(200);
+    expect(lastUpdated).toMatchObject({ subjects: ["Matematik"] });
+    expect(res.body.subjects).toEqual(["Matematik"]);
+  });
+
   it("ignores avatarUrl in the request body, avatar must be set via the upload endpoint", async () => {
     mockUserRow = {
       id: USER_ID,

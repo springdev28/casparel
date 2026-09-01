@@ -28,3 +28,4 @@ export * from "./directMessages";
 export * from "./workflowEvents";
 export * from "./webhookEvents";
 export * from "./supportRequests";
+export * from "./rateLimitHits";
