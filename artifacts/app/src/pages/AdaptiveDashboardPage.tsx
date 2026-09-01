@@ -51,6 +51,7 @@ import {
 } from "../lib/user-preferences";
 import { formatName } from "@/lib/resource-format";
 import { WebAdSlot } from "@/components/WebAdSlot";
+import { useSessionClaims } from "@/lib/use-session";
 
 const path = [
   {
@@ -945,20 +946,35 @@ function TeacherView({ name }: { name?: string }) {
 }
 
 export default function AdaptiveDashboardPage() {
-  const { data: me, isLoading } = useGetMe();
-  if (isLoading)
+  const { data: me, isLoading, isError, error, isFetching, refetch } = useGetMe();
+  const sessionClaims = useSessionClaims();
+  if (isLoading && !sessionClaims)
     return (
       <div className="p-8">
         <Skeleton className="h-80 w-full" />
       </div>
     );
+  if (isError && !sessionClaims)
+    return (
+      <div className="p-4 sm:p-8">
+        <LoadFailure
+          error={error}
+          retrying={isFetching}
+          onRetry={() => {
+            void refetch();
+          }}
+        />
+      </div>
+    );
+  const workspaceRole = me?.activeRole ?? me?.role ?? sessionClaims?.role;
+  const userId = me?.id ?? sessionClaims?.userId;
   return (
     <>
       <WebAdSlot />
-      {me && (me?.activeRole ?? me?.role) === UserRole.teacher ? (
-        <TeacherView name={me.name} />
+      {workspaceRole === UserRole.teacher ? (
+        <TeacherView name={me?.name} />
       ) : (
-        <StudentView name={me?.name} userId={me?.id} workspaceRole={me?.activeRole ?? me?.role} />
+        <StudentView name={me?.name} userId={userId} workspaceRole={workspaceRole} />
       )}
     </>
   );
