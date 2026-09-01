@@ -101,20 +101,39 @@ async function render(output) {
   return pipeline.png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer();
 }
 
-async function samePixels(left, right) {
+async function comparePixels(left, right) {
   try {
     const [a, b] = await Promise.all([
       sharp(left).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
       sharp(right).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
     ]);
-    return (
-      a.info.width === b.info.width &&
-      a.info.height === b.info.height &&
-      a.info.channels === b.info.channels &&
-      a.data.equals(b.data)
-    );
+    if (
+      a.info.width !== b.info.width ||
+      a.info.height !== b.info.height ||
+      a.info.channels !== b.info.channels
+    ) {
+      return { matches: false, differentPixels: null, maxDelta: null };
+    }
+    let differentPixels = 0;
+    let maxDelta = 0;
+    for (let offset = 0; offset < a.data.length; offset += a.info.channels) {
+      let pixelDiffers = false;
+      for (let channel = 0; channel < a.info.channels; channel += 1) {
+        const delta = Math.abs(a.data[offset + channel] - b.data[offset + channel]);
+        if (delta > 0) pixelDiffers = true;
+        if (delta > maxDelta) maxDelta = delta;
+      }
+      if (pixelDiffers) differentPixels += 1;
+    }
+    const totalPixels = a.info.width * a.info.height;
+    // libvips rounds a small number of antialiased edge pixels one channel
+    // value differently between its macOS and Ubuntu builds. A real colour,
+    // geometry, padding or alpha change either affects more than 5% of the
+    // image or moves at least one channel by more than one value.
+    const visuallyIdentical = maxDelta <= 1 && differentPixels <= totalPixels * 0.05;
+    return { matches: visuallyIdentical, differentPixels, maxDelta };
   } catch {
-    return false;
+    return { matches: false, differentPixels: null, maxDelta: null };
   }
 }
 
@@ -131,8 +150,11 @@ async function main() {
     // bytes on macOS and Ubuntu. CI protects the artwork, so check decoded
     // dimensions and RGBA pixels; normal generation still avoids rewrites
     // only when the file bytes are already identical on the current host.
-    const matches = existing && (check
-      ? await samePixels(existing, bytes)
+    const comparison = existing && check
+      ? await comparePixels(existing, bytes)
+      : null;
+    const matches = existing && (comparison
+      ? comparison.matches
       : existing.equals(bytes));
     if (matches) {
       console.log(`  unchanged  ${relative}  (${output.label})`);
@@ -141,6 +163,11 @@ async function main() {
     changed += 1;
     if (check) {
       console.error(`  STALE      ${relative}  (${output.label})`);
+      if (comparison?.differentPixels != null) {
+        console.error(
+          `             pixel delta: ${comparison.differentPixels}, max channel delta: ${comparison.maxDelta}`,
+        );
+      }
       continue;
     }
     fs.mkdirSync(path.dirname(output.file), { recursive: true });
