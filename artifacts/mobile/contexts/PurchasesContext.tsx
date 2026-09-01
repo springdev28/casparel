@@ -29,6 +29,7 @@ import {
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useAuth } from '@/contexts/AuthContext';
+import { reviewerSubscriptionTier } from '@/utils/reviewer-entitlement';
 
 /**
  * How a purchase ended.
@@ -44,11 +45,21 @@ export type PurchaseResult =
   | 'unsupported'
   | Exclude<PurchaseFailure, never>;
 
+export type PurchaseAvailabilityIssue =
+  | 'unsupported-platform'
+  | 'missing-key'
+  | 'missing-native-sdk'
+  | 'configuration-error'
+  | 'no-offering'
+  | null;
+
 interface PurchasesContextValue {
   /** The SDK finished its first load (configured or definitively unavailable). */
   ready: boolean;
   /** RevenueCat is configured and usable on this device. */
   available: boolean;
+  /** Why plans cannot be shown, when known. Never silently collapse this to free. */
+  availabilityIssue: PurchaseAvailabilityIssue;
   /** Compatibility flag: the user holds any paid entitlement. */
   isPremium: boolean;
   /** RevenueCat's active self-serve tier. */
@@ -74,6 +85,8 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const purchasesRef = useRef<PurchasesModule | null>(null);
   const [ready, setReady] = useState(false);
   const [available, setAvailable] = useState(false);
+  const [availabilityIssue, setAvailabilityIssue] =
+    useState<PurchaseAvailabilityIssue>(null);
   const [customerInfo, setCustomerInfo] = useState<RCCustomerInfo | null>(null);
   const [currentOffering, setCurrentOffering] = useState<RCOffering | null>(null);
 
@@ -87,11 +100,23 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     let listener: ((info: RCCustomerInfo) => void) | null = null;
 
     (async () => {
+      if (!purchasesSupported) {
+        setAvailabilityIssue('unsupported-platform');
+        setAvailable(false);
+        setReady(true);
+        return;
+      }
+      if (!RC_API_KEY) {
+        setAvailabilityIssue('missing-key');
+        setAvailable(false);
+        setReady(true);
+        return;
+      }
+
       const Purchases = await loadPurchases();
       if (cancelled) return;
-
-      if (!Purchases || !purchasesSupported || !RC_API_KEY) {
-        // Web, Expo Go, or missing keys, degrade to a free-only experience.
+      if (!Purchases) {
+        setAvailabilityIssue('missing-native-sdk');
         setAvailable(false);
         setReady(true);
         return;
@@ -101,6 +126,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         Purchases.configure({ apiKey: RC_API_KEY });
         purchasesRef.current = Purchases;
         setAvailable(true);
+        setAvailabilityIssue(null);
 
         listener = (info: RCCustomerInfo) => applyCustomerInfo(info);
         Purchases.addCustomerInfoUpdateListener(listener);
@@ -111,9 +137,14 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         ]);
         if (cancelled) return;
         applyCustomerInfo(info);
-        setCurrentOffering(defaultOffering(offerings));
+        const offering = defaultOffering(offerings);
+        setCurrentOffering(offering);
+        setAvailabilityIssue(
+          offering?.availablePackages.length ? null : 'no-offering',
+        );
       } catch {
         setAvailable(false);
+        setAvailabilityIssue('configuration-error');
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -167,7 +198,11 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         Purchases.getOfferings(),
       ]);
       applyCustomerInfo(info);
-      setCurrentOffering(defaultOffering(offerings));
+      const offering = defaultOffering(offerings);
+      setCurrentOffering(offering);
+      setAvailabilityIssue(
+        offering?.availablePackages.length ? null : 'no-offering',
+      );
     } catch {
       // ignore transient errors
     }
@@ -208,11 +243,16 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   }, [applyCustomerInfo]);
 
   const value = useMemo<PurchasesContextValue>(() => {
-    const tier = subscriptionTier(customerInfo);
+    // Google Play's reviewer uses a deliberately provisioned Institutional
+    // seat, not a store purchase. The exact-account override is presentation
+    // only; the API applies and enforces the same exception independently.
+    const tier =
+      reviewerSubscriptionTier(user?.email) ?? subscriptionTier(customerInfo);
     const level = tierLevel(tier);
     return {
       ready,
       available,
+      availabilityIssue,
       tier,
       level,
       isPremium: tier !== 'free',
@@ -226,7 +266,17 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       refresh,
     };
   },
-    [ready, available, customerInfo, currentOffering, purchase, restore, refresh],
+    [
+      ready,
+      available,
+      availabilityIssue,
+      customerInfo,
+      currentOffering,
+      purchase,
+      restore,
+      refresh,
+      user?.email,
+    ],
   );
 
   return <PurchasesContext.Provider value={value}>{children}</PurchasesContext.Provider>;

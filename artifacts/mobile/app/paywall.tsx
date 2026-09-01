@@ -126,7 +126,15 @@ export default function PaywallScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { ready, available, tier: revenueCatTier, packages, purchase, restore } = usePurchases();
+  const {
+    ready,
+    available,
+    availabilityIssue,
+    tier: revenueCatTier,
+    packages,
+    purchase,
+    restore,
+  } = usePurchases();
   const { data: usage } = useGetMyUsage();
   const serverTier = usage?.tier;
   const tier = serverTier === 'institutional'
@@ -384,9 +392,15 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              {Platform.OS === 'web'
+              {availabilityIssue === 'unsupported-platform'
                 ? t('Open Casparel on your phone to choose Plus or Pro.')
-                : t('Plans are loading or unavailable right now. Please try again shortly.')}
+                : availabilityIssue === 'missing-key'
+                  ? t('Purchases were not configured in this build. This release must be replaced before plans can be sold.')
+                  : availabilityIssue === 'missing-native-sdk'
+                    ? t('This build is missing the native purchase service. Please install the corrected release.')
+                    : availabilityIssue === 'no-offering'
+                      ? t('Google Play returned no available plans. Nothing can be charged until the plan configuration is corrected.')
+                      : t('The purchase service could not start. Nothing has been charged; please try again shortly.')}
             </Text>
           </View>
         ) : (

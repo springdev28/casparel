@@ -3,7 +3,7 @@
     "name": "Casparel",
     "slug": "casparel",
     "owner": "novatororg",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Knowledge is treasure. An intelligent education platform that brings classes, resources, research, planning, and progress into one connected workspace.",
     "primaryColor": "#2f4cc8",
     "orientation": "portrait",
@@ -11,19 +11,14 @@
     "scheme": "casparel",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.casparel.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Casparel needs access to your photos so you can set a profile picture.",
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleLocalizations": [
-          "en",
-          "tr"
-        ]
+        "CFBundleLocalizations": ["en", "tr"]
       }
     },
     "android": {
@@ -31,7 +26,7 @@
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0e3ca5"
+        "backgroundColor": "#f8f7f4"
       },
       "blockedPermissions": [
         "android.permission.CAMERA",
@@ -71,7 +66,9 @@
             "backgroundColor": "#0b0f16"
           }
         }
-      ]
+      ],
+      "react-native-google-mobile-ads",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,

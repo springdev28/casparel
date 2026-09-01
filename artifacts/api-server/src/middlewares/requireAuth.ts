@@ -8,8 +8,8 @@ import { db, usersTable } from "@workspace/db";
 import { decodeToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import {
-  hasBuiltInGeneralProAccess,
-  PLAN_PRO,
+  isGooglePlayReviewAccount,
+  PLAN_INSTITUTIONAL,
 } from "../lib/entitlements";
 
 export interface AuthenticatedRequest extends Request {
@@ -83,7 +83,7 @@ async function resolveAuthenticatedUser(
   let accountRole = user.role;
   const accountUpdates: {
     role?: "admin";
-    plan?: typeof PLAN_PRO;
+    plan?: typeof PLAN_INSTITUTIONAL;
     planExpiresAt?: null;
   } = {};
   if (accountRole !== "admin" && user.email && isAllowlistedAdminEmail(user.email)) {
@@ -91,10 +91,10 @@ async function resolveAuthenticatedUser(
   }
   if (
     user.email &&
-    hasBuiltInGeneralProAccess(user.email) &&
-    (user.plan !== PLAN_PRO || user.planExpiresAt !== null)
+    isGooglePlayReviewAccount(user.email) &&
+    (user.plan !== PLAN_INSTITUTIONAL || user.planExpiresAt !== null)
   ) {
-    accountUpdates.plan = PLAN_PRO;
+    accountUpdates.plan = PLAN_INSTITUTIONAL;
     accountUpdates.planExpiresAt = null;
   }
   if (Object.keys(accountUpdates).length > 0) {

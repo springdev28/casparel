@@ -173,7 +173,13 @@ if (app) {
   const pkg = readJson(path.join(MOBILE, "package.json"));
   // A config plugin that is not listed does nothing, and the symptom is a
   // native permission string or entitlement quietly missing from the build.
-  for (const plugin of ["expo-image-picker", "expo-secure-store", "expo-splash-screen"]) {
+  for (const plugin of [
+    "expo-build-properties",
+    "expo-image-picker",
+    "expo-secure-store",
+    "expo-splash-screen",
+    "react-native-google-mobile-ads",
+  ]) {
     if (pkg?.dependencies?.[plugin] && !plugins.includes(plugin)) {
       fail(
         `app.json: ${plugin} is a dependency but is not in expo.plugins, so its native configuration is not applied to the build.`,
@@ -239,6 +245,56 @@ if (eas) {
     process.env.EXPO_PUBLIC_RC_USE_TEST_STORE === "true"
   ) {
     fail("production RevenueCat configuration enables Test Store.");
+  }
+
+  /*
+   * The declarations above prove that a build selects the right kind of
+   * store. They do not prove that the selected store has a key. Previously an
+   * empty production key still passed because its name appeared in
+   * .env.example; EAS produced a perfectly installable build whose purchase
+   * screen could never load a product.
+   *
+   * This block runs inside EAS through `eas-build-pre-install`, where secrets
+   * from the chosen EAS environment are available. A store binary now cannot
+   * be created unless its actual platform key is present and recognisable.
+   */
+  const activeProfile = process.env.EAS_BUILD_PROFILE;
+  const activePlatform = process.env.EAS_BUILD_PLATFORM;
+  if (activeProfile === "production") {
+    const productionKeys = {
+      android: {
+        name: "EXPO_PUBLIC_RC_ANDROID_KEY",
+        prefix: "goog_",
+      },
+      ios: {
+        name: "EXPO_PUBLIC_RC_IOS_KEY",
+        prefix: "appl_",
+      },
+    };
+    const expected = productionKeys[activePlatform];
+    if (!expected) {
+      fail(
+        `EAS_BUILD_PLATFORM must be android or ios for a production build; received ${JSON.stringify(activePlatform ?? null)}.`,
+      );
+    } else {
+      const configured = process.env[expected.name]?.trim() ?? "";
+      if (!configured) {
+        fail(
+          `production ${activePlatform} build is missing ${expected.name}. Configure the public RevenueCat key in the EAS production environment before building.`,
+        );
+      } else if (!configured.startsWith(expected.prefix)) {
+        fail(
+          `production ${activePlatform} build has an invalid ${expected.name}; RevenueCat production keys for this platform start with ${expected.prefix}.`,
+        );
+      }
+    }
+  } else if (activeProfile === "development" || activeProfile === "preview") {
+    const testKey = process.env.EXPO_PUBLIC_RC_TEST_KEY?.trim() ?? "";
+    if (!testKey.startsWith("test_")) {
+      fail(
+        `${activeProfile} build is missing a valid EXPO_PUBLIC_RC_TEST_KEY. RevenueCat Test Store keys start with test_.`,
+      );
+    }
   }
 
   // An .aab cannot be installed by a tester; it can only be uploaded to Play.

@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -53,6 +54,7 @@ import { ErrorState } from '@/components/ErrorState';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LANGUAGES } from '@/lib/i18n';
 import { storage } from '@/utils/secure-storage';
+import { useAds } from '@/contexts/AdsContext';
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History',
@@ -215,6 +217,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { logout, updateToken } = useAuth();
+  const { privacyOptionsRequired, showPrivacyOptions } = useAds();
   const deleteAccount = useDeleteMe();
   const resetAccount = useResetMe();
   const queryClient = useQueryClient();
@@ -393,7 +396,7 @@ export default function ProfileScreen() {
     try {
       const result = await switchRoleMutation.mutateAsync({ data: { role: newRole } });
       // The token first, so everything refetched below carries the new role.
-      await updateToken(result.token);
+      await updateToken(result.token, result.user);
       /*
        * Everything, not just /users/me.
        *
@@ -934,6 +937,68 @@ export default function ProfileScreen() {
             ) : null}
           </TouchableOpacity>
         ))}
+      </View>
+
+      {/* Legal disclosure is always reachable. Google's privacy-options row is
+          conditional because UMP requires an entry point only for messages and
+          regions whose current status says REQUIRED. */}
+      <Text style={[styles.sectionHeader, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+        {t('PRIVACY')}
+      </Text>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
+        <TouchableOpacity
+          style={[styles.row, privacyOptionsRequired && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+          onPress={() => void Linking.openURL('https://casparel.com/privacy')}
+          activeOpacity={0.7}
+          accessibilityRole="link"
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.primary + '15', borderRadius: colors.radius - 2 }]}>
+              <Feather name="shield" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                {t('Privacy policy')}
+              </Text>
+              <Text style={[styles.rowDescription, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]} numberOfLines={2}>
+                {t('How Casparel, subscriptions, and sponsored placements use data')}
+              </Text>
+            </View>
+          </View>
+          <Feather name="external-link" size={18} color={colors.mutedForeground} />
+        </TouchableOpacity>
+
+        {privacyOptionsRequired ? (
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              void showPrivacyOptions().then((shown) => {
+                if (!shown) {
+                  Alert.alert(
+                    t('Advertising privacy'),
+                    t('Privacy options are temporarily unavailable. Please try again.'),
+                  );
+                }
+              });
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.rowLeft}>
+              <View style={[styles.rowIcon, { backgroundColor: colors.primary + '15', borderRadius: colors.radius - 2 }]}>
+                <Feather name="sliders" size={18} color={colors.primary} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+                  {t('Advertising privacy')}
+                </Text>
+                <Text style={[styles.rowDescription, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]} numberOfLines={2}>
+                  {t('Review the choices supplied by Google for this device')}
+                </Text>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Sign out */}

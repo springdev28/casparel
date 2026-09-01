@@ -75,8 +75,8 @@ import {
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import {
-  hasBuiltInGeneralProAccess,
-  PLAN_PRO,
+  isGooglePlayReviewAccount,
+  PLAN_INSTITUTIONAL,
   resolveAccountPlan,
 } from "../lib/entitlements";
 import { accountCapacityReport } from "../lib/planCapacity";
@@ -336,8 +336,8 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       passwordHash,
       name,
       role,
-      ...(hasBuiltInGeneralProAccess(email)
-        ? { plan: PLAN_PRO, planExpiresAt: null }
+      ...(isGooglePlayReviewAccount(email)
+        ? { plan: PLAN_INSTITUTIONAL, planExpiresAt: null }
         : {}),
     })
     .returning(publicUserColumns);
@@ -382,17 +382,17 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   let loggedInUser = user;
   const accountUpdates: {
     role?: "admin";
-    plan?: typeof PLAN_PRO;
+    plan?: typeof PLAN_INSTITUTIONAL;
     planExpiresAt?: null;
   } = {};
   if (user.role !== "admin" && isAllowlistedAdminEmail(user.email)) {
     accountUpdates.role = "admin";
   }
   if (
-    hasBuiltInGeneralProAccess(user.email) &&
-    (row.plan !== PLAN_PRO || row.planExpiresAt !== null)
+    isGooglePlayReviewAccount(user.email) &&
+    (row.plan !== PLAN_INSTITUTIONAL || row.planExpiresAt !== null)
   ) {
-    accountUpdates.plan = PLAN_PRO;
+    accountUpdates.plan = PLAN_INSTITUTIONAL;
     accountUpdates.planExpiresAt = null;
   }
   if (Object.keys(accountUpdates).length > 0) {

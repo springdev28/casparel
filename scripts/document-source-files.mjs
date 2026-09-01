@@ -353,7 +353,10 @@ function renderIndex(files) {
     lines.push("");
   }
 
-  return `${lines.join("\n")}\n`;
+  // Every group already appends one empty line, so `join` supplies the single
+  // POSIX newline at EOF. Adding another here makes `git diff --check` reject
+  // every regenerated index as a new blank line.
+  return lines.join("\n");
 }
 
 const files = trackedAndUntrackedFiles();
