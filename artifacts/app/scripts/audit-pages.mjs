@@ -509,9 +509,10 @@ async function audit(pathname, colorScheme, width, options = {}) {
           );
         })
       : false;
-  // The product plan includes a free-mobile sponsored placement. The privacy
-  // page once made the opposite absolute promise ("no advertising SDKs"), so
-  // verify the rendered policy names both processors and the privacy mode.
+  // The product plan includes one sponsored dashboard placement on Free for
+  // both Android and web. The privacy page once made the opposite absolute
+  // promise ("no advertising SDKs"), so verify the rendered policy names both
+  // delivery services, the privacy mode, and every ad-free account class.
   // This is intentionally a content invariant rather than a source grep: store
   // reviewers and users only benefit if the disclosure reaches the live page.
   const missingPrivacyAdvertisingDisclosure =
@@ -520,9 +521,9 @@ async function audit(pathname, colorScheme, width, options = {}) {
           const copy = document.body.textContent?.replace(/\s+/g, " ") ?? "";
           return ![
             "Google AdMob",
-            "RevenueCat Ads",
+            "Google AdSense",
             "non-personalized ads",
-            "Paid plans are ad-free",
+            "Plus, Pro, Institutional and Administrator accounts are ad-free",
             "sponsored placement",
           ].every((required) => copy.includes(required));
         })
