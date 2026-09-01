@@ -101,6 +101,23 @@ async function render(output) {
   return pipeline.png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer();
 }
 
+async function samePixels(left, right) {
+  try {
+    const [a, b] = await Promise.all([
+      sharp(left).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+      sharp(right).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    ]);
+    return (
+      a.info.width === b.info.width &&
+      a.info.height === b.info.height &&
+      a.info.channels === b.info.channels &&
+      a.data.equals(b.data)
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const check = process.argv.includes("--check");
   if (!fs.existsSync(SOURCE)) throw new Error(`Source mark missing: ${SOURCE}`);
@@ -110,7 +127,14 @@ async function main() {
     const bytes = await render(output);
     const existing = fs.existsSync(output.file) ? fs.readFileSync(output.file) : null;
     const relative = path.relative(REPO, output.file);
-    if (existing?.equals(bytes)) {
+    // libvips/zlib can encode the same PNG pixels into different compressed
+    // bytes on macOS and Ubuntu. CI protects the artwork, so check decoded
+    // dimensions and RGBA pixels; normal generation still avoids rewrites
+    // only when the file bytes are already identical on the current host.
+    const matches = existing && (check
+      ? await samePixels(existing, bytes)
+      : existing.equals(bytes));
+    if (matches) {
       console.log(`  unchanged  ${relative}  (${output.label})`);
       continue;
     }
