@@ -13,7 +13,10 @@
     "development": {
       "extends": "base",
       "environment": "development",
-      "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "true" },
+      "env": {
+        "EXPO_PUBLIC_RC_USE_TEST_STORE": "true",
+        "EXPO_PUBLIC_ADS_USE_TEST_IDS": "true"
+      },
       "developmentClient": true,
       "distribution": "internal",
       "ios": { "simulator": true },
@@ -22,7 +25,10 @@
     "preview": {
       "extends": "base",
       "environment": "preview",
-      "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "true" },
+      "env": {
+        "EXPO_PUBLIC_RC_USE_TEST_STORE": "true",
+        "EXPO_PUBLIC_ADS_USE_TEST_IDS": "true"
+      },
       "distribution": "internal",
       "ios": { "simulator": false },
       "android": { "buildType": "apk" }
@@ -30,7 +36,10 @@
     "production": {
       "extends": "base",
       "environment": "production",
-      "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "false" },
+      "env": {
+        "EXPO_PUBLIC_RC_USE_TEST_STORE": "false",
+        "EXPO_PUBLIC_ADS_USE_TEST_IDS": "false"
+      },
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" }
     }

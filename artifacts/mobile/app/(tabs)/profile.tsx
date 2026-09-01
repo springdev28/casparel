@@ -49,6 +49,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { PremiumCard } from '@/components/PremiumCard';
 import { describeApiFailure } from '@/utils/api-failure';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
+import {
+  accountRoleLabel,
+  isTeacherWorkspace,
+  workspaceRoleLabel,
+} from '@/utils/account-identity';
 import { ErrorState } from '@/components/ErrorState';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LANGUAGES } from '@/lib/i18n';
@@ -315,7 +320,7 @@ export default function ProfileScreen() {
 
   const webTopPad = Platform.OS === 'web' ? 67 : 0;
   const pct = me ? completeness(me) : 0;
-  const isTeacher = me?.role === 'teacher';
+  const isTeacher = isTeacherWorkspace(me);
   // Keep the state discriminator away from the Feather name expression. The
   // icon audit can then inspect the two real glyph literals without mistaking
   // the action name ("reset") for a glyph.
@@ -483,7 +488,7 @@ export default function ProfileScreen() {
     );
   }
 
-  const roleLabel = isTeacher ? t('Teacher') : t('Student');
+  const activeRoleLabel = workspaceRoleLabel(me, t);
   const roleDescription = isTeacher
     ? t('You can create classes and manage resources')
     : t('You can browse resources and join classes');
@@ -599,10 +604,11 @@ export default function ProfileScreen() {
               </>
             )}
             <View style={{ marginTop: 8 }}>
-              {/* The API's enum, not a sentence: it arrives as "student"
-                  or "teacher" and has to be named before it is shown. */}
+              {/* The badge is the authoritative account role. Workspace mode
+                  is shown separately below, so an administrator is never
+                  relabelled as a student while previewing that workspace. */}
               <Badge variant="secondary">
-                {me?.role === 'teacher' ? t('Teacher') : me?.role ? t('Student') : ''}
+                {me?.role ? accountRoleLabel(me.role, t) : ''}
               </Badge>
             </View>
           </View>
@@ -814,7 +820,7 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.rowText}>
               <Text style={[styles.rowLabel, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-                {t('Mode')}: {roleLabel}
+                {t('Mode')}: {activeRoleLabel}
               </Text>
               <Text style={[styles.rowDescription, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]} numberOfLines={2}>
                 {roleDescription}

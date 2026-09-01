@@ -9,10 +9,12 @@ import { db, usersTable, webhookEventsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 import {
   KNOWN_ENTITLEMENTS,
+  KNOWN_PRODUCT_IDS,
   PLAN_FREE,
   PLAN_INSTITUTIONAL,
   PLAN_PRO,
   planForEntitlementIds,
+  planForProductIds,
 } from "../lib/entitlements";
 
 const router: IRouter = Router();
@@ -47,6 +49,8 @@ interface RevenueCatEvent {
   entitlement_id?: string | null;
   entitlement_ids?: string[] | null;
   expiration_at_ms?: number | null;
+  product_id?: string | null;
+  new_product_id?: string | null;
   /** TRANSFER only: the aliases losing the subscription. */
   transferred_from?: string[] | null;
   /** TRANSFER only: the aliases receiving it. */
@@ -141,14 +145,16 @@ router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
     ...(event.entitlement_ids ?? []),
     ...(event.entitlement_id ? [event.entitlement_id] : []),
   ];
+  const productIds = [event.product_id, event.new_product_id].filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
   const touchesSubscription =
-    entitlementIds.length === 0 ||
-    entitlementIds.some((id) => KNOWN_ENTITLEMENTS.has(id));
+    entitlementIds.some((id) => KNOWN_ENTITLEMENTS.has(id)) ||
+    productIds.some((id) => KNOWN_PRODUCT_IDS.has(id));
   // Historical entitlement identifiers collapse to Plus or Pro. Account role
   // never changes what was bought.
   const grantedPlan =
-    planForEntitlementIds(entitlementIds) ??
-    (entitlementIds.length === 0 ? PLAN_PRO : null);
+    planForEntitlementIds(entitlementIds) ?? planForProductIds(productIds);
 
   const changesPlan =
     (GRANT_EVENTS.has(event.type) && touchesSubscription && grantedPlan) ||

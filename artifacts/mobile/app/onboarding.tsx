@@ -78,7 +78,7 @@ export default function OnboardingScreen() {
             end={{ x: 1, y: 1 }}
             style={[styles.hero, { borderRadius: colors.radius + 8 }]}
           >
-            <View style={[styles.logo, { backgroundColor: '#f8f7f4', borderRadius: 18 }]}>
+            <View style={[styles.logo, { backgroundColor: colors.card, borderRadius: 18 }]}>
               <BrandMark size={34} />
             </View>
             <Text style={[styles.heroTitle, { color: colors.primaryForeground, fontFamily: colors.fontFamily.sansBold }]}>

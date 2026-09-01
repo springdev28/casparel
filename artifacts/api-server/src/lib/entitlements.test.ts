@@ -31,6 +31,7 @@ import {
   isPremiumAccount,
   normalizePlan,
   planForEntitlementIds,
+  planForProductIds,
   planLevel,
   planRoleRequirement,
   resolveAccountPlan,
@@ -315,6 +316,20 @@ describe("planForEntitlementIds", () => {
   it("returns null for unknown entitlements", () => {
     expect(planForEntitlementIds(["battle-pass"])).toBeNull();
     expect(planForEntitlementIds([])).toBeNull();
+  });
+});
+
+describe("planForProductIds", () => {
+  it("maps the four production products without guessing", () => {
+    expect(planForProductIds(["casparel_plus_monthly"])).toBe("plus");
+    expect(planForProductIds(["casparel_plus_yearly"])).toBe("plus");
+    expect(planForProductIds(["casparel_pro_monthly"])).toBe("pro");
+    expect(planForProductIds(["casparel_pro_yearly"])).toBe("pro");
+  });
+
+  it("ignores unknown or absent products", () => {
+    expect(planForProductIds(["battle_pass"])).toBeNull();
+    expect(planForProductIds([])).toBeNull();
   });
 });
 

@@ -83,11 +83,15 @@ async function resolveAuthenticatedUser(
   let accountRole = user.role;
   const accountUpdates: {
     role?: "admin";
+    activeRole?: "student";
     plan?: typeof PLAN_PRO;
     planExpiresAt?: null;
   } = {};
   if (accountRole !== "admin" && user.email && isAllowlistedAdminEmail(user.email)) {
     accountUpdates.role = "admin";
+  }
+  if ((accountRole === "admin" || accountUpdates.role === "admin") && user.activeRole === "admin") {
+    accountUpdates.activeRole = "student";
   }
   if (
     user.email &&
@@ -107,7 +111,7 @@ async function resolveAuthenticatedUser(
 
   const request = req as AuthenticatedRequest;
   request.userId = user.id;
-  request.userRole = user.activeRole ?? user.role;
+  request.userRole = user.activeRole === "teacher" ? "teacher" : "student";
   request.accountRole = accountRole;
   next();
 }

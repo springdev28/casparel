@@ -8,7 +8,7 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { apiOrigin } from '@/utils/api-host';
 import { useLanguage } from '@/contexts/LanguageContext';
 
-export function AuthenticatedWebWorkspace({ path }: { path: string }) {
+export function AuthenticatedWebWorkspace({ path }: { path: string; requiresAuth?: boolean }) {
   const { t } = useLanguage();
   const colors = useColors();
   return (

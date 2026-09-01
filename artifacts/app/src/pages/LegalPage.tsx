@@ -232,13 +232,11 @@ export function PrivacyPage() {
           be applied.
         </p>
         <p>
-          <strong className="text-foreground">Advertising events, when mobile
-          advertising is enabled.</strong> Ad load, display or impression,
-          click or open, failure, and impression-revenue events, together with
-          technical fields such as the ad unit, placement, format, advertising
-          network or mediator, impression identifier, currency, and revenue
-          precision where available. These events measure the sponsored
-          placement; they do not rank learning resources.
+          <strong className="text-foreground">Advertising delivery data.</strong>{" "}
+          For eligible Free accounts, Google may process an ad request,
+          impression, click, app or browser information, coarse location and
+          fraud-prevention signals. Casparel does not send profile, class,
+          message, search, or study content for ad targeting.
         </p>
       </Section>
 
@@ -252,8 +250,9 @@ export function PrivacyPage() {
           recommendations.
         </p>
         <p>
-          Paid plans are ad-free. The web and desktop clients do not currently
-          show third-party advertising.
+          Plus, Pro, Institutional and Administrator accounts are ad-free. An
+          eligible Free account may see one labelled, contextual,
+          non-personalized placement on the dashboard on web or Android.
         </p>
       </Section>
 
@@ -273,11 +272,11 @@ export function PrivacyPage() {
           processor, never to us; we never receive or store them.
         </p>
         <p>
-          <strong className="text-foreground">Google AdMob and RevenueCat
-          Ads.</strong> When the free mobile sponsored placement is enabled,
-          AdMob supplies the advertisement and RevenueCat records the supported
-          advertising events described below. Neither service is allowed to
-          turn a paid placement into a Casparel recommendation or trust signal.
+          <strong className="text-foreground">Google AdMob and Google
+          AdSense.</strong> AdMob supplies the Android placement and AdSense
+          supplies the web placement for eligible Free accounts. Neither
+          service is allowed to turn a paid placement into a Casparel
+          recommendation or trust signal.
         </p>
         <p>
           <strong className="text-foreground">Google Calendar and Google
@@ -292,16 +291,17 @@ export function PrivacyPage() {
         </p>
       </Section>
 
-      <Section title="Advertising on the free mobile app">
+      <Section title="Advertising on Free accounts">
         <p>
-          When mobile advertising is enabled, a free-tier Android user may see
-          one native sponsored learning-resource card near the top of the
-          dashboard. It is labelled Sponsored and AD. If the advertising
-          service is unavailable or not configured, Casparel shows no sponsored
-          card.
+          A Free user may see one stable banner on the dashboard: Google AdMob
+          on Android or Google AdSense on the web. It is labelled
+          Advertisement. Ads never appear on sign-in, registration, billing,
+          sensitive account, or administration screens. If the service,
+          consent state, account tier, or configuration is unavailable,
+          Casparel shows no ad.
         </p>
         <p>
-          Google AdMob supplies the advertisement. Casparel requests
+          Google supplies the advertisement. Casparel requests
           non-personalized ads and may provide the current app or education
           context, but does not send your Casparel profile, study content,
           searches, messages, class work, or credibility activity for ad
@@ -312,20 +312,19 @@ export function PrivacyPage() {
           frequency, detect fraud, and produce aggregated reports.
         </p>
         <p>
-          RevenueCat Ads receives supported ad lifecycle and impression-revenue
-          events, including load, display or impression, click or open, failure,
-          ad placement, unit, format, network or mediator, impression
-          identifier, and revenue, currency, and precision where available.
-          RevenueCat combines this with subscription reporting so Casparel can
-          understand advertising and subscription revenue together.
+          On the web, Casparel asks before loading the advertising script and
+          records the choice in this browser. Android uses Google&apos;s consent
+          form when required in the user&apos;s region before the Mobile Ads SDK is
+          initialized. Both clients request non-personalized advertising and
+          use the most conservative child-directed and general-audience
+          controls available to the integration.
         </p>
         <p>
-          Where law or platform policy requires it, the mobile app must present
-          the applicable advertising privacy and consent choices before using
-          mobile identifiers or local storage. Production advertising must
-          remain disabled until those consent controls, conservative content
-          rating and category controls, and the applicable store disclosures
-          are configured.
+          Production advertising also depends on Google&apos;s applicable Privacy
+          &amp; messaging/CMP setup, sensitive-category blocks, app or site review,
+          and the required Play and website disclosures. Until those console
+          controls are approved and configured, the missing production
+          identifiers keep ad requests disabled.
         </p>
         <p>
           Read more about{" "}

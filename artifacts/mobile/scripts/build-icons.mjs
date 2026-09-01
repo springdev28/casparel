@@ -24,6 +24,11 @@ const LINUX_ICON_SIZES = [16, 32, 48, 64, 128, 256, 512, 1024];
 
 const outputs = [
   {
+    file: path.join(IMAGES, "brand-mark.png"),
+    markScale: 1,
+    label: "transparent in-app brand mark",
+  },
+  {
     file: path.join(IMAGES, "icon.png"),
     markScale: 0.7,
     background: ICON_BACKGROUND,

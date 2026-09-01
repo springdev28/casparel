@@ -29,6 +29,8 @@ import {
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { getGetMyUsageQueryKey } from '@workspace/api-client-react';
 
 /**
  * How a purchase ended.
@@ -79,9 +81,12 @@ interface PurchasesContextValue {
 const PurchasesContext = createContext<PurchasesContextValue | null>(null);
 
 export function PurchasesProvider({ children }: { children: React.ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
 
   const purchasesRef = useRef<PurchasesModule | null>(null);
+  const identifiedUserRef = useRef<string | null>(null);
+  const customerInfoListenerRef = useRef<((info: RCCustomerInfo) => void) | null>(null);
   const [ready, setReady] = useState(false);
   const [available, setAvailable] = useState(false);
   const [availabilityIssue, setAvailabilityIssue] =
@@ -96,9 +101,15 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   // Configure the SDK once, as early as possible.
   useEffect(() => {
     let cancelled = false;
-    let listener: ((info: RCCustomerInfo) => void) | null = null;
 
     (async () => {
+      // Never create an anonymous RevenueCat customer while a restored
+      // Casparel session is still being read from secure storage.
+      if (authLoading || (isAuthenticated && user?.id == null)) return;
+      if (purchasesRef.current) {
+        setReady(true);
+        return;
+      }
       if (!purchasesSupported) {
         setAvailabilityIssue('unsupported-platform');
         setAvailable(false);
@@ -122,12 +133,21 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        Purchases.configure({ apiKey: RC_API_KEY });
+        const initialAppUserID = isAuthenticated && user?.id != null
+          ? String(user.id)
+          : null;
+        Purchases.configure(
+          initialAppUserID
+            ? { apiKey: RC_API_KEY, appUserID: initialAppUserID }
+            : { apiKey: RC_API_KEY },
+        );
         purchasesRef.current = Purchases;
+        identifiedUserRef.current = initialAppUserID;
         setAvailable(true);
         setAvailabilityIssue(null);
 
-        listener = (info: RCCustomerInfo) => applyCustomerInfo(info);
+        const listener = (info: RCCustomerInfo) => applyCustomerInfo(info);
+        customerInfoListenerRef.current = listener;
         Purchases.addCustomerInfoUpdateListener(listener);
 
         const [info, offerings] = await Promise.all([
@@ -151,16 +171,20 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
-      const Purchases = purchasesRef.current;
-      if (Purchases && listener) {
-        try {
-          Purchases.removeCustomerInfoUpdateListener(listener);
-        } catch {
-          // ignore
-        }
-      }
     };
-  }, [applyCustomerInfo]);
+  }, [applyCustomerInfo, authLoading, isAuthenticated, user?.id]);
+
+  useEffect(() => () => {
+    const Purchases = purchasesRef.current;
+    const listener = customerInfoListenerRef.current;
+    if (Purchases && listener) {
+      try {
+        Purchases.removeCustomerInfoUpdateListener(listener);
+      } catch {
+        // ignore teardown failures
+      }
+    }
+  }, []);
 
   // Associate RevenueCat's identity with the signed-in Casparel user so that
   // entitlements follow the account across devices.
@@ -172,10 +196,15 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         if (isAuthenticated && user?.id != null) {
-          const { customerInfo: info } = await Purchases.logIn(String(user.id));
+          const appUserID = String(user.id);
+          if (identifiedUserRef.current === appUserID) return;
+          const { customerInfo: info } = await Purchases.logIn(appUserID);
+          identifiedUserRef.current = appUserID;
           if (!cancelled) applyCustomerInfo(info);
         } else {
+          if (identifiedUserRef.current === null) return;
           const info = await Purchases.logOut();
+          identifiedUserRef.current = null;
           if (!cancelled) applyCustomerInfo(info);
         }
       } catch {
@@ -187,6 +216,30 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [available, isAuthenticated, user?.id, applyCustomerInfo]);
+
+  const ensureIdentified = useCallback(async () => {
+    const Purchases = purchasesRef.current;
+    if (!Purchases || !isAuthenticated || user?.id == null) return null;
+    const appUserID = String(user.id);
+    if (identifiedUserRef.current === appUserID) return Purchases;
+    const { customerInfo: info } = await Purchases.logIn(appUserID);
+    identifiedUserRef.current = appUserID;
+    applyCustomerInfo(info);
+    return Purchases;
+  }, [applyCustomerInfo, isAuthenticated, user?.id]);
+
+  const refreshServerEntitlement = useCallback(() => {
+    const queryKey = getGetMyUsageQueryKey();
+    const sync = () => {
+      void queryClient.invalidateQueries({ queryKey });
+      void queryClient.refetchQueries({ queryKey, type: 'active' });
+    };
+    sync();
+    // RevenueCat webhooks are asynchronous. Two bounded follow-ups cover the
+    // normal delivery window without leaving a poller running indefinitely.
+    setTimeout(sync, 2_500);
+    setTimeout(sync, 6_000);
+  }, [queryClient]);
 
   const refresh = useCallback(async () => {
     const Purchases = purchasesRef.current;
@@ -209,11 +262,12 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
 
   const purchase = useCallback(
     async (pkg: RCPackage): Promise<PurchaseResult> => {
-      const Purchases = purchasesRef.current;
-      if (!Purchases) return 'unsupported';
       try {
+        const Purchases = await ensureIdentified();
+        if (!Purchases) return 'unsupported';
         const { customerInfo: info } = await Purchases.purchasePackage(pkg);
         applyCustomerInfo(info);
+        refreshServerEntitlement();
         return 'success';
       } catch (e) {
         const failure = classifyPurchaseError(e);
@@ -226,20 +280,21 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         return failure;
       }
     },
-    [applyCustomerInfo, refresh],
+    [applyCustomerInfo, ensureIdentified, refresh, refreshServerEntitlement],
   );
 
   const restore = useCallback(async (): Promise<boolean> => {
-    const Purchases = purchasesRef.current;
-    if (!Purchases) return false;
     try {
+      const Purchases = await ensureIdentified();
+      if (!Purchases) return false;
       const info = await Purchases.restorePurchases();
       applyCustomerInfo(info);
+      refreshServerEntitlement();
       return hasPremium(info);
     } catch {
       return false;
     }
-  }, [applyCustomerInfo]);
+  }, [applyCustomerInfo, ensureIdentified, refreshServerEntitlement]);
 
   const value = useMemo<PurchasesContextValue>(() => {
     const tier = subscriptionTier(customerInfo);

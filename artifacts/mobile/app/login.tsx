@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -77,7 +78,7 @@ export default function LoginScreen() {
           <View
             style={[
               styles.logoBox,
-              { backgroundColor: '#f8f7f4', borderColor: colors.border, borderRadius: colors.radius },
+              { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius },
             ]}
           >
             <BrandMark size={31} />
@@ -194,6 +195,15 @@ export default function LoginScreen() {
             >
               {t('Create an account')}
             </Text>
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="link"
+          onPress={() => void Linking.openURL('https://casparel.com/support?category=account#contact-support')}
+          style={styles.footerLink}
+        >
+          <Text style={[styles.footer, { color: colors.primary, fontFamily: colors.fontFamily.sansMedium }]}>
+            {t('Can’t sign in? Recover account access')}
           </Text>
         </Pressable>
       </ScrollView>

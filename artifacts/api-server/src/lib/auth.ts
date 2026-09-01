@@ -134,8 +134,16 @@ export function issueToken(
   activeRole?: string,
 ): string {
   const now = Date.now();
-  const role =
-    activeRole ?? (accountRole === "teacher" ? "teacher" : "student");
+  // Administrator is an account permission, never a workspace. Historical
+  // rows briefly stored activeRole=admin; tokens must still expose only the
+  // student/teacher view selected by the product contract.
+  const role = activeRole === "teacher"
+    ? "teacher"
+    : activeRole === "student"
+      ? "student"
+      : accountRole === "teacher"
+        ? "teacher"
+        : "student";
   return sign({ userId, role, accountRole, iat: now, exp: now + TOKEN_TTL_MS });
 }
 

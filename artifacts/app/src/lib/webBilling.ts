@@ -182,3 +182,15 @@ export async function managementUrl(
     return null;
   }
 }
+
+/**
+ * Cross-store entitlement check used before the web dashboard may request an
+ * ad. A missing or failed answer is handled by the caller as "show no ad".
+ */
+export async function webBillingEntitlementState(
+  purchases: Purchases,
+): Promise<"free" | "paid"> {
+  const info = await purchases.getCustomerInfo();
+  const active = info.entitlements.active;
+  return active.plus || active.pro ? "paid" : "free";
+}

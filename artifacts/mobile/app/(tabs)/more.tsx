@@ -30,6 +30,7 @@ import { PremiumCard } from '@/components/PremiumCard';
 import { describeApiFailure } from '@/utils/api-failure';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import type { WebWorkspaceKey } from '@/utils/web-workspaces';
+import { workspaceRoleFor } from '@/utils/account-identity';
 
 type FeatherName = keyof typeof Feather.glyphMap;
 
@@ -41,32 +42,12 @@ type WorkspaceItem = {
   web?: WebWorkspaceKey;
 };
 
-const NATIVE_WORKSPACES: WorkspaceItem[] = [
-  { title: 'Goals', description: 'Track progress and next steps', icon: 'target', route: '/goals' },
-  { title: 'Reading lists', description: 'Organise saved resources', icon: 'list', route: '/lists' },
-  { title: 'Messages', description: 'Talk with your people', icon: 'message-circle', route: '/messages' },
-  { title: 'Study', description: 'Focus sessions and study tools', icon: 'clock', route: '/study' },
-  { title: 'Profile', description: 'Account, language and privacy', icon: 'user', route: '/(tabs)/profile' },
-  { title: 'Plans', description: 'View Plus and Pro options', icon: 'award', route: '/paywall' },
-];
-
-const FULL_WORKSPACES: WorkspaceItem[] = [
-  { title: 'Activities', description: 'Build and assign learning activities', icon: 'check-square', web: 'activities' },
-  { title: 'Canvases', description: 'Create visual learning boards', icon: 'layout', web: 'canvases' },
-  { title: 'Community', description: 'Join discussions and share ideas', icon: 'users', web: 'community' },
-  { title: 'Catalog', description: 'Browse community materials', icon: 'compass', web: 'catalog' },
-  { title: 'People', description: 'Find classmates and educators', icon: 'user-plus', web: 'people' },
-  { title: 'Settings', description: 'Appearance and workspace settings', icon: 'settings', web: 'settings' },
-  { title: 'Guide', description: 'Learn every part of Casparel', icon: 'help-circle', web: 'guide' },
-];
-
 function WorkspaceCard({ item, onPress }: { item: WorkspaceItem; onPress: () => void }) {
-  const { t } = useLanguage();
   const colors = useColors();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={t(item.title)}
+      accessibilityLabel={item.title}
       onPress={onPress}
       style={({ pressed }) => [
         styles.workspaceCard,
@@ -82,10 +63,10 @@ function WorkspaceCard({ item, onPress }: { item: WorkspaceItem; onPress: () => 
         <Feather name={item.icon} size={19} color={colors.primary} />
       </View>
       <Text style={[styles.workspaceTitle, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-        {t(item.title)}
+        {item.title}
       </Text>
       <Text style={[styles.workspaceDescription, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
-        {t(item.description)}
+        {item.description}
       </Text>
       <Feather name="chevron-right" size={17} color={colors.mutedForeground} style={styles.chevron} />
     </Pressable>
@@ -103,10 +84,32 @@ export default function MoreScreen() {
   const switchRole = useSwitchRole();
   const [switchingTo, setSwitchingTo] = useState<RoleSwitchInputRole | null>(null);
   const user = me ?? storedUser;
-  const role = user?.role === 'teacher' ? RoleSwitchInputRole.teacher : RoleSwitchInputRole.student;
+  const workspaceRole = workspaceRoleFor(user);
+  const nativeWorkspaces: WorkspaceItem[] = [
+    { title: t('Goals'), description: t('Track progress and next steps'), icon: 'target', route: '/goals' },
+    { title: t('Reading lists'), description: t('Organise saved resources'), icon: 'list', route: '/lists' },
+    { title: t('Messages'), description: t('Talk with your people'), icon: 'message-circle', route: '/messages' },
+    { title: t('Study'), description: t('Focus sessions and study tools'), icon: 'clock', route: '/study' },
+    { title: t('Profile'), description: t('Account, language and privacy'), icon: 'user', route: '/(tabs)/profile' },
+    { title: t('Plans'), description: t('View Plus and Pro options'), icon: 'award', route: '/paywall' },
+  ];
+  const fullWorkspaces: WorkspaceItem[] = [
+    { title: t('Resource studio'), description: t('Submit, review and manage learning resources'), icon: 'book-open', web: 'resources' },
+    { title: t('Classroom management'), description: t('Manage rosters, invitations, resources and seating'), icon: 'briefcase', web: 'classes' },
+    { title: t('Activities'), description: t('Build and assign learning activities'), icon: 'check-square', web: 'activities' },
+    { title: t('Canvases'), description: t('Create visual learning boards'), icon: 'layout', web: 'canvases' },
+    { title: t('Community'), description: t('Join discussions and share ideas'), icon: 'users', web: 'community' },
+    { title: t('Catalog'), description: t('Browse community materials'), icon: 'compass', web: 'catalog' },
+    { title: t('People'), description: t('Find classmates and educators'), icon: 'user-plus', web: 'people' },
+    { title: t('Settings'), description: t('Appearance and workspace settings'), icon: 'settings', web: 'settings' },
+    { title: t('Getting started'), description: t('Complete the guided first task'), icon: 'play-circle', web: 'tutorial' },
+    { title: t('Guide'), description: t('Learn every part of Casparel'), icon: 'help-circle', web: 'guide' },
+    { title: t('Support'), description: t('Get help with access, billing or safety'), icon: 'life-buoy', web: 'support' },
+    { title: t('Notifications'), description: t('Review invitations and account updates'), icon: 'bell', web: 'notifications' },
+  ];
 
   async function changeMode(nextRole: RoleSwitchInputRole) {
-    if (nextRole === role || switchingTo) return;
+    if (nextRole === workspaceRole || switchingTo) return;
     setSwitchingTo(nextRole);
     try {
       const result = await switchRole.mutateAsync({ data: { role: nextRole } });
@@ -131,8 +134,8 @@ export default function MoreScreen() {
   }
 
   const allFullWorkspaces = user?.role === 'admin'
-    ? [...FULL_WORKSPACES, { title: 'Administration', description: 'Manage users and platform operations', icon: 'shield' as FeatherName, web: 'admin' as WebWorkspaceKey }]
-    : FULL_WORKSPACES;
+    ? [...fullWorkspaces, { title: t('Administration'), description: t('Manage users and platform operations'), icon: 'shield' as FeatherName, web: 'admin' as WebWorkspaceKey }]
+    : fullWorkspaces;
 
   return (
     <ScrollView
@@ -172,10 +175,10 @@ export default function MoreScreen() {
         </View>
         <View style={[styles.modeSelector, { backgroundColor: colors.muted, borderRadius: colors.radius }]}>
           {[
-            { value: RoleSwitchInputRole.student, label: 'Student', icon: 'book-open' as FeatherName },
-            { value: RoleSwitchInputRole.teacher, label: 'Teacher', icon: 'briefcase' as FeatherName },
+            { value: RoleSwitchInputRole.student, label: t('Student'), icon: 'book-open' as FeatherName },
+            { value: RoleSwitchInputRole.teacher, label: t('Teacher'), icon: 'briefcase' as FeatherName },
           ].map((option) => {
-            const active = role === option.value;
+            const active = workspaceRole === option.value;
             const pending = switchingTo === option.value;
             return (
               <Pressable
@@ -195,7 +198,7 @@ export default function MoreScreen() {
                   <Feather name={option.icon} size={17} color={active ? colors.primaryForeground : colors.mutedForeground} />
                 )}
                 <Text style={{ color: active ? colors.primaryForeground : colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }}>
-                  {t(option.label)}
+                  {option.label}
                 </Text>
               </Pressable>
             );
@@ -212,7 +215,7 @@ export default function MoreScreen() {
         {t('TOOLS')}
       </Text>
       <View style={styles.grid}>
-        {NATIVE_WORKSPACES.map((item) => <WorkspaceCard key={item.title} item={item} onPress={() => open(item)} />)}
+        {nativeWorkspaces.map((item) => <WorkspaceCard key={item.title} item={item} onPress={() => open(item)} />)}
       </View>
 
       <Text style={[styles.sectionLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>

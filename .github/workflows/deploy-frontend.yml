@@ -13,6 +13,11 @@ name: Deploy to Hostinger
 #   FTP_USERNAME  FTP account username
 #   FTP_PASSWORD  FTP account password
 #
+# Required repository variables (public identifiers embedded by Vite):
+#   VITE_REVENUECAT_WEB_API_KEY RevenueCat Web Billing public key (rcb_...)
+#   VITE_ADSENSE_CLIENT_ID      AdSense publisher client (ca-pub-...)
+#   VITE_ADSENSE_DASHBOARD_SLOT Numeric responsive dashboard slot id
+#
 # Repository variables (optional — sensible defaults for this host are baked in):
 #   SITE_URL         canonical origin for the sitemap / robots.txt
 #                    (default: https://casparel.com)
@@ -197,6 +202,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Require production billing and advertising configuration
+        run: pnpm --filter @workspace/app run check:release
+        env:
+          VITE_REVENUECAT_WEB_API_KEY: ${{ vars.VITE_REVENUECAT_WEB_API_KEY }}
+          VITE_ADSENSE_CLIENT_ID: ${{ vars.VITE_ADSENSE_CLIENT_ID }}
+          VITE_ADSENSE_DASHBOARD_SLOT: ${{ vars.VITE_ADSENSE_DASHBOARD_SLOT }}
+
       # This job used to build and upload with no gate at all, which is how
       # regressions reached casparel.com. Everything below the build must pass
       # before a single file is sent to the host.
@@ -205,6 +217,9 @@ jobs:
 
       - name: API tests
         run: pnpm --filter @workspace/api-server exec vitest run
+
+      - name: Web billing and advertising contract tests
+        run: pnpm --filter @workspace/app run test
 
       # The API build copies artifacts/app/dist/public into its own bundle, so
       # the web app must be built first.
@@ -221,6 +236,9 @@ jobs:
           VITE_IOS_APP_URL: ${{ vars.VITE_IOS_APP_URL }}
           VITE_ANDROID_APP_URL: ${{ vars.VITE_ANDROID_APP_URL }}
           VITE_DESKTOP_DOWNLOAD_URL: ${{ vars.VITE_DESKTOP_DOWNLOAD_URL }}
+          VITE_REVENUECAT_WEB_API_KEY: ${{ vars.VITE_REVENUECAT_WEB_API_KEY }}
+          VITE_ADSENSE_CLIENT_ID: ${{ vars.VITE_ADSENSE_CLIENT_ID }}
+          VITE_ADSENSE_DASHBOARD_SLOT: ${{ vars.VITE_ADSENSE_DASHBOARD_SLOT }}
 
       # A real browser catches what types and unit tests cannot: text that
       # fails contrast against its actual background, content left at opacity 0

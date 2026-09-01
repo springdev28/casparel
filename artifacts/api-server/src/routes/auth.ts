@@ -382,11 +382,15 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   let loggedInUser = user;
   const accountUpdates: {
     role?: "admin";
+    activeRole?: "student";
     plan?: typeof PLAN_PRO;
     planExpiresAt?: null;
   } = {};
   if (user.role !== "admin" && isAllowlistedAdminEmail(user.email)) {
     accountUpdates.role = "admin";
+  }
+  if ((user.role === "admin" || accountUpdates.role === "admin") && user.activeRole === "admin") {
+    accountUpdates.activeRole = "student";
   }
   if (
     hasBuiltInGeneralProAccess(user.email) &&

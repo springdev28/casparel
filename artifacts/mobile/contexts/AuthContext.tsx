@@ -6,6 +6,7 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/utils/secure-storage";
 import type { User } from "@workspace/api-client-react";
+import { getMe } from "@workspace/api-client-react";
 
 const TOKEN_KEY = "schoolar_token";
 const USER_KEY = "casparel_user";
@@ -52,12 +53,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // ignore parse errors
           }
         }
+        if (storedToken) {
+          // The cached user makes restart immediate; the authenticated API is
+          // the authority for role, activeRole, plan-related identity fields,
+          // and any admin promotion that happened on another client.
+          void getMe()
+            .then(async (freshUser) => {
+              await storage.setItemAsync(USER_KEY, JSON.stringify(freshUser));
+              setUser(freshUser);
+              void queryClient.invalidateQueries();
+            })
+            .catch(async (error: unknown) => {
+              const status = (error as { status?: number })?.status;
+              if (status !== 401 && status !== 403) return;
+              await storage.deleteItemAsync(TOKEN_KEY);
+              await storage.deleteItemAsync(USER_KEY);
+              setToken(null);
+              setUser(null);
+              queryClient.clear();
+            });
+        }
       } finally {
         setIsLoading(false);
       }
     }
     loadStored();
-  }, []);
+  }, [queryClient]);
 
   const login = async (newToken: string, newUser: User) => {
     await storage.setItemAsync(TOKEN_KEY, newToken);

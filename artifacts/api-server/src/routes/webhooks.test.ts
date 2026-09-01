@@ -155,6 +155,30 @@ describe("POST /api/webhooks/revenuecat", () => {
     });
   });
 
+  it("maps a purchase from its exact Google Play product when entitlement ids are absent", async () => {
+    const res = await post(
+      {
+        event: {
+          type: "INITIAL_PURCHASE",
+          app_user_id: "42",
+          product_id: "casparel_plus_yearly",
+        },
+      },
+      SECRET,
+    );
+    expect(res.status).toBe(200);
+    expect(setMock).toHaveBeenCalledWith({ plan: "plus", planExpiresAt: null });
+  });
+
+  it("does not guess a paid plan when a grant has no recognized entitlement or product", async () => {
+    const res = await post(
+      { event: { type: "INITIAL_PURCHASE", app_user_id: "42" } },
+      SECRET,
+    );
+    expect(res.status).toBe(200);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
   it("collapses historical role-specific entitlements safely", async () => {
     for (const [entitlement, plan] of [
       ["teacher-pro", "pro"],
@@ -236,6 +260,24 @@ describe("POST /api/webhooks/revenuecat", () => {
     );
     expect(res.status).toBe(200);
     expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps the plan during a billing issue while Google retries payment", async () => {
+    const res = await post(
+      { event: { type: "BILLING_ISSUE", app_user_id: "42", entitlement_ids: ["pro"] } },
+      SECRET,
+    );
+    expect(res.status).toBe(200);
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("restores the plan on UNCANCELLATION", async () => {
+    const res = await post(
+      { event: { type: "UNCANCELLATION", app_user_id: "42", entitlement_ids: ["plus"] } },
+      SECRET,
+    );
+    expect(res.status).toBe(200);
+    expect(setMock).toHaveBeenCalledWith({ plan: "plus", planExpiresAt: null });
   });
 });
 

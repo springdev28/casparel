@@ -162,6 +162,14 @@ export default function LoginPage() {
                 {copy.createOne}
               </Link>
             </p>
+            <p className="mt-2 text-center text-sm">
+              <Link
+                href="/support?category=account#contact-support"
+                className="font-medium text-primary-text hover:underline"
+              >
+                Can’t sign in? Recover account access
+              </Link>
+            </p>
 
             {/* Browse without account */}
             <div className="mt-5 pt-4 border-t border-border">

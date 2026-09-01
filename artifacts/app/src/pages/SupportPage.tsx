@@ -42,8 +42,8 @@ const guides: Guide[] = [
     category: "account",
     title: "Sign in or reset account access",
     summary: "Recover access when your password or sign-in is not working.",
-    steps: ["Open the sign-in page and confirm that you are using the email registered to Casparel.", "Choose Forgot password and follow the link sent to your inbox. Check spam if it does not arrive.", "If an error remains, submit the form below with the exact error and your device. Never include your password."],
-    action: { label: "Open sign in", href: "/login" },
+    steps: ["Open the sign-in page and confirm that you are using the email registered to Casparel.", "If you cannot sign in, submit the account-access form below from the email registered to your account.", "Support will verify account ownership before helping you recover access. Never include your password or an authentication code."],
+    action: { label: "Open sign in", href: "/auth/login" },
   },
   {
     category: "privacy",
@@ -88,14 +88,20 @@ const guides: Guide[] = [
 ];
 
 export default function SupportPage() {
+  const requestedCategory = typeof window === "undefined"
+    ? null
+    : new URLSearchParams(window.location.search).get("category");
+  const initialCategory = categories.some((item) => item.value === requestedCategory)
+    ? requestedCategory as GuideCategory
+    : "all";
   const createRequest = useCreateSupportRequest();
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<GuideCategory>("all");
+  const [category, setCategory] = useState<GuideCategory>(initialCategory);
   const [copied, setCopied] = useState(false);
   const [receiptId, setReceiptId] = useState<number | null>(null);
   const [form, setForm] = useState({
     email: "",
-    category: "technical" as SupportRequestInputCategory,
+    category: initialCategory === "all" ? "technical" : initialCategory,
     subject: "",
     message: "",
     device: "",

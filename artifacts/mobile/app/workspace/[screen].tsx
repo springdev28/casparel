@@ -20,6 +20,20 @@ export default function WorkspaceScreen() {
   const params = useLocalSearchParams<{ screen?: string | string[] }>();
   const screen = Array.isArray(params.screen) ? params.screen[0] : params.screen;
   const workspace = screen && isWebWorkspaceKey(screen) ? WEB_WORKSPACES[screen] : null;
+  const title = screen === 'resources' ? t('Resource studio')
+    : screen === 'classes' ? t('Classroom management')
+      : screen === 'activities' ? t('Activities')
+        : screen === 'canvases' ? t('Canvases')
+          : screen === 'community' ? t('Community')
+            : screen === 'catalog' ? t('Catalog')
+              : screen === 'people' ? t('People')
+                : screen === 'settings' ? t('Settings & appearance')
+                  : screen === 'tutorial' ? t('Getting started')
+                    : screen === 'guide' ? t('Guide')
+                      : screen === 'support' ? t('Support')
+                        : screen === 'notifications' ? t('Notifications')
+                          : screen === 'admin' ? t('Administration')
+                            : t('Workspace not found');
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top }]}>
@@ -33,7 +47,7 @@ export default function WorkspaceScreen() {
           <Feather name="chevron-left" size={24} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.title, { color: colors.foreground, fontFamily: colors.fontFamily.sansSemiBold }]} numberOfLines={1}>
-          {workspace ? t(workspace.title) : t('Workspace not found')}
+          {title}
         </Text>
         <View style={styles.back} />
       </View>

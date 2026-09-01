@@ -750,8 +750,8 @@ export default function AdminPage() {
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <label className="space-y-1 text-sm"><span className="font-medium">Name</span><Input value={userDraft.name} onChange={(e) => setUserDraft({ ...userDraft, name: e.target.value })} /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Email</span><Input type="email" value={userDraft.email} onChange={(e) => setUserDraft({ ...userDraft, email: e.target.value })} /></label>
-                    <label className="space-y-1 text-sm"><span className="font-medium">Role</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.role} onChange={(e) => setUserDraft({ ...userDraft, role: e.target.value, activeRole: e.target.value })}><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Administrator</option></select></label>
-                    <label className="space-y-1 text-sm"><span className="font-medium">Active role</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.activeRole} onChange={(e) => setUserDraft({ ...userDraft, activeRole: e.target.value })}><option value="student">Student</option><option value="teacher">Teacher</option>{userDraft.role === "admin" ? <option value="admin">Administrator</option> : null}</select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Role</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.role} onChange={(e) => { const role = e.target.value; setUserDraft({ ...userDraft, role, activeRole: role === "teacher" ? "teacher" : "student" }); }}><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Administrator</option></select></label>
+                    <label className="space-y-1 text-sm"><span className="font-medium">Active workspace</span><select className="h-10 w-full rounded-md border bg-background px-3" value={userDraft.activeRole === "teacher" ? "teacher" : "student"} onChange={(e) => setUserDraft({ ...userDraft, activeRole: e.target.value })}><option value="student">Student</option><option value="teacher">Teacher</option></select></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Grade / department</span><Input value={userDraft.gradeOrDept ?? ""} onChange={(e) => setUserDraft({ ...userDraft, gradeOrDept: e.target.value || null })} /></label>
                     <label className="space-y-1 text-sm"><span className="font-medium">Timezone</span><Input value={userDraft.timezone ?? ""} onChange={(e) => setUserDraft({ ...userDraft, timezone: e.target.value || null })} /></label>
                     <label className="space-y-1 text-sm sm:col-span-2"><span className="font-medium">Subjects</span><Input value={userDraft.subjects?.join(", ") ?? ""} onChange={(e) => setUserDraft({ ...userDraft, subjects: e.target.value.split(",").map((v) => v.trim()).filter(Boolean) })} /></label>
@@ -898,7 +898,7 @@ export default function AdminPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 {/* A plan name -- Free, Pro -- which this product does not
-                    translate in any language. 
+                    translate in any language.
 
                     `plan.status` under it is a database enum whose only value
                     is "active", and it was printed straight out with a

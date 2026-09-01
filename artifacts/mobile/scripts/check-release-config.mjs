@@ -173,7 +173,12 @@ if (app) {
   const pkg = readJson(path.join(MOBILE, "package.json"));
   // A config plugin that is not listed does nothing, and the symptom is a
   // native permission string or entitlement quietly missing from the build.
-  for (const plugin of ["expo-image-picker", "expo-secure-store", "expo-splash-screen"]) {
+  for (const plugin of [
+    "expo-image-picker",
+    "expo-secure-store",
+    "expo-splash-screen",
+    "react-native-google-mobile-ads",
+  ]) {
     if (pkg?.dependencies?.[plugin] && !plugins.includes(plugin)) {
       fail(
         `app.json: ${plugin} is a dependency but is not in expo.plugins, so its native configuration is not applied to the build.`,
@@ -221,6 +226,12 @@ if (eas) {
     if (profileEnv(name).EXPO_PUBLIC_RC_USE_TEST_STORE !== expectedTestStore) {
       fail(
         `eas.json: build profile "${name}" must set EXPO_PUBLIC_RC_USE_TEST_STORE=${expectedTestStore}.`,
+      );
+    }
+    const expectedTestAds = name === "production" ? "false" : "true";
+    if (profileEnv(name).EXPO_PUBLIC_ADS_USE_TEST_IDS !== expectedTestAds) {
+      fail(
+        `eas.json: build profile "${name}" must set EXPO_PUBLIC_ADS_USE_TEST_IDS=${expectedTestAds}.`,
       );
     }
   }
@@ -282,12 +293,36 @@ if (eas) {
         );
       }
     }
+
+    if (process.env.EXPO_PUBLIC_ADS_USE_TEST_IDS === "true") {
+      fail("production AdMob configuration enables Google test ads.");
+    }
+    const adKeys = activePlatform === "android"
+      ? ["EXPO_PUBLIC_ADMOB_ANDROID_APP_ID", "EXPO_PUBLIC_ADMOB_ANDROID_DASHBOARD_UNIT_ID"]
+      : activePlatform === "ios"
+        ? ["EXPO_PUBLIC_ADMOB_IOS_APP_ID"]
+        : [];
+    for (const name of adKeys) {
+      const configured = process.env[name]?.trim() ?? "";
+      const separator = name.endsWith("APP_ID") ? "~" : "/";
+      const expectedPattern = new RegExp(`^ca-app-pub-\\d{16}\\${separator}\\d{10}$`);
+      if (!configured) {
+        fail(`production ${activePlatform} build is missing ${name}.`);
+      } else if (!expectedPattern.test(configured)) {
+        fail(`production ${activePlatform} build has an invalid ${name}.`);
+      } else if (configured.includes("3940256099942544")) {
+        fail(`production ${activePlatform} build uses Google's sample identifier through ${name}.`);
+      }
+    }
   } else if (activeProfile === "development" || activeProfile === "preview") {
     const testKey = process.env.EXPO_PUBLIC_RC_TEST_KEY?.trim() ?? "";
     if (!testKey.startsWith("test_")) {
       fail(
         `${activeProfile} build is missing a valid EXPO_PUBLIC_RC_TEST_KEY. RevenueCat Test Store keys start with test_.`,
       );
+    }
+    if (process.env.EXPO_PUBLIC_ADS_USE_TEST_IDS !== "true") {
+      fail(`${activeProfile} build must set EXPO_PUBLIC_ADS_USE_TEST_IDS=true.`);
     }
   }
 

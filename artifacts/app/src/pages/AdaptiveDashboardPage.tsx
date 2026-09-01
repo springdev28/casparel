@@ -50,6 +50,7 @@ import {
   useUserPreferences,
 } from "../lib/user-preferences";
 import { formatName } from "@/lib/resource-format";
+import { WebAdSlot } from "@/components/WebAdSlot";
 
 const path = [
   {
@@ -789,13 +790,6 @@ function TeacherView({ name }: { name?: string }) {
       0,
     ) ?? 0;
 
-  function comingSoon(feature: string) {
-    toast({
-      title: `${feature}, coming soon`,
-      description: "This feature is on the roadmap.",
-    });
-  }
-
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -810,7 +804,13 @@ function TeacherView({ name }: { name?: string }) {
             Here&apos;s what your learners&apos; evidence suggests doing next.
           </p>
         </div>
-        <Button onClick={() => comingSoon("Ask Casparel")}>
+        <Button
+          onClick={() =>
+            setLocation(
+              "/resources?goal=classroom%20learning%20evidence&ai=1",
+            )
+          }
+        >
           <Sparkles size={16} className="mr-2" />
           Ask Casparel
         </Button>
@@ -903,7 +903,7 @@ function TeacherView({ name }: { name?: string }) {
             <Button
               variant="ghost"
               className="mt-2 w-full"
-              onClick={() => comingSoon("AI grouping suggestions")}
+              onClick={() => setLocation("/classes")}
             >
               <RefreshCw size={14} className="mr-2" />
               Try another grouping
@@ -952,9 +952,14 @@ export default function AdaptiveDashboardPage() {
         <Skeleton className="h-80 w-full" />
       </div>
     );
-  return me && (me?.activeRole ?? me?.role) === UserRole.teacher ? (
-    <TeacherView name={me.name} />
-  ) : (
-    <StudentView name={me?.name} userId={me?.id} workspaceRole={me?.activeRole ?? me?.role} />
+  return (
+    <>
+      <WebAdSlot />
+      {me && (me?.activeRole ?? me?.role) === UserRole.teacher ? (
+        <TeacherView name={me.name} />
+      ) : (
+        <StudentView name={me?.name} userId={me?.id} workspaceRole={me?.activeRole ?? me?.role} />
+      )}
+    </>
   );
 }

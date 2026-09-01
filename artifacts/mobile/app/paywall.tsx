@@ -32,6 +32,7 @@ import {
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   PLAN_CATALOG,
   formatStorage,
@@ -123,6 +124,7 @@ function BenefitRow({ icon, title, body }: { icon: FeatherName; title: string; b
 
 export default function PaywallScreen() {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -137,6 +139,7 @@ export default function PaywallScreen() {
   } = usePurchases();
   const { data: usage } = useGetMyUsage();
   const serverTier = usage?.tier;
+  const isAdministrator = serverTier === 'administrator' || user?.role === 'admin';
   const tier = serverTier === 'institutional'
     ? 'institutional'
     : serverTier === 'pro' || revenueCatTier === 'pro'
@@ -144,7 +147,7 @@ export default function PaywallScreen() {
       : serverTier === 'plus' || revenueCatTier === 'plus'
         ? 'plus'
         : 'free';
-  const isPro = tier === 'pro' || tier === 'institutional';
+  const isPro = tier === 'pro' || tier === 'institutional' || isAdministrator;
   const upgradePackages = upgradePackagesForTier(packages, tier);
 
   const [selected, setSelected] = useState<string | null>(null);
@@ -318,7 +321,7 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              {t('Choose your Casparel plan')}
+              {isAdministrator ? t('Administrator plan') : t('Choose your Casparel plan')}
             </Text>
             <Text
               style={[
@@ -329,7 +332,9 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              {t('Keep the core free, then add only the AI access you need.')}
+              {isAdministrator
+                ? t('Your administrator account has unlimited access. Billing is not required.')
+                : t('Keep the core free, then add only the AI access you need.')}
             </Text>
           </LinearGradient>
         </Animated.View>
@@ -351,7 +356,7 @@ export default function PaywallScreen() {
           ))}
         </Animated.View>
 
-        {tier !== 'free' ? (
+        {isAdministrator || tier !== 'free' ? (
           <View
             style={[
               styles.premiumBanner,
@@ -372,7 +377,9 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              You're on Casparel {TIER_TITLES[tier]}. Thank you!
+              {isAdministrator
+                ? t('Administrator plan · unlimited access, with no billing required.')
+                : `${t("You're on Casparel")} ${TIER_TITLES[tier]}. ${t('Thank you!')}`}
             </Text>
           </View>
         ) : null}
@@ -442,7 +449,7 @@ export default function PaywallScreen() {
           produce a misleading "Nothing to restore" next to the notice telling
           the user to open the app on their phone.
         */}
-        {tier === 'free' && purchasesSupported ? (
+        {!isAdministrator && tier === 'free' && purchasesSupported ? (
           <Pressable
             onPress={handleRestore}
             disabled={busy}

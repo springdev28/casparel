@@ -31,6 +31,8 @@ import { MessagesButton } from '@/components/MessagesButton';
 import type { ActivityItem } from '@workspace/api-client-react';
 import { TAB_BAR_CLEARANCE } from '@/utils/tab-bar';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { isTeacherWorkspace } from '@/utils/account-identity';
+import { ProgrammaticAd } from '@/components/ProgrammaticAd';
 
 function StatCard({
   label,
@@ -189,7 +191,7 @@ export default function DashboardScreen() {
   const activityFailed = activityIsError && activity === undefined;
 
   const displayUser = me ?? authUser;
-  const isTeacher = displayUser?.role === 'teacher';
+  const isTeacher = isTeacherWorkspace(displayUser);
 
   const [refreshing, setRefreshing] = React.useState(false);
   const onRefresh = async () => {
@@ -249,6 +251,8 @@ export default function DashboardScreen() {
         </View>
         <MessagesButton />
       </View>
+
+      <ProgrammaticAd />
 
       {/* Stat Cards */}
       {summaryFailed ? (

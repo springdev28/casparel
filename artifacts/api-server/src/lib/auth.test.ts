@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   decodeToken,
   hashPassword,
+  issueToken,
   verifyPassword,
 } from "./auth";
 
@@ -56,5 +57,12 @@ describe("auth primitives", () => {
   it("keeps existing HS256 tokens without a typ header valid", () => {
     const token = signTestToken({ alg: "HS256" }, validPayload());
     expect(decodeToken(token)?.userId).toBe(1);
+  });
+
+  it("keeps Administrator as the account role while limiting workspace role to student or teacher", () => {
+    const legacy = decodeToken(issueToken(9, "admin", "admin"));
+    const teacher = decodeToken(issueToken(9, "admin", "teacher"));
+    expect(legacy).toMatchObject({ accountRole: "admin", role: "student" });
+    expect(teacher).toMatchObject({ accountRole: "admin", role: "teacher" });
   });
 });

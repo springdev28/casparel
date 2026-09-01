@@ -45,7 +45,7 @@ export function formatLabel(format: string, t: Translate) {
 /** What somebody is in Casparel. */
 export function roleLabel(role: string, t: Translate) {
   if (role === 'teacher') return t('Teacher');
-  if (role === 'admin') return t('Admin');
+  if (role === 'admin') return t('Administrator');
   return t('Student');
 }
 

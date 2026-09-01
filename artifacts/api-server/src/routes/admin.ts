@@ -521,7 +521,7 @@ const adminUserUpdate = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   email: z.string().email().max(320).transform((value) => value.toLowerCase()).optional(),
   role: z.enum(["student", "teacher", "admin"]).optional(),
-  activeRole: z.enum(["student", "teacher", "admin"]).optional(),
+  activeRole: z.enum(["student", "teacher"]).optional(),
   bio: z.string().trim().max(1000).nullable().optional(),
   subjects: z.array(z.string().trim().min(1).max(80)).max(30).nullable().optional(),
   gradeOrDept: z.string().trim().max(160).nullable().optional(),
@@ -550,8 +550,8 @@ router.patch("/admin/users/:id", requireAdmin, async (req, res): Promise<void> =
   const patch = { ...parsed.data };
   if (patch.websiteUrl === "") patch.websiteUrl = null;
   if (patch.role === "student") patch.activeRole = "student";
-  if (patch.role === "teacher" && patch.activeRole === "admin") patch.activeRole = "teacher";
-  if (patch.role === "admin") patch.activeRole = "admin";
+  if (patch.role === "teacher") patch.activeRole = "teacher";
+  if (patch.role === "admin" && !patch.activeRole) patch.activeRole = "student";
   try {
     const [user] = await db.update(usersTable).set(patch)
       .where(eq(usersTable.id, targetId)).returning(adminUserSelection);

@@ -28,6 +28,15 @@ export const TEACHER_PLUS_ENTITLEMENT = "teacher-plus";
 export const TEACHER_PRO_ENTITLEMENT = "teacher-pro";
 export const INSTITUTIONAL_ENTITLEMENT = "institutional";
 
+export const PLUS_PRODUCT_IDS = new Set([
+  "casparel_plus_monthly",
+  "casparel_plus_yearly",
+]);
+export const PRO_PRODUCT_IDS = new Set([
+  "casparel_pro_monthly",
+  "casparel_pro_yearly",
+]);
+
 export const PLAN_FREE = "free";
 export const PLAN_PLUS = "plus";
 export const PLAN_PRO = "pro";
@@ -252,6 +261,18 @@ export function planForEntitlementIds(ids: string[]): string | null {
   ) return PLAN_PLUS;
   return null;
 }
+
+/** Exact store products configured on web and Android; unknown products fail closed. */
+export function planForProductIds(ids: string[]): string | null {
+  if (ids.some((id) => PRO_PRODUCT_IDS.has(id))) return PLAN_PRO;
+  if (ids.some((id) => PLUS_PRODUCT_IDS.has(id))) return PLAN_PLUS;
+  return null;
+}
+
+export const KNOWN_PRODUCT_IDS: ReadonlySet<string> = new Set([
+  ...PLUS_PRODUCT_IDS,
+  ...PRO_PRODUCT_IDS,
+]);
 
 /** Every entitlement identifier this server recognises. */
 export const KNOWN_ENTITLEMENTS: ReadonlySet<string> = new Set([

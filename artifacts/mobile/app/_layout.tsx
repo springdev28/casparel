@@ -42,6 +42,7 @@ function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useAuth();
   const { ready: onboardingReady, needsOnboarding } = useOnboarding();
   const segments = useSegments();
+  const routeSegments = segments as string[];
   const router = useRouter();
 
   useEffect(() => {
@@ -51,9 +52,11 @@ function RootLayoutNav() {
     // back, which would have made the new screen unreachable.
     const inAuthScreen = segments[0] === "login" || segments[0] === "register";
     const inOnboarding = segments[0] === "onboarding";
+    const inPublicSharedRoute =
+      (routeSegments[0] === "canvas" || routeSegments[0] === "activities") && routeSegments[1] === "shared";
 
     if (!isAuthenticated) {
-      if (!inAuthScreen) router.replace("/login");
+      if (!inAuthScreen && !inPublicSharedRoute) router.replace("/login");
       return;
     }
     // Authenticated: show first-run onboarding once, then land on the tabs.
@@ -91,6 +94,8 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ headerShown: false }} />
+      <Stack.Screen name="canvas/shared/[token]" options={{ title: t('Shared canvas'), headerBackTitle: t('Back') }} />
+      <Stack.Screen name="activities/shared/[token]" options={{ title: t('Shared activity'), headerBackTitle: t('Back') }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen
         name="resource/[id]"
@@ -99,6 +104,10 @@ function RootLayoutNav() {
       <Stack.Screen
         name="class/[id]"
         options={{ title: t('Class'), headerBackTitle: t("Back") }}
+      />
+      <Stack.Screen
+        name="study/index"
+        options={{ title: t('Study sets'), headerBackTitle: t("Back") }}
       />
       <Stack.Screen
         name="study/[id]"

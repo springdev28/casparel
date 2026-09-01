@@ -29,8 +29,8 @@ import type { StudyActivity } from '@workspace/api-client-react';
 import { ErrorState } from '@/components/ErrorState';
 import { useLanguage } from '@/contexts/LanguageContext';
 
-/** How many sets the dashboard shows before it stops. */
-const SHOWN = 4;
+/** How many sets the compact dashboard panel shows before it stops. */
+const DASHBOARD_LIMIT = 4;
 
 function SetRow({ set, onPress }: { set: StudyActivity; onPress: () => void }) {
   const colors = useColors();
@@ -82,7 +82,7 @@ function SetRow({ set, onPress }: { set: StudyActivity; onPress: () => void }) {
   );
 }
 
-export function StudySets() {
+export function StudySets({ limit = DASHBOARD_LIMIT }: { limit?: number | null }) {
   const { t } = useLanguage();
   const colors = useColors();
   const router = useRouter();
@@ -135,7 +135,7 @@ export function StudySets() {
             },
           ]}
         >
-          {sets.slice(0, SHOWN).map((set) => (
+          {(limit == null ? sets : sets.slice(0, limit)).map((set) => (
             <SetRow
               key={set.id}
               set={set}

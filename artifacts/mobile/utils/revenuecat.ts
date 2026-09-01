@@ -114,7 +114,7 @@ export interface RCCustomerInfo {
 }
 
 export interface PurchasesModule {
-  configure(opts: { apiKey: string; appUserID?: string | null }): void;
+  configure(opts: { apiKey: string; appUserID?: string }): void;
   setLogLevel(level: number): void;
   getOfferings(): Promise<{ current: RCOffering | null; all: Record<string, RCOffering> }>;
   getCustomerInfo(): Promise<RCCustomerInfo>;
