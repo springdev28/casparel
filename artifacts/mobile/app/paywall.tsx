@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { useGetMyUsage } from '@workspace/api-client-react';
@@ -32,6 +31,7 @@ import {
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { FadeInView } from '@/components/FadeInView';
 import {
   PLAN_CATALOG,
   formatStorage,
@@ -291,7 +291,7 @@ export default function PaywallScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
-        <Animated.View entering={FadeInDown.duration(450)}>
+        <FadeInView duration={450}>
           <LinearGradient
             colors={[colors.primary, colors.accent]}
             start={{ x: 0, y: 0 }}
@@ -332,11 +332,12 @@ export default function PaywallScreen() {
               {t('Keep the core free, then add only the AI access you need.')}
             </Text>
           </LinearGradient>
-        </Animated.View>
+        </FadeInView>
 
         {/* Benefits */}
-        <Animated.View
-          entering={FadeInDown.delay(120).duration(450)}
+        <FadeInView
+          delay={120}
+          duration={450}
           style={[
             styles.card,
             {
@@ -349,7 +350,7 @@ export default function PaywallScreen() {
           {BENEFITS.map((b) => (
             <BenefitRow key={b.title} {...b} />
           ))}
-        </Animated.View>
+        </FadeInView>
 
         {tier !== 'free' ? (
           <View
@@ -406,7 +407,7 @@ export default function PaywallScreen() {
         ) : (
           <>
             {/* Package options */}
-            <Animated.View entering={FadeInDown.delay(200).duration(450)} style={{ gap: 10, marginTop: 18 }}>
+            <FadeInView delay={200} duration={450} style={{ gap: 10, marginTop: 18 }}>
               {upgradePackages.map((pkg) => (
                 <PackageOption
                   key={pkg.identifier}
@@ -416,16 +417,16 @@ export default function PaywallScreen() {
                   onSelect={() => setSelected(pkg.identifier)}
                 />
               ))}
-            </Animated.View>
+            </FadeInView>
 
             {/* CTA */}
-            <Animated.View entering={FadeInDown.delay(280).duration(450)}>
+            <FadeInView delay={280} duration={450}>
               <View style={{ marginTop: 18 }}>
                 <Button size="lg" onPress={handlePurchase} loading={busy} disabled={!selected}>
                   {t('Continue')}
                 </Button>
               </View>
-            </Animated.View>
+            </FadeInView>
           </>
         )}
 

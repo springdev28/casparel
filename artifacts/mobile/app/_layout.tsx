@@ -5,7 +5,6 @@
 import React, { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Redirect, Stack, useRouter, useSegments } from "expo-router";
@@ -158,28 +157,26 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
-              {/* One listener for the phone's Reduce Motion setting and one
-                  safe haptic boundary, shared by every interaction below. */}
-              <MotionProvider>
-                <AuthProvider>
-                  {/* Inside AuthProvider: the account's language is fetched with
-                      the session token, so this needs the token to exist. */}
-                  <LanguageProvider>
-                    <OnboardingProvider>
-                      <PurchasesProvider>
-                        {/* Android replaces this provider with the UMP/AdMob
-                            implementation. Other platforms use its inert twin,
-                            so the navigation tree stays platform-independent. */}
-                        <AdsProvider>
-                          <RootLayoutNav />
-                        </AdsProvider>
-                      </PurchasesProvider>
-                    </OnboardingProvider>
-                  </LanguageProvider>
-                </AuthProvider>
-              </MotionProvider>
-            </KeyboardProvider>
+            {/* One listener for the phone's Reduce Motion setting and one
+                safe haptic boundary, shared by every interaction below. */}
+            <MotionProvider>
+              <AuthProvider>
+                {/* Inside AuthProvider: the account's language is fetched with
+                    the session token, so this needs the token to exist. */}
+                <LanguageProvider>
+                  <OnboardingProvider>
+                    <PurchasesProvider>
+                      {/* Android replaces this provider with the UMP/AdMob
+                          implementation. Other platforms use its inert twin,
+                          so the navigation tree stays platform-independent. */}
+                      <AdsProvider>
+                        <RootLayoutNav />
+                      </AdsProvider>
+                    </PurchasesProvider>
+                  </OnboardingProvider>
+                </LanguageProvider>
+              </AuthProvider>
+            </MotionProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>

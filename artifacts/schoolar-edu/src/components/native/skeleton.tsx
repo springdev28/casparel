@@ -3,17 +3,9 @@
  * System connection: provides consistent visual, responsive, and accessibility behavior to the web application.
  */
 // @ts-nocheck
-// react-native / reanimated only available in Expo context
-import React, { useEffect } from "react";
-import Animated, {
-  cancelAnimation,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from "react-native-reanimated";
+// react-native is available when this shared component is bundled by Expo.
+import React, { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Animated } from "react-native";
 import { useColors } from "../../hooks/use-colors";
 
 interface SkeletonProps {
@@ -25,30 +17,50 @@ interface SkeletonProps {
 
 export function Skeleton({ width, height = 16, borderRadius, style }: SkeletonProps) {
   const colors = useColors();
-  const reduceMotion = useReducedMotion();
-  const opacity = useSharedValue(1);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setReduceMotion,
+    );
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     // A skeleton still communicates loading with no animation. Stopping the
     // pulse here makes every existing loading screen respect the phone's
     // Reduce Motion setting without requiring each caller to remember it.
     if (reduceMotion) {
-      cancelAnimation(opacity);
-      opacity.value = 1;
+      opacity.stopAnimation();
+      opacity.setValue(1);
       return;
     }
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.35, { duration: 700 }),
-        withTiming(1, { duration: 700 })
-      ),
-      -1,
-      false
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.35,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ]),
     );
-    return () => cancelAnimation(opacity);
+    pulse.start();
+    return () => pulse.stop();
   }, [opacity, reduceMotion]);
-
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   return (
     <Animated.View
@@ -59,7 +71,7 @@ export function Skeleton({ width, height = 16, borderRadius, style }: SkeletonPr
           height,
           width,
         },
-        animatedStyle,
+        { opacity },
         style,
       ]}
     />

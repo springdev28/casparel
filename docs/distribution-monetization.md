@@ -85,13 +85,10 @@ The mobile package also declares `babel-preset-expo` directly because
 reach through Expo's transitive dependency tree, even though `expo export`
 can appear to work from the workspace root.
 
-Expo 54 uses Android Gradle Plugin 8.11, which publishes Worklets' compiled
-library under `intermediates/cxx`; Reanimated 4.1 still links the historical
-`intermediates/cmake` path. The local Expo plugin
-`plugins/with-worklets-cmake-output.js` republishes that one generated library
-after Worklets' native task. Keep the workaround until the Expo-54-compatible
-Reanimated line no longer references the old path, then remove it only after a
-clean Android release assembly succeeds.
+Onboarding and paywall entrance motion use React Native's built-in `Animated`
+API. Keyboard-aware forms use the platform `ScrollView` keyboard insets. This
+keeps those interactions while avoiding an unnecessary Reanimated/Worklets C++
+linkage layer in the Android release build.
 
 ## External setup before production ads
 

@@ -171,15 +171,16 @@ if (app) {
     Array.isArray(entry) ? entry[0] : entry,
   );
   const pkg = readJson(path.join(MOBILE, "package.json"));
-  if (pkg?.dependencies?.["react-native-reanimated"] !== "4.1.1") {
-    fail(
-      'package.json: react-native-reanimated must stay pinned to exact version 4.1.1. Newer 4.1.x releases are not ABI-compatible with the SDK 54 react-native-worklets@0.5.1 native library.',
-    );
-  }
-  if (pkg?.dependencies?.["react-native-worklets"] !== "0.5.1") {
-    fail(
-      'package.json: react-native-worklets must stay pinned to exact version 0.5.1 for the SDK 54 Reanimated native build.',
-    );
+  for (const removedNativeDependency of [
+    "react-native-keyboard-controller",
+    "react-native-reanimated",
+    "react-native-worklets",
+  ]) {
+    if (pkg?.dependencies?.[removedNativeDependency]) {
+      fail(
+        `package.json: ${removedNativeDependency} must not be reintroduced without a complete Android release assembly; Casparel uses built-in React Native APIs instead.`,
+      );
+    }
   }
   // A config plugin that is not listed does nothing, and the symptom is a
   // native permission string or entitlement quietly missing from the build.

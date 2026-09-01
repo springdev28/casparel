@@ -8,12 +8,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { BrandMark } from '@/components/BrandMark';
+import { FadeInView } from '@/components/FadeInView';
 
 const VALUE_PROPS: { icon: string; title: string; body: string }[] = [
   {
@@ -39,7 +39,7 @@ function ValueRow({ icon, title, body, delay }: { icon: string; title: string; b
   const { t } = useLanguage();
   const colors = useColors();
   return (
-    <Animated.View entering={FadeInDown.delay(delay).duration(450)} style={styles.row}>
+    <FadeInView delay={delay} duration={450} style={styles.row}>
       <View style={[styles.rowIcon, { backgroundColor: colors.primary + '18', borderRadius: colors.radius }]}>
         <Feather name={icon as never} size={20} color={colors.primary} />
       </View>
@@ -51,7 +51,7 @@ function ValueRow({ icon, title, body, delay }: { icon: string; title: string; b
           {t(body)}
         </Text>
       </View>
-    </Animated.View>
+    </FadeInView>
   );
 }
 
@@ -71,7 +71,7 @@ export default function OnboardingScreen() {
     <View style={[styles.flex, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom + 20 }]}>
       <View style={styles.content}>
         {/* Hero */}
-        <Animated.View entering={FadeInDown.duration(500)}>
+        <FadeInView duration={500}>
           <LinearGradient
             colors={[colors.primary, colors.accent]}
             start={{ x: 0, y: 0 }}
@@ -93,7 +93,7 @@ export default function OnboardingScreen() {
               {t('Learn, organize, and study, all in one place.')}
             </Text>
           </LinearGradient>
-        </Animated.View>
+        </FadeInView>
 
         {/* Value props */}
         <View style={styles.rows}>
@@ -104,11 +104,11 @@ export default function OnboardingScreen() {
       </View>
 
       {/* CTA */}
-      <Animated.View entering={FadeInDown.delay(420).duration(450)} style={styles.cta}>
+      <FadeInView delay={420} duration={450} style={styles.cta}>
         <Button size="lg" onPress={getStarted}>
           {t('Get started')}
         </Button>
-      </Animated.View>
+      </FadeInView>
     </View>
   );
 }
