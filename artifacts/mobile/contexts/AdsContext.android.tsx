@@ -15,6 +15,8 @@ import React, {
 import type { AdsConsentInfo } from "react-native-google-mobile-ads";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOnboarding } from "@/contexts/OnboardingContext";
+import { usePurchases } from "@/contexts/PurchasesContext";
+import { storage } from "@/utils/secure-storage";
 import {
   loadGoogleMobileAds,
   type GoogleMobileAdsModule,
@@ -23,6 +25,11 @@ import {
 interface AdsContextValue {
   ready: boolean;
   canRequestAds: boolean;
+  soundMuted: boolean;
+  adsDisabled: boolean;
+  canDisableAds: boolean;
+  setSoundMuted: (muted: boolean) => Promise<void>;
+  setAdsDisabled: (disabled: boolean) => Promise<boolean>;
   privacyOptionsRequired: boolean;
   showPrivacyOptions: () => Promise<boolean>;
 }
@@ -30,12 +37,19 @@ interface AdsContextValue {
 const initialValue: AdsContextValue = {
   ready: false,
   canRequestAds: false,
+  soundMuted: false,
+  adsDisabled: false,
+  canDisableAds: false,
+  setSoundMuted: async () => {},
+  setAdsDisabled: async () => false,
   privacyOptionsRequired: false,
   showPrivacyOptions: async () => false,
 };
 
 const AdsContext = createContext<AdsContextValue>(initialValue);
 let sdkInitialization: Promise<unknown> | null = null;
+const AD_SOUND_MUTED_KEY = "casparel_ad_sound_muted";
+const ADS_DISABLED_KEY = "casparel_ads_disabled";
 
 function privacyOptionsRequired(
   ads: GoogleMobileAdsModule,
@@ -58,24 +72,76 @@ async function initializeSdk(ads: GoogleMobileAdsModule): Promise<void> {
   });
 
   if (!sdkInitialization) {
-    sdkInitialization = ads.default().initialize().catch((error: unknown) => {
-      // A transient native initialization failure should not poison every
-      // later privacy-options retry for the rest of the process lifetime.
-      sdkInitialization = null;
-      throw error;
-    });
+    sdkInitialization = ads
+      .default()
+      .initialize()
+      .catch((error: unknown) => {
+        // A transient native initialization failure should not poison every
+        // later privacy-options retry for the rest of the process lifetime.
+        sdkInitialization = null;
+        throw error;
+      });
   }
   await sdkInitialization;
 }
 
 export function AdsProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const { level } = usePurchases();
   const { ready: onboardingReady, needsOnboarding } = useOnboarding();
   const [ready, setReady] = useState(false);
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const [soundMuted, setSoundMutedState] = useState(false);
+  const [adsDisabled, setAdsDisabledState] = useState(false);
   const [consentInfo, setConsentInfo] = useState<AdsConsentInfo | null>(null);
   const [adsModule, setAdsModule] = useState<GoogleMobileAdsModule | null>(
     null,
   );
+  const canDisableAds = level === "pro";
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreferencesReady(false);
+    void (async () => {
+      const [storedMuted, storedDisabled] = await Promise.all([
+        storage.getItemAsync(AD_SOUND_MUTED_KEY),
+        user?.id != null
+          ? storage.getItemAsync(`${ADS_DISABLED_KEY}:${user.id}`)
+          : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+      setSoundMutedState(storedMuted === "true");
+      setAdsDisabledState(storedDisabled === "true");
+      setPreferencesReady(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const setSoundMuted = useCallback(async (muted: boolean) => {
+    setSoundMutedState(muted);
+    await storage.setItemAsync(AD_SOUND_MUTED_KEY, String(muted));
+  }, []);
+
+  const setAdsDisabled = useCallback(
+    async (disabled: boolean) => {
+      if (disabled && !canDisableAds) return false;
+      setAdsDisabledState(disabled);
+      if (user?.id != null) {
+        await storage.setItemAsync(
+          `${ADS_DISABLED_KEY}:${user.id}`,
+          String(disabled),
+        );
+      }
+      return true;
+    },
+    [canDisableAds, user?.id],
+  );
+
+  useEffect(() => {
+    adsModule?.default().setAppMuted(soundMuted);
+  }, [adsModule, soundMuted]);
 
   useEffect(() => {
     // Waiting until onboarding is complete prevents a system consent sheet
@@ -157,14 +223,34 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AdsContextValue>(
     () => ({
       ready,
-      canRequestAds: ready && consentInfo?.canRequestAds === true,
+      canRequestAds:
+        ready &&
+        preferencesReady &&
+        consentInfo?.canRequestAds === true &&
+        !(canDisableAds && adsDisabled),
+      soundMuted,
+      adsDisabled: canDisableAds && adsDisabled,
+      canDisableAds,
+      setSoundMuted,
+      setAdsDisabled,
       privacyOptionsRequired:
         adsModule !== null &&
         consentInfo !== null &&
         privacyOptionsRequired(adsModule, consentInfo),
       showPrivacyOptions,
     }),
-    [adsModule, consentInfo, ready, showPrivacyOptions],
+    [
+      adsDisabled,
+      adsModule,
+      canDisableAds,
+      consentInfo,
+      preferencesReady,
+      ready,
+      setAdsDisabled,
+      setSoundMuted,
+      showPrivacyOptions,
+      soundMuted,
+    ],
   );
 
   return <AdsContext.Provider value={value}>{children}</AdsContext.Provider>;

@@ -10,6 +10,11 @@ interface AdsContextValue {
   ready: boolean;
   /** Google says the current consent state permits an ad request. */
   canRequestAds: boolean;
+  soundMuted: boolean;
+  adsDisabled: boolean;
+  canDisableAds: boolean;
+  setSoundMuted: (muted: boolean) => Promise<void>;
+  setAdsDisabled: (disabled: boolean) => Promise<boolean>;
   /** The current region/message configuration requires a settings entry. */
   privacyOptionsRequired: boolean;
   /** Present Google's current privacy-options form, when one is required. */
@@ -19,6 +24,11 @@ interface AdsContextValue {
 const unsupported: AdsContextValue = {
   ready: true,
   canRequestAds: false,
+  soundMuted: false,
+  adsDisabled: false,
+  canDisableAds: false,
+  setSoundMuted: async () => {},
+  setAdsDisabled: async () => false,
   privacyOptionsRequired: false,
   showPrivacyOptions: async () => false,
 };

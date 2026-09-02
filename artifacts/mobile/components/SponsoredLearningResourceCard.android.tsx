@@ -1,15 +1,15 @@
 /**
- * @fileOverview Android UI role: renders the free-tier dashboard's single native sponsored card.
+ * @fileOverview Android UI role: renders a compact, scrollable sponsored section.
  * System connection: AdMob supplies and registers the creative, AdsContext
- * supplies the UMP gate, PurchasesContext suppresses paid accounts, and
+ * supplies consent and saved sound/ad preferences, and
  * revenuecat-ads forwards lifecycle/revenue callbacks for unified reporting.
  */
 import React, { useEffect, useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { NativeAd } from "react-native-google-mobile-ads";
 import { useColors } from "@workspace/edu-ds/hooks/use-colors";
 import { useAds } from "@/contexts/AdsContext";
-import { usePurchases } from "@/contexts/PurchasesContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
   trackSponsoredAdDisplayed,
@@ -42,29 +42,20 @@ function adUnitForThisBuild(ads: GoogleMobileAdsModule): string | null {
 export function SponsoredLearningResourceCard() {
   const { t } = useLanguage();
   const colors = useColors();
-  const { ready: adsReady, canRequestAds } = useAds();
   const {
-    ready: purchasesReady,
-    available: purchasesAvailable,
-    isPremium,
-  } = usePurchases();
+    ready: adsReady,
+    canRequestAds,
+    soundMuted,
+    setSoundMuted,
+  } = useAds();
+  const [requestNonce, setRequestNonce] = useState(0);
   const [creative, setCreative] = useState<{
     nativeAd: NativeAd;
     ads: GoogleMobileAdsModule;
   } | null>(null);
 
   useEffect(() => {
-    // A paid subscriber must never see an ad while RevenueCat is loading or
-    // degraded. Requiring `available` makes an entitlement outage fail closed.
-    if (
-      !adsReady ||
-      !canRequestAds ||
-      !purchasesReady ||
-      !purchasesAvailable ||
-      isPremium
-    ) {
-      return;
-    }
+    if (!adsReady || !canRequestAds) return;
 
     let cancelled = false;
     let loadedAd: NativeAd | null = null;
@@ -81,6 +72,7 @@ export function SponsoredLearningResourceCard() {
           // UMP/TFUA is the privacy gate; this request flag independently
           // ensures the creative is not behaviorally personalized.
           requestNonPersonalizedAdsOnly: true,
+          startVideoMuted: soundMuted,
           aspectRatio: ads.NativeMediaAspectRatio.LANDSCAPE,
           keywords: [
             "education",
@@ -117,6 +109,17 @@ export function SponsoredLearningResourceCard() {
             precision: paid.precision,
           });
         });
+        ad.addAdEventListener(ads.NativeAdEventType.VIDEO_MUTED, () => {
+          void setSoundMuted(true);
+        });
+        ad.addAdEventListener(ads.NativeAdEventType.VIDEO_UNMUTED, () => {
+          void setSoundMuted(false);
+        });
+        ad.addAdEventListener(ads.NativeAdEventType.VIDEO_ENDED, () => {
+          if (cancelled) return;
+          setCreative(null);
+          setRequestNonce((value) => value + 1);
+        });
 
         void trackSponsoredAdLoaded(adUnitId, ad.responseId);
         setCreative({ nativeAd: ad, ads });
@@ -138,16 +141,9 @@ export function SponsoredLearningResourceCard() {
       loadedAd?.destroy();
       setCreative(null);
     };
-  }, [adsReady, canRequestAds, isPremium, purchasesAvailable, purchasesReady]);
+  }, [adsReady, canRequestAds, requestNonce, setSoundMuted, soundMuted]);
 
-  if (
-    !adsReady ||
-    !canRequestAds ||
-    !purchasesReady ||
-    !purchasesAvailable ||
-    isPremium ||
-    !creative
-  ) {
+  if (!adsReady || !canRequestAds || !creative) {
     return null;
   }
 
@@ -197,6 +193,21 @@ export function SponsoredLearningResourceCard() {
             >
               {t("AD")}
             </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t(
+                soundMuted ? "Turn ad sound on" : "Mute ads",
+              )}
+              hitSlop={8}
+              onPress={() => void setSoundMuted(!soundMuted)}
+              style={styles.soundButton}
+            >
+              <Feather
+                name={soundMuted ? "volume-x" : "volume-2"}
+                size={16}
+                color={colors.foreground}
+              />
+            </Pressable>
           </View>
 
           <View style={styles.headingRow}>
@@ -251,7 +262,7 @@ export function SponsoredLearningResourceCard() {
           {nativeAd.body ? (
             <NativeAsset assetType={NativeAssetType.BODY}>
               <Text
-                numberOfLines={3}
+                numberOfLines={2}
                 style={[
                   styles.body,
                   {
@@ -300,15 +311,15 @@ export function SponsoredLearningResourceCard() {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { marginVertical: 8, gap: 6 },
+  wrapper: { marginVertical: 5, gap: 3 },
   card: {
     borderWidth: 1,
-    padding: 14,
-    paddingTop: 26,
-    gap: 10,
+    padding: 10,
+    paddingTop: 20,
+    gap: 7,
     overflow: "hidden",
   },
-  labelRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  labelRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   sponsoredLabel: {
     fontSize: 11,
     textTransform: "uppercase",
@@ -321,19 +332,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  headingRow: { flexDirection: "row", gap: 10, alignItems: "center" },
-  icon: { width: 44, height: 44, borderRadius: 9 },
+  soundButton: { marginLeft: "auto", padding: 3 },
+  headingRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  icon: { width: 36, height: 36, borderRadius: 8 },
   headingCopy: { flex: 1, gap: 2 },
-  headline: { fontSize: 15, lineHeight: 20 },
+  headline: { fontSize: 14, lineHeight: 18 },
   advertiser: { fontSize: 11 },
-  media: { width: "100%", minHeight: 132, borderRadius: 8 },
-  body: { fontSize: 12, lineHeight: 17 },
+  media: { width: "100%", minHeight: 84, maxHeight: 110, borderRadius: 7 },
+  body: { fontSize: 11, lineHeight: 15 },
   cta: {
     alignSelf: "flex-start",
     overflow: "hidden",
     fontSize: 12,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 7,
   },
-  disclosure: { fontSize: 10, lineHeight: 14 },
+  disclosure: { fontSize: 9, lineHeight: 12 },
 });

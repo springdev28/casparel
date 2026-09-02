@@ -4,7 +4,13 @@
  * Play billing, UMP/AdMob, and safe external-link handling while the website
  * remains the single complete implementation of every workspace.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   BackHandler,
@@ -21,13 +27,17 @@ import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { SponsoredLearningResourceCard } from '@/components/SponsoredLearningResourceCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAds } from '@/contexts/AdsContext';
 import { apiOrigin } from '@/utils/api-host';
+import { shouldShowSponsoredAd } from '@/utils/ad-placement';
 import { classifyMobileWebUrl } from '@/utils/mobile-web-navigation';
 
 type NativeMessage =
   | { type: 'session'; token: string }
   | { type: 'logout' }
   | { type: 'language'; language: 'en' | 'tr' }
+  | { type: 'ad-preferences'; soundMuted?: boolean; adsDisabled?: boolean }
+  | { type: 'page-scroll'; y: number }
   | { type: 'open-url'; url: string };
 
 export default function MobileWebAppScreen() {
@@ -37,20 +47,39 @@ export default function MobileWebAppScreen() {
   const webView = useRef<WebView>(null);
   const { token, logout, updateToken } = useAuth();
   const { language, setLanguage } = useLanguage();
+  const {
+    soundMuted,
+    adsDisabled,
+    canDisableAds,
+    setSoundMuted,
+    setAdsDisabled,
+  } = useAds();
   const [canGoBack, setCanGoBack] = useState(false);
   const [path, setPath] = useState('/dashboard');
+  const [adSectionVisible, setAdSectionVisible] = useState(true);
 
   const sessionScript = useMemo(() => {
     const serializedToken = JSON.stringify(token ?? '');
     const serializedLanguage = JSON.stringify(language);
+    const serializedSoundMuted = JSON.stringify(soundMuted);
+    const serializedAdsDisabled = JSON.stringify(adsDisabled);
+    const serializedCanDisableAds = JSON.stringify(canDisableAds);
     return `
       (function () {
         try {
           window.localStorage.setItem('schoolar_token', ${serializedToken});
           window.localStorage.setItem('schoolar_language', ${serializedLanguage});
           window.localStorage.setItem('casparel_native_shell', 'true');
+          window.localStorage.setItem('casparel_ad_sound_muted', String(${serializedSoundMuted}));
+          window.localStorage.setItem('casparel_ads_disabled', String(${serializedAdsDisabled}));
+          window.localStorage.setItem('casparel_can_disable_ads', String(${serializedCanDisableAds}));
           window.dispatchEvent(new Event('schoolar-session-change'));
           window.dispatchEvent(new CustomEvent('schoolar-language-change', { detail: ${serializedLanguage} }));
+          window.dispatchEvent(new CustomEvent('casparel-ad-preferences-change', { detail: {
+            soundMuted: ${serializedSoundMuted},
+            adsDisabled: ${serializedAdsDisabled},
+            canDisableAds: ${serializedCanDisableAds}
+          }}));
           if (!window.__casparelNativeLinksInstalled) {
             window.__casparelNativeLinksInstalled = true;
             var sendUrl = function (url) {
@@ -67,44 +96,68 @@ export default function MobileWebAppScreen() {
               sendUrl(anchor.href);
             }, true);
           }
+          if (!window.__casparelAdScrollInstalled) {
+            window.__casparelAdScrollInstalled = true;
+            var scrollReported = false;
+            document.addEventListener('scroll', function (event) {
+              var target = event.target;
+              var y = Math.max(
+                window.scrollY || 0,
+                target && typeof target.scrollTop === 'number' ? target.scrollTop : 0
+              );
+              if (scrollReported || y <= 12) return;
+              scrollReported = true;
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'page-scroll',
+                y: y
+              }));
+            }, { passive: true, capture: true });
+          }
         } catch (_) {}
       })();
       true;
     `;
-  }, [language, token]);
+  }, [adsDisabled, canDisableAds, language, soundMuted, token]);
 
   useEffect(() => {
     webView.current?.injectJavaScript(sessionScript);
   }, [sessionScript]);
 
-  const openDestination = useCallback((rawUrl: string, navigateInternal: boolean) => {
-    const destination = classifyMobileWebUrl(rawUrl, apiOrigin);
-    if (destination.kind === 'ignore') return true;
-    if (destination.kind === 'paywall') {
-      router.push('/paywall');
-      return false;
-    }
-    if (destination.kind === 'internal') {
-      setPath(destination.path);
-      if (navigateInternal) {
-        webView.current?.injectJavaScript(
-          `window.location.assign(${JSON.stringify(destination.url)}); true;`,
-        );
+  const openDestination = useCallback(
+    (rawUrl: string, navigateInternal: boolean) => {
+      const destination = classifyMobileWebUrl(rawUrl, apiOrigin);
+      if (destination.kind === 'ignore') return true;
+      if (destination.kind === 'paywall') {
+        router.push('/paywall');
+        return false;
       }
-      return true;
-    }
-    void Linking.openURL(destination.url);
-    return false;
-  }, [router]);
+      if (destination.kind === 'internal') {
+        setAdSectionVisible(true);
+        setPath(destination.path);
+        if (navigateInternal) {
+          webView.current?.injectJavaScript(
+            `window.location.assign(${JSON.stringify(destination.url)}); true;`,
+          );
+        }
+        return true;
+      }
+      void Linking.openURL(destination.url);
+      return false;
+    },
+    [router],
+  );
 
   useFocusEffect(
     React.useCallback(() => {
       if (Platform.OS !== 'android') return undefined;
-      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (!canGoBack) return false;
-        webView.current?.goBack();
-        return true;
-      });
+      const subscription = BackHandler.addEventListener(
+        'hardwareBackPress',
+        () => {
+          if (!canGoBack) return false;
+          webView.current?.goBack();
+          return true;
+        },
+      );
       return () => subscription.remove();
     }, [canGoBack]),
   );
@@ -112,7 +165,9 @@ export default function MobileWebAppScreen() {
   function syncNavigation(state: WebViewNavigation) {
     setCanGoBack(state.canGoBack);
     const destination = classifyMobileWebUrl(state.url, apiOrigin);
-    if (destination.kind === 'internal') setPath(destination.path);
+    if (destination.kind === 'internal') {
+      setPath(destination.path);
+    }
   }
 
   function receiveMessage(event: WebViewMessageEvent) {
@@ -124,6 +179,15 @@ export default function MobileWebAppScreen() {
         void updateToken(message.token);
       } else if (message.type === 'language') {
         void setLanguage(message.language);
+      } else if (message.type === 'ad-preferences') {
+        if (typeof message.soundMuted === 'boolean') {
+          void setSoundMuted(message.soundMuted);
+        }
+        if (typeof message.adsDisabled === 'boolean') {
+          void setAdsDisabled(message.adsDisabled);
+        }
+      } else if (message.type === 'page-scroll' && message.y > 12) {
+        setAdSectionVisible(false);
       } else if (message.type === 'open-url' && message.url) {
         openDestination(message.url, true);
       }
@@ -145,11 +209,16 @@ export default function MobileWebAppScreen() {
         },
       ]}
     >
-      {path === '/dashboard' ? <SponsoredLearningResourceCard /> : null}
+      {adSectionVisible && shouldShowSponsoredAd(path) ? (
+        <SponsoredLearningResourceCard key={path} />
+      ) : null}
       <WebView
         ref={webView}
         source={{ uri: `${apiOrigin}/dashboard` }}
-        originWhitelist={['https://casparel.com/*', 'https://www.casparel.com/*']}
+        originWhitelist={[
+          'https://casparel.com/*',
+          'https://www.casparel.com/*',
+        ]}
         injectedJavaScriptBeforeContentLoaded={sessionScript}
         javaScriptEnabled
         domStorageEnabled
@@ -157,6 +226,7 @@ export default function MobileWebAppScreen() {
         thirdPartyCookiesEnabled
         setSupportMultipleWindows={false}
         startInLoadingState
+        onLoadStart={() => setAdSectionVisible(true)}
         renderLoading={() => (
           <View
             style={[
