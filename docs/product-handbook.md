@@ -189,7 +189,7 @@ Every account-owned capacity, its current usage and its limit are returned by `G
 
 The canonical USD reference prices and quotas live in `@workspace/plan-economics`, imported by the API, web pricing page, mobile paywall, tests, and store-ID mapping. Annual prices are based on twelve full months of maximum usage and discount only 8–10%; no plan assumes two idle months.
 
-Self-serve monthly prices are Plus $9.99 and Pro $19.99. Annual prices are $107.99 and $215.99 respectively. Institutional is advertised at $2.50–$3.00 per seat/month, billed annually, with a 30-seat minimum and contact-for-quote pricing; it is never a store product.
+Self-serve monthly prices are Plus $9.99 and Pro $19.99. Annual prices are $109.99 and $214.99 respectively. Institutional is advertised at $2.50–$3.00 per seat/month, billed annually, with a 30-seat minimum and contact-for-quote pricing; it is never a store product.
 
 The full cost table, quota rationale, provider assumptions, migration policy, and exact Google Play/RevenueCat values are in [`docs/plan-economics.md`](plan-economics.md). CI rejects any quota or provider-price change that takes a monthly or annual plan below 70% worst-case gross margin.
 

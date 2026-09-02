@@ -6,8 +6,8 @@ This document is the operator-readable projection of the machine-tested values i
 
 | Plan | Monthly | Annual | Effective annual month | Annual discount | AI Discovery / 30d | Deep Research / 30d | Storage | Raw worst-case COGS | Stress COGS | Net monthly revenue | Worst-case gross profit | Monthly margin | Annual margin |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Plus | $9.99 | $107.99 | $9.00 | 9.92% | 15 | 3 | 1 GB | $1.1265 | $1.3518 | $8.3916 | $7.0398 | 83.89% | 82.12% |
-| Pro | $19.99 | $215.99 | $18.00 | 9.96% | 29 | 10 | 2 GB | $2.6477 | $3.1772 | $16.7916 | $13.6144 | 81.08% | 78.99% |
+| Plus | $9.99 | $109.99 | $9.17 | 8.25% | 15 | 3 | 1 GB | $1.1265 | $1.3518 | $8.3916 | $7.0398 | 83.89% | 82.44% |
+| Pro | $19.99 | $214.99 | $17.92 | 10.38% | 29 | 10 | 2 GB | $2.6477 | $3.1772 | $16.7916 | $13.6144 | 81.08% | 78.89% |
 | Institutional Starter | Quote | Quote | N/A | N/A | 250 shared | 55 shared | 10 GB shared | $17.3700 | $20.8440 | $72.7500 at range floor | $51.9060 | 71.35% | 71.35% at range floor |
 
 Free is deliberately subsidized but finite: 3 discovery searches, 1 deep report, and 100 MB per rolling 30 days, with a daily ceiling of one of each.
@@ -70,9 +70,9 @@ The RevenueCat dashboard is managed manually and is already configured. Applicat
 | Custom package | Product ID | Entitlement | Period | USD reference price |
 |---|---|---|---|---:|
 | `plus_monthly` | `casparel_plus_monthly` | `plus` | Monthly | $9.99 |
-| `plus_yearly` | `casparel_plus_yearly` | `plus` | Annual | $107.99 |
+| `plus_yearly` | `casparel_plus_yearly` | `plus` | Annual | $109.99 |
 | `pro_monthly` | `casparel_pro_monthly` | `pro` | Monthly | $19.99 |
-| `pro_yearly` | `casparel_pro_yearly` | `pro` | Annual | $215.99 |
+| `pro_yearly` | `casparel_pro_yearly` | `pro` | Annual | $214.99 |
 
 Institutional is not a store product. Advertise “Starting from $2.50–$3.00 per seat/month, billed annually,” require a 30-seat minimum, and direct schools to contact Casparel for a quote. Do not publish a fixed annual total or a fixed added-seat price. Growth and Enterprise contracts must explicitly state their larger shared search, deep-report, and storage add-ons before backend configuration; “custom” never means unlimited.
 
