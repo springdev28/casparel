@@ -102,22 +102,22 @@ describe("requireAuth admin promotion", () => {
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it("reconciles the review account to Institutional without making it admin", async () => {
-    mockUserRow = { ...mockUserRow, email: REVIEW_ACCOUNT };
+  it("removes the stale review-account Institutional shortcut without making it admin", async () => {
+    mockUserRow = { ...mockUserRow, email: REVIEW_ACCOUNT, plan: "institutional" };
     const res = await callWhoami();
     expect(res.status).toBe(200);
     expect(res.body.accountRole).toBe("student");
     expect(setMock).toHaveBeenCalledWith({
-      plan: "institutional",
+      plan: "free",
       planExpiresAt: null,
     });
   });
 
-  it("does not re-write the review account when Institutional is already active", async () => {
+  it("does not re-write the review account when it is already free", async () => {
     mockUserRow = {
       ...mockUserRow,
       email: REVIEW_ACCOUNT,
-      plan: "institutional",
+      plan: "free",
     };
     const res = await callWhoami();
     expect(res.status).toBe(200);

@@ -352,7 +352,7 @@ describe("isPremiumAccount", () => {
     await expect(isPremiumAccount(1)).resolves.toBe(false);
   });
 
-  it("keeps the exact Google Play reviewer on Institutional", async () => {
+  it("resolves the Google Play reviewer from its stored plan like every account", async () => {
     mockAccountRow({
       email: `  ${GOOGLE_PLAY_REVIEW_EMAIL.toUpperCase()}  `,
       plan: "free",
@@ -360,10 +360,10 @@ describe("isPremiumAccount", () => {
       role: "student",
     });
     await expect(getAccountEntitlements(1)).resolves.toMatchObject({
-      tier: "institutional",
-      label: "Institutional",
+      tier: "free",
+      label: "Free",
     });
-    await expect(isPremiumAccount(1)).resolves.toBe(true);
+    await expect(isPremiumAccount(1)).resolves.toBe(false);
   });
 });
 

@@ -76,6 +76,7 @@ import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import {
   isGooglePlayReviewAccount,
+  PLAN_FREE,
   PLAN_INSTITUTIONAL,
   resolveAccountPlan,
 } from "../lib/entitlements";
@@ -336,9 +337,6 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       passwordHash,
       name,
       role,
-      ...(isGooglePlayReviewAccount(email)
-        ? { plan: PLAN_INSTITUTIONAL, planExpiresAt: null }
-        : {}),
     })
     .returning(publicUserColumns);
   const token = issueToken(user.id, user.role, user.activeRole);
@@ -382,17 +380,14 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   let loggedInUser = user;
   const accountUpdates: {
     role?: "admin";
-    plan?: typeof PLAN_INSTITUTIONAL;
+    plan?: typeof PLAN_INSTITUTIONAL | typeof PLAN_FREE;
     planExpiresAt?: null;
   } = {};
   if (user.role !== "admin" && isAllowlistedAdminEmail(user.email)) {
     accountUpdates.role = "admin";
   }
-  if (
-    isGooglePlayReviewAccount(user.email) &&
-    (row.plan !== PLAN_INSTITUTIONAL || row.planExpiresAt !== null)
-  ) {
-    accountUpdates.plan = PLAN_INSTITUTIONAL;
+  if (isGooglePlayReviewAccount(user.email) && row.plan === PLAN_INSTITUTIONAL) {
+    accountUpdates.plan = PLAN_FREE;
     accountUpdates.planExpiresAt = null;
   }
   if (Object.keys(accountUpdates).length > 0) {

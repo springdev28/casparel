@@ -32,7 +32,7 @@ const outputs = [
   },
   {
     file: path.join(IMAGES, "adaptive-icon.png"),
-    markScale: 0.58,
+    markScale: 0.46,
     label: "Android adaptive foreground",
   },
   {

@@ -51,16 +51,23 @@ function RootLayoutNav() {
     // back, which would have made the new screen unreachable.
     const inAuthScreen = segments[0] === "login" || segments[0] === "register";
     const inOnboarding = segments[0] === "onboarding";
+    const inMobileApp = segments[0] === "mobile";
+    const inNativeModal = segments[0] === "paywall";
 
     if (!isAuthenticated) {
       if (!inAuthScreen) router.replace("/login");
       return;
     }
-    // Authenticated: show first-run onboarding once, then land on the tabs.
+    // Authenticated: show first-run onboarding once, then use the complete
+    // responsive web product as Android's single source of feature truth.
     if (needsOnboarding && !inOnboarding) {
       router.replace("/onboarding");
-    } else if (!needsOnboarding && (inAuthScreen || inOnboarding)) {
-      router.replace("/(tabs)");
+    } else if (
+      !needsOnboarding &&
+      !inMobileApp &&
+      !inNativeModal
+    ) {
+      router.replace("/mobile");
     }
   }, [isAuthenticated, isLoading, onboardingReady, needsOnboarding, segments, router]);
 
@@ -89,6 +96,7 @@ function RootLayoutNav() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="mobile" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />

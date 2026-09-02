@@ -224,7 +224,7 @@ describe("POST /api/auth/register", () => {
     expect(res.body.error).toMatch(/already in use/i);
   });
 
-  it("registers the review account on the Institutional plan", async () => {
+  it("registers the review account on the normal free plan", async () => {
     mockUserRow = {
       id: 4,
       email: "review@casparel.com",
@@ -245,9 +245,8 @@ describe("POST /api/auth/register", () => {
     expect(lastInserted).toMatchObject({
       email: "review@casparel.com",
       role: "student",
-      plan: "institutional",
-      planExpiresAt: null,
     });
+    expect(lastInserted).not.toHaveProperty("plan");
   });
 });
 

@@ -43,7 +43,7 @@ export function readSessionClaims(): SessionClaims | null {
     if (!Number.isSafeInteger(payload.userId) || Number(payload.userId) <= 0) {
       return null;
     }
-    if (typeof payload.exp === "number" && payload.exp <= Date.now()) {
+    if (typeof payload.exp === "number" && payload.exp * 1000 <= Date.now()) {
       return null;
     }
     const role = VALID_ROLES.has(String(payload.role))
@@ -106,6 +106,7 @@ export function clearSession(): void {
     // A storage failure must not stop the rest of the sign-out.
   }
   window.dispatchEvent(new Event(SESSION_EVENT));
+  notifyNativeShell({ type: "logout" });
 }
 
 /**
@@ -151,4 +152,18 @@ export function clearLocalAccountData(options?: {
 /** Announce a token that was just written (sign-in, token refresh). */
 export function notifySessionChanged(): void {
   window.dispatchEvent(new Event(SESSION_EVENT));
+  const token = readSessionToken();
+  if (token) notifyNativeShell({ type: "session", token });
+}
+
+function notifyNativeShell(message: { type: "logout" } | { type: "session"; token: string }): void {
+  try {
+    if (localStorage.getItem("casparel_native_shell") !== "true") return;
+    const bridge = (window as typeof window & {
+      ReactNativeWebView?: { postMessage: (value: string) => void };
+    }).ReactNativeWebView;
+    bridge?.postMessage(JSON.stringify(message));
+  } catch {
+    // A browser without the native bridge continues normally.
+  }
 }

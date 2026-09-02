@@ -9,6 +9,7 @@ import { decodeToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import {
   isGooglePlayReviewAccount,
+  PLAN_FREE,
   PLAN_INSTITUTIONAL,
 } from "../lib/entitlements";
 
@@ -83,18 +84,18 @@ async function resolveAuthenticatedUser(
   let accountRole = user.role;
   const accountUpdates: {
     role?: "admin";
-    plan?: typeof PLAN_INSTITUTIONAL;
+    plan?: typeof PLAN_INSTITUTIONAL | typeof PLAN_FREE;
     planExpiresAt?: null;
   } = {};
   if (accountRole !== "admin" && user.email && isAllowlistedAdminEmail(user.email)) {
     accountUpdates.role = "admin";
   }
-  if (
-    user.email &&
-    isGooglePlayReviewAccount(user.email) &&
-    (user.plan !== PLAN_INSTITUTIONAL || user.planExpiresAt !== null)
-  ) {
-    accountUpdates.plan = PLAN_INSTITUTIONAL;
+  // The review account must exercise the real Google Play purchase flow. An
+  // earlier shortcut provisioned Institutional access, which hid both store
+  // packages and the free-tier ad placement from the very account used to
+  // test them. Remove that stale built-in grant on its next request.
+  if (user.email && isGooglePlayReviewAccount(user.email) && user.plan === PLAN_INSTITUTIONAL) {
+    accountUpdates.plan = PLAN_FREE;
     accountUpdates.planExpiresAt = null;
   }
   if (Object.keys(accountUpdates).length > 0) {

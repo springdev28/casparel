@@ -295,15 +295,8 @@ export async function resolveAccountPlan(
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   const accountRole = row?.role ?? null;
-  // The Play review seat is provisioned directly rather than bought through
-  // Google Play. Keep the exact account on the highest finite subscription if
-  // a delayed RevenueCat event temporarily rewrites its stored plan.
-  const effectivePlan = isGooglePlayReviewAccount(row?.email)
-    ? PLAN_INSTITUTIONAL
-    : (row?.plan ?? null);
-  const effectiveExpiry = isGooglePlayReviewAccount(row?.email)
-    ? null
-    : (row?.expiresAt ?? null);
+  const effectivePlan = row?.plan ?? null;
+  const effectiveExpiry = row?.expiresAt ?? null;
   return {
     entitlements: entitlementsForPlan(
       effectivePlan,

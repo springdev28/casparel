@@ -29,7 +29,6 @@ import {
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useAuth } from '@/contexts/AuthContext';
-import { reviewerSubscriptionTier } from '@/utils/reviewer-entitlement';
 
 /**
  * How a purchase ended.
@@ -243,11 +242,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   }, [applyCustomerInfo]);
 
   const value = useMemo<PurchasesContextValue>(() => {
-    // Google Play's reviewer uses a deliberately provisioned Institutional
-    // seat, not a store purchase. The exact-account override is presentation
-    // only; the API applies and enforces the same exception independently.
-    const tier =
-      reviewerSubscriptionTier(user?.email) ?? subscriptionTier(customerInfo);
+    const tier = subscriptionTier(customerInfo);
     const level = tierLevel(tier);
     return {
       ready,
@@ -275,7 +270,6 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       purchase,
       restore,
       refresh,
-      user?.email,
     ],
   );
 

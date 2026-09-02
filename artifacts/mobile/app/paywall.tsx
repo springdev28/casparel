@@ -284,7 +284,7 @@ export default function PaywallScreen() {
 
       <ScrollView
         contentContainerStyle={{
-          paddingTop: insets.top + 56,
+          paddingTop: Math.max(insets.top, 28) + 64,
           paddingBottom: insets.bottom + 28,
           paddingHorizontal: 20,
         }}
@@ -310,6 +310,7 @@ export default function PaywallScreen() {
               <Feather name="award" size={30} color={colors.primaryForeground} />
             </View>
             <Text
+              maxFontSizeMultiplier={1.25}
               style={[
                 styles.title,
                 {
@@ -321,6 +322,7 @@ export default function PaywallScreen() {
               {t('Choose your Casparel plan')}
             </Text>
             <Text
+              maxFontSizeMultiplier={1.25}
               style={[
                 styles.subtitle,
                 {
