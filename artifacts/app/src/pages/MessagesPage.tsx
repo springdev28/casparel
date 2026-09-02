@@ -4,14 +4,14 @@
  */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useIntlLocale } from "@/lib/date-locale";
-import { useSearch } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useGetMe } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { Input } from "@workspace/edu-ds/components/ui/input";
 import { Badge } from "@workspace/edu-ds/components/ui/badge";
 import { Switch } from "@workspace/edu-ds/components/ui/switch";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
-import { Check, Loader2, MessageCircle, Send, ShieldCheck, X } from "lucide-react";
+import { Check, Loader2, MessageCircle, Plus, Send, ShieldCheck, X } from "lucide-react";
 import { useUpdateUserPreferences, useUserPreferences } from "../lib/user-preferences";
 import { useDocumentVisibility } from "../lib/use-document-visibility";
 
@@ -166,14 +166,22 @@ export default function MessagesPage() {
           because the visible text is what the translation bridge replaces; an
           aria-label would leave a Turkish reader hearing English.
         */}
-        <label className="flex items-center gap-2 border bg-card px-3 py-2 text-sm text-card-foreground" style={{ borderRadius: 8 }}>
-          <Switch
-            aria-labelledby="allow-message-requests-label"
-            checked={preferences.data?.allowMessageRequests ?? true}
-            onCheckedChange={(checked) => updatePreferences.mutate({ allowMessageRequests: checked })}
-          />
-          <span id="allow-message-requests-label">Allow requests from new people</span>
-        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm">
+            <Link href="/people">
+              <Plus className="mr-2 size-4" aria-hidden="true" />
+              New message
+            </Link>
+          </Button>
+          <label className="flex items-center gap-2 border bg-card px-3 py-2 text-sm text-card-foreground" style={{ borderRadius: 8 }}>
+            <Switch
+              aria-labelledby="allow-message-requests-label"
+              checked={preferences.data?.allowMessageRequests ?? true}
+              onCheckedChange={(checked) => updatePreferences.mutate({ allowMessageRequests: checked })}
+            />
+            <span id="allow-message-requests-label">Allow requests from new people</span>
+          </label>
+        </div>
       </header>
       <div className="grid min-h-0 flex-1 overflow-hidden border bg-card text-card-foreground md:grid-cols-[19rem_1fr]" style={{ borderRadius: 8 }}>
         <aside className={(active ? "hidden md:block " : "") + "overflow-y-auto border-r"}>

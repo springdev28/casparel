@@ -1451,6 +1451,7 @@ const TR: Record<string, string> = {
   "discussion": "tartışma",
   "Private conversations and message requests": "Özel sohbetler ve mesaj istekleri",
   "Allow requests from new people": "Yeni kişilerden gelen isteklere izin ver",
+  "New message": "Yeni mesaj",
   "Create, edit, and study your own term-and-answer sets.": "Kendi terim ve cevap setlerini oluştur, düzenle ve çalış.",
   "Find people": "Kişi bul",
   "Search people": "Kişileri ara",
