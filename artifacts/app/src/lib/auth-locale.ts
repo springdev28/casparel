@@ -160,6 +160,16 @@ export function useAuthLanguage() {
         detail: next,
       }),
     );
+    try {
+      if (localStorage.getItem("casparel_native_shell") === "true") {
+        const bridge = (window as typeof window & {
+          ReactNativeWebView?: { postMessage: (value: string) => void };
+        }).ReactNativeWebView;
+        bridge?.postMessage(JSON.stringify({ type: "language", language: next }));
+      }
+    } catch {
+      // The normal browser has no native bridge.
+    }
   }
 
   return { language, setLanguage, copy: AUTH_COPY[language] };

@@ -99,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await storage.setItemAsync(USER_KEY, JSON.stringify(updatedUser));
       setUser(updatedUser);
     }
+    if (newToken !== token) queryClient.clear();
     setToken(newToken);
   };
 

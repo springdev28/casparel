@@ -74,7 +74,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import ThemeCustomizer, { applyDefaultColors } from "./ThemeCustomizer";
 import { AuthLanguageSelect } from "./AuthLanguageSelect";
-import { readSessionClaims, clearSession } from "../lib/session";
+import {
+  readSessionClaims,
+  clearSession,
+  notifySessionChanged,
+} from "../lib/session";
 import { usePlan } from "@/lib/use-plan";
 import { useAuthLanguage } from "../lib/auth-locale";
 import {
@@ -566,6 +570,11 @@ export default function AppShell({ children }: AppShellProps) {
       });
       // Store the fresh token so subsequent requests carry the new role
       localStorage.setItem(TOKEN_KEY, result.token);
+      // The Android shell owns a second, secure copy of the token. Tell it
+      // about the replacement before reloading, otherwise its preload script
+      // restores the previous role token and silently undoes the switch.
+      notifySessionChanged();
+      queryClient.clear();
       // Reload the current URL so every role-dependent query and component starts fresh.
       window.location.reload();
     } catch {

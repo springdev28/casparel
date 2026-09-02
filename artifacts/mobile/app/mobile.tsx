@@ -4,7 +4,7 @@
  * Play billing, UMP/AdMob, and safe external-link handling while the website
  * remains the single complete implementation of every workspace.
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   BackHandler,
@@ -20,20 +20,15 @@ import type { WebViewMessageEvent } from 'react-native-webview';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { SponsoredLearningResourceCard } from '@/components/SponsoredLearningResourceCard';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { apiOrigin } from '@/utils/api-host';
+import { classifyMobileWebUrl } from '@/utils/mobile-web-navigation';
 
 type NativeMessage =
   | { type: 'session'; token: string }
-  | { type: 'logout' };
-
-function pathFromUrl(url: string): string {
-  if (!url.startsWith(apiOrigin)) return '';
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url.slice(apiOrigin.length).split('?')[0] || '/dashboard';
-  }
-}
+  | { type: 'logout' }
+  | { type: 'language'; language: 'en' | 'tr' }
+  | { type: 'open-url'; url: string };
 
 export default function MobileWebAppScreen() {
   const colors = useColors();
@@ -41,22 +36,66 @@ export default function MobileWebAppScreen() {
   const router = useRouter();
   const webView = useRef<WebView>(null);
   const { token, logout, updateToken } = useAuth();
+  const { language, setLanguage } = useLanguage();
   const [canGoBack, setCanGoBack] = useState(false);
   const [path, setPath] = useState('/dashboard');
 
   const sessionScript = useMemo(() => {
     const serializedToken = JSON.stringify(token ?? '');
+    const serializedLanguage = JSON.stringify(language);
     return `
       (function () {
         try {
           window.localStorage.setItem('schoolar_token', ${serializedToken});
+          window.localStorage.setItem('schoolar_language', ${serializedLanguage});
           window.localStorage.setItem('casparel_native_shell', 'true');
           window.dispatchEvent(new Event('schoolar-session-change'));
+          window.dispatchEvent(new CustomEvent('schoolar-language-change', { detail: ${serializedLanguage} }));
+          if (!window.__casparelNativeLinksInstalled) {
+            window.__casparelNativeLinksInstalled = true;
+            var sendUrl = function (url) {
+              if (!url) return;
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'open-url', url: String(url) }));
+            };
+            window.open = function (url) { sendUrl(url); return null; };
+            document.addEventListener('click', function (event) {
+              var element = event.target;
+              var anchor = element && element.closest ? element.closest('a[target="_blank"]') : null;
+              if (!anchor || !anchor.href) return;
+              event.preventDefault();
+              event.stopPropagation();
+              sendUrl(anchor.href);
+            }, true);
+          }
         } catch (_) {}
       })();
       true;
     `;
-  }, [token]);
+  }, [language, token]);
+
+  useEffect(() => {
+    webView.current?.injectJavaScript(sessionScript);
+  }, [sessionScript]);
+
+  const openDestination = useCallback((rawUrl: string, navigateInternal: boolean) => {
+    const destination = classifyMobileWebUrl(rawUrl, apiOrigin);
+    if (destination.kind === 'ignore') return true;
+    if (destination.kind === 'paywall') {
+      router.push('/paywall');
+      return false;
+    }
+    if (destination.kind === 'internal') {
+      setPath(destination.path);
+      if (navigateInternal) {
+        webView.current?.injectJavaScript(
+          `window.location.assign(${JSON.stringify(destination.url)}); true;`,
+        );
+      }
+      return true;
+    }
+    void Linking.openURL(destination.url);
+    return false;
+  }, [router]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -72,8 +111,8 @@ export default function MobileWebAppScreen() {
 
   function syncNavigation(state: WebViewNavigation) {
     setCanGoBack(state.canGoBack);
-    const nextPath = pathFromUrl(state.url);
-    if (nextPath) setPath(nextPath);
+    const destination = classifyMobileWebUrl(state.url, apiOrigin);
+    if (destination.kind === 'internal') setPath(destination.path);
   }
 
   function receiveMessage(event: WebViewMessageEvent) {
@@ -83,6 +122,10 @@ export default function MobileWebAppScreen() {
         void logout();
       } else if (message.type === 'session' && message.token) {
         void updateToken(message.token);
+      } else if (message.type === 'language') {
+        void setLanguage(message.language);
+      } else if (message.type === 'open-url' && message.url) {
+        openDestination(message.url, true);
       }
     } catch {
       // Ignore non-Casparel messages from page scripts.
@@ -106,7 +149,7 @@ export default function MobileWebAppScreen() {
       <WebView
         ref={webView}
         source={{ uri: `${apiOrigin}/dashboard` }}
-        originWhitelist={[`${apiOrigin}/*`]}
+        originWhitelist={['https://casparel.com/*', 'https://www.casparel.com/*']}
         injectedJavaScriptBeforeContentLoaded={sessionScript}
         javaScriptEnabled
         domStorageEnabled
@@ -128,17 +171,7 @@ export default function MobileWebAppScreen() {
         onNavigationStateChange={syncNavigation}
         onMessage={receiveMessage}
         onShouldStartLoadWithRequest={(request) => {
-          if (request.url === 'about:blank') return true;
-          if (request.url.startsWith(apiOrigin)) {
-            const destination = pathFromUrl(request.url);
-            if (destination === '/plans') {
-              router.push('/paywall');
-              return false;
-            }
-            return true;
-          }
-          void Linking.openURL(request.url);
-          return false;
+          return openDestination(request.url, false);
         }}
       />
     </View>
