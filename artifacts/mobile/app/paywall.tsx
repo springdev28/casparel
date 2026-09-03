@@ -31,6 +31,7 @@ import {
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { FadeInView } from '@/components/FadeInView';
 import {
   PLAN_CATALOG,
@@ -126,6 +127,7 @@ export default function PaywallScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const {
     ready,
     available,
@@ -144,8 +146,18 @@ export default function PaywallScreen() {
       : serverTier === 'plus' || revenueCatTier === 'plus'
         ? 'plus'
         : 'free';
-  const isPro = tier === 'pro' || tier === 'institutional';
-  const upgradePackages = upgradePackagesForTier(packages, tier);
+  // The dedicated store-review account must be able to exercise Google's real
+  // purchase sheet even when the backend grants it broad feature access for
+  // the rest of the review. Never expose this exception to ordinary paid
+  // accounts, where buying Plus would be a misleading downgrade.
+  const isStoreReviewAccount =
+    user?.email?.trim().toLowerCase() === 'review@casparel.com';
+  const isPro = !isStoreReviewAccount &&
+    (tier === 'pro' || tier === 'institutional');
+  const upgradePackages = upgradePackagesForTier(
+    packages,
+    isStoreReviewAccount ? 'free' : tier,
+  );
 
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
