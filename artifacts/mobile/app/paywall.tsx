@@ -24,14 +24,13 @@ import { useGetMyUsage } from '@workspace/api-client-react';
 import { usePurchases } from '@/contexts/PurchasesContext';
 import {
   packageDefinition,
+  packagesForRole,
   purchasesSupported,
   tierForPackage,
   TIER_TITLES,
-  upgradePackagesForTier,
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { FadeInView } from '@/components/FadeInView';
 import {
   PLAN_CATALOG,
@@ -127,13 +126,13 @@ export default function PaywallScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useAuth();
   const {
     ready,
     available,
     availabilityIssue,
     tier: revenueCatTier,
     packages,
+    customerInfo,
     purchase,
     restore,
   } = usePurchases();
@@ -146,29 +145,25 @@ export default function PaywallScreen() {
       : serverTier === 'plus' || revenueCatTier === 'plus'
         ? 'plus'
         : 'free';
-  // The dedicated store-review account must be able to exercise Google's real
-  // purchase sheet even when the backend grants it broad feature access for
-  // the rest of the review. Never expose this exception to ordinary paid
-  // accounts, where buying Plus would be a misleading downgrade.
-  const isStoreReviewAccount =
-    user?.email?.trim().toLowerCase() === 'review@casparel.com';
-  const isPro = !isStoreReviewAccount &&
-    (tier === 'pro' || tier === 'institutional');
-  const upgradePackages = upgradePackagesForTier(
-    packages,
-    isStoreReviewAccount ? 'free' : tier,
-  );
+  // A plans screen is also where an existing subscriber changes billing
+  // period or tier. Never hide the catalog merely because an entitlement is
+  // active. Google Play owns the replacement/cancellation lifecycle.
+  const planPackages = packagesForRole(packages, null);
+  const activeProductIds = new Set(customerInfo?.activeSubscriptions ?? []);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // Default the selection to the annual package when offerings arrive, else the first.
   useEffect(() => {
-    if (selected && upgradePackages.some((pkg) => pkg.identifier === selected)) return;
-    const plusYearly = upgradePackages.find((pkg) => pkg.identifier === 'plus_yearly');
-    const yearly = upgradePackages.find((pkg) => packageDefinition(pkg)?.period === 'yearly');
-    setSelected((plusYearly ?? yearly ?? upgradePackages[0])?.identifier ?? null);
-  }, [upgradePackages, selected]);
+    if (selected && planPackages.some((pkg) => pkg.identifier === selected)) return;
+    const notCurrent = planPackages.filter(
+      (pkg) => !activeProductIds.has(pkg.product.identifier),
+    );
+    const plusYearly = notCurrent.find((pkg) => pkg.identifier === 'plus_yearly');
+    const yearly = notCurrent.find((pkg) => packageDefinition(pkg)?.period === 'yearly');
+    setSelected((plusYearly ?? yearly ?? notCurrent[0] ?? planPackages[0])?.identifier ?? null);
+  }, [customerInfo, planPackages, selected]);
 
   function close() {
     if (router.canGoBack()) router.back();
@@ -194,7 +189,7 @@ export default function PaywallScreen() {
   }
 
   async function handlePurchase() {
-    const pkg = upgradePackages.find((p) => p.identifier === selected);
+    const pkg = planPackages.find((p) => p.identifier === selected);
     if (!pkg) return;
     setBusy(true);
     const result = await purchase(pkg);
@@ -392,11 +387,11 @@ export default function PaywallScreen() {
           </View>
         ) : null}
 
-        {isPro ? null : !ready ? (
+        {!ready ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.primary} />
           </View>
-        ) : !available || upgradePackages.length === 0 ? (
+        ) : !available || planPackages.length === 0 ? (
           <View style={[styles.notice, { borderColor: colors.border, borderRadius: colors.radius }]}>
             <Text
               style={[
@@ -422,11 +417,12 @@ export default function PaywallScreen() {
           <>
             {/* Package options */}
             <FadeInView delay={200} duration={450} style={{ gap: 10, marginTop: 18 }}>
-              {upgradePackages.map((pkg) => (
+              {planPackages.map((pkg) => (
                 <PackageOption
                   key={pkg.identifier}
                   pkg={pkg}
                   badge={badgeFor(pkg)}
+                  current={activeProductIds.has(pkg.product.identifier)}
                   selected={pkg.identifier === selected}
                   onSelect={() => setSelected(pkg.identifier)}
                 />
@@ -443,6 +439,27 @@ export default function PaywallScreen() {
             </FadeInView>
           </>
         )}
+
+        {customerInfo?.managementURL ? (
+          <Pressable
+            onPress={() => void Linking.openURL(customerInfo.managementURL!)}
+            accessibilityRole="link"
+            accessibilityLabel={t('Manage or cancel subscription')}
+            style={styles.manage}
+          >
+            <Text
+              style={[
+                styles.restoreText,
+                {
+                  color: colors.primary,
+                  fontFamily: colors.fontFamily.sansMedium,
+                },
+              ]}
+            >
+              {t('Manage or cancel subscription')}
+            </Text>
+          </Pressable>
+        ) : null}
 
         {/*
           Restore sits OUTSIDE the branches above. It used to render only where
@@ -517,11 +534,13 @@ function PackageOption({
   selected,
   onSelect,
   badge,
+  current,
 }: {
   pkg: RCPackage;
   selected: boolean;
   onSelect: () => void;
   badge?: string | null;
+  current: boolean;
 }) {
   const { t } = useLanguage();
   const colors = useColors();
@@ -545,7 +564,7 @@ function PackageOption({
         },
       ]}
     >
-      {badge ? (
+      {current || badge ? (
         <View style={[styles.pkgBadge, { backgroundColor: colors.accent, borderRadius: colors.radius }]}>
           <Text
             style={[
@@ -556,7 +575,7 @@ function PackageOption({
               },
             ]}
           >
-            {badge}
+            {current ? t('Current plan') : badge}
           </Text>
         </View>
       ) : null}
@@ -687,6 +706,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   restore: { alignItems: 'center', paddingVertical: 14 },
+  manage: { alignItems: 'center', paddingVertical: 14 },
   restoreText: { fontSize: 14 },
   legal: { fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 18 },
   link: { textDecorationLine: 'underline' },
