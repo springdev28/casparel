@@ -55,6 +55,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { LANGUAGES } from '@/lib/i18n';
 import { storage } from '@/utils/secure-storage';
 import { useAds } from '@/contexts/AdsContext';
+import { apiOrigin } from '@/utils/api-host';
 
 const SUBJECT_SUGGESTIONS = [
   'Mathematics', 'Science', 'English', 'History',
@@ -948,7 +949,7 @@ export default function ProfileScreen() {
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderRadius: colors.radius }]}>
         <TouchableOpacity
           style={[styles.row, privacyOptionsRequired && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-          onPress={() => void Linking.openURL('https://casparel.com/privacy')}
+          onPress={() => void Linking.openURL(`${apiOrigin}/privacy`)}
           activeOpacity={0.7}
           accessibilityRole="link"
         >

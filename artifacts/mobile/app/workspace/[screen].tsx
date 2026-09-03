@@ -27,7 +27,7 @@ export default function WorkspaceScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('Go back')}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/more'))}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/mobile'))}
           style={styles.back}
         >
           <Feather name="chevron-left" size={24} color={colors.foreground} />

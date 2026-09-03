@@ -216,8 +216,10 @@ export default function MobileWebAppScreen() {
         ref={webView}
         source={{ uri: `${apiOrigin}${routeParams.path?.startsWith('/') ? routeParams.path : '/dashboard'}` }}
         originWhitelist={[
-          'https://casparel.com/*',
-          'https://www.casparel.com/*',
+          // Derived from the configured origin, not hardcoded, so a staging
+          // build pointed at another host still renders its own workspace.
+          `${apiOrigin}/*`,
+          `${apiOrigin.replace('://', '://www.')}/*`,
         ]}
         injectedJavaScriptBeforeContentLoaded={sessionScript}
         javaScriptEnabled

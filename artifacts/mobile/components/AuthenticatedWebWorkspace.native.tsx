@@ -2,7 +2,7 @@
  * @fileOverview Mobile bridge role: opens full Casparel web workspaces inside the signed-in native app.
  * System connection: injects the native session into Casparel's own origin and routes billing back to the native paywall.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
@@ -10,6 +10,7 @@ import { Feather } from '@expo/vector-icons';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiOrigin } from '@/utils/api-host';
+import { classifyMobileWebUrl } from '@/utils/mobile-web-navigation';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 export function AuthenticatedWebWorkspace({ path }: { path: string }) {
@@ -17,6 +18,7 @@ export function AuthenticatedWebWorkspace({ path }: { path: string }) {
   const colors = useColors();
   const router = useRouter();
   const { token } = useAuth();
+  const webView = useRef<WebView>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,6 +74,7 @@ export function AuthenticatedWebWorkspace({ path }: { path: string }) {
 
   return (
     <WebView
+      ref={webView}
       key={reloadKey}
       source={{ uri: `${apiOrigin}${path}` }}
       originWhitelist={[`${apiOrigin}/*`]}
@@ -88,17 +91,29 @@ export function AuthenticatedWebWorkspace({ path }: { path: string }) {
         </View>
       )}
       onShouldStartLoadWithRequest={(request) => {
-        const url = request.url;
-        if (url === 'about:blank') return true;
-        if (url.startsWith(apiOrigin)) {
-          const destination = url.slice(apiOrigin.length);
-          if (destination === '/plans' || destination.startsWith('/plans?')) {
-            router.push('/paywall');
+        // One classifier for every WebView: /plans opens the native paywall,
+        // the public marketing home page is rewritten to /dashboard so an
+        // authenticated session can never fall out onto it, same-origin
+        // workspaces stay inside, and only genuine externals leave the app.
+        const destination = classifyMobileWebUrl(request.url, apiOrigin);
+        if (destination.kind === 'ignore') return true;
+        if (destination.kind === 'paywall') {
+          router.push('/paywall');
+          return false;
+        }
+        if (destination.kind === 'internal') {
+          if (destination.url !== new URL(request.url, apiOrigin).toString()) {
+            // The rewritten address (e.g. "/" -> "/dashboard") replaces the
+            // requested one, so an authenticated workspace never lands on the
+            // public marketing home page.
+            webView.current?.injectJavaScript(
+              `window.location.replace(${JSON.stringify(destination.url)}); true;`,
+            );
             return false;
           }
           return true;
         }
-        void Linking.openURL(url);
+        void Linking.openURL(destination.url);
         return false;
       }}
       onError={(event) => {
