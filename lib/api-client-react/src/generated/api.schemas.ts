@@ -193,6 +193,17 @@ export interface PendingCheckIn {
   prompt: string;
 }
 
+export interface NotificationPreferences {
+  enabled: boolean;
+  messages: boolean;
+  classes: boolean;
+  activities: boolean;
+  goals: boolean;
+  schedule: boolean;
+  account: boolean;
+  announcements: boolean;
+}
+
 /**
  * Null when the account has never chosen. A client falls back to the device's language then, not to English.
  * @nullable
@@ -259,6 +270,7 @@ export interface UserPreferences {
   /** @nullable */
   resourceSearchState: UserPreferencesResourceSearchState;
   allowMessageRequests: boolean;
+  notificationPreferences: NotificationPreferences;
   tutorialSeen: boolean;
   updatedAt: string;
 }
@@ -317,6 +329,7 @@ export interface UserPreferencesPatch {
   /** @nullable */
   resourceSearchState?: UserPreferencesPatchResourceSearchState;
   allowMessageRequests?: boolean;
+  notificationPreferences?: NotificationPreferences;
   tutorialSeen?: boolean;
 }
 
@@ -2924,5 +2937,19 @@ export type GetMyAccess200 = {
   bannedReason: string | null;
   /** Where to appeal. */
   adminContact: string;
+};
+
+export type RegisterPushTokenBodyPlatform = typeof RegisterPushTokenBodyPlatform[keyof typeof RegisterPushTokenBodyPlatform];
+
+
+export const RegisterPushTokenBodyPlatform = {
+  android: 'android',
+  ios: 'ios',
+} as const;
+
+export type RegisterPushTokenBody = {
+  /** @maxLength 256 */
+  token: string;
+  platform: RegisterPushTokenBodyPlatform;
 };
 

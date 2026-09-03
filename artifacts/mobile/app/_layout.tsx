@@ -20,6 +20,7 @@ import { OnboardingProvider, useOnboarding } from "@/contexts/OnboardingContext"
 import { LanguageProvider, useLanguage } from "@/contexts/LanguageContext";
 import { MotionProvider } from "@/contexts/MotionContext";
 import { AdsProvider } from "@/contexts/AdsContext";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
 
 // Module-level setup, runs before any component renders
 setBaseUrl(apiOrigin);
@@ -186,9 +187,11 @@ export default function RootLayout() {
                       {/* Android replaces this provider with the UMP/AdMob
                           implementation. Other platforms use its inert twin,
                           so the navigation tree stays platform-independent. */}
-                      <AdsProvider>
-                        <RootLayoutNav />
-                      </AdsProvider>
+                      <NotificationsProvider>
+                        <AdsProvider>
+                          <RootLayoutNav />
+                        </AdsProvider>
+                      </NotificationsProvider>
                     </PurchasesProvider>
                   </OnboardingProvider>
                 </LanguageProvider>

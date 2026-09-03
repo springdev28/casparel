@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { InterfaceColors } from './interfaceColors';
+import type { NotificationPreferences } from './notificationPreferences';
 import type { SearchHistoryEntry } from './searchHistoryEntry';
 import type { UserPreferencesAmbientStyle } from './userPreferencesAmbientStyle';
 import type { UserPreferencesContinueStudying } from './userPreferencesContinueStudying';
@@ -41,6 +42,7 @@ export interface UserPreferences {
   /** @nullable */
   resourceSearchState: UserPreferencesResourceSearchState;
   allowMessageRequests: boolean;
+  notificationPreferences: NotificationPreferences;
   tutorialSeen: boolean;
   updatedAt: Date;
 }

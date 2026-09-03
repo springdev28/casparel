@@ -25,6 +25,28 @@ export type SearchHistoryPreference = {
   searchedAt: string;
 };
 
+export type NotificationPreferences = {
+  enabled: boolean;
+  messages: boolean;
+  classes: boolean;
+  activities: boolean;
+  goals: boolean;
+  schedule: boolean;
+  account: boolean;
+  announcements: boolean;
+};
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  enabled: true,
+  messages: true,
+  classes: true,
+  activities: true,
+  goals: true,
+  schedule: true,
+  account: true,
+  announcements: true,
+};
+
 export const userPreferencesTable = pgTable("user_preferences", {
   userId: integer("user_id")
     .primaryKey()
@@ -59,6 +81,10 @@ export const userPreferencesTable = pgTable("user_preferences", {
   allowMessageRequests: boolean("allow_message_requests")
     .notNull()
     .default(true),
+  notificationPreferences: jsonb("notification_preferences")
+    .$type<NotificationPreferences>()
+    .notNull()
+    .default(DEFAULT_NOTIFICATION_PREFERENCES),
   tutorialSeen: boolean("tutorial_seen").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()

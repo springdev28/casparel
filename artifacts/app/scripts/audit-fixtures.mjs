@@ -159,6 +159,16 @@ const PREFERENCES = {
   searchHistory: [],
   resourceSearchState: null,
   allowMessageRequests: true,
+  notificationPreferences: {
+    enabled: true,
+    messages: true,
+    classes: true,
+    activities: true,
+    goals: true,
+    schedule: true,
+    account: true,
+    announcements: true,
+  },
   tutorialSeen: true,
   updatedAt: "2026-08-01T09:00:00.000Z",
 };

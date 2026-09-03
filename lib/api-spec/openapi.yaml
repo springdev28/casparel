@@ -3199,6 +3199,33 @@ paths:
         "401": { description: Not authenticated }
         "413": { description: Preferences payload is too large }
 
+  /users/me/push-token:
+    post:
+      operationId: registerPushToken
+      tags: [auth]
+      summary: Register this signed-in mobile installation for push notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, platform]
+              properties:
+                token: { type: string, maxLength: 256 }
+                platform: { type: string, enum: [android, ios] }
+      responses:
+        "204": { description: Registered }
+        "400": { description: Invalid Expo push token }
+        "401": { description: Not authenticated }
+    delete:
+      operationId: unregisterPushTokens
+      tags: [auth]
+      summary: Disable push delivery to every installation for this account
+      responses:
+        "204": { description: Removed }
+        "401": { description: Not authenticated }
+
 components:
   schemas:
     SupportRequestInput:
@@ -3356,6 +3383,20 @@ components:
         concept: { type: string, maxLength: 300 }
         prompt: { type: string, maxLength: 600 }
 
+    NotificationPreferences:
+      type: object
+      additionalProperties: false
+      required: [enabled, messages, classes, activities, goals, schedule, account, announcements]
+      properties:
+        enabled: { type: boolean }
+        messages: { type: boolean }
+        classes: { type: boolean }
+        activities: { type: boolean }
+        goals: { type: boolean }
+        schedule: { type: boolean }
+        account: { type: boolean }
+        announcements: { type: boolean }
+
     UserPreferences:
       type: object
       description: >-
@@ -3380,6 +3421,7 @@ components:
           searchHistory,
           resourceSearchState,
           allowMessageRequests,
+          notificationPreferences,
           tutorialSeen,
           updatedAt,
         ]
@@ -3422,6 +3464,8 @@ components:
           type: ["object", "null"]
           additionalProperties: true
         allowMessageRequests: { type: boolean }
+        notificationPreferences:
+          $ref: "#/components/schemas/NotificationPreferences"
         tutorialSeen: { type: boolean }
         updatedAt: { type: string, format: date-time }
 
@@ -3465,6 +3509,8 @@ components:
           type: ["object", "null"]
           additionalProperties: true
         allowMessageRequests: { type: boolean }
+        notificationPreferences:
+          $ref: "#/components/schemas/NotificationPreferences"
         tutorialSeen: { type: boolean }
 
     ConversationParticipant:

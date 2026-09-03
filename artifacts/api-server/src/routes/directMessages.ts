@@ -26,6 +26,7 @@ import {
 } from "../middlewares/requireAuth";
 import { throughAi } from "../lib/aiHealth";
 import { contentLimiter } from "../lib/limiters";
+import { sendPushNotification } from "../lib/pushNotifications";
 
 const router: IRouter = Router();
 const createConversationBody = z.object({
@@ -286,6 +287,13 @@ router.post(
     }).returning();
     await db.update(directConversationsTable).set({ updatedAt: new Date().toISOString() })
       .where(eq(directConversationsTable.id, conversation.id));
+    void sendPushNotification(
+      otherId,
+      "messages",
+      "New Casparel message",
+      parsed.data.body.slice(0, 180),
+      `/messages/${conversation.id}`,
+    ).catch(() => undefined);
     res.status(201).json(message);
   },
 );

@@ -11,6 +11,7 @@ import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import {
   BookOpen,
   Ban,
+  Bell,
   ChevronRight,
   Compass,
   Languages,
@@ -65,6 +66,12 @@ function sendNativeAdPreference(preference: {
   );
 }
 
+type NotificationKey = "enabled" | "messages" | "classes" | "activities" | "goals" | "schedule" | "account" | "announcements";
+const DEFAULT_NOTIFICATIONS = {
+  enabled: true, messages: true, classes: true, activities: true,
+  goals: true, schedule: true, account: true, announcements: true,
+};
+
 export default function SettingsPage() {
   const { data: me } = useGetMe();
   const { language, setLanguage, copy } = useAuthLanguage();
@@ -108,6 +115,17 @@ export default function SettingsPage() {
         variant: "destructive",
       });
     }
+  }
+
+  async function changeNotification(key: NotificationKey, checked: boolean) {
+    const notificationPreferences = {
+      ...DEFAULT_NOTIFICATIONS,
+      ...preferences.data?.notificationPreferences,
+      [key]: checked,
+    };
+    await updatePreferences.mutateAsync({ notificationPreferences });
+    const bridge = (window as Window & { ReactNativeWebView?: { postMessage: (message: string) => void } }).ReactNativeWebView;
+    bridge?.postMessage(JSON.stringify({ type: "notification-preferences", preferences: notificationPreferences }));
   }
 
   return (
@@ -197,6 +215,43 @@ export default function SettingsPage() {
               />
             </section>
           </>
+        ) : null}
+
+        {nativeAds.isNativeShell ? (
+          <section className="border-b p-4 sm:p-5">
+            <div className="mb-4 flex min-w-0 gap-3">
+              <Bell className="mt-0.5 size-5 shrink-0 text-primary-text" />
+              <div>
+                <h2 className="font-semibold">Notifications</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Choose which Android notifications Casparel may send.</p>
+              </div>
+            </div>
+            <div className="space-y-3 pl-8">
+              {([
+                ["enabled", "Allow notifications"],
+                ["messages", "Messages"],
+                ["classes", "Class invitations and updates"],
+                ["activities", "Activities and deadlines"],
+                ["goals", "Goals and study reminders"],
+                ["schedule", "Schedule reminders"],
+                ["account", "Account, subscription and payment updates"],
+                ["announcements", "Casparel announcements"],
+              ] as const).map(([key, label]) => {
+                const values = { ...DEFAULT_NOTIFICATIONS, ...preferences.data?.notificationPreferences };
+                return (
+                  <div key={key} className="flex items-center justify-between gap-4">
+                    <span className="text-sm">{label}</span>
+                    <Switch
+                      checked={values[key]}
+                      disabled={preferences.isLoading || updatePreferences.isPending || (key !== "enabled" && !values.enabled)}
+                      onCheckedChange={(checked) => void changeNotification(key, checked)}
+                      aria-label={label}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
 
         <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">

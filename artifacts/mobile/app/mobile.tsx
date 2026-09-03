@@ -19,7 +19,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import type { WebViewMessageEvent } from 'react-native-webview';
@@ -31,18 +31,22 @@ import { useAds } from '@/contexts/AdsContext';
 import { apiOrigin } from '@/utils/api-host';
 import { shouldShowSponsoredAd } from '@/utils/ad-placement';
 import { classifyMobileWebUrl } from '@/utils/mobile-web-navigation';
+import { useNotifications, type NotificationPreferences } from '@/contexts/NotificationsContext';
 
 type NativeMessage =
   | { type: 'session'; token: string }
   | { type: 'logout' }
   | { type: 'language'; language: 'en' | 'tr' }
   | { type: 'ad-preferences'; soundMuted?: boolean; adsDisabled?: boolean }
+  | { type: 'notification-preferences'; preferences: NotificationPreferences }
   | { type: 'open-url'; url: string };
 
 export default function MobileWebAppScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const routeParams = useLocalSearchParams<{ path?: string }>();
+  const { sync: syncNotifications } = useNotifications();
   const webView = useRef<WebView>(null);
   const { token, logout, updateToken } = useAuth();
   const { language, setLanguage } = useLanguage();
@@ -168,6 +172,8 @@ export default function MobileWebAppScreen() {
         if (typeof message.adsDisabled === 'boolean') {
           void setAdsDisabled(message.adsDisabled);
         }
+      } else if (message.type === 'notification-preferences') {
+        void syncNotifications(message.preferences);
       } else if (message.type === 'open-url' && message.url) {
         openDestination(message.url, true);
       }
@@ -194,7 +200,7 @@ export default function MobileWebAppScreen() {
       ) : null}
       <WebView
         ref={webView}
-        source={{ uri: `${apiOrigin}/dashboard` }}
+        source={{ uri: `${apiOrigin}${routeParams.path?.startsWith('/') ? routeParams.path : '/dashboard'}` }}
         originWhitelist={[
           'https://casparel.com/*',
           'https://www.casparel.com/*',

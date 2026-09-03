@@ -41,6 +41,7 @@ import {
   forumMaterialApprovalsTable,
   forumReportsTable,
   goalPathTemplatesTable,
+  pushDeviceTokensTable,
 } from "@workspace/db";
 import {
   RegisterBody,
@@ -242,6 +243,18 @@ const userPreferencesPatch = z
       .nullable()
       .optional(),
     allowMessageRequests: z.boolean().optional(),
+    notificationPreferences: z
+      .object({
+        enabled: z.boolean(),
+        messages: z.boolean(),
+        classes: z.boolean(),
+        activities: z.boolean(),
+        goals: z.boolean(),
+        schedule: z.boolean(),
+        account: z.boolean(),
+        announcements: z.boolean(),
+      })
+      .optional(),
     tutorialSeen: z.boolean().optional(),
   })
   .strict();
@@ -260,6 +273,16 @@ function defaultUserPreferences(userId: number) {
     searchHistory: [] as Array<{ query: string; searchedAt: string }>,
     resourceSearchState: null as Record<string, unknown> | null,
     allowMessageRequests: true,
+    notificationPreferences: {
+      enabled: true,
+      messages: true,
+      classes: true,
+      activities: true,
+      goals: true,
+      schedule: true,
+      account: true,
+      announcements: true,
+    },
     tutorialSeen: true,
     updatedAt: new Date(0).toISOString(),
   };
@@ -302,6 +325,41 @@ router.patch(
       })
       .returning();
     res.json(preferences);
+  },
+);
+
+router.post(
+  "/users/me/push-token",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const parsed = z.object({
+      token: z.string().regex(/^Expo(?:nent)?PushToken\[[^\]]+\]$/).max(256),
+      platform: z.enum(["android", "ios"]),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: validationMessage(parsed.error) });
+      return;
+    }
+    await db
+      .insert(pushDeviceTokensTable)
+      .values({ userId, ...parsed.data, updatedAt: new Date().toISOString() })
+      .onConflictDoUpdate({
+        target: pushDeviceTokensTable.token,
+        set: { userId, platform: parsed.data.platform, updatedAt: new Date().toISOString() },
+      });
+    res.status(204).send();
+  },
+);
+
+router.delete(
+  "/users/me/push-token",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    await db.delete(pushDeviceTokensTable).where(eq(pushDeviceTokensTable.userId, userId));
+    res.status(204).send();
   },
 );
 

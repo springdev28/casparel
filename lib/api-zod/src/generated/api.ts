@@ -3887,6 +3887,16 @@ export const GetMyPreferencesResponse = zod.object({
 })),
   "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullable(),
   "allowMessageRequests": zod.boolean(),
+  "notificationPreferences": zod.object({
+  "enabled": zod.boolean(),
+  "messages": zod.boolean(),
+  "classes": zod.boolean(),
+  "activities": zod.boolean(),
+  "goals": zod.boolean(),
+  "schedule": zod.boolean(),
+  "account": zod.boolean(),
+  "announcements": zod.boolean()
+}),
   "tutorialSeen": zod.boolean(),
   "updatedAt": zod.coerce.date()
 }).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')
@@ -3941,6 +3951,16 @@ export const UpdateMyPreferencesBody = zod.object({
 })).max(updateMyPreferencesBodySearchHistoryMax).optional(),
   "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullish(),
   "allowMessageRequests": zod.boolean().optional(),
+  "notificationPreferences": zod.object({
+  "enabled": zod.boolean(),
+  "messages": zod.boolean(),
+  "classes": zod.boolean(),
+  "activities": zod.boolean(),
+  "goals": zod.boolean(),
+  "schedule": zod.boolean(),
+  "account": zod.boolean(),
+  "announcements": zod.boolean()
+}).optional(),
   "tutorialSeen": zod.boolean().optional()
 }).describe('Only the keys present are changed.')
 
@@ -3984,8 +4004,39 @@ export const UpdateMyPreferencesResponse = zod.object({
 })),
   "resourceSearchState": zod.record(zod.string(), zod.unknown()).nullable(),
   "allowMessageRequests": zod.boolean(),
+  "notificationPreferences": zod.object({
+  "enabled": zod.boolean(),
+  "messages": zod.boolean(),
+  "classes": zod.boolean(),
+  "activities": zod.boolean(),
+  "goals": zod.boolean(),
+  "schedule": zod.boolean(),
+  "account": zod.boolean(),
+  "announcements": zod.boolean()
+}),
   "tutorialSeen": zod.boolean(),
   "updatedAt": zod.coerce.date()
 }).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')
+
+
+/**
+ * @summary Register this signed-in mobile installation for push notifications
+ */
+export const registerPushTokenBodyTokenMax = 256;
+
+
+
+export const RegisterPushTokenBody = zod.object({
+  "token": zod.string().max(registerPushTokenBodyTokenMax),
+  "platform": zod.enum(['android', 'ios'])
+})
+
+export const RegisterPushTokenResponse = zod.void()
+
+
+/**
+ * @summary Disable push delivery to every installation for this account
+ */
+export const UnregisterPushTokensResponse = zod.void()
 
 
