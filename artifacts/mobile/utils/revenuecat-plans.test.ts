@@ -33,10 +33,10 @@ describe('RevenueCat plan mapping', () => {
   });
 
   it.each([
-    ['plus_monthly', 'casparel_plus_monthly', 'plus'],
-    ['plus_yearly', 'casparel_plus_yearly', 'plus'],
-    ['pro_monthly', 'casparel_pro_monthly', 'pro'],
-    ['pro_yearly', 'casparel_pro_yearly', 'pro'],
+    ['plus_monthly', 'casparel_plus_monthly:monthly', 'plus'],
+    ['plus_yearly', 'casparel_plus_yearly:yearly', 'plus'],
+    ['pro_monthly', 'casparel_pro_monthly:monthly', 'pro'],
+    ['pro_yearly', 'casparel_pro_yearly:yearly', 'pro'],
   ] as const)('maps %s only to %s', (identifier, productId, tier) => {
     expect(tierForPackageIdentity({ identifier, product: { identifier: productId } })).toBe(
       tier,
@@ -53,7 +53,7 @@ describe('RevenueCat plan mapping', () => {
     expect(
       tierForPackageIdentity({
         identifier: 'pro_monthly',
-        product: { identifier: 'casparel_plus_monthly' },
+        product: { identifier: 'casparel_plus_monthly:monthly' },
       }),
     ).toBeNull();
   });
