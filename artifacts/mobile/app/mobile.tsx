@@ -37,7 +37,6 @@ type NativeMessage =
   | { type: 'logout' }
   | { type: 'language'; language: 'en' | 'tr' }
   | { type: 'ad-preferences'; soundMuted?: boolean; adsDisabled?: boolean }
-  | { type: 'page-scroll'; y: number }
   | { type: 'open-url'; url: string };
 
 export default function MobileWebAppScreen() {
@@ -56,7 +55,6 @@ export default function MobileWebAppScreen() {
   } = useAds();
   const [canGoBack, setCanGoBack] = useState(false);
   const [path, setPath] = useState('/dashboard');
-  const [adSectionVisible, setAdSectionVisible] = useState(true);
 
   const sessionScript = useMemo(() => {
     const serializedToken = JSON.stringify(token ?? '');
@@ -96,23 +94,6 @@ export default function MobileWebAppScreen() {
               sendUrl(anchor.href);
             }, true);
           }
-          if (!window.__casparelAdScrollInstalled) {
-            window.__casparelAdScrollInstalled = true;
-            var scrollReported = false;
-            document.addEventListener('scroll', function (event) {
-              var target = event.target;
-              var y = Math.max(
-                window.scrollY || 0,
-                target && typeof target.scrollTop === 'number' ? target.scrollTop : 0
-              );
-              if (scrollReported || y <= 12) return;
-              scrollReported = true;
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'page-scroll',
-                y: y
-              }));
-            }, { passive: true, capture: true });
-          }
         } catch (_) {}
       })();
       true;
@@ -132,7 +113,6 @@ export default function MobileWebAppScreen() {
         return false;
       }
       if (destination.kind === 'internal') {
-        setAdSectionVisible(true);
         setPath(destination.path);
         if (navigateInternal) {
           webView.current?.injectJavaScript(
@@ -186,8 +166,6 @@ export default function MobileWebAppScreen() {
         if (typeof message.adsDisabled === 'boolean') {
           void setAdsDisabled(message.adsDisabled);
         }
-      } else if (message.type === 'page-scroll' && message.y > 12) {
-        setAdSectionVisible(false);
       } else if (message.type === 'open-url' && message.url) {
         openDestination(message.url, true);
       }
@@ -209,7 +187,7 @@ export default function MobileWebAppScreen() {
         },
       ]}
     >
-      {adSectionVisible && shouldShowSponsoredAd(path) ? (
+      {shouldShowSponsoredAd(path) ? (
         <SponsoredLearningResourceCard key={path} />
       ) : null}
       <WebView
@@ -226,7 +204,6 @@ export default function MobileWebAppScreen() {
         thirdPartyCookiesEnabled
         setSupportMultipleWindows={false}
         startInLoadingState
-        onLoadStart={() => setAdSectionVisible(true)}
         renderLoading={() => (
           <View
             style={[
