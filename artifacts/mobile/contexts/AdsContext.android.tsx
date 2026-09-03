@@ -98,6 +98,8 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     null,
   );
   const canDisableAds = level === "pro";
+  const isStoreReviewAccount =
+    user?.email?.trim().toLowerCase() === "review@casparel.com";
 
   useEffect(() => {
     let cancelled = false;
@@ -238,7 +240,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
         ready &&
         preferencesReady &&
         consentInfo?.canRequestAds === true &&
-        !(canDisableAds && adsDisabled),
+        !(!isStoreReviewAccount && canDisableAds && adsDisabled),
       soundMuted,
       adsDisabled: canDisableAds && adsDisabled,
       canDisableAds,
@@ -255,6 +257,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       adsModule,
       canDisableAds,
       consentInfo,
+      isStoreReviewAccount,
       preferencesReady,
       ready,
       setAdsDisabled,
