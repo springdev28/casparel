@@ -12,11 +12,13 @@ import React, {
   useState,
 } from 'react';
 import {
+  googleProductChangeFor,
   hasPremium,
   loadPurchases,
   purchasesSupported,
   RC_API_KEY,
   subscriptionTier,
+  tierForPackage,
   tierLevel,
   type SubscriptionTier,
   type TierLevel,
@@ -80,8 +82,16 @@ const PurchasesContext = createContext<PurchasesContextValue | null>(null);
 
 export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
+  // Refs mirror auth state for the configure effect, which runs once and must
+  // not re-run (RevenueCat allows a single configure per process).
+  const userIdRef = useRef<number | null>(user?.id ?? null);
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  userIdRef.current = user?.id ?? null;
+  isAuthenticatedRef.current = isAuthenticated;
 
   const purchasesRef = useRef<PurchasesModule | null>(null);
+  /** The Casparel user id RevenueCat is currently logged in as, or null. */
+  const identityRef = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
   const [available, setAvailable] = useState(false);
   const [availabilityIssue, setAvailabilityIssue] =
@@ -122,7 +132,15 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        Purchases.configure({ apiKey: RC_API_KEY });
+        // Configure straight onto the signed-in identity when it is already
+        // restored. Configuring anonymously and logging in later left a
+        // window in which a purchase could attach to an anonymous alias.
+        const knownUserId =
+          isAuthenticatedRef.current && userIdRef.current != null
+            ? String(userIdRef.current)
+            : null;
+        Purchases.configure({ apiKey: RC_API_KEY, appUserID: knownUserId });
+        identityRef.current = knownUserId;
         purchasesRef.current = Purchases;
         setAvailable(true);
         setAvailabilityIssue(null);
@@ -172,10 +190,13 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         if (isAuthenticated && user?.id != null) {
+          if (identityRef.current === String(user.id)) return;
           const { customerInfo: info } = await Purchases.logIn(String(user.id));
+          identityRef.current = String(user.id);
           if (!cancelled) applyCustomerInfo(info);
-        } else {
+        } else if (identityRef.current !== null) {
           const info = await Purchases.logOut();
+          identityRef.current = null;
           if (!cancelled) applyCustomerInfo(info);
         }
       } catch {
@@ -207,14 +228,51 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     }
   }, [applyCustomerInfo]);
 
+  /**
+   * Make sure RevenueCat is acting as the signed-in Casparel account before
+   * money moves. Without this, a purchase begun in the moment between
+   * configure() and the login effect attached to an anonymous alias.
+   */
+  const ensureIdentity = useCallback(async (): Promise<void> => {
+    const Purchases = purchasesRef.current;
+    if (!Purchases) return;
+    const userId =
+      isAuthenticatedRef.current && userIdRef.current != null
+        ? String(userIdRef.current)
+        : null;
+    if (userId === null || identityRef.current === userId) return;
+    const { customerInfo: info } = await Purchases.logIn(userId);
+    identityRef.current = userId;
+    applyCustomerInfo(info);
+  }, [applyCustomerInfo]);
+
   const purchase = useCallback(
     async (pkg: RCPackage): Promise<PurchaseResult> => {
       const Purchases = purchasesRef.current;
       if (!Purchases) return 'unsupported';
       try {
-        const { customerInfo: info } = await Purchases.purchasePackage(pkg);
+        await ensureIdentity();
+        // A plan or billing-period switch must replace the existing Google
+        // Play subscription, never run beside it.
+        const productChange = googleProductChangeFor(
+          customerInfo?.activeSubscriptions ?? [],
+          pkg,
+        );
+        const { customerInfo: info } = await Purchases.purchasePackage(
+          pkg,
+          null,
+          productChange,
+        );
         applyCustomerInfo(info);
-        return 'success';
+        // Success is only what the store's customer record confirms. A
+        // deferred/approval-pending purchase resolves without an error but
+        // without the entitlement; reporting it as success would show a
+        // welcome screen for a plan the account does not have.
+        const purchasedTier = tierForPackage(pkg);
+        const confirmed =
+          purchasedTier !== null &&
+          info.entitlements.active[purchasedTier]?.isActive === true;
+        return confirmed ? 'success' : 'pending';
       } catch (e) {
         const failure = classifyPurchaseError(e);
         // A pending purchase may complete on its own once a parent or a bank
@@ -226,20 +284,21 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         return failure;
       }
     },
-    [applyCustomerInfo, refresh],
+    [applyCustomerInfo, customerInfo, ensureIdentity, refresh],
   );
 
   const restore = useCallback(async (): Promise<boolean> => {
     const Purchases = purchasesRef.current;
     if (!Purchases) return false;
     try {
+      await ensureIdentity();
       const info = await Purchases.restorePurchases();
       applyCustomerInfo(info);
       return hasPremium(info);
     } catch {
       return false;
     }
-  }, [applyCustomerInfo]);
+  }, [applyCustomerInfo, ensureIdentity]);
 
   const value = useMemo<PurchasesContextValue>(() => {
     const tier = subscriptionTier(customerInfo);

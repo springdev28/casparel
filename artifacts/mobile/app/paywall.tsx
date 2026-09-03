@@ -23,6 +23,7 @@ import { Button } from '@workspace/edu-ds/components/native/button';
 import { useGetMyUsage } from '@workspace/api-client-react';
 import { usePurchases } from '@/contexts/PurchasesContext';
 import {
+  baseProductId,
   packageDefinition,
   packagesForRole,
   purchasesSupported,
@@ -37,6 +38,7 @@ import {
   formatStorage,
   type SubscriptionTier,
 } from '@workspace/plan-economics';
+import { apiOrigin } from '@/utils/api-host';
 
 /** Plan explainers shared by every account role. */
 /**
@@ -165,9 +167,32 @@ export default function PaywallScreen() {
     setSelected((plusYearly ?? yearly ?? notCurrent[0] ?? planPackages[0])?.identifier ?? null);
   }, [customerInfo, planPackages, selected]);
 
+  const selectedPkg = planPackages.find((pkg) => pkg.identifier === selected) ?? null;
+  const activeBaseProducts = new Set(
+    (customerInfo?.activeSubscriptions ?? []).map(baseProductId),
+  );
+  const selectedIsCurrent =
+    selectedPkg !== null &&
+    activeBaseProducts.has(baseProductId(selectedPkg.product.identifier));
+  /** What the one purchase button will do for the selected package. */
+  const activeStoreTier = planPackages
+    .filter((pkg) => activeBaseProducts.has(baseProductId(pkg.product.identifier)))
+    .map((pkg) => tierForPackage(pkg))
+    .find((packageTier) => packageTier !== null);
+  const selectedTier = selectedPkg ? tierForPackage(selectedPkg) : null;
+  const ctaVerb =
+    activeBaseProducts.size === 0 || !activeStoreTier
+      ? t('Subscribe')
+      : selectedTier && selectedTier !== activeStoreTier
+        ? `${t('Switch to')} ${TIER_TITLES[selectedTier]}`
+        : t('Change billing period');
+
   function close() {
+    // The hosted web workspace is the authenticated home; the legacy native
+    // tabs are unreachable and redirect anyway, so falling back there caused
+    // a visible bounce through the root guard.
     if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)/profile');
+    else router.replace('/mobile');
   }
 
   // "Best value" + computed savings on the annual package vs. 12× monthly.
@@ -382,7 +407,7 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              You're on Casparel {TIER_TITLES[tier]}. Thank you!
+              {`${t("You're on Casparel")} ${TIER_TITLES[tier]}. ${t('Thank you!')}`}
             </Text>
           </View>
         ) : null}
@@ -429,13 +454,22 @@ export default function PaywallScreen() {
               ))}
             </FadeInView>
 
-            {/* CTA */}
+            {/* CTA — says what will actually happen: a first subscription, a
+                tier switch, or a billing-period change replacing the current
+                Google Play subscription. */}
             <FadeInView delay={280} duration={450}>
               <View style={{ marginTop: 18 }}>
-                <Button size="lg" onPress={handlePurchase} loading={busy} disabled={!selected}>
-                  {selected
-                    ? `${t('Subscribe')} · ${planPackages.find((pkg) => pkg.identifier === selected)?.product.priceString ?? ''}`
-                    : t('Choose a plan')}
+                <Button
+                  size="lg"
+                  onPress={handlePurchase}
+                  loading={busy}
+                  disabled={!selectedPkg || selectedIsCurrent}
+                >
+                  {!selectedPkg
+                    ? t('Choose a plan')
+                    : selectedIsCurrent
+                      ? t('Current plan')
+                      : `${ctaVerb} · ${selectedPkg.product.priceString}`}
                 </Button>
               </View>
             </FadeInView>
@@ -476,7 +510,7 @@ export default function PaywallScreen() {
           produce a misleading "Nothing to restore" next to the notice telling
           the user to open the app on their phone.
         */}
-        {tier === 'free' && purchasesSupported ? (
+        {purchasesSupported ? (
           <Pressable
             onPress={handleRestore}
             disabled={busy}
@@ -513,7 +547,7 @@ export default function PaywallScreen() {
           <Text
             accessibilityRole="link"
             style={styles.link}
-            onPress={() => Linking.openURL('https://casparel.com/terms')}
+            onPress={() => Linking.openURL(`${apiOrigin}/terms`)}
           >
             {t('Terms')}
           </Text>{' '}
@@ -521,7 +555,7 @@ export default function PaywallScreen() {
           <Text
             accessibilityRole="link"
             style={styles.link}
-            onPress={() => Linking.openURL('https://casparel.com/privacy')}
+            onPress={() => Linking.openURL(`${apiOrigin}/privacy`)}
           >
             {t('Privacy')}
           </Text>

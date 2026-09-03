@@ -540,6 +540,11 @@ const TR: Record<string, string> = {
   "Subscribe": "Abone ol",
   "Choose a plan": "Bir plan seç",
   "Dismiss advertisement": "Reklamı kapat",
+  "Switch to": "Şuna geç:",
+  "Change billing period": "Fatura dönemini değiştir",
+  "Current plan": "Mevcut plan",
+  "You're on Casparel": "Casparel planın:",
+  "Thank you!": "Teşekkürler!",
 };
 
 export default TR;
