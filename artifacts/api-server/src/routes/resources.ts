@@ -276,7 +276,7 @@ async function topRatedResources(limit = 12, viewerId: number | null = null) {
  */
 router.get("/discover/capabilities", (_req, res): void => {
   res.json({
-    publicProfileSearch: process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED === "true",
+    publicProfileSearch: process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED !== "false",
     resourceSearch: process.env.AI_RESOURCE_SEARCH_ENABLED === "true",
   });
 });
@@ -1430,7 +1430,7 @@ router.get(
       .map((item) => addProvenance(item, true));
     const aiFallbackEnabled =
       resultType === "people"
-        ? process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED === "true"
+        ? process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED !== "false"
         : process.env.AI_RESOURCE_SEARCH_ENABLED === "true";
     const anonymousCatalogOnly =
       discoverUserId === null && !isAdminRequest(req);

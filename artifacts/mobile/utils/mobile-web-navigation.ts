@@ -32,5 +32,11 @@ export function classifyMobileWebUrl(
   if (url.pathname === '/plans' || url.pathname === '/plans/') {
     return { kind: 'paywall' };
   }
+  // The public home page contains desktop marketing and the obsolete
+  // "Coming to iOS & Android" panel. An authenticated native session must
+  // never fall out of the product onto that page.
+  if (url.pathname === '/' || url.pathname === '') {
+    url.pathname = '/dashboard';
+  }
   return { kind: 'internal', url: url.toString(), path: url.pathname };
 }

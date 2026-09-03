@@ -295,8 +295,13 @@ export async function resolveAccountPlan(
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   const accountRole = row?.role ?? null;
-  const effectivePlan = row?.plan ?? null;
-  const effectiveExpiry = row?.expiresAt ?? null;
+  // Google Play's dedicated reviewer must be able to exercise every Pro
+  // feature without first completing a real charge. This is deliberately Pro,
+  // not admin or Institutional, and the plans screen remains reachable so the
+  // reviewer can inspect the real Google Play products.
+  const reviewAccess = isGooglePlayReviewAccount(row?.email);
+  const effectivePlan = reviewAccess ? PLAN_PRO : row?.plan ?? null;
+  const effectiveExpiry = reviewAccess ? null : row?.expiresAt ?? null;
   return {
     entitlements: entitlementsForPlan(
       effectivePlan,

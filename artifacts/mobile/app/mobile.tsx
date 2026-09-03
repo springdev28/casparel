@@ -114,12 +114,14 @@ export default function MobileWebAppScreen() {
       }
       if (destination.kind === 'internal') {
         setPath(destination.path);
-        if (navigateInternal) {
+        const requested = new URL(rawUrl, apiOrigin).toString();
+        const needsCorrection = requested !== destination.url;
+        if (navigateInternal || needsCorrection) {
           webView.current?.injectJavaScript(
             `window.location.assign(${JSON.stringify(destination.url)}); true;`,
           );
         }
-        return true;
+        return !needsCorrection;
       }
       void Linking.openURL(destination.url);
       return false;

@@ -25,7 +25,7 @@ describe("GET /api/discover/capabilities", () => {
     delete process.env.AI_RESOURCE_SEARCH_ENABLED;
     const res = await request(app).get("/api/discover/capabilities");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ publicProfileSearch: false, resourceSearch: false });
+    expect(res.body).toEqual({ publicProfileSearch: true, resourceSearch: false });
   });
 
   it("reports them on when the flags are set", async () => {

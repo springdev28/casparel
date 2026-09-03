@@ -19,6 +19,14 @@ describe('classifyMobileWebUrl', () => {
     });
   });
 
+  it('keeps an authenticated shell off the public marketing home page', () => {
+    expect(classifyMobileWebUrl('https://casparel.com/', origin)).toEqual({
+      kind: 'internal',
+      url: 'https://casparel.com/dashboard',
+      path: '/dashboard',
+    });
+  });
+
   it('opens the native Google Play paywall', () => {
     expect(classifyMobileWebUrl('https://casparel.com/plans?from=settings', origin)).toEqual({
       kind: 'paywall',

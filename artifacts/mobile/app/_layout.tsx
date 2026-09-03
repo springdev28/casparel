@@ -44,16 +44,24 @@ function RootLayoutNav() {
   const segments = useSegments();
   const router = useRouter();
 
+  const inAuthScreen = segments[0] === "login" || segments[0] === "register";
+  const inOnboarding = segments[0] === "onboarding";
+  const inMobileApp = segments[0] === "mobile";
+  const inNativeModal = segments[0] === "paywall";
+  const routeIsReady =
+    !isLoading &&
+    onboardingReady &&
+    (!isAuthenticated
+      ? inAuthScreen
+      : needsOnboarding
+        ? inOnboarding
+        : inMobileApp || inNativeModal);
+
   useEffect(() => {
     if (isLoading || !onboardingReady) return;
     // Both credential screens are reachable while signed out. Guarding on
     // "login" alone bounced anyone who tapped "Create an account" straight
     // back, which would have made the new screen unreachable.
-    const inAuthScreen = segments[0] === "login" || segments[0] === "register";
-    const inOnboarding = segments[0] === "onboarding";
-    const inMobileApp = segments[0] === "mobile";
-    const inNativeModal = segments[0] === "paywall";
-
     if (!isAuthenticated) {
       if (!inAuthScreen) router.replace("/login");
       return;
@@ -71,7 +79,14 @@ function RootLayoutNav() {
     }
   }, [isAuthenticated, isLoading, onboardingReady, needsOnboarding, segments, router]);
 
-  if (isLoading || !onboardingReady) return null;
+  useEffect(() => {
+    if (routeIsReady) void SplashScreen.hideAsync();
+  }, [routeIsReady]);
+
+  // Keep the native splash visible until the authenticated destination is
+  // selected. Rendering the navigator before this point paints the legacy
+  // dashboard for one frame and then replaces it with the hosted app.
+  if (!routeIsReady) return null;
 
   return (
     /*
@@ -151,12 +166,6 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const { fontsLoaded, fontError } = useDesignSystemFonts();
-
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) return null;
 
