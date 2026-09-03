@@ -140,8 +140,20 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    adsModule?.default().setAppMuted(soundMuted);
-  }, [adsModule, soundMuted]);
+    if (!adsModule || !ready || consentInfo?.canRequestAds !== true) return;
+
+    // Do not call into MobileAds merely because the JS module was imported.
+    // On a cold release launch the module becomes available before UMP and
+    // MobileAds initialization finish. Calling setAppMuted in that interval
+    // can terminate Android at the native boundary instead of producing a JS
+    // error. `adsModule` is now published only after initializeSdk succeeds,
+    // and this guard also keeps preference changes harmless after an ad outage.
+    try {
+      adsModule.default().setAppMuted(soundMuted);
+    } catch {
+      // Ads are optional. A sound-preference failure must never close Casparel.
+    }
+  }, [adsModule, consentInfo, ready, soundMuted]);
 
   useEffect(() => {
     // Waiting until onboarding is complete prevents a system consent sheet
@@ -164,8 +176,6 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
         setReady(true);
         return;
       }
-      setAdsModule(ads);
-
       let info: AdsConsentInfo | null = null;
       try {
         // UMP refreshes this on every app launch and shows any required form.
@@ -193,6 +203,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
 
       try {
         await initializeSdk(ads);
+        if (!cancelled) setAdsModule(ads);
       } catch {
         // Ads are optional. Keep the dashboard available and leave the gate
         // closed when the native SDK cannot initialize.
