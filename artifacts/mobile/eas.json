@@ -37,10 +37,7 @@
     "production": {
       "extends": "base",
       "environment": "production",
-      "env": {
-        "EXPO_PUBLIC_RC_USE_TEST_STORE": "false",
-        "EAS_BUILD_DISABLE_MAVEN_CACHE": "1"
-      },
+      "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "false" },
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" }
     }
