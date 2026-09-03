@@ -15,22 +15,22 @@ export const REVENUECAT_PACKAGE_MAP = {
   plus_monthly: {
     tier: 'plus',
     period: 'monthly',
-    productId: 'casparel_plus_monthly',
+    productId: 'casparel_plus_monthly:monthly',
   },
   plus_yearly: {
     tier: 'plus',
     period: 'yearly',
-    productId: 'casparel_plus_yearly',
+    productId: 'casparel_plus_yearly:yearly',
   },
   pro_monthly: {
     tier: 'pro',
     period: 'monthly',
-    productId: 'casparel_pro_monthly',
+    productId: 'casparel_pro_monthly:monthly',
   },
   pro_yearly: {
     tier: 'pro',
     period: 'yearly',
-    productId: 'casparel_pro_yearly',
+    productId: 'casparel_pro_yearly:yearly',
   },
 } as const satisfies Record<
   string,
