@@ -39,6 +39,7 @@ type NativeMessage =
   | { type: 'language'; language: 'en' | 'tr' }
   | { type: 'ad-preferences'; soundMuted?: boolean; adsDisabled?: boolean }
   | { type: 'notification-preferences'; preferences: NotificationPreferences }
+  | { type: 'open-native-paywall' }
   | { type: 'open-url'; url: string };
 
 export default function MobileWebAppScreen() {
@@ -91,8 +92,19 @@ export default function MobileWebAppScreen() {
             window.open = function (url) { sendUrl(url); return null; };
             document.addEventListener('click', function (event) {
               var element = event.target;
-              var anchor = element && element.closest ? element.closest('a[target="_blank"]') : null;
+              var anchor = element && element.closest ? element.closest('a') : null;
               if (!anchor || !anchor.href) return;
+              try {
+                var destination = new URL(anchor.href, window.location.href);
+                var sameHost = destination.hostname.replace(/^www\./, '') === window.location.hostname.replace(/^www\./, '');
+                if (sameHost && (destination.pathname === '/plans' || destination.pathname === '/')) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  sendUrl(destination.href);
+                  return;
+                }
+              } catch (_) {}
+              if (anchor.target !== '_blank') return;
               event.preventDefault();
               event.stopPropagation();
               sendUrl(anchor.href);
@@ -174,6 +186,8 @@ export default function MobileWebAppScreen() {
         }
       } else if (message.type === 'notification-preferences') {
         void syncNotifications(message.preferences);
+      } else if (message.type === 'open-native-paywall') {
+        router.push('/paywall');
       } else if (message.type === 'open-url' && message.url) {
         openDestination(message.url, true);
       }

@@ -433,7 +433,9 @@ export default function PaywallScreen() {
             <FadeInView delay={280} duration={450}>
               <View style={{ marginTop: 18 }}>
                 <Button size="lg" onPress={handlePurchase} loading={busy} disabled={!selected}>
-                  {t('Continue')}
+                  {selected
+                    ? `${t('Subscribe')} · ${planPackages.find((pkg) => pkg.identifier === selected)?.product.priceString ?? ''}`
+                    : t('Choose a plan')}
                 </Button>
               </View>
             </FadeInView>

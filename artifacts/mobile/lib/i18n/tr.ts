@@ -537,6 +537,9 @@ const TR: Record<string, string> = {
   "The account could not be changed. Nothing was removed; please try again.": "Hesap değiştirilemedi. Hiçbir şey kaldırılmadı; lütfen yeniden dene.",
   "Account reset": "Hesap sıfırlandı",
   "Your private account data has been reset.": "Özel hesap verilerin sıfırlandı.",
+  "Subscribe": "Abone ol",
+  "Choose a plan": "Bir plan seç",
+  "Dismiss advertisement": "Reklamı kapat",
 };
 
 export default TR;

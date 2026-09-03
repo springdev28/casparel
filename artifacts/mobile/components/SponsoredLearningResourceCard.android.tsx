@@ -49,17 +49,19 @@ export function SponsoredLearningResourceCard() {
     setSoundMuted,
   } = useAds();
   const [requestNonce, setRequestNonce] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
   const [creative, setCreative] = useState<{
     nativeAd: NativeAd;
     ads: GoogleMobileAdsModule;
   } | null>(null);
 
   useEffect(() => {
-    if (!adsReady || !canRequestAds) return;
+    if (!adsReady || !canRequestAds || dismissed) return;
 
     let cancelled = false;
     let loadedAd: NativeAd | null = null;
     let requestedAdUnitId: string | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     void loadGoogleMobileAds()
       .then(async (ads) => {
@@ -134,17 +136,39 @@ export function SponsoredLearningResourceCard() {
         if (requestedAdUnitId) {
           void trackSponsoredAdFailed(requestedAdUnitId, code);
         }
+        retryTimer = setTimeout(() => {
+          if (!cancelled) setRequestNonce((value) => value + 1);
+        }, 30_000);
       });
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
       loadedAd?.destroy();
       setCreative(null);
     };
-  }, [adsReady, canRequestAds, requestNonce, setSoundMuted, soundMuted]);
+  }, [adsReady, canRequestAds, dismissed, requestNonce, setSoundMuted, soundMuted]);
 
-  if (!adsReady || !canRequestAds || !creative) {
+  if (!adsReady || !canRequestAds || dismissed) {
     return null;
+  }
+
+  if (!creative) {
+    return (
+      <View style={[styles.loadingCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+        <Text style={[styles.loadingLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
+          {t("Sponsored learning resource")}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("Dismiss advertisement")}
+          onPress={() => setDismissed(true)}
+          hitSlop={8}
+        >
+          <Feather name="x" size={17} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+    );
   }
 
   const { nativeAd, ads } = creative;
@@ -207,6 +231,15 @@ export function SponsoredLearningResourceCard() {
                 size={16}
                 color={colors.foreground}
               />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("Dismiss advertisement")}
+              hitSlop={8}
+              onPress={() => setDismissed(true)}
+              style={styles.dismissButton}
+            >
+              <Feather name="x" size={17} color={colors.foreground} />
             </Pressable>
           </View>
 
@@ -312,6 +345,17 @@ export function SponsoredLearningResourceCard() {
 
 const styles = StyleSheet.create({
   wrapper: { marginVertical: 5, gap: 3 },
+  loadingCard: {
+    minHeight: 48,
+    marginVertical: 5,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  loadingLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.7 },
   card: {
     borderWidth: 1,
     padding: 10,
@@ -333,12 +377,13 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   soundButton: { marginLeft: "auto", padding: 3 },
+  dismissButton: { padding: 3 },
   headingRow: { flexDirection: "row", gap: 8, alignItems: "center" },
   icon: { width: 36, height: 36, borderRadius: 8 },
   headingCopy: { flex: 1, gap: 2 },
   headline: { fontSize: 14, lineHeight: 18 },
   advertiser: { fontSize: 11 },
-  media: { width: "100%", minHeight: 84, maxHeight: 110, borderRadius: 7 },
+  media: { width: "100%", height: 96, borderRadius: 7 },
   body: { fontSize: 11, lineHeight: 15 },
   cta: {
     alignSelf: "flex-start",

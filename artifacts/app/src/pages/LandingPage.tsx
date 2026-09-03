@@ -372,19 +372,19 @@ export default function LandingPage() {
     >
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-1 overflow-hidden px-3 sm:gap-3 sm:px-4">
           <Link href="/" className="flex min-w-0 items-center text-primary-text">
-            <BrandIcon className="mr-2 h-8 w-8 shrink-0" />
-            <span className="font-bold text-lg tracking-tight text-foreground">
+            <BrandIcon className="mr-1.5 h-7 w-7 shrink-0 sm:mr-2 sm:h-8 sm:w-8" />
+            <span className="text-base font-bold tracking-tight text-foreground sm:text-lg">
               Casparel
             </span>
           </Link>
-          <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <nav className="flex min-w-0 shrink items-center gap-0.5 sm:shrink-0 sm:gap-2">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/resources">Browse</Link>
+              <Link href="/resources" className="px-1 sm:px-0">Browse</Link>
             </Button>
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/plans">Plans</Link>
+              <Link href="/plans" className="px-1 sm:px-0">Plans</Link>
             </Button>
             {signedIn ? (
               <Link
@@ -403,7 +403,7 @@ export default function LandingPage() {
                     <UserRound className="size-4 text-primary-text" />
                   )}
                 </span>
-                <span className="max-w-32 truncate text-sm font-medium">
+                <span className="hidden max-w-32 truncate text-sm font-medium sm:inline">
                   {me?.name ?? "My profile"}
                 </span>
               </Link>

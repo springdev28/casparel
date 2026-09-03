@@ -1009,6 +1009,7 @@ export default function AppShell({ children }: AppShellProps) {
               <AuthLanguageSelect
                 language={language}
                 label={copy.language}
+                className="w-full text-primary-foreground/80 [&_select]:min-w-0 [&_select]:flex-1"
                 onChange={(next) => {
                   setLanguage(next);
                   void updateAccountPreferences
@@ -1158,6 +1159,7 @@ export default function AppShell({ children }: AppShellProps) {
                     <AuthLanguageSelect
                       language={language}
                       label={copy.language}
+                      className="w-full text-primary-foreground/85 [&_select]:min-w-0 [&_select]:flex-1"
                       onChange={(next) => {
                         setLanguage(next);
                         void updateAccountPreferences

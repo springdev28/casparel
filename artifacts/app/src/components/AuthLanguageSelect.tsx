@@ -5,13 +5,14 @@
 import { Languages } from 'lucide-react';
 import { AUTH_LANGUAGES, type AuthLanguage } from '../lib/auth-locale';
 
-export function AuthLanguageSelect({ language, label, onChange }: {
+export function AuthLanguageSelect({ language, label, onChange, className = '' }: {
   language: AuthLanguage;
   label: string;
   onChange: (language: AuthLanguage) => void;
+  className?: string;
 }) {
   return (
-    <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+    <label className={`inline-flex items-center gap-2 text-sm text-muted-foreground ${className}`}>
       <Languages size={15} aria-hidden="true" />
       <span className="sr-only">{label}</span>
       <select
