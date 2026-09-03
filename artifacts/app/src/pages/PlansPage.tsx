@@ -56,25 +56,17 @@ import {
 import { readSessionClaims } from "../lib/session";
 import {
   fetchWebPackages,
+  fetchWebSubscriptionState,
   loadWebBilling,
-  managementUrl,
   purchaseWebPackage,
   webBillingConfigured,
+  webPackageAction,
   webPackagesForRole,
+  type WebPackageAction,
+  type WebPlanContext,
   type WebPlanPackage,
+  type WebSubscriptionState,
 } from "../lib/webBilling";
-
-const LEVEL_RANK: Record<"free" | "plus" | "pro", number> = {
-  free: 0,
-  plus: 1,
-  pro: 2,
-};
-
-function levelOfTier(tier: PlanTier): "free" | "plus" | "pro" {
-  if (tier === "free") return "free";
-  if (tier === "plus") return "plus";
-  return "pro";
-}
 
 const SALES_EMAIL = "support@casparel.com";
 
@@ -83,7 +75,11 @@ type PlanView = "generic" | "institutional";
 type CheckoutState =
   | { status: "unavailable" }
   | { status: "loading" }
-  | { status: "ready"; packages: WebPlanPackage[]; manageUrl: string | null }
+  | {
+      status: "ready";
+      packages: WebPlanPackage[];
+      subscription: WebSubscriptionState | null;
+    }
   | { status: "error" };
 
 /**
@@ -114,15 +110,17 @@ function useWebCheckout(
           if (!cancelled) setState({ status: "unavailable" });
           return;
         }
-        const [packages, manageUrl] = await Promise.all([
+        const [packages, subscription] = await Promise.all([
           fetchWebPackages(purchases),
-          userId != null ? managementUrl(purchases) : Promise.resolve(null),
+          userId != null
+            ? fetchWebSubscriptionState(purchases).catch(() => null)
+            : Promise.resolve(null),
         ]);
         if (cancelled) return;
         const forRole = webPackagesForRole(packages, null);
         setState(
           forRole.length > 0
-            ? { status: "ready", packages: forRole, manageUrl }
+            ? { status: "ready", packages: forRole, subscription }
             : { status: "unavailable" },
         );
       } catch {
@@ -137,12 +135,26 @@ function useWebCheckout(
   return state;
 }
 
+function buttonLabel(action: WebPackageAction, pkg: WebPlanPackage): string {
+  if (action === "switch-tier") {
+    return `Switch to ${pkg.tier === "pro" ? "Pro" : "Plus"} · ${pkg.price}`;
+  }
+  if (action === "switch-period") {
+    return `Change billing period · ${pkg.price}`;
+  }
+  return pkg.period === "annual"
+    ? `Subscribe yearly · ${pkg.price}`
+    : pkg.period === "monthly"
+      ? `Subscribe monthly · ${pkg.price}`
+      : `Subscribe · ${pkg.price}`;
+}
+
 function TierColumn({
   card,
   isCurrent,
   highlight,
   packages,
-  buyable,
+  actionFor,
   busyPackageId,
   onBuy,
 }: {
@@ -151,8 +163,8 @@ function TierColumn({
   highlight: boolean;
   /** Card-checkout packages selling this tier; empty when checkout is off. */
   packages: WebPlanPackage[];
-  /** False when this tier is not an upgrade for the account. */
-  buyable: boolean;
+  /** What the control on each package should do for this account. */
+  actionFor: (pkg: WebPlanPackage) => WebPackageAction;
   busyPackageId: string | null;
   onBuy: (pkg: WebPlanPackage) => void;
 }) {
@@ -237,31 +249,49 @@ function TierColumn({
             ))}
           </ul>
         </section>
-        {buyable && packages.length > 0 ? (
+        {packages.some((pkg) => actionFor(pkg) !== "hidden" && actionFor(pkg) !== "app-managed") ? (
           <section className="space-y-2 border-t pt-3">
-            {packages.map((pkg) => (
-              <Button
-                key={pkg.id}
-                className="w-full gap-2"
-                variant={pkg.period === "annual" ? "default" : "outline"}
-                disabled={busyPackageId !== null}
-                onClick={() => onBuy(pkg)}
-              >
-                {busyPackageId === pkg.id ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <CreditCard className="size-4" />
-                )}
-                {pkg.period === "annual"
-                  ? `Subscribe yearly · ${pkg.price}`
-                  : pkg.period === "monthly"
-                    ? `Subscribe monthly · ${pkg.price}`
-                    : `Subscribe · ${pkg.price}`}
-              </Button>
-            ))}
+            {packages.map((pkg) => {
+              const action = actionFor(pkg);
+              if (action === "hidden" || action === "app-managed") return null;
+              if (action === "current") {
+                return (
+                  <Button
+                    key={pkg.id}
+                    className="w-full gap-2"
+                    variant="outline"
+                    disabled
+                    data-testid={`current-package-${pkg.id}`}
+                  >
+                    <Check className="size-4" />
+                    {pkg.period === "annual"
+                      ? "Your plan, billed yearly"
+                      : "Your plan, billed monthly"}
+                  </Button>
+                );
+              }
+              return (
+                <Button
+                  key={pkg.id}
+                  className="w-full min-w-0 gap-2"
+                  variant={pkg.period === "annual" ? "default" : "outline"}
+                  disabled={busyPackageId !== null}
+                  onClick={() => onBuy(pkg)}
+                  data-testid={`buy-${pkg.id}`}
+                >
+                  {busyPackageId === pkg.id ? (
+                    <Loader2 className="size-4 shrink-0 animate-spin" />
+                  ) : (
+                    <CreditCard className="size-4 shrink-0" />
+                  )}
+                  <span className="truncate">{buttonLabel(action, pkg)}</span>
+                </Button>
+              );
+            })}
             <p className="text-[11px] text-muted-foreground">
               Card checkout, billed by RevenueCat. Renews automatically; cancel
-              any time from Manage billing.
+              any time from Manage billing. Changing plan replaces your current
+              subscription — you are never billed for two at once.
             </p>
           </section>
         ) : null}
@@ -288,6 +318,23 @@ export default function PlansPage() {
     isLoggedIn && !isAdmin ? (me?.id ?? null) : null,
     !isAdmin,
   );
+  const subscription =
+    checkout.status === "ready" ? checkout.subscription : null;
+  const planContext: WebPlanContext = {
+    signedIn: isLoggedIn,
+    isAdmin,
+    pending: plan.pending,
+    currentLevel: plan.level,
+    institutional: plan.tier === "institutional",
+    subscription,
+  };
+  const appManaged =
+    isLoggedIn &&
+    !isAdmin &&
+    !plan.pending &&
+    plan.level !== "free" &&
+    plan.tier !== "institutional" &&
+    (subscription === null || subscription.entitlementStore === "app-store");
   const [busyPackageId, setBusyPackageId] = useState<string | null>(null);
   const [purchaseNote, setPurchaseNote] = useState<{
     kind: "success" | "error";
@@ -341,20 +388,25 @@ export default function PlansPage() {
       style={{ colorScheme: dark ? "dark" : "light" }}
     >
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-4">
           <Link
             href="/"
             className="flex min-w-0 items-center text-primary-text"
           >
-            <BrandIcon className="mr-2 h-8 w-8 shrink-0" />
-            <span className="text-lg font-bold tracking-tight text-foreground">
+            <BrandIcon className="mr-1.5 h-7 w-7 shrink-0 sm:mr-2 sm:h-8 sm:w-8" />
+            <span className="text-base font-bold tracking-tight text-foreground sm:text-lg">
               Casparel
             </span>
           </Link>
-          <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <nav className="flex min-w-0 shrink items-center gap-1 sm:shrink-0 sm:gap-2">
             {isLoggedIn ? (
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/dashboard">Back to your dashboard</Link>
+                <Link href="/dashboard">
+                  {/* Two whole strings, not one split around a breakpoint:
+                      the translation bridge matches complete sentences. */}
+                  <span className="sm:hidden">Dashboard</span>
+                  <span className="hidden sm:inline">Back to your dashboard</span>
+                </Link>
               </Button>
             ) : (
               <>
@@ -451,6 +503,27 @@ export default function PlansPage() {
         </div>
 
 
+        {isAdmin && !webBillingConfigured() ? (
+          /* Administrators get the exact missing configuration, users never
+             do: a visitor cannot act on a variable name, an admin can. */
+          <p className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-foreground">
+            <b>Administrator note:</b> web card checkout is disabled because{" "}
+            <code>VITE_REVENUECAT_WEB_API_KEY</code> is not set in the frontend
+            build environment (GitHub → Settings → Secrets and variables →
+            Actions → Variables, read by deploy-frontend.yml). Set it to the
+            RevenueCat Web Billing public key (<code>rcb_…</code>) for the app
+            whose <code>default</code> offering carries the four
+            casparel_plus/pro packages, then redeploy.
+          </p>
+        ) : null}
+        {isAdmin && webBillingConfigured() && checkout.status === "error" ? (
+          <p className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-foreground">
+            <b>Administrator note:</b> the RevenueCat Web Billing SDK failed to
+            load offerings. Check that the <code>default</code> offering exists
+            with the casparel_plus/pro packages and that the key in{" "}
+            <code>VITE_REVENUECAT_WEB_API_KEY</code> belongs to this project.
+          </p>
+        ) : null}
         {purchaseNote ? (
           <p
             role="status"
@@ -564,6 +637,14 @@ export default function PlansPage() {
         ) : (
           <>
             <h2 className="mt-6 text-lg font-semibold">Compare plans</h2>
+            {appManaged ? (
+              <p className="mt-3 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+                Your subscription is billed by Google Play or the App Store, so
+                plan changes and cancellation happen there: open the Casparel
+                app and go to Plans, or use your store&apos;s subscription
+                settings.
+              </p>
+            ) : null}
             <div className="mt-3 grid gap-4 md:grid-cols-3">
               {cards.map((card, index) => (
                 <TierColumn
@@ -578,13 +659,7 @@ export default function PlansPage() {
                         )
                       : []
                   }
-                  buyable={
-                    !isAdmin &&
-                    (!isLoggedIn ||
-                      (!plan.pending &&
-                        LEVEL_RANK[levelOfTier(card.tier)] >
-                          LEVEL_RANK[plan.level]))
-                  }
+                  actionFor={(pkg) => webPackageAction(pkg, planContext)}
                   busyPackageId={busyPackageId}
                   onBuy={handleBuy}
                 />
@@ -618,18 +693,17 @@ export default function PlansPage() {
                 your plan.
                 {webBillingConfigured()
                   ? " Card checkout on the web is temporarily unavailable; please try again shortly."
-                  : " Card checkout on the web is coming and will appear on this page."}{" "}
+                  : " Card checkout on the web is not configured on this deployment."}{" "}
                 Your subscription follows your Casparel account, so it works
                 here on the web the moment the purchase completes.
               </p>
             )}
-            {checkout.status === "ready" &&
-            checkout.manageUrl &&
+            {subscription?.manageUrl &&
             isLoggedIn &&
             plan.level !== "free" ? (
               <p>
                 <a
-                  href={checkout.manageUrl}
+                  href={subscription.manageUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="text-primary-text hover:underline"
@@ -642,11 +716,10 @@ export default function PlansPage() {
             ) : null}
             <ul className="list-disc space-y-1 pl-5">
               <li>
-                Role plans match your account role: a student plan does nothing
-                on a teacher account and the other way round, so checkout never
-                offers you the other role&apos;s plans. The original Plus and
-                Pro plans work on any role, and the Institutional licence covers
-                whole schools, staff and students alike.
+                Plus and Pro work the same on every account role — student and
+                teacher buy the same products. The Institutional licence covers
+                whole schools, staff and students alike, and is arranged by
+                email rather than checkout.
               </li>
               <li>
                 Prices on this page are USD reference prices; the checkout
