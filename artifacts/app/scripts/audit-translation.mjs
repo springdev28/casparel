@@ -81,14 +81,24 @@ const SIGNED_IN_PAGES = (
  * So the dictionaries are consulted. They are TypeScript modules and this is a
  * plain script, so the pairs are read as text -- they are flat string literals,
  * one per line, which is exactly what that can do reliably.
+ *
+ * Both key forms have to be read. The formatter drops the quotes from any key
+ * that is a valid identifier, so `Video: "Video"` and `"due soon": "yakinda
+ * teslim"` sit in the same file. Reading only the quoted form missed 233 of
+ * the Turkish entries, six of them deliberately identical -- and every one of
+ * those six was then reported as a missing translation, which is a failing
+ * audit naming entries that are present and correct.
  */
 function deliberatelyIdentical(language) {
   const file = path.resolve(HERE, `../src/lib/ui-translations/${language}.ts`);
   if (!fs.existsSync(file)) return new Set();
   const identical = new Set();
-  for (const [, key, value] of fs
+  for (const [, quotedKey, bareKey, value] of fs
     .readFileSync(file, "utf8")
-    .matchAll(/^\s*"((?:[^"\\]|\\.)*)":\s*"((?:[^"\\]|\\.)*)",?\s*$/gm)) {
+    .matchAll(
+      /^\s*(?:"((?:[^"\\]|\\.)*)"|([A-Za-z_$][\w$]*)):\s*"((?:[^"\\]|\\.)*)",?\s*$/gm,
+    )) {
+    const key = quotedKey ?? bareKey;
     if (key === value) identical.add(JSON.parse(`"${key}"`));
   }
   return identical;

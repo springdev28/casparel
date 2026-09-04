@@ -264,6 +264,7 @@ const TR: Record<string, string> = {
   "Resources assigned by your teacher.": "Öğretmeninin verdiği kaynaklar.",
   "Resources you assign show here for all class members.": "Verdiğin kaynaklar sınıftaki herkes için burada görünür.",
   "Resources, activities, deadlines, and completion in one place.": "Kaynaklar, etkinlikler, son tarihler ve tamamlanma tek yerde.",
+  "due soon": "yakında teslim",
   "Resume unfinished learning work, pick up a resource, activity, or assignment from where you left off, on any device.": "Yarım kalan işe geri dön: bir kaynağı, etkinliği ya da ödevi bıraktığın yerden, hangi cihazda olursan ol.",
   "Reviews & ratings": "Değerlendirmeler ve puanlar",
   "Run classes and share work with people.": "Sınıfları yönet ve çalışmaları başkalarıyla paylaş.",
