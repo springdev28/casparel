@@ -4,7 +4,12 @@
  * System connection: runs in the package test/audit pipeline and should describe behavior, not implementation details.
  */
 /**
- * Every screen of the phone app, in every language, rendered.
+ * Every screen this app still draws itself, in every language, rendered.
+ *
+ * That is now the pre-session funnel and the paywall. After sign-in the
+ * product is the website in a WebView, so the screens this once walked --
+ * the tabs, goals, lists, study, messages -- are unreachable, and the list
+ * below says why.
  *
  * `mobileSpeaksItsLanguages.test.ts` reads the source and answers "is every
  * string wrapped and is every wrapped string translated". That is the cheap
@@ -99,37 +104,32 @@ const SCREENS = [
   { path: "/login", session: "out" },
   { path: "/register", session: "out" },
   { path: "/onboarding", session: "new" },
-  // The tabs group is served at the root, not at "/(tabs)".
-  { path: "/", session: "in" },
-  { path: "/(tabs)/resources", session: "in" },
-  { path: "/(tabs)/schedule", session: "in" },
-  { path: "/(tabs)/classes", session: "in" },
-  { path: "/(tabs)/profile", session: "in" },
-  { path: "/paywall", session: "in" },
-  // The flashcard player, with the set below standing in for a real one. Every
-  // other screen here renders a list; this one renders a single card, and the
-  // strings on it -- Term, Answer, Tap to turn over -- exist nowhere else.
-  { path: "/study/7", session: "in" },
-  // Messages, which is reached from the dashboard header rather than a tab, so
-  // no other entry here renders it. Its empty state and its section headings
-  // exist nowhere else.
-  { path: "/messages", session: "in" },
   /*
-   * Goals, also reached from the dashboard rather than a tab.
+   * The paywall is the last screen this app draws itself.
    *
-   * The list and the detail are both here because they say different things:
-   * the list carries the status word and the empty state, the detail carries
-   * the level, the step hints and "Every step is done." The detail is also
-   * the only screen in the app with a checkbox, and its two labels -- mark as
-   * done, mark as not done -- exist nowhere else.
+   * Everything a signed-in person does now happens on the website, carried in
+   * a WebView: `resolveInitialRoute` lets an authenticated session occupy
+   * `/mobile` or `/paywall` and replaces every other route -- the tabs, goals,
+   * lists, study, messages -- with the workspace. This list used to name all
+   * eleven of them, and once the app changed underneath it, it was asking for
+   * eleven screens and being handed one, eleven times. The duplicate-render
+   * check below is what said so, which is the check working.
+   *
+   * `/mobile` is not here either, and cannot be: react-native-webview has no
+   * web implementation, so in this export it renders the library's own
+   * "React Native WebView does not support this platform." An assertion about
+   * that string would be an assertion about a dependency's placeholder, not
+   * about Casparel.
+   *
+   * What that leaves is the pre-session funnel, which is the whole of what
+   * this app still renders natively. The signed-in surface is audited where
+   * it now lives: audit-translation.mjs and audit-pages.mjs render the real
+   * website in both languages, and mobileSpeaksItsLanguages.test.ts still
+   * reads every native file here, including the screens no route reaches, so
+   * a missed string in them is still a failing build.
    */
-  { path: "/goals", session: "in" },
-  { path: "/goals/11", session: "in" },
-  // Learning Lists has both an index and a management surface; neither is a tab.
-  { path: "/lists", session: "in" },
-  { path: "/lists/7", session: "in" },
+  { path: "/paywall", session: "in" },
 ];
-
 const MIME = {
   ".js": "text/javascript",
   ".css": "text/css",
