@@ -355,7 +355,7 @@ function matchesMaterial(item: DiscoveryCandidate, requested: string) {
   return inferred === requested || corpus.includes(requested);
 }
 
-function passesFilters(
+export function matchesDiscoveryFilters(
   item: DiscoveryCandidate,
   filters: DiscoveryFilterOptions,
 ) {
@@ -514,7 +514,7 @@ export function filterRankAndDedupeDiscovery<T extends DiscoveryCandidate>(
       score: relevanceScore(item, filters.query),
       inputIndex,
     };
-    if (!passesFilters(enriched, filters)) return;
+    if (!matchesDiscoveryFilters(enriched, filters)) return;
     const key = canonicalDiscoveryUrl(item.url);
     const previous = byUrl.get(key);
     if (!previous || enriched.score > previous.score) byUrl.set(key, enriched);

@@ -50,14 +50,13 @@ import {
 } from "./mediawiki";
 import {
   expandedCatalogFacet,
-  expandedCatalogSearchTerms,
   foldCatalogText,
   normalizeResourceMetadata,
   type CatalogMetadataFacet,
   type NormalizedResourceMetadata,
 } from "./catalogNormalization";
 import {
-  filterRankAndDedupeDiscovery,
+  matchesDiscoveryFilters,
   type DiscoveryCandidate,
   type DiscoveryMaterialType,
   type DiscoverySourceCategory,
@@ -1375,9 +1374,11 @@ function normalizedCatalogFacetCondition(
   facet: CatalogMetadataFacet,
   value: string | undefined,
   rawChecks: (alias: string) => SQL[],
+  requireCanonical = false,
 ) {
   if (!value?.trim()) return undefined;
   const expanded = expandedCatalogFacet(facet, value);
+  if (requireCanonical && !expanded.canonical.length) return undefined;
   const checks = [
     ...expanded.canonical.map(
       (canonical) =>
@@ -1389,28 +1390,33 @@ function normalizedCatalogFacetCondition(
 }
 
 function catalogSemanticQueryCondition(value: string) {
-  const expansions = [
-    ...expandedCatalogSearchTerms(value),
-    ...expandedCatalogFacet("subjects", value).aliases,
-    ...expandedCatalogFacet("courses", value).aliases,
-    ...expandedCatalogFacet("providers", value).aliases,
-  ]
-    .map((term) => term.trim())
-    .filter(
-      (term, index, terms) => term.length >= 2 && terms.indexOf(term) === index,
-    )
-    .slice(0, 100);
-  const checks = expansions.flatMap((term) => {
-    const pattern = `%${term}%`;
-    return [
-      ilike(catalogResourcesTable.title, pattern),
-      ilike(catalogResourcesTable.description, pattern),
-      ilike(catalogResourcesTable.subject, pattern),
-      ilike(catalogResourcesTable.provider, pattern),
-      ilike(catalogResourcesTable.canonicalUrl, pattern),
-    ];
-  });
-  return checks.length ? or(...checks) : undefined;
+  const course = normalizedCatalogFacetCondition(
+    "courses",
+    value,
+    (alias) => {
+      const pattern = `%${alias}%`;
+      return [
+        ilike(catalogResourcesTable.title, pattern),
+        ilike(catalogResourcesTable.description, pattern),
+        ilike(catalogResourcesTable.subject, pattern),
+      ];
+    },
+    true,
+  );
+  const provider = normalizedCatalogFacetCondition(
+    "providers",
+    value,
+    (alias) => {
+      const pattern = `%${alias}%`;
+      return [
+        ilike(catalogResourcesTable.provider, pattern),
+        ilike(catalogResourcesTable.canonicalUrl, pattern),
+        ilike(catalogResourcesTable.providerUrl, pattern),
+      ];
+    },
+    true,
+  );
+  return course && provider ? or(course, provider) : (course ?? provider);
 }
 
 function catalogConditions(options: CatalogSearchOptions): SQL[] {
@@ -1429,6 +1435,33 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
     conditions.push(
       semanticMatch ? or(literalMatch, semanticMatch)! : literalMatch,
     );
+    if (
+      judged.length >= MIN_NARROW_COVERAGE &&
+      options.requireNarrowCoverage !== false
+    )
+      conditions.push(sql`(
+        coalesce(${catalogResourcesTable.metadata}->>'material', '') not in (${sql.join(
+          NARROW_MATERIALS.map((material) => sql`${material}`),
+          sql`, `,
+        )})
+        or ${catalogCoverage(judged)} >= ${MIN_NARROW_COVERAGE}
+        or ${semanticMatch ?? sql`false`})`);
+    if (options.requireTopicCoverage && judged.length >= MIN_TOPIC_COVERAGE) {
+      const distinguishing = (options.distinguishingTerms ?? []).filter(
+        (term) => judged.includes(term),
+      );
+      const coverage = distinguishing.length
+        ? sql`(${catalogCoverage(judged)} >= ${MIN_TOPIC_COVERAGE}
+            or ${catalogRelevanceScore(distinguishing)} > 0)`
+        : sql`${catalogCoverage(judged)} >= ${MIN_TOPIC_COVERAGE}`;
+      conditions.push(semanticMatch ? or(coverage, semanticMatch)! : coverage);
+    }
+    if (options.titleOnly)
+      for (const term of judged)
+        conditions.push(
+          sql`(${catalogTermScore(term)} = ${STRONG_FIELD_SCORE}
+            or ${semanticMatch ?? sql`false`})`,
+        );
   }
   // Each of these accepts a list. Asked for one value they behave exactly as
   // they did; asked for several they widen, which is what a reader means by
@@ -2142,7 +2175,7 @@ async function searchCatalogLegacy(
     };
   });
 
-  const filtered = filterRankAndDedupeDiscovery(candidates, {
+  const normalizedFilters = {
     query: options.query,
     format: options.format as DiscoveryCandidate["format"],
     subject: options.subject,
@@ -2169,8 +2202,13 @@ async function searchCatalogLegacy(
     language: options.language,
     captions: options.captions,
     transcript: options.transcript,
-    limit: window,
-  });
+  };
+  // SQL owns the stable cross-provider order and cursor. The same normalized
+  // predicate used for live results is authoritative for membership, but must
+  // not re-rank a database page after its cursor has been calculated.
+  const filtered = candidates.filter((item) =>
+    matchesDiscoveryFilters(item, normalizedFilters),
+  );
 
   if (options.resultType === "source") {
     const seen = new Set<string>();

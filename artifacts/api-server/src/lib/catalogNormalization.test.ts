@@ -41,6 +41,21 @@ describe("catalog metadata normalization", () => {
     ).toContain("advanced");
   });
 
+  it("keeps specific AP Physics C branches distinct beneath the shared course", () => {
+    const mechanics = {
+      title: "AP Physics C: Mechanics",
+      subject: "Physics",
+    };
+
+    expect(
+      matches(mechanics, { query: "AP Physics C: Electricity and Magnetism" }),
+    ).toBe(false);
+    expect(matches(mechanics, { query: "", course: "AP Physics C E&M" })).toBe(
+      false,
+    );
+    expect(matches(mechanics, { query: "AP Physics C" })).toBe(true);
+  });
+
   it("normalizes every filterable metadata dimension", () => {
     const metadata = normalizeResourceMetadata({
       title: "AP Physics C E&M downloadable textbook",
@@ -278,5 +293,45 @@ describe("one normalized engine for stored and live results", () => {
         license: "known",
       }),
     ).toEqual([algebra.url]);
+  });
+
+  it("keeps specific multi-word searches strict while resolving aliases", () => {
+    const candidates: DiscoveryCandidate[] = [
+      {
+        title: "Projectile motion tutorial",
+        url: "https://physics.example.edu/projectile-motion",
+        description: "A physics lesson about trajectories.",
+        format: "article",
+        source: "Example University",
+        subject: "Physics",
+      },
+      {
+        title: "Heat press T-shirt tutorial",
+        url: "https://craft.example/tutorial",
+        description: "A printing demonstration.",
+        format: "video",
+        source: "Example Creator",
+        subject: "Arts",
+      },
+      {
+        title: "Horizon High School",
+        url: "https://school.example/about",
+        description: "Information about AP courses.",
+        format: "article",
+        source: "Horizon High School",
+        subject: "General Education",
+      },
+    ];
+
+    expect(
+      filterRankAndDedupeDiscovery(candidates, {
+        query: "projectile motion tutorial",
+      }).map((item) => item.title),
+    ).toEqual(["Projectile motion tutorial"]);
+    expect(
+      filterRankAndDedupeDiscovery(candidates, { query: "AP" }).map(
+        (item) => item.title,
+      ),
+    ).not.toContain("Horizon High School");
   });
 });

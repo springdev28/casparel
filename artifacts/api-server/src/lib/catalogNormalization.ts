@@ -1,4 +1,4 @@
-import { meaningfulSearchTerms } from "./searchTerms";
+import { meaningfulSearchTerms, topicalSearchTerms } from "./searchTerms";
 
 export const CANONICAL_SUBJECTS = [
   "arts",
@@ -957,6 +957,16 @@ function intersects(first: string[], second: string[]) {
   return second.some((value) => values.has(value));
 }
 
+function matchesCourses(resource: string[], requested: string[]) {
+  const specificPhysicsC = requested.filter((course) =>
+    course.startsWith("ap-physics-c-"),
+  );
+  return intersects(
+    resource,
+    specificPhysicsC.length ? specificPhysicsC : requested,
+  );
+}
+
 function semanticText(
   item: NormalizableResource,
   metadata: NormalizedResourceMetadata,
@@ -1008,20 +1018,22 @@ export function matchesCatalogSearch(
   const metadata = normalizeResourceMetadata(item);
   const intent = semanticIntent(value);
   const corpus = semanticText(item, metadata);
-  if (intent.text && corpus.includes(intent.text)) return true;
-  if (intent.courses.length && intersects(metadata.courses, intent.courses))
-    return true;
-  if (intent.subjects.length && intersects(metadata.subjects, intent.subjects))
-    return true;
-  if (
-    intent.providers.length &&
-    intersects(metadata.providers, intent.providers)
-  )
-    return true;
-  return meaningfulSearchTerms(value, 12)
+  const meaningful = meaningfulSearchTerms(value, 12)
     .map(foldCatalogText)
-    .filter(Boolean)
-    .some((term) => containsAlias(corpus, term));
+    .filter(Boolean);
+  const topical = topicalSearchTerms(meaningful);
+  const terms = topical.length
+    ? topical
+    : meaningful.filter((term) => term.length >= 3);
+  if (terms.length && intent.text && corpus.includes(intent.text)) return true;
+  if (intent.courses.length) {
+    const courseMatch = matchesCourses(metadata.courses, intent.courses);
+    if (intent.courses.some((course) => course.startsWith("ap-physics-c-")))
+      return courseMatch;
+    if (courseMatch) return true;
+  }
+  const coverage = terms.filter((term) => containsAlias(corpus, term)).length;
+  return coverage > 0;
 }
 
 function matchesGradeBands(resource: string[], filter: string[]) {
@@ -1067,11 +1079,10 @@ export function matchesNormalizedResourceFilters(
 
   if (filters.exactPhrase) {
     const exactIntent = semanticIntent(filters.exactPhrase);
-    const semanticExactMatch =
-      (exactIntent.courses.length > 0 &&
-        intersects(metadata.courses, exactIntent.courses)) ||
-      (exactIntent.subjects.length > 0 &&
-        intersects(metadata.subjects, exactIntent.subjects));
+    const semanticExactMatch = exactIntent.courses.length
+      ? matchesCourses(metadata.courses, exactIntent.courses)
+      : exactIntent.subjects.length > 0 &&
+        intersects(metadata.subjects, exactIntent.subjects);
     if (!corpus.includes(exactIntent.text) && !semanticExactMatch) return false;
   }
 
@@ -1090,18 +1101,16 @@ export function matchesNormalizedResourceFilters(
 
   if (filters.subject) {
     const intent = semanticIntent(filters.subject);
-    const matches =
-      intersects(metadata.subjects, intent.subjects) ||
-      intersects(metadata.courses, intent.courses) ||
-      (!intent.subjects.length &&
-        !intent.courses.length &&
-        containsAlias(corpus, intent.text));
+    const matches = intent.courses.length
+      ? matchesCourses(metadata.courses, intent.courses)
+      : intersects(metadata.subjects, intent.subjects) ||
+        (!intent.subjects.length && containsAlias(corpus, intent.text));
     if (!matches) return false;
   }
 
   if (filters.course) {
     const requested = canonicalCourses(foldCatalogText(filters.course));
-    if (!requested.length || !intersects(metadata.courses, requested))
+    if (!requested.length || !matchesCourses(metadata.courses, requested))
       return false;
   }
 
