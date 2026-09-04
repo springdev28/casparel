@@ -1742,7 +1742,6 @@ const TR: Record<string, string> = {
   "System": "Sistem",
   "Allow notifications": "Bildirimlere izin ver",
   "Schedule reminders": "Program hatırlatıcıları",
-  "You are offline": "Çevrimdışısınız",
   "Nothing here yet": "Burada henüz bir şey yok",
 };
 

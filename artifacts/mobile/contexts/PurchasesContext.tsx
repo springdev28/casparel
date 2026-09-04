@@ -30,6 +30,7 @@ import {
   type RCOffering,
   type RCPackage,
 } from '@/utils/revenuecat';
+import { AppState } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
@@ -245,6 +246,25 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     identityRef.current = userId;
     applyCustomerInfo(info);
   }, [applyCustomerInfo]);
+
+  /*
+   * Re-check the store whenever the app comes back to the foreground.
+   *
+   * Entitlement is granted by RevenueCat's webhook, not by the client, and a
+   * purchase, a renewal, a cancellation or a lapse can all happen while the
+   * app is backgrounded or offline. Without this the app keeps showing the
+   * customer info it happened to load at launch, which is how a lapsed
+   * subscription keeps looking active and a completed one keeps looking
+   * unpaid. Coming back to the foreground is also when connectivity has
+   * usually returned, so it is the moment worth spending a request on.
+   */
+  useEffect(() => {
+    if (!available) return;
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void refresh();
+    });
+    return () => subscription.remove();
+  }, [available, refresh]);
 
   const purchase = useCallback(
     async (pkg: RCPackage): Promise<PurchaseResult> => {

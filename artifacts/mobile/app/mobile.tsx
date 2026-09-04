@@ -185,7 +185,9 @@ export default function MobileWebAppScreen() {
           void setAdsDisabled(message.adsDisabled);
         }
       } else if (message.type === 'notification-preferences') {
-        void syncNotifications(message.preferences);
+        // This message only arrives because somebody changed the setting, so
+        // it is the one moment the system permission sheet is warranted.
+        void syncNotifications(message.preferences, { promptIfNeeded: true });
       } else if (message.type === 'open-native-paywall') {
         router.push('/paywall');
       } else if (message.type === 'open-url' && message.url) {

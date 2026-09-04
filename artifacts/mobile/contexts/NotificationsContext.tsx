@@ -17,7 +17,18 @@ export type NotificationPreferences = {
   announcements: boolean;
 };
 
-type NotificationsContextValue = { sync: (preferences: NotificationPreferences) => Promise<void> };
+type NotificationsContextValue = {
+  /**
+   * Bring the device's push registration in line with the account's saved
+   * preferences. `promptIfNeeded` decides whether the system permission
+   * sheet may be raised: only a deliberate action by the person — turning
+   * notifications on in Settings — passes true.
+   */
+  sync: (
+    preferences: NotificationPreferences,
+    options?: { promptIfNeeded?: boolean },
+  ) => Promise<void>;
+};
 const NotificationsContext = createContext<NotificationsContextValue>({ sync: async () => {} });
 
 Notifications.setNotificationHandler({
@@ -37,14 +48,33 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     Authorization: `Bearer ${token ?? ""}`,
   }), [token]);
 
-  const sync = useCallback(async (preferences: NotificationPreferences) => {
+  const sync = useCallback(async (
+    preferences: NotificationPreferences,
+    options?: { promptIfNeeded?: boolean },
+  ) => {
     if (!token || Platform.OS === "web") return;
     if (!preferences.enabled) {
       await fetch(`${apiOrigin}/api/users/me/push-token`, { method: "DELETE", headers }).catch(() => undefined);
       return;
     }
+    /*
+     * Android may only be asked once, so the ask has to be worth spending.
+     *
+     * This used to run on every launch straight after sign-in, which put the
+     * system sheet in front of somebody who had not yet seen the app and had
+     * no idea what they were being asked to allow. Declining there is
+     * permanent for practical purposes.
+     *
+     * So a launch only ever registers a token for permission the person has
+     * already granted; the sheet is raised when they turn notifications on in
+     * Settings, which is the moment they have said what they want.
+     */
     const current = await Notifications.getPermissionsAsync();
-    const permission = current.granted ? current : await Notifications.requestPermissionsAsync();
+    const permission = current.granted
+      ? current
+      : options?.promptIfNeeded && current.canAskAgain !== false
+        ? await Notifications.requestPermissionsAsync()
+        : current;
     if (!permission.granted) return;
     if (Platform.OS === "android") {
       await Notifications.setNotificationChannelAsync("default", {

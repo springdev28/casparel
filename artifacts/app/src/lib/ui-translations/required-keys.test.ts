@@ -64,7 +64,7 @@ const REQUIRED: Record<string, string[]> = {
   ],
   "account and roles": ["Student", "Teacher", "Profile", "Sign out"],
   appearance: ["Appearance", "Light", "Dark", "System"],
-  "empty and offline states": ["You are offline", "Try again", "Nothing here yet"],
+  "empty and offline states": ["You're offline", "Try again", "Nothing here yet"],
 };
 
 describe("the web dictionary", () => {
