@@ -21,6 +21,10 @@ import { storage } from "@/utils/secure-storage";
 import { apiOrigin } from "@/utils/api-host";
 import { logAdDiagnostic } from "@/utils/ad-diagnostics";
 import {
+  adRequestAllowed,
+  canDisableAds as adsMayBeDisabledBy,
+} from "@/utils/ad-placement";
+import {
   loadGoogleMobileAds,
   type GoogleMobileAdsModule,
 } from "@/utils/google-mobile-ads";
@@ -106,11 +110,14 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   const [adsModule, setAdsModule] = useState<GoogleMobileAdsModule | null>(
     null,
   );
-  const canDisableAds =
-    level === "pro" ||
-    usage?.tier === "pro" ||
-    usage?.tier === "institutional" ||
-    usage?.unlimited === true;
+  // One rule, unit-tested in utils/ad-placement.test.ts, so the Review
+  // account's Pro-equivalent access cannot regress into "shown as Free".
+  const entitlement = {
+    storeLevel: level,
+    serverTier: usage?.tier ?? null,
+    unlimited: usage?.unlimited === true,
+  };
+  const canDisableAds = adsMayBeDisabledBy(entitlement);
 
   /** Persist both ad preferences on the account, best-effort. */
   const pushPreferencesToAccount = useCallback(
@@ -311,11 +318,13 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       ready,
       // The Review account holds Pro-level access, so its Disable ads toggle
       // works exactly like a paying Pro's — off by default, effective when on.
-      canRequestAds:
-        ready &&
-        preferencesReady &&
-        consentInfo?.canRequestAds === true &&
-        !(canDisableAds && adsDisabled),
+      canRequestAds: adRequestAllowed({
+        sdkReady: ready,
+        preferencesReady,
+        consentGranted: consentInfo?.canRequestAds === true,
+        adsDisabled,
+        entitlement,
+      }),
       soundMuted,
       adsDisabled: canDisableAds && adsDisabled,
       canDisableAds,
