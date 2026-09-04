@@ -291,7 +291,7 @@ function TierColumn({
             <p className="text-[11px] text-muted-foreground">
               Card checkout, billed by RevenueCat. Renews automatically; cancel
               any time from Manage billing. Changing plan replaces your current
-              subscription — you are never billed for two at once.
+              subscription, so you are never billed for two at once.
             </p>
           </section>
         ) : null}
@@ -716,7 +716,7 @@ export default function PlansPage() {
             ) : null}
             <ul className="list-disc space-y-1 pl-5">
               <li>
-                Plus and Pro work the same on every account role — student and
+                Plus and Pro work the same on every account role: student and
                 teacher buy the same products. The Institutional licence covers
                 whole schools, staff and students alike, and is arranged by
                 email rather than checkout.

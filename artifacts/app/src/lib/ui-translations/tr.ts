@@ -1745,6 +1745,8 @@ const TR: Record<string, string> = {
   "Nothing here yet": "Burada henüz bir şey yok",
   "Theme": "Tema",
   "Follow your device, or pick light or dark. Saved on your account.": "Cihazını takip et ya da açık veya koyu seç. Hesabında saklanır.",
+  "Card checkout on the web is not configured on this deployment.": "Web'de kart ile ödeme bu dağıtımda yapılandırılmadı.",
+  "Plus and Pro work the same on every account role: student and teacher buy the same products. The Institutional licence covers whole schools, staff and students alike, and is arranged by email rather than checkout.": "Plus ve Pro her hesap rolünde aynı çalışır: öğrenci ve öğretmen aynı ürünleri satın alır. Kurumsal lisans; okulların tamamını, personeli ve öğrencileri kapsar ve ödeme yerine e-posta ile düzenlenir.",
 };
 
 export default TR;
