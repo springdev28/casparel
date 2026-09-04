@@ -1743,6 +1743,8 @@ const TR: Record<string, string> = {
   "Allow notifications": "Bildirimlere izin ver",
   "Schedule reminders": "Program hatırlatıcıları",
   "Nothing here yet": "Burada henüz bir şey yok",
+  "Theme": "Tema",
+  "Follow your device, or pick light or dark. Saved on your account.": "Cihazını takip et ya da açık veya koyu seç. Hesabında saklanır.",
 };
 
 export default TR;

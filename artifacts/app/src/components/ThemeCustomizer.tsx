@@ -18,6 +18,7 @@ import {
   useUpdateUserPreferences,
   useUserPreferences,
 } from "../lib/user-preferences";
+import { useAppearance } from "../hooks/use-appearance";
 
 const STORAGE_KEY_PREFIX = "schoolar_interface_colors";
 const LAST_COLORS_KEY = "schoolar_interface_colors:last";
@@ -60,6 +61,31 @@ const DEFAULT_COLORS: InterfaceColors = {
   primary: "#1e40af",
   accent: "#0d9488",
 };
+
+/**
+ * The same palette for a dark interface.
+ *
+ * These two values are the design system's own `.dark` tokens converted from
+ * HSL: `--background: 225 21.1% 7.5%` and `--card: 225 23.5% 13.3%`. They have
+ * to be written here rather than left to the class rule, because applyColors
+ * writes onto :root's inline style and inline style outranks a class — so an
+ * account that never opened the picker would otherwise keep the light canvas
+ * under a `.dark` document, which is a light page with dark form controls.
+ *
+ * Brand primary and accent are deliberately unchanged: a brand colour is not a
+ * theme, and every foreground, border and muted value applyColors derives is
+ * already computed for contrast against whichever canvas is in use.
+ */
+const DEFAULT_DARK_COLORS: InterfaceColors = {
+  background: "#0f1117",
+  surface: "#1a1e2a",
+  primary: "#1e40af",
+  accent: "#0d9488",
+};
+
+export function defaultColorsFor(resolved: "light" | "dark"): InterfaceColors {
+  return resolved === "dark" ? DEFAULT_DARK_COLORS : DEFAULT_COLORS;
+}
 
 /** Restore the signed-out interface without deleting account-specific colors. */
 export function applyDefaultColors() {
@@ -475,13 +501,17 @@ function storageKey(accountId: number) {
   return STORAGE_KEY_PREFIX + ":" + accountId;
 }
 
-function loadColors(accountId?: number): InterfaceColors {
-  if (!accountId) return DEFAULT_COLORS;
+function loadColors(
+  accountId?: number,
+  resolved: "light" | "dark" = "light",
+): InterfaceColors {
+  const fallback = defaultColorsFor(resolved);
+  if (!accountId) return fallback;
   try {
     const saved = localStorage.getItem(storageKey(accountId));
-    return saved ? { ...DEFAULT_COLORS, ...JSON.parse(saved) } : DEFAULT_COLORS;
+    return saved ? { ...fallback, ...JSON.parse(saved) } : fallback;
   } catch {
-    return DEFAULT_COLORS;
+    return fallback;
   }
 }
 
@@ -506,12 +536,16 @@ export default function ThemeCustomizer({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const { resolved } = useAppearance();
   const [colors, setColors] = useState<InterfaceColors>(DEFAULT_COLORS);
   const { data: accountPreferences } = useUserPreferences(Boolean(accountId));
   const updateAccountPreferences = useUpdateUserPreferences();
 
   useLayoutEffect(() => {
-    const next = accountPreferences?.interfaceColors ?? loadColors(accountId);
+    // An account that has chosen its own palette keeps it in both themes; one
+    // that has not follows the resolved Light/Dark choice.
+    const next =
+      accountPreferences?.interfaceColors ?? loadColors(accountId, resolved);
     setColors(next);
     applyColors(next);
     if (accountId && accountPreferences?.interfaceColors) {
@@ -519,11 +553,15 @@ export default function ThemeCustomizer({
     } else if (
       accountId &&
       accountPreferences &&
-      JSON.stringify(next) !== JSON.stringify(DEFAULT_COLORS)
+      // Compare against the default *for the theme in use*. Comparing against
+      // the light default alone stored the dark theme's own canvas as if the
+      // account had picked it by hand, and a hand-picked palette is honoured
+      // in both themes — so switching back to Light stayed dark, permanently.
+      JSON.stringify(next) !== JSON.stringify(defaultColorsFor(resolved))
     ) {
       updateAccountPreferences.mutate({ interfaceColors: next });
     }
-  }, [accountId, accountPreferences?.interfaceColors]);
+  }, [accountId, accountPreferences?.interfaceColors, resolved]);
 
   useLayoutEffect(() => {
     applyColors(colors);

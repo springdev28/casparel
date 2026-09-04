@@ -173,6 +173,7 @@ const PREFERENCES = {
     adsDisabled: false,
     soundMuted: false,
   },
+  appearance: null,
   tutorialSeen: true,
   updatedAt: "2026-08-01T09:00:00.000Z",
 };

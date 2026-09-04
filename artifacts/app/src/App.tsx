@@ -38,6 +38,7 @@ import { hasDictionary } from "./lib/translated-languages";
 import { clearSession, readSessionToken } from "./lib/session";
 import { useSessionClaims } from "./lib/use-session";
 import { AdConsentBanner } from "./components/AdConsentBanner";
+import { useAppearance } from "./hooks/use-appearance";
 
 const AppShell = lazy(() => import("./components/AppShell"));
 const UiTranslationBridge = lazy(
@@ -485,6 +486,11 @@ function Router() {
       </Route>
     </Switch>
   );
+}
+
+function AppearanceRuntime() {
+  useAppearance();
+  return null;
 }
 
 function App() {

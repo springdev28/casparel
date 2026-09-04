@@ -63,7 +63,7 @@ const REQUIRED: Record<string, string[]> = {
     "Schedule reminders",
   ],
   "account and roles": ["Student", "Teacher", "Profile", "Sign out"],
-  appearance: ["Appearance", "Light", "Dark", "System"],
+  appearance: ["Appearance", "Theme", "Light", "Dark", "System"],
   "empty and offline states": ["You're offline", "Try again", "Nothing here yet"],
 };
 

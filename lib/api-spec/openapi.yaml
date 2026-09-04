@@ -3436,6 +3436,7 @@ components:
           allowMessageRequests,
           notificationPreferences,
           adPreferences,
+          appearance,
           tutorialSeen,
           updatedAt,
         ]
@@ -3482,6 +3483,12 @@ components:
           $ref: "#/components/schemas/NotificationPreferences"
         adPreferences:
           $ref: "#/components/schemas/AdPreferences"
+        appearance:
+          type: ["string", "null"]
+          enum: [light, dark, system, null]
+          description: >-
+            Null when the account has never chosen, which every client reads
+            as "system" -- follow the device.
         tutorialSeen: { type: boolean }
         updatedAt: { type: string, format: date-time }
 
@@ -3529,6 +3536,7 @@ components:
           $ref: "#/components/schemas/NotificationPreferences"
         adPreferences:
           $ref: "#/components/schemas/AdPreferences"
+        appearance: { type: string, enum: [light, dark, system] }
         tutorialSeen: { type: boolean }
 
     ConversationParticipant:

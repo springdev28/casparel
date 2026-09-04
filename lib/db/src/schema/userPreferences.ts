@@ -59,6 +59,8 @@ export type AdPreferences = {
   soundMuted: boolean;
 };
 
+export type AppearancePreference = "light" | "dark" | "system";
+
 export const DEFAULT_AD_PREFERENCES: AdPreferences = {
   adsDisabled: false,
   soundMuted: false,
@@ -106,6 +108,11 @@ export const userPreferencesTable = pgTable("user_preferences", {
     .$type<AdPreferences>()
     .notNull()
     .default(DEFAULT_AD_PREFERENCES),
+  /**
+   * Light, dark, or follow the device. Null means the account has never
+   * chosen, which reads as "system" — the same convention `language` uses.
+   */
+  appearance: text("appearance").$type<AppearancePreference>(),
   tutorialSeen: boolean("tutorial_seen").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()

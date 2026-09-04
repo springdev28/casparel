@@ -252,6 +252,19 @@ export type UserPreferencesPendingCheckIns = {[key: string]: PendingCheckIn};
 export type UserPreferencesResourceSearchState = { [key: string]: unknown } | null;
 
 /**
+ * Null when the account has never chosen, which every client reads as "system" -- follow the device.
+ * @nullable
+ */
+export type UserPreferencesAppearance = typeof UserPreferencesAppearance[keyof typeof UserPreferencesAppearance] | null;
+
+
+export const UserPreferencesAppearance = {
+  light: 'light',
+  dark: 'dark',
+  system: 'system',
+} as const;
+
+/**
  * Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.
  */
 export interface UserPreferences {
@@ -280,6 +293,11 @@ export interface UserPreferences {
   allowMessageRequests: boolean;
   notificationPreferences: NotificationPreferences;
   adPreferences: AdPreferences;
+  /**
+     * Null when the account has never chosen, which every client reads as "system" -- follow the device.
+     * @nullable
+     */
+  appearance: UserPreferencesAppearance;
   tutorialSeen: boolean;
   updatedAt: string;
 }
@@ -316,6 +334,15 @@ export type UserPreferencesPatchPendingCheckIns = {[key: string]: PendingCheckIn
  */
 export type UserPreferencesPatchResourceSearchState = { [key: string]: unknown } | null;
 
+export type UserPreferencesPatchAppearance = typeof UserPreferencesPatchAppearance[keyof typeof UserPreferencesPatchAppearance];
+
+
+export const UserPreferencesPatchAppearance = {
+  light: 'light',
+  dark: 'dark',
+  system: 'system',
+} as const;
+
 /**
  * Only the keys present are changed.
  */
@@ -340,6 +367,7 @@ export interface UserPreferencesPatch {
   allowMessageRequests?: boolean;
   notificationPreferences?: NotificationPreferences;
   adPreferences?: AdPreferences;
+  appearance?: UserPreferencesPatchAppearance;
   tutorialSeen?: boolean;
 }
 

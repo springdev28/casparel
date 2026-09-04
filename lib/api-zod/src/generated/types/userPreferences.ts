@@ -10,6 +10,7 @@ import type { InterfaceColors } from './interfaceColors';
 import type { NotificationPreferences } from './notificationPreferences';
 import type { SearchHistoryEntry } from './searchHistoryEntry';
 import type { UserPreferencesAmbientStyle } from './userPreferencesAmbientStyle';
+import type { UserPreferencesAppearance } from './userPreferencesAppearance';
 import type { UserPreferencesContinueStudying } from './userPreferencesContinueStudying';
 import type { UserPreferencesDashboardGoalIds } from './userPreferencesDashboardGoalIds';
 import type { UserPreferencesLanguage } from './userPreferencesLanguage';
@@ -45,6 +46,11 @@ export interface UserPreferences {
   allowMessageRequests: boolean;
   notificationPreferences: NotificationPreferences;
   adPreferences: AdPreferences;
+  /**
+     * Null when the account has never chosen, which every client reads as "system" -- follow the device.
+     * @nullable
+     */
+  appearance: UserPreferencesAppearance;
   tutorialSeen: boolean;
   updatedAt: Date;
 }

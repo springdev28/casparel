@@ -19,6 +19,7 @@ import {
   Palette,
   RotateCcw,
   ShieldAlert,
+  Sun,
   Trash2,
   UserRound,
   Volume2,
@@ -32,6 +33,8 @@ import ThemeCustomizer from "../components/ThemeCustomizer";
 import { PlanSection } from "../components/PlanSection";
 import { useAuthLanguage } from "../lib/auth-locale";
 import { usePlan } from "../lib/use-plan";
+import { useAppearance } from "../hooks/use-appearance";
+import { isAppearanceMode, type AppearanceMode } from "../lib/appearance";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -109,6 +112,21 @@ export default function SettingsPage() {
   const adsDisabled = nativeAds.isNativeShell
     ? nativeAds.adsDisabled
     : (accountAdPrefs?.adsDisabled ?? nativeAds.adsDisabled);
+
+  const appearance = useAppearance();
+  const savedAppearance = preferences.data?.appearance;
+  useEffect(() => {
+    // The account's saved choice is authoritative once it arrives; the local
+    // copy only exists so the first paint is not a flash of the wrong theme.
+    if (isAppearanceMode(savedAppearance) && savedAppearance !== appearance.mode) {
+      appearance.setMode(savedAppearance);
+    }
+  }, [savedAppearance, appearance]);
+
+  function changeAppearance(mode: AppearanceMode) {
+    appearance.setMode(mode);
+    updatePreferences.mutate({ appearance: mode });
+  }
 
   function persistAdPreferences(next: { adsDisabled: boolean; soundMuted: boolean }) {
     // Account storage is what makes the choice follow the person to other
@@ -207,6 +225,43 @@ export default function SettingsPage() {
             showLabel
             className="justify-start sm:justify-center"
           />
+        </section>
+
+        <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex min-w-0 gap-3">
+            <Sun className="mt-0.5 size-5 shrink-0 text-primary-text" />
+            <div>
+              <h2 className="font-semibold">Theme</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Follow your device, or pick light or dark. Saved on your
+                account.
+              </p>
+            </div>
+          </div>
+          <div
+            role="radiogroup"
+            aria-label="Theme"
+            className="inline-flex w-full min-w-0 shrink-0 rounded-lg border border-border p-1 sm:w-auto"
+          >
+            {(["light", "dark", "system"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={appearance.mode === mode}
+                onClick={() => changeAppearance(mode)}
+                data-testid={`appearance-${mode}`}
+                className={
+                  "min-w-0 flex-1 truncate rounded-md px-3 py-1.5 text-sm font-medium transition-colors sm:flex-none " +
+                  (appearance.mode === mode
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                {mode === "light" ? "Light" : mode === "dark" ? "Dark" : "System"}
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">

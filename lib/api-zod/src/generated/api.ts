@@ -3901,6 +3901,7 @@ export const GetMyPreferencesResponse = zod.object({
   "adsDisabled": zod.boolean(),
   "soundMuted": zod.boolean()
 }).describe('Advertising preferences, stored on the account so they follow the person across devices. Whether adsDisabled may take effect is an entitlement question (Pro, Review, Institutional) answered at read time; the stored flag survives entitlement changes.'),
+  "appearance": zod.union([zod.literal('light'),zod.literal('dark'),zod.literal('system'),zod.literal(null)]).nullable().describe('Null when the account has never chosen, which every client reads as \"system\" -- follow the device.'),
   "tutorialSeen": zod.boolean(),
   "updatedAt": zod.coerce.date()
 }).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')
@@ -3969,6 +3970,7 @@ export const UpdateMyPreferencesBody = zod.object({
   "adsDisabled": zod.boolean(),
   "soundMuted": zod.boolean()
 }).optional().describe('Advertising preferences, stored on the account so they follow the person across devices. Whether adsDisabled may take effect is an entitlement question (Pro, Review, Institutional) answered at read time; the stored flag survives entitlement changes.'),
+  "appearance": zod.enum(['light', 'dark', 'system']).optional(),
   "tutorialSeen": zod.boolean().optional()
 }).describe('Only the keys present are changed.')
 
@@ -4026,6 +4028,7 @@ export const UpdateMyPreferencesResponse = zod.object({
   "adsDisabled": zod.boolean(),
   "soundMuted": zod.boolean()
 }).describe('Advertising preferences, stored on the account so they follow the person across devices. Whether adsDisabled may take effect is an entitlement question (Pro, Review, Institutional) answered at read time; the stored flag survives entitlement changes.'),
+  "appearance": zod.union([zod.literal('light'),zod.literal('dark'),zod.literal('system'),zod.literal(null)]).nullable().describe('Null when the account has never chosen, which every client reads as \"system\" -- follow the device.'),
   "tutorialSeen": zod.boolean(),
   "updatedAt": zod.coerce.date()
 }).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')

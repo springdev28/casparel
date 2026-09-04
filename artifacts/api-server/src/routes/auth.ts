@@ -261,6 +261,7 @@ const userPreferencesPatch = z
         soundMuted: z.boolean(),
       })
       .optional(),
+    appearance: z.enum(["light", "dark", "system"]).optional(),
     tutorialSeen: z.boolean().optional(),
   })
   .strict();
@@ -293,6 +294,8 @@ function defaultUserPreferences(userId: number) {
       adsDisabled: false,
       soundMuted: false,
     },
+    // Never chosen: every client reads null as "follow the device".
+    appearance: null as "light" | "dark" | "system" | null,
     tutorialSeen: true,
     updatedAt: new Date(0).toISOString(),
   };
