@@ -1675,6 +1675,18 @@ export interface ResourcePatch {
   thumbnailUrl?: string;
 }
 
+export interface NormalizedResourceMetadata {
+  subjects: string[];
+  courses: string[];
+  gradeBands: string[];
+  formats: string[];
+  languages: string[];
+  difficulties: string[];
+  providers: string[];
+  licenses: string[];
+  accessTypes: string[];
+}
+
 export type DiscoveredResourceFormat = typeof DiscoveredResourceFormat[keyof typeof DiscoveredResourceFormat];
 
 
@@ -1704,6 +1716,78 @@ export const DiscoveredResourceLanguage = {
   other: 'other',
 } as const;
 
+/**
+ * @nullable
+ */
+export type DiscoveredResourceAccessType = typeof DiscoveredResourceAccessType[keyof typeof DiscoveredResourceAccessType] | null;
+
+
+export const DiscoveredResourceAccessType = {
+  open: 'open',
+  'free-account': 'free-account',
+  paid: 'paid',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * @nullable
+ */
+export type DiscoveredResourceDifficulty = typeof DiscoveredResourceDifficulty[keyof typeof DiscoveredResourceDifficulty] | null;
+
+
+export const DiscoveredResourceDifficulty = {
+  beginner: 'beginner',
+  intermediate: 'intermediate',
+  advanced: 'advanced',
+  mixed: 'mixed',
+  unknown: 'unknown',
+} as const;
+
+/**
+ * @nullable
+ */
+export type DiscoveredResourceContentLength = typeof DiscoveredResourceContentLength[keyof typeof DiscoveredResourceContentLength] | null;
+
+
+export const DiscoveredResourceContentLength = {
+  short: 'short',
+  medium: 'medium',
+  long: 'long',
+  unknown: 'unknown',
+} as const;
+
+export type DiscoveredResourceMaterialType = typeof DiscoveredResourceMaterialType[keyof typeof DiscoveredResourceMaterialType];
+
+
+export const DiscoveredResourceMaterialType = {
+  course: 'course',
+  lesson: 'lesson',
+  'class-notes': 'class-notes',
+  worksheet: 'worksheet',
+  practice: 'practice',
+  textbook: 'textbook',
+  reference: 'reference',
+  research: 'research',
+  discussion: 'discussion',
+  tool: 'tool',
+  media: 'media',
+  other: 'other',
+} as const;
+
+export type DiscoveredResourceSourceCategory = typeof DiscoveredResourceSourceCategory[keyof typeof DiscoveredResourceSourceCategory];
+
+
+export const DiscoveredResourceSourceCategory = {
+  academic: 'academic',
+  institutional: 'institutional',
+  'open-education': 'open-education',
+  community: 'community',
+  archive: 'archive',
+  creator: 'creator',
+  publisher: 'publisher',
+  other: 'other',
+} as const;
+
 export type DiscoveredResourceProvenanceLevel = typeof DiscoveredResourceProvenanceLevel[keyof typeof DiscoveredResourceProvenanceLevel];
 
 
@@ -1728,6 +1812,23 @@ export interface DiscoveredResource {
   gradeLevel?: string | null;
   /** @nullable */
   language?: DiscoveredResourceLanguage;
+  /** @nullable */
+  accessType?: DiscoveredResourceAccessType;
+  /** @nullable */
+  difficulty?: DiscoveredResourceDifficulty;
+  /** @nullable */
+  contentLength?: DiscoveredResourceContentLength;
+  /** @nullable */
+  license?: string | null;
+  /** @nullable */
+  publishedAt?: string | null;
+  /** @nullable */
+  captionsAvailable?: boolean | null;
+  /** @nullable */
+  transcriptAvailable?: boolean | null;
+  materialType?: DiscoveredResourceMaterialType;
+  sourceCategory?: DiscoveredResourceSourceCategory;
+  normalizedMetadata?: NormalizedResourceMetadata;
   /** Where this result sits in the ranking for the query that returned it. Sortable as plain text, so a client asking for more results sends back the largest cursor it holds as the `after` parameter. Absent on results that did not come from the stored catalog. */
   cursor?: string;
   /** The stored catalog row this result came from. A client asking for more results sends back the largest one it holds as `sinceId`, so works stored while it was reading are offered even though they rank above the point it has read to. Absent on results that did not come from the stored catalog. */
@@ -2608,7 +2709,7 @@ format?: string;
 subject?: string;
 gradeLevel?: string;
 /**
- * Required result language, or any to allow all languages
+ * Required resource language, or any to allow all languages. This is independent from the interface language and is never inferred from it
  */
 language?: DiscoverResourcesLanguage;
 /**

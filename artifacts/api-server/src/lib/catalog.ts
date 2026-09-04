@@ -48,6 +48,20 @@ import {
   workTitle,
   type MediaWikiSite,
 } from "./mediawiki";
+import {
+  expandedCatalogFacet,
+  expandedCatalogSearchTerms,
+  foldCatalogText,
+  normalizeResourceMetadata,
+  type CatalogMetadataFacet,
+  type NormalizedResourceMetadata,
+} from "./catalogNormalization";
+import {
+  filterRankAndDedupeDiscovery,
+  type DiscoveryCandidate,
+  type DiscoveryMaterialType,
+  type DiscoverySourceCategory,
+} from "./discoverySearch";
 
 // NonNullable because the column has a database default, so the *insert* type
 // makes it optional — which quietly put `undefined` in every list of formats.
@@ -74,6 +88,7 @@ export type CatalogSearchOptions = {
    */
   format?: string;
   subject?: string;
+  course?: string;
   gradeLevel?: string;
   /** Subjects the reader does not want, comma-separated. */
   excludeSubjects?: string;
@@ -138,8 +153,13 @@ export type CatalogSearchOptions = {
   /** Kinds of material wanted, comma-separated: book, course, reference, paper, primary. */
   material?: string;
   freshness?: string;
+  difficulty?: string;
   accessType?: string;
   license?: string;
+  contentLength?: string;
+  captions?: boolean;
+  transcript?: boolean;
+  sourceCategory?: string;
   /** Credibility tiers wanted, comma-separated. */
   sourceQuality?: string;
 };
@@ -155,6 +175,18 @@ export type CatalogSearchItem = {
   gradeLevel: string | null;
   language?: string | null;
   sourceCredibility?: SourceCredibility;
+  author?: string | null;
+  accessType?: "open" | "free-account" | "paid" | "unknown" | null;
+  difficulty?:
+    "beginner" | "intermediate" | "advanced" | "mixed" | "unknown" | null;
+  contentLength?: "short" | "medium" | "long" | "unknown" | null;
+  license?: string | null;
+  publishedAt?: string | null;
+  captionsAvailable?: boolean | null;
+  transcriptAvailable?: boolean | null;
+  materialType?: DiscoveryMaterialType;
+  sourceCategory?: DiscoverySourceCategory;
+  normalizedMetadata?: NormalizedResourceMetadata;
   /** Where this row sits in the ranking. See {@link catalogCursor}. */
   cursor?: string;
   /** The stored row this came from, so a later page can ask for newer ones. */
@@ -1028,7 +1060,36 @@ export async function upsertCatalogResources(items: InsertCatalogResource[]) {
     ...new Map(
       items.map((item) => {
         const canonicalUrl = canonicalCatalogUrl(item.canonicalUrl);
-        return [canonicalUrl, { ...item, canonicalUrl }];
+        const metadata = item.metadata ?? {};
+        const normalizedMetadata = normalizeResourceMetadata({
+          title: item.title,
+          url: canonicalUrl,
+          description: item.description,
+          format: item.format,
+          provider: item.provider,
+          subject: item.subject,
+          gradeLevel: item.gradeLevel,
+          language: item.language,
+          difficulty:
+            typeof metadata.difficulty === "string"
+              ? metadata.difficulty
+              : null,
+          license: item.license,
+          accessType:
+            typeof metadata.accessType === "string"
+              ? metadata.accessType
+              : null,
+          normalizedMetadata: metadata.normalizedMetadata as
+            NormalizedResourceMetadata | undefined,
+        });
+        return [
+          canonicalUrl,
+          {
+            ...item,
+            canonicalUrl,
+            metadata: { ...metadata, normalizedMetadata },
+          },
+        ];
       }),
     ).values(),
   ];
@@ -1068,7 +1129,6 @@ export async function ensureCuratedCatalog() {
 
 const filterTokens = (value: string) =>
   value.trim().split(/\s+/).filter(Boolean).slice(0, 8);
-
 
 /**
  * What one query word is worth against a row.
@@ -1160,7 +1220,8 @@ function catalogCoverage(terms: string[]): SQL<number> {
   if (!terms.length) return sql<number>`0`;
   return sql<number>`(${sql.join(
     terms.map(
-      (term) => sql<number>`case when ${catalogTermScore(term)} > 0 then 1 else 0 end`,
+      (term) =>
+        sql<number>`case when ${catalogTermScore(term)} > 0 then 1 else 0 end`,
     ),
     sql` + `,
   )})`;
@@ -1310,6 +1371,48 @@ export function rareEnoughToStandAlone({
     .map(([term]) => term);
 }
 
+function normalizedCatalogFacetCondition(
+  facet: CatalogMetadataFacet,
+  value: string | undefined,
+  rawChecks: (alias: string) => SQL[],
+) {
+  if (!value?.trim()) return undefined;
+  const expanded = expandedCatalogFacet(facet, value);
+  const checks = [
+    ...expanded.canonical.map(
+      (canonical) =>
+        sql`coalesce(${catalogResourcesTable.metadata}->'normalizedMetadata'->${facet}, '[]'::jsonb) ? ${canonical}`,
+    ),
+    ...expanded.aliases.flatMap(rawChecks),
+  ];
+  return checks.length ? or(...checks) : undefined;
+}
+
+function catalogSemanticQueryCondition(value: string) {
+  const expansions = [
+    ...expandedCatalogSearchTerms(value),
+    ...expandedCatalogFacet("subjects", value).aliases,
+    ...expandedCatalogFacet("courses", value).aliases,
+    ...expandedCatalogFacet("providers", value).aliases,
+  ]
+    .map((term) => term.trim())
+    .filter(
+      (term, index, terms) => term.length >= 2 && terms.indexOf(term) === index,
+    )
+    .slice(0, 100);
+  const checks = expansions.flatMap((term) => {
+    const pattern = `%${term}%`;
+    return [
+      ilike(catalogResourcesTable.title, pattern),
+      ilike(catalogResourcesTable.description, pattern),
+      ilike(catalogResourcesTable.subject, pattern),
+      ilike(catalogResourcesTable.provider, pattern),
+      ilike(catalogResourcesTable.canonicalUrl, pattern),
+    ];
+  });
+  return checks.length ? or(...checks) : undefined;
+}
+
 function catalogConditions(options: CatalogSearchOptions): SQL[] {
   const conditions: SQL[] = [];
   const searchTerms = meaningfulSearchTerms(options.query);
@@ -1321,88 +1424,79 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
     const judged = relevanceTerms(searchTerms);
     const required =
       options.minRelevanceScore ?? requiredRelevanceScore(judged);
-    conditions.push(sql`${catalogRelevanceScore(judged)} >= ${required}`);
-    // A question with several words in it can tell a work about the topic from
-    // one that happens to share a word — but only for the works narrow enough
-    // that sharing one word means nothing. Skipped for a one-word question,
-    // where matching two is impossible.
-    if (
-      judged.length >= MIN_NARROW_COVERAGE &&
-      options.requireNarrowCoverage !== false
-    )
-      conditions.push(sql`(
-        coalesce(${catalogResourcesTable.metadata}->>'material', '') not in (${sql.join(
-          NARROW_MATERIALS.map((material) => sql`${material}`),
-          sql`, `,
-        )})
-        or ${catalogCoverage(judged)} >= ${MIN_NARROW_COVERAGE})`);
-    // And for every kind of work: a row that matched one word, where that word
-    // is one the catalog is full of, has not answered a question made of
-    // several. Matching a word the catalog barely uses is enough on its own —
-    // that is what tells "Basic kinematics" from "Russian Revolution", which
-    // are otherwise the same shape.
-    if (options.requireTopicCoverage && judged.length >= MIN_TOPIC_COVERAGE) {
-      const distinguishing = (options.distinguishingTerms ?? []).filter(
-        (term) => judged.includes(term),
-      );
-      conditions.push(
-        distinguishing.length
-          ? sql`(${catalogCoverage(judged)} >= ${MIN_TOPIC_COVERAGE}
-              or ${catalogRelevanceScore(distinguishing)} > 0)`
-          : sql`${catalogCoverage(judged)} >= ${MIN_TOPIC_COVERAGE}`,
-      );
-    }
-    // "In the title" means the topic *is* what the work is about, not something
-    // it mentions. A description match is worth one point and a title or subject
-    // match two, so requiring the strong score on a word is the whole rule.
-    if (options.titleOnly)
-      for (const term of judged)
-        conditions.push(
-          sql`${catalogTermScore(term)} = ${STRONG_FIELD_SCORE}`,
-        );
+    const literalMatch = sql`${catalogRelevanceScore(judged)} >= ${required}`;
+    const semanticMatch = catalogSemanticQueryCondition(options.query);
+    conditions.push(
+      semanticMatch ? or(literalMatch, semanticMatch)! : literalMatch,
+    );
   }
   // Each of these accepts a list. Asked for one value they behave exactly as
   // they did; asked for several they widen, which is what a reader means by
   // ticking two boxes rather than being made to search twice.
-  const formats = filterValues(options.format).filter((value) =>
-    CATALOG_FORMATS.includes(value as ResourceFormat),
-  ) as ResourceFormat[];
-  // An OR of equalities rather than inArray: drizzle's enum-column overloads do
-  // not accept a plain array of the enum's own values, and this reads the same.
-  if (formats.length)
-    conditions.push(
-      or(...formats.map((value) => eq(catalogResourcesTable.format, value)))!,
-    );
+  const formatCondition = normalizedCatalogFacetCondition(
+    "formats",
+    options.format,
+    (alias) => {
+      const format = foldCatalogText(alias) as ResourceFormat;
+      return CATALOG_FORMATS.includes(format)
+        ? [eq(catalogResourcesTable.format, format)]
+        : [];
+    },
+  );
+  if (formatCondition) conditions.push(formatCondition);
 
-  const subjects = filterValues(options.subject);
-  if (subjects.length)
-    conditions.push(
-      or(
-        ...subjects.map((subject) =>
-          ilike(catalogResourcesTable.subject, `%${subject}%`),
-        ),
-      )!,
-    );
+  const subjectCondition = normalizedCatalogFacetCondition(
+    "subjects",
+    options.subject,
+    (alias) => {
+      const pattern = `%${alias}%`;
+      return [
+        ilike(catalogResourcesTable.subject, pattern),
+        ilike(catalogResourcesTable.title, pattern),
+        ilike(catalogResourcesTable.description, pattern),
+      ];
+    },
+  );
+  if (subjectCondition) conditions.push(subjectCondition);
 
-  const gradeLevels = filterValues(options.gradeLevel);
-  if (gradeLevels.length)
-    conditions.push(
-      or(
-        ...gradeLevels.map((level) =>
-          ilike(catalogResourcesTable.gradeLevel, `%${level}%`),
-        ),
-        // A work marked for all levels answers every grade, so it is never the
-        // thing a grade filter is trying to remove.
-        ilike(catalogResourcesTable.gradeLevel, "%All levels%"),
-      )!,
-    );
+  const courseCondition = normalizedCatalogFacetCondition(
+    "courses",
+    options.course,
+    (alias) => {
+      const pattern = `%${alias}%`;
+      return [
+        ilike(catalogResourcesTable.title, pattern),
+        ilike(catalogResourcesTable.description, pattern),
+        ilike(catalogResourcesTable.subject, pattern),
+      ];
+    },
+  );
+  if (courseCondition) conditions.push(courseCondition);
+
+  const gradeCondition = normalizedCatalogFacetCondition(
+    "gradeBands",
+    options.gradeLevel,
+    (alias) => [ilike(catalogResourcesTable.gradeLevel, `%${alias}%`)],
+  );
+  if (gradeCondition) conditions.push(gradeCondition);
 
   // Subjects the reader is tired of. Separate from excluded *words*, which match
   // anywhere: this one is about how the work is filed.
-  for (const subject of filterValues(options.excludeSubjects))
-    conditions.push(
-      not(ilike(catalogResourcesTable.subject, `%${subject}%`)),
+  for (const subject of filterValues(options.excludeSubjects)) {
+    const excluded = normalizedCatalogFacetCondition(
+      "subjects",
+      subject,
+      (alias) => {
+        const pattern = `%${alias}%`;
+        return [
+          ilike(catalogResourcesTable.subject, pattern),
+          ilike(catalogResourcesTable.title, pattern),
+          ilike(catalogResourcesTable.description, pattern),
+        ];
+      },
     );
+    if (excluded) conditions.push(not(excluded));
+  }
 
   if (options.author)
     conditions.push(
@@ -1428,12 +1522,30 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
     conditions.push(sql`${catalogResourcesTable.thumbnailUrl} is not null`);
   if (options.hasThumbnail === false)
     conditions.push(sql`${catalogResourcesTable.thumbnailUrl} is null`);
-  if (options.language && options.language !== "any")
-    conditions.push(eq(catalogResourcesTable.language, options.language));
-  if (options.source)
-    conditions.push(
-      ilike(catalogResourcesTable.provider, `%${options.source}%`),
+  if (options.language && foldCatalogText(options.language) !== "any") {
+    const languageCondition = normalizedCatalogFacetCondition(
+      "languages",
+      options.language,
+      (alias) => [
+        ilike(catalogResourcesTable.language, `%${alias}%`),
+        ilike(catalogResourcesTable.canonicalUrl, `%.${alias}.%`),
+      ],
     );
+    if (languageCondition) conditions.push(languageCondition);
+  }
+  const providerCondition = normalizedCatalogFacetCondition(
+    "providers",
+    options.source,
+    (alias) => {
+      const pattern = `%${alias}%`;
+      return [
+        ilike(catalogResourcesTable.provider, pattern),
+        ilike(catalogResourcesTable.canonicalUrl, pattern),
+        ilike(catalogResourcesTable.providerUrl, pattern),
+      ];
+    },
+  );
+  if (providerCondition) conditions.push(providerCondition);
   // Matched against the provider *and* the link, so both "Wikipedia" and
   // "wikipedia.org" drop the same results — a reader excluding a source should
   // not have to guess which of the two the catalog stored.
@@ -1449,24 +1561,17 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
       ),
     );
   }
-  if (options.exactPhrase)
-    conditions.push(
-      or(
-        ilike(catalogResourcesTable.title, `%${options.exactPhrase}%`),
-        ilike(catalogResourcesTable.description, `%${options.exactPhrase}%`),
-      )!,
-    );
+  if (options.exactPhrase) {
+    const literal = or(
+      ilike(catalogResourcesTable.title, `%${options.exactPhrase}%`),
+      ilike(catalogResourcesTable.description, `%${options.exactPhrase}%`),
+    )!;
+    const semantic = catalogSemanticQueryCondition(options.exactPhrase);
+    conditions.push(semantic ? or(literal, semantic)! : literal);
+  }
   for (const word of filterTokens(options.excludedWords ?? "")) {
-    const pattern = `%${word}%`;
-    conditions.push(
-      not(
-        or(
-          ilike(catalogResourcesTable.title, pattern),
-          ilike(catalogResourcesTable.description, pattern),
-          ilike(catalogResourcesTable.subject, pattern),
-        )!,
-      ),
-    );
+    const semantic = catalogSemanticQueryCondition(word);
+    if (semantic) conditions.push(not(semantic));
   }
   // What kind of thing the reader wants. The catalog now holds encyclopedia
   // articles, textbooks, courses, primary texts and peer-reviewed papers, and
@@ -1484,19 +1589,50 @@ function catalogConditions(options: CatalogSearchOptions): SQL[] {
         ),
       )!,
     );
-  if (["free", "open"].includes(options.accessType ?? ""))
+  const accessCondition = normalizedCatalogFacetCondition(
+    "accessTypes",
+    options.accessType,
+    (alias) => [
+      ilike(
+        sql`coalesce(${catalogResourcesTable.metadata}->>'accessType', '')`,
+        `%${alias}%`,
+      ),
+    ],
+  );
+  if (accessCondition) conditions.push(accessCondition);
+
+  const licenseCondition = normalizedCatalogFacetCondition(
+    "licenses",
+    options.license,
+    (alias) => [ilike(catalogResourcesTable.license, `%${alias}%`)],
+  );
+  if (licenseCondition) conditions.push(licenseCondition);
+
+  const difficultyCondition = normalizedCatalogFacetCondition(
+    "difficulties",
+    options.difficulty,
+    (alias) => [
+      ilike(
+        sql`coalesce(${catalogResourcesTable.metadata}->>'difficulty', '')`,
+        `%${alias}%`,
+      ),
+      ilike(catalogResourcesTable.title, `%${alias}%`),
+      ilike(catalogResourcesTable.gradeLevel, `%${alias}%`),
+    ],
+  );
+  if (difficultyCondition) conditions.push(difficultyCondition);
+
+  if (options.contentLength)
     conditions.push(
-      sql`coalesce(${catalogResourcesTable.metadata}->>'accessType', '') = 'free'`,
+      sql`coalesce(${catalogResourcesTable.metadata}->>'contentLength', '') = ${options.contentLength}`,
     );
-  if (options.license === "known")
-    conditions.push(sql`${catalogResourcesTable.license} is not null`);
-  if (options.license === "reusable")
+  if (options.captions)
     conditions.push(
-      or(
-        ilike(catalogResourcesTable.license, "%CC %"),
-        ilike(catalogResourcesTable.license, "%Creative Commons%"),
-        ilike(catalogResourcesTable.license, "%public domain%"),
-      )!,
+      sql`coalesce(${catalogResourcesTable.metadata}->>'captionsAvailable', 'false') = 'true'`,
+    );
+  if (options.transcript)
+    conditions.push(
+      sql`coalesce(${catalogResourcesTable.metadata}->>'transcriptAvailable', 'false') = 'true'`,
     );
   const credibilities = filterValues(options.sourceQuality).filter((value) =>
     ["academic", "institutional", "established", "independent"].includes(value),
@@ -1750,9 +1886,7 @@ export async function resolveCatalogSearch(
   // the catalog runs out, so page 2 of a six-row result read from row 16 and
   // returned nothing even after a top-up had just added rows.
   const offset =
-    page === 1
-      ? 0
-      : Math.min((page - 1) * catalogFetchWindow(options), total);
+    page === 1 ? 0 : Math.min((page - 1) * catalogFetchWindow(options), total);
   return {
     minRelevanceScore,
     requireNarrowCoverage,
@@ -1763,7 +1897,58 @@ export async function resolveCatalogSearch(
   };
 }
 
+function catalogMetadataString(
+  metadata: Record<string, unknown>,
+  key: string,
+): string | null {
+  return typeof metadata[key] === "string" ? metadata[key] : null;
+}
+
+function catalogMetadataBoolean(
+  metadata: Record<string, unknown>,
+  key: string,
+): boolean | null {
+  return typeof metadata[key] === "boolean" ? metadata[key] : null;
+}
+
+function catalogAccessType(
+  metadata: Record<string, unknown>,
+): DiscoveryCandidate["accessType"] {
+  const value = foldCatalogText(catalogMetadataString(metadata, "accessType"));
+  if (["free", "open", "no account"].includes(value)) return "open";
+  if (["free account", "registration required"].includes(value))
+    return "free-account";
+  if (["paid", "subscription"].includes(value)) return "paid";
+  return "unknown";
+}
+
+function catalogDifficulty(
+  metadata: Record<string, unknown>,
+): CatalogSearchItem["difficulty"] {
+  const value = foldCatalogText(catalogMetadataString(metadata, "difficulty"));
+  return ["beginner", "intermediate", "advanced", "mixed"].includes(value)
+    ? (value as NonNullable<CatalogSearchItem["difficulty"]>)
+    : "unknown";
+}
+
+function catalogContentLength(
+  metadata: Record<string, unknown>,
+): DiscoveryCandidate["contentLength"] {
+  const value = foldCatalogText(
+    catalogMetadataString(metadata, "contentLength"),
+  );
+  return ["short", "medium", "long"].includes(value)
+    ? (value as NonNullable<DiscoveryCandidate["contentLength"]>)
+    : "unknown";
+}
+
 export async function searchCatalog(
+  options: CatalogSearchOptions,
+): Promise<CatalogSearchItem[]> {
+  return searchCatalogLegacy(options);
+}
+
+async function searchCatalogLegacy(
   options: CatalogSearchOptions,
 ): Promise<CatalogSearchItem[]> {
   if (options.resultType === "people") return [];
@@ -1794,7 +1979,9 @@ export async function searchCatalog(
   const sinceId = Number.isFinite(options.sinceId)
     ? Math.max(0, Math.trunc(options.sinceId!))
     : null;
-  const offset = resume ? 0 : Math.max(0, options.offset ?? (page - 1) * window);
+  const offset = resume
+    ? 0
+    : Math.max(0, options.offset ?? (page - 1) * window);
 
   // Each source's own position in its own results, turned into a band: its two
   // best answers are band 0, its next two band 1, and so on. Ordering by band
@@ -1887,46 +2074,130 @@ export async function searchCatalog(
     .limit(window)
     .offset(offset);
 
+  const candidates = rows.map((row) => {
+    const storedNormalized = row.metadata.normalizedMetadata as
+      NormalizedResourceMetadata | undefined;
+    const material = catalogMetadataString(row.metadata, "material");
+    const materialType: DiscoveryMaterialType | undefined =
+      material === "book"
+        ? "textbook"
+        : material === "paper"
+          ? "research"
+          : material === "video"
+            ? "media"
+            : ["course", "reference"].includes(material ?? "")
+              ? (material as DiscoveryMaterialType)
+              : undefined;
+    const normalizedMetadata = normalizeResourceMetadata({
+      title: row.title,
+      url: row.canonicalUrl,
+      description: row.description,
+      format: row.format,
+      provider: row.provider,
+      subject: row.subject,
+      gradeLevel: row.gradeLevel,
+      language: row.language,
+      difficulty: catalogMetadataString(row.metadata, "difficulty"),
+      license: row.license,
+      accessType: catalogMetadataString(row.metadata, "accessType"),
+      normalizedMetadata: storedNormalized,
+    });
+    return {
+      title: row.title,
+      url: row.canonicalUrl,
+      providerUrl: row.providerUrl,
+      description:
+        row.description ?? `Educational resource from ${row.provider}.`,
+      format: row.format,
+      source: row.provider,
+      thumbnailUrl: row.thumbnailUrl,
+      subject: row.subject,
+      gradeLevel: row.gradeLevel,
+      language: row.language,
+      author: row.author,
+      material,
+      materialType,
+      accessType: catalogAccessType(row.metadata),
+      difficulty: catalogDifficulty(row.metadata),
+      contentLength: catalogContentLength(row.metadata),
+      license: row.license,
+      publishedAt: row.publishedAt,
+      captionsAvailable: catalogMetadataBoolean(
+        row.metadata,
+        "captionsAvailable",
+      ),
+      transcriptAvailable: catalogMetadataBoolean(
+        row.metadata,
+        "transcriptAvailable",
+      ),
+      sourceCredibility: readSourceCredibility(row.metadata),
+      normalizedMetadata,
+      cursor: catalogCursor(
+        Number(row.band),
+        Number(row.score),
+        Number(row.relevance),
+        row.id,
+      ),
+      catalogId: row.id,
+    };
+  });
+
+  const filtered = filterRankAndDedupeDiscovery(candidates, {
+    query: options.query,
+    format: options.format as DiscoveryCandidate["format"],
+    subject: options.subject,
+    course: options.course,
+    gradeLevel: options.gradeLevel,
+    exactPhrase: options.exactPhrase,
+    excludedWords: options.excludedWords,
+    source: options.source,
+    excludeSource: options.excludeSource,
+    excludeSubjects: options.excludeSubjects,
+    author: options.author,
+    titleOnly: options.titleOnly,
+    hasThumbnail: options.hasThumbnail,
+    publishedFrom: options.publishedFrom,
+    publishedTo: options.publishedTo,
+    freshness: options.freshness,
+    difficulty: options.difficulty,
+    accessType: options.accessType,
+    license: options.license,
+    contentLength: options.contentLength,
+    sourceQuality: options.sourceQuality,
+    material: options.material,
+    sourceCategory: options.sourceCategory,
+    language: options.language,
+    captions: options.captions,
+    transcript: options.transcript,
+    limit: window,
+  });
+
   if (options.resultType === "source") {
     const seen = new Set<string>();
-    return rows
-      .filter(
-        (row) => !seen.has(row.provider) && Boolean(seen.add(row.provider)),
-      )
+    return filtered
+      .filter((item) => {
+        const provider = item.normalizedMetadata.providers[0] ?? item.source;
+        return !seen.has(provider) && Boolean(seen.add(provider));
+      })
       .slice(0, limit)
-      .map((row) => ({
-        title: row.provider,
-        url: row.providerUrl,
-        description: `Open educational resources from ${row.provider}.`,
+      .map((item) => ({
+        title: item.source,
+        url: item.providerUrl,
+        description: `Open educational resources from ${item.source}.`,
         format: "other",
-        source: row.provider,
+        source: item.source,
         thumbnailUrl: null,
-        subject: row.subject,
-        gradeLevel: row.gradeLevel,
-        language: row.language,
-        sourceCredibility: readSourceCredibility(row.metadata),
+        subject: item.subject,
+        gradeLevel: item.gradeLevel,
+        language: item.language,
+        sourceCredibility: item.sourceCredibility,
+        normalizedMetadata: item.normalizedMetadata,
       }));
   }
-  return rows.map((row) => ({
-    title: row.title,
-    url: row.canonicalUrl,
-    description:
-      row.description ?? `Educational resource from ${row.provider}.`,
-    format: row.format,
-    source: row.provider,
-    thumbnailUrl: row.thumbnailUrl,
-    subject: row.subject,
-    gradeLevel: row.gradeLevel,
-    language: row.language,
-    sourceCredibility: readSourceCredibility(row.metadata),
-    cursor: catalogCursor(
-      Number(row.band),
-      Number(row.score),
-      Number(row.relevance),
-      row.id,
-    ),
-    catalogId: row.id,
-  }));
+
+  return filtered.map(
+    ({ providerUrl: _providerUrl, material: _material, ...item }) => item,
+  );
 }
 
 function readSourceCredibility(
@@ -2102,10 +2373,10 @@ async function recordCatalogSync(
 function catalogUserAgent() {
   return process.env.CATALOG_CONTACT_EMAIL
     ? `Casparel/1.0 (${process.env.CATALOG_CONTACT_EMAIL})`
-    // The point of a contact URL is that somebody at DOAJ or arXiv can reach
-    // us about rate limits or misuse. This one 404s: the repository is
-    // `casparel`, and was renamed out from under it.
-    : "Casparel/1.0 (https://github.com/springdev28/casparel)";
+    : // The point of a contact URL is that somebody at DOAJ or arXiv can reach
+      // us about rate limits or misuse. This one 404s: the repository is
+      // `casparel`, and was renamed out from under it.
+      "Casparel/1.0 (https://github.com/springdev28/casparel)";
 }
 
 /**
@@ -2515,7 +2786,6 @@ export async function searchOpenWikisAndStore(options: CatalogSearchOptions) {
   return counts.reduce((total, count) => total + count, 0);
 }
 
-
 // ── Open-access sources beyond the wikis ─────────────────────────────────────
 
 /**
@@ -2686,8 +2956,7 @@ export async function refreshStoredVideoSubjects({
       headers: { accept: "application/json", "user-agent": catalogUserAgent() },
       signal: AbortSignal.timeout(ENRICH_TIMEOUT_MS),
     });
-    if (!response.ok)
-      return { status: "failed", examined: 0, corrected: 0 };
+    if (!response.ok) return { status: "failed", examined: 0, corrected: 0 };
     subjects = youtubeSubjectsFrom(await response.json());
   } catch {
     // Nothing was corrected, and nothing was broken. The next pass tries again,
@@ -2791,7 +3060,8 @@ export async function searchOpenSourceAndStore(
           // search, not the work. "Interdisciplinary" is the honest answer when
           // the source's own classification named nothing the catalog knows.
           subject: (row.subject ?? "Interdisciplinary").slice(0, 160),
-          gradeLevel: source.material === "paper" ? "Higher education" : "All levels",
+          gradeLevel:
+            source.material === "paper" ? "Higher education" : "All levels",
           language: row.language ?? "en",
           license: row.license ?? null,
           author: row.author ?? null,
@@ -2800,7 +3070,8 @@ export async function searchOpenSourceAndStore(
           sourceKind: source.kind,
           metadata: {
             accessType: "free",
-            credibility: source.material === "paper" ? "academic" : "institutional",
+            credibility:
+              source.material === "paper" ? "academic" : "institutional",
             contentScope: "whole-work",
             material: source.material,
           },

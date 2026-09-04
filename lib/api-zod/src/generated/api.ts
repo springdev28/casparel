@@ -2037,7 +2037,7 @@ export const PrefetchResourceMetadataResponse = zod.object({
  * @summary Search the stored catalog and, when requested, the live public web
  */
 
-export const discoverResourcesQueryLanguageDefault = `en`;
+export const discoverResourcesQueryLanguageDefault = `any`;
 export const discoverResourcesQueryPageDefault = 1;
 
 export const discoverResourcesQueryResultTypeDefault = `content`;
@@ -2059,7 +2059,7 @@ export const DiscoverResourcesQueryParams = zod.object({
   "format": zod.coerce.string().optional().describe('Formats wanted, comma-separated from article, video, pdf, podcast, interactive and other. One value behaves as it always did; several widen, because a reader who wants a video or a pdf should not have to search twice'),
   "subject": zod.coerce.string().optional(),
   "gradeLevel": zod.coerce.string().optional(),
-  "language": zod.enum(['any', 'en', 'es', 'fr', 'de', 'pt', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Required result language, or any to allow all languages'),
+  "language": zod.enum(['any', 'en', 'es', 'fr', 'de', 'pt', 'tr']).default(discoverResourcesQueryLanguageDefault).describe('Required resource language, or any to allow all languages. This is independent from the interface language and is never inferred from it'),
   "page": zod.coerce.number().int().min(1).default(discoverResourcesQueryPageDefault).describe('Page number. Each page resumes where the previous one ended, so a page past the stored results returns an empty list rather than repeating earlier ones'),
   "resultType": zod.enum(['content', 'source', 'people']).default(discoverResourcesQueryResultTypeDefault).describe('Return specific learning content, direct publisher websites and channels, or public social, scholarly, or university profiles for people discovery'),
   "includeWeb": zod.coerce.boolean().default(discoverResourcesQueryIncludeWebDefault).describe('Search the live public web in addition to the stored catalog. Signed-in requests use their AI discovery allowance; anonymous requests continue to receive stored-catalog results without spending AI capacity.'),
@@ -2096,6 +2096,26 @@ export const DiscoverResourcesResponseItem = zod.object({
   "subject": zod.string().nullish(),
   "gradeLevel": zod.string().nullish(),
   "language": zod.union([zod.literal('en'),zod.literal('es'),zod.literal('fr'),zod.literal('de'),zod.literal('pt'),zod.literal('tr'),zod.literal('multilingual'),zod.literal('other'),zod.literal(null)]).nullish(),
+  "accessType": zod.union([zod.literal('open'),zod.literal('free-account'),zod.literal('paid'),zod.literal('unknown'),zod.literal(null)]).nullish(),
+  "difficulty": zod.union([zod.literal('beginner'),zod.literal('intermediate'),zod.literal('advanced'),zod.literal('mixed'),zod.literal('unknown'),zod.literal(null)]).nullish(),
+  "contentLength": zod.union([zod.literal('short'),zod.literal('medium'),zod.literal('long'),zod.literal('unknown'),zod.literal(null)]).nullish(),
+  "license": zod.string().nullish(),
+  "publishedAt": zod.string().nullish(),
+  "captionsAvailable": zod.boolean().nullish(),
+  "transcriptAvailable": zod.boolean().nullish(),
+  "materialType": zod.enum(['course', 'lesson', 'class-notes', 'worksheet', 'practice', 'textbook', 'reference', 'research', 'discussion', 'tool', 'media', 'other']).optional(),
+  "sourceCategory": zod.enum(['academic', 'institutional', 'open-education', 'community', 'archive', 'creator', 'publisher', 'other']).optional(),
+  "normalizedMetadata": zod.object({
+  "subjects": zod.array(zod.string()),
+  "courses": zod.array(zod.string()),
+  "gradeBands": zod.array(zod.string()),
+  "formats": zod.array(zod.string()),
+  "languages": zod.array(zod.string()),
+  "difficulties": zod.array(zod.string()),
+  "providers": zod.array(zod.string()),
+  "licenses": zod.array(zod.string()),
+  "accessTypes": zod.array(zod.string())
+}).optional(),
   "cursor": zod.string().optional().describe('Where this result sits in the ranking for the query that returned it. Sortable as plain text, so a client asking for more results sends back the largest cursor it holds as the `after` parameter. Absent on results that did not come from the stored catalog.'),
   "catalogId": zod.int().optional().describe('The stored catalog row this result came from. A client asking for more results sends back the largest one it holds as `sinceId`, so works stored while it was reading are offered even though they rank above the point it has read to. Absent on results that did not come from the stored catalog.'),
   "provenanceLevel": zod.enum(['institutional', 'established', 'independent', 'unknown']).optional(),

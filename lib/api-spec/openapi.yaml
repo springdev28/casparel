@@ -1401,8 +1401,10 @@ paths:
           schema:
             type: string
             enum: [any, en, es, fr, de, pt, tr]
-            default: en
-          description: Required result language, or any to allow all languages
+            default: any
+          description: >-
+            Required resource language, or any to allow all languages. This is
+            independent from the interface language and is never inferred from it
         - name: page
           in: query
           schema:
@@ -4571,6 +4573,31 @@ components:
         gradeLevel: { type: string }
         thumbnailUrl: { type: string }
 
+    NormalizedResourceMetadata:
+      type: object
+      required:
+        [
+          subjects,
+          courses,
+          gradeBands,
+          formats,
+          languages,
+          difficulties,
+          providers,
+          licenses,
+          accessTypes,
+        ]
+      properties:
+        subjects: { type: array, items: { type: string } }
+        courses: { type: array, items: { type: string } }
+        gradeBands: { type: array, items: { type: string } }
+        formats: { type: array, items: { type: string } }
+        languages: { type: array, items: { type: string } }
+        difficulties: { type: array, items: { type: string } }
+        providers: { type: array, items: { type: string } }
+        licenses: { type: array, items: { type: string } }
+        accessTypes: { type: array, items: { type: string } }
+
     DiscoveredResource:
       type: object
       required: [title, url, description, format, source]
@@ -4592,6 +4619,61 @@ components:
             type: ["string", "null"],
             enum: [en, es, fr, de, pt, tr, multilingual, other, null],
           }
+        accessType:
+          {
+            type: ["string", "null"],
+            enum: [open, free-account, paid, unknown, null],
+          }
+        difficulty:
+          {
+            type: ["string", "null"],
+            enum: [beginner, intermediate, advanced, mixed, unknown, null],
+          }
+        contentLength:
+          {
+            type: ["string", "null"],
+            enum: [short, medium, long, unknown, null],
+          }
+        license: { type: ["string", "null"] }
+        publishedAt: { type: ["string", "null"] }
+        captionsAvailable: { type: ["boolean", "null"] }
+        transcriptAvailable: { type: ["boolean", "null"] }
+        materialType:
+          {
+            type: string,
+            enum:
+              [
+                course,
+                lesson,
+                class-notes,
+                worksheet,
+                practice,
+                textbook,
+                reference,
+                research,
+                discussion,
+                tool,
+                media,
+                other,
+              ],
+          }
+        sourceCategory:
+          {
+            type: string,
+            enum:
+              [
+                academic,
+                institutional,
+                open-education,
+                community,
+                archive,
+                creator,
+                publisher,
+                other,
+              ],
+          }
+        normalizedMetadata:
+          $ref: "#/components/schemas/NormalizedResourceMetadata"
 
         cursor:
           type: string

@@ -27,10 +27,7 @@ import {
   resourceListsTable,
 } from "@workspace/db";
 import { publicResourceColumns } from "../lib/resourceColumns";
-import {
-  balanceBySource,
-  dedupeByWork,
-} from "@workspace/resource-identity";
+import { balanceBySource, dedupeByWork } from "@workspace/resource-identity";
 import {
   optionalViewerId,
   resourceVisibilityCondition,
@@ -93,12 +90,14 @@ import {
   meaningfulSearchTerms,
   wordStartPattern,
 } from "../lib/searchTerms";
+import {
+  filterRankAndDedupeDiscovery,
+  type DiscoveryCandidate,
+  type DiscoveryFilterOptions,
+} from "../lib/discoverySearch";
 import { logger } from "../lib/logger";
 import { languageOfSourceUrl } from "../lib/sourceLanguage";
-import {
-  discoveryCoverageInstructions,
-  filterDiscoveryLanguage,
-} from "../lib/discoveryCoverage";
+import { discoveryCoverageInstructions } from "../lib/discoveryCoverage";
 import { resolveAccountPlan } from "../lib/entitlements";
 import { recordWorkflowEvent } from "../lib/workflowAnalytics";
 import { validationMessage } from "../lib/validationMessage";
@@ -215,14 +214,20 @@ async function classifySubmission(
   }
 
   if (accountRole === "admin") {
-    return { verificationStatus: "verified", verificationSource: "trusted-submitter" };
+    return {
+      verificationStatus: "verified",
+      verificationSource: "trusted-submitter",
+    };
   }
   const [submitter] = await db
     .select({ teacherVerified: usersTable.teacherVerified })
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   if (submitter?.teacherVerified === true) {
-    return { verificationStatus: "verified", verificationSource: "trusted-submitter" };
+    return {
+      verificationStatus: "verified",
+      verificationSource: "trusted-submitter",
+    };
   }
 
   return { verificationStatus: "unverified", verificationSource: null };
@@ -276,7 +281,8 @@ async function topRatedResources(limit = 12, viewerId: number | null = null) {
  */
 router.get("/discover/capabilities", (_req, res): void => {
   res.json({
-    publicProfileSearch: process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED !== "false",
+    publicProfileSearch:
+      process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED !== "false",
     resourceSearch: process.env.AI_RESOURCE_SEARCH_ENABLED === "true",
   });
 });
@@ -381,9 +387,7 @@ router.get("/resources", async (req, res): Promise<void> => {
   // sees on the card, so that is what an exclusion matches here.
   const excludeSourceFilter = queryString(req.query.excludeSource);
   if (excludeSourceFilter)
-    conditions.push(
-      not(ilike(resourcesTable.url, `%${excludeSourceFilter}%`)),
-    );
+    conditions.push(not(ilike(resourcesTable.url, `%${excludeSourceFilter}%`)));
   if (exactPhrase) {
     const pattern = `%${exactPhrase}%`;
     conditions.push(
@@ -819,81 +823,125 @@ async function callDiscoverAI(
   userId: number | null = null,
 ): Promise<ReturnType<typeof DiscoverResourcesResponse.parse>> {
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), AI_OPERATION_BOUNDS.discovery.timeoutMs);
+  const timer = setTimeout(
+    () => ac.abort(),
+    AI_OPERATION_BOUNDS.discovery.timeoutMs,
+  );
   try {
     const response = await throughAi("resource discovery", () =>
       openai.responses.create(
-      {
-        stream: false,
-        model: AI_OPERATION_BOUNDS.discovery.model,
-        max_output_tokens: AI_OPERATION_BOUNDS.discovery.maxOutputTokens,
-        // Spread keeps this forward-compatible field accepted by the API even
-        // though the installed SDK declaration does not list it yet.
-        ...{ max_tool_calls: AI_OPERATION_BOUNDS.discovery.maxToolCalls },
-        tools: [{
-          type: "web_search",
-          search_context_size: AI_OPERATION_BOUNDS.discovery.searchContextSize,
-        }],
-        reasoning: { effort: AI_OPERATION_BOUNDS.discovery.reasoningEffort },
-        text: {
-          format: {
-            type: "json_schema",
-            name: "educational_resources",
-            strict: true,
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              required: ["resources"],
-              properties: {
-                resources: {
-                  type: "array",
-                  minItems: 1,
-                  maxItems,
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: [
-                      "title",
-                      "url",
-                      "description",
-                      "format",
-                      "source",
-                      "thumbnailUrl",
-                      "subject",
-                      "gradeLevel",
-                      "language",
-                    ],
-                    properties: {
-                      title: { type: "string" },
-                      url: { type: "string" },
-                      description: { type: "string" },
-                      format: {
-                        type: "string",
-                        enum: [
-                          "article",
-                          "video",
-                          "pdf",
-                          "podcast",
-                          "interactive",
-                          "other",
-                        ],
-                      },
-                      source: { type: "string" },
-                      thumbnailUrl: { type: ["string", "null"] },
-                      subject: { type: ["string", "null"] },
-                      gradeLevel: { type: ["string", "null"] },
-                      language: {
-                        type: "string",
-                        enum: [
-                          "en",
-                          "es",
-                          "fr",
-                          "de",
-                          "pt",
-                          "tr",
-                          "multilingual",
-                          "other",
-                        ],
+        {
+          stream: false,
+          model: AI_OPERATION_BOUNDS.discovery.model,
+          max_output_tokens: AI_OPERATION_BOUNDS.discovery.maxOutputTokens,
+          // Spread keeps this forward-compatible field accepted by the API even
+          // though the installed SDK declaration does not list it yet.
+          ...{ max_tool_calls: AI_OPERATION_BOUNDS.discovery.maxToolCalls },
+          tools: [
+            {
+              type: "web_search",
+              search_context_size:
+                AI_OPERATION_BOUNDS.discovery.searchContextSize,
+            },
+          ],
+          reasoning: { effort: AI_OPERATION_BOUNDS.discovery.reasoningEffort },
+          text: {
+            format: {
+              type: "json_schema",
+              name: "educational_resources",
+              strict: true,
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                required: ["resources"],
+                properties: {
+                  resources: {
+                    type: "array",
+                    minItems: 1,
+                    maxItems,
+                    items: {
+                      type: "object",
+                      additionalProperties: false,
+                      required: [
+                        "title",
+                        "url",
+                        "description",
+                        "format",
+                        "source",
+                        "thumbnailUrl",
+                        "subject",
+                        "gradeLevel",
+                        "language",
+                        "accessType",
+                        "difficulty",
+                        "contentLength",
+                        "license",
+                        "publishedAt",
+                        "captionsAvailable",
+                        "transcriptAvailable",
+                      ],
+                      properties: {
+                        title: { type: "string" },
+                        url: { type: "string" },
+                        description: { type: "string" },
+                        format: {
+                          type: "string",
+                          enum: [
+                            "article",
+                            "video",
+                            "pdf",
+                            "podcast",
+                            "interactive",
+                            "other",
+                          ],
+                        },
+                        source: { type: "string" },
+                        thumbnailUrl: { type: ["string", "null"] },
+                        subject: { type: ["string", "null"] },
+                        gradeLevel: { type: ["string", "null"] },
+                        language: {
+                          type: ["string", "null"],
+                          enum: [
+                            "en",
+                            "es",
+                            "fr",
+                            "de",
+                            "pt",
+                            "tr",
+                            "multilingual",
+                            "other",
+                            null,
+                          ],
+                        },
+                        accessType: {
+                          type: ["string", "null"],
+                          enum: [
+                            "open",
+                            "free-account",
+                            "paid",
+                            "unknown",
+                            null,
+                          ],
+                        },
+                        difficulty: {
+                          type: ["string", "null"],
+                          enum: [
+                            "beginner",
+                            "intermediate",
+                            "advanced",
+                            "mixed",
+                            "unknown",
+                            null,
+                          ],
+                        },
+                        contentLength: {
+                          type: ["string", "null"],
+                          enum: ["short", "medium", "long", "unknown", null],
+                        },
+                        license: { type: ["string", "null"] },
+                        publishedAt: { type: ["string", "null"] },
+                        captionsAvailable: { type: ["boolean", "null"] },
+                        transcriptAvailable: { type: ["boolean", "null"] },
                       },
                     },
                   },
@@ -901,10 +949,12 @@ async function callDiscoverAI(
               },
             },
           },
+          input: prompt.slice(
+            0,
+            AI_OPERATION_BOUNDS.discovery.maxPromptCharacters,
+          ),
         },
-        input: prompt.slice(0, AI_OPERATION_BOUNDS.discovery.maxPromptCharacters),
-      },
-      { signal: ac.signal },
+        { signal: ac.signal },
       ),
     );
     await recordAiUsage("search", userId);
@@ -1095,7 +1145,7 @@ export function isDirectPeopleProfileUrl(rawUrl: string): boolean {
 function addProvenance<
   T extends { url: string; sourceCredibility?: SourceCredibility },
 >(item: T, linkChecked: boolean) {
-  const { sourceCredibility, ...publicItem } = item;
+  const { sourceCredibility } = item;
   try {
     const url = new URL(item.url);
     const host = url.hostname.replace(/^www\./, "").toLowerCase();
@@ -1150,7 +1200,7 @@ function addProvenance<
         : "Link was not availability-checked",
     ];
     return {
-      ...publicItem,
+      ...item,
       provenanceLevel,
       provenanceSignals,
       linkChecked,
@@ -1158,7 +1208,7 @@ function addProvenance<
     };
   } catch {
     return {
-      ...publicItem,
+      ...item,
       provenanceLevel: "unknown" as const,
       provenanceSignals: ["Domain could not be classified"],
       linkChecked: false,
@@ -1176,7 +1226,12 @@ function addProvenance<
  * whichever of them found it, and whichever client is reading.
  */
 function sendDiscoverResults<
-  T extends { title: string; url: string; cursor?: string },
+  T extends {
+    title: string;
+    url: string;
+    cursor?: string;
+    sourceCredibility?: SourceCredibility;
+  },
 >(res: Response, items: T[]) {
   const collapsed = dedupeByWork(items);
   // Stored-catalog rows arrive already interleaved: the SQL bands each source's
@@ -1187,10 +1242,11 @@ function sendDiscoverResults<
   // AI results have no such order, so they still get balanced here.
   const alreadyBanded =
     collapsed.length > 0 && collapsed.every((item) => Boolean(item.cursor));
+  const ordered = alreadyBanded
+    ? collapsed
+    : balanceBySource(collapsed, SOURCE_SHARE_PER_PAGE);
   res.json(
-    alreadyBanded
-      ? collapsed
-      : balanceBySource(collapsed, SOURCE_SHARE_PER_PAGE),
+    ordered.map(({ sourceCredibility: _sourceCredibility, ...item }) => item),
   );
 }
 
@@ -1220,10 +1276,12 @@ router.get(
       format,
       subject,
       gradeLevel,
-      language = "en",
       page = 1,
       resultType = "content",
     } = params.data;
+    // The interface language is not a resource-language filter. Only an
+    // explicit query parameter narrows language; omission means any language.
+    const language = queryString(req.query.language) ?? "any";
     const formatValues = filterValues(queryString(req.query.format));
     const exactPhrase = queryString(req.query.exactPhrase);
     const excludedWords = queryString(req.query.exclude);
@@ -1283,6 +1341,36 @@ router.get(
     const effectiveQuery = exactPersonSearch
       ? q.trim().slice("exact-person:".length).trim()
       : q;
+    const combinedResultFilters: DiscoveryFilterOptions = {
+      query: effectiveQuery,
+      format:
+        resultType === "content"
+          ? (format as DiscoveryCandidate["format"])
+          : undefined,
+      subject: resultType === "content" ? subject : undefined,
+      gradeLevel: resultType === "content" ? gradeLevel : undefined,
+      exactPhrase,
+      excludedWords,
+      source: sourceFilter,
+      excludeSource: excludeSourceFilter,
+      excludeSubjects:
+        resultType === "content" ? excludeSubjectsFilter : undefined,
+      author: resultType === "content" ? authorFilter : undefined,
+      titleOnly: resultType === "content" ? titleOnly : undefined,
+      hasThumbnail: resultType === "content" ? hasThumbnail : undefined,
+      publishedFrom: resultType === "content" ? publishedFrom : undefined,
+      publishedTo: resultType === "content" ? publishedTo : undefined,
+      freshness,
+      difficulty: resultType === "content" ? difficulty : undefined,
+      accessType: resultType === "content" ? accessType : undefined,
+      license: resultType === "content" ? license : undefined,
+      contentLength: resultType === "content" ? contentLength : undefined,
+      sourceQuality,
+      material: resultType === "content" ? materialFilter : undefined,
+      language,
+      captions: resultType === "content" ? captions : undefined,
+      transcript: resultType === "content" ? transcript : undefined,
+    };
     let discoverUserId: number | null = null;
     try {
       const { decodeToken } = await import("../lib/auth");
@@ -1305,31 +1393,13 @@ router.get(
       !savedUrlKeys.has(canonicalResourceUrl(item.url));
 
     const catalogOptions = {
+      ...combinedResultFilters,
       query: q,
-      format,
-      subject,
-      gradeLevel,
-      language,
       page,
       limit: resultType === "people" ? 18 : resultType === "source" ? 12 : 16,
       resultType,
-      exactPhrase,
-      excludedWords,
-      source: sourceFilter,
-      excludeSource: excludeSourceFilter,
-      material: materialFilter,
-      excludeSubjects: excludeSubjectsFilter,
-      author: authorFilter,
-      ...(titleOnly ? { titleOnly } : {}),
-      ...(hasThumbnail === undefined ? {} : { hasThumbnail }),
-      ...(publishedFrom === undefined ? {} : { publishedFrom }),
-      ...(publishedTo === undefined ? {} : { publishedTo }),
       after,
       ...(Number.isSafeInteger(sinceId) && sinceId >= 0 ? { sinceId } : {}),
-      freshness,
-      accessType,
-      license,
-      sourceQuality,
     } as const;
     // Strictness and offset both belong to the query rather than the page, and
     // both are settled before the top-up: rows stored in between get the
@@ -1425,9 +1495,25 @@ router.get(
         }
       }
     }
-    const availableCatalogItems = catalogItems
-      .filter(isUnsavedResult)
-      .map((item) => addProvenance(item, true));
+    const catalogCandidates =
+      resultType === "people"
+        ? []
+        : filterRankAndDedupeDiscovery(
+            catalogItems.filter(isUnsavedResult) as DiscoveryCandidate[],
+            { ...combinedResultFilters, query: q, limit: 96 },
+          );
+    const availableCatalogItems = catalogCandidates.map((item) =>
+      addProvenance(item, true),
+    );
+    const filterCombinedResults = <T extends DiscoveryCandidate>(items: T[]) =>
+      resultType === "people"
+        ? items
+        : filterRankAndDedupeDiscovery(items, {
+            ...combinedResultFilters,
+            limit: Math.max(96, items.length),
+          });
+    const sendCombinedResults = (items: DiscoveryCandidate[]) =>
+      sendDiscoverResults(res, filterCombinedResults(items));
     const aiFallbackEnabled =
       resultType === "people"
         ? process.env.AI_PUBLIC_PROFILE_SEARCH_ENABLED !== "false"
@@ -1441,7 +1527,7 @@ router.get(
     ) {
       res.setHeader("X-Search-Provider", "stored-catalog");
       res.setHeader("X-Search-Cache", "DATABASE");
-      sendDiscoverResults(res, availableCatalogItems);
+      sendCombinedResults(availableCatalogItems);
       return;
     }
 
@@ -1449,20 +1535,40 @@ router.get(
     // one result and therefore one paid provider call across accounts. Cache
     // reads happen before paid quotas so reuse never reduces an allowance.
     const cacheKey = JSON.stringify({
-      q: q.trim().toLowerCase(), format,
-      subject: subject?.trim().toLowerCase(), gradeLevel, language, page,
-      resultType, exactPhrase, excludedWords, sourceFilter,
-      excludeSourceFilter, materialFilter, excludeSubjectsFilter,
-      authorFilter, titleOnly, hasThumbnail, publishedFrom, publishedTo,
-      freshness, difficulty, accessType, license, contentLength,
-      sourceQuality, captions, transcript, includeWeb,
+      q: q.trim().toLowerCase(),
+      format,
+      subject: subject?.trim().toLowerCase(),
+      gradeLevel,
+      language,
+      page,
+      resultType,
+      exactPhrase,
+      excludedWords,
+      sourceFilter,
+      excludeSourceFilter,
+      materialFilter,
+      excludeSubjectsFilter,
+      authorFilter,
+      titleOnly,
+      hasThumbnail,
+      publishedFrom,
+      publishedTo,
+      freshness,
+      difficulty,
+      accessType,
+      license,
+      contentLength,
+      sourceQuality,
+      captions,
+      transcript,
+      includeWeb,
     });
     if (process.env.NODE_ENV !== "test") {
       const cached = discoverCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
         res.setHeader("X-Search-Cache", "HIT");
         await recordAiCache("search", discoverUserId);
-        sendDiscoverResults(res, [
+        sendCombinedResults([
           ...availableCatalogItems,
           ...cached.items.filter(isUnsavedResult),
         ]);
@@ -1538,15 +1644,22 @@ router.get(
       }
       if (accountPlan.entitlements.tier === "institutional") {
         const sharedDay = await consumeAiQuota(
-          "institutional-discover-day", "all", 24 * 60 * 60 * 1000,
+          "institutional-discover-day",
+          "all",
+          24 * 60 * 60 * 1000,
           INSTITUTIONAL_STARTER.searchPerDay,
         );
         const sharedMonth = await consumeAiQuota(
-          "institutional-discover-month", "all", 30 * 24 * 60 * 60 * 1000,
+          "institutional-discover-month",
+          "all",
+          30 * 24 * 60 * 60 * 1000,
           INSTITUTIONAL_STARTER.searchPerMonth,
         );
         if (!sharedDay.allowed || !sharedMonth.allowed) {
-          const retryAfter = Math.max(sharedDay.retryAfter, sharedMonth.retryAfter);
+          const retryAfter = Math.max(
+            sharedDay.retryAfter,
+            sharedMonth.retryAfter,
+          );
           res.setHeader("Retry-After", retryAfter);
           res.status(429).json({
             error: "The Institutional shared AI discovery pool is full.",
@@ -1739,8 +1852,8 @@ router.get(
 
 Search the live web and recommend real, publicly accessible results. Treat the complete query as an exact name or title first: search for the exact phrase and rank an exact matching person, profile, resource title, website, or channel first when it exists. Only broaden to related matches after exact matches. Use the full result allowance and return ${requestedCount} distinct results whenever enough suitable matches exist. ${extendedFilterHints} ${sourceRules}
 ${coverageRules}
-Return a JSON object with a single "resources" array. Each item: title, url, description (1 sentence), format ("article"|"video"|"pdf"|"podcast"|"interactive"|"other"), source, thumbnailUrl (null or YouTube hqdefault URL), subject, gradeLevel, and language ("en"|"es"|"fr"|"de"|"pt"|"tr"|"multilingual"|"other").
-Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} ${platformSearchRules} No search-result pages or paywalls; Match the required response schema exactly; no markdown.${exclusionNote}`;
+Return a JSON object with one "resources" array. Each item must include title, url, description, format, source, thumbnailUrl, subject, gradeLevel, language, accessType, difficulty, contentLength, license, publishedAt, captionsAvailable, and transcriptAvailable. Use null or "unknown" when metadata cannot be verified; never claim a filter is satisfied without evidence.
+Rules: use only exact canonical URLs found in the current web-search results; never invent or reconstruct a URL path; the page title and content must match the recommendation; ${preferenceRules} ${platformSearchRules} Return direct content pages rather than generic search pages. Disclose paid or registration-based access accurately. Match the response schema exactly; no markdown.${exclusionNote}`;
     };
 
     if (discoverUserId !== null && activeDiscoveryUsers.has(discoverUserId)) {
@@ -1766,10 +1879,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
           : resultType === "people"
             ? rawFirstBatch.filter((item) => isDirectPeopleProfileUrl(item.url))
             : rawFirstBatch;
-      const firstBatch =
-        resultType === "people"
-          ? validFirstBatch
-          : filterDiscoveryLanguage(validFirstBatch, language);
+      const firstBatch = filterCombinedResults(validFirstBatch);
 
       // Validate all result URLs in parallel with a short timeout. Thumbnail URLs
       // are left to the browser so they cannot hold up otherwise useful results.
@@ -1788,20 +1898,19 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
         if (process.env.NODE_ENV !== "test")
           discoverCache.set(cacheKey, {
             expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS,
-            items: reachable.map((item) =>
-              addProvenance(item, resultType !== "people"),
+            items: DiscoverResourcesResponse.parse(
+              reachable.map((item) =>
+                addProvenance(item, resultType !== "people"),
+              ),
             ),
           });
         res.setHeader("X-Search-Cache", "MISS");
-        sendDiscoverResults(
-          res,
-          [
-            ...availableCatalogItems,
-            ...reachable.map((item) =>
-              addProvenance(item, resultType !== "people"),
-            ),
-          ],
-        );
+        sendCombinedResults([
+          ...availableCatalogItems,
+          ...reachable.map((item) =>
+            addProvenance(item, resultType !== "people"),
+          ),
+        ]);
         return;
       }
 
@@ -1814,17 +1923,14 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       if (!paidRetryAllowed()) {
         if (reachable.length > 0) {
           res.setHeader("X-Search-Cache", "MISS");
-          sendDiscoverResults(
-            res,
-            [
-              ...availableCatalogItems,
-              ...reachable.map((item) =>
-                addProvenance(item, resultType !== "people"),
-              ),
-            ],
-          );
+          sendCombinedResults([
+            ...availableCatalogItems,
+            ...reachable.map((item) =>
+              addProvenance(item, resultType !== "people"),
+            ),
+          ]);
         } else if (availableCatalogItems.length > 0) {
-          sendDiscoverResults(res, availableCatalogItems);
+          sendCombinedResults(availableCatalogItems);
         } else if (resultType === "people") {
           throw new Error("No valid public profiles returned");
         } else {
@@ -1854,10 +1960,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
                 isDirectPeopleProfileUrl(item.url),
               )
             : rawSecondBatch;
-      const secondBatch =
-        resultType === "people"
-          ? validSecondBatch
-          : filterDiscoveryLanguage(validSecondBatch, language);
+      const secondBatch = filterCombinedResults(validSecondBatch);
       const reachableSecond =
         resultType === "people"
           ? secondBatch
@@ -1874,7 +1977,7 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
 
       if (merged.length === 0) {
         if (availableCatalogItems.length > 0) {
-          sendDiscoverResults(res, availableCatalogItems);
+          sendCombinedResults(availableCatalogItems);
           return;
         }
         if (resultType === "people") {
@@ -1889,20 +1992,15 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       if (process.env.NODE_ENV !== "test")
         discoverCache.set(cacheKey, {
           expiresAt: Date.now() + DISCOVER_CACHE_TTL_MS,
-          items: merged.map((item) =>
-            addProvenance(item, resultType !== "people"),
+          items: DiscoverResourcesResponse.parse(
+            merged.map((item) => addProvenance(item, resultType !== "people")),
           ),
         });
       res.setHeader("X-Search-Cache", "MISS");
-      sendDiscoverResults(
-        res,
-        [
-          ...availableCatalogItems,
-          ...merged.map((item) =>
-            addProvenance(item, resultType !== "people"),
-          ),
-        ],
-      );
+      sendCombinedResults([
+        ...availableCatalogItems,
+        ...merged.map((item) => addProvenance(item, resultType !== "people")),
+      ]);
     } catch (err) {
       console.error("Discover AI error:", err);
 
@@ -1911,14 +2009,14 @@ Rules: use only exact canonical URLs found in the current web-search results; ne
       const stale = discoverCache.get(cacheKey);
       if (stale?.items.length) {
         res.setHeader("X-Search-Cache", "STALE");
-        sendDiscoverResults(res, [...availableCatalogItems, ...stale.items]);
+        sendCombinedResults([...availableCatalogItems, ...stale.items]);
         return;
       }
 
       if (availableCatalogItems.length > 0) {
         res.setHeader("X-Search-Provider", "stored-catalog-fallback");
         res.setHeader("X-Search-Cache", "DATABASE");
-        sendDiscoverResults(res, availableCatalogItems);
+        sendCombinedResults(availableCatalogItems);
         return;
       }
 
@@ -2167,7 +2265,11 @@ router.post(
     }
     // Verification is always computed server-side, it is absent from
     // CreateResourceBody, so a client can never assert its own status.
-    const verification = await classifySubmission(parsed.data.url, userId, accountRole);
+    const verification = await classifySubmission(
+      parsed.data.url,
+      userId,
+      accountRole,
+    );
     const canonicalUrl = canonicalResourceUrl(parsed.data.url);
 
     /*
@@ -2214,7 +2316,9 @@ router.post(
     // The row was either selected or inserted inside the transaction, so a
     // missing result would mean an unexpected concurrent destructive action.
     if (!resource) {
-      res.status(409).json({ error: "The saved resource is no longer available" });
+      res
+        .status(409)
+        .json({ error: "The saved resource is no longer available" });
       return;
     }
     // Exactly one request can create this library row while holding the
@@ -2296,196 +2400,206 @@ const CANDIDATES = 30;
 /** The showcase shows this many, whatever it had to read to choose them. */
 const SHOWN = 6;
 
-router.get("/resources/provenance-showcase", async (req, res): Promise<void> => {
-  const viewerId = optionalViewerId(req);
-  /*
-   * Whose language the card is for.
-   *
-   * The hero offered an English reader "İspanyolca" from tr.wikibooks.org:
-   * a real source with a correct provenance verdict, in a language they do
-   * not read, under a heading about researching sources for them. The
-   * catalogue happened to be mostly Turkish and nothing here asked.
-   *
-   * Defaults to English because that is what the product is written in, and
-   * because a caller that does not say has no preference to honour.
-   */
-  const readerLanguage =
-    typeof req.query.language === "string" && /^[a-z]{2}$/.test(req.query.language)
-      ? req.query.language
-      : "en";
-  const visibility = resourceVisibilityCondition(
-    viewerId,
-    isAdminRequest(req),
-  );
-  const savedCount = sql<number>`cast(count(distinct ${listItemsTable.listId}) as int)`;
+router.get(
+  "/resources/provenance-showcase",
+  async (req, res): Promise<void> => {
+    const viewerId = optionalViewerId(req);
+    /*
+     * Whose language the card is for.
+     *
+     * The hero offered an English reader "İspanyolca" from tr.wikibooks.org:
+     * a real source with a correct provenance verdict, in a language they do
+     * not read, under a heading about researching sources for them. The
+     * catalogue happened to be mostly Turkish and nothing here asked.
+     *
+     * Defaults to English because that is what the product is written in, and
+     * because a caller that does not say has no preference to honour.
+     */
+    const readerLanguage =
+      typeof req.query.language === "string" &&
+      /^[a-z]{2}$/.test(req.query.language)
+        ? req.query.language
+        : "en";
+    const visibility = resourceVisibilityCondition(
+      viewerId,
+      isAdminRequest(req),
+    );
+    const savedCount = sql<number>`cast(count(distinct ${listItemsTable.listId}) as int)`;
 
-  /** Rows for the hero, newest-saved first for a viewer, most-saved globally. */
-  async function showcaseRows(personalised: boolean) {
-    const base = db
-      .select({
-        id: resourcesTable.id,
-        title: resourcesTable.title,
-        url: resourcesTable.url,
-        subject: resourcesTable.subject,
-        savedCount,
-      })
-      .from(listItemsTable)
-      .innerJoin(
-        resourcesTable,
-        eq(listItemsTable.resourceId, resourcesTable.id),
-      );
-    if (personalised) {
-      // The viewer's own lists only. Their saves are theirs to see, but the
-      // visibility rule still applies: a list may hold a resource that was
-      // since rejected, and the hero is not the place to resurface it.
-      return base
+    /** Rows for the hero, newest-saved first for a viewer, most-saved globally. */
+    async function showcaseRows(personalised: boolean) {
+      const base = db
+        .select({
+          id: resourcesTable.id,
+          title: resourcesTable.title,
+          url: resourcesTable.url,
+          subject: resourcesTable.subject,
+          savedCount,
+        })
+        .from(listItemsTable)
         .innerJoin(
-          resourceListsTable,
-          eq(listItemsTable.listId, resourceListsTable.id),
-        )
-        .where(
-          visibility
-            ? and(eq(resourceListsTable.ownerId, viewerId as number), visibility)
-            : eq(resourceListsTable.ownerId, viewerId as number),
-        )
+          resourcesTable,
+          eq(listItemsTable.resourceId, resourcesTable.id),
+        );
+      if (personalised) {
+        // The viewer's own lists only. Their saves are theirs to see, but the
+        // visibility rule still applies: a list may hold a resource that was
+        // since rejected, and the hero is not the place to resurface it.
+        return base
+          .innerJoin(
+            resourceListsTable,
+            eq(listItemsTable.listId, resourceListsTable.id),
+          )
+          .where(
+            visibility
+              ? and(
+                  eq(resourceListsTable.ownerId, viewerId as number),
+                  visibility,
+                )
+              : eq(resourceListsTable.ownerId, viewerId as number),
+          )
+          .groupBy(resourcesTable.id)
+          .orderBy(sql`max(${listItemsTable.addedAt}) desc`)
+          .limit(CANDIDATES);
+      }
+      return base
+        .where(visibility)
         .groupBy(resourcesTable.id)
-        .orderBy(sql`max(${listItemsTable.addedAt}) desc`)
+        .orderBy(
+          sql`count(distinct ${listItemsTable.listId}) desc`,
+          resourcesTable.id,
+        )
         .limit(CANDIDATES);
     }
-    return base
-      .where(visibility)
-      .groupBy(resourcesTable.id)
-      .orderBy(sql`count(distinct ${listItemsTable.listId}) desc`, resourcesTable.id)
-      .limit(CANDIDATES);
-  }
 
-  /**
-   * The catalogue itself, newest first, for a platform where nothing has been
-   * saved to a list yet. Without this the hero falls back to its hardcoded
-   * examples on exactly the deployments that most need to show real material,
-   * so a young library is illustrated with sources it does not hold.
-   */
-  async function catalogueRows() {
-    return db
-      .select({
-        id: resourcesTable.id,
-        title: resourcesTable.title,
-        url: resourcesTable.url,
-        subject: resourcesTable.subject,
-        savedCount: sql<number>`0`,
-      })
-      .from(resourcesTable)
-      .where(visibility)
-      .orderBy(desc(resourcesTable.createdAt))
-      .limit(CANDIDATES);
-  }
+    /**
+     * The catalogue itself, newest first, for a platform where nothing has been
+     * saved to a list yet. Without this the hero falls back to its hardcoded
+     * examples on exactly the deployments that most need to show real material,
+     * so a young library is illustrated with sources it does not hold.
+     */
+    async function catalogueRows() {
+      return db
+        .select({
+          id: resourcesTable.id,
+          title: resourcesTable.title,
+          url: resourcesTable.url,
+          subject: resourcesTable.subject,
+          savedCount: sql<number>`0`,
+        })
+        .from(resourcesTable)
+        .where(visibility)
+        .orderBy(desc(resourcesTable.createdAt))
+        .limit(CANDIDATES);
+    }
 
-  /**
-   * Each tier stands on its own: a tier that fails is logged and treated as
-   * empty so the next one still gets its turn.
-   *
-   * This is not defensive padding, it is the fix for how this endpoint failed
-   * in production. One try block around the whole chain meant an error in the
-   * saves query — the tier that reads two tables the catalogue tier never
-   * touches — aborted the request before the catalogue was ever consulted, on
-   * a site whose catalogue was full and whose lists were empty. The tiers are
-   * independent by design, so their failures must be independent too.
-   */
-  let attempted = 0;
-  let failed = 0;
-  async function tier<T>(name: string, run: () => Promise<T[]>): Promise<T[]> {
-    attempted += 1;
+    /**
+     * Each tier stands on its own: a tier that fails is logged and treated as
+     * empty so the next one still gets its turn.
+     *
+     * This is not defensive padding, it is the fix for how this endpoint failed
+     * in production. One try block around the whole chain meant an error in the
+     * saves query — the tier that reads two tables the catalogue tier never
+     * touches — aborted the request before the catalogue was ever consulted, on
+     * a site whose catalogue was full and whose lists were empty. The tiers are
+     * independent by design, so their failures must be independent too.
+     */
+    let attempted = 0;
+    let failed = 0;
+    async function tier<T>(
+      name: string,
+      run: () => Promise<T[]>,
+    ): Promise<T[]> {
+      attempted += 1;
+      try {
+        return await run();
+      } catch (error) {
+        failed += 1;
+        logger.error(
+          { err: error, tier: name },
+          "Provenance showcase tier failed",
+        );
+        return [];
+      }
+    }
+
+    function suitableForReader<T extends { url: string }>(rows: T[]) {
+      return rows
+        .map((row) => ({ row, language: languageOfSourceUrl(row.url) }))
+        .filter(
+          ({ language }) => language === null || language === readerLanguage,
+        )
+        .slice(0, SHOWN);
+    }
+
     try {
-      return await run();
+      let personalised = viewerId !== null;
+      let rows = personalised
+        ? await tier("saved", () => showcaseRows(true))
+        : [];
+      let ranked = suitableForReader(rows);
+      // Empty saves and saves known to be in another language both fall through
+      // to the platform tier. A Turkish personal shelf must not become an English
+      // reader's marketing example merely because it exists.
+      if (ranked.length === 0) {
+        personalised = false;
+        rows = await tier("platform", () => showcaseRows(false));
+        ranked = suitableForReader(rows);
+      }
+      // No suitable saved source: try the real library before the client uses
+      // its built-in examples.
+      if (ranked.length === 0) {
+        rows = await tier("catalogue", catalogueRows);
+        ranked = suitableForReader(rows);
+      }
+      // Every tier that ran blew up: that is a failure, not an empty catalogue.
+      if (ranked.length === 0 && attempted > 0 && failed === attempted) {
+        res
+          .status(500)
+          .json({ error: "Could not build the provenance showcase." });
+        return;
+      }
+
+      const entries = ranked.map(({ row, language }) => {
+        // linkChecked=false: this endpoint never makes outbound requests, so it
+        // must not claim the link was checked just now.
+        const provenance = addProvenance({ url: row.url }, false);
+        let host = "";
+        try {
+          host = new URL(row.url).hostname.replace(/^www\./, "");
+        } catch {
+          host = "";
+        }
+        return {
+          id: row.id,
+          title: row.title,
+          host,
+          subject: row.subject ?? null,
+          provenanceLevel: provenance.provenanceLevel,
+          provenanceSignals: provenance.provenanceSignals,
+          savedCount: Number(row.savedCount ?? 0),
+          // Null when the address does not say, which is not the same as
+          // English. The card shows a note only for a language it knows about
+          // and that is not the reader's.
+          language,
+        };
+      });
+
+      res.json(ListProvenanceShowcaseResponse.parse({ personalised, entries }));
     } catch (error) {
-      failed += 1;
-      logger.error(
-        { err: error, tier: name },
-        "Provenance showcase tier failed",
-      );
-      return [];
-    }
-  }
-
-  function suitableForReader<T extends { url: string }>(rows: T[]) {
-    return rows
-      .map((row) => ({ row, language: languageOfSourceUrl(row.url) }))
-      .filter(
-        ({ language }) =>
-          language === null || language === readerLanguage,
-      )
-      .slice(0, SHOWN);
-  }
-
-  try {
-    let personalised = viewerId !== null;
-    let rows = personalised
-      ? await tier("saved", () => showcaseRows(true))
-      : [];
-    let ranked = suitableForReader(rows);
-    // Empty saves and saves known to be in another language both fall through
-    // to the platform tier. A Turkish personal shelf must not become an English
-    // reader's marketing example merely because it exists.
-    if (ranked.length === 0) {
-      personalised = false;
-      rows = await tier("platform", () => showcaseRows(false));
-      ranked = suitableForReader(rows);
-    }
-    // No suitable saved source: try the real library before the client uses
-    // its built-in examples.
-    if (ranked.length === 0) {
-      rows = await tier("catalogue", catalogueRows);
-      ranked = suitableForReader(rows);
-    }
-    // Every tier that ran blew up: that is a failure, not an empty catalogue.
-    if (ranked.length === 0 && attempted > 0 && failed === attempted) {
+      // Answer 500 rather than an empty showcase. The hero falls back to its
+      // built-in examples on a failed request exactly as it does on an empty
+      // one, so the page is no worse off either way — but an empty 200 is
+      // indistinguishable from an empty catalogue, and that ambiguity hid a
+      // real production failure behind a plausible-looking response. A failure
+      // that cannot be told apart from success is not a safe default.
+      logger.error({ err: error }, "Could not build the provenance showcase");
       res
         .status(500)
         .json({ error: "Could not build the provenance showcase." });
-      return;
     }
-
-    const entries = ranked.map(({ row, language }) => {
-      // linkChecked=false: this endpoint never makes outbound requests, so it
-      // must not claim the link was checked just now.
-      const provenance = addProvenance({ url: row.url }, false);
-      let host = "";
-      try {
-        host = new URL(row.url).hostname.replace(/^www\./, "");
-      } catch {
-        host = "";
-      }
-      return {
-        id: row.id,
-        title: row.title,
-        host,
-        subject: row.subject ?? null,
-        provenanceLevel: provenance.provenanceLevel,
-        provenanceSignals: provenance.provenanceSignals,
-        savedCount: Number(row.savedCount ?? 0),
-        // Null when the address does not say, which is not the same as
-        // English. The card shows a note only for a language it knows about
-        // and that is not the reader's.
-        language,
-      };
-    });
-
-    res.json(
-      ListProvenanceShowcaseResponse.parse({ personalised, entries }),
-    );
-  } catch (error) {
-    // Answer 500 rather than an empty showcase. The hero falls back to its
-    // built-in examples on a failed request exactly as it does on an empty
-    // one, so the page is no worse off either way — but an empty 200 is
-    // indistinguishable from an empty catalogue, and that ambiguity hid a
-    // real production failure behind a plausible-looking response. A failure
-    // that cannot be told apart from success is not a safe default.
-    logger.error({ err: error }, "Could not build the provenance showcase");
-    res
-      .status(500)
-      .json({ error: "Could not build the provenance showcase." });
-  }
-});
+  },
+);
 
 router.get("/resources/oembed", async (req, res): Promise<void> => {
   const rawUrl = req.query.url as string | undefined;
@@ -2605,9 +2719,13 @@ router.delete(
         .where(eq(resourcesTable.id, params.data.id));
     } catch (err) {
       if ((err as { code?: string } | null)?.code === "23503") {
-        logger.error({ err, resourceId: params.data.id }, "Resource delete blocked by a foreign key");
+        logger.error(
+          { err, resourceId: params.data.id },
+          "Resource delete blocked by a foreign key",
+        );
         res.status(409).json({
-          error: "This resource is still referenced elsewhere and could not be deleted.",
+          error:
+            "This resource is still referenced elsewhere and could not be deleted.",
         });
         return;
       }

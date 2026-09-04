@@ -27,7 +27,7 @@ format?: string;
 subject?: string;
 gradeLevel?: string;
 /**
- * Required result language, or any to allow all languages
+ * Required resource language, or any to allow all languages. This is independent from the interface language and is never inferred from it
  */
 language?: DiscoverResourcesLanguage;
 /**

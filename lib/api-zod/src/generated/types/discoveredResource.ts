@@ -5,9 +5,15 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { DiscoveredResourceAccessType } from './discoveredResourceAccessType';
+import type { DiscoveredResourceContentLength } from './discoveredResourceContentLength';
+import type { DiscoveredResourceDifficulty } from './discoveredResourceDifficulty';
 import type { DiscoveredResourceFormat } from './discoveredResourceFormat';
 import type { DiscoveredResourceLanguage } from './discoveredResourceLanguage';
+import type { DiscoveredResourceMaterialType } from './discoveredResourceMaterialType';
 import type { DiscoveredResourceProvenanceLevel } from './discoveredResourceProvenanceLevel';
+import type { DiscoveredResourceSourceCategory } from './discoveredResourceSourceCategory';
+import type { NormalizedResourceMetadata } from './normalizedResourceMetadata';
 
 export interface DiscoveredResource {
   title: string;
@@ -23,6 +29,23 @@ export interface DiscoveredResource {
   gradeLevel?: string | null;
   /** @nullable */
   language?: DiscoveredResourceLanguage;
+  /** @nullable */
+  accessType?: DiscoveredResourceAccessType;
+  /** @nullable */
+  difficulty?: DiscoveredResourceDifficulty;
+  /** @nullable */
+  contentLength?: DiscoveredResourceContentLength;
+  /** @nullable */
+  license?: string | null;
+  /** @nullable */
+  publishedAt?: string | null;
+  /** @nullable */
+  captionsAvailable?: boolean | null;
+  /** @nullable */
+  transcriptAvailable?: boolean | null;
+  materialType?: DiscoveredResourceMaterialType;
+  sourceCategory?: DiscoveredResourceSourceCategory;
+  normalizedMetadata?: NormalizedResourceMetadata;
   /** Where this result sits in the ranking for the query that returned it. Sortable as plain text, so a client asking for more results sends back the largest cursor it holds as the `after` parameter. Absent on results that did not come from the stored catalog. */
   cursor?: string;
   /** The stored catalog row this result came from. A client asking for more results sends back the largest one it holds as `sinceId`, so works stored while it was reading are offered even though they rank above the point it has read to. Absent on results that did not come from the stored catalog. */

@@ -54,16 +54,14 @@ vi.mock("../lib/adminAccess", () => ({
 }));
 vi.mock("../lib/catalog", () => ({
   searchCatalog: vi.fn().mockResolvedValue([]),
-  resolveCatalogSearch: vi
-    .fn()
-    .mockResolvedValue({
-      minRelevanceScore: 1,
-      requireNarrowCoverage: true,
-      requireTopicCoverage: false,
-      distinguishingTerms: [],
-      offset: 0,
-      total: 0,
-    }),
+  resolveCatalogSearch: vi.fn().mockResolvedValue({
+    minRelevanceScore: 1,
+    requireNarrowCoverage: true,
+    requireTopicCoverage: false,
+    distinguishingTerms: [],
+    offset: 0,
+    total: 0,
+  }),
   searchOpenLibraryAndStore: vi.fn().mockResolvedValue(0),
   searchOpenWikisAndStore: vi.fn().mockResolvedValue(0),
   searchOpenSourcesAndStore: vi.fn().mockResolvedValue(0),
@@ -216,16 +214,14 @@ beforeEach(() => {
   // clearAllMocks forgets calls but keeps implementations, so a test that sets a
   // persistent mockResolvedValue would otherwise answer every later test too.
   vi.mocked(searchCatalog).mockReset().mockResolvedValue([]);
-  vi.mocked(resolveCatalogSearch)
-    .mockReset()
-    .mockResolvedValue({
-      minRelevanceScore: 1,
-      requireNarrowCoverage: true,
-      requireTopicCoverage: false,
-      distinguishingTerms: [],
-      offset: 0,
-      total: 0,
-    });
+  vi.mocked(resolveCatalogSearch).mockReset().mockResolvedValue({
+    minRelevanceScore: 1,
+    requireNarrowCoverage: true,
+    requireTopicCoverage: false,
+    distinguishingTerms: [],
+    offset: 0,
+    total: 0,
+  });
   vi.mocked(searchOpenLibraryAndStore).mockReset().mockResolvedValue(0);
   vi.mocked(searchOpenWikisAndStore).mockReset().mockResolvedValue(0);
   vi.mocked(searchOpenSourcesAndStore).mockReset().mockResolvedValue(0);
@@ -360,9 +356,9 @@ describe("GET /api/resources/discover, paging", () => {
     expect(res.status).toBe(200);
     // Each round added something, so it kept going and the reader got all three.
     expect(res.body).toHaveLength(3);
-    expect(vi.mocked(searchOpenWikisAndStore).mock.calls.length).toBeGreaterThan(
-      1,
-    );
+    expect(
+      vi.mocked(searchOpenWikisAndStore).mock.calls.length,
+    ).toBeGreaterThan(1);
   });
 
   it("stops asking once a whole round adds nothing", async () => {
@@ -453,10 +449,34 @@ describe("GET /api/resources/discover, paging", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("GET /api/resources/discover, filtering", () => {
+  it("does not infer a resource-language filter when language is omitted", async () => {
+    const turkishResult = makeItem({
+      url: "https://tr.wikibooks.org/wiki/Fizik",
+      title: "Fizik / Physics",
+      language: "tr",
+    });
+    vi.mocked(searchCatalog)
+      .mockResolvedValueOnce([turkishResult])
+      .mockResolvedValueOnce([turkishResult]);
+    process.env.AI_RESOURCE_SEARCH_ENABLED = "false";
+
+    const res = await request(buildApp())
+      .get("/api/resources/discover")
+      .query({ q: "physics" });
+
+    expect(res.status).toBe(200);
+    expect(searchCatalog).toHaveBeenCalledWith(
+      expect.objectContaining({ language: "any" }),
+    );
+    expect(res.body).toEqual([
+      expect.objectContaining({ url: turkishResult.url, language: "tr" }),
+    ]);
+  });
+
   it("passes the selected source credibility to the stored catalog", async () => {
     const academicResults = [
       {
-        ...makeItem(),
+        ...makeItem({ title: "University Calculus Course" }),
         sourceCredibility: "academic" as const,
       },
     ];
@@ -640,8 +660,11 @@ describe("GET /api/resources/discover, retry when too few results survive", () =
 
   it("includes dead URLs in the exclusion hint on retry", async () => {
     const deadUrl = "https://dead.example.com/removed";
-    const liveItem = makeItem({ url: "https://live.example.com/ok" });
-    const deadItem = makeItem({ url: deadUrl });
+    const liveItem = makeItem({
+      url: "https://live.example.com/ok",
+      title: "Physics lesson",
+    });
+    const deadItem = makeItem({ url: deadUrl, title: "Physics worksheet" });
 
     vi.mocked(openai.responses.create)
       .mockResolvedValueOnce(fakeAIResponse([liveItem, deadItem]))
@@ -663,8 +686,14 @@ describe("GET /api/resources/discover, retry when too few results survive", () =
   });
 
   it("deduplicates URLs when merging first and second batch survivors", async () => {
-    const sharedItem = makeItem({ url: "https://shared.example.com" });
-    const extra = makeItem({ url: "https://extra.example.com" });
+    const sharedItem = makeItem({
+      url: "https://shared.example.com",
+      title: "History lesson",
+    });
+    const extra = makeItem({
+      url: "https://extra.example.com",
+      title: "History archive",
+    });
 
     vi.mocked(openai.responses.create)
       .mockResolvedValueOnce(fakeAIResponse([sharedItem]))
@@ -736,7 +765,7 @@ describe("GET /api/resources/discover, input validation", () => {
     expect(filterReachableUrls).not.toHaveBeenCalled();
   });
 
-  it("rejects a missing query instead of searching for \"undefined\"", async () => {
+  it('rejects a missing query instead of searching for "undefined"', async () => {
     // q is a coerced string: a missing parameter used to reach the handler as
     // the literal "undefined" and be searched for in full, remote calls and
     // AI allowance included.
@@ -749,7 +778,9 @@ describe("GET /api/resources/discover, input validation", () => {
   });
 
   it("rejects a blank query", async () => {
-    const res = await request(buildApp()).get("/api/resources/discover?q=%20%20");
+    const res = await request(buildApp()).get(
+      "/api/resources/discover?q=%20%20",
+    );
 
     expect(res.status).toBe(400);
     expect(searchCatalog).not.toHaveBeenCalled();
@@ -869,7 +900,10 @@ describe("GET /api/resources/discover, the AI's own per-minute allowance", () =>
   it("lets an ordinary reader page the catalog without touching that allowance", async () => {
     requestIsAdmin = false;
     vi.mocked(searchCatalog).mockResolvedValue([
-      makeItem({ url: "https://en.wikibooks.org/wiki/Algebra", title: "Algebra" }),
+      makeItem({
+        url: "https://en.wikibooks.org/wiki/Algebra",
+        title: "Algebra",
+      }),
     ]);
 
     const res = await request(buildApp())

@@ -108,7 +108,7 @@ import { VerificationBadge } from "../components/VerificationBadge";
 import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
 import { describeApiError } from "../lib/api-error";
-import { AUTH_LANGUAGES, useAuthLanguage } from "../lib/auth-locale";
+import { AUTH_LANGUAGES } from "../lib/auth-locale";
 import {
   CitationDialog,
   type CitationResource,
@@ -531,7 +531,10 @@ function LibraryCard({
       ) : null}
       {resource.description && (
         <CardContent className="pb-2">
-          <p translate="no" className="text-sm text-muted-foreground line-clamp-2">
+          <p
+            translate="no"
+            className="text-sm text-muted-foreground line-clamp-2"
+          >
             {resource.description}
           </p>
         </CardContent>
@@ -759,7 +762,8 @@ function UnsavedSourceResearchDialog({
                   never match a dictionary entry in any language, and the level
                   itself was a raw column value under a `capitalize`. */}
               <Badge variant="outline">
-                {TRUST_LEVEL_NAME[data.trustLevel] ?? `${data.trustLevel} trust`}
+                {TRUST_LEVEL_NAME[data.trustLevel] ??
+                  `${data.trustLevel} trust`}
               </Badge>
               <span className="font-semibold">{data.sourceName}</span>
             </div>
@@ -1071,7 +1075,6 @@ function CardSkeletons({ count = 6 }: { count?: number }) {
 export default function ResourcesPage() {
   const isMobile = useIsMobile();
   const [, setLocation] = useLocation();
-  const { language: interfaceLanguage } = useAuthLanguage();
   const routeSearch = useRouteSearch();
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1094,8 +1097,9 @@ export default function ResourcesPage() {
   const [formatFilter, setFormatFilter] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("");
   const [gradeLevelFilter, setGradeLevelFilter] = useState("");
-  const [searchLanguage, setSearchLanguage] =
-    useState<SearchLanguage>(interfaceLanguage);
+  const [searchLanguage, setSearchLanguage] = useState<SearchLanguage>(
+    DiscoverResourcesLanguage.any,
+  );
   const [resultTypeFilter, setResultTypeFilter] =
     useState<DiscoverResourcesResultType>(DiscoverResourcesResultType.content);
   const [sortByFilter, setSortByFilter] = useState<ListResourcesSortBy | "">(
@@ -1125,9 +1129,10 @@ export default function ResourcesPage() {
    * cursor that moved on its own would refetch the page currently on screen and
    * then replace the results with whatever came back.
    */
-  const [webCursor, setWebCursor] = useState<{ after: string; sinceId: number }>(
-    { after: "", sinceId: 0 },
-  );
+  const [webCursor, setWebCursor] = useState<{
+    after: string;
+    sinceId: number;
+  }>({ after: "", sinceId: 0 });
 
   /**
    * How far a set of results reaches.
@@ -1235,7 +1240,7 @@ export default function ResourcesPage() {
   const [researchResource, setResearchResource] =
     useState<DiscoveredResource | null>(null);
   const [researchOpen, setResearchOpen] = useState(false);
-  const previousActiveQueryRef = useRef(activeQuery);
+  const previousSubmittedSearchRef = useRef("");
   const hydratedAccountSearchRef = useRef(false);
 
   function openCitation(resource?: CitationResource) {
@@ -1603,7 +1608,10 @@ export default function ResourcesPage() {
       ? { freshness: submittedSearch.freshness as DiscoverResourcesFreshness }
       : {}),
     ...(submittedSearch?.sourceQuality
-      ? { sourceQuality: submittedSearch.sourceQuality as DiscoverResourcesSourceQuality }
+      ? {
+          sourceQuality:
+            submittedSearch.sourceQuality as DiscoverResourcesSourceQuality,
+        }
       : {}),
     ...(submittedSearch?.material
       ? { material: submittedSearch.material }
@@ -1621,7 +1629,9 @@ export default function ResourcesPage() {
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.difficulty
-      ? { difficulty: submittedSearch.difficulty as DiscoverResourcesDifficulty }
+      ? {
+          difficulty: submittedSearch.difficulty as DiscoverResourcesDifficulty,
+        }
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.access
@@ -1633,7 +1643,10 @@ export default function ResourcesPage() {
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.contentLength
-      ? { contentLength: submittedSearch.contentLength as DiscoverResourcesContentLength }
+      ? {
+          contentLength:
+            submittedSearch.contentLength as DiscoverResourcesContentLength,
+        }
       : {}),
     ...(submittedSearch?.resultType === DiscoverResourcesResultType.content &&
     submittedSearch.captions
@@ -1679,12 +1692,16 @@ export default function ResourcesPage() {
     webErrorResponse.data?.code === "AI_CREDITS_EXHAUSTED";
   const webAuthenticationRequired = webErrorResponse?.status === 401;
 
-  // Reset accumulated results when query changes; append on page increment
+  // Every filter combination owns its own combined result set and paging
+  // cursor. Comparing only the query would retain stale cards when the words
+  // stayed the same but subject, grade, language, format, or provider changed.
   useEffect(() => {
-    if (previousActiveQueryRef.current === activeQuery) return;
-    previousActiveQueryRef.current = activeQuery;
+    const signature = submittedSearch ? JSON.stringify(submittedSearch) : "";
+    if (previousSubmittedSearchRef.current === signature) return;
+    previousSubmittedSearchRef.current = signature;
     resetWebSearch();
-  }, [activeQuery]);
+    setLibraryLimit(12);
+  }, [submittedSearch]);
 
   useEffect(() => {
     if (webLoading || !webResults) return;
@@ -2027,8 +2044,7 @@ export default function ResourcesPage() {
         oneOf("resultType", Object.values(DiscoverResourcesResultType)) ??
         DiscoverResourcesResultType.content,
       sortBy: oneOf("sortBy", Object.values(ListResourcesSortBy)) ?? "",
-      minRating:
-        typeof stored.minRating === "number" ? stored.minRating : "",
+      minRating: typeof stored.minRating === "number" ? stored.minRating : "",
       exactPhrase: text("exactPhrase"),
       excludedWords: text("excludedWords"),
       sourceDomain: text("sourceDomain"),
@@ -2688,7 +2704,10 @@ export default function ResourcesPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="exclude-subjects-filter" className="text-xs">
+                    <Label
+                      htmlFor="exclude-subjects-filter"
+                      className="text-xs"
+                    >
                       Exclude subjects
                     </Label>
                     <Input
@@ -2871,7 +2890,10 @@ export default function ResourcesPage() {
                       options={[
                         { value: "book", label: "Books and textbooks" },
                         { value: "course", label: "Courses and lesson series" },
-                        { value: "reference", label: "Encyclopedia and reference" },
+                        {
+                          value: "reference",
+                          label: "Encyclopedia and reference",
+                        },
                         { value: "paper", label: "Peer-reviewed papers" },
                         { value: "primary", label: "Primary source texts" },
                         { value: "video", label: "Video lessons" },
@@ -2888,10 +2910,22 @@ export default function ResourcesPage() {
                       value={sourceQualityFilter}
                       onChange={setSourceQualityFilter}
                       options={[
-                        { value: "academic", label: "Academic and peer-reviewed" },
-                        { value: "institutional", label: "Universities and institutions" },
-                        { value: "established", label: "Established learning platforms" },
-                        { value: "independent", label: "Vetted independent sources" },
+                        {
+                          value: "academic",
+                          label: "Academic and peer-reviewed",
+                        },
+                        {
+                          value: "institutional",
+                          label: "Universities and institutions",
+                        },
+                        {
+                          value: "established",
+                          label: "Established learning platforms",
+                        },
+                        {
+                          value: "independent",
+                          label: "Vetted independent sources",
+                        },
                       ]}
                       label="tiers"
                       allLabel="Any credibility"
@@ -3521,12 +3555,12 @@ export default function ResourcesPage() {
                       ? "The catalog has no more matches for this search. Sign in to use your AI discovery allowance."
                       : "The stored catalog has no matches. Sign in to use your AI discovery allowance."
                     : webCreditsExhausted
-                    ? isAdmin
-                      ? "Optional AI fallback is unavailable because the OpenAI project has no credits."
-                      : "Optional AI fallback is temporarily unavailable."
-                    : hasWebResults
-                    ? "Could not load more results, please try again."
-                    : "Catalog search failed, please try again."}
+                      ? isAdmin
+                        ? "Optional AI fallback is unavailable because the OpenAI project has no credits."
+                        : "Optional AI fallback is temporarily unavailable."
+                      : hasWebResults
+                        ? "Could not load more results, please try again."
+                        : "Catalog search failed, please try again."}
                 </p>
                 {webAuthenticationRequired ? (
                   <Button
@@ -3542,14 +3576,16 @@ export default function ResourcesPage() {
                     Add credits in OpenAI billing, then retry this search.
                   </p>
                 ) : null}
-                {!webAuthenticationRequired ? <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => void retryWebSearch()}
-                >
-                  Retry
-                </Button> : null}
+                {!webAuthenticationRequired ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => void retryWebSearch()}
+                  >
+                    Retry
+                  </Button>
+                ) : null}
               </div>
             )}
 
