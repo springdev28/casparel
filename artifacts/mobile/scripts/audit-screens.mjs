@@ -6,44 +6,33 @@
 /**
  * The phone app, rendered, against a real server.
  *
- * STALE, AND CURRENTLY PROVING NOTHING. Read this before trusting a pass.
- *
- * Most of what this drives -- the tabs, goals, lists, messages, study, the
- * resource and class screens -- was deleted once a signed-in phone began
- * showing the website in a WebView, so those routes no longer exist. It does
- * not fail on them, because it never gets that far: registering now lands on
- * the workspace rather than a native dashboard, the first check fails, and the
- * run ends "Inconclusive" with exit 75, which CI turns into a warning and a
- * green step. So this audit is green today without judging a single screen.
- *
- * Fixing it means deciding what it should be: the pre-session flow is already
- * rendered by audit-languages.mjs, and the signed-in half is the website,
- * which audit-pages.mjs and audit-translation.mjs cover properly. Whoever
- * takes that on gets to delete most of this file.
- *
  * The mobile app is the thing that gets submitted to the stores and it had no
  * check that renders it. CI asks Metro to bundle it, which proves the modules
  * resolve and nothing more: every screen in this app could be blank, or throw
  * on its first render, and the bundle step would still pass. Nobody would know
  * until a reviewer opened it.
  *
- * What that cost, concretely: `/api/schedule` sent `date` as
- * "2026-08-19T00:00:00.000Z" while the contract says "2026-08-19", and the
- * schedule screen compares that field to a YYYY-MM-DD string. Schedule blocks
- * were invisible on the phone -- every timezone, every day, everybody -- and
- * the web app was fine, because it parses the value first. Only rendering the
- * phone app against a real server shows that.
+ * What it covers is the way in, which is all this app still draws for itself:
+ * a refused sign-in, registration, the onboarding gate, the hand-off to the
+ * workspace, and the paywall. A signed-in session is the website in a WebView
+ * now -- the native tabs and their screens were deleted once nothing could
+ * reach them -- and a WebView renders nothing in a web export, so there is no
+ * signed-in screen here left to walk. That half is audited where it lives:
+ * audit-pages.mjs and audit-translation.mjs render the real website.
  *
- * So this is deliberately not fixture-driven. Fixtures are written from the
- * same idea of the contract that the screen holds, so the two agree with each
- * other and both are wrong together; that is exactly how the bug above
- * survived. Every response here comes from a real handler and a real database.
+ * This file used to walk fourteen of those deleted screens, and for a while it
+ * walked none of them without saying so. The register screen grew a terms
+ * checkbox, this kept filling the form and clicking a disabled button, and the
+ * run ended "Inconclusive" -- exit 75, which CI reports as a warning and a
+ * green step. It was green for days while judging nothing at all. The
+ * checkbox is ticked below, and the shape of that failure is worth
+ * remembering: an audit that cannot run has to be louder than one that fails.
  *
- * How it reaches the server: Expo bundles for the web, the export is served
- * locally, and the browser rewrites the app's own origin -- always
- * https://casparel.com, deliberately, so a store build cannot be shipped
- * pointing at nothing -- onto the server under test. The app's code is
- * untouched and does not know.
+ * Every response here comes from a real handler and a real database. How it
+ * reaches the server: Expo bundles for the web, the export is served locally,
+ * and the browser rewrites the app's own origin -- always https://casparel.com,
+ * deliberately, so a store build cannot be shipped pointing at nothing -- onto
+ * the server under test. The app's code is untouched and does not know.
  *
  *   node artifacts/mobile/scripts/audit-screens.mjs [baseUrl]
  *
@@ -73,17 +62,6 @@ const RUN = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
 const EMAIL = `mobile-${RUN}@example.test`;
 const PASSWORD = "mobile-Passw0rd!checks";
 const NAME = "Mobile Audit";
-/** Written for today, then looked for on the schedule screen. */
-const BLOCK_TITLE = "Audit revision block";
-/** Added through the API, then opened on its own screen. */
-const RESOURCE_TITLE = "Audit reading on tides";
-const LIST_TITLE = "Audit tides reading list";
-/** Made by a teacher, joined from the phone, then opened. */
-const CLASS_NAME = "Audit physics set";
-const GOAL_TITLE = "Audit goal: master tides";
-const GOAL_STEP = "Read the tides chapter";
-/** Typed into the phone's own form, then looked for on the schedule. */
-const SESSION_TITLE = "Audit revision huddle";
 
 let failures = 0;
 let checks = 0;
@@ -115,7 +93,7 @@ const MIME = {
 /**
  * Serve the export, falling back to index.html.
  *
- * expo-router builds client-side routes, so /schedule is not a file. Every
+ * expo-router builds client-side routes, so /paywall is not a file. Every
  * unknown path has to return the shell or the route never gets a chance to
  * run -- which looks exactly like a blank screen.
  */
@@ -186,87 +164,6 @@ async function loadPlaywright() {
   }
 }
 
-/** A call to the server under test, outside the browser. */
-async function api(method, route, { token, body } = {}) {
-  const response = await fetch(BASE + route, {
-    method,
-    headers: {
-      "content-type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  const text = await response.text();
-  let parsed = null;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    /* not JSON; `text` is what the caller gets */
-  }
-  return { status: response.status, body: parsed, text };
-}
-
-/**
- * A teacher, so there is a class to be invited to.
- *
- * Registration only ever creates students -- the role must not be
- * client-controlled -- so making one needs an administrator, and an
- * allowlisted address is promoted when it signs in. Without E2E_ADMIN_EMAIL
- * there is no way to get one, and the class screens go unwalked; that is said
- * out loud rather than passing quietly over a screen nothing looked at.
- */
-async function teacherWithAClass() {
-  const adminEmail = process.env.E2E_ADMIN_EMAIL;
-  if (!adminEmail) return null;
-  const adminPassword = process.env.E2E_ADMIN_PASSWORD || "e2e-Admin-Passw0rd!shared";
-
-  await api("POST", "/api/auth/register", {
-    body: { email: adminEmail, password: adminPassword, name: "Audit Admin" },
-  });
-  const adminIn = await api("POST", "/api/auth/login", {
-    body: { email: adminEmail, password: adminPassword },
-  });
-  if (adminIn.status !== 200 || !adminIn.body?.token) {
-    throw new Inconclusive(
-      `E2E_ADMIN_EMAIL=${adminEmail} could not sign in (HTTP ${adminIn.status}). ` +
-        `If the account exists with another password, set E2E_ADMIN_PASSWORD.`,
-    );
-  }
-
-  const teacherEmail = `mobile-teacher-${RUN}@example.test`;
-  const registered = await api("POST", "/api/auth/register", {
-    body: { email: teacherEmail, password: PASSWORD, name: "Audit Teacher" },
-  });
-  const teacherId = registered.body?.user?.id ?? registered.body?.id;
-  if (!teacherId) throw new Inconclusive("could not register a teacher account");
-
-  const promoted = await api("PATCH", `/api/admin/users/${teacherId}`, {
-    token: adminIn.body.token,
-    body: { role: "teacher", activeRole: "teacher" },
-  });
-  if (promoted.status !== 200) {
-    throw new Inconclusive(
-      `${adminEmail} signed in but could not promote a teacher (HTTP ${promoted.status}). ` +
-        `It has to be in the server's ADMIN_EMAILS allowlist.`,
-    );
-  }
-  // The promotion changed the account, not the token issued before it.
-  const teacherIn = await api("POST", "/api/auth/login", {
-    body: { email: teacherEmail, password: PASSWORD },
-  });
-  const token = teacherIn.body?.token;
-  if (!token) throw new Inconclusive("the promoted teacher could not sign in");
-
-  const created = await api("POST", "/api/classes", {
-    token,
-    body: { name: CLASS_NAME, subject: "Physics", gradeLevel: "Year 12" },
-  });
-  if (created.status !== 201) {
-    throw new Inconclusive(`a teacher could not create a class (HTTP ${created.status})`);
-  }
-  return { token, classId: created.body.id, user: teacherIn.body?.user ?? null };
-}
-
 /** Requests the signed-in app made for itself that came back an error. */
 function isInterestingFailure(url, status, signedIn) {
   if (status < 400) return false;
@@ -281,82 +178,14 @@ function isInterestingFailure(url, status, signedIn) {
   return true;
 }
 
-/**
- * Every screen this walks, and a string that proves its own content arrived.
- *
- * A screen that renders its frame and none of its data is the failure mode
- * worth catching, so each expectation names something only that screen's data
- * can produce -- not its title, which the shell draws either way.
- */
-function screens(resourceId, classId, goalId, listId) {
-  return [
-    ...TABS,
-    // The detail screens are reached by tapping a row, so nothing above ever
-    // renders them; they are also where the app spends most of its layout.
-    resourceId
-      ? { name: "resource detail", route: `/resource/${resourceId}`, expect: new RegExp(RESOURCE_TITLE) }
-      : null,
-    classId
-      ? { name: "class detail", route: `/class/${classId}`, expect: new RegExp(CLASS_NAME) }
-      : null,
-    /*
-     * Messages, which is reached from the dashboard header rather than a tab.
-     *
-     * The account this run makes is brand new and has nobody to talk to, so
-     * the empty state is the right expectation -- and it is still an
-     * end-to-end check worth having, because it only appears once the request
-     * has gone out, come back and returned an empty list. A screen that threw,
-     * or one whose hook 404ed because the endpoint was never described in
-     * openapi.yaml, shows something else.
-     */
-    { name: "messages", route: "/messages", expect: /No conversations yet/i },
-    /*
-     * Goals, reached from the dashboard rather than a tab.
-     *
-     * The list expectation is the goal's own title, not the word "Goals":
-     * the heading is drawn by the shell whether or not /learning-goals ever
-     * answered, and a list that renders its frame and none of its rows is
-     * exactly the failure worth catching.
-     */
-    goalId ? { name: "goals", route: "/goals", expect: new RegExp(GOAL_TITLE) } : null,
-    // The detail screen, which is where the tick actually happens. The step
-    // title only appears once the path has been read out of the goal.
-    goalId
-      ? { name: "goal detail", route: `/goals/${goalId}`, expect: new RegExp(GOAL_STEP) }
-      : null,
-    listId ? { name: "learning lists", route: "/lists", expect: new RegExp(LIST_TITLE) } : null,
-    listId
-      ? { name: "learning list detail", route: `/lists/${listId}`, expect: new RegExp(RESOURCE_TITLE) }
-      : null,
-    // The screen the whole Shipaton submission turns on. It renders before any
-    // store connection exists, which is the state CI is always in, so what is
-    // checked is that it says something rather than throwing.
-    { name: "paywall", route: "/paywall", expect: /Casparel|Plus|Pro|plan/i },
-  ].filter(Boolean);
-}
-
-const TABS = [
-  /*
-   * The due-work section, not the greeting.
-   *
-   * A greeting renders whether or not anything else worked -- it is drawn
-   * from the account, which is already in hand. "Nothing is due" is only
-   * reached after /assignments/today has answered, so it says the request
-   * went out, came back, and the section rendered its empty state. This
-   * account is new, so empty is the right expectation.
-   */
-  { name: "dashboard", route: "/", expect: /Nothing is due/i },
-  { name: "resources", route: "/resources", expect: /Resources/ },
-  // The title has to be on the screen, not merely the word "Schedule": the
-  // failure being guarded against renders the whole screen perfectly and
-  // leaves the block out of it.
-  { name: "schedule", route: "/schedule", expect: new RegExp(BLOCK_TITLE) },
-  { name: "classes", route: "/classes", expect: /Classes/ },
-  { name: "profile", route: "/profile", expect: /Profile/ },
-];
-
 /** What the app's error boundary puts on the screen when a render throws. */
 const CRASHED = /Something went wrong/i;
+
+async function shoot(page, name) {
+  if (!SHOTS) return;
+  fs.mkdirSync(SHOTS, { recursive: true });
+  await page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
+}
 
 async function main() {
   if (!fs.existsSync(path.join(EXPORT_DIR, "index.html"))) {
@@ -382,9 +211,9 @@ async function main() {
   try {
     browser = await chromium.launch(launchOptions());
 
-    // Light first, and signed out: registering through the real form is what a
-    // reviewer does before anything else, and it is the one screen that has to
-    // work before any other can be reached.
+    // Signed out, on a phone-sized screen: registering through the real form
+    // is what a reviewer does before anything else, and it is the one screen
+    // that has to work before any other can be reached.
     const light = await browser.newContext({
       viewport: { width: 420, height: 900 },
       deviceScaleFactor: 2,
@@ -395,9 +224,7 @@ async function main() {
     const pageErrors = [];
     const apiFailures = [];
 
-    for (const context of [light]) {
-      await context.route(`${APP_ORIGIN}/**`, forwardToServer);
-    }
+    await light.route(`${APP_ORIGIN}/**`, forwardToServer);
     light.on("response", (response) => {
       if (isInterestingFailure(response.url(), response.status(), signedIn)) {
         apiFailures.push(`${response.status()} ${new URL(response.url()).pathname}`);
@@ -406,7 +233,7 @@ async function main() {
     });
 
     const page = await light.newPage();
-    page.on("pageerror", (error) => pageErrors.push(`register/login: ${String(error).slice(0, 200)}`));
+    page.on("pageerror", (error) => pageErrors.push(`${String(error).slice(0, 200)}`));
 
     /*
      * A wrong password first, on the real screen.
@@ -434,6 +261,7 @@ async function main() {
         said.replace(/\n+/g, " | ").slice(0, 160),
       );
     }
+    await shoot(page, "1-login");
 
     await page.goto(`${local}/register`, { waitUntil: "networkidle" });
     await page.waitForTimeout(1500);
@@ -445,6 +273,46 @@ async function main() {
     await name.fill(NAME);
     await page.getByPlaceholder("you@school.edu").fill(EMAIL);
     await page.getByPlaceholder("At least 8 characters").fill(PASSWORD);
+
+    /*
+     * The terms box, which is a gate and not a nicety.
+     *
+     * "Create account" is `disabled={!acceptedTerms}`, so a run that fills the
+     * form and clicks anyway registers nobody, sees the form still on screen,
+     * and reports that it could not get in. That is what this file did for
+     * days. Consenting is also the thing being checked: the store answers say
+     * a person agrees to the content rules before they can post anything, and
+     * a checkbox nobody ever ticks is a promise nothing keeps.
+     */
+    const terms = page.getByRole("checkbox");
+    if (!(await terms.count())) {
+      throw new Inconclusive("the register screen has no terms checkbox to tick");
+    }
+    /*
+     * Read the tick off the icon's colour, which is the only place it shows.
+     *
+     * React Native Web renders this Pressable as a div and drops
+     * accessibilityState on the floor: aria-checked is absent whether or not
+     * the box is ticked, so asserting on it passes either way -- which is how
+     * the first version of this check managed to be as empty as the run it was
+     * meant to fix. The icon swaps muted for primary (see register.tsx), and
+     * comparing the computed colour to itself needs no literal from the theme.
+     */
+    const tickColour = () =>
+      page
+        .getByRole("checkbox")
+        .first()
+        .evaluate((el) => getComputedStyle(el.firstElementChild ?? el).color);
+    const untickedColour = await tickColour();
+    await terms.first().click();
+    await page.waitForTimeout(400);
+    const tickedColour = await tickColour();
+    check(
+      "the terms box takes the tick that unlocks the button",
+      untickedColour !== tickedColour,
+      `${untickedColour} -> ${tickedColour}`,
+    );
+
     await page.getByText(/Create account|Sign up/i).last().click();
     await page.waitForTimeout(4000);
 
@@ -455,478 +323,73 @@ async function main() {
       afterRegister.replace(/\n+/g, " | ").slice(0, 160),
     );
     signedIn = !/Create account/i.test(afterRegister);
-    if (!signedIn) throw new Inconclusive("could not register, so no screen below can be judged");
-
     /*
-     * A new account lands on onboarding, and it is a gate: every tab below
-     * renders it instead of itself until it is dismissed. That is the real
-     * first-run path -- it is what a store reviewer sees -- so it is walked
-     * rather than skipped, and the flag it sets is what the rest of this run
-     * depends on.
+     * A sign-up that does not work is a broken product, not a run that could
+     * not be performed, and the difference decides whether anyone hears about
+     * it: "inconclusive" is exit 75, which this workflow turns into a warning
+     * and a green step. That is how a disabled button went unnoticed for days.
+     * So the checks below are skipped and the run still ends in failure.
      */
-    const started = page.getByText("Get started").last();
-    if (await started.count()) {
-      await started.click();
+    if (signedIn) {
+      await shoot(page, "2-registered");
+
+      /*
+       * A new account lands on onboarding, and it is a gate: everything behind
+       * it renders it instead of itself until it is dismissed. That is the real
+       * first-run path -- it is what a store reviewer sees.
+       */
+      const started = page.getByText("Get started").last();
+      if (await started.count()) {
+        await started.click();
+        await page.waitForTimeout(2500);
+      }
+      const afterOnboarding = await page.evaluate(() => document.body.innerText);
+      check(
+        "onboarding lets you out of it",
+        !/Welcome to Casparel/i.test(afterOnboarding),
+        afterOnboarding.replace(/\n+/g, " | ").slice(0, 160),
+      );
+      await shoot(page, "3-onboarded");
+
+      const token = await page.evaluate(() => localStorage.getItem("schoolar_token"));
+      check("the session it just created is stored", Boolean(token), token ? "" : "no schoolar_token");
+
+      /*
+       * Where a signed-in session ends up, which is the whole shape of this app
+       * now: resolveInitialRoute sends anything that is not the paywall to
+       * /mobile, and /mobile is the website in a WebView.
+       *
+       * The route is what gets asserted, not what is on it. react-native-webview
+       * has no web implementation, so in this export /mobile renders the
+       * library's own "does not support this platform" -- checking for that
+       * string would be checking a dependency's placeholder. What matters here
+       * is that the app decided to go there and did not fall out of the product
+       * onto a public page or a dead native route.
+       */
+      check(
+        "a signed-in session lands on the workspace",
+        new URL(page.url()).pathname === "/mobile",
+        new URL(page.url()).pathname,
+      );
+
+      /*
+       * The paywall, which is the one signed-in screen this app still draws
+       * itself. It renders before any store connection exists, which is the
+       * state CI is always in, so what is checked is that it says something
+       * rather than throwing.
+       */
+      await page.goto(`${local}/paywall`, { waitUntil: "networkidle" });
       await page.waitForTimeout(2500);
-    }
-    const afterOnboarding = await page.evaluate(() => document.body.innerText);
-    check(
-      "onboarding lets you out of it",
-      !/Welcome to Casparel/i.test(afterOnboarding),
-      afterOnboarding.replace(/\n+/g, " | ").slice(0, 160),
-    );
-    /*
-     * Put one row in, for today, so the screens below have something to be
-     * wrong about.
-     *
-     * An empty account renders every screen's empty state, and an empty state
-     * is exactly what a screen shows when it cannot recognise the data it was
-     * given -- which is the bug this file exists for. `date` went out as
-     * "2026-08-19T00:00:00.000Z" against a contract of "2026-08-19", the
-     * schedule compared it to a YYYY-MM-DD string, and the answer on the phone
-     * was a tidy "No events scheduled". Written through the API rather than
-     * the UI because the phone app has no screen for creating a block; what is
-     * being checked is that the phone can read what the server writes.
-     */
-    const token = await page.evaluate(() => localStorage.getItem("schoolar_token"));
-    if (!token) throw new Inconclusive("registered but no session token was stored");
-    const now = new Date();
-    const TODAY = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const written = await fetch(`${BASE}/api/schedule`, {
-      method: "POST",
-      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        title: BLOCK_TITLE,
-        date: TODAY,
-        startTime: "09:00",
-        endTime: "10:00",
-      }),
-    });
-    check("the server accepts a schedule block", written.status === 201, `${written.status}`);
-    if (written.status === 201) {
-      const body = await written.json();
+      const plans = await page.evaluate(() => document.body.innerText);
       check(
-        "and sends its date back as a date, not a timestamp",
-        /^\d{4}-\d{2}-\d{2}$/.test(String(body.date)),
-        `date=${JSON.stringify(body.date)}`,
-      );
-    }
-    /*
-     * One resource, so the resource screens have something in them.
-     *
-     * The library is empty on a fresh database, and an empty list renders the
-     * same whether the screen works or not.
-     */
-    const resource = await fetch(`${BASE}/api/resources`, {
-      method: "POST",
-      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        title: RESOURCE_TITLE,
-        url: "https://openlibrary.org/works/OL1W",
-        description: "Added by the mobile screen audit.",
-        format: "article",
-        subject: "Physics",
-        gradeLevel: "Year 12",
-      }),
-    });
-    check("the server accepts a resource", resource.status === 201, `${resource.status}`);
-    const resourceId = resource.status === 201 ? (await resource.json()).id : null;
-
-    /*
-     * A named list containing the resource proves both native list routes
-     * against the real handlers. The index must recognise the list summary;
-     * the detail must recognise the nested resource returned by the server.
-     */
-    const list = await fetch(`${BASE}/api/lists`, {
-      method: "POST",
-      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ name: LIST_TITLE, description: "For the mobile screen audit." }),
-    });
-    check("the server accepts a learning list", list.status === 201, `${list.status}`);
-    const listId = list.status === 201 ? (await list.json()).id : null;
-    if (listId && resourceId) {
-      const added = await fetch(`${BASE}/api/lists/${listId}/items`, {
-        method: "POST",
-        headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ resourceId }),
-      });
-      check("the server adds a resource to the learning list", [200, 201].includes(added.status), `${added.status}`);
-    }
-
-    /*
-     * One learning goal, then a path put on it, so the goal screens have
-     * something in them -- and so the only thing the phone *writes* about
-     * progress gets exercised end to end rather than only rendered.
-     *
-     * The path arrives in a second request on purpose. LearningGoalInput has
-     * no pathSteps: the server writes its own four-step scaffold on create
-     * and only the PATCH takes a path. Sending steps to POST looks like it
-     * works -- 201, a goal, a path -- and none of the steps are the ones you
-     * sent, which is worth knowing here rather than discovering on a phone.
-     *
-     * Two steps with the first already done: that is the state where the
-     * progress bar is neither empty nor full, so a bar that renders at a
-     * fixed width, or one that divides by the wrong number, is visible rather
-     * than plausible.
-     */
-    const goal = await fetch(`${BASE}/api/learning-goals`, {
-      method: "POST",
-      headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        title: GOAL_TITLE,
-        subject: "Physics",
-        level: "intermediate",
-      }),
-    });
-    check("the server accepts a learning goal", goal.status === 201, `${goal.status}`);
-    const goalId = goal.status === 201 ? (await goal.json()).id : null;
-    if (goalId) {
-      const path = await fetch(`${BASE}/api/learning-goals/${goalId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          pathSteps: [
-            { id: "s1", title: GOAL_STEP, query: GOAL_STEP, completed: true },
-            { id: "s2", title: "Try the practice set", query: "tides practice", completed: false },
-          ],
-        }),
-      });
-      const written = path.status === 200 ? await path.json() : null;
-      check(
-        "and keeps a path written onto it, ticks and all",
-        Boolean(
-          written &&
-            written.pathSteps?.length === 2 &&
-            written.pathSteps[0]?.title === GOAL_STEP &&
-            written.pathSteps[0]?.completed === true,
-        ),
-        `${path.status} ${JSON.stringify(written?.pathSteps ?? null).slice(0, 120)}`,
-      );
-    }
-
-    /*
-     * A class, joined the way a pupil joins one: from the invitation card on
-     * the classes screen.
-     *
-     * Until this, /class/[id] was the one screen in the app that nothing had
-     * ever rendered, and the accept button on that card had never been
-     * pressed by anything but a person. Both need a teacher, and a teacher
-     * needs an administrator, so both are skipped -- loudly -- when
-     * E2E_ADMIN_EMAIL is not set.
-     */
-    let classId = null;
-    const teacher = await teacherWithAClass();
-    if (!teacher) {
-      console.log(
-        "not run  joining a class, and the class screen\n" +
-          "         set E2E_ADMIN_EMAIL to an address in the server's ADMIN_EMAILS",
-      );
-    } else {
-      const invited = await api("POST", `/api/classes/${teacher.classId}/invitations`, {
-        token: teacher.token,
-        body: { email: EMAIL },
-      });
-      check("a teacher can invite by email", invited.status === 201, `${invited.status}`);
-
-      await page.goto(`${local}/classes`, { waitUntil: "networkidle" });
-      await page.waitForTimeout(2500);
-      const invitation = await page.evaluate(() => document.body.innerText);
-      check(
-        "the invitation reaches the phone, with the class named",
-        new RegExp(CLASS_NAME).test(invitation),
-        invitation.replace(/\n+/g, " | ").slice(0, 160),
-      );
-
-      const join = page.getByText("Join class").last();
-      if (await join.count()) {
-        await join.click();
-        await page.waitForTimeout(3000);
-      }
-      const joined = await api("GET", "/api/classes", { token });
-      check(
-        "pressing Join class on the phone actually joins it",
-        Array.isArray(joined.body) &&
-          joined.body.some((item) => item.id === teacher.classId),
-        `classes=${JSON.stringify(joined.body)?.slice(0, 160)}`,
-      );
-      if (joined.body?.some?.((item) => item.id === teacher.classId)) {
-        classId = teacher.classId;
-      }
-    }
-
-    await page.close();
-
-    // Both schemes. The colours are checked in the mobile unit suite; what is
-    // checked here is that neither one throws, which a palette cannot tell you.
-    for (const scheme of ["light", "dark"]) {
-      const context =
-        scheme === "light"
-          ? light
-          : await browser.newContext({
-              viewport: { width: 420, height: 900 },
-              deviceScaleFactor: 2,
-              colorScheme: "dark",
-            });
-      if (scheme === "dark") {
-        await context.route(`${APP_ORIGIN}/**`, forwardToServer);
-        // Carry the session across rather than signing in twice: the credential
-        // limiter counts attempts per address, and this run has other things to
-        // spend that budget on.
-        await context.addCookies(await light.cookies().catch(() => []));
-        const storage = await light.storageState();
-        const origin = storage.origins.find((entry) => entry.origin.startsWith("http://127.0.0.1"));
-        await context.addInitScript((items) => {
-          for (const item of items ?? []) localStorage.setItem(item.name, item.value);
-        }, origin?.localStorage ?? []);
-      }
-
-      for (const tab of screens(resourceId, classId, goalId, listId)) {
-        const tabPage = await context.newPage();
-        tabPage.on("pageerror", (error) =>
-          pageErrors.push(`${scheme} ${tab.name}: ${String(error).slice(0, 200)}`),
-        );
-        await tabPage.goto(`${local}${tab.route}`, { waitUntil: "networkidle" });
-        await tabPage.waitForTimeout(2500);
-        const text = await tabPage.evaluate(() => document.body.innerText);
-        if (SHOTS) {
-          fs.mkdirSync(SHOTS, { recursive: true });
-          await tabPage.screenshot({
-            path: path.join(SHOTS, `${tab.name.replace(/\s+/g, "-")}-${scheme}.png`),
-          });
-        }
-
-        check(`${scheme}: ${tab.name} renders`, tab.expect.test(text), text.replace(/\n+/g, " | ").slice(0, 140));
-        check(`${scheme}: ${tab.name} does not throw`, !CRASHED.test(text));
-        await tabPage.close();
-      }
-
-      if (scheme === "dark") await context.close();
-    }
-
-    /*
-     * Make a study session through the form on the phone.
-     *
-     * Everything above this reads. This is the app's only creating form, six
-     * fields of free text including a date and a time typed by hand, and
-     * nothing had ever filled it in -- the write paths were exercised through
-     * the API, which is precisely the half a form can get wrong on its own.
-     * What is checked is that the session the form made comes back on the
-     * schedule: a form that posts the wrong shape, or the right shape to the
-     * wrong day, looks identical until you go and look.
-     */
-    {
-      const form = await light.newPage();
-      form.on("pageerror", (error) => pageErrors.push(`new session: ${String(error).slice(0, 200)}`));
-      await form.goto(`${local}/schedule`, { waitUntil: "networkidle" });
-      await form.waitForTimeout(2000);
-      await form.getByText("+ Study Session").last().click();
-      await form.waitForTimeout(1200);
-
-      const title = form.getByPlaceholder("e.g. Calculus group review");
-      if (await title.count()) {
-        await title.fill(SESSION_TITLE);
-        await form.getByPlaceholder("2026-08-10").fill(TODAY);
-        await form.getByPlaceholder("14:00").fill("16:00");
-        await form.getByPlaceholder("60").fill("45");
-        await form.getByPlaceholder("https://meet.google.com/…").fill("https://meet.google.com/abc-defg-hij");
-        await form.getByText("Create Session").last().click();
-        await form.waitForTimeout(4000);
-
-        const after = await form.evaluate(() => document.body.innerText);
-        check(
-          "a study session made on the phone lands on the schedule",
-          new RegExp(SESSION_TITLE).test(after),
-          after.replace(/\n+/g, " | ").slice(0, 200),
-        );
-      } else {
-        check("the new-session form opens", false, "no title field after tapping + Study Session");
-      }
-      await form.close();
-    }
-
-    /*
-     * Switch workspace, and check the old one's rows are gone.
-     *
-     * A workspace is not a label on the same data: activities, goals and the
-     * activity feed are stored per role, and the plan the server reports
-     * depends on it. Switching only invalidated /users/me, so the labels
-     * flipped while the previous workspace's rows stayed on screen -- the
-     * server returned zero activity rows for the teacher workspace while the
-     * dashboard still listed the student's.
-     *
-     * This has to navigate by tapping. `page.goto` reloads the whole app and
-     * throws the cache away with it, which is the one thing that would hide
-     * this: the first version of this check used goto and passed against the
-     * broken code.
-     */
-    {
-      const switcher = await light.newPage();
-      switcher.on("pageerror", (error) => pageErrors.push(`role switch: ${String(error).slice(0, 200)}`));
-      await switcher.goto(`${local}/`, { waitUntil: "networkidle" });
-      await switcher.waitForTimeout(2500);
-      const beforeSwitch = await switcher.evaluate(() => document.body.innerText);
-
-      await switcher.getByText("Profile", { exact: true }).last().click();
-      await switcher.waitForTimeout(2000);
-      const toggle = switcher.locator('[role="switch"]').first();
-      if ((await toggle.count()) && /learning overview/.test(beforeSwitch)) {
-        await toggle.click();
-        await switcher.waitForTimeout(3500);
-        await switcher.getByText("Dashboard", { exact: true }).last().click();
-        await switcher.waitForTimeout(2500);
-        const afterSwitch = await switcher.evaluate(() => document.body.innerText);
-
-        check(
-          "switching workspace changes what the dashboard says it is",
-          /classroom overview/.test(afterSwitch),
-          afterSwitch.replace(/\n+/g, " | ").slice(0, 140),
-        );
-        // The block written earlier belongs to no workspace, so the schedule
-        // is not the test; the invitation notice is written per workspace and
-        // is the row that must not survive the switch.
-        check(
-          "and leaves none of the other workspace's rows on screen",
-          !/You were invited to join/.test(afterSwitch),
-          afterSwitch.replace(/\n+/g, " | ").slice(0, 200),
-        );
-      } else {
-        check("the workspace toggle is on the profile screen", false, "no switch control found");
-      }
-      await switcher.close();
-    }
-
-    /*
-     * The same screens with the server unreachable.
-     *
-     * An empty state standing in for a failure is the quietest bug this app
-     * has: the resources tab said "No resources yet" about a catalogue of
-     * thousands, the schedule said "Nothing scheduled for Wed" about a day
-     * that was full, and the profile rendered a blank account at 0% complete
-     * -- which reads as data that has been lost, and invites somebody to type
-     * it all in again over the top of what is still there.
-     *
-     * Aborting the requests is what a phone on a train does. What is checked
-     * is only that the screen says something went wrong, in whatever words:
-     * the wording lives in components/ErrorState.tsx and is its business.
-     */
-    const offline = await browser.newContext({
-      viewport: { width: 420, height: 900 },
-      deviceScaleFactor: 2,
-      colorScheme: "light",
-    });
-    await offline.route(`${APP_ORIGIN}/**`, (route) => route.abort("connectionfailed"));
-    const session = (await light.storageState()).origins.find((entry) =>
-      entry.origin.startsWith("http://127.0.0.1"),
-    );
-    await offline.addInitScript((items) => {
-      for (const item of items ?? []) localStorage.setItem(item.name, item.value);
-    }, session?.localStorage ?? []);
-
-    for (const tab of TABS) {
-      const tabPage = await offline.newPage();
-      await tabPage.goto(`${local}${tab.route}`, { waitUntil: "domcontentloaded" });
-      await tabPage.waitForTimeout(4000);
-      const text = await tabPage.evaluate(() => document.body.innerText);
-      check(
-        `offline: ${tab.name} says it could not load, rather than that you have nothing`,
-        /offline|could ?n.t (reach|load)|try again|retry/i.test(text),
-        text.replace(/\n+/g, " | ").slice(0, 140),
-      );
-      await tabPage.close();
-    }
-    await offline.close();
-
-    /*
-     * The tabs again, on the narrowest iPhone still receiving iOS.
-     *
-     * Every render above is 393pt wide. An iPhone SE is 375, and the gap is
-     * where a row that fits by four points stops fitting -- which shows up as
-     * the page scrolling sideways, or as a control pushed off the edge, and
-     * never in a screenshot taken at the wider size. The web audit has
-     * rendered 390px for this reason for a while; the phone app, which is
-     * where small screens actually live, had not.
-     */
-    const narrow = await browser.newContext({
-      viewport: { width: 375, height: 667 },
-      deviceScaleFactor: 2,
-      colorScheme: "light",
-    });
-    await narrow.route(`${APP_ORIGIN}/**`, forwardToServer);
-    const narrowSession = (await light.storageState()).origins.find((entry) =>
-      entry.origin.startsWith("http://127.0.0.1"),
-    );
-    await narrow.addInitScript((items) => {
-      for (const item of items ?? []) localStorage.setItem(item.name, item.value);
-    }, narrowSession?.localStorage ?? []);
-
-    for (const tab of TABS) {
-      const tabPage = await narrow.newPage();
-      tabPage.on("pageerror", (error) =>
-        pageErrors.push(`375px ${tab.name}: ${String(error).slice(0, 200)}`),
-      );
-      await tabPage.goto(`${local}${tab.route}`, { waitUntil: "networkidle" });
-      await tabPage.waitForTimeout(2500);
-      const sideways = await tabPage.evaluate(
-        () => document.documentElement.scrollWidth - window.innerWidth,
-      );
-      check(`375px: ${tab.name} does not scroll sideways`, sideways <= 0, `${sideways}px over`);
-      await tabPage.close();
-    }
-    await narrow.close();
-
-    /*
-     * The same tabs as a teacher.
-     *
-     * Everything above is a student, and the two roles are not the same app:
-     * the dashboard swaps its fourth tile from Reviews to Students and its
-     * subtitle from "your learning overview" to "your classroom overview", the
-     * class screen shows the roster differently, and the paywall offers
-     * Teacher plans instead of Student ones. None of that half had ever been
-     * rendered.
-     *
-     * The teacher account is the one already made above, so this costs a sign-
-     * in rather than another promotion.
-     */
-    if (teacher) {
-      const asTeacher = await browser.newContext({
-        viewport: { width: 393, height: 852 },
-        deviceScaleFactor: 2,
-        colorScheme: "dark",
-      });
-      await asTeacher.route(`${APP_ORIGIN}/**`, forwardToServer);
-      await asTeacher.addInitScript(
-        ([sessionToken, who]) => {
-          localStorage.setItem("schoolar_token", sessionToken);
-          localStorage.setItem("casparel_user", who);
-          localStorage.setItem("casparel_onboarded", "true");
-        },
-        [teacher.token, JSON.stringify(teacher.user ?? {})],
-      );
-
-      for (const tab of TABS) {
-        const tabPage = await asTeacher.newPage();
-        tabPage.on("pageerror", (error) =>
-          pageErrors.push(`teacher ${tab.name}: ${String(error).slice(0, 200)}`),
-        );
-        await tabPage.goto(`${local}${tab.route}`, { waitUntil: "networkidle" });
-        await tabPage.waitForTimeout(2500);
-        const text = await tabPage.evaluate(() => document.body.innerText);
-        // Role changes navigation, not subscription products.
-        check(`teacher: ${tab.name} does not throw`, !CRASHED.test(text), text.replace(/\n+/g, " | ").slice(0, 140));
-        await tabPage.close();
-      }
-
-      const paywall = await asTeacher.newPage();
-      await paywall.goto(`${local}/paywall`, { waitUntil: "networkidle" });
-      await paywall.waitForTimeout(2500);
-      const plans = await paywall.evaluate(() => document.body.innerText);
-      check(
-        "teacher: the paywall offers the shared Plus and Pro plans",
-        /Plus/.test(plans) && /Pro/.test(plans),
+        "the paywall names the plans",
+        /Plus/.test(plans) && /Pro/.test(plans) && !CRASHED.test(plans),
         plans.replace(/\n+/g, " | ").slice(0, 160),
       );
-      await paywall.close();
-      await asTeacher.close();
+      await shoot(page, "4-paywall");
+
+    } else {
+      console.log("     nothing below could be judged, because registering did not work");
     }
 
     check("no screen threw an uncaught exception", pageErrors.length === 0, pageErrors.slice(0, 4).join("\n     "));
