@@ -41,6 +41,7 @@ import {
 } from "@workspace/edu-ds/components/ui/select";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { counted } from "@/lib/counted";
+import { playFeedback } from "../lib/feedback";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 
 type LinkedResource = { id: number; title: string; url: string };
@@ -139,6 +140,7 @@ export function ClassAssignments({
   const [dueAt, setDueAt] = useState("");
   const [linkedType, setLinkedType] = useState("none");
   const [linkedId, setLinkedId] = useState("none");
+  const [justCompletedId, setJustCompletedId] = useState<number | null>(null);
   const handledWorkflowHandoff = useRef(false);
 
   async function load() {
@@ -252,15 +254,29 @@ export function ClassAssignments({
   }
 
   async function setCompleted(assignment: Assignment, completed: boolean) {
-    await request(`/assignments/${assignment.id}/completion`, {
-      method: "PATCH",
-      body: JSON.stringify({ completed }),
-    });
-    setAssignments((rows) =>
-      rows.map((row) =>
-        row.id === assignment.id ? { ...row, completed } : row,
-      ),
-    );
+    setJustCompletedId(null);
+    try {
+      await request(`/assignments/${assignment.id}/completion`, {
+        method: "PATCH",
+        body: JSON.stringify({ completed }),
+      });
+      setAssignments((rows) =>
+        rows.map((row) =>
+          row.id === assignment.id ? { ...row, completed } : row,
+        ),
+      );
+      if (completed) {
+        playFeedback("pop");
+        setJustCompletedId(assignment.id);
+      }
+    } catch (error) {
+      toast({
+        title: "Could not update assignment",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
   }
 
   async function deleteAssignment(id: number) {
@@ -486,7 +502,7 @@ export function ClassAssignments({
                     void setCompleted(assignment, !assignment.completed)
                   }
                   disabled={isTeacher}
-                  className={`flex size-8 items-center justify-center rounded-full border ${assignment.completed ? "bg-primary text-primary-foreground" : "bg-background"}`}
+                  className={`flex size-8 items-center justify-center rounded-full border ${assignment.completed ? "bg-primary text-primary-foreground" : "bg-background"}${justCompletedId === assignment.id ? " feedback-pop" : ""}`}
                   title={
                     assignment.completed ? "Mark incomplete" : "Mark complete"
                   }

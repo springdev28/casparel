@@ -92,6 +92,7 @@ import {
 import type { SourceReview } from "@workspace/api-client-react";
 import { StarRating } from "../components/StarRating";
 import { metaLine } from "../lib/format-meta";
+import { playFeedback } from "../lib/feedback";
 import { counted } from "@/lib/counted";
 import { formatName } from "@/lib/resource-format";
 
@@ -1139,6 +1140,7 @@ export default function ResourceDetailPage() {
         queryKey: getGetResourceQueryKey(resourceId),
       });
       queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
+      playFeedback("chime");
       toast({ title: "Review submitted!" });
       setReviewRating(0);
       setReviewComment("");

@@ -167,6 +167,19 @@ jobs:
         working-directory: artifacts/app
         run: node scripts/audit-pages.mjs
 
+      # The page audit renders pages as they normally are. This one checks the
+      # feedback layer where it is invisible: the reduced-motion kill-switch
+      # lists class names, so a new animation is covered only if someone
+      # remembered to add it, and no other audit emulates the preference. It
+      # also pins the confetti canvas to the viewport rather than its backing
+      # store -- a canvas is a replaced element, so `inset-0` alone leaves it
+      # at device-pixel size, which looks right at 1x and spills off a 2x
+      # screen -- and holds sounds to silence, never an exception, when there
+      # has been no user gesture to unblock audio.
+      - name: Audit the feedback layer
+        working-directory: artifacts/app
+        run: node scripts/audit-feedback.mjs
+
       # The page audit renders pages; this one drives the search and checks what
       # the reader ends up with. Both failures it exists for were invisible to
       # an API check: a first page of sixteen results rendered fourteen cards,

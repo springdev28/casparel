@@ -55,6 +55,7 @@ import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import { counted } from "@/lib/counted";
+import { celebrate, playFeedback } from "../lib/feedback";
 
 type ActivityCard = {
   id: string;
@@ -542,7 +543,10 @@ export default function ActivitiesPage({
     matchItems.length > 0 && matchItems.every((item) => item.matched);
 
   useEffect(() => {
-    if (matchComplete) setMatchStartedAt(null);
+    if (!matchComplete) return;
+    setMatchStartedAt(null);
+    playFeedback("fanfare");
+    celebrate("full");
   }, [matchComplete]);
 
   function openNewSet(nextMode: ActivityMode = "flashcards") {
@@ -844,12 +848,17 @@ export default function ActivitiesPage({
     const correct = normalize(practiceAnswer) === normalize(current.answer);
     setPracticeResult(correct ? "correct" : "incorrect");
     if (correct) setPracticeCorrect((value) => value + 1);
+    playFeedback(correct ? "success" : "error");
   }
 
   function nextPracticeCard() {
     setPracticeIndex((index) => index + 1);
     setPracticeAnswer("");
     setPracticeResult(null);
+    if (practiceIndex + 1 >= practiceOrder.length) {
+      playFeedback("chime");
+      if (practiceCorrect === practiceOrder.length) celebrate("burst");
+    }
   }
 
   function restartPractice() {
@@ -887,9 +896,11 @@ export default function ActivitiesPage({
         ),
       );
       setFirstMatchKey(null);
+      playFeedback("tick");
       return;
     }
     setBlockedMatchKeys([first.key, item.key]);
+    playFeedback("error");
     window.setTimeout(() => {
       setBlockedMatchKeys([]);
       setFirstMatchKey(null);
@@ -899,9 +910,11 @@ export default function ActivitiesPage({
   function chooseQuizAnswer(answer: string) {
     if (quizSelection !== null) return;
     setQuizSelection(answer);
-    if (answer === quizOrder[quizIndex]?.answer) {
+    const correct = answer === quizOrder[quizIndex]?.answer;
+    if (correct) {
       setQuizCorrect((score) => score + 1);
     }
+    playFeedback(correct ? "success" : "error");
   }
 
   function nextQuizQuestion() {
@@ -913,6 +926,10 @@ export default function ActivitiesPage({
         ? quizChoices(quizOrder[nextIndex], selected?.cards ?? [])
         : [],
     );
+    if (nextIndex >= quizOrder.length) {
+      playFeedback("chime");
+      if (quizCorrect === quizOrder.length) celebrate("burst");
+    }
   }
 
   function restartQuiz() {
@@ -927,14 +944,24 @@ export default function ActivitiesPage({
   function answerTrueFalse(answer: boolean) {
     if (trueFalseSelection !== null) return;
     setTrueFalseSelection(answer);
-    const expected = trueFalseOrder[trueFalseIndex]?.answer.trim().toLocaleLowerCase("tr");
-    const isTrue = ["true", "doğru", "dogru", "yes", "evet"].includes(expected ?? "");
-    if (answer === isTrue) setTrueFalseCorrect((score) => score + 1);
+    // trueFalseIsTrue is what the buttons highlight and, in "all" mode, what
+    // the shown answer was built from. Scoring used to re-derive truth from the
+    // answer text, which in that mode is a definition rather than a true/false
+    // word: the score then contradicted the highlight, and a round of right
+    // answers could finish at 5/10. One source keeps score, highlight and
+    // sound in agreement.
+    const correct = answer === trueFalseIsTrue;
+    if (correct) setTrueFalseCorrect((score) => score + 1);
+    playFeedback(correct ? "success" : "error");
   }
 
   function nextTrueFalse() {
     setTrueFalseIndex((index) => index + 1);
     setTrueFalseSelection(null);
+    if (trueFalseIndex + 1 >= trueFalseOrder.length) {
+      playFeedback("chime");
+      if (trueFalseCorrect === trueFalseOrder.length) celebrate("burst");
+    }
   }
 
   function restartTrueFalse() {
@@ -952,6 +979,7 @@ export default function ActivitiesPage({
       card.term.trim().toLocaleLowerCase();
     setScrambleResult(correct);
     if (correct) setScrambleCorrect((score) => score + 1);
+    playFeedback(correct ? "success" : "error");
   }
 
   function nextScramble() {
@@ -964,6 +992,10 @@ export default function ActivitiesPage({
         ? scrambleAnswer(scrambleOrder[nextIndex].term)
         : "",
     );
+    if (nextIndex >= scrambleOrder.length) {
+      playFeedback("chime");
+      if (scrambleCorrect === scrambleOrder.length) celebrate("burst");
+    }
   }
 
   function restartScramble() {
@@ -985,12 +1017,17 @@ export default function ActivitiesPage({
       expected.trim().toLocaleLowerCase();
     setMissingResult(correct);
     if (correct) setMissingCorrect((score) => score + 1);
+    playFeedback(correct ? "success" : "error");
   }
 
   function nextMissingWord() {
     setMissingIndex((index) => index + 1);
     setMissingInput("");
     setMissingResult(null);
+    if (missingIndex + 1 >= missingOrder.length) {
+      playFeedback("chime");
+      if (missingCorrect === missingOrder.length) celebrate("burst");
+    }
   }
 
   function restartMissingWord() {
@@ -1343,8 +1380,8 @@ export default function ActivitiesPage({
                           className={cn(
                             "rounded-md border p-4",
                             practiceResult === "correct"
-                              ? "border-emerald-500 bg-emerald-500/10"
-                              : "border-amber-500 bg-amber-500/10",
+                              ? "feedback-pop border-emerald-500 bg-emerald-500/10"
+                              : "feedback-shake border-amber-500 bg-amber-500/10",
                           )}
                         >
                           <p className="flex items-center gap-2 font-semibold">
@@ -1418,10 +1455,10 @@ export default function ActivitiesPage({
                                 "min-h-16 rounded-md border bg-card p-3 text-left text-sm font-medium",
                                 quizSelection !== null &&
                                   correctAnswer &&
-                                  "border-emerald-500 bg-emerald-500/10",
+                                  "feedback-pop border-emerald-500 bg-emerald-500/10",
                                 selectedAnswer &&
                                   !correctAnswer &&
-                                  "border-destructive bg-destructive/10",
+                                  "feedback-shake border-destructive bg-destructive/10",
                               )}
                             >
                               {answer}
@@ -1477,10 +1514,10 @@ export default function ActivitiesPage({
                                 "h-14",
                                 trueFalseSelection !== null &&
                                   isCorrect &&
-                                  "border-emerald-500 bg-emerald-500/10",
+                                  "feedback-pop border-emerald-500 bg-emerald-500/10",
                                 selectedAnswer &&
                                   !isCorrect &&
-                                  "border-destructive bg-destructive/10",
+                                  "feedback-shake border-destructive bg-destructive/10",
                               )}
                               disabled={trueFalseSelection !== null}
                               onClick={() => answerTrueFalse(answer)}
@@ -1539,8 +1576,8 @@ export default function ActivitiesPage({
                           className={cn(
                             "rounded-md border p-3 text-sm font-medium",
                             scrambleResult
-                              ? "border-emerald-500 bg-emerald-500/10"
-                              : "border-amber-500 bg-amber-500/10",
+                              ? "feedback-pop border-emerald-500 bg-emerald-500/10"
+                              : "feedback-shake border-amber-500 bg-amber-500/10",
                           )}
                         >
                           {scrambleResult
@@ -1606,8 +1643,8 @@ export default function ActivitiesPage({
                           className={cn(
                             "rounded-md border p-3 text-sm font-medium",
                             missingResult
-                              ? "border-emerald-500 bg-emerald-500/10"
-                              : "border-amber-500 bg-amber-500/10",
+                              ? "feedback-pop border-emerald-500 bg-emerald-500/10"
+                              : "feedback-shake border-amber-500 bg-amber-500/10",
                           )}
                         >
                           {missingResult

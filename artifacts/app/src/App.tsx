@@ -9,7 +9,6 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { Toaster } from "@workspace/edu-ds/components/ui/toaster";
 import { TooltipProvider } from "@workspace/edu-ds/components/ui/tooltip";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -32,6 +31,7 @@ import type { GetMyAccess200 } from "@workspace/api-client-react";
 
 import { applyLastSavedColors } from "./components/ThemeCustomizer";
 import { AccountActionDialog } from "./components/AccountActionDialog";
+import { FeedbackToaster } from "./components/FeedbackToaster";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
 import { hasDictionary } from "./lib/translated-languages";
@@ -490,7 +490,7 @@ function App() {
               </AccountAccessGate>
             </Suspense>
           </WouterRouter>
-          <Toaster />
+          <FeedbackToaster />
         </TooltipProvider>
       </QueryClientProvider>
     </AppErrorBoundary>

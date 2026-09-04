@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   Trash2,
   UserRound,
+  Volume2,
 } from "lucide-react";
 import {
   AccountActionDialog,
@@ -28,6 +29,11 @@ import { AuthLanguageSelect } from "../components/AuthLanguageSelect";
 import ThemeCustomizer from "../components/ThemeCustomizer";
 import { PlanSection } from "../components/PlanSection";
 import { useAuthLanguage } from "../lib/auth-locale";
+import {
+  isSoundEnabled,
+  playFeedback,
+  setSoundEnabled,
+} from "../lib/feedback";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -41,6 +47,17 @@ export default function SettingsPage() {
   const [accountAction, setAccountAction] = useState<AccountAction | null>(
     null,
   );
+  // This device only, on purpose: sound is an environment choice (open-plan
+  // office vs. home), not an account trait worth roaming across devices.
+  const [soundOn, setSoundOn] = useState(isSoundEnabled);
+
+  function changeSoundEnabled(checked: boolean) {
+    setSoundEnabled(checked);
+    setSoundOn(checked);
+    // The toggle click is a user gesture, so it may create the AudioContext —
+    // and a preview tells the user immediately what they just turned on.
+    if (checked) playFeedback("success");
+  }
 
   async function changeLanguage(next: typeof language) {
     setLanguage(next);
@@ -101,6 +118,24 @@ export default function SettingsPage() {
             accountId={me?.id}
             showLabel
             className="justify-start sm:justify-center"
+          />
+        </section>
+
+        <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
+          <div className="flex min-w-0 gap-3">
+            <Volume2 className="mt-0.5 size-5 shrink-0 text-primary-text" />
+            <div>
+              <h2 className="font-semibold">Sound effects</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Play soft tones for completed work, answers, and alerts on this
+                device.
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={soundOn}
+            onCheckedChange={changeSoundEnabled}
+            aria-label="Play sound effects"
           />
         </section>
 

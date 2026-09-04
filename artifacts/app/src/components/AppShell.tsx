@@ -92,6 +92,7 @@ import {
 import BrandIcon from "./BrandIcon";
 import type { VantaStyle } from "./VantaBackground";
 import { classRequest, type ClassInvitation } from "../lib/class-api";
+import { celebrate, playFeedback } from "../lib/feedback";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -335,6 +336,10 @@ export default function AppShell({ children }: AppShellProps) {
       await queryClient.invalidateQueries({
         queryKey: getListClassesQueryKey(),
       });
+      if (action === "accept") {
+        playFeedback("success");
+        celebrate("burst");
+      }
       toast({
         title: action === "accept" ? "Class joined" : "Invitation declined",
         description: invitation.class.name,

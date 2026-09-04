@@ -188,6 +188,44 @@
   opacity: 1;
   transform: none;
 }
+/* ── Action feedback ──────────────────────────────────────────────────────
+   Micro-animations paired with the synthesized cues in lib/feedback.ts.
+   Applied at the moment an action lands (a step checked off, a right or
+   wrong answer) and cheap enough to run anywhere: transform/opacity only. */
+@keyframes casparel-pop {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.feedback-pop {
+  animation: casparel-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes casparel-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+.feedback-shake {
+  animation: casparel-shake 0.4s ease-in-out;
+}
+
 /* Cards lift slightly on hover. */
 .card-lift {
   transition:
@@ -205,6 +243,8 @@
   .reveal,
   .card-lift,
   .ui-lift,
+  .feedback-pop,
+  .feedback-shake,
   .vanta-background--topology canvas {
     animation: none !important;
     transition: none !important;

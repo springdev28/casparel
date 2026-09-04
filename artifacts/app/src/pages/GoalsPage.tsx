@@ -53,6 +53,7 @@ import {
 import { Skeleton } from "@workspace/edu-ds/components/ui/skeleton";
 import { Textarea } from "@workspace/edu-ds/components/ui/textarea";
 import { authedRequest } from "../lib/api-request";
+import { celebrate, playFeedback } from "../lib/feedback";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import { cn } from "@workspace/edu-ds/lib/utils";
 import {
@@ -250,6 +251,7 @@ export default function GoalsPage() {
     (path) => path.creatorId === me?.id,
   );
   const [newStepTitles, setNewStepTitles] = useState<Record<number, string>>({});
+  const [justCompletedStepId, setJustCompletedStepId] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: "",
     subject: "",
@@ -354,11 +356,25 @@ export default function GoalsPage() {
     await refresh();
   }
   async function toggleStep(goal: LearningGoal, stepId: string) {
+    // Snapshotted before the await: refresh() replaces goal.pathSteps.
+    const wasCompleted = goal.pathSteps.find((step) => step.id === stepId)?.completed ?? false;
+    const willCompleteAll =
+      !wasCompleted &&
+      goal.pathSteps.filter((step) => step.completed).length + 1 === goal.pathSteps.length;
     await patch(goal.id, {
       pathSteps: goal.pathSteps.map((step) =>
         step.id === stepId ? { ...step, completed: !step.completed } : step,
       ),
     });
+    if (!wasCompleted) {
+      setJustCompletedStepId(stepId);
+      if (willCompleteAll) {
+        playFeedback("chime");
+        celebrate("burst");
+      } else {
+        playFeedback("tick");
+      }
+    }
   }
   async function renameStep(goal: LearningGoal, stepId: string, title: string) {
     const cleanTitle = title.trim();
@@ -385,6 +401,21 @@ export default function GoalsPage() {
     if (!confirm("Delete this learning goal?")) return;
     await deleteGoal.mutateAsync({ id });
     await refresh();
+  }
+
+  async function completeGoal(goal: LearningGoal) {
+    try {
+      await patch(goal.id, { status: LearningGoalStatus.completed });
+      celebrate("full");
+      playFeedback("fanfare");
+    } catch (error) {
+      toast({
+        title: "Could not complete goal",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
   }
 
   async function shareGoalPath(goal: LearningGoal) {
@@ -910,7 +941,7 @@ export default function GoalsPage() {
                       {goal.pathSteps.map((step, index) => (
                         <div key={step.id} className="flex items-center gap-1.5">
                           <button type="button" aria-label={`${step.completed ? "Undo" : "Complete"} ${step.title}`} translate="no" onClick={() => toggleStep(goal, step.id)} className={cn("flex size-7 shrink-0 items-center justify-center rounded border", step.completed && "bg-emerald-600 text-white")}>
-                            {step.completed && <Check size={14} />}
+                            {step.completed && <Check size={14} className={step.id === justCompletedStepId ? "feedback-pop" : undefined} />}
                           </button>
                           <Input defaultValue={step.title} key={`${step.id}:${step.title}`} translate="no" aria-label={`Rename ${step.title}`} className={cn("h-8 min-w-0 flex-1 text-sm", step.completed && "text-muted-foreground line-through")} onBlur={(event) => { if (event.currentTarget.value.trim() !== step.title) void renameStep(goal, step.id, event.currentTarget.value); }} />
                           <Button type="button" variant="ghost" size="icon" className="size-7" disabled={index === 0} onClick={() => moveStep(goal, index, -1)} aria-label={`Move ${step.title} up`} translate="no"><ArrowUp size={14} /></Button>
@@ -987,14 +1018,7 @@ export default function GoalsPage() {
                           ? "Resume"
                           : "Pause"}
                       </Button>
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          patch(goal.id, {
-                            status: LearningGoalStatus.completed,
-                          })
-                        }
-                      >
+                      <Button size="sm" onClick={() => completeGoal(goal)}>
                         <CheckCircle2 className="mr-2 size-4" />
                         Complete
                       </Button>
