@@ -37,6 +37,7 @@ import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
 import { hasDictionary } from "./lib/translated-languages";
 import { clearSession, readSessionToken } from "./lib/session";
 import { useSessionClaims } from "./lib/use-session";
+import { AdConsentBanner } from "./components/AdConsentBanner";
 
 const AppShell = lazy(() => import("./components/AppShell"));
 const UiTranslationBridge = lazy(
@@ -512,6 +513,9 @@ function App() {
                 <Router />
               </AccountAccessGate>
             </Suspense>
+            {/* Renders nothing unless this deployment serves ads and the
+                visitor has not yet answered. */}
+            <AdConsentBanner />
           </WouterRouter>
           <Toaster />
         </TooltipProvider>

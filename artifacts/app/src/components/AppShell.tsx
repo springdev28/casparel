@@ -103,6 +103,7 @@ import {
 } from "../lib/user-preferences";
 import { useDocumentVisibility } from "../lib/use-document-visibility";
 import { intlLocale } from "@/lib/date-locale";
+import { InlineAd } from "./InlineAd";
 
 const TOKEN_KEY = "schoolar_token";
 const VantaBackground = lazy(() => import("./VantaBackground"));
@@ -1398,6 +1399,11 @@ export default function AppShell({ children }: AppShellProps) {
             }
           >
             {children}
+            {/* One compact sponsored block at the end of the page's own
+                content: inline, scrolls with the page, and never over the
+                navigation. Sensitive and editing-heavy routes are excluded by
+                pathAllowsWebAd, so this single mount covers every screen. */}
+            <InlineAd />
           </div>
         </main>
       </div>

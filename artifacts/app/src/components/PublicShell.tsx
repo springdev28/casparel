@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import BrandIcon from "./BrandIcon";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import { useSystemDark } from "../hooks/use-system-dark";
+import { InlineAd } from "./InlineAd";
 
 interface PublicShellProps {
   children: ReactNode;
@@ -50,7 +51,13 @@ export default function PublicShell({ children }: PublicShellProps) {
       </header>
 
       {/* Page content */}
-      <main className="flex-1 min-w-0">{children}</main>
+      <main className="flex-1 min-w-0">
+        {children}
+        {/* Inline, in the page's flow, below its content. */}
+        <div className="mx-auto w-full min-w-0 max-w-6xl px-4">
+          <InlineAd />
+        </div>
+      </main>
     </div>
   );
 }
