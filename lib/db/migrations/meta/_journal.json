@@ -400,6 +400,13 @@
       "when": 1789372800014,
       "tag": "0056_appearance_preference",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1789372800015,
+      "tag": "0057_row_level_security_for_new_tables",
+      "breakpoints": true
     }
   ]
 }

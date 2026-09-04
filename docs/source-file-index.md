@@ -1106,6 +1106,7 @@ This index accounts for every tracked and non-ignored workspace file. Authored s
 | `lib/db/migrations/0054_push_notifications.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/0055_left_karnak.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/0056_appearance_preference.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
+| `lib/db/migrations/0057_row_level_security_for_new_tables.sql` | database migration history | Immutable, ordered SQL history applied by lib/db/src/migrate.ts at API startup. |
 | `lib/db/migrations/meta/_journal.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0000_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
 | `lib/db/migrations/meta/0001_snapshot.json` | generated migration snapshot | Drizzle Kit bookkeeping used to generate/compare migrations; do not treat it as application logic. |
