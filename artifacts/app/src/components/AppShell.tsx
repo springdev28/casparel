@@ -1156,11 +1156,16 @@ export default function AppShell({ children }: AppShellProps) {
                       </SelectContent>
                     </Select>
                   ) : null}
-                  <div className="px-1 [&_select]:border-primary-foreground/30 [&_select]:bg-transparent [&_select]:text-primary-foreground">
+                  {/* Sized, bordered and coloured to match the role switcher
+                      directly above it: same 40px height, same border, same
+                      full-strength foreground, and no leading icon inset. It
+                      previously sat a size smaller, dimmer and indented, which
+                      read as a disabled control beside an active one. */}
+                  <div className="[&_select]:h-10 [&_select]:w-full [&_select]:border-white/30 [&_select]:bg-white/10 [&_select]:!text-white">
                     <AuthLanguageSelect
                       language={language}
                       label={copy.language}
-                      className="w-full text-primary-foreground/85 [&_select]:min-w-0 [&_select]:flex-1"
+                      className="w-full gap-0 text-white [&>svg]:hidden"
                       onChange={(next) => {
                         setLanguage(next);
                         void updateAccountPreferences
