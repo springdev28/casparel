@@ -317,12 +317,19 @@ async function main() {
         [token, JSON.stringify(registered.body?.user ?? {}), language],
       );
 
+      /*
+       * Only the screens this app still draws itself.
+       *
+       * The dashboard, schedule, resources and profile shots came from native
+       * screens that no longer exist: a signed-in phone shows the website in a
+       * WebView now, and a WebView renders nothing in this web export, so
+       * there is no honest way to capture them from here. Those slots have to
+       * be filled from a device or emulator running the real build, where the
+       * WebView shows the actual product.
+       */
       for (const [name, route] of [
-        ["1-dashboard", "/"],
-        ["2-schedule", "/schedule"],
-        ["3-resources", "/resources"],
-        ["4-plans", "/paywall"],
-        ["5-profile", "/profile"],
+        ["1-welcome", "/onboarding"],
+        ["2-plans", "/paywall"],
       ]) {
         const page = await context.newPage();
         await page.goto(`${local}${route}`, { waitUntil: "networkidle" });

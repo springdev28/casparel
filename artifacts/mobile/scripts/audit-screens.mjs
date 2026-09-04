@@ -6,6 +6,21 @@
 /**
  * The phone app, rendered, against a real server.
  *
+ * STALE, AND CURRENTLY PROVING NOTHING. Read this before trusting a pass.
+ *
+ * Most of what this drives -- the tabs, goals, lists, messages, study, the
+ * resource and class screens -- was deleted once a signed-in phone began
+ * showing the website in a WebView, so those routes no longer exist. It does
+ * not fail on them, because it never gets that far: registering now lands on
+ * the workspace rather than a native dashboard, the first check fails, and the
+ * run ends "Inconclusive" with exit 75, which CI turns into a warning and a
+ * green step. So this audit is green today without judging a single screen.
+ *
+ * Fixing it means deciding what it should be: the pre-session flow is already
+ * rendered by audit-languages.mjs, and the signed-in half is the website,
+ * which audit-pages.mjs and audit-translation.mjs cover properly. Whoever
+ * takes that on gets to delete most of this file.
+ *
  * The mobile app is the thing that gets submitted to the stores and it had no
  * check that renders it. CI asks Metro to bundle it, which proves the modules
  * resolve and nothing more: every screen in this app could be blank, or throw

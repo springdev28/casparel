@@ -17,10 +17,16 @@
  * Nothing catches this. A literal typechecks, renders, and screenshots
  * perfectly in whichever scheme the person looking happened to be in.
  *
- * So the rule is the check: colours come from `useColors()` (which reads the
- * scheme) or from `sessionPalette()` (which is given it and whose contrast is
- * measured in the mobile suite). The two literals that are genuinely
- * scheme-independent are allowed by name below.
+ * So the rule is the check: colours come from `useColors()`, which reads the
+ * scheme. The two literals that are genuinely scheme-independent are allowed
+ * by name below.
+ *
+ * The schedule and profile screens that prompted this are gone -- the phone
+ * shows the website once you are signed in, and those native screens were
+ * deleted with the rest of the unreachable ones, taking `sessionPalette()`
+ * with them. The rule stays because the screens that remain -- login,
+ * register, onboarding, paywall, the workspace shell -- can break the same
+ * way, and this is still the only thing that would notice.
  *
  * This lives in the api-server suite rather than the mobile one because the
  * mobile package has no Node types, and putting them in scope would hand
@@ -39,9 +45,6 @@ const mobile = resolve(dirname(fileURLToPath(import.meta.url)), "../../../mobile
  * neither.
  */
 const ALLOWED = [/shadowColor:\s*['"]#0{3,8}['"]/, /['"]transparent['"]/];
-
-/** Where the colours are supposed to come from. */
-const PALETTE_FILE = "utils/session-palette.ts";
 
 function sourceFiles(dir: string): string[] {
   const found: string[] = [];
@@ -72,18 +75,8 @@ describe("the mobile app's colours", () => {
     expect(
       offenders,
       "these draw the same colour on a light phone and a dark one; take them " +
-        `from useColors() or sessionPalette() (see ${PALETTE_FILE})`,
+        "from useColors(), which reads the phone's scheme",
     ).toEqual([]);
   });
 
-  it("keeps the study-session palette somewhere its contrast is measured", () => {
-    // The palette is allowed to hold literals -- it is the one place that
-    // should. session-palette.test.ts measures every pair in it against WCAG
-    // AA in both schemes, which is the whole reason it was worth extracting.
-    const palette = readFileSync(join(mobile, PALETTE_FILE), "utf8");
-    expect(palette).toMatch(/const DARK: SessionPalette/);
-    expect(readFileSync(join(mobile, "utils/session-palette.test.ts"), "utf8")).toMatch(
-      /toBeGreaterThanOrEqual\(4\.5\)/,
-    );
-  });
 });

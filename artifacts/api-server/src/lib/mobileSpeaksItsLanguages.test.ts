@@ -103,16 +103,15 @@ for (const { where, text } of files) {
  * Strings held in a module constant and translated where they are rendered.
  *
  * A hook cannot be called at the top level of a module, so the onboarding
- * value props and the error-state table hold English and pass it through
+ * value props and the paywall's plan copy hold English and pass it through
  * `t()` at the render site. `t(title)` names a variable, so the scan above
- * cannot see what is in it; these two files are read for their literals.
+ * cannot see what is in it; these files are read for their literals. The
+ * more-tab, error-state and workspace tables were here too, until the
+ * screens holding them were deleted as unreachable.
  */
 const CONSTANT_TABLES = [
   "app/onboarding.tsx",
-  "app/(tabs)/more.tsx",
-  "components/ErrorState.tsx",
   "app/paywall.tsx",
-  "utils/web-workspaces.ts",
 ];
 for (const where of CONSTANT_TABLES) {
   const file = files.find((candidate) => candidate.where === where);

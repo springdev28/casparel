@@ -185,7 +185,8 @@ describe("what the copy calls Free's AI allowance", () => {
     "../../../app/src/components/PlanSection.tsx",
     "../../../app/src/components/AppShell.tsx",
     "../../../app/src/pages/LandingPage.tsx",
-    "../../../mobile/components/PremiumCard.tsx",
+    // PremiumCard was here until the unreachable native screens went; the
+    // paywall is the one plan surface the phone still draws itself.
     "../../../mobile/app/paywall.tsx",
   ];
 
