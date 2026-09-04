@@ -22,7 +22,9 @@ import {
 
 export {
   REVENUECAT_PACKAGE_MAP,
+  baseProductId,
   defaultOffering,
+  googleProductChangeFor,
   hasPlusAccess,
   packageDefinition,
   packagesForRole,
@@ -118,7 +120,17 @@ export interface PurchasesModule {
   setLogLevel(level: number): void;
   getOfferings(): Promise<{ current: RCOffering | null; all: Record<string, RCOffering> }>;
   getCustomerInfo(): Promise<RCCustomerInfo>;
-  purchasePackage(pkg: RCPackage): Promise<{ customerInfo: RCCustomerInfo }>;
+  /**
+   * The second parameter is the deprecated iOS UpgradeInfo slot (always null
+   * here); the third is Android's product-change request, which is what makes
+   * a plan switch replace the existing Play subscription instead of opening a
+   * second one.
+   */
+  purchasePackage(
+    pkg: RCPackage,
+    upgradeInfo?: null,
+    productChangeInfo?: { oldProductIdentifier: string } | null,
+  ): Promise<{ customerInfo: RCCustomerInfo }>;
   restorePurchases(): Promise<RCCustomerInfo>;
   logIn(appUserID: string): Promise<{ customerInfo: RCCustomerInfo }>;
   logOut(): Promise<RCCustomerInfo>;

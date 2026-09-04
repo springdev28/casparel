@@ -18,25 +18,27 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@workspace/edu-ds/hooks/use-colors';
 import { Button } from '@workspace/edu-ds/components/native/button';
 import { useGetMyUsage } from '@workspace/api-client-react';
 import { usePurchases } from '@/contexts/PurchasesContext';
 import {
+  baseProductId,
   packageDefinition,
+  packagesForRole,
   purchasesSupported,
   tierForPackage,
   TIER_TITLES,
-  upgradePackagesForTier,
   type RCPackage,
 } from '@/utils/revenuecat';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { FadeInView } from '@/components/FadeInView';
 import {
   PLAN_CATALOG,
   formatStorage,
   type SubscriptionTier,
 } from '@workspace/plan-economics';
+import { apiOrigin } from '@/utils/api-host';
 
 /** Plan explainers shared by every account role. */
 /**
@@ -126,7 +128,16 @@ export default function PaywallScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { ready, available, tier: revenueCatTier, packages, purchase, restore } = usePurchases();
+  const {
+    ready,
+    available,
+    availabilityIssue,
+    tier: revenueCatTier,
+    packages,
+    customerInfo,
+    purchase,
+    restore,
+  } = usePurchases();
   const { data: usage } = useGetMyUsage();
   const serverTier = usage?.tier;
   const tier = serverTier === 'institutional'
@@ -136,23 +147,52 @@ export default function PaywallScreen() {
       : serverTier === 'plus' || revenueCatTier === 'plus'
         ? 'plus'
         : 'free';
-  const isPro = tier === 'pro' || tier === 'institutional';
-  const upgradePackages = upgradePackagesForTier(packages, tier);
+  // A plans screen is also where an existing subscriber changes billing
+  // period or tier. Never hide the catalog merely because an entitlement is
+  // active. Google Play owns the replacement/cancellation lifecycle.
+  const planPackages = packagesForRole(packages, null);
+  const activeProductIds = new Set(customerInfo?.activeSubscriptions ?? []);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // Default the selection to the annual package when offerings arrive, else the first.
   useEffect(() => {
-    if (selected && upgradePackages.some((pkg) => pkg.identifier === selected)) return;
-    const plusYearly = upgradePackages.find((pkg) => pkg.identifier === 'plus_yearly');
-    const yearly = upgradePackages.find((pkg) => packageDefinition(pkg)?.period === 'yearly');
-    setSelected((plusYearly ?? yearly ?? upgradePackages[0])?.identifier ?? null);
-  }, [upgradePackages, selected]);
+    if (selected && planPackages.some((pkg) => pkg.identifier === selected)) return;
+    const notCurrent = planPackages.filter(
+      (pkg) => !activeProductIds.has(pkg.product.identifier),
+    );
+    const plusYearly = notCurrent.find((pkg) => pkg.identifier === 'plus_yearly');
+    const yearly = notCurrent.find((pkg) => packageDefinition(pkg)?.period === 'yearly');
+    setSelected((plusYearly ?? yearly ?? notCurrent[0] ?? planPackages[0])?.identifier ?? null);
+  }, [customerInfo, planPackages, selected]);
+
+  const selectedPkg = planPackages.find((pkg) => pkg.identifier === selected) ?? null;
+  const activeBaseProducts = new Set(
+    (customerInfo?.activeSubscriptions ?? []).map(baseProductId),
+  );
+  const selectedIsCurrent =
+    selectedPkg !== null &&
+    activeBaseProducts.has(baseProductId(selectedPkg.product.identifier));
+  /** What the one purchase button will do for the selected package. */
+  const activeStoreTier = planPackages
+    .filter((pkg) => activeBaseProducts.has(baseProductId(pkg.product.identifier)))
+    .map((pkg) => tierForPackage(pkg))
+    .find((packageTier) => packageTier !== null);
+  const selectedTier = selectedPkg ? tierForPackage(selectedPkg) : null;
+  const ctaVerb =
+    activeBaseProducts.size === 0 || !activeStoreTier
+      ? t('Subscribe')
+      : selectedTier && selectedTier !== activeStoreTier
+        ? `${t('Switch to')} ${TIER_TITLES[selectedTier]}`
+        : t('Change billing period');
 
   function close() {
+    // The hosted web workspace is the authenticated home; the legacy native
+    // tabs are unreachable and redirect anyway, so falling back there caused
+    // a visible bounce through the root guard.
     if (router.canGoBack()) router.back();
-    else router.replace('/(tabs)/profile');
+    else router.replace('/mobile');
   }
 
   // "Best value" + computed savings on the annual package vs. 12× monthly.
@@ -174,7 +214,7 @@ export default function PaywallScreen() {
   }
 
   async function handlePurchase() {
-    const pkg = upgradePackages.find((p) => p.identifier === selected);
+    const pkg = planPackages.find((p) => p.identifier === selected);
     if (!pkg) return;
     setBusy(true);
     const result = await purchase(pkg);
@@ -276,14 +316,14 @@ export default function PaywallScreen() {
 
       <ScrollView
         contentContainerStyle={{
-          paddingTop: insets.top + 56,
+          paddingTop: Math.max(insets.top, 28) + 64,
           paddingBottom: insets.bottom + 28,
           paddingHorizontal: 20,
         }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
-        <Animated.View entering={FadeInDown.duration(450)}>
+        <FadeInView duration={450}>
           <LinearGradient
             colors={[colors.primary, colors.accent]}
             start={{ x: 0, y: 0 }}
@@ -302,6 +342,7 @@ export default function PaywallScreen() {
               <Feather name="award" size={30} color={colors.primaryForeground} />
             </View>
             <Text
+              maxFontSizeMultiplier={1.25}
               style={[
                 styles.title,
                 {
@@ -313,6 +354,7 @@ export default function PaywallScreen() {
               {t('Choose your Casparel plan')}
             </Text>
             <Text
+              maxFontSizeMultiplier={1.25}
               style={[
                 styles.subtitle,
                 {
@@ -324,11 +366,12 @@ export default function PaywallScreen() {
               {t('Keep the core free, then add only the AI access you need.')}
             </Text>
           </LinearGradient>
-        </Animated.View>
+        </FadeInView>
 
         {/* Benefits */}
-        <Animated.View
-          entering={FadeInDown.delay(120).duration(450)}
+        <FadeInView
+          delay={120}
+          duration={450}
           style={[
             styles.card,
             {
@@ -341,7 +384,7 @@ export default function PaywallScreen() {
           {BENEFITS.map((b) => (
             <BenefitRow key={b.title} {...b} />
           ))}
-        </Animated.View>
+        </FadeInView>
 
         {tier !== 'free' ? (
           <View
@@ -364,16 +407,16 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              You're on Casparel {TIER_TITLES[tier]}. Thank you!
+              {`${t("You're on Casparel")} ${TIER_TITLES[tier]}. ${t('Thank you!')}`}
             </Text>
           </View>
         ) : null}
 
-        {isPro ? null : !ready ? (
+        {!ready ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.primary} />
           </View>
-        ) : !available || upgradePackages.length === 0 ? (
+        ) : !available || planPackages.length === 0 ? (
           <View style={[styles.notice, { borderColor: colors.border, borderRadius: colors.radius }]}>
             <Text
               style={[
@@ -384,36 +427,75 @@ export default function PaywallScreen() {
                 },
               ]}
             >
-              {Platform.OS === 'web'
+              {availabilityIssue === 'unsupported-platform'
                 ? t('Open Casparel on your phone to choose Plus or Pro.')
-                : t('Plans are loading or unavailable right now. Please try again shortly.')}
+                : availabilityIssue === 'missing-key'
+                  ? t('Purchases were not configured in this build. This release must be replaced before plans can be sold.')
+                  : availabilityIssue === 'missing-native-sdk'
+                    ? t('This build is missing the native purchase service. Please install the corrected release.')
+                    : availabilityIssue === 'no-offering'
+                      ? t('Google Play returned no available plans. Nothing can be charged until the plan configuration is corrected.')
+                      : t('The purchase service could not start. Nothing has been charged; please try again shortly.')}
             </Text>
           </View>
         ) : (
           <>
             {/* Package options */}
-            <Animated.View entering={FadeInDown.delay(200).duration(450)} style={{ gap: 10, marginTop: 18 }}>
-              {upgradePackages.map((pkg) => (
+            <FadeInView delay={200} duration={450} style={{ gap: 10, marginTop: 18 }}>
+              {planPackages.map((pkg) => (
                 <PackageOption
                   key={pkg.identifier}
                   pkg={pkg}
                   badge={badgeFor(pkg)}
+                  current={activeProductIds.has(pkg.product.identifier)}
                   selected={pkg.identifier === selected}
                   onSelect={() => setSelected(pkg.identifier)}
                 />
               ))}
-            </Animated.View>
+            </FadeInView>
 
-            {/* CTA */}
-            <Animated.View entering={FadeInDown.delay(280).duration(450)}>
+            {/* CTA — says what will actually happen: a first subscription, a
+                tier switch, or a billing-period change replacing the current
+                Google Play subscription. */}
+            <FadeInView delay={280} duration={450}>
               <View style={{ marginTop: 18 }}>
-                <Button size="lg" onPress={handlePurchase} loading={busy} disabled={!selected}>
-                  {t('Continue')}
+                <Button
+                  size="lg"
+                  onPress={handlePurchase}
+                  loading={busy}
+                  disabled={!selectedPkg || selectedIsCurrent}
+                >
+                  {!selectedPkg
+                    ? t('Choose a plan')
+                    : selectedIsCurrent
+                      ? t('Current plan')
+                      : `${ctaVerb} · ${selectedPkg.product.priceString}`}
                 </Button>
               </View>
-            </Animated.View>
+            </FadeInView>
           </>
         )}
+
+        {customerInfo?.managementURL ? (
+          <Pressable
+            onPress={() => void Linking.openURL(customerInfo.managementURL!)}
+            accessibilityRole="link"
+            accessibilityLabel={t('Manage or cancel subscription')}
+            style={styles.manage}
+          >
+            <Text
+              style={[
+                styles.restoreText,
+                {
+                  color: colors.primary,
+                  fontFamily: colors.fontFamily.sansMedium,
+                },
+              ]}
+            >
+              {t('Manage or cancel subscription')}
+            </Text>
+          </Pressable>
+        ) : null}
 
         {/*
           Restore sits OUTSIDE the branches above. It used to render only where
@@ -428,7 +510,7 @@ export default function PaywallScreen() {
           produce a misleading "Nothing to restore" next to the notice telling
           the user to open the app on their phone.
         */}
-        {tier === 'free' && purchasesSupported ? (
+        {purchasesSupported ? (
           <Pressable
             onPress={handleRestore}
             disabled={busy}
@@ -465,7 +547,7 @@ export default function PaywallScreen() {
           <Text
             accessibilityRole="link"
             style={styles.link}
-            onPress={() => Linking.openURL('https://casparel.com/terms')}
+            onPress={() => Linking.openURL(`${apiOrigin}/terms`)}
           >
             {t('Terms')}
           </Text>{' '}
@@ -473,7 +555,7 @@ export default function PaywallScreen() {
           <Text
             accessibilityRole="link"
             style={styles.link}
-            onPress={() => Linking.openURL('https://casparel.com/privacy')}
+            onPress={() => Linking.openURL(`${apiOrigin}/privacy`)}
           >
             {t('Privacy')}
           </Text>
@@ -488,11 +570,13 @@ function PackageOption({
   selected,
   onSelect,
   badge,
+  current,
 }: {
   pkg: RCPackage;
   selected: boolean;
   onSelect: () => void;
   badge?: string | null;
+  current: boolean;
 }) {
   const { t } = useLanguage();
   const colors = useColors();
@@ -516,7 +600,7 @@ function PackageOption({
         },
       ]}
     >
-      {badge ? (
+      {current || badge ? (
         <View style={[styles.pkgBadge, { backgroundColor: colors.accent, borderRadius: colors.radius }]}>
           <Text
             style={[
@@ -527,7 +611,7 @@ function PackageOption({
               },
             ]}
           >
-            {badge}
+            {current ? t('Current plan') : badge}
           </Text>
         </View>
       ) : null}
@@ -658,6 +742,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   restore: { alignItems: 'center', paddingVertical: 14 },
+  manage: { alignItems: 'center', paddingVertical: 14 },
   restoreText: { fontSize: 14 },
   legal: { fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 18 },
   link: { textDecorationLine: 'underline' },

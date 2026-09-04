@@ -109,8 +109,10 @@ for (const { where, text } of files) {
  */
 const CONSTANT_TABLES = [
   "app/onboarding.tsx",
+  "app/(tabs)/more.tsx",
   "components/ErrorState.tsx",
   "app/paywall.tsx",
+  "utils/web-workspaces.ts",
 ];
 for (const where of CONSTANT_TABLES) {
   const file = files.find((candidate) => candidate.where === where);
@@ -205,6 +207,8 @@ describe("the phone app's translations", () => {
       "Institutional",
       "App Store",
       "Google Play",
+      // Ad-network identifier sent to RevenueCat's analytics API, never UI.
+      "AdMob",
       // RevenueCat package types and internal action names, compared against
       // rather than displayed.
       "ANNUAL",
@@ -294,6 +298,10 @@ describe("the phone app's translations", () => {
         const line = text.slice(lineStart, text.indexOf("\n", match.index + found.length));
         if (/^\s*import\b/.test(line)) continue;
         if (/console\.(?:log|warn|error)/.test(line)) continue;
+        // SVG path geometry is visual data, not copy shown to the reader.
+        if (/\bd=\s*$/.test(text.slice(Math.max(0, match.index - 12), match.index))) {
+          continue;
+        }
         unwrapped.push(
           `${where}:${text.slice(0, match.index).split("\n").length}  ${JSON.stringify(found)}`,
         );

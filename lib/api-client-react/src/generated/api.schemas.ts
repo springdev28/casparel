@@ -193,6 +193,25 @@ export interface PendingCheckIn {
   prompt: string;
 }
 
+export interface NotificationPreferences {
+  enabled: boolean;
+  messages: boolean;
+  classes: boolean;
+  activities: boolean;
+  goals: boolean;
+  schedule: boolean;
+  account: boolean;
+  announcements: boolean;
+}
+
+/**
+ * Advertising preferences, stored on the account so they follow the person across devices. Whether adsDisabled may take effect is an entitlement question (Pro, Review, Institutional) answered at read time; the stored flag survives entitlement changes.
+ */
+export interface AdPreferences {
+  adsDisabled: boolean;
+  soundMuted: boolean;
+}
+
 /**
  * Null when the account has never chosen. A client falls back to the device's language then, not to English.
  * @nullable
@@ -233,6 +252,19 @@ export type UserPreferencesPendingCheckIns = {[key: string]: PendingCheckIn};
 export type UserPreferencesResourceSearchState = { [key: string]: unknown } | null;
 
 /**
+ * Null when the account has never chosen, which every client reads as "system" -- follow the device.
+ * @nullable
+ */
+export type UserPreferencesAppearance = typeof UserPreferencesAppearance[keyof typeof UserPreferencesAppearance] | null;
+
+
+export const UserPreferencesAppearance = {
+  light: 'light',
+  dark: 'dark',
+  system: 'system',
+} as const;
+
+/**
  * Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.
  */
 export interface UserPreferences {
@@ -259,6 +291,13 @@ export interface UserPreferences {
   /** @nullable */
   resourceSearchState: UserPreferencesResourceSearchState;
   allowMessageRequests: boolean;
+  notificationPreferences: NotificationPreferences;
+  adPreferences: AdPreferences;
+  /**
+     * Null when the account has never chosen, which every client reads as "system" -- follow the device.
+     * @nullable
+     */
+  appearance: UserPreferencesAppearance;
   tutorialSeen: boolean;
   updatedAt: string;
 }
@@ -295,6 +334,15 @@ export type UserPreferencesPatchPendingCheckIns = {[key: string]: PendingCheckIn
  */
 export type UserPreferencesPatchResourceSearchState = { [key: string]: unknown } | null;
 
+export type UserPreferencesPatchAppearance = typeof UserPreferencesPatchAppearance[keyof typeof UserPreferencesPatchAppearance];
+
+
+export const UserPreferencesPatchAppearance = {
+  light: 'light',
+  dark: 'dark',
+  system: 'system',
+} as const;
+
 /**
  * Only the keys present are changed.
  */
@@ -317,6 +365,9 @@ export interface UserPreferencesPatch {
   /** @nullable */
   resourceSearchState?: UserPreferencesPatchResourceSearchState;
   allowMessageRequests?: boolean;
+  notificationPreferences?: NotificationPreferences;
+  adPreferences?: AdPreferences;
+  appearance?: UserPreferencesPatchAppearance;
   tutorialSeen?: boolean;
 }
 
@@ -2924,5 +2975,19 @@ export type GetMyAccess200 = {
   bannedReason: string | null;
   /** Where to appeal. */
   adminContact: string;
+};
+
+export type RegisterPushTokenBodyPlatform = typeof RegisterPushTokenBodyPlatform[keyof typeof RegisterPushTokenBodyPlatform];
+
+
+export const RegisterPushTokenBodyPlatform = {
+  android: 'android',
+  ios: 'ios',
+} as const;
+
+export type RegisterPushTokenBody = {
+  /** @maxLength 256 */
+  token: string;
+  platform: RegisterPushTokenBodyPlatform;
 };
 

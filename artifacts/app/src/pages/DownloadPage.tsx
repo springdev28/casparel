@@ -14,7 +14,6 @@ import {
 } from "@workspace/edu-ds/components/ui/card";
 import {
   downloadTargets,
-  hasDownloads,
   likelyPlatform,
   orderedDownloadTargets,
   type PlatformId,
@@ -97,7 +96,7 @@ export default function DownloadPage() {
 
       {/* The one action most visitors want, before the full list. */}
       {!inShell && ordered.length > 0 ? (
-        <div className="flex flex-wrap gap-3">
+        <div className="flex w-full min-w-0 max-w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap">
           {ordered.map((target, index) => {
             const Icon = ICONS[target.id];
             return (
@@ -106,10 +105,10 @@ export default function DownloadPage() {
                 size="lg"
                 asChild
                 variant={index === 0 ? "default" : "outline"}
-                className="gap-2"
+                className="w-full min-w-0 max-w-full gap-2 sm:w-auto"
               >
                 <a href={target.href} target="_blank" rel="noopener noreferrer">
-                  <Icon className="size-4" /> {target.label}
+                  <Icon className="size-4 shrink-0" /> {target.label}
                 </a>
               </Button>
             );
@@ -157,11 +156,7 @@ export default function DownloadPage() {
       </section>
 
       <section className="space-y-3 border-t border-border pt-6">
-        <h2 className="text-lg font-semibold">
-          {hasDownloads()
-            ? "Or stay in the browser"
-            : "Everything works in your browser today"}
-        </h2>
+        <h2 className="text-lg font-semibold">Or stay in the browser</h2>
         <p className="max-w-2xl text-sm text-muted-foreground">
           Casparel is a full web app, not a preview of the native ones. The
           library, classes, canvases, schedules and AI source research all run

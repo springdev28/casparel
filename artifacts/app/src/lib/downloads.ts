@@ -57,8 +57,20 @@ function link(value: unknown): string | null {
 
 const env = import.meta.env as Record<string, unknown>;
 
+/**
+ * The Android listing address is deterministic: Google Play derives it from
+ * the application id, and `com.casparel.app` is fixed in the mobile app's
+ * `app.json`. The app has shipped, so a build without the deploy variable
+ * must still offer a working store link rather than a "coming soon" that is
+ * no longer true. `VITE_ANDROID_APP_URL` stays as the override for the day
+ * the listing address ever needs to differ from the derived one.
+ */
+const DEFAULT_ANDROID_APP_URL =
+  "https://play.google.com/store/apps/details?id=com.casparel.app";
+
 const IOS_APP_URL = link(env.VITE_IOS_APP_URL);
-const ANDROID_APP_URL = link(env.VITE_ANDROID_APP_URL);
+const ANDROID_APP_URL =
+  link(env.VITE_ANDROID_APP_URL) ?? DEFAULT_ANDROID_APP_URL;
 const DESKTOP_DOWNLOAD_URL = link(env.VITE_DESKTOP_DOWNLOAD_URL);
 
 /** Every platform that can actually be installed today, in offer order. */

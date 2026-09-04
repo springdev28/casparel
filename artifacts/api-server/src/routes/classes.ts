@@ -60,6 +60,7 @@ import {
   seatingPreferenceReasons,
 } from "../lib/seatingRules";
 import { validationMessage } from "../lib/validationMessage";
+import { sendPushNotification } from "../lib/pushNotifications";
 
 async function resourceWithRating(id: number) {
   const [r] = await db
@@ -560,6 +561,13 @@ router.post(
        */
       message: `You were invited to join ${cls?.name ?? "a class"}.`,
     });
+    void sendPushNotification(
+      invitee.id,
+      "classes",
+      "Class invitation",
+      `You were invited to join ${cls?.name ?? "a class"}.`,
+      "/classes",
+    ).catch(() => undefined);
     res.status(201).json(await invitationView(invitation.id));
   },
 );

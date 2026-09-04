@@ -110,6 +110,7 @@ allowBuilds:
   esbuild: true
   msw: true
   unrs-resolver: true
+  sharp: true
 
 patchedDependencies:
   esbuild@0.28.1: patches/esbuild@0.28.1.patch

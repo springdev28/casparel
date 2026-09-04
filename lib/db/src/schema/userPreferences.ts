@@ -25,6 +25,47 @@ export type SearchHistoryPreference = {
   searchedAt: string;
 };
 
+export type NotificationPreferences = {
+  enabled: boolean;
+  messages: boolean;
+  classes: boolean;
+  activities: boolean;
+  goals: boolean;
+  schedule: boolean;
+  account: boolean;
+  announcements: boolean;
+};
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  enabled: true,
+  messages: true,
+  classes: true,
+  activities: true,
+  goals: true,
+  schedule: true,
+  account: true,
+  announcements: true,
+};
+
+/**
+ * Advertising preferences follow the account, not the device: disabling ads
+ * on a phone must hold on a reinstalled phone and on the web. Whether
+ * `adsDisabled` may take effect is an entitlement question answered at read
+ * time (Pro, Review, Institutional); the stored flag survives entitlement
+ * changes so a lapsed-and-renewed Pro keeps their choice.
+ */
+export type AdPreferences = {
+  adsDisabled: boolean;
+  soundMuted: boolean;
+};
+
+export type AppearancePreference = "light" | "dark" | "system";
+
+export const DEFAULT_AD_PREFERENCES: AdPreferences = {
+  adsDisabled: false,
+  soundMuted: false,
+};
+
 export const userPreferencesTable = pgTable("user_preferences", {
   userId: integer("user_id")
     .primaryKey()
@@ -59,6 +100,19 @@ export const userPreferencesTable = pgTable("user_preferences", {
   allowMessageRequests: boolean("allow_message_requests")
     .notNull()
     .default(true),
+  notificationPreferences: jsonb("notification_preferences")
+    .$type<NotificationPreferences>()
+    .notNull()
+    .default(DEFAULT_NOTIFICATION_PREFERENCES),
+  adPreferences: jsonb("ad_preferences")
+    .$type<AdPreferences>()
+    .notNull()
+    .default(DEFAULT_AD_PREFERENCES),
+  /**
+   * Light, dark, or follow the device. Null means the account has never
+   * chosen, which reads as "system" — the same convention `language` uses.
+   */
+  appearance: text("appearance").$type<AppearancePreference>(),
   tutorialSeen: boolean("tutorial_seen").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()

@@ -41,6 +41,7 @@ import {
   forumMaterialApprovalsTable,
   forumReportsTable,
   goalPathTemplatesTable,
+  pushDeviceTokensTable,
 } from "@workspace/db";
 import {
   RegisterBody,
@@ -75,8 +76,9 @@ import {
 import { hashPassword, verifyPassword, issueToken } from "../lib/auth";
 import { isAllowlistedAdminEmail } from "../lib/adminAccess";
 import {
-  hasBuiltInGeneralProAccess,
-  PLAN_PRO,
+  isGooglePlayReviewAccount,
+  PLAN_FREE,
+  PLAN_INSTITUTIONAL,
   resolveAccountPlan,
 } from "../lib/entitlements";
 import { accountCapacityReport } from "../lib/planCapacity";
@@ -241,6 +243,25 @@ const userPreferencesPatch = z
       .nullable()
       .optional(),
     allowMessageRequests: z.boolean().optional(),
+    notificationPreferences: z
+      .object({
+        enabled: z.boolean(),
+        messages: z.boolean(),
+        classes: z.boolean(),
+        activities: z.boolean(),
+        goals: z.boolean(),
+        schedule: z.boolean(),
+        account: z.boolean(),
+        announcements: z.boolean(),
+      })
+      .optional(),
+    adPreferences: z
+      .object({
+        adsDisabled: z.boolean(),
+        soundMuted: z.boolean(),
+      })
+      .optional(),
+    appearance: z.enum(["light", "dark", "system"]).optional(),
     tutorialSeen: z.boolean().optional(),
   })
   .strict();
@@ -259,6 +280,22 @@ function defaultUserPreferences(userId: number) {
     searchHistory: [] as Array<{ query: string; searchedAt: string }>,
     resourceSearchState: null as Record<string, unknown> | null,
     allowMessageRequests: true,
+    notificationPreferences: {
+      enabled: true,
+      messages: true,
+      classes: true,
+      activities: true,
+      goals: true,
+      schedule: true,
+      account: true,
+      announcements: true,
+    },
+    adPreferences: {
+      adsDisabled: false,
+      soundMuted: false,
+    },
+    // Never chosen: every client reads null as "follow the device".
+    appearance: null as "light" | "dark" | "system" | null,
     tutorialSeen: true,
     updatedAt: new Date(0).toISOString(),
   };
@@ -304,6 +341,41 @@ router.patch(
   },
 );
 
+router.post(
+  "/users/me/push-token",
+  contentLimiter,
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    const parsed = z.object({
+      token: z.string().regex(/^Expo(?:nent)?PushToken\[[^\]]+\]$/).max(256),
+      platform: z.enum(["android", "ios"]),
+    }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: validationMessage(parsed.error) });
+      return;
+    }
+    await db
+      .insert(pushDeviceTokensTable)
+      .values({ userId, ...parsed.data, updatedAt: new Date().toISOString() })
+      .onConflictDoUpdate({
+        target: pushDeviceTokensTable.token,
+        set: { userId, platform: parsed.data.platform, updatedAt: new Date().toISOString() },
+      });
+    res.status(204).send();
+  },
+);
+
+router.delete(
+  "/users/me/push-token",
+  requireAuth,
+  async (req, res): Promise<void> => {
+    const { userId } = req as AuthenticatedRequest;
+    await db.delete(pushDeviceTokensTable).where(eq(pushDeviceTokensTable.userId, userId));
+    res.status(204).send();
+  },
+);
+
 // Sign-in and registration are rate limited in app.ts, at the mount point,
 // not here. This file used to define its own limiter and attach it to the
 // handlers below, which protected nothing: routes/loginCompat.ts declares a
@@ -336,9 +408,6 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       passwordHash,
       name,
       role,
-      ...(hasBuiltInGeneralProAccess(email)
-        ? { plan: PLAN_PRO, planExpiresAt: null }
-        : {}),
     })
     .returning(publicUserColumns);
   const token = issueToken(user.id, user.role, user.activeRole);
@@ -382,17 +451,14 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   let loggedInUser = user;
   const accountUpdates: {
     role?: "admin";
-    plan?: typeof PLAN_PRO;
+    plan?: typeof PLAN_INSTITUTIONAL | typeof PLAN_FREE;
     planExpiresAt?: null;
   } = {};
   if (user.role !== "admin" && isAllowlistedAdminEmail(user.email)) {
     accountUpdates.role = "admin";
   }
-  if (
-    hasBuiltInGeneralProAccess(user.email) &&
-    (row.plan !== PLAN_PRO || row.planExpiresAt !== null)
-  ) {
-    accountUpdates.plan = PLAN_PRO;
+  if (isGooglePlayReviewAccount(user.email) && row.plan === PLAN_INSTITUTIONAL) {
+    accountUpdates.plan = PLAN_FREE;
     accountUpdates.planExpiresAt = null;
   }
   if (Object.keys(accountUpdates).length > 0) {

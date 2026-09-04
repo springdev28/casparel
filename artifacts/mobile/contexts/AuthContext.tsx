@@ -18,7 +18,7 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (token: string, user: User) => Promise<void>;
   logout: () => Promise<void>;
-  updateToken: (newToken: string) => Promise<void>;
+  updateToken: (newToken: string, updatedUser?: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -93,8 +93,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   };
 
-  const updateToken = async (newToken: string) => {
+  const updateToken = async (newToken: string, updatedUser?: User) => {
     await storage.setItemAsync(TOKEN_KEY, newToken);
+    if (updatedUser) {
+      await storage.setItemAsync(USER_KEY, JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    }
+    if (newToken !== token) queryClient.clear();
     setToken(newToken);
   };
 

@@ -5,10 +5,9 @@
 import React, { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { Redirect, Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { storage } from "@/utils/secure-storage";
 import { apiOrigin } from "@/utils/api-host";
@@ -20,6 +19,9 @@ import { PurchasesProvider } from "@/contexts/PurchasesContext";
 import { OnboardingProvider, useOnboarding } from "@/contexts/OnboardingContext";
 import { LanguageProvider, useLanguage } from "@/contexts/LanguageContext";
 import { MotionProvider } from "@/contexts/MotionContext";
+import { AdsProvider } from "@/contexts/AdsContext";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
+import { resolveInitialRoute, routeIsSettled } from "@/utils/initial-route";
 
 // Module-level setup, runs before any component renders
 setBaseUrl(apiOrigin);
@@ -44,27 +46,33 @@ function RootLayoutNav() {
   const segments = useSegments();
   const router = useRouter();
 
-  useEffect(() => {
-    if (isLoading || !onboardingReady) return;
-    // Both credential screens are reachable while signed out. Guarding on
-    // "login" alone bounced anyone who tapped "Create an account" straight
-    // back, which would have made the new screen unreachable.
-    const inAuthScreen = segments[0] === "login" || segments[0] === "register";
-    const inOnboarding = segments[0] === "onboarding";
+  // One pure decision for every session/location combination, unit-tested in
+  // utils/initial-route.test.ts so wrong-screen flashes are caught by CI, not
+  // by users. Both credential screens are reachable while signed out; an
+  // authenticated session lives on the hosted workspace or the paywall.
+  const sessionRouteState = {
+    isLoading,
+    onboardingReady,
+    isAuthenticated,
+    needsOnboarding,
+    segment: segments[0],
+  };
+  const routeIsReady = routeIsSettled(sessionRouteState);
 
-    if (!isAuthenticated) {
-      if (!inAuthScreen) router.replace("/login");
-      return;
-    }
-    // Authenticated: show first-run onboarding once, then land on the tabs.
-    if (needsOnboarding && !inOnboarding) {
-      router.replace("/onboarding");
-    } else if (!needsOnboarding && (inAuthScreen || inOnboarding)) {
-      router.replace("/(tabs)");
-    }
+  useEffect(() => {
+    const decision = resolveInitialRoute(sessionRouteState);
+    if (decision.kind === "replace") router.replace(decision.route);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, isLoading, onboardingReady, needsOnboarding, segments, router]);
 
-  if (isLoading || !onboardingReady) return null;
+  useEffect(() => {
+    if (routeIsReady) void SplashScreen.hideAsync();
+  }, [routeIsReady]);
+
+  // Keep the native splash visible until the authenticated destination is
+  // selected. Rendering the navigator before this point paints the legacy
+  // dashboard for one frame and then replaces it with the hosted app.
+  if (!routeIsReady) return null;
 
   return (
     /*
@@ -89,6 +97,7 @@ function RootLayoutNav() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="mobile" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
@@ -144,12 +153,6 @@ function RootLayoutNav() {
 export default function RootLayout() {
   const { fontsLoaded, fontError } = useDesignSystemFonts();
 
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, fontError]);
-
   if (!fontsLoaded && !fontError) return null;
 
   return (
@@ -157,23 +160,28 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <GestureHandlerRootView style={{ flex: 1 }}>
-            <KeyboardProvider>
-              {/* One listener for the phone's Reduce Motion setting and one
-                  safe haptic boundary, shared by every interaction below. */}
-              <MotionProvider>
-                <AuthProvider>
-                  {/* Inside AuthProvider: the account's language is fetched with
-                      the session token, so this needs the token to exist. */}
-                  <LanguageProvider>
-                    <OnboardingProvider>
-                      <PurchasesProvider>
-                        <RootLayoutNav />
-                      </PurchasesProvider>
-                    </OnboardingProvider>
-                  </LanguageProvider>
-                </AuthProvider>
-              </MotionProvider>
-            </KeyboardProvider>
+            {/* One listener for the phone's Reduce Motion setting and one
+                safe haptic boundary, shared by every interaction below. */}
+            <MotionProvider>
+              <AuthProvider>
+                {/* Inside AuthProvider: the account's language is fetched with
+                    the session token, so this needs the token to exist. */}
+                <LanguageProvider>
+                  <OnboardingProvider>
+                    <PurchasesProvider>
+                      {/* Android replaces this provider with the UMP/AdMob
+                          implementation. Other platforms use its inert twin,
+                          so the navigation tree stays platform-independent. */}
+                      <NotificationsProvider>
+                        <AdsProvider>
+                          <RootLayoutNav />
+                        </AdsProvider>
+                      </NotificationsProvider>
+                    </PurchasesProvider>
+                  </OnboardingProvider>
+                </LanguageProvider>
+              </AuthProvider>
+            </MotionProvider>
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ErrorBoundary>

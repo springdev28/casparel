@@ -288,20 +288,12 @@ function DownloadButtons() {
   // Nobody needs to be told to download the app they are already running.
   if (isDesktopShell()) return null;
 
-  if (!hasDownloads()) {
-    return (
-      <Button size="lg" disabled className="gap-2">
-        <Apple className="size-4" />
-        Coming to iOS &amp; Android
-      </Button>
-    );
-  }
-
   // Most-likely platform first, and only that one gets the primary style: a
   // row of equally weighted buttons asks the visitor to work out which of
-  // three things they are on.
+  // three things they are on. On phone widths the buttons stack full-width so
+  // a long store label can never establish a wider-than-viewport row.
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
       {orderedDownloadTargets().map((target, index) => {
         const Icon = PLATFORM_ICONS[target.id];
         return (
@@ -310,10 +302,10 @@ function DownloadButtons() {
             size="lg"
             asChild
             variant={index === 0 ? "default" : "outline"}
-            className="gap-2"
+            className="w-full min-w-0 max-w-full gap-2 sm:w-auto"
           >
             <a href={target.href} target="_blank" rel="noopener noreferrer">
-              <Icon className="size-4" /> {target.label}
+              <Icon className="size-4 shrink-0" /> {target.label}
             </a>
           </Button>
         );
@@ -372,19 +364,19 @@ export default function LandingPage() {
     >
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
+        <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-1 overflow-hidden px-3 sm:gap-3 sm:px-4">
           <Link href="/" className="flex min-w-0 items-center text-primary-text">
-            <BrandIcon className="mr-2 h-8 w-8 shrink-0" />
-            <span className="font-bold text-lg tracking-tight text-foreground">
+            <BrandIcon className="mr-1.5 h-7 w-7 shrink-0 sm:mr-2 sm:h-8 sm:w-8" />
+            <span className="text-base font-bold tracking-tight text-foreground sm:text-lg">
               Casparel
             </span>
           </Link>
-          <nav className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <nav className="flex min-w-0 shrink items-center gap-0.5 sm:shrink-0 sm:gap-2">
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/resources">Browse</Link>
+              <Link href="/resources" className="px-2 sm:px-3">Browse</Link>
             </Button>
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/plans">Plans</Link>
+              <Link href="/plans" className="px-2 sm:px-3">Plans</Link>
             </Button>
             {signedIn ? (
               <Link
@@ -403,7 +395,7 @@ export default function LandingPage() {
                     <UserRound className="size-4 text-primary-text" />
                   )}
                 </span>
-                <span className="max-w-32 truncate text-sm font-medium">
+                <span className="hidden max-w-32 truncate text-sm font-medium sm:inline">
                   {me?.name ?? "My profile"}
                 </span>
               </Link>
@@ -419,7 +411,7 @@ export default function LandingPage() {
       <main>
         {/* Hero */}
         <section className="mx-auto grid max-w-6xl gap-12 px-4 pb-16 pt-16 sm:pt-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-center">
-          <div>
+          <div className="min-w-0 max-w-full">
           <p className="rise mb-4 inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
             <GraduationCap className="size-3.5 text-primary-text" />
             Built for students and teachers
@@ -430,42 +422,39 @@ export default function LandingPage() {
               a search result should read the line they clicked, not a variation
               of it. */}
           <h1
-            className="rise max-w-3xl text-balance text-4xl font-bold leading-[1.08] tracking-tight sm:text-6xl"
+            className="rise max-w-3xl break-words text-balance text-4xl font-bold leading-[1.08] tracking-tight sm:text-6xl"
             style={{ animationDelay: "80ms" }}
           >
             Knowledge is <span className="text-primary-text">treasure</span>.
           </h1>
           <p
-            className="rise mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground"
+            className="rise mt-6 max-w-2xl break-words text-lg leading-relaxed text-muted-foreground"
             style={{ animationDelay: "160ms" }}
           >
             An intelligent education platform that brings classes, resources,
             research, planning, and progress into one connected workspace.
           </p>
 
-          <div className="rise mt-9" style={{ animationDelay: "240ms" }}>
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="rise mt-9 w-full min-w-0 max-w-full" style={{ animationDelay: "240ms" }}>
+            <div className="flex w-full min-w-0 max-w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
               <DownloadButtons />
               <Button
                 size="lg"
                 variant={hasDownload ? "outline" : "default"}
                 asChild
-                className="gap-2"
+                className="w-full min-w-0 max-w-full gap-2 sm:w-auto"
               >
                 <Link href={continueHref}>
-                  {continueLabel} <ArrowRight className="size-4" />
+                  {continueLabel} <ArrowRight className="size-4 shrink-0" />
                 </Link>
               </Button>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              {!hasDownload && !inDesktopShell
-                ? "The mobile app is on its way. Everything works in your browser today. "
-                : null}
               <Link
                 href="/download"
                 className="text-primary-text hover:underline"
               >
-                {hasDownload ? "All download options" : "Where Casparel runs"}
+                All download options
               </Link>
               {" · "}
               <Link href="/plans" className="text-primary-text hover:underline">
@@ -477,7 +466,7 @@ export default function LandingPage() {
 
           {/* A concrete look at the feature the headline promises. */}
           <div
-            className="rise rounded-2xl border border-border bg-card p-5 shadow-sm lg:mt-0"
+            className="rise min-w-0 max-w-full overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-sm lg:mt-0"
             style={{ animationDelay: "320ms" }}
             aria-hidden="true"
           >
@@ -506,10 +495,10 @@ export default function LandingPage() {
             {/* Keyed on the example so each swap replays the entry animation;
                 min-height covers the tallest example so the hero never jumps. */}
             <div key={example.name} className="rise min-h-[13.5rem]">
-              <div className="mt-4 flex items-start justify-between gap-3">
-                <div className="min-w-0">
+              <div className="mt-4 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                <div className="min-w-0 max-w-full">
                   <p className="truncate font-semibold">{example.name}</p>
-                  <p className="text-xs text-muted-foreground">{example.kind}</p>
+                  <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{example.kind}</p>
                 </div>
                 <span
                   className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${verdictStyle.badge}`}
@@ -517,14 +506,14 @@ export default function LandingPage() {
                   <verdictStyle.BadgeIcon className="size-3" /> {example.verdict}
                 </span>
               </div>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
                 {example.summary}
               </p>
               <div className="mt-4 space-y-2">
                 {example.signals.map((line) => (
                   <p
                     key={line}
-                    className="flex items-start gap-2 text-xs text-muted-foreground"
+                    className="flex min-w-0 items-start gap-2 text-xs text-muted-foreground [overflow-wrap:anywhere]"
                   >
                     <verdictStyle.SignalIcon
                       className={`mt-0.5 size-3.5 shrink-0 ${verdictStyle.signal}`}

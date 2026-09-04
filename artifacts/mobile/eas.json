@@ -12,7 +12,11 @@
     },
     "development": {
       "extends": "base",
-      "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "true" },
+      "environment": "development",
+      "env": {
+        "EXPO_PUBLIC_RC_USE_TEST_STORE": "true",
+        "EXPO_PUBLIC_ADMOB_ANDROID_DASHBOARD_NATIVE_AD_UNIT_ID": "ca-app-pub-3940256099942544/2247696110"
+      },
       "developmentClient": true,
       "distribution": "internal",
       "ios": { "simulator": true },
@@ -20,7 +24,11 @@
     },
     "preview": {
       "extends": "base",
-      "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "true" },
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_RC_USE_TEST_STORE": "true",
+        "EXPO_PUBLIC_ADMOB_ANDROID_DASHBOARD_NATIVE_AD_UNIT_ID": "ca-app-pub-3940256099942544/2247696110"
+      },
       "distribution": "internal",
       "channel": "preview",
       "ios": { "simulator": false },
@@ -28,8 +36,8 @@
     },
     "production": {
       "extends": "base",
+      "environment": "production",
       "env": { "EXPO_PUBLIC_RC_USE_TEST_STORE": "false" },
-      "channel": "production",
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" }
     }

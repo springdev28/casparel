@@ -43,6 +43,17 @@ export function readSessionClaims(): SessionClaims | null {
     if (!Number.isSafeInteger(payload.userId) || Number(payload.userId) <= 0) {
       return null;
     }
+    /*
+     * Milliseconds, not seconds.
+     *
+     * A standard JWT `exp` is in seconds, and this multiplied by 1000 to
+     * match. This server does not issue a standard JWT: lib/auth.ts signs
+     * `exp: Date.now() + TOKEN_TTL_MS` and verifies with `payload.exp <
+     * Date.now()`, both in milliseconds. Multiplying made every expiry sit
+     * about a thousand times further in the future than it is, so no token
+     * was ever read as expired here: a signed-out-by-expiry session stayed
+     * on the dashboard with a dead token until some request returned 401.
+     */
     if (typeof payload.exp === "number" && payload.exp <= Date.now()) {
       return null;
     }
@@ -106,6 +117,7 @@ export function clearSession(): void {
     // A storage failure must not stop the rest of the sign-out.
   }
   window.dispatchEvent(new Event(SESSION_EVENT));
+  notifyNativeShell({ type: "logout" });
 }
 
 /**
@@ -151,4 +163,18 @@ export function clearLocalAccountData(options?: {
 /** Announce a token that was just written (sign-in, token refresh). */
 export function notifySessionChanged(): void {
   window.dispatchEvent(new Event(SESSION_EVENT));
+  const token = readSessionToken();
+  if (token) notifyNativeShell({ type: "session", token });
+}
+
+function notifyNativeShell(message: { type: "logout" } | { type: "session"; token: string }): void {
+  try {
+    if (localStorage.getItem("casparel_native_shell") !== "true") return;
+    const bridge = (window as typeof window & {
+      ReactNativeWebView?: { postMessage: (value: string) => void };
+    }).ReactNativeWebView;
+    bridge?.postMessage(JSON.stringify(message));
+  } catch {
+    // A browser without the native bridge continues normally.
+  }
 }

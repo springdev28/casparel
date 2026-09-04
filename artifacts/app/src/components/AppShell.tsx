@@ -74,7 +74,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import ThemeCustomizer, { applyDefaultColors } from "./ThemeCustomizer";
 import { AuthLanguageSelect } from "./AuthLanguageSelect";
-import { readSessionClaims, clearSession } from "../lib/session";
+import {
+  readSessionClaims,
+  clearSession,
+  notifySessionChanged,
+} from "../lib/session";
 import { usePlan } from "@/lib/use-plan";
 import { useAuthLanguage } from "../lib/auth-locale";
 import {
@@ -100,6 +104,7 @@ import {
 } from "../lib/user-preferences";
 import { useDocumentVisibility } from "../lib/use-document-visibility";
 import { intlLocale } from "@/lib/date-locale";
+import { InlineAd } from "./InlineAd";
 
 const TOKEN_KEY = "schoolar_token";
 const VantaBackground = lazy(() => import("./VantaBackground"));
@@ -571,6 +576,11 @@ export default function AppShell({ children }: AppShellProps) {
       });
       // Store the fresh token so subsequent requests carry the new role
       localStorage.setItem(TOKEN_KEY, result.token);
+      // The Android shell owns a second, secure copy of the token. Tell it
+      // about the replacement before reloading, otherwise its preload script
+      // restores the previous role token and silently undoes the switch.
+      notifySessionChanged();
+      queryClient.clear();
       // Reload the current URL so every role-dependent query and component starts fresh.
       window.location.reload();
     } catch {
@@ -1005,6 +1015,7 @@ export default function AppShell({ children }: AppShellProps) {
               <AuthLanguageSelect
                 language={language}
                 label={copy.language}
+                className="w-full text-primary-foreground/80 [&_select]:min-w-0 [&_select]:flex-1"
                 onChange={(next) => {
                   setLanguage(next);
                   void updateAccountPreferences
@@ -1150,10 +1161,16 @@ export default function AppShell({ children }: AppShellProps) {
                       </SelectContent>
                     </Select>
                   ) : null}
-                  <div className="px-1 [&_select]:border-primary-foreground/30 [&_select]:bg-transparent [&_select]:text-primary-foreground">
+                  {/* Sized, bordered and coloured to match the role switcher
+                      directly above it: same 40px height, same border, same
+                      full-strength foreground, and no leading icon inset. It
+                      previously sat a size smaller, dimmer and indented, which
+                      read as a disabled control beside an active one. */}
+                  <div className="[&_select]:h-10 [&_select]:w-full [&_select]:border-white/30 [&_select]:bg-white/10 [&_select]:!text-white">
                     <AuthLanguageSelect
                       language={language}
                       label={copy.language}
+                      className="w-full gap-0 text-white [&>svg]:hidden"
                       onChange={(next) => {
                         setLanguage(next);
                         void updateAccountPreferences
@@ -1392,6 +1409,11 @@ export default function AppShell({ children }: AppShellProps) {
             }
           >
             {children}
+            {/* One compact sponsored block at the end of the page's own
+                content: inline, scrolls with the page, and never over the
+                navigation. Sensitive and editing-heavy routes are excluded by
+                pathAllowsWebAd, so this single mount covers every screen. */}
+            <InlineAd />
           </div>
         </main>
       </div>

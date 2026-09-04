@@ -37,6 +37,8 @@ import { getInitialLanguage, type AuthLanguage } from "./lib/auth-locale";
 import { hasDictionary } from "./lib/translated-languages";
 import { clearSession, readSessionToken } from "./lib/session";
 import { useSessionClaims } from "./lib/use-session";
+import { AdConsentBanner } from "./components/AdConsentBanner";
+import { useAppearance } from "./hooks/use-appearance";
 
 const AppShell = lazy(() => import("./components/AppShell"));
 const UiTranslationBridge = lazy(
@@ -82,6 +84,12 @@ const PlansPage = lazy(() => import("./pages/PlansPage"));
 
 const TOKEN_KEY = "schoolar_token";
 const LANGUAGE_EVENT = "schoolar-language-change";
+
+declare global {
+  interface Window {
+    ReactNativeWebView?: { postMessage(message: string): void };
+  }
+}
 
 /**
  * Sign the user out when the server says the session is gone.
@@ -336,6 +344,9 @@ function PublicRoute({
 }
 
 function Router() {
+  const nativeShell = localStorage.getItem("casparel_native_shell") === "true";
+  const signedIn = Boolean(useSessionClaims());
+
   return (
     <Switch>
       <Route path="/auth/login" component={LoginPage} />
@@ -357,7 +368,17 @@ function Router() {
       </Route>
       {/* Standalone: plans is an account decision with its own header, not a
           workspace tab inside the app shell. */}
-      <Route path="/plans" component={PlansPage} />
+      <Route path="/plans">
+        {() => {
+          if (nativeShell) {
+            window.ReactNativeWebView?.postMessage(
+              JSON.stringify({ type: "open-native-paywall" }),
+            );
+            return <Redirect to="/dashboard" />;
+          }
+          return <PlansPage />;
+        }}
+      </Route>
       <Route path="/support">
         {() => <PublicRoute component={SupportPage} />}
       </Route>
@@ -452,15 +473,24 @@ function Router() {
 
       {/* Root is the public landing page */}
       <Route path="/">
-        <Suspense fallback={null}>
-          <LandingPage />
-        </Suspense>
+        {nativeShell && signedIn ? (
+          <Redirect to="/dashboard" />
+        ) : (
+          <Suspense fallback={null}>
+            <LandingPage />
+          </Suspense>
+        )}
       </Route>
       <Route>
         <Redirect to="/resources" />
       </Route>
     </Switch>
   );
+}
+
+function AppearanceRuntime() {
+  useAppearance();
+  return null;
 }
 
 function App() {
@@ -489,6 +519,9 @@ function App() {
                 <Router />
               </AccountAccessGate>
             </Suspense>
+            {/* Renders nothing unless this deployment serves ads and the
+                visitor has not yet answered. */}
+            <AdConsentBanner />
           </WouterRouter>
           <FeedbackToaster />
         </TooltipProvider>

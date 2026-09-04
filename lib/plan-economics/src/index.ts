@@ -60,14 +60,14 @@ export const PLAN_CATALOG: Record<SubscriptionTier, CommercialPlan> = {
     ai: { searchPerDay: 3, searchPerMonth: 15, deepPerDay: 1, deepPerMonth: 3 },
     storageBytes: 1 * GIB,
     capacity: { "classes-owned": 5, "class-members": 100, "study-activities": 250, "resource-lists": 50, "learning-goals": 100, canvases: 30 },
-    price: { monthlyUsd: 9.99, annualUsd: 107.99 },
+    price: { monthlyUsd: 9.99, annualUsd: 109.99 },
   },
   pro: {
     label: "Pro",
     ai: { searchPerDay: 6, searchPerMonth: 29, deepPerDay: 2, deepPerMonth: 10 },
     storageBytes: 2 * GIB,
     capacity: { "classes-owned": 20, "class-members": 300, "study-activities": 1000, "resource-lists": 200, "learning-goals": 400, canvases: 100 },
-    price: { monthlyUsd: 19.99, annualUsd: 215.99 },
+    price: { monthlyUsd: 19.99, annualUsd: 214.99 },
   },
   institutional: {
     label: "Institutional",

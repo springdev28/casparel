@@ -372,6 +372,34 @@
       "when": 1789372800010,
       "tag": "0052_unify_subscription_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1789372800011,
+      "tag": "0053_absurd_betty_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1789372800012,
+      "tag": "0054_push_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1789372800013,
+      "tag": "0055_left_karnak",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1789372800014,
+      "tag": "0056_appearance_preference",
+      "breakpoints": true
     }
   ]
 }

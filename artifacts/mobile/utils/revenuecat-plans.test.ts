@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   REVENUECAT_PACKAGE_MAP,
+  baseProductId,
   defaultOffering,
+  googleProductChangeFor,
   hasPlusAccess,
   packagesForRole,
   restoredEntitlementsHaveAccess,
@@ -33,10 +35,10 @@ describe('RevenueCat plan mapping', () => {
   });
 
   it.each([
-    ['plus_monthly', 'casparel_plus_monthly', 'plus'],
-    ['plus_yearly', 'casparel_plus_yearly', 'plus'],
-    ['pro_monthly', 'casparel_pro_monthly', 'pro'],
-    ['pro_yearly', 'casparel_pro_yearly', 'pro'],
+    ['plus_monthly', 'casparel_plus_monthly:monthly', 'plus'],
+    ['plus_yearly', 'casparel_plus_yearly:yearly', 'plus'],
+    ['pro_monthly', 'casparel_pro_monthly:monthly', 'pro'],
+    ['pro_yearly', 'casparel_pro_yearly:yearly', 'pro'],
   ] as const)('maps %s only to %s', (identifier, productId, tier) => {
     expect(tierForPackageIdentity({ identifier, product: { identifier: productId } })).toBe(
       tier,
@@ -53,7 +55,7 @@ describe('RevenueCat plan mapping', () => {
     expect(
       tierForPackageIdentity({
         identifier: 'pro_monthly',
-        product: { identifier: 'casparel_plus_monthly' },
+        product: { identifier: 'casparel_plus_monthly:monthly' },
       }),
     ).toBeNull();
   });
@@ -81,6 +83,44 @@ describe('RevenueCat plan mapping', () => {
     expect(defaultOffering({ current: null, all: { default: offering } })).toBe(offering);
     expect(
       defaultOffering({ current: { identifier: 'experiment' }, all: {} }),
+    ).toBeNull();
+  });
+
+  it('accepts the same product spelled with and without the Play base plan', () => {
+    // Google Play answers "casparel_plus_monthly:monthly"; the App Store and
+    // some RevenueCat responses answer "casparel_plus_monthly". Same product.
+    expect(
+      tierForPackageIdentity({
+        identifier: 'plus_monthly',
+        product: { identifier: 'casparel_plus_monthly' },
+      }),
+    ).toBe('plus');
+    expect(baseProductId('casparel_plus_monthly:monthly')).toBe('casparel_plus_monthly');
+    expect(baseProductId('casparel_plus_monthly')).toBe('casparel_plus_monthly');
+  });
+
+  it('requests a Google Play product change when switching plans', () => {
+    const proYearly = {
+      identifier: 'pro_yearly',
+      product: { identifier: 'casparel_pro_yearly:yearly' },
+    };
+    // Plus monthly -> Pro yearly replaces the existing subscription.
+    expect(
+      googleProductChangeFor(['casparel_plus_monthly:monthly'], proYearly),
+    ).toEqual({ oldProductIdentifier: 'casparel_plus_monthly' });
+    // Billing-period change on the same tier is also a replacement.
+    expect(
+      googleProductChangeFor(['casparel_pro_monthly:monthly'], proYearly),
+    ).toEqual({ oldProductIdentifier: 'casparel_pro_monthly' });
+    // First purchase: nothing to replace.
+    expect(googleProductChangeFor([], proYearly)).toBeNull();
+    // Re-buying the currently held product is not a change request.
+    expect(
+      googleProductChangeFor(['casparel_pro_yearly:yearly'], proYearly),
+    ).toBeNull();
+    // Unknown subscriptions (another app's, a legacy id) are never replaced.
+    expect(
+      googleProductChangeFor(['some_other_app_product'], proYearly),
     ).toBeNull();
   });
 

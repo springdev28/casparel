@@ -95,6 +95,7 @@ import type {
   RecommendResourceToPerson201,
   RecommendResourceToPersonBody,
   RegisterInput,
+  RegisterPushTokenBody,
   ReorderListItemsInput,
   ReportUserInput,
   ReportUserResponse,
@@ -10098,5 +10099,147 @@ export const useUpdateMyPreferences = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateMyPreferencesMutationOptions(options));
+    }
+
+export const getRegisterPushTokenUrl = () => {
+
+
+
+
+  return `/api/users/me/push-token`
+}
+
+/**
+ * @summary Register this signed-in mobile installation for push notifications
+ */
+export const registerPushToken = async (registerPushTokenBody: RegisterPushTokenBody, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRegisterPushTokenUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(registerPushTokenBody)
+  }
+);}
+
+
+
+
+
+export const getRegisterPushTokenMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerPushToken>>, TError,{data: BodyType<RegisterPushTokenBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerPushToken>>, TError,{data: BodyType<RegisterPushTokenBody>}, TContext> => {
+
+const mutationKey = ['registerPushToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerPushToken>>, {data: BodyType<RegisterPushTokenBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  registerPushToken(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterPushTokenMutationResult = NonNullable<Awaited<ReturnType<typeof registerPushToken>>>
+    export type RegisterPushTokenMutationBody = BodyType<RegisterPushTokenBody>
+    export type RegisterPushTokenMutationError = ErrorType<void>
+
+    /**
+ * @summary Register this signed-in mobile installation for push notifications
+ */
+export const useRegisterPushToken = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerPushToken>>, TError,{data: BodyType<RegisterPushTokenBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerPushToken>>,
+        TError,
+        {data: BodyType<RegisterPushTokenBody>},
+        TContext
+      > => {
+      return useMutation(getRegisterPushTokenMutationOptions(options));
+    }
+
+export const getUnregisterPushTokensUrl = () => {
+
+
+
+
+  return `/api/users/me/push-token`
+}
+
+/**
+ * @summary Disable push delivery to every installation for this account
+ */
+export const unregisterPushTokens = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getUnregisterPushTokensUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnregisterPushTokensMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unregisterPushTokens>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unregisterPushTokens>>, TError,void, TContext> => {
+
+const mutationKey = ['unregisterPushTokens'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unregisterPushTokens>>, void> = () => {
+
+
+          return  unregisterPushTokens(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnregisterPushTokensMutationResult = NonNullable<Awaited<ReturnType<typeof unregisterPushTokens>>>
+
+    export type UnregisterPushTokensMutationError = ErrorType<void>
+
+    /**
+ * @summary Disable push delivery to every installation for this account
+ */
+export const useUnregisterPushTokens = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unregisterPushTokens>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unregisterPushTokens>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getUnregisterPushTokensMutationOptions(options));
     }
 

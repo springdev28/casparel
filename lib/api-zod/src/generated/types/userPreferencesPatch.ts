@@ -5,9 +5,12 @@
  * Casparel API — student/teacher productivity platform
  * OpenAPI spec version: 0.1.0
  */
+import type { AdPreferences } from './adPreferences';
 import type { InterfaceColors } from './interfaceColors';
+import type { NotificationPreferences } from './notificationPreferences';
 import type { SearchHistoryEntry } from './searchHistoryEntry';
 import type { UserPreferencesPatchAmbientStyle } from './userPreferencesPatchAmbientStyle';
+import type { UserPreferencesPatchAppearance } from './userPreferencesPatchAppearance';
 import type { UserPreferencesPatchContinueStudying } from './userPreferencesPatchContinueStudying';
 import type { UserPreferencesPatchDashboardGoalIds } from './userPreferencesPatchDashboardGoalIds';
 import type { UserPreferencesPatchLanguage } from './userPreferencesPatchLanguage';
@@ -36,5 +39,8 @@ export interface UserPreferencesPatch {
   /** @nullable */
   resourceSearchState?: UserPreferencesPatchResourceSearchState;
   allowMessageRequests?: boolean;
+  notificationPreferences?: NotificationPreferences;
+  adPreferences?: AdPreferences;
+  appearance?: UserPreferencesPatchAppearance;
   tutorialSeen?: boolean;
 }

@@ -39,14 +39,18 @@ export const PLAN_TEACHER_PRO = "teacher-pro";
 export const PLAN_INSTITUTIONAL = "institutional";
 
 /**
- * Product-owned accounts that receive the original, role-agnostic Pro plan
- * without a store subscription. Keep support@casparel.com out of this list:
- * it is a public contact mailbox, not a Casparel user account.
+ * Google Play signs in with this dedicated account while reviewing the app.
+ *
+ * The address is safe to identify publicly; its password remains an external
+ * Play Console secret. This is an entitlement exception, never an admin
+ * allowlist: reviewers need to exercise the paid product, not moderate it.
  */
-const BUILT_IN_GENERAL_PRO_EMAILS = new Set(["review@casparel.com"]);
+export const GOOGLE_PLAY_REVIEW_EMAIL = "review@casparel.com";
 
-export function hasBuiltInGeneralProAccess(email: string): boolean {
-  return BUILT_IN_GENERAL_PRO_EMAILS.has(email.trim().toLowerCase());
+export function isGooglePlayReviewAccount(
+  email: string | null | undefined,
+): boolean {
+  return email?.trim().toLowerCase() === GOOGLE_PLAY_REVIEW_EMAIL;
 }
 
 /**
@@ -291,13 +295,17 @@ export async function resolveAccountPlan(
     .from(usersTable)
     .where(eq(usersTable.id, userId));
   const accountRole = row?.role ?? null;
-  const builtInGeneralPro = Boolean(
-    row?.email && hasBuiltInGeneralProAccess(row.email),
-  );
+  // Google Play's dedicated reviewer must be able to exercise every Pro
+  // feature without first completing a real charge. This is deliberately Pro,
+  // not admin or Institutional, and the plans screen remains reachable so the
+  // reviewer can inspect the real Google Play products.
+  const reviewAccess = isGooglePlayReviewAccount(row?.email);
+  const effectivePlan = reviewAccess ? PLAN_PRO : row?.plan ?? null;
+  const effectiveExpiry = reviewAccess ? null : row?.expiresAt ?? null;
   return {
     entitlements: entitlementsForPlan(
-      builtInGeneralPro ? PLAN_PRO : (row?.plan ?? null),
-      builtInGeneralPro ? null : (row?.expiresAt ?? null),
+      effectivePlan,
+      effectiveExpiry,
       accountRole,
     ),
     accountRole,

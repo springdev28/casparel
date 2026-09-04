@@ -7,7 +7,7 @@
  *  • an allowlisted email on a non-admin row is promoted on any request
  *  • a non-allowlisted email is never promoted
  *  • an already-admin allowlisted account is not written again
- *  • the review account is reconciled to the role-agnostic Pro plan
+ *  • the review account is reconciled to the Institutional plan
  *  • banned accounts are still rejected before any promotion happens
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -102,16 +102,23 @@ describe("requireAuth admin promotion", () => {
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it("reconciles the review account to general Pro without making it admin", async () => {
-    mockUserRow = { ...mockUserRow, email: REVIEW_ACCOUNT };
+  it("removes the stale review-account Institutional shortcut without making it admin", async () => {
+    mockUserRow = { ...mockUserRow, email: REVIEW_ACCOUNT, plan: "institutional" };
     const res = await callWhoami();
     expect(res.status).toBe(200);
     expect(res.body.accountRole).toBe("student");
-    expect(setMock).toHaveBeenCalledWith({ plan: "pro", planExpiresAt: null });
+    expect(setMock).toHaveBeenCalledWith({
+      plan: "free",
+      planExpiresAt: null,
+    });
   });
 
-  it("does not re-write the review account when general Pro is already active", async () => {
-    mockUserRow = { ...mockUserRow, email: REVIEW_ACCOUNT, plan: "pro" };
+  it("does not re-write the review account when it is already free", async () => {
+    mockUserRow = {
+      ...mockUserRow,
+      email: REVIEW_ACCOUNT,
+      plan: "free",
+    };
     const res = await callWhoami();
     expect(res.status).toBe(200);
     expect(res.body.accountRole).toBe("student");

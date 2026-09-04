@@ -181,7 +181,7 @@ Tutorials are activation handoffs rather than simulated product shells. Web and 
 
 The client entitlement is a presentation hint, not the final authority for API access. After a native transaction, the client calls the authenticated `POST /users/me/entitlements/reconcile` contract. `routes/billing.ts` fetches Customer Info with the server-only RevenueCat key and writes only `plan` and `planExpiresAt`, so immediate access does not depend on webhook timing and a subscription cannot alter a role or workspace. `routes/webhooks.ts`, `lib/revenuecat.ts`, and `revenuecatWebhookEvents` remain the durable lifecycle path: they persist event IDs, reject duplicates, retain access through cancellation until expiry, and reconcile transfer aliases so retries or out-of-order delivery do not grant twice or leave stale ownership.
 
-The new Drive documents describe AdMob/RevenueCat Ads as planned work on an unmerged draft branch. This worktree should therefore describe the advertising surface as roadmap state until its code, external configuration, real-device tests, and store disclosures are all verified.
+Android advertising is now implemented behind platform-specific files: Google UMP gates SDK initialization, AdMob renders one labelled native dashboard card for an established free entitlement, and RevenueCat Ads receives the supported lifecycle/revenue callbacks. Paid or indeterminate entitlements and unavailable consent/configuration all fail closed to no card. This is code-complete rather than release-complete: real AdMob IDs, dashboard privacy/category controls, RevenueCat Ads/ILRD, physical-device tests, Play disclosures, and store review remain external gates. See `docs/distribution-monetization.md`.
 
 ## 11. Desktop boundary
 

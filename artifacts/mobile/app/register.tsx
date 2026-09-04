@@ -23,6 +23,7 @@ import { useRegister } from '@workspace/api-client-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { describeAuthFailure } from '@/utils/auth-errors';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { apiOrigin } from '@/utils/api-host';
 
 /**
  * Creating an account, on the phone.
@@ -202,7 +203,7 @@ export default function RegisterScreen() {
               {t('I agree to the')}{' '}
               <Text
                 accessibilityRole="link"
-                onPress={() => void Linking.openURL('https://casparel.com/terms')}
+                onPress={() => void Linking.openURL(`${apiOrigin}/terms`)}
                 style={{ color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}
               >
                 {t('Terms of Service')}
@@ -210,7 +211,7 @@ export default function RegisterScreen() {
               {' '}{t('and')}{' '}
               <Text
                 accessibilityRole="link"
-                onPress={() => void Linking.openURL('https://casparel.com/privacy')}
+                onPress={() => void Linking.openURL(`${apiOrigin}/privacy`)}
                 style={{ color: colors.primary, fontFamily: colors.fontFamily.sansMedium }}
               >
                 {t('Privacy Policy')}

@@ -26,7 +26,9 @@ import {
   CAPACITY_BY_TIER,
   capacityLimitFor,
   entitlementsForPlan,
-  hasBuiltInGeneralProAccess,
+  getAccountEntitlements,
+  GOOGLE_PLAY_REVIEW_EMAIL,
+  isGooglePlayReviewAccount,
   isPlanActive,
   isPremiumAccount,
   normalizePlan,
@@ -54,27 +56,6 @@ const CAPACITIES: PlanCapacity[] = [
   "learning-goals",
   "canvases",
 ];
-
-describe("built-in general Pro access", () => {
-  it("belongs only to the review account and is case-insensitive", () => {
-    expect(hasBuiltInGeneralProAccess("review@casparel.com")).toBe(true);
-    expect(hasBuiltInGeneralProAccess(" Review@Casparel.com ")).toBe(true);
-    expect(hasBuiltInGeneralProAccess("support@casparel.com")).toBe(false);
-  });
-
-  it("resolves the review account as role-agnostic Pro even from a free row", async () => {
-    mockAccountRow({
-      email: "review@casparel.com",
-      plan: "free",
-      expiresAt: null,
-      role: "student",
-    });
-    const result = await resolveAccountPlan(1);
-    expect(result.entitlements.tier).toBe("pro");
-    expect(result.entitlements.planRole).toBeNull();
-    expect(result.isAdmin).toBe(false);
-  });
-});
 
 function mockAccountRow(row: Record<string, unknown> | null) {
   vi.mocked(db.select).mockImplementation(
@@ -369,5 +350,28 @@ describe("isPremiumAccount", () => {
       role: "teacher",
     });
     await expect(isPremiumAccount(1)).resolves.toBe(false);
+  });
+
+  it("grants the dedicated Google Play reviewer Pro access", async () => {
+    mockAccountRow({
+      email: `  ${GOOGLE_PLAY_REVIEW_EMAIL.toUpperCase()}  `,
+      plan: "free",
+      expiresAt: null,
+      role: "student",
+    });
+    await expect(getAccountEntitlements(1)).resolves.toMatchObject({
+      tier: "pro",
+      label: "Pro",
+    });
+    await expect(isPremiumAccount(1)).resolves.toBe(true);
+  });
+});
+
+describe("Google Play review account", () => {
+  it("matches only the dedicated address, case-insensitively", () => {
+    expect(isGooglePlayReviewAccount("review@casparel.com")).toBe(true);
+    expect(isGooglePlayReviewAccount(" REVIEW@CASPAREL.COM ")).toBe(true);
+    expect(isGooglePlayReviewAccount("reviewer@casparel.com")).toBe(false);
+    expect(isGooglePlayReviewAccount(null)).toBe(false);
   });
 });

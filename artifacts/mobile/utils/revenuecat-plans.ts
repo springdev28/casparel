@@ -15,22 +15,22 @@ export const REVENUECAT_PACKAGE_MAP = {
   plus_monthly: {
     tier: 'plus',
     period: 'monthly',
-    productId: 'casparel_plus_monthly',
+    productId: 'casparel_plus_monthly:monthly',
   },
   plus_yearly: {
     tier: 'plus',
     period: 'yearly',
-    productId: 'casparel_plus_yearly',
+    productId: 'casparel_plus_yearly:yearly',
   },
   pro_monthly: {
     tier: 'pro',
     period: 'monthly',
-    productId: 'casparel_pro_monthly',
+    productId: 'casparel_pro_monthly:monthly',
   },
   pro_yearly: {
     tier: 'pro',
     period: 'yearly',
-    productId: 'casparel_pro_yearly',
+    productId: 'casparel_pro_yearly:yearly',
   },
 } as const satisfies Record<
   string,
@@ -39,13 +39,34 @@ export const REVENUECAT_PACKAGE_MAP = {
 
 export type RevenueCatPackageIdentifier = keyof typeof REVENUECAT_PACKAGE_MAP;
 
+/**
+ * A store product identifier without the Google Play base-plan suffix.
+ *
+ * Google Play reports subscriptions as `product:basePlan` while the App Store
+ * and RevenueCat's own product APIs use the bare product id. One product is
+ * still one product either way, so identity comparisons happen on this form.
+ */
+export function baseProductId(productId: string): string {
+  return productId.split(':')[0] ?? productId;
+}
+
 export function packageDefinition(
   pkg: RevenueCatPackageIdentity,
 ): (typeof REVENUECAT_PACKAGE_MAP)[RevenueCatPackageIdentifier] | null {
   const definition = REVENUECAT_PACKAGE_MAP[
     pkg.identifier as RevenueCatPackageIdentifier
   ];
-  if (!definition || definition.productId !== pkg.product.identifier) return null;
+  if (!definition) return null;
+  // Accept both spellings of the same product: the Play form with the base
+  // plan (`casparel_plus_monthly:monthly`) and the bare id the App Store and
+  // some RevenueCat responses use. Anything else fails closed.
+  const offered = pkg.product.identifier;
+  if (
+    definition.productId !== offered &&
+    baseProductId(definition.productId) !== offered
+  ) {
+    return null;
+  }
   return definition;
 }
 
@@ -99,6 +120,36 @@ export function upgradePackagesForTier<T extends RevenueCatPackageIdentity>(
     const packageTier = tierForPackageIdentity(pkg);
     return packageTier !== null && (tier === 'free' || packageTier === 'pro');
   });
+}
+
+/**
+ * Google Play subscription replacement, decided from the store's own state.
+ *
+ * When the account already holds a Casparel subscription product and buys a
+ * different one, Play must be told this is a *change* to the existing
+ * subscription — otherwise it opens a second, simultaneous subscription and
+ * the person pays twice. Returns the old product to replace, or null for a
+ * first purchase (or a re-buy of the same product, which Play rejects with
+ * "already owned" on its own).
+ */
+export function googleProductChangeFor(
+  activeSubscriptions: readonly string[],
+  pkg: RevenueCatPackageIdentity,
+): { oldProductIdentifier: string } | null {
+  if (packageDefinition(pkg) === null) return null;
+  const buying = baseProductId(pkg.product.identifier);
+  const knownProducts = new Set(
+    Object.values(REVENUECAT_PACKAGE_MAP).map((definition) =>
+      baseProductId(definition.productId),
+    ),
+  );
+  for (const active of activeSubscriptions) {
+    const activeProduct = baseProductId(active);
+    if (activeProduct !== buying && knownProducts.has(activeProduct)) {
+      return { oldProductIdentifier: activeProduct };
+    }
+  }
+  return null;
 }
 
 export function defaultOffering<T extends { identifier: string }>(offerings: {

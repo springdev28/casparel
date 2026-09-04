@@ -142,6 +142,109 @@ export async function fetchWebPackages(
   });
 }
 
+/** A store product id without Google Play's `:basePlan` suffix. */
+export function baseWebProductId(productId: string): string {
+  return productId.split(":")[0] ?? productId;
+}
+
+/**
+ * Which kind of store granted the account's paid entitlement. Purchases made
+ * here (RevenueCat Web Billing — Stripe or Paddle backed) can be changed
+ * here; a subscription billed by Apple or Google must be changed in that
+ * store, and offering a card purchase beside it would run two subscriptions
+ * at once.
+ */
+export type EntitlementStoreKind = "web" | "app-store" | null;
+
+const WEB_STORES = new Set(["rc_billing", "stripe", "paddle", "promotional", "test_store"]);
+
+export interface WebSubscriptionState {
+  /** Active subscription products on this RevenueCat customer, base ids. */
+  activeProductIds: string[];
+  entitlementStore: EntitlementStoreKind;
+  manageUrl: string | null;
+}
+
+export async function fetchWebSubscriptionState(
+  purchases: Purchases,
+): Promise<WebSubscriptionState> {
+  const info = await purchases.getCustomerInfo();
+  const activeProductIds = [...info.activeSubscriptions].map(baseWebProductId);
+  const activeEntitlements = Object.values(info.entitlements.active ?? {});
+  const paid = activeEntitlements.find(
+    (entitlement) =>
+      entitlement.identifier === "plus" || entitlement.identifier === "pro",
+  );
+  return {
+    activeProductIds,
+    entitlementStore: paid
+      ? WEB_STORES.has(paid.store)
+        ? "web"
+        : "app-store"
+      : null,
+    manageUrl: info.managementURL ?? null,
+  };
+}
+
+/** What the one visible control on a plan package should do. */
+export type WebPackageAction =
+  /** Not shown: administrators and undetermined plan states sell nothing. */
+  | "hidden"
+  /** This is the product the account is on. */
+  | "current"
+  | "subscribe"
+  | "switch-tier"
+  | "switch-period"
+  /** Paid through Apple/Google: the change belongs to that store. */
+  | "app-managed";
+
+export interface WebPlanContext {
+  /** False for a visitor: they see Subscribe and are sent through sign-in. */
+  signedIn: boolean;
+  isAdmin: boolean;
+  /** True while the server has not yet said which plan the account is on. */
+  pending: boolean;
+  /** The account's current price level, from the server. */
+  currentLevel: "free" | "plus" | "pro";
+  /** True for the sales-led school licence: nothing self-serve applies. */
+  institutional: boolean;
+  subscription: WebSubscriptionState | null;
+}
+
+/**
+ * Decide the control for one package. Pure, so every state in the matrix —
+ * free, paid-on-web, paid-in-app, institutional, admin, undecided — has a
+ * unit test instead of a manual QA pass.
+ */
+export function webPackageAction(
+  pkg: WebPlanPackage,
+  context: WebPlanContext,
+): WebPackageAction {
+  if (!context.signedIn) return "subscribe";
+  if (context.isAdmin || context.institutional) return "hidden";
+  // Until the server has answered, selling anything risks selling the wrong
+  // thing (a "Subscribe" on an account that is already Pro).
+  if (context.pending) return "hidden";
+  if (context.currentLevel === "free") return "subscribe";
+  // Paid. Work out what they hold and where it was bought.
+  const subscription = context.subscription;
+  if (!subscription || subscription.entitlementStore === "app-store") {
+    return "app-managed";
+  }
+  const active = new Set(subscription.activeProductIds);
+  const definition = WEB_PACKAGE_MAP[pkg.id as keyof typeof WEB_PACKAGE_MAP];
+  if (!definition) return "hidden";
+  if (active.has(baseWebProductId(definition.productId))) return "current";
+  const currentDefinitions = Object.values(WEB_PACKAGE_MAP).filter((candidate) =>
+    active.has(baseWebProductId(candidate.productId)),
+  );
+  const currentTiers = new Set(currentDefinitions.map((candidate) => candidate.tier));
+  if (currentTiers.size > 0 && !currentTiers.has(definition.tier)) {
+    return "switch-tier";
+  }
+  return "switch-period";
+}
+
 export type WebPurchaseOutcome = "success" | "cancelled" | "error";
 
 /**

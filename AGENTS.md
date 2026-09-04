@@ -103,7 +103,7 @@ createdAt: timestamp("created_at").defaultNow().notNull()
 
 ### 8. Platform icons are generated, not drawn
 
-`artifacts/mobile/assets/images/icon-source.png` is the drawing. Every shipped
+`artifacts/app/public/brand/casparel-mark.svg` is the canonical Casparel mark. Every shipped
 icon comes from it:
 
 ```bash

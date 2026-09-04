@@ -2,7 +2,7 @@
  * @fileOverview Web screen role: renders the Settings Page route and coordinates its page-level data and interactions.
  * System connection: mounted from App.tsx; composes generated API hooks, local helpers, and reusable UI components.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useGetMe } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
@@ -10,6 +10,8 @@ import { Switch } from "@workspace/edu-ds/components/ui/switch";
 import { toast } from "@workspace/edu-ds/hooks/use-toast";
 import {
   BookOpen,
+  Ban,
+  Bell,
   ChevronRight,
   Compass,
   Languages,
@@ -17,6 +19,7 @@ import {
   Palette,
   RotateCcw,
   ShieldAlert,
+  Sun,
   Trash2,
   UserRound,
   Volume2,
@@ -29,6 +32,9 @@ import { AuthLanguageSelect } from "../components/AuthLanguageSelect";
 import ThemeCustomizer from "../components/ThemeCustomizer";
 import { PlanSection } from "../components/PlanSection";
 import { useAuthLanguage } from "../lib/auth-locale";
+import { usePlan } from "../lib/use-plan";
+import { useAppearance } from "../hooks/use-appearance";
+import { isAppearanceMode, type AppearanceMode } from "../lib/appearance";
 import {
   isSoundEnabled,
   playFeedback,
@@ -38,6 +44,42 @@ import {
   useUpdateUserPreferences,
   useUserPreferences,
 } from "../lib/user-preferences";
+
+type NativeAdPreferences = {
+  isNativeShell: boolean;
+  soundMuted: boolean;
+  adsDisabled: boolean;
+  canDisableAds: boolean;
+};
+
+function readNativeAdPreferences(): NativeAdPreferences {
+  return {
+    isNativeShell: localStorage.getItem("casparel_native_shell") === "true",
+    soundMuted: localStorage.getItem("casparel_ad_sound_muted") === "true",
+    adsDisabled: localStorage.getItem("casparel_ads_disabled") === "true",
+    canDisableAds: localStorage.getItem("casparel_can_disable_ads") === "true",
+  };
+}
+
+function sendNativeAdPreference(preference: {
+  soundMuted?: boolean;
+  adsDisabled?: boolean;
+}) {
+  const bridge = (
+    window as Window & {
+      ReactNativeWebView?: { postMessage: (message: string) => void };
+    }
+  ).ReactNativeWebView;
+  bridge?.postMessage(
+    JSON.stringify({ type: "ad-preferences", ...preference }),
+  );
+}
+
+type NotificationKey = "enabled" | "messages" | "classes" | "activities" | "goals" | "schedule" | "account" | "announcements";
+const DEFAULT_NOTIFICATIONS = {
+  enabled: true, messages: true, classes: true, activities: true,
+  goals: true, schedule: true, account: true, announcements: true,
+};
 
 export default function SettingsPage() {
   const { data: me } = useGetMe();
@@ -59,6 +101,76 @@ export default function SettingsPage() {
     if (checked) playFeedback("success");
   }
 
+  const [nativeAds, setNativeAds] = useState(readNativeAdPreferences);
+
+  useEffect(() => {
+    const sync = () => setNativeAds(readNativeAdPreferences());
+    window.addEventListener("casparel-ad-preferences-change", sync);
+    return () =>
+      window.removeEventListener("casparel-ad-preferences-change", sync);
+  }, []);
+
+  // On the plain web there is no native bridge: eligibility comes from the
+  // account's plan, and the saved values come from the account preferences.
+  // Inside the native shell the injected localStorage values (kept in sync by
+  // the Android AdsContext, which also persists them to the account) win, so
+  // the two surfaces cannot disagree for longer than one bridge message.
+  const plan = usePlan(Boolean(me));
+  const accountAdPrefs = preferences.data?.adPreferences;
+  const canDisableAds = nativeAds.isNativeShell
+    ? nativeAds.canDisableAds
+    : !plan.pending &&
+      (plan.level === "pro" ||
+        plan.tier === "institutional" ||
+        plan.tier === "administrator");
+  const soundMuted = nativeAds.isNativeShell
+    ? nativeAds.soundMuted
+    : (accountAdPrefs?.soundMuted ?? nativeAds.soundMuted);
+  const adsDisabled = nativeAds.isNativeShell
+    ? nativeAds.adsDisabled
+    : (accountAdPrefs?.adsDisabled ?? nativeAds.adsDisabled);
+
+  const appearance = useAppearance();
+  const savedAppearance = preferences.data?.appearance;
+  useEffect(() => {
+    // The account's saved choice is authoritative once it arrives; the local
+    // copy only exists so the first paint is not a flash of the wrong theme.
+    if (isAppearanceMode(savedAppearance) && savedAppearance !== appearance.mode) {
+      appearance.setMode(savedAppearance);
+    }
+  }, [savedAppearance, appearance]);
+
+  function changeAppearance(mode: AppearanceMode) {
+    appearance.setMode(mode);
+    updatePreferences.mutate({ appearance: mode });
+  }
+
+  function persistAdPreferences(next: { adsDisabled: boolean; soundMuted: boolean }) {
+    // Account storage is what makes the choice follow the person to other
+    // devices; failures fall back to the local copy silently.
+    updatePreferences.mutate({ adPreferences: next });
+  }
+
+  function changeAdSound(soundOn: boolean) {
+    const nextMuted = !soundOn;
+    localStorage.setItem("casparel_ad_sound_muted", String(nextMuted));
+    setNativeAds((current) => ({ ...current, soundMuted: nextMuted }));
+    sendNativeAdPreference({ soundMuted: nextMuted });
+    if (!nativeAds.isNativeShell) {
+      persistAdPreferences({ adsDisabled, soundMuted: nextMuted });
+    }
+  }
+
+  function changeAdsDisabled(nextDisabled: boolean) {
+    if (!canDisableAds) return;
+    localStorage.setItem("casparel_ads_disabled", String(nextDisabled));
+    setNativeAds((current) => ({ ...current, adsDisabled: nextDisabled }));
+    sendNativeAdPreference({ adsDisabled: nextDisabled });
+    if (!nativeAds.isNativeShell) {
+      persistAdPreferences({ adsDisabled: nextDisabled, soundMuted });
+    }
+  }
+
   async function changeLanguage(next: typeof language) {
     setLanguage(next);
     try {
@@ -71,6 +183,17 @@ export default function SettingsPage() {
         variant: "destructive",
       });
     }
+  }
+
+  async function changeNotification(key: NotificationKey, checked: boolean) {
+    const notificationPreferences = {
+      ...DEFAULT_NOTIFICATIONS,
+      ...preferences.data?.notificationPreferences,
+      [key]: checked,
+    };
+    await updatePreferences.mutateAsync({ notificationPreferences });
+    const bridge = (window as Window & { ReactNativeWebView?: { postMessage: (message: string) => void } }).ReactNativeWebView;
+    bridge?.postMessage(JSON.stringify({ type: "notification-preferences", preferences: notificationPreferences }));
   }
 
   return (
@@ -121,6 +244,43 @@ export default function SettingsPage() {
           />
         </section>
 
+        <section className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex min-w-0 gap-3">
+            <Sun className="mt-0.5 size-5 shrink-0 text-primary-text" />
+            <div>
+              <h2 className="font-semibold">Theme</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Follow your device, or pick light or dark. Saved on your
+                account.
+              </p>
+            </div>
+          </div>
+          <div
+            role="radiogroup"
+            aria-label="Theme"
+            className="inline-flex w-full min-w-0 shrink-0 rounded-lg border border-border p-1 sm:w-auto"
+          >
+            {(["light", "dark", "system"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={appearance.mode === mode}
+                onClick={() => changeAppearance(mode)}
+                data-testid={`appearance-${mode}`}
+                className={
+                  "min-w-0 flex-1 truncate rounded-md px-3 py-1.5 text-sm font-medium transition-colors sm:flex-none " +
+                  (appearance.mode === mode
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                {mode === "light" ? "Light" : mode === "dark" ? "Dark" : "System"}
+              </button>
+            ))}
+          </div>
+        </section>
+
         <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
           <div className="flex min-w-0 gap-3">
             <Volume2 className="mt-0.5 size-5 shrink-0 text-primary-text" />
@@ -138,6 +298,82 @@ export default function SettingsPage() {
             aria-label="Play sound effects"
           />
         </section>
+
+        <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
+          <div className="flex min-w-0 gap-3">
+            <Volume2 className="mt-0.5 size-5 shrink-0 text-primary-text" />
+            <div>
+              <h2 className="font-semibold">Ad sound</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Play video ads with sound by default. Muting one ad mutes
+                them all.
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={!soundMuted}
+            onCheckedChange={changeAdSound}
+            aria-label="Play ad sound"
+          />
+        </section>
+
+        <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
+          <div className="flex min-w-0 gap-3">
+            <Ban className="mt-0.5 size-5 shrink-0 text-primary-text" />
+            <div>
+              <h2 className="font-semibold">Disable ads</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {canDisableAds
+                  ? "Hide sponsored sections everywhere you use Casparel. Saved on your account."
+                  : "Available with Casparel Pro or Institutional."}
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={adsDisabled}
+            disabled={!canDisableAds}
+            onCheckedChange={changeAdsDisabled}
+            aria-label="Disable ads"
+            data-testid="settings-disable-ads"
+          />
+        </section>
+
+        {nativeAds.isNativeShell ? (
+          <section className="border-b p-4 sm:p-5">
+            <div className="mb-4 flex min-w-0 gap-3">
+              <Bell className="mt-0.5 size-5 shrink-0 text-primary-text" />
+              <div>
+                <h2 className="font-semibold">Notifications</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Choose which Android notifications Casparel may send.</p>
+              </div>
+            </div>
+            <div className="space-y-3 pl-8">
+              {([
+                ["enabled", "Allow notifications"],
+                ["messages", "Messages"],
+                ["classes", "Class invitations and updates"],
+                ["activities", "Activities and deadlines"],
+                ["goals", "Goals and study reminders"],
+                ["schedule", "Schedule reminders"],
+                ["account", "Account, subscription and payment updates"],
+                ["announcements", "Casparel announcements"],
+              ] as const).map(([key, label]) => {
+                const values = { ...DEFAULT_NOTIFICATIONS, ...preferences.data?.notificationPreferences };
+                return (
+                  <div key={key} className="flex items-center justify-between gap-4">
+                    <span className="text-sm">{label}</span>
+                    <Switch
+                      checked={values[key]}
+                      disabled={preferences.isLoading || updatePreferences.isPending || (key !== "enabled" && !values.enabled)}
+                      onCheckedChange={(checked) => void changeNotification(key, checked)}
+                      aria-label={label}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
 
         <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
           <div className="flex min-w-0 gap-3">
