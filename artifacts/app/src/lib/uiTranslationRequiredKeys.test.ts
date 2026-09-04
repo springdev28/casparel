@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import TR from "./tr";
+import TR from "./ui-translations/tr";
 
 /**
  * The strings a reader must never meet in English.
