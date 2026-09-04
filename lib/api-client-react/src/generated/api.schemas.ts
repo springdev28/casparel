@@ -205,6 +205,14 @@ export interface NotificationPreferences {
 }
 
 /**
+ * Advertising preferences, stored on the account so they follow the person across devices. Whether adsDisabled may take effect is an entitlement question (Pro, Review, Institutional) answered at read time; the stored flag survives entitlement changes.
+ */
+export interface AdPreferences {
+  adsDisabled: boolean;
+  soundMuted: boolean;
+}
+
+/**
  * Null when the account has never chosen. A client falls back to the device's language then, not to English.
  * @nullable
  */
@@ -271,6 +279,7 @@ export interface UserPreferences {
   resourceSearchState: UserPreferencesResourceSearchState;
   allowMessageRequests: boolean;
   notificationPreferences: NotificationPreferences;
+  adPreferences: AdPreferences;
   tutorialSeen: boolean;
   updatedAt: string;
 }
@@ -330,6 +339,7 @@ export interface UserPreferencesPatch {
   resourceSearchState?: UserPreferencesPatchResourceSearchState;
   allowMessageRequests?: boolean;
   notificationPreferences?: NotificationPreferences;
+  adPreferences?: AdPreferences;
   tutorialSeen?: boolean;
 }
 

@@ -255,6 +255,12 @@ const userPreferencesPatch = z
         announcements: z.boolean(),
       })
       .optional(),
+    adPreferences: z
+      .object({
+        adsDisabled: z.boolean(),
+        soundMuted: z.boolean(),
+      })
+      .optional(),
     tutorialSeen: z.boolean().optional(),
   })
   .strict();
@@ -282,6 +288,10 @@ function defaultUserPreferences(userId: number) {
       schedule: true,
       account: true,
       announcements: true,
+    },
+    adPreferences: {
+      adsDisabled: false,
+      soundMuted: false,
     },
     tutorialSeen: true,
     updatedAt: new Date(0).toISOString(),

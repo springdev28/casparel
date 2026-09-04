@@ -3397,6 +3397,19 @@ components:
         account: { type: boolean }
         announcements: { type: boolean }
 
+    AdPreferences:
+      type: object
+      description: >-
+        Advertising preferences, stored on the account so they follow the
+        person across devices. Whether adsDisabled may take effect is an
+        entitlement question (Pro, Review, Institutional) answered at read
+        time; the stored flag survives entitlement changes.
+      additionalProperties: false
+      required: [adsDisabled, soundMuted]
+      properties:
+        adsDisabled: { type: boolean }
+        soundMuted: { type: boolean }
+
     UserPreferences:
       type: object
       description: >-
@@ -3422,6 +3435,7 @@ components:
           resourceSearchState,
           allowMessageRequests,
           notificationPreferences,
+          adPreferences,
           tutorialSeen,
           updatedAt,
         ]
@@ -3466,6 +3480,8 @@ components:
         allowMessageRequests: { type: boolean }
         notificationPreferences:
           $ref: "#/components/schemas/NotificationPreferences"
+        adPreferences:
+          $ref: "#/components/schemas/AdPreferences"
         tutorialSeen: { type: boolean }
         updatedAt: { type: string, format: date-time }
 
@@ -3511,6 +3527,8 @@ components:
         allowMessageRequests: { type: boolean }
         notificationPreferences:
           $ref: "#/components/schemas/NotificationPreferences"
+        adPreferences:
+          $ref: "#/components/schemas/AdPreferences"
         tutorialSeen: { type: boolean }
 
     ConversationParticipant:

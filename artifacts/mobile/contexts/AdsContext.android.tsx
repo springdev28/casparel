@@ -13,10 +13,13 @@ import React, {
   useState,
 } from "react";
 import type { AdsConsentInfo } from "react-native-google-mobile-ads";
+import { getGetMyUsageQueryKey, useGetMyUsage } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { usePurchases } from "@/contexts/PurchasesContext";
 import { storage } from "@/utils/secure-storage";
+import { apiOrigin } from "@/utils/api-host";
+import { logAdDiagnostic } from "@/utils/ad-diagnostics";
 import {
   loadGoogleMobileAds,
   type GoogleMobileAdsModule,
@@ -86,9 +89,15 @@ async function initializeSdk(ads: GoogleMobileAdsModule): Promise<void> {
 }
 
 export function AdsProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, token } = useAuth();
   const { level } = usePurchases();
   const { ready: onboardingReady, needsOnboarding } = useOnboarding();
+  // Entitlement is the wider of the store's answer and the server's: the
+  // Review account and Institutional seats hold Pro-level access granted by
+  // the server with no RevenueCat subscription behind it.
+  const { data: usage } = useGetMyUsage({
+    query: { enabled: isAuthenticated, queryKey: getGetMyUsageQueryKey() },
+  });
   const [ready, setReady] = useState(false);
   const [preferencesReady, setPreferencesReady] = useState(false);
   const [soundMuted, setSoundMutedState] = useState(false);
@@ -97,14 +106,36 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   const [adsModule, setAdsModule] = useState<GoogleMobileAdsModule | null>(
     null,
   );
-  const canDisableAds = level === "pro";
-  const isStoreReviewAccount =
-    user?.email?.trim().toLowerCase() === "review@casparel.com";
+  const canDisableAds =
+    level === "pro" ||
+    usage?.tier === "pro" ||
+    usage?.tier === "institutional" ||
+    usage?.unlimited === true;
+
+  /** Persist both ad preferences on the account, best-effort. */
+  const pushPreferencesToAccount = useCallback(
+    (next: { adsDisabled: boolean; soundMuted: boolean }) => {
+      if (!token) return;
+      void fetch(`${apiOrigin}/api/users/me/preferences`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ adPreferences: next }),
+      }).catch(() => {
+        // Offline is fine: the device cache below re-syncs on a later change,
+        // and the server copy stays whatever it last was.
+      });
+    },
+    [token],
+  );
 
   useEffect(() => {
     let cancelled = false;
     setPreferencesReady(false);
     void (async () => {
+      // Device cache first so the gate can settle offline…
       const [storedMuted, storedDisabled] = await Promise.all([
         storage.getItemAsync(AD_SOUND_MUTED_KEY),
         user?.id != null
@@ -115,16 +146,50 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       setSoundMutedState(storedMuted === "true");
       setAdsDisabledState(storedDisabled === "true");
       setPreferencesReady(true);
+
+      // …then the account's stored answer wins, so the choice follows the
+      // person to a reinstalled or second device.
+      if (!token) return;
+      try {
+        const response = await fetch(`${apiOrigin}/api/users/me/preferences`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok || cancelled) return;
+        const data = (await response.json()) as {
+          adPreferences?: { adsDisabled?: boolean; soundMuted?: boolean };
+        };
+        if (cancelled || !data.adPreferences) return;
+        if (typeof data.adPreferences.soundMuted === "boolean") {
+          setSoundMutedState(data.adPreferences.soundMuted);
+          await storage.setItemAsync(
+            AD_SOUND_MUTED_KEY,
+            String(data.adPreferences.soundMuted),
+          );
+        }
+        if (typeof data.adPreferences.adsDisabled === "boolean" && user?.id != null) {
+          setAdsDisabledState(data.adPreferences.adsDisabled);
+          await storage.setItemAsync(
+            `${ADS_DISABLED_KEY}:${user.id}`,
+            String(data.adPreferences.adsDisabled),
+          );
+        }
+      } catch {
+        // The device cache already answered.
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [user?.id]);
+  }, [token, user?.id]);
 
-  const setSoundMuted = useCallback(async (muted: boolean) => {
-    setSoundMutedState(muted);
-    await storage.setItemAsync(AD_SOUND_MUTED_KEY, String(muted));
-  }, []);
+  const setSoundMuted = useCallback(
+    async (muted: boolean) => {
+      setSoundMutedState(muted);
+      await storage.setItemAsync(AD_SOUND_MUTED_KEY, String(muted));
+      pushPreferencesToAccount({ adsDisabled, soundMuted: muted });
+    },
+    [adsDisabled, pushPreferencesToAccount],
+  );
 
   const setAdsDisabled = useCallback(
     async (disabled: boolean) => {
@@ -136,9 +201,10 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
           String(disabled),
         );
       }
+      pushPreferencesToAccount({ adsDisabled: disabled, soundMuted });
       return true;
     },
-    [canDisableAds, user?.id],
+    [canDisableAds, pushPreferencesToAccount, soundMuted, user?.id],
   );
 
   useEffect(() => {
@@ -197,18 +263,25 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
 
       if (cancelled) return;
       setConsentInfo(info);
+      logAdDiagnostic('consent-status', {
+        status: info?.status ?? 'unknown',
+        canRequestAds: info?.canRequestAds ?? false,
+      });
 
       if (!info?.canRequestAds) {
+        logAdDiagnostic('request-blocked', { reason: 'consent' });
         setReady(true);
         return;
       }
 
       try {
         await initializeSdk(ads);
+        logAdDiagnostic('sdk-initialized');
         if (!cancelled) setAdsModule(ads);
       } catch {
         // Ads are optional. Keep the dashboard available and leave the gate
         // closed when the native SDK cannot initialize.
+        logAdDiagnostic('sdk-init-failed');
         if (!cancelled) setConsentInfo({ ...info, canRequestAds: false });
       } finally {
         if (!cancelled) setReady(true);
@@ -236,11 +309,13 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AdsContextValue>(
     () => ({
       ready,
+      // The Review account holds Pro-level access, so its Disable ads toggle
+      // works exactly like a paying Pro's — off by default, effective when on.
       canRequestAds:
         ready &&
         preferencesReady &&
         consentInfo?.canRequestAds === true &&
-        !(!isStoreReviewAccount && canDisableAds && adsDisabled),
+        !(canDisableAds && adsDisabled),
       soundMuted,
       adsDisabled: canDisableAds && adsDisabled,
       canDisableAds,
@@ -257,7 +332,6 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       adsModule,
       canDisableAds,
       consentInfo,
-      isStoreReviewAccount,
       preferencesReady,
       ready,
       setAdsDisabled,

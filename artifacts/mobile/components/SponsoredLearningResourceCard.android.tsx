@@ -22,6 +22,7 @@ import {
   loadGoogleMobileAds,
   type GoogleMobileAdsModule,
 } from "@/utils/google-mobile-ads";
+import { ADMOB_NO_FILL_CODE, logAdDiagnostic } from "@/utils/ad-diagnostics";
 
 const productionAdUnitId =
   process.env.EXPO_PUBLIC_ADMOB_ANDROID_DASHBOARD_NATIVE_AD_UNIT_ID ?? null;
@@ -63,12 +64,17 @@ export function SponsoredLearningResourceCard() {
     let requestedAdUnitId: string | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
+    logAdDiagnostic('request-permitted');
     void loadGoogleMobileAds()
       .then(async (ads) => {
         if (!ads || cancelled) return null;
         const adUnitId = adUnitForThisBuild(ads);
-        if (!adUnitId) return null;
-        requestedAdUnitId = adUnitId;
+        if (!adUnitId) {
+          logAdDiagnostic('unit-missing', { dev: __DEV__ });
+          return null;
+        }
+        logAdDiagnostic('unit-present');
+        logAdDiagnostic('ad-requested', { unit: adUnitId });
 
         const ad = await ads.NativeAd.createForAdRequest(adUnitId, {
           // UMP/TFUA is the privacy gate; this request flag independently
@@ -96,6 +102,7 @@ export function SponsoredLearningResourceCard() {
         // Register callbacks before React paints the NativeAdView so a very
         // fast first impression cannot outrun RevenueCat tracking.
         ad.addAdEventListener(ads.NativeAdEventType.IMPRESSION, () => {
+          logAdDiagnostic('ad-displayed', { unit: adUnitId, response: ad.responseId });
           void trackSponsoredAdDisplayed(adUnitId, ad.responseId);
         });
         ad.addAdEventListener(ads.NativeAdEventType.CLICKED, () => {
@@ -123,6 +130,7 @@ export function SponsoredLearningResourceCard() {
           setRequestNonce((value) => value + 1);
         });
 
+        logAdDiagnostic('ad-loaded', { unit: adUnitId, response: ad.responseId });
         void trackSponsoredAdLoaded(adUnitId, ad.responseId);
         setCreative({ nativeAd: ad, ads });
         return ad;
@@ -133,9 +141,16 @@ export function SponsoredLearningResourceCard() {
           typeof error === "object" && error !== null && "code" in error
             ? (error as { code?: unknown }).code
             : undefined;
+        logAdDiagnostic(
+          code === ADMOB_NO_FILL_CODE ? 'ad-no-fill' : 'ad-request-failed',
+          { unit: requestedAdUnitId, code: typeof code === 'string' ? code : String(code ?? 'unknown') },
+        );
         if (requestedAdUnitId) {
           void trackSponsoredAdFailed(requestedAdUnitId, code);
         }
+        // A failed or no-fill answer leaves the compact placeholder in place
+        // and retries on a bounded timer that is cleared on unmount; the page
+        // itself never collapses.
         retryTimer = setTimeout(() => {
           if (!cancelled) setRequestNonce((value) => value + 1);
         }, 30_000);
@@ -219,9 +234,9 @@ export function SponsoredLearningResourceCard() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={t(
-                soundMuted ? "Turn ad sound on" : "Mute ads",
-              )}
+              accessibilityLabel={
+                soundMuted ? t("Turn ad sound on") : t("Mute ads")
+              }
               hitSlop={8}
               onPress={() => void setSoundMuted(!soundMuted)}
               style={styles.soundButton}

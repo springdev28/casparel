@@ -3897,6 +3897,10 @@ export const GetMyPreferencesResponse = zod.object({
   "account": zod.boolean(),
   "announcements": zod.boolean()
 }),
+  "adPreferences": zod.object({
+  "adsDisabled": zod.boolean(),
+  "soundMuted": zod.boolean()
+}).describe('Advertising preferences, stored on the account so they follow the person across devices. Whether adsDisabled may take effect is an entitlement question (Pro, Review, Institutional) answered at read time; the stored flag survives entitlement changes.'),
   "tutorialSeen": zod.boolean(),
   "updatedAt": zod.coerce.date()
 }).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')
@@ -3961,6 +3965,10 @@ export const UpdateMyPreferencesBody = zod.object({
   "account": zod.boolean(),
   "announcements": zod.boolean()
 }).optional(),
+  "adPreferences": zod.object({
+  "adsDisabled": zod.boolean(),
+  "soundMuted": zod.boolean()
+}).optional().describe('Advertising preferences, stored on the account so they follow the person across devices. Whether adsDisabled may take effect is an entitlement question (Pro, Review, Institutional) answered at read time; the stored flag survives entitlement changes.'),
   "tutorialSeen": zod.boolean().optional()
 }).describe('Only the keys present are changed.')
 
@@ -4014,6 +4022,10 @@ export const UpdateMyPreferencesResponse = zod.object({
   "account": zod.boolean(),
   "announcements": zod.boolean()
 }),
+  "adPreferences": zod.object({
+  "adsDisabled": zod.boolean(),
+  "soundMuted": zod.boolean()
+}).describe('Advertising preferences, stored on the account so they follow the person across devices. Whether adsDisabled may take effect is an entitlement question (Pro, Review, Institutional) answered at read time; the stored flag survives entitlement changes.'),
   "tutorialSeen": zod.boolean(),
   "updatedAt": zod.coerce.date()
 }).describe('Read by the web app, the phone app and the desktop shell. The phone reached it with a hand-rolled fetch for as long as it was undescribed, which is what the contract-route test exists to stop.')

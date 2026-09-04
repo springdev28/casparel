@@ -47,6 +47,23 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   announcements: true,
 };
 
+/**
+ * Advertising preferences follow the account, not the device: disabling ads
+ * on a phone must hold on a reinstalled phone and on the web. Whether
+ * `adsDisabled` may take effect is an entitlement question answered at read
+ * time (Pro, Review, Institutional); the stored flag survives entitlement
+ * changes so a lapsed-and-renewed Pro keeps their choice.
+ */
+export type AdPreferences = {
+  adsDisabled: boolean;
+  soundMuted: boolean;
+};
+
+export const DEFAULT_AD_PREFERENCES: AdPreferences = {
+  adsDisabled: false,
+  soundMuted: false,
+};
+
 export const userPreferencesTable = pgTable("user_preferences", {
   userId: integer("user_id")
     .primaryKey()
@@ -85,6 +102,10 @@ export const userPreferencesTable = pgTable("user_preferences", {
     .$type<NotificationPreferences>()
     .notNull()
     .default(DEFAULT_NOTIFICATION_PREFERENCES),
+  adPreferences: jsonb("ad_preferences")
+    .$type<AdPreferences>()
+    .notNull()
+    .default(DEFAULT_AD_PREFERENCES),
   tutorialSeen: boolean("tutorial_seen").notNull().default(true),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
     .notNull()

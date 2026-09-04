@@ -169,6 +169,10 @@ const PREFERENCES = {
     account: true,
     announcements: true,
   },
+  adPreferences: {
+    adsDisabled: false,
+    soundMuted: false,
+  },
   tutorialSeen: true,
   updatedAt: "2026-08-01T09:00:00.000Z",
 };

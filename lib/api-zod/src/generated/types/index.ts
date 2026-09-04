@@ -30,6 +30,7 @@ export * from './adminOverviewWorkflowEngagement';
 export * from './adminOverviewWorkflowFunnel';
 export * from './adminUserAiUsage';
 export * from './adminUserAiUsagePlan';
+export * from './adPreferences';
 export * from './aiHealth';
 export * from './aiHealthLastState';
 export * from './aiHealthReason';

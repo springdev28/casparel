@@ -31,6 +31,7 @@ import { AuthLanguageSelect } from "../components/AuthLanguageSelect";
 import ThemeCustomizer from "../components/ThemeCustomizer";
 import { PlanSection } from "../components/PlanSection";
 import { useAuthLanguage } from "../lib/auth-locale";
+import { usePlan } from "../lib/use-plan";
 import {
   useUpdateUserPreferences,
   useUserPreferences,
@@ -89,18 +90,50 @@ export default function SettingsPage() {
       window.removeEventListener("casparel-ad-preferences-change", sync);
   }, []);
 
-  function changeAdSound(soundOn: boolean) {
-    const soundMuted = !soundOn;
-    localStorage.setItem("casparel_ad_sound_muted", String(soundMuted));
-    setNativeAds((current) => ({ ...current, soundMuted }));
-    sendNativeAdPreference({ soundMuted });
+  // On the plain web there is no native bridge: eligibility comes from the
+  // account's plan, and the saved values come from the account preferences.
+  // Inside the native shell the injected localStorage values (kept in sync by
+  // the Android AdsContext, which also persists them to the account) win, so
+  // the two surfaces cannot disagree for longer than one bridge message.
+  const plan = usePlan(Boolean(me));
+  const accountAdPrefs = preferences.data?.adPreferences;
+  const canDisableAds = nativeAds.isNativeShell
+    ? nativeAds.canDisableAds
+    : !plan.pending &&
+      (plan.level === "pro" ||
+        plan.tier === "institutional" ||
+        plan.tier === "administrator");
+  const soundMuted = nativeAds.isNativeShell
+    ? nativeAds.soundMuted
+    : (accountAdPrefs?.soundMuted ?? nativeAds.soundMuted);
+  const adsDisabled = nativeAds.isNativeShell
+    ? nativeAds.adsDisabled
+    : (accountAdPrefs?.adsDisabled ?? nativeAds.adsDisabled);
+
+  function persistAdPreferences(next: { adsDisabled: boolean; soundMuted: boolean }) {
+    // Account storage is what makes the choice follow the person to other
+    // devices; failures fall back to the local copy silently.
+    updatePreferences.mutate({ adPreferences: next });
   }
 
-  function changeAdsDisabled(adsDisabled: boolean) {
-    if (!nativeAds.canDisableAds) return;
-    localStorage.setItem("casparel_ads_disabled", String(adsDisabled));
-    setNativeAds((current) => ({ ...current, adsDisabled }));
-    sendNativeAdPreference({ adsDisabled });
+  function changeAdSound(soundOn: boolean) {
+    const nextMuted = !soundOn;
+    localStorage.setItem("casparel_ad_sound_muted", String(nextMuted));
+    setNativeAds((current) => ({ ...current, soundMuted: nextMuted }));
+    sendNativeAdPreference({ soundMuted: nextMuted });
+    if (!nativeAds.isNativeShell) {
+      persistAdPreferences({ adsDisabled, soundMuted: nextMuted });
+    }
+  }
+
+  function changeAdsDisabled(nextDisabled: boolean) {
+    if (!canDisableAds) return;
+    localStorage.setItem("casparel_ads_disabled", String(nextDisabled));
+    setNativeAds((current) => ({ ...current, adsDisabled: nextDisabled }));
+    sendNativeAdPreference({ adsDisabled: nextDisabled });
+    if (!nativeAds.isNativeShell) {
+      persistAdPreferences({ adsDisabled: nextDisabled, soundMuted });
+    }
   }
 
   async function changeLanguage(next: typeof language) {
@@ -176,46 +209,44 @@ export default function SettingsPage() {
           />
         </section>
 
-        {nativeAds.isNativeShell ? (
-          <>
-            <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
-              <div className="flex min-w-0 gap-3">
-                <Volume2 className="mt-0.5 size-5 shrink-0 text-primary-text" />
-                <div>
-                  <h2 className="font-semibold">Ad sound</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Play video ads with sound by default.
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={!nativeAds.soundMuted}
-                onCheckedChange={changeAdSound}
-                aria-label="Play ad sound"
-              />
-            </section>
+        <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
+          <div className="flex min-w-0 gap-3">
+            <Volume2 className="mt-0.5 size-5 shrink-0 text-primary-text" />
+            <div>
+              <h2 className="font-semibold">Ad sound</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Play video ads with sound by default. Muting one ad mutes
+                them all.
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={!soundMuted}
+            onCheckedChange={changeAdSound}
+            aria-label="Play ad sound"
+          />
+        </section>
 
-            <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
-              <div className="flex min-w-0 gap-3">
-                <Ban className="mt-0.5 size-5 shrink-0 text-primary-text" />
-                <div>
-                  <h2 className="font-semibold">Disable ads</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {nativeAds.canDisableAds
-                      ? "Hide sponsored sections across the Android app."
-                      : "Available with Casparel Pro or Institutional."}
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={nativeAds.adsDisabled}
-                disabled={!nativeAds.canDisableAds}
-                onCheckedChange={changeAdsDisabled}
-                aria-label="Disable ads"
-              />
-            </section>
-          </>
-        ) : null}
+        <section className="flex items-center justify-between gap-4 border-b p-4 sm:p-5">
+          <div className="flex min-w-0 gap-3">
+            <Ban className="mt-0.5 size-5 shrink-0 text-primary-text" />
+            <div>
+              <h2 className="font-semibold">Disable ads</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {canDisableAds
+                  ? "Hide sponsored sections everywhere you use Casparel. Saved on your account."
+                  : "Available with Casparel Pro or Institutional."}
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={adsDisabled}
+            disabled={!canDisableAds}
+            onCheckedChange={changeAdsDisabled}
+            aria-label="Disable ads"
+            data-testid="settings-disable-ads"
+          />
+        </section>
 
         {nativeAds.isNativeShell ? (
           <section className="border-b p-4 sm:p-5">

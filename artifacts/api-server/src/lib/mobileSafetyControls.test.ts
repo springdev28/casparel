@@ -34,8 +34,10 @@ describe("mobile user-safety controls", () => {
   it("requires the UGC terms before registration", () => {
     expect(registration).toContain("acceptedTerms");
     expect(registration).toContain("disabled={!acceptedTerms}");
-    expect(registration).toContain("https://casparel.com/terms");
-    expect(registration).toContain("https://casparel.com/privacy");
+    // The links derive from the configured origin (casparel.com in
+    // production) so a staging build opens its own deployment's documents.
+    expect(registration).toContain("`${apiOrigin}/terms`");
+    expect(registration).toContain("`${apiOrigin}/privacy`");
   });
 
   it("lets an account created on the phone start permanent deletion on the phone", () => {
