@@ -5,23 +5,32 @@
  */
 
 export type AdDiagnosticState =
+  | 'provider-mounted'
+  | 'authentication-ready'
+  | 'onboarding-ready'
+  | 'preferences-ready'
+  | 'ads-disabled'
   | 'sdk-initialized'
   | 'sdk-init-failed'
   | 'consent-status'
+  | 'request-eligibility'
   | 'request-permitted'
   | 'request-blocked'
-  | 'unit-present'
+  | 'production-unit-selected'
   | 'unit-missing'
   | 'ad-requested'
   | 'ad-loaded'
   | 'ad-no-fill'
   | 'ad-request-failed'
-  | 'ad-displayed';
+  | 'ad-displayed'
+  | 'placement-mounted'
+  | 'placement-dismissed';
 
 /**
  * Values are restricted to primitives so nothing rich (a user object, a
- * token, an error with request headers) can be logged by accident. AdMob
- * response ids and unit ids are Google-issued identifiers, not user data.
+ * token, an error with request headers) can be logged by accident. Unit ids,
+ * public SDK keys and response ids are deliberately omitted too: support only
+ * needs the lifecycle state and a safe failure category.
  */
 export function logAdDiagnostic(
   state: AdDiagnosticState,

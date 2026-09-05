@@ -18,15 +18,32 @@ import {
   pathAllowsWebAd,
   webAdsConfigured,
 } from "../lib/webAds";
-import {
-  readAdConsent,
-  subscribeToAdConsent,
-} from "../lib/ad-consent";
+import { readAdConsent, subscribeToAdConsent } from "../lib/ad-consent";
 
 declare global {
   interface Window {
     adsbygoogle?: unknown[];
   }
+}
+
+const NATIVE_AD_SLOT_HEIGHT = 300;
+const NATIVE_AD_SAFE_TOP = 72;
+
+function nativeAdsEligible(): boolean {
+  try {
+    return localStorage.getItem("casparel_native_ads_eligible") === "true";
+  } catch {
+    return false;
+  }
+}
+
+function postToNative(message: Record<string, unknown>): void {
+  const bridge = (
+    window as Window & {
+      ReactNativeWebView?: { postMessage: (value: string) => void };
+    }
+  ).ReactNativeWebView;
+  bridge?.postMessage(JSON.stringify(message));
 }
 
 /**
@@ -53,8 +70,10 @@ export function InlineAd({ className }: { className?: string }) {
   );
 
   const slot = useRef<HTMLModElement>(null);
+  const nativeSlot = useRef<HTMLElement>(null);
   const [dismissed, setDismissed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [nativeEligible, setNativeEligible] = useState(nativeAdsEligible);
 
   const nativeShell = (() => {
     try {
@@ -69,6 +88,78 @@ export function InlineAd({ className }: { className?: string }) {
     (plan.level === "pro" ||
       plan.tier === "institutional" ||
       plan.tier === "administrator");
+
+  useEffect(() => {
+    setDismissed(false);
+  }, [location]);
+
+  useEffect(() => {
+    const update = () => setNativeEligible(nativeAdsEligible());
+    const dismiss = (event: Event) => {
+      const placement = (event as CustomEvent<string>).detail;
+      if (placement === `inline:${location}`) setDismissed(true);
+    };
+    window.addEventListener("casparel-native-ads-eligibility-change", update);
+    window.addEventListener("casparel-native-ad-dismiss", dismiss);
+    return () => {
+      window.removeEventListener(
+        "casparel-native-ads-eligibility-change",
+        update,
+      );
+      window.removeEventListener("casparel-native-ad-dismiss", dismiss);
+    };
+  }, [location]);
+
+  const nativePlacementEligible =
+    nativeShell && nativeEligible && pathAllowsWebAd(location) && !dismissed;
+
+  useEffect(() => {
+    if (!nativePlacementEligible || !nativeSlot.current) return;
+    const placementId = `inline:${location}`;
+    let frame = 0;
+    const publish = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const element = nativeSlot.current;
+        if (!element) return;
+        const rect = element.getBoundingClientRect();
+        const visible =
+          rect.top >= NATIVE_AD_SAFE_TOP && rect.bottom <= window.innerHeight;
+        postToNative({
+          type: "native-ad-placement",
+          id: placementId,
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+          visible,
+        });
+      });
+    };
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(publish);
+    observer?.observe(nativeSlot.current);
+    window.addEventListener("scroll", publish, true);
+    window.addEventListener("resize", publish);
+    publish();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("scroll", publish, true);
+      window.removeEventListener("resize", publish);
+      postToNative({
+        type: "native-ad-placement",
+        id: placementId,
+        top: 0,
+        left: 0,
+        width: 1,
+        height: NATIVE_AD_SLOT_HEIGHT,
+        visible: false,
+      });
+    };
+  }, [location, nativePlacementEligible]);
 
   const eligible =
     pathAllowsWebAd(location) &&
@@ -101,6 +192,22 @@ export function InlineAd({ className }: { className?: string }) {
       cancelled = true;
     };
   }, [dismissed, eligible, loaded]);
+
+  if (nativeShell) {
+    if (!nativePlacementEligible) return null;
+    return (
+      <aside
+        ref={nativeSlot}
+        aria-label="Advertisement"
+        data-testid="native-inline-ad-placeholder"
+        data-native-ad-placement={`inline:${location}`}
+        className={"my-4 w-full min-w-0 max-w-full " + (className ?? "")}
+        style={{ height: NATIVE_AD_SLOT_HEIGHT }}
+      >
+        <span className="sr-only">Advertisement</span>
+      </aside>
+    );
+  }
 
   if (!eligible || dismissed) return null;
 

@@ -25,6 +25,7 @@ import {
   type PurchasesModule,
   classifyPurchaseError,
   defaultOffering,
+  missingRequiredPackages,
   type PurchaseFailure,
   type RCCustomerInfo,
   type RCOffering,
@@ -32,6 +33,7 @@ import {
 } from '@/utils/revenuecat';
 import { AppState } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
+import { logPurchaseDiagnostic } from '@/utils/purchase-diagnostics';
 
 /**
  * How a purchase ended.
@@ -53,6 +55,7 @@ export type PurchaseAvailabilityIssue =
   | 'missing-native-sdk'
   | 'configuration-error'
   | 'no-offering'
+  | 'incomplete-offering'
   | null;
 
 interface PurchasesContextValue {
@@ -104,12 +107,45 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     setCustomerInfo(info);
   }, []);
 
+  const applyOfferings = useCallback((offerings: {
+    current: RCOffering | null;
+    all: Record<string, RCOffering>;
+  }) => {
+    const offering = defaultOffering(offerings);
+    setCurrentOffering(offering);
+    logPurchaseDiagnostic(offering ? 'default-offering-found' : 'default-offering-missing');
+    const offeredPackages = offering?.availablePackages ?? [];
+    logPurchaseDiagnostic('package-count', { count: offeredPackages.length });
+    logPurchaseDiagnostic('package-identifiers', {
+      identifiers: offeredPackages.map((pkg) => pkg.identifier).sort().join(',') || 'none',
+    });
+    if (!offering || offeredPackages.length === 0) {
+      setAvailabilityIssue('no-offering');
+      return;
+    }
+    const missing = missingRequiredPackages(offeredPackages);
+    if (missing.length > 0) {
+      logPurchaseDiagnostic('package-identifiers', { missing: missing.join(',') });
+      setAvailabilityIssue('incomplete-offering');
+      return;
+    }
+    setAvailabilityIssue(null);
+  }, []);
+
+  useEffect(() => {
+    logPurchaseDiagnostic('provider-mounted');
+  }, []);
+
   // Configure the SDK once, as early as possible.
   useEffect(() => {
     let cancelled = false;
     let listener: ((info: RCCustomerInfo) => void) | null = null;
 
     (async () => {
+      logPurchaseDiagnostic('configuration-started', {
+        platformSupported: purchasesSupported,
+        keyConfigured: Boolean(RC_API_KEY),
+      });
       if (!purchasesSupported) {
         setAvailabilityIssue('unsupported-platform');
         setAvailable(false);
@@ -141,6 +177,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
             ? String(userIdRef.current)
             : null;
         Purchases.configure({ apiKey: RC_API_KEY, appUserID: knownUserId });
+        logPurchaseDiagnostic('configured');
         identityRef.current = knownUserId;
         purchasesRef.current = Purchases;
         setAvailable(true);
@@ -149,18 +186,16 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         listener = (info: RCCustomerInfo) => applyCustomerInfo(info);
         Purchases.addCustomerInfoUpdateListener(listener);
 
+        logPurchaseDiagnostic('offering-requested', { reason: 'startup' });
         const [info, offerings] = await Promise.all([
           Purchases.getCustomerInfo(),
           Purchases.getOfferings(),
         ]);
         if (cancelled) return;
         applyCustomerInfo(info);
-        const offering = defaultOffering(offerings);
-        setCurrentOffering(offering);
-        setAvailabilityIssue(
-          offering?.availablePackages.length ? null : 'no-offering',
-        );
+        applyOfferings(offerings);
       } catch {
+        logPurchaseDiagnostic('configuration-error');
         setAvailable(false);
         setAvailabilityIssue('configuration-error');
       } finally {
@@ -179,7 +214,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
         }
       }
     };
-  }, [applyCustomerInfo]);
+  }, [applyCustomerInfo, applyOfferings]);
 
   // Associate RevenueCat's identity with the signed-in Casparel user so that
   // entitlements follow the account across devices.
@@ -214,20 +249,17 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     const Purchases = purchasesRef.current;
     if (!Purchases) return;
     try {
+      logPurchaseDiagnostic('offering-requested', { reason: 'refresh' });
       const [info, offerings] = await Promise.all([
         Purchases.getCustomerInfo(),
         Purchases.getOfferings(),
       ]);
       applyCustomerInfo(info);
-      const offering = defaultOffering(offerings);
-      setCurrentOffering(offering);
-      setAvailabilityIssue(
-        offering?.availablePackages.length ? null : 'no-offering',
-      );
+      applyOfferings(offerings);
     } catch {
-      // ignore transient errors
+      logPurchaseDiagnostic('offering-request-failed');
     }
-  }, [applyCustomerInfo]);
+  }, [applyCustomerInfo, applyOfferings]);
 
   /**
    * Make sure RevenueCat is acting as the signed-in Casparel account before

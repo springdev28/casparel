@@ -30,6 +30,10 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAds } from '@/contexts/AdsContext';
 import { apiOrigin } from '@/utils/api-host';
 import { shouldShowSponsoredAd } from '@/utils/ad-placement';
+import {
+  parseNativeAdPlacement,
+  type NativeAdPlacement,
+} from '@/utils/native-ad-placement';
 import { classifyMobileWebUrl } from '@/utils/mobile-web-navigation';
 import {
   useNotifications,
@@ -58,11 +62,14 @@ export default function MobileWebAppScreen() {
     soundMuted,
     adsDisabled,
     canDisableAds,
+    canRequestAds,
     setSoundMuted,
     setAdsDisabled,
   } = useAds();
   const [canGoBack, setCanGoBack] = useState(false);
   const [path, setPath] = useState('/dashboard');
+  const [nativeAdPlacement, setNativeAdPlacement] =
+    useState<NativeAdPlacement | null>(null);
 
   const sessionScript = useMemo(() => {
     const serializedToken = JSON.stringify(token ?? '');
@@ -70,6 +77,7 @@ export default function MobileWebAppScreen() {
     const serializedSoundMuted = JSON.stringify(soundMuted);
     const serializedAdsDisabled = JSON.stringify(adsDisabled);
     const serializedCanDisableAds = JSON.stringify(canDisableAds);
+    const serializedCanRequestAds = JSON.stringify(canRequestAds);
     return `
       (function () {
         try {
@@ -79,6 +87,9 @@ export default function MobileWebAppScreen() {
           window.localStorage.setItem('casparel_ad_sound_muted', String(${serializedSoundMuted}));
           window.localStorage.setItem('casparel_ads_disabled', String(${serializedAdsDisabled}));
           window.localStorage.setItem('casparel_can_disable_ads', String(${serializedCanDisableAds}));
+          var nextNativeAdsEligible = String(${serializedCanRequestAds});
+          var previousNativeAdsEligible = window.localStorage.getItem('casparel_native_ads_eligible');
+          window.localStorage.setItem('casparel_native_ads_eligible', nextNativeAdsEligible);
           window.dispatchEvent(new Event('schoolar-session-change'));
           window.dispatchEvent(new CustomEvent('schoolar-language-change', { detail: ${serializedLanguage} }));
           window.dispatchEvent(new CustomEvent('casparel-ad-preferences-change', { detail: {
@@ -86,6 +97,9 @@ export default function MobileWebAppScreen() {
             adsDisabled: ${serializedAdsDisabled},
             canDisableAds: ${serializedCanDisableAds}
           }}));
+          if (previousNativeAdsEligible !== nextNativeAdsEligible) {
+            window.dispatchEvent(new Event('casparel-native-ads-eligibility-change'));
+          }
           if (!window.__casparelNativeLinksInstalled) {
             window.__casparelNativeLinksInstalled = true;
             var sendUrl = function (url) {
@@ -117,7 +131,7 @@ export default function MobileWebAppScreen() {
       })();
       true;
     `;
-  }, [adsDisabled, canDisableAds, language, soundMuted, token]);
+  }, [adsDisabled, canDisableAds, canRequestAds, language, soundMuted, token]);
 
   useEffect(() => {
     webView.current?.injectJavaScript(sessionScript);
@@ -167,13 +181,24 @@ export default function MobileWebAppScreen() {
     setCanGoBack(state.canGoBack);
     const destination = classifyMobileWebUrl(state.url, apiOrigin);
     if (destination.kind === 'internal') {
+      if (destination.path !== path) {
+        setNativeAdPlacement((current) =>
+          current ? { ...current, visible: false } : null,
+        );
+      }
       setPath(destination.path);
     }
   }
 
   function receiveMessage(event: WebViewMessageEvent) {
     try {
-      const message = JSON.parse(event.nativeEvent.data) as NativeMessage;
+      const parsed = JSON.parse(event.nativeEvent.data) as unknown;
+      const placement = parseNativeAdPlacement(parsed);
+      if (placement) {
+        setNativeAdPlacement(placement);
+        return;
+      }
+      const message = parsed as NativeMessage;
       if (message.type === 'logout') {
         void logout();
       } else if (message.type === 'session' && message.token) {
@@ -201,6 +226,15 @@ export default function MobileWebAppScreen() {
     }
   }
 
+  const dismissNativeAd = useCallback((placementId: string) => {
+    setNativeAdPlacement((current) =>
+      current?.id === placementId ? { ...current, visible: false } : current,
+    );
+    webView.current?.injectJavaScript(
+      `window.dispatchEvent(new CustomEvent('casparel-native-ad-dismiss', { detail: ${JSON.stringify(placementId)} })); true;`,
+    );
+  }, []);
+
   if (!token) return null;
 
   return (
@@ -214,49 +248,78 @@ export default function MobileWebAppScreen() {
         },
       ]}
     >
-      {shouldShowSponsoredAd(path) ? (
-        <SponsoredLearningResourceCard key={path} />
-      ) : null}
-      <WebView
-        ref={webView}
-        source={{
-          uri: `${apiOrigin}${routeParams.path?.startsWith('/') ? routeParams.path : '/dashboard'}`,
-        }}
-        originWhitelist={[
-          // Derived from the configured origin, not hardcoded, so a staging
-          // build pointed at another host still renders its own workspace.
-          `${apiOrigin}/*`,
-          `${apiOrigin.replace('://', '://www.')}/*`,
-        ]}
-        injectedJavaScriptBeforeContentLoaded={sessionScript}
-        javaScriptEnabled
-        domStorageEnabled
-        sharedCookiesEnabled
-        thirdPartyCookiesEnabled
-        setSupportMultipleWindows={false}
-        startInLoadingState
-        renderLoading={() => (
+      <View style={styles.webArea}>
+        <WebView
+          ref={webView}
+          source={{
+            uri: `${apiOrigin}${routeParams.path?.startsWith('/') ? routeParams.path : '/dashboard'}`,
+          }}
+          originWhitelist={[
+            // Derived from the configured origin, not hardcoded, so a staging
+            // build pointed at another host still renders its own workspace.
+            `${apiOrigin}/*`,
+            `${apiOrigin.replace('://', '://www.')}/*`,
+          ]}
+          injectedJavaScriptBeforeContentLoaded={sessionScript}
+          javaScriptEnabled
+          domStorageEnabled
+          sharedCookiesEnabled
+          thirdPartyCookiesEnabled
+          setSupportMultipleWindows={false}
+          startInLoadingState
+          renderLoading={() => (
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                styles.loading,
+                { backgroundColor: colors.background },
+              ]}
+            >
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          )}
+          onNavigationStateChange={syncNavigation}
+          onMessage={receiveMessage}
+          onShouldStartLoadWithRequest={(request) => {
+            return openDestination(request.url, false);
+          }}
+        />
+        {nativeAdPlacement && shouldShowSponsoredAd(path) && canRequestAds ? (
           <View
+            pointerEvents={nativeAdPlacement.visible ? 'box-none' : 'none'}
             style={[
-              StyleSheet.absoluteFill,
-              styles.loading,
-              { backgroundColor: colors.background },
+              styles.nativeAdOverlay,
+              {
+                top: nativeAdPlacement.visible
+                  ? nativeAdPlacement.top
+                  : -10_000,
+                left: nativeAdPlacement.left,
+                width: nativeAdPlacement.width,
+                height: nativeAdPlacement.height,
+                opacity: nativeAdPlacement.visible ? 1 : 0,
+              },
             ]}
           >
-            <ActivityIndicator color={colors.primary} />
+            <SponsoredLearningResourceCard
+              key={nativeAdPlacement.id}
+              placementId={nativeAdPlacement.id}
+              onDismiss={() => dismissNativeAd(nativeAdPlacement.id)}
+            />
           </View>
-        )}
-        onNavigationStateChange={syncNavigation}
-        onMessage={receiveMessage}
-        onShouldStartLoadWithRequest={(request) => {
-          return openDestination(request.url, false);
-        }}
-      />
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  webArea: { flex: 1, position: 'relative' },
   loading: { alignItems: 'center', justifyContent: 'center' },
+  nativeAdOverlay: {
+    position: 'absolute',
+    zIndex: 10,
+    overflow: 'hidden',
+    paddingHorizontal: 3,
+  },
 });

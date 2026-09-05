@@ -93,8 +93,8 @@ export interface WebAdEligibility {
  */
 export function mayShowWebAd(eligibility: WebAdEligibility): boolean {
   if (!eligibility.configured) return false;
-  // The Android app draws its own AdMob placement over the same page; a web
-  // ad here would be a second advertisement on one screen.
+  // The Android app aligns its own AdMob view with an inline page placeholder;
+  // an AdSense request here would be a second advertisement in the same slot.
   if (eligibility.nativeShell) return false;
   if (eligibility.pending) return false;
   if (eligibility.consent !== "granted") return false;
@@ -126,6 +126,7 @@ const EXCLUDED_PREFIXES = [
 
 export function pathAllowsWebAd(pathname: string): boolean {
   const path = pathname.replace(/\/+$/, "") || "/";
+  if (/^\/(?:canvases|classes)\/[^/]+/.test(path)) return false;
   return !EXCLUDED_PREFIXES.some(
     (prefix) => path === prefix || path.startsWith(`${prefix}/`),
   );

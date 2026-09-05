@@ -26,6 +26,7 @@ export {
   defaultOffering,
   googleProductChangeFor,
   hasPlusAccess,
+  missingRequiredPackages,
   packageDefinition,
   packagesForRole,
   restoredEntitlementsHaveAccess,

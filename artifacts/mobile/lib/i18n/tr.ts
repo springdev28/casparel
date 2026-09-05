@@ -34,6 +34,8 @@ const TR: Record<string, string> = {
   "Go back": "Geri dön",
   "Goals": "Hedefler",
   "Google Play returned no available plans. Nothing can be charged until the plan configuration is corrected.": "Google Play kullanılabilir bir plan döndürmedi. Plan yapılandırması düzeltilene kadar ücret alınamaz.",
+  "Google Play returned an incomplete set of plans. Nothing can be charged until all Plus and Pro options are available.": "Google Play eksik bir plan grubu döndürdü. Tüm Plus ve Pro seçenekleri kullanılabilir olana kadar ücret alınamaz.",
+  "Loading subscription plans…": "Abonelik planları yükleniyor…",
   "Guide": "Rehber",
   "Join discussions and share ideas": "Tartışmalara katıl ve fikirlerini paylaş",
   "Learn every part of Casparel": "Casparel'in her bölümünü öğren",

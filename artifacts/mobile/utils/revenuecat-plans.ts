@@ -39,6 +39,24 @@ export const REVENUECAT_PACKAGE_MAP = {
 
 export type RevenueCatPackageIdentifier = keyof typeof REVENUECAT_PACKAGE_MAP;
 
+export const REQUIRED_REVENUECAT_PACKAGE_IDENTIFIERS = Object.freeze(
+  Object.keys(REVENUECAT_PACKAGE_MAP) as RevenueCatPackageIdentifier[],
+);
+
+/** Exact correctly wired package identifiers missing from an offering. */
+export function missingRequiredPackages(
+  packages: readonly RevenueCatPackageIdentity[],
+): RevenueCatPackageIdentifier[] {
+  const valid = new Set(
+    packages
+      .filter((pkg) => packageDefinition(pkg) !== null)
+      .map((pkg) => pkg.identifier as RevenueCatPackageIdentifier),
+  );
+  return REQUIRED_REVENUECAT_PACKAGE_IDENTIFIERS.filter(
+    (identifier) => !valid.has(identifier),
+  );
+}
+
 /**
  * A store product identifier without the Google Play base-plan suffix.
  *

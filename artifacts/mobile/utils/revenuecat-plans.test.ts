@@ -5,6 +5,7 @@ import {
   defaultOffering,
   googleProductChangeFor,
   hasPlusAccess,
+  missingRequiredPackages,
   packagesForRole,
   restoredEntitlementsHaveAccess,
   selectRevenueCatApiKey,
@@ -70,6 +71,18 @@ describe('RevenueCat plan mapping', () => {
 
   it('does not change products with the account role', () => {
     expect(packagesForRole(packages, 'student')).toEqual(packagesForRole(packages, 'teacher'));
+  });
+
+  it('requires all four correctly wired packages in the default offering', () => {
+    expect(missingRequiredPackages(packages)).toEqual([]);
+    expect(missingRequiredPackages(packages.slice(0, 3))).toEqual(['pro_yearly']);
+    expect(missingRequiredPackages([
+      ...packages.slice(0, 3),
+      {
+        identifier: 'pro_yearly',
+        product: { identifier: 'casparel_plus_yearly:yearly' },
+      },
+    ])).toEqual(['pro_yearly']);
   });
 
   it('resolves restored CustomerInfo to paid access', () => {

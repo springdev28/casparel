@@ -93,7 +93,8 @@ async function initializeSdk(ads: GoogleMobileAdsModule): Promise<void> {
 }
 
 export function AdsProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, token } = useAuth();
+  const { isAuthenticated, isLoading: authenticationLoading, user, token } =
+    useAuth();
   const { level } = usePurchases();
   const { ready: onboardingReady, needsOnboarding } = useOnboarding();
   // Entitlement is the wider of the store's answer and the server's: the
@@ -118,6 +119,36 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     unlimited: usage?.unlimited === true,
   };
   const canDisableAds = adsMayBeDisabledBy(entitlement);
+
+  useEffect(() => {
+    logAdDiagnostic('provider-mounted');
+  }, []);
+
+  useEffect(() => {
+    if (!authenticationLoading) {
+      logAdDiagnostic('authentication-ready', {
+        authenticated: isAuthenticated,
+      });
+    }
+  }, [authenticationLoading, isAuthenticated]);
+
+  useEffect(() => {
+    if (onboardingReady) {
+      logAdDiagnostic('onboarding-ready', { needsOnboarding });
+    }
+  }, [needsOnboarding, onboardingReady]);
+
+  useEffect(() => {
+    if (preferencesReady) logAdDiagnostic('preferences-ready');
+  }, [preferencesReady]);
+
+  useEffect(() => {
+    logAdDiagnostic('ads-disabled', {
+      saved: adsDisabled,
+      effective: canDisableAds && adsDisabled,
+      allowed: canDisableAds,
+    });
+  }, [adsDisabled, canDisableAds]);
 
   /** Persist both ad preferences on the account, best-effort. */
   const pushPreferencesToAccount = useCallback(
@@ -313,18 +344,37 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     }
   }, [adsModule]);
 
+  const requestAllowed = adRequestAllowed({
+    sdkReady: ready,
+    preferencesReady,
+    consentGranted: consentInfo?.canRequestAds === true,
+    adsDisabled,
+    entitlement,
+  });
+
+  useEffect(() => {
+    logAdDiagnostic('request-eligibility', {
+      canRequestAds: requestAllowed,
+      sdkReady: ready,
+      preferencesReady,
+      consentGranted: consentInfo?.canRequestAds === true,
+      adsDisabled: canDisableAds && adsDisabled,
+    });
+  }, [
+    adsDisabled,
+    canDisableAds,
+    consentInfo?.canRequestAds,
+    preferencesReady,
+    ready,
+    requestAllowed,
+  ]);
+
   const value = useMemo<AdsContextValue>(
     () => ({
       ready,
       // The Review account holds Pro-level access, so its Disable ads toggle
       // works exactly like a paying Pro's — off by default, effective when on.
-      canRequestAds: adRequestAllowed({
-        sdkReady: ready,
-        preferencesReady,
-        consentGranted: consentInfo?.canRequestAds === true,
-        adsDisabled,
-        entitlement,
-      }),
+      canRequestAds: requestAllowed,
       soundMuted,
       adsDisabled: canDisableAds && adsDisabled,
       canDisableAds,
@@ -343,6 +393,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       consentInfo,
       preferencesReady,
       ready,
+      requestAllowed,
       setAdsDisabled,
       setSoundMuted,
       showPrivacyOptions,

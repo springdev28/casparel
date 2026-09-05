@@ -40,7 +40,13 @@ function adUnitForThisBuild(ads: GoogleMobileAdsModule): string | null {
   return __DEV__ ? ads.TestIds.NATIVE : productionAdUnitId;
 }
 
-export function SponsoredLearningResourceCard() {
+export function SponsoredLearningResourceCard({
+  placementId = 'default',
+  onDismiss,
+}: {
+  placementId?: string;
+  onDismiss?: () => void;
+}) {
   const { t } = useLanguage();
   const colors = useColors();
   const {
@@ -57,6 +63,16 @@ export function SponsoredLearningResourceCard() {
   } | null>(null);
 
   useEffect(() => {
+    logAdDiagnostic('placement-mounted', { placement: 'inline' });
+  }, [placementId]);
+
+  function dismissPlacement() {
+    logAdDiagnostic('placement-dismissed', { placement: 'inline' });
+    setDismissed(true);
+    onDismiss?.();
+  }
+
+  useEffect(() => {
     if (!adsReady || !canRequestAds || dismissed) return;
 
     let cancelled = false;
@@ -69,12 +85,16 @@ export function SponsoredLearningResourceCard() {
       .then(async (ads) => {
         if (!ads || cancelled) return null;
         const adUnitId = adUnitForThisBuild(ads);
+        requestedAdUnitId = adUnitId;
+        logAdDiagnostic('production-unit-selected', {
+          production: !__DEV__,
+          configured: Boolean(adUnitId),
+        });
         if (!adUnitId) {
           logAdDiagnostic('unit-missing', { dev: __DEV__ });
           return null;
         }
-        logAdDiagnostic('unit-present');
-        logAdDiagnostic('ad-requested', { unit: adUnitId });
+        logAdDiagnostic('ad-requested');
 
         const ad = await ads.NativeAd.createForAdRequest(adUnitId, {
           // UMP/TFUA is the privacy gate; this request flag independently
@@ -102,7 +122,7 @@ export function SponsoredLearningResourceCard() {
         // Register callbacks before React paints the NativeAdView so a very
         // fast first impression cannot outrun RevenueCat tracking.
         ad.addAdEventListener(ads.NativeAdEventType.IMPRESSION, () => {
-          logAdDiagnostic('ad-displayed', { unit: adUnitId, response: ad.responseId });
+          logAdDiagnostic('ad-displayed');
           void trackSponsoredAdDisplayed(adUnitId, ad.responseId);
         });
         ad.addAdEventListener(ads.NativeAdEventType.CLICKED, () => {
@@ -130,7 +150,7 @@ export function SponsoredLearningResourceCard() {
           setRequestNonce((value) => value + 1);
         });
 
-        logAdDiagnostic('ad-loaded', { unit: adUnitId, response: ad.responseId });
+        logAdDiagnostic('ad-loaded');
         void trackSponsoredAdLoaded(adUnitId, ad.responseId);
         setCreative({ nativeAd: ad, ads });
         return ad;
@@ -143,7 +163,12 @@ export function SponsoredLearningResourceCard() {
             : undefined;
         logAdDiagnostic(
           code === ADMOB_NO_FILL_CODE ? 'ad-no-fill' : 'ad-request-failed',
-          { unit: requestedAdUnitId, code: typeof code === 'string' ? code : String(code ?? 'unknown') },
+          {
+            requested: requestedAdUnitId !== null,
+            category: code === ADMOB_NO_FILL_CODE
+              ? 'no-fill'
+              : 'request-error',
+          },
         );
         if (requestedAdUnitId) {
           void trackSponsoredAdFailed(requestedAdUnitId, code);
@@ -177,7 +202,7 @@ export function SponsoredLearningResourceCard() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("Dismiss advertisement")}
-          onPress={() => setDismissed(true)}
+          onPress={dismissPlacement}
           hitSlop={8}
         >
           <Feather name="x" size={17} color={colors.mutedForeground} />
@@ -251,7 +276,7 @@ export function SponsoredLearningResourceCard() {
               accessibilityRole="button"
               accessibilityLabel={t("Dismiss advertisement")}
               hitSlop={8}
-              onPress={() => setDismissed(true)}
+              onPress={dismissPlacement}
               style={styles.dismissButton}
             >
               <Feather name="x" size={17} color={colors.foreground} />

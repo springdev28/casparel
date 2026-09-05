@@ -67,6 +67,8 @@ describe("pathAllowsWebAd", () => {
       "/messages/42",
       "/admin",
       "/canvas/7",
+      "/canvases/7",
+      "/classes/7",
       "/delete-account",
       "/reset-account",
       "/terms",

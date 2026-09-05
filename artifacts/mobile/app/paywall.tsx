@@ -137,6 +137,7 @@ export default function PaywallScreen() {
     customerInfo,
     purchase,
     restore,
+    refresh,
   } = usePurchases();
   const { data: usage } = useGetMyUsage();
   const serverTier = usage?.tier;
@@ -415,8 +416,11 @@ export default function PaywallScreen() {
         {!ready ? (
           <View style={styles.loading}>
             <ActivityIndicator color={colors.primary} />
+            <Text style={[styles.noticeText, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sans }]}>
+              {t('Loading subscription plans…')}
+            </Text>
           </View>
-        ) : !available || planPackages.length === 0 ? (
+        ) : !available || availabilityIssue !== null || planPackages.length === 0 ? (
           <View style={[styles.notice, { borderColor: colors.border, borderRadius: colors.radius }]}>
             <Text
               style={[
@@ -435,8 +439,15 @@ export default function PaywallScreen() {
                     ? t('This build is missing the native purchase service. Please install the corrected release.')
                     : availabilityIssue === 'no-offering'
                       ? t('Google Play returned no available plans. Nothing can be charged until the plan configuration is corrected.')
+                      : availabilityIssue === 'incomplete-offering'
+                        ? t('Google Play returned an incomplete set of plans. Nothing can be charged until all Plus and Pro options are available.')
                       : t('The purchase service could not start. Nothing has been charged; please try again shortly.')}
             </Text>
+            {available ? (
+              <Button variant="outline" onPress={() => void refresh()} disabled={busy}>
+                {t('Retry')}
+              </Button>
+            ) : null}
           </View>
         ) : (
           <>
