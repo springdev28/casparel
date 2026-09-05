@@ -5,11 +5,11 @@ name: Mobile release
 # Builds the Casparel iOS and Android apps on EAS, and — when asked — hands
 # them to App Store Connect and Google Play.
 #
-# The build itself runs on Expo's machines rather than here: an iOS build needs
-# macOS and a signing identity, and EAS already holds the credentials. What
-# this workflow contributes is that a release is a tag rather than whatever was
-# on somebody's laptop, and that the same checks a pull request runs have
-# passed on the exact commit being shipped.
+# Cloud builds run on Expo's machines. Android can also build on this runner
+# with EAS Local Build when the project's monthly cloud quota is exhausted;
+# EAS still supplies the established signing credentials, and the resulting
+# app bundle is handed to the same submit job. iOS remains cloud-only because
+# it needs macOS and an Apple signing identity.
 #
 # Triggered by pushing a tag like `mobile-v1.0.0`, or run by hand from the
 # Actions tab (pick the platform, and whether to submit).
@@ -34,21 +34,26 @@ name: Mobile release
 
 on:
   push:
-    tags: ['mobile-v*']
+    tags: ["mobile-v*"]
   workflow_dispatch:
     inputs:
       platform:
-        description: 'Which platform to build'
+        description: "Which platform to build"
         type: choice
         default: all
         options: [all, ios, android]
       profile:
-        description: 'EAS build profile'
+        description: "EAS build profile"
         type: choice
         default: production
         options: [production, preview]
+      android_build_mode:
+        description: "Android builder (local avoids Expo cloud-build quota)"
+        type: choice
+        default: cloud
+        options: [cloud, local]
       submit:
-        description: 'Submit the finished build to the stores'
+        description: "Submit the finished build to the stores"
         type: boolean
         default: false
 
@@ -77,6 +82,17 @@ jobs:
 
       - name: Check the release configuration
         run: pnpm --filter @workspace/mobile run check:release
+
+      - name: Validate the local Android build request
+        if: inputs.android_build_mode == 'local'
+        env:
+          PLATFORM: ${{ inputs.platform }}
+          PROFILE: ${{ inputs.profile }}
+        run: |
+          if [ "$PLATFORM" != "android" ] || [ "$PROFILE" != "production" ]; then
+            echo "::error title=Invalid local build::The local builder is intentionally limited to Android production app bundles."
+            exit 1
+          fi
 
       # Credentials are checked HERE, in the job that costs seconds, rather
       # than in the jobs that use them. Submitting is the last step of a
@@ -203,7 +219,8 @@ jobs:
       # --non-interactive so a missing credential fails the job instead of
       # waiting on a prompt nobody is there to answer; --wait so the run's
       # result is the build's result rather than "a build was queued".
-      - name: Build
+      - name: Build on EAS
+        if: inputs.android_build_mode != 'local'
         working-directory: artifacts/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -222,12 +239,32 @@ jobs:
             if (builds.some((build) => build.status !== 'FINISHED')) process.exit(1);
           "
 
+      # EAS Local Build uses the same remote project and keystore but performs
+      # Gradle compilation on the GitHub runner. This is an explicit Android
+      # production fallback, not an automatic retry that could unexpectedly
+      # double a paid cloud build.
+      - name: Build Android app bundle locally
+        if: inputs.android_build_mode == 'local'
+        working-directory: artifacts/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build \
+            --platform android \
+            --profile production \
+            --local \
+            --non-interactive \
+            --output ./casparel-android.aab
+          test -s ./casparel-android.aab
+
       - name: Record the builds
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: eas-build-metadata
-          path: artifacts/mobile/build.json
+          path: |
+            artifacts/mobile/build.json
+            artifacts/mobile/casparel-android.aab
           if-no-files-found: warn
 
   submit:
@@ -253,6 +290,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Download the locally built Android app bundle
+        if: inputs.android_build_mode == 'local'
+        uses: actions/download-artifact@v4
+        with:
+          name: eas-build-metadata
+          path: artifacts/mobile
+
       # eas.json points submit.production.android at this path. It is a Google
       # Cloud private key: written for the length of the job, never committed,
       # and removed even if the submit fails.
@@ -266,7 +310,7 @@ jobs:
           fi
           printf '%s' "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" > artifacts/mobile/play-service-account.json
 
-      - name: Submit the latest builds
+      - name: Submit the builds
         working-directory: artifacts/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -275,11 +319,20 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         run: |
-          eas submit \
-            --platform "${{ inputs.platform || 'all' }}" \
-            --profile production \
-            --latest \
-            --non-interactive
+          if [ "${{ inputs.android_build_mode }}" = "local" ]; then
+            test -s ./casparel-android.aab
+            eas submit \
+              --platform android \
+              --profile production \
+              --path ./casparel-android.aab \
+              --non-interactive
+          else
+            eas submit \
+              --platform "${{ inputs.platform || 'all' }}" \
+              --profile production \
+              --latest \
+              --non-interactive
+          fi
 
       - name: Remove the Play service account key
         if: always()
