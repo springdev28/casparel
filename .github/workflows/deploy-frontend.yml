@@ -21,6 +21,11 @@ name: Deploy to Hostinger
 #   VITE_DESKTOP_DOWNLOAD_URL desktop releases page, once there is one
 #                    All three are unset by default, which is what makes the
 #                    landing page say "coming soon" instead of linking nowhere.
+#   VITE_REVENUECAT_WEB_API_KEY RevenueCat Web Billing public key (`rcb_…`).
+#                    Required for live Plus/Pro card checkout on /plans.
+#   VITE_ADSENSE_CLIENT_ID      Website publisher id (`ca-pub-…`).
+#   VITE_ADSENSE_SLOT_INLINE    Responsive in-content AdSense unit id.
+#                    Both AdSense values are required before web ads render.
 #   FTP_APP_DIR      the app's build dir, relative to the FTP home, trailing
 #                    slash. Default: hbuilds/current/nodejs/artifacts/api-server/dist/
 #   FTP_RESTART_DIR  the Passenger restart dir, trailing slash.
@@ -221,6 +226,12 @@ jobs:
           VITE_IOS_APP_URL: ${{ vars.VITE_IOS_APP_URL }}
           VITE_ANDROID_APP_URL: ${{ vars.VITE_ANDROID_APP_URL }}
           VITE_DESKTOP_DOWNLOAD_URL: ${{ vars.VITE_DESKTOP_DOWNLOAD_URL }}
+          # Public client identifiers. Keeping them as repository variables
+          # makes the provider dashboards the source of truth while ensuring
+          # Vite actually inlines them into the production bundle.
+          VITE_REVENUECAT_WEB_API_KEY: ${{ vars.VITE_REVENUECAT_WEB_API_KEY }}
+          VITE_ADSENSE_CLIENT_ID: ${{ vars.VITE_ADSENSE_CLIENT_ID }}
+          VITE_ADSENSE_SLOT_INLINE: ${{ vars.VITE_ADSENSE_SLOT_INLINE }}
 
       # A real browser catches what types and unit tests cannot: text that
       # fails contrast against its actual background, content left at opacity 0
