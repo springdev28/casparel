@@ -268,8 +268,18 @@ const LEARNING_GOAL = {
    * steps and printed "0 of 2" beside a step that was finished.
    */
   pathSteps: [
-    { id: "s1", title: "HTML and CSS", query: "html css fundamentals", completed: true },
-    { id: "s2", title: "TypeScript", query: "typescript for beginners", completed: false },
+    {
+      id: "s1",
+      title: "HTML and CSS",
+      query: "html css fundamentals",
+      completed: true,
+    },
+    {
+      id: "s2",
+      title: "TypeScript",
+      query: "typescript for beginners",
+      completed: false,
+    },
   ],
   createdAt: "2026-03-02T09:00:00.000Z",
   updatedAt: "2026-04-11T09:00:00.000Z",
@@ -445,8 +455,16 @@ const STUDY_ACTIVITY = {
   mode: "flashcards",
   shareToken: null,
   cards: [
-    { id: "c1", term: "Chlorophyll", answer: "The pigment that absorbs light energy." },
-    { id: "c2", term: "Stomata", answer: "Pores that let gases in and out of a leaf." },
+    {
+      id: "c1",
+      term: "Chlorophyll",
+      answer: "The pigment that absorbs light energy.",
+    },
+    {
+      id: "c2",
+      term: "Stomata",
+      answer: "Pores that let gases in and out of a leaf.",
+    },
   ],
   createdAt: "2026-05-06T09:00:00.000Z",
   updatedAt: "2026-06-18T09:00:00.000Z",
@@ -462,7 +480,12 @@ const GOAL_TEMPLATE = {
   description: "The order I wish I had worked through it in.",
   level: "beginner",
   pathSteps: [
-    { id: "t1", title: "Vectors and scalars", query: "vectors scalars", completed: false },
+    {
+      id: "t1",
+      title: "Vectors and scalars",
+      query: "vectors scalars",
+      completed: false,
+    },
     { id: "t2", title: "Kinematics", query: "kinematics", completed: false },
   ],
   useCount: 34,
@@ -537,15 +560,19 @@ export const FIXTURES = {
       "Widely adopted as a second course in linear algebra, and unusual in developing determinants late rather than first.",
     reputationAnalysis:
       "Cited across undergraduate syllabi and reviewed in teaching journals rather than only in marketing material.",
-    audienceSentiment: "Positive, with the usual disagreement about the order of topics.",
-    contentQuality: "Peer-reviewed, typeset, with exercises and errata maintained by the author.",
+    audienceSentiment:
+      "Positive, with the usual disagreement about the order of topics.",
+    contentQuality:
+      "Peer-reviewed, typeset, with exercises and errata maintained by the author.",
     currencyAssessment: "Third edition, revised within the last five years.",
     researchScope: null,
     strengths: [
       "The author is named, contactable and institutionally affiliated.",
       "The licence permits classroom use without asking.",
     ],
-    concerns: ["Assumes a first course in linear algebra has already happened."],
+    concerns: [
+      "Assumes a first course in linear algebra has already happened.",
+    ],
     limitations: [
       "A quick check reads maintained provenance signals; it does not read the book.",
     ],
@@ -616,7 +643,12 @@ export const FIXTURES = {
   "/api/classes/31/analytics": {
     studentCount: 24,
     assignments: [
-      { id: 91, title: "Read chapter 4 before Thursday", completions: 9, completionRate: 38 },
+      {
+        id: 91,
+        title: "Read chapter 4 before Thursday",
+        completions: 9,
+        completionRate: 38,
+      },
     ],
   },
   "/api/classes/31/join-code": { joinCode: "PHY-4821" },
@@ -710,7 +742,10 @@ export const FIXTURES = {
   "/api/forum/access": { canPost: true, canModerate: true },
   // Both on, so the AI search controls render and get audited. They are off by
   // default on a server with no keys, which is the state that was rendering.
-  "/api/discover/capabilities": { publicProfileSearch: true, resourceSearch: true },
+  "/api/discover/capabilities": {
+    publicProfileSearch: true,
+    resourceSearch: true,
+  },
   "/api/forum/materials": [],
   "/api/forum/posts": [],
   "/api/study-activities": [STUDY_ACTIVITY],
@@ -860,7 +895,12 @@ export async function installSession(context, options = {}) {
    * reporting zero gaps.
    */
   const role = options.role ?? USER.role;
-  const user = { ...USER, role, activeRole: options.activeRole ?? (role === "admin" ? USER.activeRole : role) };
+  const user = {
+    ...USER,
+    role,
+    activeRole:
+      options.activeRole ?? (role === "admin" ? USER.activeRole : role),
+  };
 
   // A signed-out render still needs the API answered. Without this the
   // static server that serves the build replies to /api/* with index.html,
@@ -881,7 +921,13 @@ export async function installSession(context, options = {}) {
   const transformBody = options.transformBody ?? ((body) => body);
 
   if (options.signedOut) {
-    await routeFixtures(context, { language, colors, unfixtured, user, transformBody });
+    await routeFixtures(context, {
+      language,
+      colors,
+      unfixtured,
+      user,
+      transformBody,
+    });
     return unfixtured;
   }
 
@@ -898,21 +944,57 @@ export async function installSession(context, options = {}) {
     { token: sessionToken(options), colors },
   );
 
-  await routeFixtures(context, { language, colors, unfixtured, user, transformBody });
+  await routeFixtures(context, {
+    language,
+    colors,
+    unfixtured,
+    user,
+    transformBody,
+  });
 
   return unfixtured;
 }
 
 /** Answer every /api/* call from the fixture table. */
-async function routeFixtures(context, { language, colors, unfixtured, user, transformBody }) {
+async function routeFixtures(
+  context,
+  { language, colors, unfixtured, user, transformBody },
+) {
+  let currentUser = user;
   await context.route("**/api/**", async (route) => {
     const { pathname } = new URL(route.request().url());
-    const body =
-      pathname === "/api/users/me/preferences"
-        ? { ...PREFERENCES, language, interfaceColors: colors }
-        : pathname === "/api/users/me"
-          ? user
-          : FIXTURES[pathname];
+    let body;
+    if (
+      pathname === "/api/users/me/role" &&
+      route.request().method() === "PATCH"
+    ) {
+      const requested = route.request().postDataJSON()?.role;
+      if (!["student", "teacher"].includes(requested)) {
+        await route.fulfill({
+          status: 400,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Invalid role" }),
+        });
+        return;
+      }
+      const accountRole = currentUser.role;
+      currentUser = {
+        ...currentUser,
+        ...(accountRole === "admin" ? {} : { role: requested }),
+        activeRole: requested,
+      };
+      body = {
+        user: currentUser,
+        token: sessionToken({ role: requested, accountRole }),
+      };
+    } else {
+      body =
+        pathname === "/api/users/me/preferences"
+          ? { ...PREFERENCES, language, interfaceColors: colors }
+          : pathname === "/api/users/me"
+            ? currentUser
+            : FIXTURES[pathname];
+    }
 
     if (body === undefined) {
       unfixtured.add(pathname);

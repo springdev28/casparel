@@ -31,7 +31,10 @@ import { useAds } from '@/contexts/AdsContext';
 import { apiOrigin } from '@/utils/api-host';
 import { shouldShowSponsoredAd } from '@/utils/ad-placement';
 import { classifyMobileWebUrl } from '@/utils/mobile-web-navigation';
-import { useNotifications, type NotificationPreferences } from '@/contexts/NotificationsContext';
+import {
+  useNotifications,
+  type NotificationPreferences,
+} from '@/contexts/NotificationsContext';
 
 type NativeMessage =
   | { type: 'session'; token: string }
@@ -97,7 +100,7 @@ export default function MobileWebAppScreen() {
               try {
                 var destination = new URL(anchor.href, window.location.href);
                 var sameHost = destination.hostname.replace(/^www\./, '') === window.location.hostname.replace(/^www\./, '');
-                if (sameHost && (destination.pathname === '/plans' || destination.pathname === '/')) {
+                if (sameHost && destination.pathname === '/plans') {
                   event.preventDefault();
                   event.stopPropagation();
                   sendUrl(destination.href);
@@ -216,7 +219,9 @@ export default function MobileWebAppScreen() {
       ) : null}
       <WebView
         ref={webView}
-        source={{ uri: `${apiOrigin}${routeParams.path?.startsWith('/') ? routeParams.path : '/dashboard'}` }}
+        source={{
+          uri: `${apiOrigin}${routeParams.path?.startsWith('/') ? routeParams.path : '/dashboard'}`,
+        }}
         originWhitelist={[
           // Derived from the configured origin, not hardcoded, so a staging
           // build pointed at another host still renders its own workspace.

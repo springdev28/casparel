@@ -78,7 +78,9 @@ async function main() {
   const browser = await chromium.launch(launchOptions());
 
   try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+    });
     const page = await context.newPage();
 
     // A blank page used only to decode screenshots back into pixels, so the
@@ -117,9 +119,11 @@ async function main() {
     await page.getByTestId("email-input").fill(EMAIL);
     await page.getByTestId("password-input").fill(PASSWORD);
     await page.getByTestId("register-button").click();
-    await page.waitForURL((url) => !url.pathname.startsWith("/auth"), {
-      timeout: 20_000,
-    }).catch(() => {});
+    await page
+      .waitForURL((url) => !url.pathname.startsWith("/auth"), {
+        timeout: 20_000,
+      })
+      .catch(() => {});
     signedIn = true;
 
     if (authRateLimited) {
@@ -153,6 +157,71 @@ async function main() {
       !/something went wrong|unexpected error/i.test(bodyText),
       bodyText.slice(0, 200).replace(/\s+/g, " "),
     );
+
+    // ---- authenticated home and role navigation -------------------------
+    // These are clicks, not source checks. All three AppShell logos carried
+    // href="/" while looking perfectly healthy, and Android then had to
+    // intercept that wrong destination. A role change also reloaded whichever
+    // URL happened to be current. Every one must establish /dashboard itself.
+    async function expectDashboard(label, action) {
+      await action();
+      await page
+        .waitForURL((url) => url.pathname === "/dashboard", { timeout: 10_000 })
+        .catch(() => {});
+      check(
+        label,
+        new URL(page.url()).pathname === "/dashboard",
+        `landed on ${new URL(page.url()).pathname}`,
+      );
+    }
+
+    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
+    await expectDashboard(
+      "desktop brand opens the authenticated dashboard",
+      () => page.getByTestId("desktop-brand-home").click(),
+    );
+
+    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
+    const tokenBeforeRoleSwitch = await page.evaluate(() =>
+      localStorage.getItem("schoolar_token"),
+    );
+    await page.getByTestId("role-select").click();
+    await expectDashboard("desktop role change opens the dashboard", () =>
+      page.getByRole("option", { name: "Teacher", exact: true }).click(),
+    );
+    const tokenAfterRoleSwitch = await page.evaluate(() =>
+      localStorage.getItem("schoolar_token"),
+    );
+    check(
+      "role change stores the replacement session",
+      Boolean(tokenAfterRoleSwitch) &&
+        tokenAfterRoleSwitch !== tokenBeforeRoleSwitch,
+    );
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
+    await expectDashboard("mobile top-bar brand opens the dashboard", () =>
+      page.getByTestId("mobile-brand-home").click(),
+    );
+
+    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    await expectDashboard("mobile drawer brand opens the dashboard", () =>
+      page.getByTestId("mobile-drawer-brand-home").click(),
+    );
+
+    await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    await page.getByTestId("mobile-role-select").click();
+    await expectDashboard("mobile role change opens the dashboard", () =>
+      page.getByRole("option", { name: "Student", exact: true }).click(),
+    );
+
+    await page.goto(`${BASE}/plans`, { waitUntil: "networkidle" });
+    await expectDashboard("signed-in plans brand opens the dashboard", () =>
+      page.getByTestId("plans-brand-home").click(),
+    );
+    await page.setViewportSize({ width: 1280, height: 900 });
 
     /**
      * Read the page's own content, not the frame around it.
@@ -217,7 +286,10 @@ async function main() {
             await new Promise((r) => setTimeout(r, wait + 1000));
             res = await send();
           }
-          return { status: res.status, body: await res.json().catch(() => null) };
+          return {
+            status: res.status,
+            body: await res.json().catch(() => null),
+          };
         },
         { base: BASE },
       );
@@ -230,8 +302,11 @@ async function main() {
           "whether a write reaches the page that lists it.",
       );
     }
-    check("the app's own session can create an activity",
-      created.status === 201, `HTTP ${created.status}`);
+    check(
+      "the app's own session can create an activity",
+      created.status === 201,
+      `HTTP ${created.status}`,
+    );
 
     const activities = await mainText("/activities");
     check(
@@ -293,9 +368,7 @@ async function main() {
         const v = value / 255;
         return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
       };
-      return (
-        0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
-      );
+      return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
     }
 
     function contrast(a, b) {
@@ -328,7 +401,12 @@ async function main() {
         canvas.height = image.height;
         const context = canvas.getContext("2d");
         context.drawImage(image, 0, 0);
-        const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+        const { data } = context.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        );
         const counts = new Map();
         for (let i = 0; i < data.length; i += 4) {
           const key = `${data[i]},${data[i + 1]},${data[i + 2]}`;
@@ -385,10 +463,16 @@ async function main() {
          * is how a reporting path that has never run goes wrong. The run died
          * with "fail is not defined" and said nothing about the selector.
          */
-        check(`${label} can be read`, false, `nothing matched ${selector} on ${path}`);
+        check(
+          `${label} can be read`,
+          false,
+          `nothing matched ${selector} on ${path}`,
+        );
         continue;
       }
-      const colour = await copy.evaluate((node) => getComputedStyle(node).color);
+      const colour = await copy.evaluate(
+        (node) => getComputedStyle(node).color,
+      );
       const text = colour.match(/\d+/g).slice(0, 3).map(Number);
       const backdrop = await paintedBackdrop(copy);
       const ratio = contrast(text, backdrop);
@@ -447,7 +531,11 @@ async function main() {
       const writes = [];
       const countWrites = (request) => {
         const method = request.method();
-        if (method !== "GET" && method !== "HEAD" && request.url().includes("/api/")) {
+        if (
+          method !== "GET" &&
+          method !== "HEAD" &&
+          request.url().includes("/api/")
+        ) {
           writes.push(`${method} ${new URL(request.url()).pathname}`);
         }
       };
@@ -458,7 +546,9 @@ async function main() {
       await page.waitForTimeout(2500);
       page.off("request", countWrites);
       if (writes.length) {
-        wroteWhileReading.push(`${path} sent ${[...new Set(writes)].join(", ")}`);
+        wroteWhileReading.push(
+          `${path} sent ${[...new Set(writes)].join(", ")}`,
+        );
       }
     }
 

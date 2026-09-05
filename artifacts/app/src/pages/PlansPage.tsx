@@ -89,10 +89,7 @@ type CheckoutState =
  * key, a dashboard without offerings, or a network failure must never leave
  * the page worse than it was before card checkout existed.
  */
-function useWebCheckout(
-  userId: number | null,
-  enabled: boolean,
-) {
+function useWebCheckout(userId: number | null, enabled: boolean) {
   const [state, setState] = useState<CheckoutState>({
     status: webBillingConfigured() ? "loading" : "unavailable",
   });
@@ -199,7 +196,8 @@ function TierColumn({
             </span>{" "}
             / month
             <span className="block text-xs">
-              or {card.price.annual} / year, save {card.price.annualSavingsPercent}%
+              or {card.price.annual} / year, save{" "}
+              {card.price.annualSavingsPercent}%
             </span>
           </p>
         ) : (
@@ -249,7 +247,10 @@ function TierColumn({
             ))}
           </ul>
         </section>
-        {packages.some((pkg) => actionFor(pkg) !== "hidden" && actionFor(pkg) !== "app-managed") ? (
+        {packages.some(
+          (pkg) =>
+            actionFor(pkg) !== "hidden" && actionFor(pkg) !== "app-managed",
+        ) ? (
           <section className="space-y-2 border-t pt-3">
             {packages.map((pkg) => {
               const action = actionFor(pkg);
@@ -390,8 +391,10 @@ export default function PlansPage() {
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-4">
           <Link
-            href="/"
+            href={isLoggedIn ? "/dashboard" : "/"}
             className="flex min-w-0 items-center text-primary-text"
+            aria-label="Casparel home"
+            data-testid="plans-brand-home"
           >
             <BrandIcon className="mr-1.5 h-7 w-7 shrink-0 sm:mr-2 sm:h-8 sm:w-8" />
             <span className="text-base font-bold tracking-tight text-foreground sm:text-lg">
@@ -405,7 +408,9 @@ export default function PlansPage() {
                   {/* Two whole strings, not one split around a breakpoint:
                       the translation bridge matches complete sentences. */}
                   <span className="sm:hidden">Dashboard</span>
-                  <span className="hidden sm:inline">Back to your dashboard</span>
+                  <span className="hidden sm:inline">
+                    Back to your dashboard
+                  </span>
                 </Link>
               </Button>
             ) : (
@@ -449,7 +454,9 @@ export default function PlansPage() {
                */
               <p className="mt-1 text-sm text-muted-foreground">
                 <span>Your current plan:</span>{" "}
-                <b translate="no" className="text-foreground">{plan.label}</b>
+                <b translate="no" className="text-foreground">
+                  {plan.label}
+                </b>
                 {" · "}
                 <Link
                   href="/settings"
@@ -473,22 +480,21 @@ export default function PlansPage() {
           role="group"
           aria-label="Choose which plans to view"
         >
-          {(["generic", "institutional"] as const).map(
-            (tab) => (
-              <button
-                key={tab}
-                type="button"
-                aria-pressed={audience === tab}
-                onClick={() => setAudience(tab)}
-                data-testid={`plans-tab-${tab}`}
-                className={
-                  "rounded-md px-4 py-1.5 text-sm font-medium transition-colors " +
-                  (audience === tab
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground")
-                }
-              >
-                {/*
+          {(["generic", "institutional"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              aria-pressed={audience === tab}
+              onClick={() => setAudience(tab)}
+              data-testid={`plans-tab-${tab}`}
+              className={
+                "rounded-md px-4 py-1.5 text-sm font-medium transition-colors " +
+                (audience === tab
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground")
+              }
+            >
+              {/*
                   "For schools", not "Institutional". The other three tabs
                   name an audience; this one named the plan, so beside three
                   translated phrases it sat there in English -- and the
@@ -496,12 +502,10 @@ export default function PlansPage() {
                   is a product name it is told to leave alone. The card below
                   still carries the plan's name.
                 */}
-                {tab === "generic" ? "For everyone" : "For schools"}
-              </button>
-            ),
-          )}
+              {tab === "generic" ? "For everyone" : "For schools"}
+            </button>
+          ))}
         </div>
-
 
         {isAdmin && !webBillingConfigured() ? (
           /* Administrators get the exact missing configuration, users never
@@ -698,9 +702,7 @@ export default function PlansPage() {
                 here on the web the moment the purchase completes.
               </p>
             )}
-            {subscription?.manageUrl &&
-            isLoggedIn &&
-            plan.level !== "free" ? (
+            {subscription?.manageUrl && isLoggedIn && plan.level !== "free" ? (
               <p>
                 <a
                   href={subscription.manageUrl}
@@ -710,8 +712,8 @@ export default function PlansPage() {
                 >
                   Manage billing
                 </a>{" "}
-                covers invoices, card details and cancellation for a subscription
-                bought on the web.
+                covers invoices, card details and cancellation for a
+                subscription bought on the web.
               </p>
             ) : null}
             <ul className="list-disc space-y-1 pl-5">
@@ -737,10 +739,9 @@ export default function PlansPage() {
                 you are over the limit on until there is room again.
               </li>
               <li>
-                Cancelling, in the App Store or Google Play for phone
-                purchases, or from Manage billing for card purchases, stops the
-                next renewal; it does not refund the period already paid. See
-                the{" "}
+                Cancelling, in the App Store or Google Play for phone purchases,
+                or from Manage billing for card purchases, stops the next
+                renewal; it does not refund the period already paid. See the{" "}
                 <Link
                   href="/terms"
                   className="text-primary-text hover:underline"

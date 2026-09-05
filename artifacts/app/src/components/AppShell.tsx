@@ -581,8 +581,16 @@ export default function AppShell({ children }: AppShellProps) {
       // restores the previous role token and silently undoes the switch.
       notifySessionChanged();
       queryClient.clear();
-      // Reload the current URL so every role-dependent query and component starts fresh.
-      window.location.reload();
+      // A role is a workspace-wide change. Start the new workspace from its
+      // dashboard, with a full navigation so every role-dependent query and
+      // component reads the replacement token. Reloading the current URL was
+      // unsafe when it happened to be the public root: the user was dropped
+      // out of the product immediately after changing roles.
+      const configuredBase = import.meta.env.BASE_URL;
+      const basePath = configuredBase.endsWith("/")
+        ? configuredBase.slice(0, -1)
+        : configuredBase;
+      window.location.replace(basePath + "/dashboard");
     } catch {
       toast({
         title: "Error",
@@ -687,9 +695,10 @@ export default function AppShell({ children }: AppShellProps) {
         <aside className="sidebar-scrollbar-hidden hidden min-h-0 w-64 shrink-0 self-stretch flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex app-nav-surface">
           {/* Logo */}
           <Link
-            href="/"
+            href="/dashboard"
             className="flex items-center gap-2 border-b border-primary-foreground/20 px-5 py-5 transition-opacity hover:opacity-80"
             aria-label="Casparel home"
+            data-testid="desktop-brand-home"
           >
             <BrandIcon className="h-10 w-10" />
             <span className="font-bold text-lg tracking-tight">Casparel</span>
@@ -1068,10 +1077,11 @@ export default function AppShell({ children }: AppShellProps) {
                 <SheetHeader className="shrink-0 border-b border-primary-foreground/20 px-5 py-4 text-left">
                   <SheetTitle className="text-primary-foreground">
                     <Link
-                      href="/"
+                      href="/dashboard"
                       onClick={() => setMobileNavOpen(false)}
                       className="flex items-center gap-3 transition-opacity hover:opacity-80"
                       aria-label="Casparel home"
+                      data-testid="mobile-drawer-brand-home"
                     >
                       <BrandIcon className="h-9 w-9" />
                       <span>Casparel</span>
@@ -1199,7 +1209,12 @@ export default function AppShell({ children }: AppShellProps) {
               </div>
             </SheetContent>
           </Sheet>
-          <Link href="/" aria-label="Casparel home" className="shrink-0">
+          <Link
+            href="/dashboard"
+            aria-label="Casparel home"
+            className="shrink-0"
+            data-testid="mobile-brand-home"
+          >
             <BrandIcon className="h-8 w-8" label="Casparel" />
           </Link>
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">

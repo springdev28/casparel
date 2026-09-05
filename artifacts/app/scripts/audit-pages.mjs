@@ -427,6 +427,69 @@ async function auditSupportInteractions(page, pathname, width, signedIn) {
   );
 }
 
+/**
+ * Click the authenticated home controls and role switcher in the rendered
+ * shell. Checking href text alone missed this regression three times: the
+ * desktop logo, drawer logo and phone logo all looked correct while sending a
+ * signed-in user to the public website. The phone run is also the web content
+ * Android hosts in its WebView.
+ */
+async function auditAuthenticatedShellNavigation(
+  page,
+  pathname,
+  width,
+  signedIn,
+) {
+  if (pathname !== "/resources" || !signedIn) return null;
+
+  const result = {};
+  const visitResources = async () => {
+    await page.goto(`http://127.0.0.1:${PORT}/resources`, {
+      waitUntil: "load",
+      timeout: 30_000,
+    });
+    await page.waitForTimeout(300);
+  };
+  const clickHome = async (testId, prepare) => {
+    await visitResources();
+    if (prepare) await prepare();
+    const link = page.getByTestId(testId);
+    const href = await link.getAttribute("href");
+    await link.click();
+    await page
+      .waitForURL((url) => url.pathname === "/dashboard", { timeout: 5_000 })
+      .catch(() => {});
+    return { href, landed: new URL(page.url()).pathname };
+  };
+
+  if (width >= 768) {
+    result.desktopHome = await clickHome("desktop-brand-home");
+  } else {
+    result.mobileHome = await clickHome("mobile-brand-home");
+    result.mobileDrawerHome = await clickHome(
+      "mobile-drawer-brand-home",
+      async () => {
+        await page.getByRole("button", { name: "Open navigation" }).click();
+      },
+    );
+  }
+
+  await visitResources();
+  if (width < 768) {
+    await page.getByRole("button", { name: "Open navigation" }).click();
+  }
+  const roleSelect = page.getByTestId(
+    width < 768 ? "mobile-role-select" : "role-select",
+  );
+  await roleSelect.click();
+  await page.getByRole("option", { name: "Student", exact: true }).click();
+  await page
+    .waitForURL((url) => url.pathname === "/dashboard", { timeout: 5_000 })
+    .catch(() => {});
+  result.roleSwitch = { landed: new URL(page.url()).pathname };
+  return result;
+}
+
 async function audit(pathname, colorScheme, width, options = {}) {
   const { signedIn = false, palette } = options;
   const ctx = await browser.newContext({
@@ -591,6 +654,12 @@ async function audit(pathname, colorScheme, width, options = {}) {
     missingPrivacyAdvertisingDisclosure,
     missingAccountDeletionDisclosure,
     missingAccountResetDisclosure,
+    shellNavigation: await auditAuthenticatedShellNavigation(
+      page,
+      pathname,
+      width,
+      signedIn,
+    ),
   };
   await ctx.close();
   return { pathname, colorScheme, width, signedIn, palette, findings };
@@ -630,6 +699,7 @@ async function auditGuarded(pathname, colorScheme, width, options = {}) {
             unfixtured: [],
             guideNavigation: null,
             supportInteractions: null,
+            shellNavigation: null,
             missingHomePrivacyLink: false,
             missingPrivacyAdvertisingDisclosure: false,
             missingAccountResetDisclosure: false,
@@ -773,8 +843,18 @@ for (const {
         ]
       : []),
     ...(findings.missingAccountResetDisclosure
-      ? ["account reset page is missing its steps or data-retention distinction"]
+      ? [
+          "account reset page is missing its steps or data-retention distinction",
+        ]
       : []),
+    ...Object.entries(findings.shellNavigation ?? {}).flatMap(
+      ([control, outcome]) =>
+        outcome.href === undefined || outcome.href === "/dashboard"
+          ? outcome.landed === "/dashboard"
+            ? []
+            : [`${control} landed on ${outcome.landed}, not /dashboard`]
+          : [`${control} points to ${outcome.href}, not /dashboard`],
+    ),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind
   // the app, which is worth saying out loud without blocking the build.
