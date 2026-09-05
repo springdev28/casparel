@@ -232,7 +232,13 @@ async function main() {
      * area is completely empty. Every check below reads <main>.
      */
     async function mainText(path) {
-      await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
+      // The app deliberately keeps background work alive (session refreshes,
+      // resource enrichment, and optional third-party integrations). Waiting
+      // for an entirely idle network therefore turns a rendered, usable page
+      // into a 30-second navigation failure. DOM readiness plus the bounded
+      // settle below is the signal this audit actually needs before it reads
+      // <main>.
+      await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(1500);
       const landed = new URL(page.url()).pathname;
       const main = page.locator("main").first();
