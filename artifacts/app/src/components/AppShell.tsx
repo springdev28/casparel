@@ -105,6 +105,7 @@ import {
 import { useDocumentVisibility } from "../lib/use-document-visibility";
 import { intlLocale } from "@/lib/date-locale";
 import { InlineAd } from "./InlineAd";
+import { brandHomePath } from "../lib/brand-navigation";
 
 const TOKEN_KEY = "schoolar_token";
 const VantaBackground = lazy(() => import("./VantaBackground"));
@@ -199,6 +200,14 @@ interface AppShellProps {
 
 export default function AppShell({ children }: AppShellProps) {
   const [location] = useLocation();
+  const nativeShell = useMemo(() => {
+    try {
+      return localStorage.getItem("casparel_native_shell") === "true";
+    } catch {
+      return false;
+    }
+  }, []);
+  const brandHref = brandHomePath(nativeShell);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(
     () => window.matchMedia("(min-width: 768px)").matches,
@@ -695,7 +704,7 @@ export default function AppShell({ children }: AppShellProps) {
         <aside className="sidebar-scrollbar-hidden hidden min-h-0 w-64 shrink-0 self-stretch flex-col overflow-x-hidden overflow-y-auto overscroll-contain bg-primary text-primary-foreground md:flex app-nav-surface">
           {/* Logo */}
           <Link
-            href="/dashboard"
+            href={brandHref}
             className="flex items-center gap-2 border-b border-primary-foreground/20 px-5 py-5 transition-opacity hover:opacity-80"
             aria-label="Casparel home"
             data-testid="desktop-brand-home"
@@ -1077,7 +1086,7 @@ export default function AppShell({ children }: AppShellProps) {
                 <SheetHeader className="shrink-0 border-b border-primary-foreground/20 px-5 py-4 text-left">
                   <SheetTitle className="text-primary-foreground">
                     <Link
-                      href="/dashboard"
+                      href={brandHref}
                       onClick={() => setMobileNavOpen(false)}
                       className="flex items-center gap-3 transition-opacity hover:opacity-80"
                       aria-label="Casparel home"
@@ -1210,7 +1219,7 @@ export default function AppShell({ children }: AppShellProps) {
             </SheetContent>
           </Sheet>
           <Link
-            href="/dashboard"
+            href={brandHref}
             aria-label="Casparel home"
             className="shrink-0"
             data-testid="mobile-brand-home"
@@ -1423,12 +1432,17 @@ export default function AppShell({ children }: AppShellProps) {
               } as CSSProperties
             }
           >
+            {/* On the website the small display banner sits directly below
+                the app toolbar, where it is visible without interrupting the
+                page. The installed Android app still anchors its native ad to
+                a scrolling placeholder after the page content. */}
+            {!nativeShell ? (
+              <div className="w-full min-w-0 px-3 sm:px-4">
+                <InlineAd />
+              </div>
+            ) : null}
             {children}
-            {/* One compact sponsored block at the end of the page's own
-                content: inline, scrolls with the page, and never over the
-                navigation. Sensitive and editing-heavy routes are excluded by
-                pathAllowsWebAd, so this single mount covers every screen. */}
-            <InlineAd />
+            {nativeShell ? <InlineAd /> : null}
           </div>
         </main>
       </div>

@@ -12,6 +12,7 @@ import { readSessionClaims } from "../lib/session";
 import { useUserPreferences } from "../lib/user-preferences";
 import {
   ADSENSE_CLIENT_ID,
+  ADSENSE_INLINE_FORMAT,
   ADSENSE_INLINE_SLOT,
   loadAdSense,
   mayShowWebAd,
@@ -218,11 +219,11 @@ export function InlineAd({ className }: { className?: string }) {
       aria-label="Advertisement"
       data-testid="inline-ad"
       className={
-        "my-4 w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-border bg-card p-3 " +
+        "mx-auto my-3 w-full min-w-0 max-w-3xl overflow-hidden rounded-lg border border-border bg-card p-2 " +
         (className ?? "")
       }
     >
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-1 flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           Advertisement
         </span>
@@ -244,8 +245,8 @@ export function InlineAd({ className }: { className?: string }) {
         style={{ display: "block" }}
         data-ad-client={ADSENSE_CLIENT_ID ?? undefined}
         data-ad-slot={ADSENSE_INLINE_SLOT ?? undefined}
-        data-ad-format="fluid"
-        data-full-width-responsive="true"
+        data-ad-format={ADSENSE_INLINE_FORMAT}
+        data-full-width-responsive="false"
       />
     </aside>
   );

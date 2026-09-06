@@ -28,8 +28,13 @@ export default function PublicShell({ children }: PublicShellProps) {
             href="/"
             className="flex min-w-0 items-center text-primary-text transition-opacity hover:opacity-80"
           >
-            <BrandIcon className="mr-2 h-8 w-8 shrink-0 sm:h-9 sm:w-9" label="Casparel" />
-            <span className="hidden font-bold text-lg tracking-tight text-foreground sm:inline">Casparel</span>
+            <BrandIcon
+              className="mr-2 h-8 w-8 shrink-0 sm:h-9 sm:w-9"
+              label="Casparel"
+            />
+            <span className="hidden font-bold text-lg tracking-tight text-foreground sm:inline">
+              Casparel
+            </span>
           </Link>
 
           {/* Auth actions */}
@@ -52,11 +57,12 @@ export default function PublicShell({ children }: PublicShellProps) {
 
       {/* Page content */}
       <main className="flex-1 min-w-0">
-        {children}
-        {/* Inline, in the page's flow, below its content. */}
+        {/* A compact display banner belongs below navigation and above the
+            page. Ineligible routes render no ad and leave no empty gap. */}
         <div className="mx-auto w-full min-w-0 max-w-6xl px-4">
           <InlineAd />
         </div>
+        {children}
       </main>
     </div>
   );

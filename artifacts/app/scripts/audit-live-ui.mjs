@@ -159,26 +159,25 @@ async function main() {
     );
 
     // ---- authenticated home and role navigation -------------------------
-    // These are clicks, not source checks. All three AppShell logos carried
-    // href="/" while looking perfectly healthy, and Android then had to
-    // intercept that wrong destination. A role change also reloaded whichever
-    // URL happened to be current. Every one must establish /dashboard itself.
-    async function expectDashboard(label, action) {
+    // These are clicks, not source checks. Website brand controls open the
+    // public main page; a role switch starts the changed workspace on its
+    // dashboard. The installed app's /dashboard behavior is separately
+    // covered by the pure brand-navigation regression test.
+    async function expectPath(label, pathname, action) {
       await action();
       await page
-        .waitForURL((url) => url.pathname === "/dashboard", { timeout: 10_000 })
+        .waitForURL((url) => url.pathname === pathname, { timeout: 10_000 })
         .catch(() => {});
       check(
         label,
-        new URL(page.url()).pathname === "/dashboard",
+        new URL(page.url()).pathname === pathname,
         `landed on ${new URL(page.url()).pathname}`,
       );
     }
 
     await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
-    await expectDashboard(
-      "desktop brand opens the authenticated dashboard",
-      () => page.getByTestId("desktop-brand-home").click(),
+    await expectPath("desktop brand opens the website home page", "/", () =>
+      page.getByTestId("desktop-brand-home").click(),
     );
 
     await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
@@ -186,8 +185,10 @@ async function main() {
       localStorage.getItem("schoolar_token"),
     );
     await page.getByTestId("role-select").click();
-    await expectDashboard("desktop role change opens the dashboard", () =>
-      page.getByRole("option", { name: "Teacher", exact: true }).click(),
+    await expectPath(
+      "desktop role change opens the dashboard",
+      "/dashboard",
+      () => page.getByRole("option", { name: "Teacher", exact: true }).click(),
     );
     const tokenAfterRoleSwitch = await page.evaluate(() =>
       localStorage.getItem("schoolar_token"),
@@ -200,26 +201,34 @@ async function main() {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
-    await expectDashboard("mobile top-bar brand opens the dashboard", () =>
-      page.getByTestId("mobile-brand-home").click(),
+    await expectPath(
+      "mobile top-bar brand opens the website home page",
+      "/",
+      () => page.getByTestId("mobile-brand-home").click(),
     );
 
     await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "Open navigation" }).click();
-    await expectDashboard("mobile drawer brand opens the dashboard", () =>
-      page.getByTestId("mobile-drawer-brand-home").click(),
+    await expectPath(
+      "mobile drawer brand opens the website home page",
+      "/",
+      () => page.getByTestId("mobile-drawer-brand-home").click(),
     );
 
     await page.goto(`${BASE}/resources`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "Open navigation" }).click();
     await page.getByTestId("mobile-role-select").click();
-    await expectDashboard("mobile role change opens the dashboard", () =>
-      page.getByRole("option", { name: "Student", exact: true }).click(),
+    await expectPath(
+      "mobile role change opens the dashboard",
+      "/dashboard",
+      () => page.getByRole("option", { name: "Student", exact: true }).click(),
     );
 
     await page.goto(`${BASE}/plans`, { waitUntil: "networkidle" });
-    await expectDashboard("signed-in plans brand opens the dashboard", () =>
-      page.getByTestId("plans-brand-home").click(),
+    await expectPath(
+      "signed-in plans brand opens the website home page",
+      "/",
+      () => page.getByTestId("plans-brand-home").click(),
     );
     await page.setViewportSize({ width: 1280, height: 900 });
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mayShowWebAd, pathAllowsWebAd, type WebAdEligibility } from "./webAds";
+import {
+  ADSENSE_INLINE_FORMAT,
+  mayShowWebAd,
+  pathAllowsWebAd,
+  type WebAdEligibility,
+} from "./webAds";
 
 const eligible: WebAdEligibility = {
   configured: true,
@@ -51,7 +56,14 @@ describe("mayShowWebAd", () => {
 
 describe("pathAllowsWebAd", () => {
   it("allows ads on ordinary content pages", () => {
-    for (const path of ["/", "/resources", "/dashboard", "/catalog", "/lists", "/schedule"]) {
+    for (const path of [
+      "/",
+      "/resources",
+      "/dashboard",
+      "/catalog",
+      "/lists",
+      "/schedule",
+    ]) {
       expect(pathAllowsWebAd(path)).toBe(true);
     }
   });
@@ -87,5 +99,11 @@ describe("pathAllowsWebAd", () => {
   it("does not exclude a route that merely starts with the same letters", () => {
     expect(pathAllowsWebAd("/planshare")).toBe(true);
     expect(pathAllowsWebAd("/profiles-directory")).toBe(true);
+  });
+});
+
+describe("web ad presentation", () => {
+  it("requests a compact display banner instead of a fluid feed unit", () => {
+    expect(ADSENSE_INLINE_FORMAT).toBe("horizontal");
   });
 });

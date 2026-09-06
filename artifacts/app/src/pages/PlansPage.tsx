@@ -46,6 +46,7 @@ import {
   CardTitle,
 } from "@workspace/edu-ds/components/ui/card";
 import BrandIcon from "../components/BrandIcon";
+import { brandHomePath } from "../lib/brand-navigation";
 import { useSystemDark } from "../hooks/use-system-dark";
 import { usePlan, type PlanTier } from "../lib/use-plan";
 import {
@@ -391,7 +392,7 @@ export default function PlansPage() {
       <header className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-4">
           <Link
-            href={isLoggedIn ? "/dashboard" : "/"}
+            href={brandHomePath(false)}
             className="flex min-w-0 items-center text-primary-text"
             aria-label="Casparel home"
             data-testid="plans-brand-home"

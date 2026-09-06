@@ -44,6 +44,13 @@ export const ADSENSE_INLINE_SLOT = configured(
   /^\d{6,20}$/,
 );
 
+/**
+ * A horizontal responsive display unit stays banner-shaped. `fluid` is for
+ * in-feed/native layouts and lets the creative grow to the size of a content
+ * card, which is not the compact placement used by Casparel.
+ */
+export const ADSENSE_INLINE_FORMAT = "horizontal" as const;
+
 export function webAdsConfigured(): boolean {
   return ADSENSE_CLIENT_ID !== null && ADSENSE_INLINE_SLOT !== null;
 }

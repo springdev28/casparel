@@ -457,9 +457,9 @@ async function auditAuthenticatedShellNavigation(
     const href = await link.getAttribute("href");
     await link.click();
     await page
-      .waitForURL((url) => url.pathname === "/dashboard", { timeout: 5_000 })
+      .waitForURL((url) => url.pathname === "/", { timeout: 5_000 })
       .catch(() => {});
-    return { href, landed: new URL(page.url()).pathname };
+    return { href, landed: new URL(page.url()).pathname, expected: "/" };
   };
 
   if (width >= 768) {
@@ -486,7 +486,10 @@ async function auditAuthenticatedShellNavigation(
   await page
     .waitForURL((url) => url.pathname === "/dashboard", { timeout: 5_000 })
     .catch(() => {});
-  result.roleSwitch = { landed: new URL(page.url()).pathname };
+  result.roleSwitch = {
+    landed: new URL(page.url()).pathname,
+    expected: "/dashboard",
+  };
   return result;
 }
 
@@ -848,12 +851,14 @@ for (const {
         ]
       : []),
     ...Object.entries(findings.shellNavigation ?? {}).flatMap(
-      ([control, outcome]) =>
-        outcome.href === undefined || outcome.href === "/dashboard"
-          ? outcome.landed === "/dashboard"
+      ([control, outcome]) => {
+        const expected = outcome.expected ?? "/dashboard";
+        return outcome.href === undefined || outcome.href === expected
+          ? outcome.landed === expected
             ? []
-            : [`${control} landed on ${outcome.landed}, not /dashboard`]
-          : [`${control} points to ${outcome.href}, not /dashboard`],
+            : [`${control} landed on ${outcome.landed}, not ${expected}`]
+          : [`${control} points to ${outcome.href}, not ${expected}`];
+      },
     ),
   ];
   // Not a failure: an unmapped endpoint means the fixtures have fallen behind
