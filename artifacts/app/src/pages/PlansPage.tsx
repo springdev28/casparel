@@ -47,6 +47,7 @@ import {
 } from "@workspace/edu-ds/components/ui/card";
 import BrandIcon from "../components/BrandIcon";
 import { brandHomePath } from "../lib/brand-navigation";
+import { downloadTargets } from "../lib/downloads";
 import { useSystemDark } from "../hooks/use-system-dark";
 import { usePlan, type PlanTier } from "../lib/use-plan";
 import {
@@ -70,6 +71,8 @@ import {
 } from "../lib/webBilling";
 
 const SALES_EMAIL = "support@casparel.com";
+const ANDROID_APP_URL =
+  downloadTargets.find((target) => target.id === "android")?.href ?? "/download";
 
 type PlanView = "generic" | "institutional";
 
@@ -155,6 +158,7 @@ function TierColumn({
   actionFor,
   busyPackageId,
   onBuy,
+  mobilePurchaseHref,
 }: {
   card: TierCard;
   isCurrent: boolean;
@@ -165,7 +169,14 @@ function TierColumn({
   actionFor: (pkg: WebPlanPackage) => WebPackageAction;
   busyPackageId: string | null;
   onBuy: (pkg: WebPlanPackage) => void;
+  /** Store route used while card checkout is intentionally unavailable. */
+  mobilePurchaseHref: string | null;
 }) {
+  const hasWebControl = packages.some(
+    (pkg) =>
+      actionFor(pkg) !== "hidden" && actionFor(pkg) !== "app-managed",
+  );
+
   return (
     <Card
       className={
@@ -248,10 +259,7 @@ function TierColumn({
             ))}
           </ul>
         </section>
-        {packages.some(
-          (pkg) =>
-            actionFor(pkg) !== "hidden" && actionFor(pkg) !== "app-managed",
-        ) ? (
+        {hasWebControl ? (
           <section className="space-y-2 border-t pt-3">
             {packages.map((pkg) => {
               const action = actionFor(pkg);
@@ -294,6 +302,24 @@ function TierColumn({
               Card checkout, billed by RevenueCat. Renews automatically; cancel
               any time from Manage billing. Changing plan replaces your current
               subscription, so you are never billed for two at once.
+            </p>
+          </section>
+        ) : card.tier !== "free" && mobilePurchaseHref ? (
+          <section className="space-y-2 border-t pt-3">
+            <Button className="w-full gap-2" asChild>
+              <a
+                href={mobilePurchaseHref}
+                target="_blank"
+                rel="noreferrer"
+                data-testid={`android-subscribe-${card.tier}`}
+              >
+                <Smartphone className="size-4 shrink-0" />
+                Subscribe in the Android app
+              </a>
+            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              Google Play checkout opens inside Casparel. Install or update the
+              app, then choose this plan under Profile → Plan.
             </p>
           </section>
         ) : null}
@@ -667,6 +693,11 @@ export default function PlansPage() {
                   actionFor={(pkg) => webPackageAction(pkg, planContext)}
                   busyPackageId={busyPackageId}
                   onBuy={handleBuy}
+                  mobilePurchaseHref={
+                    !isAdmin && checkout.status !== "loading"
+                      ? ANDROID_APP_URL
+                      : null
+                  }
                 />
               ))}
             </div>

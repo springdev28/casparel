@@ -379,6 +379,9 @@ const TR: Record<string, string> = {
   "Casparel is a full web app, not a preview of the native ones. The library, classes, canvases, schedules and AI source research all run in a browser tab, on the same account you would use on a phone.": "Casparel eksiksiz bir web uygulamasıdır, yerel uygulamaların önizlemesi değil. Kütüphane, sınıflar, tuvaller, programlar ve yapay zekâ ile kaynak araştırması bir tarayıcı sekmesinde, telefonda kullanacağınız hesabın aynısıyla çalışır.",
   "Download for iPhone": "iPhone için indir",
   "Get it on Google Play": "Google Play’den edinin",
+  "Subscribe in the Android app": "Android uygulamasında abone olun",
+  "Google Play checkout opens inside Casparel. Install or update the app, then choose this plan under Profile → Plan.":
+    "Google Play ödeme ekranı Casparel içinde açılır. Uygulamayı yükleyin veya güncelleyin, ardından Profil → Plan bölümünden bu planı seçin.",
   "Download for desktop": "Masaüstü için indir",
   "iPhone and iPad, from the App Store.": "App Store’dan iPhone ve iPad için.",
   "Android phones and tablets, from Google Play.": "Google Play’den Android telefonlar ve tabletler için.",

@@ -46,6 +46,8 @@ const REQUIRED: Record<string, string[]> = {
     "Your plan, billed yearly",
     "Your plan, billed monthly",
     "Manage billing",
+    "Subscribe in the Android app",
+    "Google Play checkout opens inside Casparel. Install or update the app, then choose this plan under Profile → Plan.",
   ],
   advertising: [
     "Advertisement",

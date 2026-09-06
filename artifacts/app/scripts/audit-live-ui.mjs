@@ -225,6 +225,26 @@ async function main() {
     );
 
     await page.goto(`${BASE}/plans`, { waitUntil: "networkidle" });
+    const androidPurchaseActions = page.locator(
+      '[data-testid^="android-subscribe-"]',
+    );
+    check(
+      "paid plans keep an actionable Android purchase route without web billing",
+      (await androidPurchaseActions.count()) === 2,
+      `${await androidPurchaseActions.count()} Android subscription actions`,
+    );
+    const androidPurchaseHrefs = await androidPurchaseActions.evaluateAll(
+      (links) => links.map((link) => link.getAttribute("href") ?? ""),
+    );
+    check(
+      "Android purchase routes point to the Casparel Play listing",
+      androidPurchaseHrefs.every(
+        (href) =>
+          href.startsWith("https://play.google.com/") &&
+          href.includes("id=com.casparel.app"),
+      ),
+      androidPurchaseHrefs.join(", "),
+    );
     await expectPath(
       "signed-in plans brand opens the website home page",
       "/",
