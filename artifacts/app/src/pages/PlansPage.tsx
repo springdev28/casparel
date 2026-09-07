@@ -589,16 +589,16 @@ export default function PlansPage() {
             <code>VITE_REVENUECAT_WEB_API_KEY</code> is not set in the frontend
             build environment (GitHub → Settings → Secrets and variables →
             Actions → Variables, read by deploy-frontend.yml). Set it to the
-            RevenueCat Web Billing public key (<code>rcb_…</code>) for the app
-            whose <code>default</code> offering carries the four
-            casparel_plus/pro packages, then redeploy.
+            RevenueCat provider's public SDK key (<code>pdl_…</code> for Paddle).
+            Its <code>default</code> offering needs plus_monthly, plus_yearly,
+            pro_monthly, and pro_yearly packages. Then redeploy.
           </p>
         ) : null}
         {isAdmin && webBillingConfigured() && checkout.status === "error" ? (
           <p className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-foreground">
             <b>Administrator note:</b> the RevenueCat Web Billing SDK failed to
             load offerings. Check that the <code>default</code> offering exists
-            with the casparel_plus/pro packages and that the key in{" "}
+            with the four Plus/Pro packages and that the key in{" "}
             <code>VITE_REVENUECAT_WEB_API_KEY</code> belongs to this project.
           </p>
         ) : null}

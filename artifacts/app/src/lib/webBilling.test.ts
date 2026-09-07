@@ -11,7 +11,10 @@ import {
 } from "./webBilling";
 
 function pkg(id: string, tier: "plus" | "pro", period: "monthly" | "annual"): WebPlanPackage {
-  return { id, tier, period, price: "$9.99", raw: {} as Package };
+  return { id, tier, period, price: "$9.99", raw: {
+    identifier: id,
+    webBillingProduct: { identifier: `casparel_${id}` },
+  } as Package };
 }
 
 const PLUS_MONTHLY = pkg("plus_monthly", "plus", "monthly");
@@ -97,6 +100,46 @@ describe("webPackageAction", () => {
 });
 
 describe("product identity", () => {
+  const paddleProduct = {
+    identifier: "plus_monthly",
+    webBillingProduct: {
+      identifier: `pri_${"a".repeat(26)}`,
+      productType: "subscription",
+      normalPeriodDuration: "P1M",
+    },
+  } as Package;
+
+  it("uses Paddle's assigned price for each known package and matching billing cycle", () => {
+    for (const candidate of ALL) {
+      expect(tierForWebPackage({ ...paddleProduct, identifier: candidate.id,
+        webBillingProduct: { ...paddleProduct.webBillingProduct,
+          normalPeriodDuration: candidate.period === "monthly" ? "P1M" : "P1Y" },
+      }, "pdl_example")).toBe(candidate.tier);
+    }
+    expect(tierForWebPackage(paddleProduct, "rcb_example")).toBeNull();
+    expect(tierForWebPackage({ ...paddleProduct, identifier: "unknown" }, "pdl_example")).toBeNull();
+    for (const invalid of [
+      { normalPeriodDuration: "P1Y" },
+      { normalPeriodDuration: null },
+      { productType: "consumable" },
+      { identifier: "some_other_product" },
+    ]) {
+      expect(tierForWebPackage({ ...paddleProduct,
+        webBillingProduct: { ...paddleProduct.webBillingProduct, ...invalid },
+      } as Package, "pdl_example")).toBeNull();
+    }
+  });
+
+  it("recognises the current Paddle price and distinguishes tier from period changes", () => {
+    const context: WebPlanContext = { ...base, currentLevel: "plus", subscription: {
+      activeProductIds: [paddleProduct.webBillingProduct.identifier],
+      entitlementStore: "web", manageUrl: "https://customer.paddle.com/",
+    } };
+    expect(webPackageAction({ ...PLUS_MONTHLY, raw: paddleProduct }, context)).toBe("current");
+    expect(webPackageAction(PLUS_YEARLY, context)).toBe("switch-period");
+    expect(webPackageAction(PRO_MONTHLY, context)).toBe("switch-tier");
+  });
+
   it("strips the Google Play base plan and accepts the bare id", () => {
     expect(baseWebProductId("casparel_plus_monthly:monthly")).toBe("casparel_plus_monthly");
     expect(baseWebProductId("casparel_plus_monthly")).toBe("casparel_plus_monthly");
@@ -123,13 +166,13 @@ describe("fetchWebSubscriptionState", () => {
     return { getCustomerInfo: async () => info } as unknown as Purchases;
   }
 
-  it("reads active products, entitlement store, and the manage link", async () => {
+  it.each(["rc_billing", "paddle"])("reads active products and management for %s", async (store) => {
     const state = await fetchWebSubscriptionState(
       purchasesWith({
         activeSubscriptions: new Set(["casparel_plus_yearly"]),
         entitlements: {
           active: {
-            plus: { identifier: "plus", isActive: true, store: "rc_billing" },
+            plus: { identifier: "plus", isActive: true, store },
           },
         },
         managementURL: "https://billing.example/manage",
