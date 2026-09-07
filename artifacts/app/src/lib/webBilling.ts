@@ -3,7 +3,7 @@
  * System connection: imported by pages/components so business rules are testable without rendering an entire route.
  */
 /**
- * Web card checkout, through RevenueCat Web Billing (Stripe-backed).
+ * Web card checkout through RevenueCat's SDK, including Paddle Billing.
  *
  * Why this and not a separate Stripe integration: purchases made here emit the
  * same RevenueCat webhook events and entitlement identifiers as App Store
@@ -11,7 +11,7 @@
  * so account access does not depend on webhook delivery timing.
  *
  * The SDK is loaded lazily and only when `VITE_REVENUECAT_WEB_API_KEY` is set
- * (a Web Billing *public* key, `rcb_...` — publishable client configuration,
+ * (the provider's *public* SDK key, e.g. `pdl_...` for Paddle — client configuration,
  * like the mobile SDK keys). Without it the plans page falls back to the
  * buy-on-mobile instructions, so an undeployed key can never produce a broken
  * checkout, and the browser audit (which runs unconfigured) never loads the
@@ -76,16 +76,28 @@ export function webBillingConfigured(): boolean {
 }
 
 /**
- * Resolve only the exact custom package and product pair. Unexpected packages
- * fail closed instead of being guessed from display names.
+ * RevenueCat's default offering assigns products to our four custom packages.
+ * Paddle generates price IDs, so its package assignment determines the tier;
+ * require a subscription with the matching period before presenting it.
+ * Other providers retain the original exact product mapping.
  */
-export function tierForWebPackage(pkg: Package): PaidTier | null {
+export function tierForWebPackage(
+  pkg: Package,
+  apiKey = WEB_BILLING_KEY,
+): PaidTier | null {
   const product = pkg.webBillingProduct;
   const definition =
     WEB_PACKAGE_MAP[pkg.identifier as keyof typeof WEB_PACKAGE_MAP];
-  return definition && definition.productId === product?.identifier
-    ? definition.tier
-    : null;
+  if (!definition || !product) return null;
+  if (apiKey?.startsWith("pdl_")) {
+    const periods = definition.period === "monthly" ? ["P1M"] : ["P1Y", "P12M"];
+    return /^pri_[a-z0-9]{26}$/.test(product.identifier) &&
+      product.productType === "subscription" &&
+      periods.includes(product.normalPeriodDuration ?? "")
+      ? definition.tier
+      : null;
+  }
+  return definition.productId === product.identifier ? definition.tier : null;
 }
 
 function periodOf(pkg: Package): BillingPeriod {
@@ -278,14 +290,8 @@ export function webPackageAction(
   const active = new Set(subscription.activeProductIds);
   const definition = WEB_PACKAGE_MAP[pkg.id as keyof typeof WEB_PACKAGE_MAP];
   if (!definition) return "hidden";
-  if (active.has(baseWebProductId(definition.productId))) return "current";
-  const currentDefinitions = Object.values(WEB_PACKAGE_MAP).filter(
-    (candidate) => active.has(baseWebProductId(candidate.productId)),
-  );
-  const currentTiers = new Set(
-    currentDefinitions.map((candidate) => candidate.tier),
-  );
-  if (currentTiers.size > 0 && !currentTiers.has(definition.tier)) {
+  if (active.has(baseWebProductId(pkg.raw.webBillingProduct.identifier))) return "current";
+  if (context.currentLevel !== definition.tier) {
     return "switch-tier";
   }
   return "switch-period";

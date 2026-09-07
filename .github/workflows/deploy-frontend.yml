@@ -21,7 +21,7 @@ name: Deploy to Hostinger
 #   VITE_DESKTOP_DOWNLOAD_URL desktop releases page, once there is one
 #                    All three are unset by default, which is what makes the
 #                    landing page say "coming soon" instead of linking nowhere.
-#   VITE_REVENUECAT_WEB_API_KEY RevenueCat Web Billing public key (`rcb_…`).
+#   VITE_REVENUECAT_WEB_API_KEY RevenueCat provider public key (`pdl_…` for Paddle).
 #                    Required for live Plus/Pro card checkout on /plans.
 #   VITE_ADSENSE_CLIENT_ID      Website publisher id (`ca-pub-…`).
 #   VITE_ADSENSE_SLOT_INLINE    Responsive in-content AdSense unit id.
