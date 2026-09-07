@@ -132,7 +132,7 @@ const EXCLUDED_PREFIXES = [
 ];
 
 export function pathAllowsWebAd(pathname: string): boolean {
-  const path = pathname.replace(/\/+$/, "") || "/";
+  const path = pathname.split(/[?#]/, 1)[0].replace(/\/+$/, "") || "/";
   if (/^\/(?:canvases|classes)\/[^/]+/.test(path)) return false;
   return !EXCLUDED_PREFIXES.some(
     (prefix) => path === prefix || path.startsWith(`${prefix}/`),
@@ -148,32 +148,40 @@ let loader: Promise<boolean> | null = null;
 
 export function loadAdSense(): Promise<boolean> {
   if (!webAdsConfigured()) return Promise.resolve(false);
+  if (typeof document === "undefined") return Promise.resolve(false);
   if (loader) return loader;
   loader = new Promise<boolean>((resolve) => {
-    if (typeof document === "undefined") {
-      resolve(false);
-      return;
-    }
     const existing = document.querySelector<HTMLScriptElement>(
       "script[data-casparel-adsense]",
     );
-    if (existing) {
+    if (existing?.dataset.casparelLoaded === "true") {
       resolve(true);
       return;
     }
-    const script = document.createElement("script");
+    const script = existing ?? document.createElement("script");
     script.async = true;
     script.crossOrigin = "anonymous";
     script.dataset.casparelAdsense = "true";
     script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`;
-    script.addEventListener("load", () => resolve(true));
-    script.addEventListener("error", () => {
-      // An ad blocker, an offline tab, or a network failure. None of these
-      // are the reader's problem and none of them may break the page.
-      loader = null;
-      resolve(false);
-    });
-    document.head.appendChild(script);
+    const finish = (ready: boolean) => {
+      clearTimeout(timeout);
+      script.removeEventListener("load", onLoad);
+      script.removeEventListener("error", onError);
+      if (ready) script.dataset.casparelLoaded = "true";
+      else {
+        // An ad blocker, an offline tab, or a network failure. None of these
+        // are the reader's problem and none of them may break the page.
+        script.remove();
+        loader = null;
+      }
+      resolve(ready);
+    };
+    const onLoad = () => finish(true);
+    const onError = () => finish(false);
+    const timeout = setTimeout(onError, 10_000);
+    script.addEventListener("load", onLoad);
+    script.addEventListener("error", onError);
+    if (!existing) document.head.appendChild(script);
   });
   return loader;
 }

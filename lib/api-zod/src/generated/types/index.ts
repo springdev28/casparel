@@ -177,6 +177,7 @@ export * from './publishStudyActivityBody';
 export * from './publishStudyActivityBodyDestination';
 export * from './recommendResourceToPerson201';
 export * from './recommendResourceToPersonBody';
+export * from './reconcileMyEntitlements200';
 export * from './registerInput';
 export * from './registerPushTokenBody';
 export * from './registerPushTokenBodyPlatform';

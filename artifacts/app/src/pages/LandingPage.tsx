@@ -23,6 +23,7 @@ import {
   UserRound,
 } from "lucide-react";
 import BrandIcon from "../components/BrandIcon";
+import { InlineAd } from "../components/InlineAd";
 import { useSystemDark } from "../hooks/use-system-dark";
 import { readSessionClaims } from "../lib/session";
 import { isDesktopShell } from "../lib/platform";
@@ -527,6 +528,7 @@ export default function LandingPage() {
         </section>
 
         {/* What it does */}
+        <div className="mx-auto max-w-6xl px-4"><InlineAd /></div>
         <section className="border-t border-border bg-muted/30">
           <div className="mx-auto max-w-6xl px-4 py-16">
             <h2 className="reveal text-sm font-semibold uppercase tracking-widest text-muted-foreground">

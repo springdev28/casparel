@@ -2,6 +2,9 @@
 export type MobileWebDestination =
   | { kind: 'internal'; url: string; path: string }
   | { kind: 'paywall' }
+  | { kind: 'home' }
+  | { kind: 'login' }
+  | { kind: 'register' }
   | { kind: 'external'; url: string }
   | { kind: 'ignore' };
 
@@ -32,11 +35,11 @@ export function classifyMobileWebUrl(
   if (url.pathname === '/plans' || url.pathname === '/plans/') {
     return { kind: 'paywall' };
   }
-  // The public home page contains desktop marketing and the obsolete
-  // "Coming to iOS & Android" panel. An authenticated native session must
-  // never fall out of the product onto that page.
-  if (url.pathname === '/' || url.pathname === '') {
-    url.pathname = '/dashboard';
-  }
+  if (url.pathname === '/' || url.pathname === '') return { kind: 'home' };
+  if (/^\/auth\/login\/?$/.test(url.pathname)) return { kind: 'login' };
+  if (/^\/auth\/register\/?$/.test(url.pathname)) return { kind: 'register' };
+  // www and canonical links must share the same storage/session origin.
+  url.protocol = origin.protocol;
+  url.host = origin.host;
   return { kind: 'internal', url: url.toString(), path: url.pathname };
 }

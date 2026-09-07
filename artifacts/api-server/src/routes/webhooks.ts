@@ -7,6 +7,7 @@ import { timingSafeEqual } from "node:crypto";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { db, usersTable, webhookEventsTable } from "@workspace/db";
 import { logger } from "../lib/logger";
+import { fetchSubscriberPlan } from "../lib/revenuecat";
 import {
   KNOWN_ENTITLEMENTS,
   PLAN_FREE,
@@ -165,7 +166,15 @@ router.post("/webhooks/revenuecat", async (req, res): Promise<void> => {
   if (!claim.proceed) return;
 
   try {
-    if (GRANT_EVENTS.has(event.type) && grantedPlan) {
+    const apiKey = process.env.REVENUECAT_SECRET_API_KEY?.trim();
+    if (apiKey) {
+      // A delayed expiry/downgrade event must not overwrite a newer purchase
+      // or a plan just verified by the client reconciliation endpoint.
+      const plan = await fetchSubscriberPlan(userId, apiKey);
+      await db.update(usersTable).set(plan).where(and(
+        eq(usersTable.id, userId), ne(usersTable.plan, PLAN_INSTITUTIONAL),
+      ));
+    } else if (GRANT_EVENTS.has(event.type) && grantedPlan) {
       const expiresAt =
         typeof event.expiration_at_ms === "number" && event.expiration_at_ms > 0
           ? new Date(event.expiration_at_ms).toISOString()
@@ -262,6 +271,29 @@ async function reconcileTransfer(
 ): Promise<void> {
   const from = accountIds(event.transferred_from);
   const to = accountIds(event.transferred_to);
+  const apiKey = process.env.REVENUECAT_SECRET_API_KEY?.trim();
+  if (apiKey && from.length + to.length > 0) {
+    const claim = await claimEventOrAck(event, res);
+    if (!claim.proceed) return;
+    try {
+      // Read every affected account first, including a transfer to/from an
+      // anonymous alias. Never copy a cached source plan onto its new owner.
+      const accounts = await Promise.all([...new Set([...from, ...to])].map(async (id) => ({
+        id, plan: await fetchSubscriberPlan(id, apiKey),
+      })));
+      for (const account of accounts) {
+        await db.update(usersTable).set(account.plan).where(and(
+          eq(usersTable.id, account.id), ne(usersTable.plan, PLAN_INSTITUTIONAL),
+        ));
+      }
+      res.status(200).json({ received: true });
+    } catch (error) {
+      logger.error({ err: error }, "RevenueCat transfer verification failed");
+      await releaseClaim(claim.eventId);
+      res.status(500).json({ error: "Reconciliation failed" });
+    }
+    return;
+  }
   if (from.length === 0 || to.length === 0) {
     // Anonymous aliases on either side: nothing here maps to an account.
     res.status(200).json({ received: true });

@@ -5,7 +5,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/utils/secure-storage";
-import type { User } from "@workspace/api-client-react";
+import { getMe, type User } from "@workspace/api-client-react";
 
 const TOKEN_KEY = "schoolar_token";
 const USER_KEY = "casparel_user";
@@ -101,6 +101,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     if (newToken !== token) queryClient.clear();
     setToken(newToken);
+    if (!updatedUser) {
+      try {
+        const refreshedUser = await getMe({ headers: { Authorization: `Bearer ${newToken}` } });
+        // Do not apply a delayed role response after another login/logout.
+        if (await storage.getItemAsync(TOKEN_KEY) !== newToken) return;
+        await storage.setItemAsync(USER_KEY, JSON.stringify(refreshedUser));
+        setUser(refreshedUser);
+      } catch {
+        // Token remains valid; a later account refresh can update presentation.
+      }
+    }
   };
 
   return (

@@ -70,6 +70,9 @@ describe("pathAllowsWebAd", () => {
 
   it("excludes editing-heavy, private and checkout screens", () => {
     for (const path of [
+      "/canvases/7",
+      "/classes/42/edit",
+      "/plans?from=dashboard",
       "/settings",
       "/settings/appearance",
       "/profile",

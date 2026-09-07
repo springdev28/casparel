@@ -6,7 +6,7 @@ describe("brandHomePath", () => {
     expect(brandHomePath(false)).toBe("/");
   });
 
-  it("keeps the installed app inside its dashboard", () => {
-    expect(brandHomePath(true)).toBe("/dashboard");
+  it("addresses home so the installed app can open its native home screen", () => {
+    expect(brandHomePath(true)).toBe("/");
   });
 });

@@ -23,11 +23,9 @@ describe('classifyMobileWebUrl', () => {
     });
   });
 
-  it('keeps an authenticated shell off the public marketing home page', () => {
+  it('opens the native home from the logo', () => {
     expect(classifyMobileWebUrl('https://casparel.com/', origin)).toEqual({
-      kind: 'internal',
-      url: 'https://casparel.com/dashboard',
-      path: '/dashboard',
+      kind: 'home',
     });
   });
 
@@ -71,4 +69,12 @@ describe('classifyMobileWebUrl', () => {
       ).kind,
     ).toBe('external');
   });
+});
+
+
+it('keeps role reloads on the configured origin and login inside the native app', () => {
+  expect(classifyMobileWebUrl('https://www.casparel.com/dashboard?role=teacher', origin)).toEqual({
+    kind: 'internal', url: 'https://casparel.com/dashboard?role=teacher', path: '/dashboard',
+  });
+  expect(classifyMobileWebUrl('/auth/login?next=/plans', origin)).toEqual({ kind: 'login' });
 });

@@ -70,10 +70,8 @@ export function InlineAd({ className }: { className?: string }) {
     () => "unknown" as const,
   );
 
-  const slot = useRef<HTMLModElement>(null);
   const nativeSlot = useRef<HTMLElement>(null);
   const [dismissed, setDismissed] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [nativeEligible, setNativeEligible] = useState(nativeAdsEligible);
 
   const nativeShell = (() => {
@@ -173,26 +171,8 @@ export function InlineAd({ className }: { className?: string }) {
       // Wait for the plan before showing anything: an ad shown to a Pro
       // account for the half-second before their plan resolves is exactly
       // the thing they are paying not to see.
-      pending: signedIn && (plan.pending || preferences.isLoading),
+      pending: signedIn && (plan.pending || !me || !preferences.data || preferences.isError),
     });
-
-  useEffect(() => {
-    if (!eligible || dismissed || loaded) return;
-    let cancelled = false;
-    void loadAdSense().then((ready) => {
-      if (cancelled || !ready || !slot.current) return;
-      try {
-        (window.adsbygoogle = window.adsbygoogle ?? []).push({});
-        setLoaded(true);
-      } catch {
-        // A duplicate push or a refused fill: leave the slot empty rather
-        // than retrying into an error loop.
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [dismissed, eligible, loaded]);
 
   if (nativeShell) {
     if (!nativePlacementEligible) return null;
@@ -210,7 +190,40 @@ export function InlineAd({ className }: { className?: string }) {
     );
   }
 
-  if (!eligible || dismissed) return null;
+  return eligible ? <AdSlot key={location} className={className} /> : null;
+}
+
+/** One SDK push per DOM slot; eligibility changes unmount the slot completely. */
+function AdSlot({ className }: { className?: string }) {
+  const slot = useRef<HTMLModElement>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (dismissed || failed) return;
+    let cancelled = false;
+    void loadAdSense().then((ready) => {
+      if (cancelled || !slot.current) return;
+      if (!ready) { setFailed(true); return; }
+      if (slot.current.dataset.casparelRequested) return;
+      try {
+        (window.adsbygoogle = window.adsbygoogle ?? []).push({});
+        slot.current.dataset.casparelRequested = "true";
+      } catch {
+        setFailed(true);
+      }
+    });
+    const observer = new MutationObserver(() => {
+      if (slot.current?.dataset.adStatus === "unfilled") setFailed(true);
+    });
+    if (slot.current) observer.observe(slot.current, { attributes: true, attributeFilter: ["data-ad-status"] });
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [dismissed, failed]);
+
+  if (dismissed || failed) return null;
 
   return (
     <aside

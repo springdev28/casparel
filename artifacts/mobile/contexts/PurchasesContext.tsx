@@ -31,7 +31,13 @@ import {
   type RCOffering,
   type RCPackage,
 } from '@/utils/revenuecat';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  getGetMyUsageQueryKey,
+  reconcileMyEntitlements,
+} from '@workspace/api-client-react';
+import { createPurchaseQueue } from '@/utils/purchase-queue';
 import { useAuth } from '@/contexts/AuthContext';
 import { logPurchaseDiagnostic } from '@/utils/purchase-diagnostics';
 
@@ -45,9 +51,7 @@ import { logPurchaseDiagnostic } from '@/utils/purchase-diagnostics';
  * worth telling apart.
  */
 export type PurchaseResult =
-  | 'success'
-  | 'unsupported'
-  | Exclude<PurchaseFailure, never>;
+  'success' | 'unsupported' | 'managed' | Exclude<PurchaseFailure, never>;
 
 export type PurchaseAvailabilityIssue =
   | 'unsupported-platform'
@@ -86,6 +90,8 @@ const PurchasesContext = createContext<PurchasesContextValue | null>(null);
 
 export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
+  const queue = useRef(createPurchaseQueue()).current;
   // Refs mirror auth state for the configure effect, which runs once and must
   // not re-run (RevenueCat allows a single configure per process).
   const userIdRef = useRef<number | null>(user?.id ?? null);
@@ -100,11 +106,25 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   const [available, setAvailable] = useState(false);
   const [availabilityIssue, setAvailabilityIssue] =
     useState<PurchaseAvailabilityIssue>(null);
-  const [customerInfo, setCustomerInfo] = useState<RCCustomerInfo | null>(null);
-  const [currentOffering, setCurrentOffering] = useState<RCOffering | null>(null);
+  const [customerState, setCustomerState] = useState<{
+    userId: string | null;
+    info: RCCustomerInfo | null;
+  }>({ userId: null, info: null });
+  const currentUserId =
+    isAuthenticated && user?.id != null ? String(user.id) : null;
+  const customerInfo =
+    customerState.userId === currentUserId ? customerState.info : null;
+  const [currentOffering, setCurrentOffering] = useState<RCOffering | null>(
+    null,
+  );
 
   const applyCustomerInfo = useCallback((info: RCCustomerInfo | null) => {
-    setCustomerInfo(info);
+    const currentId =
+      isAuthenticatedRef.current && userIdRef.current != null
+        ? String(userIdRef.current)
+        : null;
+    if (identityRef.current !== currentId) return;
+    setCustomerState({ userId: currentId, info });
   }, []);
 
   const applyOfferings = useCallback((offerings: {
@@ -192,7 +212,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
           Purchases.getOfferings(),
         ]);
         if (cancelled) return;
-        applyCustomerInfo(info);
+        if (identityRef.current === knownUserId) applyCustomerInfo(info);
         applyOfferings(offerings);
       } catch {
         logPurchaseDiagnostic('configuration-error');
@@ -223,43 +243,31 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
     if (!Purchases || !available) return;
     let cancelled = false;
 
-    (async () => {
+    void queue.run(async () => {
       try {
+        if (cancelled) return;
         if (isAuthenticated && user?.id != null) {
           if (identityRef.current === String(user.id)) return;
+          applyCustomerInfo(null);
+          identityRef.current = null;
           const { customerInfo: info } = await Purchases.logIn(String(user.id));
           identityRef.current = String(user.id);
           if (!cancelled) applyCustomerInfo(info);
         } else if (identityRef.current !== null) {
+          identityRef.current = null;
           const info = await Purchases.logOut();
           identityRef.current = null;
           if (!cancelled) applyCustomerInfo(info);
         }
       } catch {
-        // Non-fatal: the anonymous RevenueCat user still works.
+        // Keep account state unknown until identity synchronization succeeds.
       }
-    })();
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [available, isAuthenticated, user?.id, applyCustomerInfo]);
-
-  const refresh = useCallback(async () => {
-    const Purchases = purchasesRef.current;
-    if (!Purchases) return;
-    try {
-      logPurchaseDiagnostic('offering-requested', { reason: 'refresh' });
-      const [info, offerings] = await Promise.all([
-        Purchases.getCustomerInfo(),
-        Purchases.getOfferings(),
-      ]);
-      applyCustomerInfo(info);
-      applyOfferings(offerings);
-    } catch {
-      logPurchaseDiagnostic('offering-request-failed');
-    }
-  }, [applyCustomerInfo, applyOfferings]);
+  }, [available, isAuthenticated, user?.id, applyCustomerInfo, queue]);
 
   /**
    * Make sure RevenueCat is acting as the signed-in Casparel account before
@@ -268,16 +276,55 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
    */
   const ensureIdentity = useCallback(async (): Promise<void> => {
     const Purchases = purchasesRef.current;
-    if (!Purchases) return;
+    if (!Purchases) throw new Error('Purchases unavailable');
     const userId =
       isAuthenticatedRef.current && userIdRef.current != null
         ? String(userIdRef.current)
         : null;
-    if (userId === null || identityRef.current === userId) return;
+    if (userId === null) throw new Error('Sign in before purchasing');
+    if (identityRef.current === userId) return;
+    identityRef.current = null;
     const { customerInfo: info } = await Purchases.logIn(userId);
     identityRef.current = userId;
+    if (!isAuthenticatedRef.current || String(userIdRef.current) !== userId)
+      throw new Error('Account changed');
     applyCustomerInfo(info);
   }, [applyCustomerInfo]);
+
+  const refresh = useCallback(
+    () =>
+      queue.run(async () => {
+        const Purchases = purchasesRef.current;
+        if (!Purchases) return;
+        try {
+          await ensureIdentity();
+          const [info, offerings] = await Promise.all([
+            Purchases.getCustomerInfo(),
+            Purchases.getOfferings(),
+          ]);
+          applyCustomerInfo(info);
+          setAvailable(true);
+          applyOfferings(offerings);
+        } catch {
+          // ignore transient errors
+        }
+      }),
+    [applyCustomerInfo, applyOfferings, ensureIdentity, queue],
+  );
+
+  const reconcile = useCallback(async () => {
+    const accountId = userIdRef.current;
+    try {
+      await reconcileMyEntitlements();
+    } catch {
+      // A completed store transaction stays completed; webhooks can still sync it.
+    }
+    if (accountId === userIdRef.current) {
+      await queryClient.invalidateQueries({
+        queryKey: getGetMyUsageQueryKey(),
+      });
+    }
+  }, [queryClient]);
 
   /*
    * Re-check the store whenever the app comes back to the foreground.
@@ -291,7 +338,7 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
    * usually returned, so it is the moment worth spending a request on.
    */
   useEffect(() => {
-    if (!available) return;
+    if (!purchasesRef.current) return;
     const subscription = AppState.addEventListener('change', (next) => {
       if (next === 'active') void refresh();
     });
@@ -299,58 +346,99 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
   }, [available, refresh]);
 
   const purchase = useCallback(
-    async (pkg: RCPackage): Promise<PurchaseResult> => {
-      const Purchases = purchasesRef.current;
-      if (!Purchases) return 'unsupported';
-      try {
-        await ensureIdentity();
-        // A plan or billing-period switch must replace the existing Google
-        // Play subscription, never run beside it.
-        const productChange = googleProductChangeFor(
-          customerInfo?.activeSubscriptions ?? [],
-          pkg,
-        );
-        const { customerInfo: info } = await Purchases.purchasePackage(
-          pkg,
-          null,
-          productChange,
-        );
-        applyCustomerInfo(info);
-        // Success is only what the store's customer record confirms. A
-        // deferred/approval-pending purchase resolves without an error but
-        // without the entitlement; reporting it as success would show a
-        // welcome screen for a plan the account does not have.
-        const purchasedTier = tierForPackage(pkg);
-        const confirmed =
-          purchasedTier !== null &&
-          info.entitlements.active[purchasedTier]?.isActive === true;
-        return confirmed ? 'success' : 'pending';
-      } catch (e) {
-        const failure = classifyPurchaseError(e);
-        // A pending purchase may complete on its own once a parent or a bank
-        // approves it, and an already-owned one is already paid for. Refresh
-        // so the app notices either without the person doing anything.
-        if (failure === 'pending' || failure === 'already-owned') {
-          void refresh();
+    (pkg: RCPackage): Promise<PurchaseResult> => {
+      const requestedUserId = userIdRef.current;
+      return queue.run(async () => {
+        if (requestedUserId !== userIdRef.current) return 'unknown';
+        const Purchases = purchasesRef.current;
+        if (!Purchases) return 'unsupported';
+        if (!tierForPackage(pkg)) return 'configuration';
+        try {
+          await ensureIdentity();
+          // A plan or billing-period switch must replace the existing Google
+          // Play subscription, never run beside it.
+          const freshInfo = await Purchases.getCustomerInfo();
+          if (
+            !isAuthenticatedRef.current ||
+            identityRef.current !== String(userIdRef.current)
+          )
+            return 'unknown';
+          applyCustomerInfo(freshInfo);
+          const activeEntitlements = Object.values(
+            freshInfo.entitlements.active,
+          );
+          const store = Platform.OS === 'android' ? 'PLAY_STORE' : 'APP_STORE';
+          if (
+            activeEntitlements.some(
+              (entry) =>
+                entry.isActive &&
+                entry.store !== store &&
+                entry.store !== 'TEST_STORE',
+            )
+          )
+            return 'managed';
+          const productChange =
+            Platform.OS === 'android'
+              ? googleProductChangeFor(freshInfo.activeSubscriptions, pkg)
+              : null;
+          const { customerInfo: info } = await Purchases.purchasePackage(
+            pkg,
+            null,
+            productChange,
+          );
+          if (
+            requestedUserId !== userIdRef.current ||
+            !isAuthenticatedRef.current
+          )
+            return 'cancelled';
+          applyCustomerInfo(info);
+          // Success is only what the store's customer record confirms. A
+          // deferred/approval-pending purchase resolves without an error but
+          // without the entitlement; reporting it as success would show a
+          // welcome screen for a plan the account does not have.
+          const purchasedTier = tierForPackage(pkg);
+          const confirmed =
+            purchasedTier !== null &&
+            info.entitlements.active[purchasedTier]?.isActive === true;
+          await reconcile();
+          return confirmed ? 'success' : 'pending';
+        } catch (e) {
+          const failure = classifyPurchaseError(e);
+          // A pending purchase may complete on its own once a parent or a bank
+          // approves it, and an already-owned one is already paid for. Refresh
+          // so the app notices either without the person doing anything.
+          if (failure === 'pending' || failure === 'already-owned') {
+            void refresh();
+          }
+          return failure;
         }
-        return failure;
-      }
+      });
     },
-    [applyCustomerInfo, customerInfo, ensureIdentity, refresh],
+    [applyCustomerInfo, ensureIdentity, refresh, reconcile, queue],
   );
 
-  const restore = useCallback(async (): Promise<boolean> => {
-    const Purchases = purchasesRef.current;
-    if (!Purchases) return false;
-    try {
-      await ensureIdentity();
-      const info = await Purchases.restorePurchases();
-      applyCustomerInfo(info);
-      return hasPremium(info);
-    } catch {
-      return false;
-    }
-  }, [applyCustomerInfo, ensureIdentity]);
+  const restore = useCallback((): Promise<boolean> => {
+    const requestedUserId = userIdRef.current;
+    return queue.run(async () => {
+      if (requestedUserId !== userIdRef.current) return false;
+      const Purchases = purchasesRef.current;
+      if (!Purchases) return false;
+      try {
+        await ensureIdentity();
+        const info = await Purchases.restorePurchases();
+        if (
+          requestedUserId !== userIdRef.current ||
+          !isAuthenticatedRef.current
+        )
+          return false;
+        applyCustomerInfo(info);
+        await reconcile();
+        return hasPremium(info);
+      } catch {
+        return false;
+      }
+    });
+  }, [applyCustomerInfo, ensureIdentity, reconcile, queue]);
 
   const value = useMemo<PurchasesContextValue>(() => {
     const tier = subscriptionTier(customerInfo);
@@ -371,25 +459,28 @@ export function PurchasesProvider({ children }: { children: React.ReactNode }) {
       restore,
       refresh,
     };
-  },
-    [
-      ready,
-      available,
-      availabilityIssue,
-      customerInfo,
-      currentOffering,
-      purchase,
-      restore,
-      refresh,
-    ],
-  );
+  }, [
+    ready,
+    available,
+    availabilityIssue,
+    customerInfo,
+    currentOffering,
+    purchase,
+    restore,
+    refresh,
+  ]);
 
-  return <PurchasesContext.Provider value={value}>{children}</PurchasesContext.Provider>;
+  return (
+    <PurchasesContext.Provider value={value}>
+      {children}
+    </PurchasesContext.Provider>
+  );
 }
 
 export function usePurchases(): PurchasesContextValue {
   const ctx = useContext(PurchasesContext);
-  if (!ctx) throw new Error('usePurchases must be used within a PurchasesProvider');
+  if (!ctx)
+    throw new Error('usePurchases must be used within a PurchasesProvider');
   return ctx;
 }
 

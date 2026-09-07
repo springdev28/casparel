@@ -6,12 +6,9 @@
  * Web card checkout, through RevenueCat Web Billing (Stripe-backed).
  *
  * Why this and not a separate Stripe integration: purchases made here emit the
- * same RevenueCat webhook events, with the same entitlement identifiers, as
- * App Store and Play purchases. The server's existing webhook is therefore the
- * single reconciliation path for every store — a card purchase on the web
- * grants the plan through exactly the code that a phone purchase does, and the
- * role-matching rules keep applying because they live at read time on the
- * server, not in any client.
+ * same RevenueCat webhook events and entitlement identifiers as App Store
+ * and Play purchases. Clients also request server verification after payment
+ * so account access does not depend on webhook delivery timing.
  *
  * The SDK is loaded lazily and only when `VITE_REVENUECAT_WEB_API_KEY` is set
  * (a Web Billing *public* key, `rcb_...` — publishable client configuration,
@@ -35,10 +32,26 @@ export type PaidTier = Exclude<
 export type BillingPeriod = "monthly" | "annual" | "other";
 
 const WEB_PACKAGE_MAP = {
-  plus_monthly: { tier: "plus", period: "monthly", productId: "casparel_plus_monthly" },
-  plus_yearly: { tier: "plus", period: "annual", productId: "casparel_plus_yearly" },
-  pro_monthly: { tier: "pro", period: "monthly", productId: "casparel_pro_monthly" },
-  pro_yearly: { tier: "pro", period: "annual", productId: "casparel_pro_yearly" },
+  plus_monthly: {
+    tier: "plus",
+    period: "monthly",
+    productId: "casparel_plus_monthly",
+  },
+  plus_yearly: {
+    tier: "plus",
+    period: "annual",
+    productId: "casparel_plus_yearly",
+  },
+  pro_monthly: {
+    tier: "pro",
+    period: "monthly",
+    productId: "casparel_pro_monthly",
+  },
+  pro_yearly: {
+    tier: "pro",
+    period: "annual",
+    productId: "casparel_pro_yearly",
+  },
 } as const satisfies Record<
   string,
   { tier: PaidTier; period: BillingPeriod; productId: string }
@@ -54,8 +67,9 @@ export interface WebPlanPackage {
   raw: Package;
 }
 
-const WEB_BILLING_KEY: string | undefined = import.meta.env
-  .VITE_REVENUECAT_WEB_API_KEY as string | undefined;
+const WEB_BILLING_KEY = (
+  import.meta.env.VITE_REVENUECAT_WEB_API_KEY as string | undefined
+)?.trim();
 
 export function webBillingConfigured(): boolean {
   return typeof WEB_BILLING_KEY === "string" && WEB_BILLING_KEY.length > 0;
@@ -67,14 +81,18 @@ export function webBillingConfigured(): boolean {
  */
 export function tierForWebPackage(pkg: Package): PaidTier | null {
   const product = pkg.webBillingProduct;
-  const definition = WEB_PACKAGE_MAP[pkg.identifier as keyof typeof WEB_PACKAGE_MAP];
+  const definition =
+    WEB_PACKAGE_MAP[pkg.identifier as keyof typeof WEB_PACKAGE_MAP];
   return definition && definition.productId === product?.identifier
     ? definition.tier
     : null;
 }
 
 function periodOf(pkg: Package): BillingPeriod {
-  return WEB_PACKAGE_MAP[pkg.identifier as keyof typeof WEB_PACKAGE_MAP]?.period ?? "other";
+  return (
+    WEB_PACKAGE_MAP[pkg.identifier as keyof typeof WEB_PACKAGE_MAP]?.period ??
+    "other"
+  );
 }
 
 /**
@@ -89,6 +107,7 @@ export function webPackagesForRole(
 
 let instance: Purchases | null = null;
 let instanceUserId: string | null = null;
+let identityQueue: Promise<unknown> = Promise.resolve();
 
 /**
  * Configure (or re-target) the SDK. Signed-in accounts use the numeric
@@ -98,16 +117,26 @@ let instanceUserId: string | null = null;
  * can still see live prices; buying always goes through sign-in first, and
  * the post-login load calls changeUser onto the real account.
  */
-export async function loadWebBilling(
+export function loadWebBilling(
+  userId: number | null,
+): Promise<Purchases | null> {
+  const result = identityQueue.then(() => configureWebBilling(userId));
+  identityQueue = result.catch(() => {});
+  return result;
+}
+
+async function configureWebBilling(
   userId: number | null,
 ): Promise<Purchases | null> {
   if (!webBillingConfigured()) return null;
-  const { Purchases: PurchasesClass } = await import("@revenuecat/purchases-js");
+  const { Purchases: PurchasesClass } =
+    await import("@revenuecat/purchases-js");
   const appUserId =
     userId != null
       ? String(userId)
-      : (instanceUserId?.startsWith("$RCAnonymousID") ? instanceUserId : null) ??
-        PurchasesClass.generateRevenueCatAnonymousAppUserId();
+      : ((instanceUserId?.startsWith("$RCAnonymousID")
+          ? instanceUserId
+          : null) ?? PurchasesClass.generateRevenueCatAnonymousAppUserId());
   if (instance && instanceUserId === appUserId) return instance;
   if (instance) {
     await instance.changeUser(appUserId);
@@ -123,21 +152,24 @@ export async function fetchWebPackages(
   purchases: Purchases,
 ): Promise<WebPlanPackage[]> {
   const offerings = await purchases.getOfferings();
-  const offering = offerings.all.default?.identifier === "default"
-    ? offerings.all.default
-    : offerings.current?.identifier === "default"
-      ? offerings.current
-      : null;
+  const offering =
+    offerings.all.default?.identifier === "default"
+      ? offerings.all.default
+      : offerings.current?.identifier === "default"
+        ? offerings.current
+        : null;
   return (offering?.availablePackages ?? []).flatMap((pkg) => {
     const tier = tierForWebPackage(pkg);
     return tier
-      ? [{
-          id: pkg.identifier,
-          tier,
-          period: periodOf(pkg),
-          price: pkg.webBillingProduct?.currentPrice?.formattedPrice ?? "",
-          raw: pkg,
-        }]
+      ? [
+          {
+            id: pkg.identifier,
+            tier,
+            period: periodOf(pkg),
+            price: pkg.webBillingProduct?.currentPrice?.formattedPrice ?? "",
+            raw: pkg,
+          },
+        ]
       : [];
   });
 }
@@ -156,7 +188,13 @@ export function baseWebProductId(productId: string): string {
  */
 export type EntitlementStoreKind = "web" | "app-store" | null;
 
-const WEB_STORES = new Set(["rc_billing", "stripe", "paddle", "promotional", "test_store"]);
+const WEB_STORES = new Set([
+  "rc_billing",
+  "stripe",
+  "paddle",
+  "promotional",
+  "test_store",
+]);
 
 export interface WebSubscriptionState {
   /** Active subscription products on this RevenueCat customer, base ids. */
@@ -171,17 +209,18 @@ export async function fetchWebSubscriptionState(
   const info = await purchases.getCustomerInfo();
   const activeProductIds = [...info.activeSubscriptions].map(baseWebProductId);
   const activeEntitlements = Object.values(info.entitlements.active ?? {});
-  const paid = activeEntitlements.find(
+  const paid = activeEntitlements.filter(
     (entitlement) =>
       entitlement.identifier === "plus" || entitlement.identifier === "pro",
   );
   return {
     activeProductIds,
-    entitlementStore: paid
-      ? WEB_STORES.has(paid.store)
-        ? "web"
-        : "app-store"
-      : null,
+    entitlementStore:
+      paid.length > 0
+        ? paid.every((entitlement) => WEB_STORES.has(entitlement.store))
+          ? "web"
+          : "app-store"
+        : null,
     manageUrl: info.managementURL ?? null,
   };
 }
@@ -225,45 +264,58 @@ export function webPackageAction(
   // Until the server has answered, selling anything risks selling the wrong
   // thing (a "Subscribe" on an account that is already Pro).
   if (context.pending) return "hidden";
-  if (context.currentLevel === "free") return "subscribe";
+  if (
+    context.currentLevel === "free" &&
+    context.subscription?.activeProductIds.length === 0 &&
+    context.subscription.entitlementStore === null
+  )
+    return "subscribe";
   // Paid. Work out what they hold and where it was bought.
   const subscription = context.subscription;
-  if (!subscription || subscription.entitlementStore === "app-store") {
+  if (!subscription || subscription.entitlementStore !== "web") {
     return "app-managed";
   }
   const active = new Set(subscription.activeProductIds);
   const definition = WEB_PACKAGE_MAP[pkg.id as keyof typeof WEB_PACKAGE_MAP];
   if (!definition) return "hidden";
   if (active.has(baseWebProductId(definition.productId))) return "current";
-  const currentDefinitions = Object.values(WEB_PACKAGE_MAP).filter((candidate) =>
-    active.has(baseWebProductId(candidate.productId)),
+  const currentDefinitions = Object.values(WEB_PACKAGE_MAP).filter(
+    (candidate) => active.has(baseWebProductId(candidate.productId)),
   );
-  const currentTiers = new Set(currentDefinitions.map((candidate) => candidate.tier));
+  const currentTiers = new Set(
+    currentDefinitions.map((candidate) => candidate.tier),
+  );
   if (currentTiers.size > 0 && !currentTiers.has(definition.tier)) {
     return "switch-tier";
   }
   return "switch-period";
 }
 
-export type WebPurchaseOutcome = "success" | "cancelled" | "error";
+export type WebPurchaseOutcome = "success" | "cancelled" | "error" | "managed";
 
 /**
  * Run RevenueCat's hosted card checkout for one package. The SDK renders its
- * own payment UI; entitlement lands on the account via the server webhook a
- * few seconds after the charge, so callers should refetch usage after success
- * rather than trusting local state.
+ * own payment UI. After success, callers request server verification and
+ * refresh usage. Existing subscriptions must use provider management.
  */
 export async function purchaseWebPackage(
   purchases: Purchases,
   pkg: WebPlanPackage,
 ): Promise<WebPurchaseOutcome> {
   try {
+    // Refresh immediately before checkout: the server may still report Free
+    // while an existing subscription's webhook is in flight.
+    const subscription = await fetchWebSubscriptionState(purchases);
+    if (
+      subscription.activeProductIds.length > 0 ||
+      subscription.entitlementStore
+    )
+      return "managed";
     await purchases.purchase({ rcPackage: pkg.raw });
     return "success";
   } catch (error) {
-    const { ErrorCode, PurchasesError } = await import(
-      "@revenuecat/purchases-js"
-    );
+    const { ErrorCode, PurchasesError } =
+      await import("@revenuecat/purchases-js");
     if (
       error instanceof PurchasesError &&
       error.errorCode === ErrorCode.UserCancelledError

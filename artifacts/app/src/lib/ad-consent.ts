@@ -41,19 +41,24 @@ export function consentRequiredHere(): boolean {
   }
 }
 
+let pageConsent: AdConsentState = "unknown";
+
 export function readAdConsent(): AdConsentState {
+  if (pageConsent !== "unknown") return pageConsent;
   try {
     const stored = localStorage.getItem(CONSENT_KEY);
     if (stored === "granted" || stored === "denied") return stored;
   } catch {
     // Storage blocked: treat as undecided, which shows no ads.
   }
-  return "unknown";
+  return pageConsent;
 }
 
 export function writeAdConsent(state: Exclude<AdConsentState, "unknown">): void {
+  pageConsent = state;
   try {
     localStorage.setItem(CONSENT_KEY, state);
+    pageConsent = "unknown";
   } catch {
     // A blocked store means the choice lasts for this page only, which is
     // still the visitor's choice and still fails closed on the next load.
@@ -63,7 +68,10 @@ export function writeAdConsent(state: Exclude<AdConsentState, "unknown">): void 
 
 export function subscribeToAdConsent(onChange: () => void): () => void {
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === CONSENT_KEY) onChange();
+    if (event.key === null || event.key === CONSENT_KEY) {
+      pageConsent = "unknown";
+      onChange();
+    }
   };
   window.addEventListener("storage", handleStorage);
   window.addEventListener(CONSENT_EVENT, onChange);

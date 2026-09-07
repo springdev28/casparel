@@ -26,7 +26,7 @@ const base: WebPlanContext = {
   pending: false,
   currentLevel: "free",
   institutional: false,
-  subscription: null,
+  subscription: { activeProductIds: [], entitlementStore: null, manageUrl: null },
 };
 
 describe("webPackageAction", () => {
@@ -35,6 +35,13 @@ describe("webPackageAction", () => {
       expect(webPackageAction(candidate, { ...base, signedIn: false })).toBe("subscribe");
       expect(webPackageAction(candidate, base)).toBe("subscribe");
     }
+  });
+
+  it("does not trust stale Free usage or a failed customer lookup", () => {
+    expect(webPackageAction(PRO_MONTHLY, { ...base, subscription: null })).toBe("app-managed");
+    expect(webPackageAction(PRO_MONTHLY, { ...base, subscription: {
+      activeProductIds: ["casparel_pro_monthly"], entitlementStore: "app-store", manageUrl: null,
+    } })).toBe("app-managed");
   });
 
   it("sells nothing to administrators or institutional accounts", () => {
@@ -168,14 +175,26 @@ describe("fetchWebSubscriptionState", () => {
 });
 
 describe("purchaseWebPackage outcomes", () => {
+  const free = { activeSubscriptions: [], entitlements: { active: {} }, managementURL: null };
+  it("blocks another purchase when the provider knows about a subscription", async () => {
+    let charged = false;
+    const purchases = {
+      getCustomerInfo: async () => ({ ...free, activeSubscriptions: ["casparel_plus_monthly"] }),
+      purchase: async () => { charged = true; },
+    } as unknown as Purchases;
+    expect(await purchaseWebPackage(purchases, PRO_MONTHLY)).toBe("managed");
+    expect(charged).toBe(false);
+  });
+
   it("reports success when the SDK resolves", async () => {
-    const purchases = { purchase: async () => ({}) } as unknown as Purchases;
+    const purchases = { getCustomerInfo: async () => free, purchase: async () => ({}) } as unknown as Purchases;
     expect(await purchaseWebPackage(purchases, PLUS_MONTHLY)).toBe("success");
   });
 
   it("maps a user-cancelled checkout to cancelled, not an error", async () => {
     const { ErrorCode, PurchasesError } = await import("@revenuecat/purchases-js");
     const purchases = {
+      getCustomerInfo: async () => free,
       purchase: async () => {
         throw new PurchasesError(ErrorCode.UserCancelledError);
       },
@@ -185,6 +204,7 @@ describe("purchaseWebPackage outcomes", () => {
 
   it("maps every other failure to error", async () => {
     const purchases = {
+      getCustomerInfo: async () => free,
       purchase: async () => {
         throw new Error("network down");
       },

@@ -21,11 +21,11 @@ export type RouteDecision =
   /** The current screen is the correct one. */
   | { kind: 'stay' }
   /** Navigate, replacing history so the wrong screen never flashes back. */
-  | { kind: 'replace'; route: '/login' | '/onboarding' | '/mobile' };
+  | { kind: 'replace'; route: '/home' | '/login' | '/onboarding' | '/mobile' };
 
-const AUTH_SEGMENTS = new Set(['login', 'register']);
+const AUTH_SEGMENTS = new Set(['home', 'login', 'register']);
 /** Screens an authenticated, onboarded session may occupy. */
-const AUTHENTICATED_SEGMENTS = new Set(['mobile', 'paywall']);
+const AUTHENTICATED_SEGMENTS = new Set(['home', 'mobile', 'paywall']);
 
 /**
  * One decision for every combination of restored session state and location.
@@ -34,9 +34,9 @@ const AUTHENTICATED_SEGMENTS = new Set(['mobile', 'paywall']);
  *  - Nothing is decided (and the splash stays up) until both credential
  *    restoration and the onboarding flag are complete, so the public or
  *    wrong screen can never flash before the real destination.
- *  - Signed out: only the credential screens are reachable.
+ *  - Signed out: the native public home and credential screens are reachable.
  *  - Signed in with onboarding pending: only onboarding.
- *  - Signed in: the hosted workspace or the native paywall. Everything else
+ *  - Signed in: the native home, hosted workspace, or native paywall. Everything else
  *    (legacy native tabs, unknown routes) is replaced with the workspace.
  */
 export function resolveInitialRoute(state: SessionRouteState): RouteDecision {
@@ -45,7 +45,7 @@ export function resolveInitialRoute(state: SessionRouteState): RouteDecision {
   if (!state.isAuthenticated) {
     return state.segment !== undefined && AUTH_SEGMENTS.has(state.segment)
       ? { kind: 'stay' }
-      : { kind: 'replace', route: '/login' };
+      : { kind: 'replace', route: '/home' };
   }
 
   if (state.needsOnboarding) {

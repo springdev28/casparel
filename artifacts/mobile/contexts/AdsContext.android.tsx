@@ -22,6 +22,7 @@ import { apiOrigin } from "@/utils/api-host";
 import { logAdDiagnostic } from "@/utils/ad-diagnostics";
 import {
   adRequestAllowed,
+  adSessionReady,
   canDisableAds as adsMayBeDisabledBy,
 } from "@/utils/ad-placement";
 import {
@@ -93,8 +94,7 @@ async function initializeSdk(ads: GoogleMobileAdsModule): Promise<void> {
 }
 
 export function AdsProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading: authenticationLoading, user, token } =
-    useAuth();
+  const { isAuthenticated, isLoading: authLoading, user, token } = useAuth();
   const { level } = usePurchases();
   const { ready: onboardingReady, needsOnboarding } = useOnboarding();
   // Entitlement is the wider of the store's answer and the server's: the
@@ -105,6 +105,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   });
   const [ready, setReady] = useState(false);
   const [preferencesReady, setPreferencesReady] = useState(false);
+  const [preferencesUserId, setPreferencesUserId] = useState<number | null>(null);
   const [soundMuted, setSoundMutedState] = useState(false);
   const [adsDisabled, setAdsDisabledState] = useState(false);
   const [consentInfo, setConsentInfo] = useState<AdsConsentInfo | null>(null);
@@ -114,9 +115,9 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   // One rule, unit-tested in utils/ad-placement.test.ts, so the Review
   // account's Pro-equivalent access cannot regress into "shown as Free".
   const entitlement = {
-    storeLevel: level,
-    serverTier: usage?.tier ?? null,
-    unlimited: usage?.unlimited === true,
+    storeLevel: isAuthenticated ? level : 'free' as const,
+    serverTier: isAuthenticated ? usage?.tier ?? null : 'free' as const,
+    unlimited: isAuthenticated && usage?.unlimited === true,
   };
   const canDisableAds = adsMayBeDisabledBy(entitlement);
 
@@ -125,12 +126,12 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!authenticationLoading) {
+    if (!authLoading) {
       logAdDiagnostic('authentication-ready', {
         authenticated: isAuthenticated,
       });
     }
-  }, [authenticationLoading, isAuthenticated]);
+  }, [authLoading, isAuthenticated]);
 
   useEffect(() => {
     if (onboardingReady) {
@@ -183,11 +184,15 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       if (cancelled) return;
       setSoundMutedState(storedMuted === "true");
       setAdsDisabledState(storedDisabled === "true");
-      setPreferencesReady(true);
+      // Do not request ads until the account copy has answered too.
 
       // …then the account's stored answer wins, so the choice follows the
       // person to a reinstalled or second device.
-      if (!token) return;
+      if (!token) {
+        setPreferencesUserId(null);
+        setPreferencesReady(true);
+        return;
+      }
       try {
         const response = await fetch(`${apiOrigin}/api/users/me/preferences`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -196,7 +201,10 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
         const data = (await response.json()) as {
           adPreferences?: { adsDisabled?: boolean; soundMuted?: boolean };
         };
-        if (cancelled || !data.adPreferences) return;
+        if (cancelled) return;
+        setPreferencesUserId(user?.id ?? null);
+        setPreferencesReady(true);
+        if (!data.adPreferences) return;
         if (typeof data.adPreferences.soundMuted === "boolean") {
           setSoundMutedState(data.adPreferences.soundMuted);
           await storage.setItemAsync(
@@ -214,7 +222,9 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       } catch {
         // The device cache already answered.
       }
-    })();
+    })().catch(() => {
+      // Unreadable preferences keep advertising off.
+    });
     return () => {
       cancelled = true;
     };
@@ -252,8 +262,8 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     // On a cold release launch the module becomes available before UMP and
     // MobileAds initialization finish. Calling setAppMuted in that interval
     // can terminate Android at the native boundary instead of producing a JS
-    // error. `adsModule` is now published only after initializeSdk succeeds,
-    // and this guard also keeps preference changes harmless after an ad outage.
+    // error. The readiness and consent guards also keep preference changes
+    // harmless after an ad outage.
     try {
       adsModule.default().setAppMuted(soundMuted);
     } catch {
@@ -264,7 +274,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Waiting until onboarding is complete prevents a system consent sheet
     // from interrupting the account-setup screens. No ad surface exists there.
-    if (!isAuthenticated || !onboardingReady || needsOnboarding) {
+    if (authLoading || !onboardingReady || (isAuthenticated && needsOnboarding)) {
       setReady(false);
       setConsentInfo(null);
       setAdsModule(null);
@@ -272,6 +282,8 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     }
 
     let cancelled = false;
+    setReady(false);
+    setConsentInfo(null);
 
     void (async () => {
       const ads = await loadGoogleMobileAds();
@@ -282,6 +294,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
         setReady(true);
         return;
       }
+      setAdsModule(ads);
       let info: AdsConsentInfo | null = null;
       try {
         // UMP refreshes this on every app launch and shows any required form.
@@ -329,7 +342,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, needsOnboarding, onboardingReady]);
+  }, [authLoading, isAuthenticated, needsOnboarding, onboardingReady]);
 
   const showPrivacyOptions = useCallback(async (): Promise<boolean> => {
     const ads = adsModule ?? (await loadGoogleMobileAds());
@@ -337,7 +350,11 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     try {
       const info = await ads.AdsConsent.showPrivacyOptionsForm();
       setConsentInfo(info);
-      if (info.canRequestAds) await initializeSdk(ads);
+      if (info.canRequestAds) {
+        await initializeSdk(ads);
+        setAdsModule(ads);
+        setReady(true);
+      }
       return true;
     } catch {
       return false;
@@ -345,8 +362,9 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   }, [adsModule]);
 
   const requestAllowed = adRequestAllowed({
-    sdkReady: ready,
-    preferencesReady,
+    sdkReady: ready && adsModule !== null && onboardingReady && !(isAuthenticated && needsOnboarding),
+    entitlementReady: adSessionReady({ authLoading, isAuthenticated, serverPlanKnown: usage !== undefined }),
+    preferencesReady: preferencesReady && preferencesUserId === (user?.id ?? null),
     consentGranted: consentInfo?.canRequestAds === true,
     adsDisabled,
     entitlement,
@@ -398,6 +416,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       setSoundMuted,
       showPrivacyOptions,
       soundMuted,
+      isAuthenticated, authLoading, onboardingReady, needsOnboarding, usage, level, preferencesUserId, user?.id,
     ],
   );
 

@@ -37,6 +37,7 @@ import {
   getGetMeQueryKey,
   getGetMyUsageQueryKey,
   useGetMe,
+  reconcileMyEntitlements,
 } from "@workspace/api-client-react";
 import { Button } from "@workspace/edu-ds/components/ui/button";
 import {
@@ -81,6 +82,7 @@ type CheckoutState =
   | { status: "loading" }
   | {
       status: "ready";
+      userId: number | null;
       packages: WebPlanPackage[];
       subscription: WebSubscriptionState | null;
     }
@@ -93,7 +95,11 @@ type CheckoutState =
  * key, a dashboard without offerings, or a network failure must never leave
  * the page worse than it was before card checkout existed.
  */
-function useWebCheckout(userId: number | null, enabled: boolean) {
+function useWebCheckout(
+  userId: number | null,
+  enabled: boolean,
+  revision: number,
+) {
   const [state, setState] = useState<CheckoutState>({
     status: webBillingConfigured() ? "loading" : "unavailable",
   });
@@ -103,6 +109,7 @@ function useWebCheckout(userId: number | null, enabled: boolean) {
       setState({ status: "unavailable" });
       return;
     }
+    setState({ status: "loading" });
     let cancelled = false;
     (async () => {
       try {
@@ -121,7 +128,7 @@ function useWebCheckout(userId: number | null, enabled: boolean) {
         const forRole = webPackagesForRole(packages, null);
         setState(
           forRole.length > 0
-            ? { status: "ready", packages: forRole, subscription }
+            ? { status: "ready", userId, packages: forRole, subscription }
             : { status: "unavailable" },
         );
       } catch {
@@ -131,17 +138,19 @@ function useWebCheckout(userId: number | null, enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [userId, enabled]);
+  }, [userId, enabled, revision]);
 
-  return state;
+  return state.status === "ready" && state.userId !== userId
+    ? { status: "loading" as const }
+    : state;
 }
 
 function buttonLabel(action: WebPackageAction, pkg: WebPlanPackage): string {
   if (action === "switch-tier") {
-    return `Switch to ${pkg.tier === "pro" ? "Pro" : "Plus"} · ${pkg.price}`;
+    return "Manage billing";
   }
   if (action === "switch-period") {
-    return `Change billing period · ${pkg.price}`;
+    return "Manage billing";
   }
   return pkg.period === "annual"
     ? `Subscribe yearly · ${pkg.price}`
@@ -300,8 +309,8 @@ function TierColumn({
             })}
             <p className="text-[11px] text-muted-foreground">
               Card checkout, billed by RevenueCat. Renews automatically; cancel
-              any time from Manage billing. Changing plan replaces your current
-              subscription, so you are never billed for two at once.
+              any time from Manage billing. Existing subscriptions are changed
+              through billing management.
             </p>
           </section>
         ) : card.tier !== "free" && mobilePurchaseHref ? (
@@ -342,16 +351,18 @@ export default function PlansPage() {
   const [audience, setAudience] = useState<PlanView>("generic");
   const cards = audience === "institutional" ? [] : TIER_CARDS[audience];
 
+  const [checkoutRevision, setCheckoutRevision] = useState(0);
   const checkout = useWebCheckout(
     isLoggedIn && !isAdmin ? (me?.id ?? null) : null,
-    !isAdmin,
+    !isAdmin && (!isLoggedIn || me?.id != null),
+    checkoutRevision,
   );
   const subscription =
     checkout.status === "ready" ? checkout.subscription : null;
   const planContext: WebPlanContext = {
     signedIn: isLoggedIn,
     isAdmin,
-    pending: plan.pending,
+    pending: plan.pending || checkout.status !== "ready",
     currentLevel: plan.level,
     institutional: plan.tier === "institutional",
     subscription,
@@ -360,9 +371,9 @@ export default function PlansPage() {
     isLoggedIn &&
     !isAdmin &&
     !plan.pending &&
-    plan.level !== "free" &&
     plan.tier !== "institutional" &&
-    (subscription === null || subscription.entitlementStore === "app-store");
+    (subscription?.entitlementStore === "app-store" ||
+      (plan.level !== "free" && subscription?.entitlementStore !== "web"));
   const [busyPackageId, setBusyPackageId] = useState<string | null>(null);
   const [purchaseNote, setPurchaseNote] = useState<{
     kind: "success" | "error";
@@ -377,37 +388,73 @@ export default function PlansPage() {
         setLocation("/auth/login?next=/plans");
         return;
       }
-      if (checkout.status !== "ready") return;
+      if (
+        checkout.status !== "ready" ||
+        busyPackageId !== null ||
+        plan.pending ||
+        !me?.id
+      )
+        return;
       setBusyPackageId(pkg.id);
       setPurchaseNote(null);
-      const purchases = me?.id != null ? await loadWebBilling(me.id) : null;
-      const outcome = purchases
-        ? await purchaseWebPackage(purchases, pkg)
-        : "error";
-      setBusyPackageId(null);
-      if (outcome === "success") {
-        setPurchaseNote({
-          kind: "success",
-          text: "Payment complete. Your plan activates on your account within a few seconds.",
-        });
-        // The entitlement is granted by the server when RevenueCat's webhook
-        // arrives, not by this client — refetch now and again shortly after.
-        void queryClient.invalidateQueries({
-          queryKey: getGetMyUsageQueryKey(),
-        });
-        setTimeout(() => {
-          void queryClient.invalidateQueries({
+      try {
+        const purchases = await loadWebBilling(me.id);
+        if (readSessionClaims()?.userId !== me.id) return;
+        const outcome = purchases
+          ? await purchaseWebPackage(purchases, pkg)
+          : "error";
+        if (readSessionClaims()?.userId !== me.id) return;
+        if (outcome === "managed" && purchases) {
+          const current = await fetchWebSubscriptionState(purchases);
+          if (current.manageUrl) window.location.assign(current.manageUrl);
+          else
+            setPurchaseNote({
+              kind: "error",
+              text: "You already have a subscription. Manage it through the store where you purchased it.",
+            });
+          setCheckoutRevision((value) => value + 1);
+        } else if (outcome === "success") {
+          let verified = false;
+          try {
+            await reconcileMyEntitlements();
+            verified = true;
+          } catch {
+            // Payment succeeded. A verification outage must never invite another charge.
+          }
+          setPurchaseNote({
+            kind: "success",
+            text: verified
+              ? "Payment complete. Your account has been refreshed."
+              : "Payment complete. Your plan is still syncing. Please do not purchase again.",
+          });
+          await queryClient.invalidateQueries({
             queryKey: getGetMyUsageQueryKey(),
           });
-        }, 5000);
-      } else if (outcome === "error") {
+          setCheckoutRevision((value) => value + 1);
+        } else if (outcome === "error") {
+          setPurchaseNote({
+            kind: "error",
+            text: "Checkout could not be completed. Check your billing status before trying again.",
+          });
+        }
+      } catch {
         setPurchaseNote({
           kind: "error",
-          text: "The purchase could not be completed. You have not been charged twice; try again or use the mobile app.",
+          text: "Billing is temporarily unavailable. Please try again shortly.",
         });
+      } finally {
+        setBusyPackageId(null);
       }
     },
-    [isLoggedIn, setLocation, checkout.status, me?.id, queryClient],
+    [
+      isLoggedIn,
+      setLocation,
+      checkout.status,
+      busyPackageId,
+      plan.pending,
+      me?.id,
+      queryClient,
+    ],
   );
 
   return (

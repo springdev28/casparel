@@ -65,13 +65,23 @@ export function canDisableAds(entitlement: AdEntitlement): boolean {
  */
 export function adRequestAllowed(state: {
   sdkReady: boolean;
+  entitlementReady: boolean;
   preferencesReady: boolean;
   consentGranted: boolean;
   adsDisabled: boolean;
   entitlement: AdEntitlement;
 }): boolean {
-  if (!state.sdkReady || !state.preferencesReady) return false;
+  if (!state.sdkReady || !state.preferencesReady || !state.entitlementReady) return false;
   if (!state.consentGranted) return false;
   if (canDisableAds(state.entitlement) && state.adsDisabled) return false;
   return true;
+}
+
+/** Guests have no account plan to fetch; billing SDK availability is unrelated to ads. */
+export function adSessionReady(state: {
+  authLoading: boolean;
+  isAuthenticated: boolean;
+  serverPlanKnown: boolean;
+}): boolean {
+  return !state.authLoading && (!state.isAuthenticated || state.serverPlanKnown);
 }

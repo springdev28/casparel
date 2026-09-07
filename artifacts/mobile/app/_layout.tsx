@@ -96,52 +96,11 @@ function RootLayoutNav() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="home" options={{ headerShown: false }} />
       <Stack.Screen name="mobile" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="resource/[id]"
-        options={{ title: t('Resource'), headerBackTitle: t("Back") }}
-      />
-      <Stack.Screen
-        name="class/[id]"
-        options={{ title: t('Class'), headerBackTitle: t("Back") }}
-      />
-      <Stack.Screen
-        name="study/[id]"
-        options={{ title: t('Study'), headerBackTitle: t("Back") }}
-      />
-      <Stack.Screen
-        name="messages/index"
-        options={{ title: t('Messages'), headerBackTitle: t("Back") }}
-      />
-      <Stack.Screen
-        name="goals/index"
-        options={{ title: t('Learning goals'), headerBackTitle: t("Back") }}
-      />
-      <Stack.Screen
-        name="lists/index"
-        options={{ title: t('Learning lists'), headerBackTitle: t("Back") }}
-      />
-      <Stack.Screen
-        name="lists/[id]"
-        options={{ title: t('Learning list'), headerBackTitle: t("Back") }}
-      />
-      <Stack.Screen
-        /* The goal's own title is too long for a phone header and belongs to
-           the reader rather than to us, so the header names the kind of thing
-           and the screen names the thing. */
-        name="goals/[id]"
-        options={{ title: t('Goal'), headerBackTitle: t("Back") }}
-      />
-      <Stack.Screen
-        /* The title becomes the other person's name once the conversation
-           loads; this is what shows for the moment before it does. */
-        name="messages/[id]"
-        options={{ title: t('Conversation'), headerBackTitle: t("Back") }}
-      />
       <Stack.Screen
         name="paywall"
         options={{ presentation: "modal", headerShown: false }}

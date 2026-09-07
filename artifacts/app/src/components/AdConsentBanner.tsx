@@ -28,6 +28,13 @@ export function AdConsentBanner() {
     () => "unknown" as const,
   );
 
+  // The native app obtains consent through Google's native consent form.
+  // Its hosted workspace never requests AdSense ads.
+  try {
+    if (localStorage.getItem("casparel_native_shell") === "true") return null;
+  } catch {
+    // A normal browser with blocked storage can still choose for this page.
+  }
   if (!webAdsConfigured()) return null;
   if (consent !== "unknown") return null;
   if (!consentRequiredHere()) return null;

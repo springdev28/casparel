@@ -21,22 +21,23 @@ describe('resolveInitialRoute', () => {
     expect(resolveInitialRoute({ ...base, onboardingReady: false })).toEqual({ kind: 'wait' });
   });
 
-  it('sends a signed-out session to the in-app login, never the public site', () => {
+  it('sends a signed-out session to the native home', () => {
     expect(resolveInitialRoute({ ...base, segment: undefined })).toEqual({
       kind: 'replace',
-      route: '/login',
+      route: '/home',
     });
     expect(resolveInitialRoute({ ...base, segment: 'mobile' })).toEqual({
       kind: 'replace',
-      route: '/login',
+      route: '/home',
     });
     expect(resolveInitialRoute({ ...base, segment: 'paywall' })).toEqual({
       kind: 'replace',
-      route: '/login',
+      route: '/home',
     });
   });
 
-  it('keeps both credential screens reachable while signed out', () => {
+  it('keeps the native home and credential screens reachable while signed out', () => {
+    expect(resolveInitialRoute({ ...base, segment: 'home' })).toEqual({ kind: 'stay' });
     expect(resolveInitialRoute({ ...base, segment: 'login' })).toEqual({ kind: 'stay' });
     expect(resolveInitialRoute({ ...base, segment: 'register' })).toEqual({ kind: 'stay' });
   });
@@ -64,6 +65,7 @@ describe('resolveInitialRoute', () => {
 
   it('lets an authenticated session stay on the workspace and the paywall', () => {
     const authed = { ...base, isAuthenticated: true };
+    expect(resolveInitialRoute({ ...authed, segment: 'home' })).toEqual({ kind: 'stay' });
     expect(resolveInitialRoute({ ...authed, segment: 'mobile' })).toEqual({ kind: 'stay' });
     expect(resolveInitialRoute({ ...authed, segment: 'paywall' })).toEqual({ kind: 'stay' });
   });

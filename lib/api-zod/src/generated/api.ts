@@ -420,6 +420,14 @@ export const SwitchRoleResponse = zod.object({
 
 
 /**
+ * @summary Verify the signed-in account's purchases with RevenueCat
+ */
+export const ReconcileMyEntitlementsResponse = zod.object({
+  "reconciled": zod.boolean()
+})
+
+
+/**
  * @summary Get the current account plan and AI usage
  */
 export const getMyUsageResponseStorageUsedBytesMin = 0;
