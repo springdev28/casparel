@@ -114,7 +114,7 @@ export default function MobileWebAppScreen() {
               try {
                 var destination = new URL(anchor.href, window.location.href);
                 var sameHost = destination.hostname.replace(/^www\./, '') === window.location.hostname.replace(/^www\./, '');
-                if (sameHost && destination.pathname === '/plans') {
+                if (sameHost && (destination.pathname === '/plans' || destination.pathname === '/' || destination.pathname.startsWith('/auth/'))) {
                   event.preventDefault();
                   event.stopPropagation();
                   sendUrl(destination.href);
@@ -141,6 +141,10 @@ export default function MobileWebAppScreen() {
     (rawUrl: string, navigateInternal: boolean) => {
       const destination = classifyMobileWebUrl(rawUrl, apiOrigin);
       if (destination.kind === 'ignore') return true;
+      if (destination.kind === 'home' || destination.kind === 'login' || destination.kind === 'register') {
+        router.navigate(`/${destination.kind}`);
+        return false;
+      }
       if (destination.kind === 'paywall') {
         router.push('/paywall');
         return false;
@@ -161,6 +165,14 @@ export default function MobileWebAppScreen() {
     },
     [router],
   );
+
+  // The WebView remains mounted behind the native paywall and has its own
+  // query cache. Refresh its plan when returning from a purchase or restore.
+  useFocusEffect(useCallback(() => {
+    webView.current?.injectJavaScript(
+      'window.dispatchEvent(new Event("casparel-billing-refresh")); true;',
+    );
+  }, []));
 
   useFocusEffect(
     React.useCallback(() => {

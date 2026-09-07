@@ -94,6 +94,7 @@ import type {
   PublishStudyActivityBody,
   RecommendResourceToPerson201,
   RecommendResourceToPersonBody,
+  ReconcileMyEntitlements200,
   RegisterInput,
   RegisterPushTokenBody,
   ReorderListItemsInput,
@@ -1495,6 +1496,77 @@ export const useSwitchRole = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSwitchRoleMutationOptions(options));
+    }
+
+export const getReconcileMyEntitlementsUrl = () => {
+
+
+
+
+  return `/api/users/me/entitlements/reconcile`
+}
+
+/**
+ * @summary Verify the signed-in account's purchases with RevenueCat
+ */
+export const reconcileMyEntitlements = async ( options?: Parameters<typeof customFetch>[1]): Promise<ReconcileMyEntitlements200> => {
+
+  return customFetch<ReconcileMyEntitlements200>(getReconcileMyEntitlementsUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getReconcileMyEntitlementsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reconcileMyEntitlements>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reconcileMyEntitlements>>, TError,void, TContext> => {
+
+const mutationKey = ['reconcileMyEntitlements'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reconcileMyEntitlements>>, void> = () => {
+
+
+          return  reconcileMyEntitlements(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReconcileMyEntitlementsMutationResult = NonNullable<Awaited<ReturnType<typeof reconcileMyEntitlements>>>
+
+    export type ReconcileMyEntitlementsMutationError = ErrorType<void>
+
+    /**
+ * @summary Verify the signed-in account's purchases with RevenueCat
+ */
+export const useReconcileMyEntitlements = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reconcileMyEntitlements>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reconcileMyEntitlements>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getReconcileMyEntitlementsMutationOptions(options));
     }
 
 export const getGetMyUsageUrl = () => {

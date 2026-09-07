@@ -21,6 +21,7 @@ import { Ban, Loader2, Mail, Trash2 } from "lucide-react";
 import { Route, Switch, Router as WouterRouter, Redirect } from "wouter";
 import {
   getGetMeQueryKey,
+  getGetMyUsageQueryKey,
   getMe,
   getMyAccess,
   setAuthTokenGetter,
@@ -496,6 +497,11 @@ function AppearanceRuntime() {
 function App() {
   useEffect(() => {
     setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
+    const refreshBilling = () => {
+      void queryClient.invalidateQueries({ queryKey: getGetMyUsageQueryKey() });
+    };
+    window.addEventListener("casparel-billing-refresh", refreshBilling);
+    return () => window.removeEventListener("casparel-billing-refresh", refreshBilling);
   }, []);
 
   return (

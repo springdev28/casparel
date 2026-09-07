@@ -100,6 +100,7 @@ export interface RCOffering {
 }
 
 export interface RCEntitlementInfo {
+  store?: string;
   identifier: string;
   isActive: boolean;
   willRenew: boolean;

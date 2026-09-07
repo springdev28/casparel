@@ -1,8 +1,7 @@
 /**
- * The website brand opens the public home page. The installed app keeps the
- * same control inside its authenticated workspace because `/` is the website
- * landing page when no native session is available.
+ * The brand always addresses home. The installed app intercepts `/` and opens
+ * its native home screen; ordinary browsers open the website's landing page.
  */
-export function brandHomePath(nativeShell: boolean): "/" | "/dashboard" {
-  return nativeShell ? "/dashboard" : "/";
+export function brandHomePath(_nativeShell: boolean): "/" {
+  return "/";
 }

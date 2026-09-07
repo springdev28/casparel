@@ -4,7 +4,7 @@
  * supplies consent and saved sound/ad preferences, and
  * revenuecat-ads forwards lifecycle/revenue callbacks for unified reporting.
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import type { NativeAd } from "react-native-google-mobile-ads";
@@ -55,6 +55,10 @@ export function SponsoredLearningResourceCard({
     soundMuted,
     setSoundMuted,
   } = useAds();
+  const setSoundMutedRef = useRef(setSoundMuted);
+  setSoundMutedRef.current = setSoundMuted;
+  const soundMutedRef = useRef(soundMuted);
+  soundMutedRef.current = soundMuted;
   const [requestNonce, setRequestNonce] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [creative, setCreative] = useState<{
@@ -94,13 +98,14 @@ export function SponsoredLearningResourceCard({
           logAdDiagnostic('unit-missing', { dev: __DEV__ });
           return null;
         }
-        logAdDiagnostic('ad-requested');
+        requestedAdUnitId = adUnitId;
+        logAdDiagnostic('ad-requested', { unit: adUnitId });
 
         const ad = await ads.NativeAd.createForAdRequest(adUnitId, {
           // UMP/TFUA is the privacy gate; this request flag independently
           // ensures the creative is not behaviorally personalized.
           requestNonPersonalizedAdsOnly: true,
-          startVideoMuted: soundMuted,
+          startVideoMuted: soundMutedRef.current,
           aspectRatio: ads.NativeMediaAspectRatio.LANDSCAPE,
           keywords: [
             "education",
@@ -139,18 +144,14 @@ export function SponsoredLearningResourceCard({
           });
         });
         ad.addAdEventListener(ads.NativeAdEventType.VIDEO_MUTED, () => {
-          void setSoundMuted(true);
+          void setSoundMutedRef.current(true);
         });
         ad.addAdEventListener(ads.NativeAdEventType.VIDEO_UNMUTED, () => {
-          void setSoundMuted(false);
-        });
-        ad.addAdEventListener(ads.NativeAdEventType.VIDEO_ENDED, () => {
-          if (cancelled) return;
-          setCreative(null);
-          setRequestNonce((value) => value + 1);
+          void setSoundMutedRef.current(false);
         });
 
-        logAdDiagnostic('ad-loaded');
+
+        logAdDiagnostic('ad-loaded', { unit: adUnitId, response: ad.responseId });
         void trackSponsoredAdLoaded(adUnitId, ad.responseId);
         setCreative({ nativeAd: ad, ads });
         return ad;
@@ -173,9 +174,7 @@ export function SponsoredLearningResourceCard({
         if (requestedAdUnitId) {
           void trackSponsoredAdFailed(requestedAdUnitId, code);
         }
-        // A failed or no-fill answer leaves the compact placeholder in place
-        // and retries on a bounded timer that is cleared on unmount; the page
-        // itself never collapses.
+        // Hide unavailable inventory and retry after a delay; clear on unmount.
         retryTimer = setTimeout(() => {
           if (!cancelled) setRequestNonce((value) => value + 1);
         }, 30_000);
@@ -187,29 +186,13 @@ export function SponsoredLearningResourceCard({
       loadedAd?.destroy();
       setCreative(null);
     };
-  }, [adsReady, canRequestAds, dismissed, requestNonce, setSoundMuted, soundMuted]);
+  }, [adsReady, canRequestAds, dismissed, requestNonce]);
 
   if (!adsReady || !canRequestAds || dismissed) {
     return null;
   }
 
-  if (!creative) {
-    return (
-      <View style={[styles.loadingCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
-        <Text style={[styles.loadingLabel, { color: colors.mutedForeground, fontFamily: colors.fontFamily.sansSemiBold }]}>
-          {t("Sponsored learning resource")}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("Dismiss advertisement")}
-          onPress={dismissPlacement}
-          hitSlop={8}
-        >
-          <Feather name="x" size={17} color={colors.mutedForeground} />
-        </Pressable>
-      </View>
-    );
-  }
+  if (!creative) return null;
 
   const { nativeAd, ads } = creative;
   const NativeAdView = ads.NativeAdView;

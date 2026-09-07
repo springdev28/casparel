@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adRequestAllowed, canDisableAds, shouldShowSponsoredAd } from './ad-placement';
+import { adRequestAllowed, adSessionReady, canDisableAds, shouldShowSponsoredAd } from './ad-placement';
 
 describe('shouldShowSponsoredAd', () => {
   it('shows a scrollable sponsored section on ordinary app pages', () => {
@@ -57,6 +57,7 @@ describe('who may turn advertising off', () => {
 describe('when an ad may be requested', () => {
   const allowed = {
     sdkReady: true,
+    entitlementReady: true,
     preferencesReady: true,
     consentGranted: true,
     adsDisabled: false,
@@ -68,6 +69,7 @@ describe('when an ad may be requested', () => {
   });
 
   it('waits for consent, the SDK, and the saved preferences', () => {
+    expect(adRequestAllowed({ ...allowed, entitlementReady: false })).toBe(false);
     expect(adRequestAllowed({ ...allowed, consentGranted: false })).toBe(false);
     expect(adRequestAllowed({ ...allowed, sdkReady: false })).toBe(false);
     expect(adRequestAllowed({ ...allowed, preferencesReady: false })).toBe(false);
@@ -93,4 +95,12 @@ describe('when an ad may be requested', () => {
   it('keeps showing ads to an account no longer entitled to turn them off', () => {
     expect(adRequestAllowed({ ...allowed, adsDisabled: true })).toBe(true);
   });
+});
+
+
+it('allows guests without waiting for an account or purchase SDK', () => {
+  expect(adSessionReady({ authLoading: false, isAuthenticated: false, serverPlanKnown: false })).toBe(true);
+  expect(adSessionReady({ authLoading: true, isAuthenticated: false, serverPlanKnown: false })).toBe(false);
+  expect(adSessionReady({ authLoading: false, isAuthenticated: true, serverPlanKnown: false })).toBe(false);
+  expect(adSessionReady({ authLoading: false, isAuthenticated: true, serverPlanKnown: true })).toBe(true);
 });

@@ -10,6 +10,12 @@
  * (Casparel, Google Classroom, Quizlet, Pro …) stay untranslated.
  */
 const TR: Record<string, string> = {
+  "Your purchase is complete. Your account is syncing; please do not purchase again.": "Satın alma işlemin tamamlandı. Hesabın eşitleniyor; lütfen yeniden satın alma.",
+  "You already have a subscription. Manage it through the store where you purchased it.": "Zaten bir aboneliğin var. Aboneliğini satın aldığın mağazadan yönet.",
+  "Payment complete. Your account has been refreshed.": "Ödeme tamamlandı. Hesabın güncellendi.",
+  "Payment complete. Your plan is still syncing. Please do not purchase again.": "Ödeme tamamlandı. Planın hâlâ eşitleniyor. Lütfen yeniden satın alma.",
+  "Checkout could not be completed. Check your billing status before trying again.": "Ödeme işlemi tamamlanamadı. Yeniden denemeden önce faturalandırma durumunu kontrol et.",
+  "Billing is temporarily unavailable. Please try again shortly.": "Faturalandırma geçici olarak kullanılamıyor. Lütfen biraz sonra yeniden dene.",
   "Plus and Pro fit any account: the same subscription, products, and allowances apply whether your role is student or teacher.": "Plus ve Pro her hesaba uyar: öğrenci ya da öğretmen rolünde olsan da aynı abonelik, ürünler ve haklar geçerlidir.",
   "5 classes, up to 100 members each": "Her biri en fazla 100 üyeli 5 sınıf",
   "20 classes, up to 300 members each": "Her biri en fazla 300 üyeli 20 sınıf",

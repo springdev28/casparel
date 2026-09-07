@@ -14,6 +14,23 @@
  * Google Classroom, the App Store.
  */
 const TR: Record<string, string> = {
+  "My workspace": "Çalışma alanım",
+  "LEARN WITH CONFIDENCE": "GÜVENLE ÖĞREN",
+  "A clearer path to learning.": "Öğrenmek için daha net bir yol.",
+  "Find trustworthy resources, plan your studies, and learn together. Your learning space, wherever you are.": "Güvenilir kaynaklar bul, çalışmalarını planla ve birlikte öğren. Nerede olursan ol, öğrenme alanın yanında.",
+  "Open my workspace": "Çalışma alanımı aç",
+  "View plans": "Planları görüntüle",
+  "Sign in to view plans": "Planları görmek için giriş yap",
+  "Resources you can trust": "Güvenebileceğin kaynaklar",
+  "Discover learning materials and understand what makes a source reliable.": "Öğrenme materyallerini keşfet ve bir kaynağı güvenilir kılan özellikleri anla.",
+  "Make room for progress": "Gelişime yer aç",
+  "Keep your goals, study sessions, and learning activities together.": "Hedeflerini, çalışma oturumlarını ve öğrenme etkinliklerini bir arada tut.",
+  "Learn together": "Birlikte öğren",
+  "Move between student and teacher workspaces without leaving the app.": "Uygulamadan ayrılmadan öğrenci ve öğretmen çalışma alanları arasında geçiş yap.",
+  "Ad privacy choices": "Reklam gizliliği tercihleri",
+  "Casparel home": "Casparel ana sayfa",
+  "Your purchase is complete. Your account is syncing; please do not purchase again.": "Satın alma işlemin tamamlandı. Hesabın eşitleniyor; lütfen yeniden satın alma.",
+  "You already have a subscription. Manage it through the store where you purchased it.": "Zaten bir aboneliğin var. Aboneliğini satın aldığın mağazadan yönet.",
   "Activities": "Etkinlikler",
   "Administration": "Yönetim",
   "Account, language and privacy": "Hesap, dil ve gizlilik",

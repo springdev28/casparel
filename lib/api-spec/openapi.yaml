@@ -380,6 +380,25 @@ paths:
         "401":
           description: Not authenticated
 
+  /users/me/entitlements/reconcile:
+    post:
+      operationId: reconcileMyEntitlements
+      tags: [auth]
+      summary: Verify the signed-in account's purchases with RevenueCat
+      responses:
+        "200":
+          description: Verified subscription state saved; manually provisioned plans are preserved
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reconciled]
+                properties:
+                  reconciled: { type: boolean }
+        "401": { description: Not authenticated }
+        "502": { description: Purchase verification temporarily unavailable }
+        "503": { description: Server purchase verification is not configured }
+
   /users/me/usage:
     get:
       operationId: getMyUsage

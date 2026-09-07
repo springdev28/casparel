@@ -225,9 +225,13 @@ export default function PaywallScreen() {
       if (!purchasedTier) return;
       Alert.alert(
         `${t('Welcome to Casparel')} ${TIER_TITLES[purchasedTier]}`,
-        t('Your subscription features are now unlocked. Thank you!'),
+        t('Your purchase is complete. Your account is syncing; please do not purchase again.'),
         [{ text: t('Great'), onPress: close }],
       );
+      return;
+    }
+    if (result === 'managed') {
+      Alert.alert(t('Manage or cancel subscription'), t('You already have a subscription. Manage it through the store where you purchased it.'));
       return;
     }
     if (result === 'cancelled') return; // they chose not to buy; say nothing
@@ -443,10 +447,11 @@ export default function PaywallScreen() {
                         ? t('Google Play returned an incomplete set of plans. Nothing can be charged until all Plus and Pro options are available.')
                       : t('The purchase service could not start. Nothing has been charged; please try again shortly.')}
             </Text>
-            {available ? (
-              <Button variant="outline" onPress={() => void refresh()} disabled={busy}>
-                {t('Retry')}
-              </Button>
+            {(availabilityIssue === 'configuration-error' || availabilityIssue === 'no-offering' || availabilityIssue === 'incomplete-offering') ? (
+              <Button variant="outline" loading={busy} onPress={async () => {
+                setBusy(true);
+                try { await refresh(); } finally { setBusy(false); }
+              }}>{t('Try again')}</Button>
             ) : null}
           </View>
         ) : (

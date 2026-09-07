@@ -99,6 +99,8 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.REVENUECAT_WEBHOOK_AUTH;
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe("POST /api/webhooks/revenuecat", () => {
@@ -402,5 +404,35 @@ describe("POST /api/webhooks/revenuecat, TRANSFER", () => {
 
     expect(repeat.body).toEqual({ received: true, duplicate: true });
     expect(db.select).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe("webhooks with authoritative purchase verification", () => {
+  it("keeps a renewed subscription when an older expiry event arrives", async () => {
+    vi.stubEnv("REVENUECAT_SECRET_API_KEY", "server-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({
+      subscriber: { entitlements: { pro: { expires_date: "2099-01-01T00:00:00Z" } } },
+    }) }));
+    const res = await post({ event: { id: "old-expiry", type: "EXPIRATION", app_user_id: "42", entitlement_ids: ["plus"] } }, SECRET);
+    expect(res.status).toBe(200);
+    expect(setMock).toHaveBeenCalledWith({ plan: "pro", planExpiresAt: "2099-01-01T00:00:00.000Z" });
+  });
+
+  it("revokes a source transferred to an anonymous identity", async () => {
+    vi.stubEnv("REVENUECAT_SECRET_API_KEY", "server-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ subscriber: { entitlements: {} } }) }));
+    const res = await post({ event: { id: "to-anonymous", type: "TRANSFER", transferred_from: ["42"], transferred_to: ["$RCAnonymousID:new"] } }, SECRET);
+    expect(res.status).toBe(200);
+    expect(setMock).toHaveBeenCalledWith({ plan: "free", planExpiresAt: null });
+  });
+
+  it("releases the event claim when RevenueCat cannot verify so delivery can retry", async () => {
+    vi.stubEnv("REVENUECAT_SECRET_API_KEY", "server-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+    const res = await post({ event: { id: "retry-verification", type: "RENEWAL", app_user_id: "42", entitlement_ids: ["pro"] } }, SECRET);
+    expect(res.status).toBe(500);
+    expect(setMock).not.toHaveBeenCalled();
+    expect(deleteWhereMock).toHaveBeenCalledTimes(1);
   });
 });

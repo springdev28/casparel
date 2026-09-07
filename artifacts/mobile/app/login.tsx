@@ -73,7 +73,7 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Logo / Brand */}
-        <View style={styles.brandRow}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("Casparel home")} onPress={() => router.navigate('/home')} style={styles.brandRow}>
           <View
             style={[
               styles.logoBox,
@@ -97,7 +97,7 @@ export default function LoginScreen() {
           >
             Casparel
           </Text>
-        </View>
+        </Pressable>
 
         <View style={styles.headingBlock}>
           <Text

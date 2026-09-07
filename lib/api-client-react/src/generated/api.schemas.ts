@@ -2577,6 +2577,10 @@ export type UploadAvatarBody = {
   file: Blob;
 };
 
+export type ReconcileMyEntitlements200 = {
+  reconciled: boolean;
+};
+
 export type SubmitSeatingSuggestionBody = {
   /**
      * @minLength 3

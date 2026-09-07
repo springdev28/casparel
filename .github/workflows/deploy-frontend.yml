@@ -229,7 +229,7 @@ jobs:
           # Public client identifiers. Keeping them as repository variables
           # makes the provider dashboards the source of truth while ensuring
           # Vite actually inlines them into the production bundle.
-          VITE_REVENUECAT_WEB_API_KEY: ${{ vars.VITE_REVENUECAT_WEB_API_KEY }}
+          VITE_REVENUECAT_WEB_API_KEY: ${{ vars.VITE_REVENUECAT_WEB_API_KEY || secrets.VITE_REVENUECAT_WEB_API_KEY }}
           VITE_ADSENSE_CLIENT_ID: ${{ vars.VITE_ADSENSE_CLIENT_ID }}
           VITE_ADSENSE_SLOT_INLINE: ${{ vars.VITE_ADSENSE_SLOT_INLINE }}
 

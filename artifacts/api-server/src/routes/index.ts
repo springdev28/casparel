@@ -24,6 +24,7 @@ import learningWorkflowRouter from "./learningWorkflow";
 import canvasesRouter from "./canvases";
 import directMessagesRouter from "./directMessages";
 import webhooksRouter from "./webhooks";
+import billingRouter from "./billing";
 import supportRouter from "./support";
 
 const router: IRouter = Router();
@@ -49,6 +50,7 @@ router.use(learningWorkflowRouter);
 router.use(canvasesRouter);
 router.use(directMessagesRouter);
 router.use(webhooksRouter);
+router.use(billingRouter);
 router.use(supportRouter);
 
 export default router;

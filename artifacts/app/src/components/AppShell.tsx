@@ -55,6 +55,7 @@ import {
 } from "@workspace/edu-ds/components/ui/select";
 import {
   useGetMe,
+  getGetMeQueryKey,
   useGetGCStatus,
   useGetGCAuthUrl,
   useDisconnectGoogle,
@@ -199,7 +200,7 @@ interface AppShellProps {
 }
 
 export default function AppShell({ children }: AppShellProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const nativeShell = useMemo(() => {
     try {
       return localStorage.getItem("casparel_native_shell") === "true";
@@ -583,23 +584,14 @@ export default function AppShell({ children }: AppShellProps) {
       const result = await switchRoleMutation.mutateAsync({
         data: { role: newRole as RoleSwitchInputRole },
       });
-      // Store the fresh token so subsequent requests carry the new role
+      await queryClient.cancelQueries();
       localStorage.setItem(TOKEN_KEY, result.token);
-      // The Android shell owns a second, secure copy of the token. Tell it
-      // about the replacement before reloading, otherwise its preload script
-      // restores the previous role token and silently undoes the switch.
+      queryClient.setQueryData(getGetMeQueryKey(), result.user);
       notifySessionChanged();
-      queryClient.clear();
-      // A role is a workspace-wide change. Start the new workspace from its
-      // dashboard, with a full navigation so every role-dependent query and
-      // component reads the replacement token. Reloading the current URL was
-      // unsafe when it happened to be the public root: the user was dropped
-      // out of the product immediately after changing roles.
-      const configuredBase = import.meta.env.BASE_URL;
-      const basePath = configuredBase.endsWith("/")
-        ? configuredBase.slice(0, -1)
-        : configuredBase;
-      window.location.replace(basePath + "/dashboard");
+      // Start the selected workspace using client navigation. A document reload
+      // races the native secure-store write and can restore the previous token.
+      navigate("/dashboard");
+      await queryClient.invalidateQueries();
     } catch {
       toast({
         title: "Error",
