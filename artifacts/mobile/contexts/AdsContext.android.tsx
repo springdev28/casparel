@@ -12,6 +12,8 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { adPreferencesQueryKey, adPreferencesQueryOptions } from "@/utils/ad-preferences-query";
 import type { AdsConsentInfo } from "react-native-google-mobile-ads";
 import { getGetMyUsageQueryKey, useGetMyUsage } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -96,6 +98,10 @@ async function initializeSdk(ads: GoogleMobileAdsModule): Promise<void> {
 export function AdsProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading: authLoading, user, token } = useAuth();
   const { level } = usePurchases();
+  const accountId = isAuthenticated ? user?.id ?? null : null;
+  const queryClient = useQueryClient();
+  const accountPreferences = useQuery(adPreferencesQueryOptions(accountId, token));
+  const [cachedUserId, setCachedUserId] = useState<number | null | undefined>(undefined);
   const { ready: onboardingReady, needsOnboarding } = useOnboarding();
   // Entitlement is the wider of the store's answer and the server's: the
   // Review account and Institutional seats hold Pro-level access granted by
@@ -173,75 +179,70 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     setPreferencesReady(false);
+    setCachedUserId(undefined);
     void (async () => {
-      // Device cache first so the gate can settle offline…
       const [storedMuted, storedDisabled] = await Promise.all([
         storage.getItemAsync(AD_SOUND_MUTED_KEY),
-        user?.id != null
-          ? storage.getItemAsync(`${ADS_DISABLED_KEY}:${user.id}`)
+        accountId !== null
+          ? storage.getItemAsync(`${ADS_DISABLED_KEY}:${accountId}`)
           : Promise.resolve(null),
       ]);
       if (cancelled) return;
       setSoundMutedState(storedMuted === "true");
       setAdsDisabledState(storedDisabled === "true");
-      // Do not request ads until the account copy has answered too.
-
-      // …then the account's stored answer wins, so the choice follows the
-      // person to a reinstalled or second device.
-      if (!token) {
+      setCachedUserId(accountId);
+      if (accountId === null) {
         setPreferencesUserId(null);
         setPreferencesReady(true);
-        return;
-      }
-      try {
-        const response = await fetch(`${apiOrigin}/api/users/me/preferences`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok || cancelled) return;
-        const data = (await response.json()) as {
-          adPreferences?: { adsDisabled?: boolean; soundMuted?: boolean };
-        };
-        if (cancelled) return;
-        setPreferencesUserId(user?.id ?? null);
-        setPreferencesReady(true);
-        if (!data.adPreferences) return;
-        if (typeof data.adPreferences.soundMuted === "boolean") {
-          setSoundMutedState(data.adPreferences.soundMuted);
-          await storage.setItemAsync(
-            AD_SOUND_MUTED_KEY,
-            String(data.adPreferences.soundMuted),
-          );
-        }
-        if (typeof data.adPreferences.adsDisabled === "boolean" && user?.id != null) {
-          setAdsDisabledState(data.adPreferences.adsDisabled);
-          await storage.setItemAsync(
-            `${ADS_DISABLED_KEY}:${user.id}`,
-            String(data.adPreferences.adsDisabled),
-          );
-        }
-      } catch {
-        // The device cache already answered.
       }
     })().catch(() => {
-      // Unreadable preferences keep advertising off.
+      // A signed-in account can use its verified server preferences even
+      // when secure storage is unavailable. Guests still fail closed.
+      if (!cancelled && accountId !== null) setCachedUserId(accountId);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [token, user?.id]);
+    return () => { cancelled = true; };
+  }, [accountId]);
+
+  useEffect(() => {
+    const preferences = accountPreferences.data;
+    if (accountId === null || cachedUserId !== accountId || preferences?.userId !== accountId) return;
+    setSoundMutedState(preferences.soundMuted);
+    setAdsDisabledState(preferences.adsDisabled);
+    setPreferencesUserId(accountId);
+    setPreferencesReady(true);
+    void Promise.all([
+      storage.setItemAsync(AD_SOUND_MUTED_KEY, String(preferences.soundMuted)),
+      storage.setItemAsync(`${ADS_DISABLED_KEY}:${accountId}`, String(preferences.adsDisabled)),
+    ]).catch(() => {
+      // The verified server answer remains usable if the device cache is full.
+    });
+  }, [accountId, accountPreferences.data, cachedUserId]);
+
+  const rememberPreferenceChange = useCallback(async (next: { soundMuted?: boolean; adsDisabled?: boolean }) => {
+    if (accountId === null) return;
+    const queryKey = adPreferencesQueryKey(accountId);
+    if (!queryClient.getQueryData(queryKey)) return;
+    // An older in-flight read must not undo a choice just made on this phone.
+    await queryClient.cancelQueries({ queryKey });
+    queryClient.setQueryData(queryKey, (previous: typeof accountPreferences.data) =>
+      previous ? { ...previous, ...next } : previous,
+    );
+  }, [accountId, queryClient]);
 
   const setSoundMuted = useCallback(
     async (muted: boolean) => {
+      await rememberPreferenceChange({ soundMuted: muted });
       setSoundMutedState(muted);
       await storage.setItemAsync(AD_SOUND_MUTED_KEY, String(muted));
       pushPreferencesToAccount({ adsDisabled, soundMuted: muted });
     },
-    [adsDisabled, pushPreferencesToAccount],
+    [adsDisabled, pushPreferencesToAccount, rememberPreferenceChange],
   );
 
   const setAdsDisabled = useCallback(
     async (disabled: boolean) => {
       if (disabled && !canDisableAds) return false;
+      await rememberPreferenceChange({ adsDisabled: disabled });
       setAdsDisabledState(disabled);
       if (user?.id != null) {
         await storage.setItemAsync(
@@ -252,7 +253,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
       pushPreferencesToAccount({ adsDisabled: disabled, soundMuted });
       return true;
     },
-    [canDisableAds, pushPreferencesToAccount, soundMuted, user?.id],
+    [canDisableAds, pushPreferencesToAccount, soundMuted, user?.id, rememberPreferenceChange],
   );
 
   useEffect(() => {
@@ -364,7 +365,8 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
   const requestAllowed = adRequestAllowed({
     sdkReady: ready && adsModule !== null && onboardingReady && !(isAuthenticated && needsOnboarding),
     entitlementReady: adSessionReady({ authLoading, isAuthenticated, serverPlanKnown: usage !== undefined }),
-    preferencesReady: preferencesReady && preferencesUserId === (user?.id ?? null),
+    preferencesReady: preferencesReady && preferencesUserId === accountId &&
+      (!isAuthenticated || accountPreferences.data?.userId === accountId),
     consentGranted: consentInfo?.canRequestAds === true,
     adsDisabled,
     entitlement,
